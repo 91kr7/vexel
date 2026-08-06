@@ -24,6 +24,7 @@ type: REST endpoint
 - `GET /api/containers/:id/inspect` → `200`, `ContainerInspect` (see `containers-service.md`).
 - `PATCH /api/containers/:id/config` → request body `ContainerConfigUpdate`; `200`,
   `ContainerConfigUpdateResult` (see `containers-service.md`).
+- `GET /api/containers/:id/logs/stream` → the log stream; specified in `container-logs-endpoint.md`.
 
 ## Rules and invariants
 

@@ -6,8 +6,9 @@ type: UI component
 
 # ContainerDetailPanel
 
-**Purpose** → the container detail surface opened from a row of the Containers screen: inspect
-data organised in a Config tab (editable) and an Inspect tab (read-only, with the raw payload).
+**Purpose** → the container detail surface opened from a row of the Containers screen: the
+container's logs, its inspect data in an editable Config tab, and the read-only Inspect tab with
+the raw payload.
 
 ## Contract
 
@@ -19,7 +20,10 @@ data organised in a Config tab (editable) and an Inspect tab (read-only, with th
 
 Description:
 - A `DetailPanel` (untitled — the container's name/id/state are already shown by the table row it
-  expands below) holding a `Tabs` row (Config, Inspect) and the active tab's content.
+  expands below) holding a `Tabs` row (Logs, Config, Inspect) and the active tab's content. Config
+  is the tab selected when the panel opens.
+Shows (Logs tab):
+- The container's `ContainerLogsView`; the inspect data is neither needed nor awaited for it.
 Shows (Config tab, view mode):
 - A `DefinitionList` of restart policy, CPU limit, memory limit, port mapping, health check command
   and networks; collapsible sections for the full environment variable list and the mount list; an
@@ -59,6 +63,7 @@ Actions:
 
 ## Dependencies
 
+- ContainerLogsView
 - ui-library: DetailPanel, Tabs, DefinitionList, CollapsibleSection, CodeViewer, Select, NumberField,
   Toggle, TextField, KeyValueEditor, RepeatableRowList, FormFooter, SectionHeader, Row, Stack,
   Button, ErrorBanner, EmptyState, useToast
@@ -71,3 +76,4 @@ Actions:
 - plan-docker_management_app/REQ-24
 - plan-docker_management_app/REQ-25
 - plan-docker_management_app/REQ-26
+- plan-docker_management_app/REQ-30

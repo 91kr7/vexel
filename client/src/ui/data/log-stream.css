@@ -1,0 +1,71 @@
+/* Log stream surface — sunken, dense monospace lines. No blur and no animation:
+   this region repaints on every incoming line. */
+.ui-log-stream {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.ui-log-stream__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.ui-log-stream__surface {
+  position: relative;
+  border-radius: var(--radius-md);
+  border: var(--border-width-hairline) solid var(--color-border-subtle);
+  background: var(--color-void);
+  overflow: hidden;
+}
+
+.ui-log-stream__lines {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-3);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-primary);
+}
+
+.ui-log-stream__line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: pre;
+  overflow: hidden;
+}
+
+.ui-log-stream__line--stderr {
+  color: var(--color-danger-strong);
+}
+
+.ui-log-stream__line--active {
+  background: var(--color-accent-tint);
+  border-radius: var(--radius-sm);
+}
+
+.ui-log-stream__timestamp {
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+.ui-log-stream__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ui-log-stream__match {
+  background: var(--color-warning-tint);
+  color: var(--color-warning);
+  border-radius: var(--radius-sm);
+}
+
+.ui-log-stream__jump {
+  position: absolute;
+  right: var(--space-4);
+  bottom: var(--space-3);
+}

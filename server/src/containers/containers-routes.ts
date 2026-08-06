@@ -1,5 +1,6 @@
-import { Router, type Response } from "express";
+import { Router, type Request, type Response } from "express";
 import { DockerDaemonError } from "../docker/errors.js";
+import { streamContainerLogs, type ContainerLogOptions } from "./container-logs-service.js";
 import {
   getContainerInspect,
   killContainer,
@@ -60,6 +61,41 @@ containersRouter.patch("/:id/config", async (req, res) => {
   }
 });
 
+containersRouter.get("/:id/logs/stream", async (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  let cancel: (() => void) | undefined;
+  let closed = false;
+
+  req.on("close", () => {
+    closed = true;
+    cancel?.();
+  });
+
+  try {
+    cancel = await streamContainerLogs(req.params.id, readLogOptions(req), {
+      onLine: (line) => writeServerSentEvent(res, "line", line),
+      onError: (message) => {
+        writeServerSentEvent(res, "error", { message });
+        res.end();
+      },
+      onEnd: () => {
+        writeServerSentEvent(res, "end", {});
+        res.end();
+      },
+    });
+    // The client may have disconnected while the stream was being opened.
+    if (closed) cancel();
+  } catch (error) {
+    if (closed) return;
+    writeServerSentEvent(res, "error", { message: (error as Error).message });
+    res.end();
+  }
+});
+
 containersRouter.post("/prune", async (_req, res) => {
   try {
     const result = await pruneStoppedContainers();
@@ -68,6 +104,29 @@ containersRouter.post("/prune", async (_req, res) => {
     respondError(res, error);
   }
 });
+
+function readLogOptions(req: Request): ContainerLogOptions {
+  const query = req.query as Record<string, string | undefined>;
+  const tail = query.tail;
+  return {
+    stdout: readBooleanQuery(query.stdout, true),
+    stderr: readBooleanQuery(query.stderr, true),
+    follow: readBooleanQuery(query.follow, true),
+    timestamps: readBooleanQuery(query.timestamps, false),
+    tail: tail === undefined || tail === "all" || Number.isNaN(Number(tail)) ? "all" : Number(tail),
+    since: query.since,
+    until: query.until,
+  };
+}
+
+function readBooleanQuery(value: string | undefined, fallback: boolean): boolean {
+  if (value === undefined) return fallback;
+  return value !== "false" && value !== "0";
+}
+
+function writeServerSentEvent(res: Response, event: string, payload: unknown): void {
+  res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
+}
 
 async function runLifecycle(res: Response, action: () => Promise<void>): Promise<void> {
   try {

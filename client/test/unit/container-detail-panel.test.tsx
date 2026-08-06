@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ContainerDetailPanel } from '../../src/containers/ContainerDetailPanel';
 import type { ContainerInspect, ContainerSummary } from '../../src/data/containers-client';
@@ -66,16 +66,42 @@ function renderPanel(onContainerReplaced = vi.fn(), onClose = vi.fn()) {
 }
 
 // The panel's read hook subscribes to daemon events via a module-level
-// EventSource (client/src/data/event-stream.ts), unavailable in jsdom.
+// EventSource (client/src/data/event-stream.ts), and the Logs tab subscribes to
+// the log stream the same way; neither is available in jsdom.
 class FakeEventSource {
+  static instances: FakeEventSource[] = [];
   onmessage: ((event: { data: string }) => void) | null = null;
-  constructor(public url: string) {}
+  private listeners = new Map<string, Array<(event: unknown) => void>>();
+  closed = false;
+
+  constructor(public url: string) {
+    FakeEventSource.instances.push(this);
+  }
+
+  addEventListener(type: string, listener: (event: unknown) => void) {
+    const existing = this.listeners.get(type) ?? [];
+    existing.push(listener);
+    this.listeners.set(type, existing);
+  }
+
+  close() {
+    this.closed = true;
+  }
+
+  emit(type: string, data?: string) {
+    for (const listener of this.listeners.get(type) ?? []) listener({ data });
+  }
+}
+
+function logStreamSource(): FakeEventSource | undefined {
+  return FakeEventSource.instances.findLast((instance) => instance.url.includes('/logs/stream'));
 }
 
 let fetchMock: ReturnType<typeof vi.fn>;
 let configResponse: { ok: boolean; status: number; body: unknown };
 
 beforeEach(() => {
+  FakeEventSource.instances = [];
   vi.stubGlobal('EventSource', FakeEventSource);
   configResponse = { ok: true, status: 200, body: { path: 'in-place', container } };
   fetchMock = vi.fn((url: string) => {
@@ -197,6 +223,37 @@ describe('ContainerDetailPanel — Config tab (REQ-24, REQ-25)', () => {
 
     expect(screen.getByRole('button', { name: 'Edit configuration' })).toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([url]) => (url as string).includes('/config'))).toBe(false);
+  });
+});
+
+describe('ContainerDetailPanel — Logs tab (REQ-30)', () => {
+  // container-detail-panel.md — the tab row is Logs, Config, Inspect, and Config is the tab selected on open
+  it('offers a Logs tab first and opens on the Config tab', async () => {
+    renderPanel();
+
+    await screen.findByRole('button', { name: 'Edit configuration' });
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Logs', 'Config', 'Inspect']);
+    expect(screen.getByRole('tab', { name: 'Config' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Logs' })).toHaveAttribute('aria-selected', 'false');
+  });
+
+  // container-detail-panel.md — the Logs tab shows the container's logs, neither needing nor awaiting the inspect data
+  it("shows the container's log stream without waiting for the inspect data", async () => {
+    // The inspect request never settles here: the Logs tab must not depend on it.
+    fetchMock.mockImplementation((url: string) =>
+      url.includes('/inspect') ? new Promise(() => {}) : Promise.reject(new Error(`Unexpected fetch url: ${url}`)),
+    );
+    const user = userEvent.setup();
+    renderPanel();
+
+    await user.click(screen.getByRole('tab', { name: 'Logs' }));
+
+    await waitFor(() => expect(logStreamSource()).toBeDefined());
+    expect(logStreamSource()!.url).toContain('/api/containers/container-1/logs/stream');
+
+    act(() => logStreamSource()!.emit('line', JSON.stringify({ seq: 1, stream: 'stdout', text: 'log line from the daemon' })));
+
+    expect(await screen.findByText('log line from the daemon')).toBeInTheDocument();
   });
 });
 

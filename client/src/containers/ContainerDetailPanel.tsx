@@ -31,10 +31,13 @@ import {
   type MountInfo,
   type PortBinding,
 } from '../data/containers-client';
+import { ContainerLogsView } from './ContainerLogsView';
 import { useContainerDetail } from '../data/use-container-detail';
 import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
 import { useProgress } from '../shell/services/ProgressService';
+
+type ContainerDetailTab = 'logs' | 'config' | 'inspect';
 
 export interface ContainerDetailPanelProps {
   container: ContainerSummary;
@@ -167,7 +170,7 @@ export function ContainerDetailPanel({ container, onClose, onContainerReplaced }
   const { run } = useProgress();
   const { reportError } = useErrorReporter();
 
-  const [activeTab, setActiveTab] = useState<'config' | 'inspect'>('config');
+  const [activeTab, setActiveTab] = useState<ContainerDetailTab>('config');
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<ConfigFormState | null>(null);
@@ -397,19 +400,26 @@ export function ContainerDetailPanel({ container, onClose, onContainerReplaced }
       <Stack gap="var(--space-4)">
         <Tabs
           tabs={[
+            { id: 'logs', label: 'Logs' },
             { id: 'config', label: 'Config' },
             { id: 'inspect', label: 'Inspect' },
           ]}
           activeId={activeTab}
-          onSelect={(id) => setActiveTab(id === 'inspect' ? 'inspect' : 'config')}
+          onSelect={(id) => setActiveTab(id as ContainerDetailTab)}
         />
-        {error ? <ErrorBanner title="Could not load container details" detail={error} onRetry={refresh} /> : null}
-        {!inspect ? (
-          <EmptyState title={loaded ? 'No inspect data available' : 'Loading container details…'} />
-        ) : activeTab === 'config' ? (
-          renderConfigView(inspect)
+        {activeTab === 'logs' ? (
+          <ContainerLogsView container={container} />
         ) : (
-          renderInspectView(inspect)
+          <>
+            {error ? <ErrorBanner title="Could not load container details" detail={error} onRetry={refresh} /> : null}
+            {!inspect ? (
+              <EmptyState title={loaded ? 'No inspect data available' : 'Loading container details…'} />
+            ) : activeTab === 'config' ? (
+              renderConfigView(inspect)
+            ) : (
+              renderInspectView(inspect)
+            )}
+          </>
         )}
       </Stack>
     </DetailPanel>

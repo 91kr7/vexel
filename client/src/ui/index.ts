@@ -44,11 +44,16 @@ export { FieldMessage, type FieldMessageProps, type FieldMessageTone } from './c
 export { KeyValueEditor, type KeyValueEditorProps, type KeyValuePair } from './controls/KeyValueEditor';
 export { RepeatableRowList, type RepeatableRowListProps } from './controls/RepeatableRowList';
 export { FormFooter, type FormFooterProps } from './controls/FormFooter';
+export { SegmentedControl, type SegmentedControlProps, type SegmentedOption } from './controls/SegmentedControl';
+export { TailSizeSelector, type TailSizeSelectorProps, type TailSize } from './controls/TailSizeSelector';
+export { TimeRangeField, type TimeRangeFieldProps, type TimeRange } from './controls/TimeRangeField';
+export { StreamSearchField, type StreamSearchFieldProps } from './controls/StreamSearchField';
 
 export { DataTable, type DataTableProps, type DataTableColumn } from './data/DataTable';
 export { StatusDotCell, type StatusDotCellProps, TwoLineCell, type TwoLineCellProps, MetaCell, type MetaCellProps } from './data/TableCells';
 export { DefinitionList, type DefinitionListProps, type DefinitionItem } from './data/DefinitionList';
 export { CodeViewer, type CodeViewerProps } from './data/CodeViewer';
+export { LogStream, type LogStreamProps, type LogStreamLine } from './data/LogStream';
 
 export { Modal, type ModalProps } from './feedback/Modal';
 export { ConfirmDialog, type ConfirmDialogProps } from './feedback/ConfirmDialog';
