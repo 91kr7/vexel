@@ -26,6 +26,84 @@ export interface PruneResult {
   reclaimedBytes: number;
 }
 
+export interface RestartPolicy {
+  name: string;
+  maximumRetryCount?: number;
+}
+
+export interface ResourceLimits {
+  cpus?: number;
+  memoryBytes?: number;
+}
+
+export interface PortBinding {
+  containerPort: number;
+  protocol: 'tcp' | 'udp';
+  hostPort?: number;
+  hostIp?: string;
+}
+
+export interface MountInfo {
+  type: string;
+  source: string;
+  destination: string;
+  readOnly: boolean;
+}
+
+export interface NetworkAttachment {
+  name: string;
+  ipAddress?: string;
+}
+
+export interface HealthCheckConfig {
+  test: string[];
+  intervalNanos?: number;
+  timeoutNanos?: number;
+  retries?: number;
+  startPeriodNanos?: number;
+}
+
+export interface HealthCheckResult {
+  status: string;
+  failingStreak?: number;
+  log: { start: string; end: string; exitCode: number; output: string }[];
+}
+
+export interface ContainerInspect {
+  id: string;
+  name: string;
+  image: string;
+  command: string[];
+  entrypoint: string[];
+  createdAt: string;
+  state: { status: string; startedAt?: string; finishedAt?: string; exitCode?: number };
+  restartPolicy: RestartPolicy;
+  resourceLimits: ResourceLimits;
+  env: string[];
+  ports: PortBinding[];
+  mounts: MountInfo[];
+  networks: NetworkAttachment[];
+  labels: Record<string, string>;
+  healthCheck?: HealthCheckConfig;
+  health?: HealthCheckResult;
+  raw: unknown;
+}
+
+/** Fields left `undefined` are kept as-is; `env`/`ports`/`mounts`/`healthCheck` require a recreate. */
+export interface ContainerConfigUpdate {
+  restartPolicy?: RestartPolicy;
+  resourceLimits?: ResourceLimits;
+  env?: string[];
+  ports?: PortBinding[];
+  mounts?: MountInfo[];
+  healthCheck?: HealthCheckConfig | null;
+}
+
+export interface ContainerConfigUpdateResult {
+  path: 'in-place' | 'recreate';
+  container: ContainerSummary;
+}
+
 async function extractErrorMessage(response: Response): Promise<string> {
   try {
     const body = (await response.json()) as { error?: string };
@@ -76,4 +154,20 @@ export async function pruneStoppedContainers(): Promise<PruneResult> {
   const response = await fetch('/api/containers/prune', { method: 'POST' });
   await requireOk(response);
   return (await response.json()) as PruneResult;
+}
+
+export async function fetchContainerInspect(id: string): Promise<ContainerInspect> {
+  const response = await fetch(`/api/containers/${encodeURIComponent(id)}/inspect`);
+  await requireOk(response);
+  return (await response.json()) as ContainerInspect;
+}
+
+export async function updateContainerConfig(id: string, update: ContainerConfigUpdate): Promise<ContainerConfigUpdateResult> {
+  const response = await fetch(`/api/containers/${encodeURIComponent(id)}/config`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(update),
+  });
+  await requireOk(response);
+  return (await response.json()) as ContainerConfigUpdateResult;
 }

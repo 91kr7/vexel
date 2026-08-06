@@ -1,6 +1,7 @@
 import { Router, type Response } from "express";
 import { DockerDaemonError } from "../docker/errors.js";
 import {
+  getContainerInspect,
   killContainer,
   listContainers,
   pauseContainer,
@@ -11,6 +12,8 @@ import {
   startContainer,
   stopContainer,
   unpauseContainer,
+  updateContainerConfig,
+  type ContainerConfigUpdate,
 } from "./containers-service.js";
 
 export const containersRouter = Router();
@@ -38,6 +41,23 @@ containersRouter.post("/:id/rename", async (req, res) => {
     return;
   }
   await runLifecycle(res, () => renameContainer(req.params.id, name));
+});
+
+containersRouter.get("/:id/inspect", async (req, res) => {
+  try {
+    res.json(await getContainerInspect(req.params.id));
+  } catch (error) {
+    respondError(res, error);
+  }
+});
+
+containersRouter.patch("/:id/config", async (req, res) => {
+  try {
+    const update = (req.body ?? {}) as ContainerConfigUpdate;
+    res.json(await updateContainerConfig(req.params.id, update));
+  } catch (error) {
+    respondError(res, error);
+  }
 });
 
 containersRouter.post("/prune", async (_req, res) => {

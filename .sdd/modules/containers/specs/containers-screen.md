@@ -39,6 +39,11 @@ Actions:
   discards the edit. Submitting an unchanged or empty value is a no-op.
 - The search field matches name, image or state (case-insensitive substring); state chips narrow to
   running / stopped (`created`, `exited`, `dead`) / paused (`paused`, `restarting`) / all.
+- Selecting a row (anywhere outside its action buttons) opens a `ContainerDetailPanel` inline below
+  it (REQ-24); selecting the same row again, or its close control, closes it. A selected container
+  that is removed from the daemon closes its detail panel; one merely filtered out of view stays
+  selected (its panel reappears if the filter changes back). After a configuration change recreates
+  the container, the panel stays open on the new container's id.
 
 ## Rules and invariants
 
@@ -52,6 +57,7 @@ Actions:
   MetaCell, ActionButtonGroup, TextField, IconButton, Card, ErrorBanner, EmptyState, Row, Stack,
   useToast
 - Containers client
+- ContainerDetailPanel
 - app-shell: ConfirmationService, ProgressService, ErrorReportingService
 
 ## Requirements served
@@ -61,4 +67,5 @@ Actions:
 - plan-docker_management_app/REQ-21
 - plan-docker_management_app/REQ-22
 - plan-docker_management_app/REQ-23
+- plan-docker_management_app/REQ-24
 - plan-docker_management_app/REQ-109

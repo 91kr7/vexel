@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type UIEvent } from 'react';
+import { Fragment, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type UIEvent } from 'react';
 import { ScrollArea } from '../glass/ScrollArea';
 import './data-table.css';
 
@@ -22,6 +22,9 @@ export interface DataTableProps<T> {
   selectedRowKey?: string;
   onRowSelect?: (row: T) => void;
   emptyState?: ReactNode;
+  /** Content rendered in normal flow directly below the row whose key matches `expandedRowKey`. */
+  expandedRowKey?: string;
+  renderExpanded?: (row: T) => ReactNode;
 }
 
 const OVERSCAN_ROWS = 6;
@@ -29,7 +32,9 @@ const OVERSCAN_ROWS = 6;
 /**
  * Dense data table with column definitions, hover/selected row states, and
  * virtualised scrolling when `maxHeight` is set (REQ-109): only the rows in
- * and around the visible window are mounted.
+ * and around the visible window are mounted. When `expandedRowKey` matches a
+ * mounted row, `renderExpanded` content is inserted in normal flow directly
+ * below that row, pushing the rows after it down.
  */
 export function DataTable<T>({
   columns,
@@ -40,6 +45,8 @@ export function DataTable<T>({
   selectedRowKey,
   onRowSelect,
   emptyState,
+  expandedRowKey,
+  renderExpanded,
 }: DataTableProps<T>) {
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -62,7 +69,12 @@ export function DataTable<T>({
     ? Math.min(rows.length, Math.ceil((scrollTop + viewportHeight) / rowHeight) + OVERSCAN_ROWS)
     : rows.length;
   const visibleRows = rows.slice(startIndex, endIndex);
-  const totalHeight = rows.length * rowHeight;
+  // Spacers stand in for the rows above/below the visible window, so the
+  // scrollbar reflects the full list while only the window is mounted; a
+  // spacer's height ignores an expanded row's extra height, an acceptable
+  // approximation for the moderate list sizes this table serves.
+  const topSpacerHeight = virtualized ? startIndex * rowHeight : 0;
+  const bottomSpacerHeight = virtualized ? (rows.length - endIndex) * rowHeight : 0;
 
   return (
     <div className="ui-data-table">
@@ -80,32 +92,34 @@ export function DataTable<T>({
         <div className="ui-data-table__empty">{emptyState}</div>
       ) : (
         <ScrollArea ref={scrollRef} maxHeight={maxHeight} onScroll={handleScroll}>
-          <div className="ui-data-table__body" style={{ height: virtualized ? totalHeight : undefined, position: 'relative' }}>
-            {visibleRows.map((row, index) => {
+          <div className="ui-data-table__body">
+            {topSpacerHeight > 0 ? <div style={{ height: topSpacerHeight }} /> : null}
+            {visibleRows.map((row) => {
               const key = rowKey(row);
-              const rowStyle: CSSProperties = virtualized
-                ? { position: 'absolute', top: (startIndex + index) * rowHeight, left: 0, right: 0, height: rowHeight, gridTemplateColumns }
-                : { height: rowHeight, gridTemplateColumns };
+              const rowStyle: CSSProperties = { height: rowHeight, gridTemplateColumns };
               const selected = key === selectedRowKey;
               return (
-                <div
-                  key={key}
-                  className={selected ? 'ui-data-table__row ui-data-table__row--selected' : 'ui-data-table__row'}
-                  style={rowStyle}
-                  onClick={onRowSelect ? () => onRowSelect(row) : undefined}
-                  aria-selected={onRowSelect ? selected : undefined}
-                >
-                  {columns.map((column) => (
-                    <div
-                      key={column.id}
-                      className={column.align === 'end' ? 'ui-data-table__cell ui-data-table__cell--end' : 'ui-data-table__cell'}
-                    >
-                      {column.render(row)}
-                    </div>
-                  ))}
-                </div>
+                <Fragment key={key}>
+                  <div
+                    className={selected ? 'ui-data-table__row ui-data-table__row--selected' : 'ui-data-table__row'}
+                    style={rowStyle}
+                    onClick={onRowSelect ? () => onRowSelect(row) : undefined}
+                    aria-selected={onRowSelect ? selected : undefined}
+                  >
+                    {columns.map((column) => (
+                      <div
+                        key={column.id}
+                        className={column.align === 'end' ? 'ui-data-table__cell ui-data-table__cell--end' : 'ui-data-table__cell'}
+                      >
+                        {column.render(row)}
+                      </div>
+                    ))}
+                  </div>
+                  {key === expandedRowKey && renderExpanded ? <div className="ui-data-table__expanded">{renderExpanded(row)}</div> : null}
+                </Fragment>
               );
             })}
+            {bottomSpacerHeight > 0 ? <div style={{ height: bottomSpacerHeight }} /> : null}
           </div>
         </ScrollArea>
       )}

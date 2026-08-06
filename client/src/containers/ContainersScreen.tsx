@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActionButtonGroup,
   Card,
@@ -34,6 +34,7 @@ import {
   type ContainerState,
   type ContainerSummary,
 } from '../data/containers-client';
+import { ContainerDetailPanel } from './ContainerDetailPanel';
 import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
 import { useProgress } from '../shell/services/ProgressService';
@@ -101,11 +102,12 @@ function matchesStateFilter(container: ContainerSummary, filter: string): boolea
 }
 
 /**
- * Containers screen (REQ-19–23, REQ-109): toolbar with search/state filters and
- * a bulk "Prune stopped" action, a dense virtualised table with per-row
- * lifecycle actions restricted to what the container's state allows, and
- * inline rename. Destructive actions (kill, remove, prune) go through the
- * shell's confirmation service.
+ * Containers screen (REQ-19–23, REQ-24–26, REQ-109): toolbar with search/state
+ * filters and a bulk "Prune stopped" action, a dense virtualised table with
+ * per-row lifecycle actions restricted to what the container's state allows,
+ * and inline rename. Selecting a row (outside its action buttons) opens its
+ * detail panel inline below it. Destructive actions (kill, remove, prune) go
+ * through the shell's confirmation service.
  */
 export function ContainersScreen({ containers, loaded, error, onRefresh }: ContainersScreenProps) {
   const { confirm } = useConfirmation();
@@ -118,6 +120,11 @@ export function ContainersScreen({ containers, loaded, error, onRefresh }: Conta
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (selectedId && !containers.some((container) => container.id === selectedId)) setSelectedId(undefined);
+  }, [containers, selectedId]);
 
   function setBusy(id: string, busy: boolean) {
     setBusyIds((current) => {
@@ -229,10 +236,14 @@ export function ContainersScreen({ containers, loaded, error, onRefresh }: Conta
     }
   }
 
+  function toggleSelection(container: ContainerSummary) {
+    setSelectedId((current) => (current === container.id ? undefined : container.id));
+  }
+
   function renderNameCell(container: ContainerSummary) {
     if (renamingId === container.id) {
       return (
-        <Row gap="var(--space-1)" align="center">
+        <Row gap="var(--space-1)" align="center" onClick={(event) => event.stopPropagation()}>
           <TextField
             value={renameValue}
             onChange={setRenameValue}
@@ -290,6 +301,19 @@ export function ContainersScreen({ containers, loaded, error, onRefresh }: Conta
           rows={filtered}
           rowKey={(container) => container.id}
           maxHeight="60vh"
+          selectedRowKey={selectedId}
+          onRowSelect={toggleSelection}
+          expandedRowKey={selectedId}
+          renderExpanded={(container) => (
+            <ContainerDetailPanel
+              container={container}
+              onClose={() => setSelectedId(undefined)}
+              onContainerReplaced={(newId) => {
+                setSelectedId(newId);
+                onRefresh();
+              }}
+            />
+          )}
           emptyState={
             <EmptyState
               title={loaded ? 'No containers match' : 'Loading containers…'}

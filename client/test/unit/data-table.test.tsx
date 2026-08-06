@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { DataTable, type DataTableColumn } from '../../src/ui';
+import userEvent from '@testing-library/user-event';
+import { ActionButtonGroup, DataTable, type DataTableColumn } from '../../src/ui';
 
 afterEach(cleanup);
 
@@ -87,5 +88,43 @@ describe('DataTable', () => {
     render(<DataTable columns={columns} rows={[]} rowKey={(row) => row.id} emptyState={<span>Nothing to show</span>} />);
     expect(screen.getByText('Nothing to show')).toBeInTheDocument();
     expect(screen.queryByText(/^row-\d+$/)).not.toBeInTheDocument();
+  });
+
+  // ui-library/specs/data-table.md — renderExpanded's content is inserted in flow directly below the matching row
+  it('inserts the expanded row content in flow directly below the row whose key matches expandedRowKey', () => {
+    const rows = makeRows(3);
+    const { container } = render(
+      <DataTable
+        columns={columns}
+        rows={rows}
+        rowKey={(row) => row.id}
+        expandedRowKey="row-1"
+        renderExpanded={(row) => <span>{`expanded-${row.id}`}</span>}
+      />,
+    );
+
+    const body = container.querySelector('.ui-data-table__body') as HTMLElement;
+    const entries = Array.from(body.children)
+      .filter((child) => child.classList.contains('ui-data-table__row') || child.classList.contains('ui-data-table__expanded'))
+      .map((child) => (child.classList.contains('ui-data-table__expanded') ? 'expanded' : child.textContent));
+
+    expect(entries).toEqual(['row-0', 'row-1', 'expanded', 'row-2']);
+  });
+
+  // ui-library/specs/action-button-group.md — a row action click never also triggers the containing row's onRowSelect
+  it('does not trigger onRowSelect when a row action button is clicked', async () => {
+    const user = userEvent.setup();
+    const onRowSelect = vi.fn();
+    const onAction = vi.fn();
+    const actionColumns: DataTableColumn<Row>[] = [
+      { id: 'id', header: 'ID', render: (row) => row.id },
+      { id: 'actions', header: '', render: () => <ActionButtonGroup actions={[{ id: 'go', label: 'go', onClick: onAction }]} /> },
+    ];
+    render(<DataTable columns={actionColumns} rows={makeRows(1)} rowKey={(row) => row.id} onRowSelect={onRowSelect} />);
+
+    await user.click(screen.getByRole('button', { name: 'go' }));
+
+    expect(onAction).toHaveBeenCalledTimes(1);
+    expect(onRowSelect).not.toHaveBeenCalled();
   });
 });

@@ -31,6 +31,33 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   `PruneResult`: `{ removedIds: string[], reclaimedBytes: number }`.
 - `startStatsSampler(): void` — starts the background CPU/memory sampler; idempotent (a second call
   is a no-op).
+- `getContainerInspect(id): Promise<ContainerInspect>` — full inspect data via `GET
+  /containers/{id}/json` (REQ-24, REQ-26).
+  - `ContainerInspect`: `{ id, name, image, command, entrypoint, createdAt, state: { status,
+    startedAt?, finishedAt?, exitCode? }, restartPolicy, resourceLimits, env, ports, mounts,
+    networks, labels, healthCheck?, health?, raw }`.
+  - `restartPolicy`: `{ name, maximumRetryCount? }`. `resourceLimits`: `{ cpus?, memoryBytes? }`,
+    `cpus` read from `NanoCpus` falling back to `CpuQuota/CpuPeriod`.
+  - `ports`: `{ containerPort, protocol, hostPort?, hostIp? }[]`. `mounts`: `{ type, source,
+    destination, readOnly }[]`. `networks`: `{ name, ipAddress? }[]`.
+  - `healthCheck` (config) and `health` (latest results: `{ status, failingStreak?, log: { start,
+    end, exitCode, output }[] }`) are `undefined` when the container defines no health check.
+  - `raw` is the full inspect payload exactly as received, unmodified (REQ-26).
+- `updateContainerConfig(id, update): Promise<ContainerConfigUpdateResult>` — applies a
+  configuration change (REQ-25).
+  - `ContainerConfigUpdate`: `{ restartPolicy?, resourceLimits?, env?, ports?, mounts?,
+    healthCheck?: HealthCheckConfig | null }`; a field left `undefined` keeps its current value.
+  - `ContainerConfigUpdateResult`: `{ path: 'in-place' | 'recreate', container: ContainerSummary }`
+    — the fresh summary of the (possibly new) container.
+  - Branch, decided by which fields are present in `update` (pseudocode):
+    ```
+    if update.env, update.ports, update.mounts and update.healthCheck are all undefined:
+      apply restartPolicy/resourceLimits via POST /containers/{id}/update  →  path = 'in-place'
+    else:
+      inspect the container; stop it; remove it; create a new container under the same name
+        with the merged config (unchanged fields taken from the original inspect); reconnect
+        every network it was attached to; restart it if it was running before  →  path = 'recreate'
+    ```
 
 ## Rules and invariants
 
@@ -45,6 +72,8 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   (`stats.cache`, falling back to `stats.inactive_file`) from the raw usage, matching `docker stats`.
 - Every call rejects with a `DockerDaemonError` carrying the daemon's own message on failure (no
   low-level error leaks to callers).
+- A recreate always preserves the container's name, mounts and network attachments; it restarts the
+  new container only if the original was running when the recreate began.
 
 ## Dependencies
 
@@ -56,3 +85,6 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 - plan-docker_management_app/REQ-20
 - plan-docker_management_app/REQ-21
 - plan-docker_management_app/REQ-22
+- plan-docker_management_app/REQ-24
+- plan-docker_management_app/REQ-25
+- plan-docker_management_app/REQ-26

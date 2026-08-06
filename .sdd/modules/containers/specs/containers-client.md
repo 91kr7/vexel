@@ -19,6 +19,13 @@ knows their URLs.
 - `renameContainer(id, name): Promise<void>`.
 - `pruneStoppedContainers(): Promise<PruneResult>` — `PruneResult`: `{ removedCount, reclaimedBytes
   }`.
+- `ContainerInspect`, `ContainerConfigUpdate`, `ContainerConfigUpdateResult` and their nested types
+  (`RestartPolicy`, `ResourceLimits`, `PortBinding`, `MountInfo`, `NetworkAttachment`,
+  `HealthCheckConfig`, `HealthCheckResult`) — mirror the server shapes (see
+  `containers-service.md`).
+- `fetchContainerInspect(id): Promise<ContainerInspect>` — `GET /api/containers/:id/inspect`.
+- `updateContainerConfig(id, update): Promise<ContainerConfigUpdateResult>` — `PATCH
+  /api/containers/:id/config`.
 
 ## Rules and invariants
 
@@ -32,3 +39,6 @@ knows their URLs.
 - plan-docker_management_app/REQ-20
 - plan-docker_management_app/REQ-21
 - plan-docker_management_app/REQ-22
+- plan-docker_management_app/REQ-24
+- plan-docker_management_app/REQ-25
+- plan-docker_management_app/REQ-26

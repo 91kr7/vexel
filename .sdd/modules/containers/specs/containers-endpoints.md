@@ -21,6 +21,9 @@ type: REST endpoint
 - `POST /api/containers/:id/rename` → request body `{ name }`; `400` with `{ error }` when `name` is
   missing or blank; otherwise `204`.
 - `POST /api/containers/prune` → `200`, `{ removedCount: number, reclaimedBytes: number }`.
+- `GET /api/containers/:id/inspect` → `200`, `ContainerInspect` (see `containers-service.md`).
+- `PATCH /api/containers/:id/config` → request body `ContainerConfigUpdate`; `200`,
+  `ContainerConfigUpdateResult` (see `containers-service.md`).
 
 ## Rules and invariants
 
@@ -38,3 +41,6 @@ type: REST endpoint
 - plan-docker_management_app/REQ-20
 - plan-docker_management_app/REQ-21
 - plan-docker_management_app/REQ-22
+- plan-docker_management_app/REQ-24
+- plan-docker_management_app/REQ-25
+- plan-docker_management_app/REQ-26

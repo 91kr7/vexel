@@ -10,6 +10,8 @@
 | SectionHeader | UI component | `client/src/ui/glass/SectionHeader.tsx` | Title, one-line description and a trailing actions slot for a content section | `specs/section-header.md` |
 | Divider | UI component | `client/src/ui/glass/Divider.tsx` | Hairline separator, horizontal or vertical | `specs/divider.md` |
 | ScrollArea | UI component | `client/src/ui/glass/ScrollArea.tsx` | Scrollable region with a styled scrollbar | `specs/scroll-area.md` |
+| CollapsibleSection | UI component | `client/src/ui/glass/CollapsibleSection.tsx` | Titled section of a detail surface that expands/collapses its content | `specs/collapsible-section.md` |
+| DetailPanel | UI component | `client/src/ui/glass/DetailPanel.tsx` | Detail surface for a selected object: header with title/subtitle, trailing actions and a close control, and a body | `specs/detail-panel.md` |
 | Frame | UI component | `client/src/ui/layout/Frame.tsx` | Application frame: rail / header / content / footer as floating glass panels over the Backdrop; owns the responsive breakpoints and the phone off-canvas rail drawer | `specs/frame.md` |
 | Stack | UI component | `client/src/ui/layout/Stack.tsx` | Vertical flex layout primitive | `specs/layout-primitives.md` |
 | Row | UI component | `client/src/ui/layout/Row.tsx` | Horizontal flex layout primitive with alignment helpers | `specs/layout-primitives.md` |
@@ -31,8 +33,19 @@
 | FilterChips | UI component | `client/src/ui/controls/FilterChips.tsx` | Single-select row of filter chips | `specs/filter-chips.md` |
 | ActionButtonGroup | UI component | `client/src/ui/controls/ActionButtonGroup.tsx` | Inline group of dense row-action buttons, with a destructive variant | `specs/action-button-group.md` |
 | ScreenToolbar | UI component | `client/src/ui/controls/ScreenToolbar.tsx` | Screen action bar: leading primary action, secondary actions, trailing destructive action, optional filters row | `specs/screen-toolbar.md` |
-| DataTable | UI component | `client/src/ui/data/DataTable.tsx` | Dense, column-defined table with hover/selected row states and virtualised scrolling | `specs/data-table.md` |
+| Tabs | UI component | `client/src/ui/controls/Tabs.tsx` | Single-select row of tabs switching a detail surface's active content panel | `specs/tabs.md` |
+| CopyButton | UI component | `client/src/ui/controls/CopyButton.tsx` | Copies an exact value to the clipboard, with a transient "Copied" confirmation | `specs/copy-button.md` |
+| NumberField | UI component | `client/src/ui/controls/NumberField.tsx` | Single-line numeric form input | `specs/number-field.md` |
+| Select | UI component | `client/src/ui/controls/Select.tsx` | Single-choice dropdown | `specs/select.md` |
+| Toggle | UI component | `client/src/ui/controls/Toggle.tsx` | Boolean on/off switch | `specs/toggle.md` |
+| FieldMessage | UI component | `client/src/ui/controls/FieldMessage.tsx` | Field-level helper or validation message | `specs/field-message.md` |
+| KeyValueEditor | UI component | `client/src/ui/controls/KeyValueEditor.tsx` | Repeatable key/value row editor (e.g. environment variables) | `specs/key-value-editor.md` |
+| RepeatableRowList | UI component | `client/src/ui/controls/RepeatableRowList.tsx` | Generic repeatable list of custom-rendered rows with add/remove (e.g. ports, mounts) | `specs/repeatable-row-list.md` |
+| FormFooter | UI component | `client/src/ui/controls/FormFooter.tsx` | Save/cancel form footer with a dirty indicator | `specs/form-footer.md` |
+| DataTable | UI component | `client/src/ui/data/DataTable.tsx` | Dense, column-defined table with hover/selected row states, virtualised scrolling, and an optional per-row expansion slot | `specs/data-table.md` |
 | StatusDotCell, TwoLineCell, MetaCell | UI component | `client/src/ui/data/TableCells.tsx` | Reusable DataTable cell contents: status dot, title/subtitle pair, muted monospace value | `specs/table-cells.md` |
+| DefinitionList | UI component | `client/src/ui/data/DefinitionList.tsx` | Label → value rows with an optional copy affordance | `specs/definition-list.md` |
+| CodeViewer | UI component | `client/src/ui/data/CodeViewer.tsx` | Read-only monospace code/JSON block with a copy affordance | `specs/code-viewer.md` |
 | Modal | UI component | `client/src/ui/feedback/Modal.tsx` | Centered glass dialog over a dimmed overlay | `specs/modal.md` |
 | ConfirmDialog | UI component | `client/src/ui/feedback/ConfirmDialog.tsx` | Destructive-confirmation dialog naming the target and the consequence | `specs/confirm-dialog.md` |
 | ToastProvider, useToast | UI component | `client/src/ui/feedback/Toast.tsx` | Transient toast notification stack and its provider/hook | `specs/toast.md` |

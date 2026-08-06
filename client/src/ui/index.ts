@@ -8,6 +8,8 @@ export { Card, type CardProps } from './glass/Card';
 export { SectionHeader, type SectionHeaderProps } from './glass/SectionHeader';
 export { Divider, type DividerProps } from './glass/Divider';
 export { ScrollArea, type ScrollAreaProps } from './glass/ScrollArea';
+export { CollapsibleSection, type CollapsibleSectionProps } from './glass/CollapsibleSection';
+export { DetailPanel, type DetailPanelProps } from './glass/DetailPanel';
 
 export { Frame, type FrameProps } from './layout/Frame';
 export { Stack, type StackProps } from './layout/Stack';
@@ -33,9 +35,20 @@ export { SearchField, type SearchFieldProps } from './controls/SearchField';
 export { FilterChips, type FilterChipsProps, type FilterChipOption } from './controls/FilterChips';
 export { ActionButtonGroup, type ActionButtonGroupProps, type RowAction } from './controls/ActionButtonGroup';
 export { ScreenToolbar, type ScreenToolbarProps, type ScreenToolbarAction } from './controls/ScreenToolbar';
+export { Tabs, type TabsProps, type TabItem } from './controls/Tabs';
+export { CopyButton, type CopyButtonProps } from './controls/CopyButton';
+export { NumberField, type NumberFieldProps } from './controls/NumberField';
+export { Select, type SelectProps, type SelectOption } from './controls/Select';
+export { Toggle, type ToggleProps } from './controls/Toggle';
+export { FieldMessage, type FieldMessageProps, type FieldMessageTone } from './controls/FieldMessage';
+export { KeyValueEditor, type KeyValueEditorProps, type KeyValuePair } from './controls/KeyValueEditor';
+export { RepeatableRowList, type RepeatableRowListProps } from './controls/RepeatableRowList';
+export { FormFooter, type FormFooterProps } from './controls/FormFooter';
 
 export { DataTable, type DataTableProps, type DataTableColumn } from './data/DataTable';
 export { StatusDotCell, type StatusDotCellProps, TwoLineCell, type TwoLineCellProps, MetaCell, type MetaCellProps } from './data/TableCells';
+export { DefinitionList, type DefinitionListProps, type DefinitionItem } from './data/DefinitionList';
+export { CodeViewer, type CodeViewerProps } from './data/CodeViewer';
 
 export { Modal, type ModalProps } from './feedback/Modal';
 export { ConfirmDialog, type ConfirmDialogProps } from './feedback/ConfirmDialog';

@@ -146,3 +146,133 @@ test('searching narrows the list to containers whose name matches the search tex
     await removeContainerQuietly(name);
   }
 });
+
+function openDetail(page: Page, name: string) {
+  return containerRow(page, name).getByText(name, { exact: true }).click();
+}
+
+// These tests keep a container's detail panel open across several UI steps
+// (tab switch, edit, save). DataTable virtualisation does not reserve extra
+// space for an expanded row (ui-library/specs/data-table.md), so another
+// worker's containers appearing mid-interaction can push the row out of the
+// mounted window and reset the panel; serial mode keeps that window stable.
+test.describe('Container detail panel (REQ-24, REQ-25, REQ-26)', () => {
+  test.describe.configure({ mode: 'serial' });
+
+  // plan-docker_management_app/REQ-24 — selecting a container opens a detail view with its inspect data organised in tabs
+  test('selecting a container row opens its detail panel with Config and Inspect tabs', async ({ page }) => {
+    const name = `vessel-e2e-detail-${Date.now()}`;
+    try {
+      await createSleepingContainer(name);
+      const row = containerRow(page, name);
+      await expect(row).toBeVisible({ timeout: 15_000 });
+
+      await openDetail(page, name);
+
+      const detail = page.locator('.ui-data-table__expanded');
+      await expect(detail).toBeVisible();
+      await expect(detail.getByRole('tab', { name: 'Config' })).toBeVisible();
+      await expect(detail.getByRole('tab', { name: 'Inspect' })).toBeVisible();
+      await expect(detail.getByRole('button', { name: 'Edit configuration' })).toBeVisible();
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+
+  // plan-docker_management_app/REQ-26 — the raw inspect payload is viewable and copyable as-is
+  test('the Inspect tab shows the raw payload and its copy affordance confirms the copy', async ({ page, context }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    const name = `vessel-e2e-inspect-${Date.now()}`;
+    try {
+      await createSleepingContainer(name);
+      const row = containerRow(page, name);
+      await expect(row).toBeVisible({ timeout: 15_000 });
+      await openDetail(page, name);
+
+      const detail = page.locator('.ui-data-table__expanded');
+      await detail.getByRole('tab', { name: 'Inspect' }).click();
+      await expect(detail.getByText(/"Image":\s*"postgres:16"/)).toBeVisible();
+
+      await detail.getByRole('button', { name: 'Copy' }).last().click();
+      const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
+      expect(clipboardText).toContain('"postgres:16"');
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+
+  // plan-docker_management_app/REQ-25 — restart policy and/or resource limits alone are applied in place, no warning
+  test('editing only the restart policy saves in place without asking for confirmation', async ({ page }) => {
+    const name = `vessel-e2e-config-inplace-${Date.now()}`;
+    try {
+      await createSleepingContainer(name);
+      const row = containerRow(page, name);
+      await expect(row).toBeVisible({ timeout: 15_000 });
+      await openDetail(page, name);
+
+      const detail = page.locator('.ui-data-table__expanded');
+      await detail.getByRole('button', { name: 'Edit configuration' }).click();
+      await detail.getByRole('combobox', { name: 'Restart policy' }).selectOption('always');
+      await detail.getByRole('button', { name: 'Save changes' }).click();
+
+      await expect(page.getByRole('heading', { name: /^Confirm:/ })).toHaveCount(0);
+      await expect(page.locator('.ui-toast-viewport')).toContainText('Configuration updated', { timeout: 10_000 });
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+
+  // plan-docker_management_app/REQ-25 — an environment, port, mount or health-check change asks for confirmation before a
+  // recreate; declining leaves the container and its configuration unchanged
+  test('editing an environment variable asks for confirmation before recreating, and cancelling leaves it unchanged', async ({ page }) => {
+    const name = `vessel-e2e-config-decline-${Date.now()}`;
+    try {
+      await createSleepingContainer(name, ['-e', 'FOO=bar']);
+      const row = containerRow(page, name);
+      await expect(row).toBeVisible({ timeout: 15_000 });
+      await openDetail(page, name);
+
+      const detail = page.locator('.ui-data-table__expanded');
+      await detail.getByRole('button', { name: 'Edit configuration' }).click();
+      await detail.getByRole('textbox', { name: 'Value 1' }).fill('baz');
+      await detail.getByRole('button', { name: 'Save changes' }).click();
+
+      const dialogHeading = page.getByRole('heading', { name: `Confirm: ${name}` });
+      await expect(dialogHeading).toBeVisible();
+      const dialog = page.locator('.ui-modal').filter({ has: dialogHeading });
+      await dialog.getByRole('button', { name: 'Cancel' }).click();
+
+      await expect(dialogHeading).toHaveCount(0);
+      await expect(containerRow(page, name)).toBeVisible();
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+
+  // plan-docker_management_app/REQ-25 — confirming a Docker-required recreate replaces the container, preserving its name,
+  // and the outcome is reported
+  test('confirming a recreate replaces the container while preserving its name and reports the outcome', async ({ page }) => {
+    const name = `vessel-e2e-config-recreate-${Date.now()}`;
+    try {
+      await createSleepingContainer(name, ['-e', 'FOO=bar']);
+      const row = containerRow(page, name);
+      await expect(row).toBeVisible({ timeout: 15_000 });
+      await openDetail(page, name);
+
+      const detail = page.locator('.ui-data-table__expanded');
+      await detail.getByRole('button', { name: 'Edit configuration' }).click();
+      await detail.getByRole('textbox', { name: 'Value 1' }).fill('baz');
+      await detail.getByRole('button', { name: 'Save changes' }).click();
+
+      const dialogHeading = page.getByRole('heading', { name: `Confirm: ${name}` });
+      await expect(dialogHeading).toBeVisible();
+      const dialog = page.locator('.ui-modal').filter({ has: dialogHeading });
+      await dialog.getByRole('button', { name: 'Recreate container' }).click();
+
+      await expect(page.locator('.ui-toast-viewport')).toContainText('Container recreated', { timeout: 15_000 });
+      await expect(containerRow(page, name)).toBeVisible({ timeout: 15_000 });
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+});

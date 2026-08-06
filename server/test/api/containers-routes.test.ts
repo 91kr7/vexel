@@ -5,7 +5,11 @@ import { promisify } from "node:util";
 import express, { type Express } from "express";
 import type { AddressInfo } from "node:net";
 import { containersRouter } from "../../src/containers/containers-routes.js";
-import type { ContainerSummary } from "../../src/containers/containers-service.js";
+import type {
+  ContainerConfigUpdateResult,
+  ContainerInspect,
+  ContainerSummary,
+} from "../../src/containers/containers-service.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -47,6 +51,10 @@ async function createSleepingContainer(name: string, extraArgs: string[] = []): 
 
 async function removeContainerQuietly(name: string): Promise<void> {
   await execFileAsync("docker", ["rm", "-f", name]).catch(() => undefined);
+}
+
+async function removeVolumeQuietly(name: string): Promise<void> {
+  await execFileAsync("docker", ["volume", "rm", "-f", name]).catch(() => undefined);
 }
 
 async function fetchList(url: string): Promise<ContainerSummary[]> {
@@ -248,6 +256,161 @@ test("POST /api/containers/prune removes stopped containers and reports the remo
     assert.ok(!containers.some((container) => container.id === id));
   } finally {
     await removeContainerQuietly(name);
+    await close();
+  }
+});
+
+// plan-docker_management_app/REQ-24 — the detail view's inspect data carries identity, image, restart
+// policy, resource limits, environment, ports, labels, networks and state
+test("GET /api/containers/:id/inspect returns the full configuration of a container", async () => {
+  const name = `vessel-test-inspect-${Date.now()}`;
+  const app = buildApp();
+  const { url, close } = await startApp(app);
+  const id = await createSleepingContainer(name, [
+    "-p",
+    "0:5432",
+    "-e",
+    "FOO=bar",
+    "--label",
+    "team=vessel",
+    "--restart",
+    "on-failure:3",
+    "--cpus",
+    "0.5",
+    "--memory",
+    "128m",
+  ]);
+  try {
+    const response = await fetch(`${url}/api/containers/${id}/inspect`);
+    assert.equal(response.status, 200);
+    const inspect = (await response.json()) as ContainerInspect;
+
+    assert.equal(inspect.name, name);
+    assert.equal(inspect.image, "postgres:16");
+    assert.ok(inspect.entrypoint.includes("sleep"));
+    assert.deepEqual(inspect.restartPolicy, { name: "on-failure", maximumRetryCount: 3 });
+    assert.ok(inspect.resourceLimits.cpus && Math.abs(inspect.resourceLimits.cpus - 0.5) < 0.01);
+    assert.equal(inspect.resourceLimits.memoryBytes, 128 * 1024 * 1024);
+    assert.ok(inspect.env.includes("FOO=bar"));
+    assert.equal(inspect.labels.team, "vessel");
+    assert.ok(inspect.ports.some((port) => port.containerPort === 5432 && typeof port.hostPort === "number"));
+    assert.ok(inspect.networks.some((network) => network.name === "bridge"));
+    assert.equal(inspect.state.status, "running");
+  } finally {
+    await removeContainerQuietly(name);
+    await close();
+  }
+});
+
+// containers-endpoints.md — a daemon rejection (unknown id) surfaces the daemon's own message on inspect
+test("GET /api/containers/:id/inspect with an unknown id responds with the daemon's own rejection message", async () => {
+  const app = buildApp();
+  const { url, close } = await startApp(app);
+  try {
+    const response = await fetch(`${url}/api/containers/does-not-exist-${Date.now()}/inspect`);
+    assert.notEqual(response.status, 200);
+    const body = (await response.json()) as { error?: string };
+    assert.ok(typeof body.error === "string" && body.error.length > 0);
+  } finally {
+    await close();
+  }
+});
+
+// plan-docker_management_app/REQ-26 — the raw inspect payload is exactly what the Engine API returned, unmodified
+test("GET /api/containers/:id/inspect carries the raw payload exactly as received from the Engine API", async () => {
+  const name = `vessel-test-inspect-raw-${Date.now()}`;
+  const app = buildApp();
+  const { url, close } = await startApp(app);
+  const id = await createSleepingContainer(name);
+  try {
+    const response = await fetch(`${url}/api/containers/${id}/inspect`);
+    const inspect = (await response.json()) as ContainerInspect;
+    const raw = inspect.raw as { Id: string; Name: string; Config: { Image: string } };
+
+    const { stdout } = await execFileAsync("docker", ["inspect", id]);
+    const [daemonRaw] = JSON.parse(stdout) as [{ Id: string; Name: string; Config: { Image: string } }];
+
+    assert.equal(raw.Id, daemonRaw.Id);
+    assert.equal(raw.Name, daemonRaw.Name);
+    assert.equal(raw.Config.Image, daemonRaw.Config.Image);
+  } finally {
+    await removeContainerQuietly(name);
+    await close();
+  }
+});
+
+// plan-docker_management_app/REQ-25 — restart policy alone is applied to the daemon in place, keeping the same container id
+test("PATCH /api/containers/:id/config applies a restart-policy-only change in place", async () => {
+  const name = `vessel-test-config-inplace-${Date.now()}`;
+  const app = buildApp();
+  const { url, close } = await startApp(app);
+  const id = await createSleepingContainer(name);
+  try {
+    const response = await fetch(`${url}/api/containers/${id}/config`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ restartPolicy: { name: "always" } }),
+    });
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as ContainerConfigUpdateResult;
+    assert.equal(body.path, "in-place");
+    assert.equal(body.container.id, id);
+
+    const { stdout } = await execFileAsync("docker", ["inspect", "--format", "{{.HostConfig.RestartPolicy.Name}}", id]);
+    assert.equal(stdout.trim(), "always");
+  } finally {
+    await removeContainerQuietly(name);
+    await close();
+  }
+});
+
+// plan-docker_management_app/REQ-25 — an environment change recreates the container, preserving its name, mounts and networks,
+// and restarting it since it was running before
+test("PATCH /api/containers/:id/config recreates the container for an environment change, preserving name, mounts and networks", async () => {
+  const name = `vessel-test-config-recreate-${Date.now()}`;
+  const volumeName = `vessel-test-config-recreate-vol-${Date.now()}`;
+  const app = buildApp();
+  const { url, close } = await startApp(app);
+  const id = await createSleepingContainer(name, ["-v", `${volumeName}:/data`]);
+  try {
+    const response = await fetch(`${url}/api/containers/${id}/config`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ env: ["FOO=recreated"] }),
+    });
+    assert.equal(response.status, 200);
+    const body = (await response.json()) as ContainerConfigUpdateResult;
+    assert.equal(body.path, "recreate");
+    assert.notEqual(body.container.id, id);
+    assert.equal(body.container.name, name);
+    assert.equal(body.container.state, "running");
+
+    const inspectResponse = await fetch(`${url}/api/containers/${body.container.id}/inspect`);
+    const inspect = (await inspectResponse.json()) as ContainerInspect;
+    assert.ok(inspect.env.includes("FOO=recreated"));
+    assert.ok(inspect.mounts.some((mount) => mount.destination === "/data"));
+    assert.ok(inspect.networks.some((network) => network.name === "bridge"));
+  } finally {
+    await removeContainerQuietly(name);
+    await removeVolumeQuietly(volumeName);
+    await close();
+  }
+});
+
+// containers-endpoints.md — a daemon rejection (unknown id) surfaces the daemon's own message on a configuration update
+test("PATCH /api/containers/:id/config with an unknown id responds with the daemon's own rejection message", async () => {
+  const app = buildApp();
+  const { url, close } = await startApp(app);
+  try {
+    const response = await fetch(`${url}/api/containers/does-not-exist-${Date.now()}/config`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ restartPolicy: { name: "always" } }),
+    });
+    assert.notEqual(response.status, 200);
+    const body = (await response.json()) as { error?: string };
+    assert.ok(typeof body.error === "string" && body.error.length > 0);
+  } finally {
     await close();
   }
 });
