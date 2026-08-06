@@ -1,0 +1,90 @@
+/*
+ * Design tokens — single source of truth for color, typography, spacing, radii,
+ * borders, elevation and z-index. Every UI-library component references these
+ * by name; no literal color/size value is duplicated elsewhere.
+ */
+:root {
+  /* Color roles */
+  --color-void: #05070c;
+  --color-surface-1: rgba(22, 26, 36, 0.6);
+  --color-surface-2: rgba(27, 32, 44, 0.68);
+  --color-surface-raised: rgba(34, 40, 54, 0.76);
+  --color-surface-sunken: rgba(12, 15, 22, 0.55);
+  --color-border-subtle: rgba(255, 255, 255, 0.08);
+  --color-border-strong: rgba(255, 255, 255, 0.18);
+  --color-highlight-top: rgba(255, 255, 255, 0.07);
+  --color-highlight-bottom: rgba(255, 255, 255, 0);
+
+  --color-text-primary: #eef0f5;
+  --color-text-secondary: #a4abbd;
+  --color-text-muted: #767f95;
+  --color-text-inverse: #0b0d13;
+
+  --color-accent: #4f8ff7;
+  --color-accent-strong: #7cabff;
+  --color-accent-tint: rgba(79, 143, 247, 0.16);
+
+  --color-success: #34d399;
+  --color-success-tint: rgba(52, 211, 153, 0.16);
+  --color-warning: #f5b83d;
+  --color-warning-tint: rgba(245, 184, 61, 0.16);
+  --color-danger: #f2545b;
+  --color-danger-strong: #ff7a80;
+  --color-danger-tint: rgba(242, 84, 91, 0.16);
+  --color-info: #4f8ff7;
+  --color-neutral-tint: rgba(255, 255, 255, 0.08);
+
+  /* Typography */
+  --font-family-sans: -apple-system, 'Segoe UI', Roboto, Inter, sans-serif;
+  --font-family-mono: ui-monospace, 'SF Mono', Consolas, monospace;
+
+  --font-size-xs: 12px;
+  --font-size-sm: 13px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 28px;
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.45;
+
+  /* Spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 48px;
+  --space-10: 64px;
+
+  /* Radii */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --radius-full: 999px;
+
+  /* Borders */
+  --border-width-hairline: 1px;
+
+  /* Elevation */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --shadow-3: 0 20px 56px rgba(0, 0, 0, 0.5);
+
+  /* Z-index */
+  --z-backdrop: 0;
+  --z-shell: 10;
+  --z-content: 15;
+  --z-overlay: 100;
+  --z-modal: 200;
+  --z-toast: 300;
+}

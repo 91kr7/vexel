@@ -1,0 +1,12 @@
+.ui-divider {
+  border: none;
+  height: var(--border-width-hairline);
+  background: var(--color-border-subtle);
+  margin: 0;
+}
+
+.ui-divider--vertical {
+  width: var(--border-width-hairline);
+  height: auto;
+  align-self: stretch;
+}

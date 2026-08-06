@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  // The UI-library boundary check (no raw DOM tags / CSS / style / className
+  // outside client/src/ui/, no backdrop-filter or filter: blur() without an
+  // exception comment) is project-specific and path-scoped: oxlint's rule
+  // set has no equivalent, so it runs as scripts/check-ui-conformance.mjs,
+  // wired into `npm run lint` (see client/package.json).
+  "plugins": ["react", "typescript", "oxc"],
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/only-export-components": ["warn", { "allowConstantExport": true }]
+  }
+}

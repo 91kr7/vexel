@@ -1,0 +1,15 @@
+.ui-scroll-area {
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+
+.ui-scroll-area::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.ui-scroll-area::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: var(--radius-full);
+}
