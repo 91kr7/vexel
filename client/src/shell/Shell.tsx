@@ -23,6 +23,8 @@ import {
 } from '../ui';
 import { clearAnalysisCache, fetchAnalysisCacheUsage } from '../data/preferences-client';
 import { usePreferences } from '../data/use-preferences';
+import { useContainers } from '../data/use-containers';
+import { ContainersScreen } from '../containers/ContainersScreen';
 import { defaultScreenId, navGroupOrder, screens } from './navigation';
 import { PlaceholderScreen } from './screens/PlaceholderScreen';
 import { ConfirmationProvider } from './services/ConfirmationService';
@@ -68,6 +70,7 @@ export function Shell() {
   const connection = useConnectionStatus();
   const { events } = useDaemonEventStream();
   const { preferences, loaded: preferencesLoaded, updatePreferences } = usePreferences();
+  const containers = useContainers();
   const [cacheUsage, setCacheUsage] = useState<number | undefined>(undefined);
   const restoredScreenRef = useRef(false);
 
@@ -138,6 +141,7 @@ export function Shell() {
                         glyph={screen.glyph}
                         label={screen.label}
                         active={screen.id === activeScreen.id}
+                        count={screen.id === 'containers' ? containers.containers.length : undefined}
                         onSelect={() => selectScreen(screen.id)}
                       />
                     ))}
@@ -204,7 +208,16 @@ export function Shell() {
                 action={{ label: 'Clear', onClick: handleClearCache, disabled: !cacheUsage }}
               />
             </Card>
-            <PlaceholderScreen screenLabel={activeScreen.label} />
+            {activeScreen.id === 'containers' ? (
+              <ContainersScreen
+                containers={containers.containers}
+                loaded={containers.loaded}
+                error={containers.error}
+                onRefresh={containers.refresh}
+              />
+            ) : (
+              <PlaceholderScreen screenLabel={activeScreen.label} />
+            )}
           </Stack>
         </Frame>
       </ConfirmationProvider>

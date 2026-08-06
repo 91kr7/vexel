@@ -22,12 +22,20 @@ export { FooterStatus, type FooterStatusProps } from './navigation/FooterStatus'
 
 export { PageHeader, type PageHeaderProps } from './controls/PageHeader';
 export { StatusPill, type StatusPillProps, type StatusTone, type StatusPillAction } from './controls/StatusPill';
-export { Button, type ButtonProps, type ButtonVariant } from './controls/Button';
+export { Button, type ButtonProps, type ButtonVariant, type ButtonSize } from './controls/Button';
 export { IconButton, type IconButtonProps } from './controls/IconButton';
 export { Badge, type BadgeProps, type BadgeTone } from './controls/Badge';
 export { KeyHint, type KeyHintProps } from './controls/KeyHint';
 export { PathInput, type PathInputProps, type PathInputValidationState } from './controls/PathInput';
 export { StorageUsageRow, type StorageUsageRowProps, type StorageUsageRowAction } from './controls/StorageUsageRow';
+export { TextField, type TextFieldProps } from './controls/TextField';
+export { SearchField, type SearchFieldProps } from './controls/SearchField';
+export { FilterChips, type FilterChipsProps, type FilterChipOption } from './controls/FilterChips';
+export { ActionButtonGroup, type ActionButtonGroupProps, type RowAction } from './controls/ActionButtonGroup';
+export { ScreenToolbar, type ScreenToolbarProps, type ScreenToolbarAction } from './controls/ScreenToolbar';
+
+export { DataTable, type DataTableProps, type DataTableColumn } from './data/DataTable';
+export { StatusDotCell, type StatusDotCellProps, TwoLineCell, type TwoLineCellProps, MetaCell, type MetaCellProps } from './data/TableCells';
 
 export { Modal, type ModalProps } from './feedback/Modal';
 export { ConfirmDialog, type ConfirmDialogProps } from './feedback/ConfirmDialog';

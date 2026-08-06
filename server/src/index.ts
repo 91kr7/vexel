@@ -1,5 +1,7 @@
 import express from "express";
 import { connectivityRouter } from "./connectivity/connectivity-routes.js";
+import { containersRouter } from "./containers/containers-routes.js";
+import { startStatsSampler } from "./containers/containers-service.js";
 import { eventsRouter } from "./events/events-routes.js";
 import { eventStreamService } from "./events/event-stream-service.js";
 import { hostPathsRouter } from "./host-fs/host-path-routes.js";
@@ -16,11 +18,13 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/api/connectivity", connectivityRouter);
+app.use("/api/containers", containersRouter);
 app.use("/api/events", eventsRouter);
 app.use("/api/persistence", persistenceRouter);
 app.use("/api/host-paths", hostPathsRouter);
 
 eventStreamService.start();
+startStatsSampler();
 reclaimOrphans();
 
 app.listen(port, () => {

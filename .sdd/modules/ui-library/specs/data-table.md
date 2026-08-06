@@ -1,0 +1,41 @@
+---
+module: ui-library
+component: DataTable
+type: UI component
+---
+
+# DataTable
+
+**Purpose** → the dense, column-defined table used by every list screen (containers, images,
+volumes, networks, …), with hover/selected row states and virtualised scrolling so a long list
+stays smooth (REQ-109).
+
+## Contract
+
+- `<DataTable columns rows rowKey rowHeight? maxHeight? selectedRowKey? onRowSelect? emptyState? />`
+  - `columns: DataTableColumn<T>[]` — `{ id, header, width?, align?, render(row) }`; `width` is a
+    `grid-template-columns` track (default `'1fr'`); `align`: `'start' | 'end'` (default `'start'`).
+  - `rows: T[]`, `rowKey(row): string`.
+  - `rowHeight?: number` — fixed row height in px (default `56`); every row is this tall (dense
+    rows).
+  - `maxHeight?: string` — caps the table body height; when set, the body scrolls and only the rows
+    in and around the visible window are mounted (virtualised scrolling). Unset renders every row.
+  - `selectedRowKey?: string`, `onRowSelect?(row)` — clicking a row calls `onRowSelect`; the row
+    whose key matches `selectedRowKey` renders in its selected state.
+  - `emptyState?: ReactNode` — shown instead of the header/body rows when `rows` is empty.
+
+## Rules and invariants
+
+- A row's height never changes with scroll position: virtualisation swaps which rows are mounted,
+  not their layout, so scrolling never recomputes the glass material (REQ-109).
+- Every column in `columns` renders in the header and in every row, in the same order and using the
+  same `width`/`align`.
+
+## Dependencies
+
+- ScrollArea
+
+## Requirements served
+
+- plan-docker_management_app/REQ-19
+- plan-docker_management_app/REQ-109

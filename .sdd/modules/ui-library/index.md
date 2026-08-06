@@ -27,6 +27,12 @@
 | KeyHint | UI component | `client/src/ui/controls/KeyHint.tsx` | Keyboard-shortcut hint | `specs/key-hint.md` |
 | PathInput | UI component | `client/src/ui/controls/PathInput.tsx` | Host-path text field with a validation state, refusal message and browse hint | `specs/path-input.md` |
 | StorageUsageRow | UI component | `client/src/ui/controls/StorageUsageRow.tsx` | Label/description/size row with an optional clear action | `specs/storage-usage-row.md` |
+| TextField, SearchField | UI component | `client/src/ui/controls/TextField.tsx`, `client/src/ui/controls/SearchField.tsx` | Single-line text input, and its full-width search/filter variant | `specs/search-field.md` |
+| FilterChips | UI component | `client/src/ui/controls/FilterChips.tsx` | Single-select row of filter chips | `specs/filter-chips.md` |
+| ActionButtonGroup | UI component | `client/src/ui/controls/ActionButtonGroup.tsx` | Inline group of dense row-action buttons, with a destructive variant | `specs/action-button-group.md` |
+| ScreenToolbar | UI component | `client/src/ui/controls/ScreenToolbar.tsx` | Screen action bar: leading primary action, secondary actions, trailing destructive action, optional filters row | `specs/screen-toolbar.md` |
+| DataTable | UI component | `client/src/ui/data/DataTable.tsx` | Dense, column-defined table with hover/selected row states and virtualised scrolling | `specs/data-table.md` |
+| StatusDotCell, TwoLineCell, MetaCell | UI component | `client/src/ui/data/TableCells.tsx` | Reusable DataTable cell contents: status dot, title/subtitle pair, muted monospace value | `specs/table-cells.md` |
 | Modal | UI component | `client/src/ui/feedback/Modal.tsx` | Centered glass dialog over a dimmed overlay | `specs/modal.md` |
 | ConfirmDialog | UI component | `client/src/ui/feedback/ConfirmDialog.tsx` | Destructive-confirmation dialog naming the target and the consequence | `specs/confirm-dialog.md` |
 | ToastProvider, useToast | UI component | `client/src/ui/feedback/Toast.tsx` | Transient toast notification stack and its provider/hook | `specs/toast.md` |

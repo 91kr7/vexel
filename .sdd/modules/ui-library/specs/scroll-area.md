@@ -11,8 +11,10 @@ and streams (container/image lists, logs, layer trees).
 
 ## Contract
 
-- `<ScrollArea maxHeight? children?>` — `maxHeight` caps the region's height (e.g. `'480px'`);
-  content beyond it scrolls.
+- `<ScrollArea maxHeight? onScroll? children?>` — `maxHeight` caps the region's height (e.g.
+  `'480px'`); content beyond it scrolls. `onScroll` is called with the native scroll event, used by
+  callers that need scroll position (e.g. DataTable's virtualisation). Forwards its `ref` to the
+  scrollable element.
 
 ## Rules and invariants
 

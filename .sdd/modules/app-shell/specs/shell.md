@@ -25,8 +25,11 @@ Shows:
   cannot be reached (REQ-10), a "CLI availability" `Card` listing docker/compose/buildx presence
   and version (REQ-110), a "Daemon event stream" `Card` with the live `EventStream` (REQ-11,
   REQ-12), a "Local storage" `Card` with a `StorageUsageRow` for the analysis cache's size and a
-  "Clear" action (REQ-113, REQ-115), and a `PlaceholderScreen` (later batches substitute the real
-  per-screen content).
+  "Clear" action (REQ-113, REQ-115), then the active screen's real content: `ContainersScreen` for
+  the `containers` screen (REQ-19–REQ-23, REQ-109), a `PlaceholderScreen` for every screen not yet
+  built by its own feature batch.
+- The Containers `NavItem`'s count badge is the live container count from `useContainers()`,
+  regardless of which screen is active.
 Actions:
 - Selecting a `NavItem` sets it active, persists it as `lastScreenId` via `usePreferences()`, and
   replaces the content area with its screen, without remounting the rail, header or footer.
@@ -72,6 +75,7 @@ Navigation:
 - Navigation data, PlaceholderScreen, ConfirmationService, ErrorReportingService, ProgressService,
   ConnectionStatusService, EventStreamService
 - local-persistence: usePreferences, fetchAnalysisCacheUsage, clearAnalysisCache
+- containers: useContainers, ContainersScreen
 
 ## Requirements served
 
@@ -82,6 +86,7 @@ Navigation:
 - plan-docker_management_app/REQ-11
 - plan-docker_management_app/REQ-12
 - plan-docker_management_app/REQ-13
+- plan-docker_management_app/REQ-19
 - plan-docker_management_app/REQ-110
 - plan-docker_management_app/REQ-113
 - plan-docker_management_app/REQ-115

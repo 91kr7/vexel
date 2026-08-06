@@ -1,0 +1,109 @@
+.ui-data-table {
+  display: flex;
+  flex-direction: column;
+}
+
+.ui-data-table__header {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: var(--border-width-hairline) solid var(--color-border-subtle);
+}
+
+.ui-data-table__header-cell {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.ui-data-table__header-cell--end {
+  text-align: end;
+}
+
+.ui-data-table__body {
+  width: 100%;
+}
+
+.ui-data-table__row {
+  display: grid;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-4);
+  border-bottom: var(--border-width-hairline) solid var(--color-border-subtle);
+}
+
+.ui-data-table__row:hover {
+  background: var(--color-surface-2);
+}
+
+.ui-data-table__row--selected {
+  background: var(--color-accent-tint);
+}
+
+.ui-data-table__cell {
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+}
+
+.ui-data-table__cell--end {
+  text-align: end;
+}
+
+.ui-data-table__empty {
+  padding: var(--space-6) var(--space-4);
+}
+
+.ui-table-status-dot-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ui-table-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-success);
+  flex: 0 0 auto;
+}
+
+.ui-table-status-dot--tone-neutral {
+  background: var(--color-text-muted);
+}
+
+.ui-table-status-dot--tone-warning {
+  background: var(--color-warning);
+}
+
+.ui-table-status-dot--tone-danger {
+  background: var(--color-danger);
+}
+
+.ui-table-two-line-cell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ui-table-two-line-cell__title {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-table-two-line-cell__subtitle {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.ui-table-meta-cell {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}

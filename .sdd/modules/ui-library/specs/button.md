@@ -11,8 +11,9 @@ including destructive ones.
 
 ## Contract
 
-- `<Button variant? disabled? onClick? type? children?>`
+- `<Button variant? size? disabled? onClick? type? children?>`
   - `variant`: `'primary' | 'secondary' | 'ghost' | 'destructive'` (default `'secondary'`).
+  - `size`: `'md' | 'sm'` (default `'md'`) — `'sm'` is the dense size used for inline row actions.
   - `type`: `'button' | 'submit'` (default `'button'`).
 
 ## Rules and invariants
@@ -24,3 +25,4 @@ including destructive ones.
 ## Requirements served
 
 - plan-docker_management_app/REQ-6
+- plan-docker_management_app/REQ-20

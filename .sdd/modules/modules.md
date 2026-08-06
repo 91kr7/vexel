@@ -8,4 +8,5 @@
 | connectivity | Daemon reachability, negotiated API version and CLI/plugin availability: server status service and endpoint, and the client's typed status reader. | `connectivity/index.md` |
 | events | The live daemon event stream: server subscription/republish/backlog, its SSE endpoint, and the client's subscription plus object-type invalidation registry. | `events/index.md` |
 | local-persistence | Local, per-user persistence (preferences, console history, analysis-cache index) and host-path validation: the local store, the content-addressed analysis cache, the host-path validator, their endpoints, and the client's preferences client/hook. | `local-persistence/index.md` |
+| containers | Container list and lifecycle: the Engine API listing/lifecycle/prune service and its bounded CPU/memory sampler, their endpoints, the client's containers data client/hook, and the Containers screen. | `containers/index.md` |
 | server-app | The server entrypoint that composes every server module into one running Express app. | `server-app/index.md` |
