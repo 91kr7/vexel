@@ -1,7 +1,7 @@
 ---
 batch: 1 · foundation-ui-shell
 feature: F1 — Visual foundation and application shell (enabling)
-closed_req: [REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-107, REQ-108]
+closed_req: [REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-107, REQ-108, REQ-117]
 depends: []
 ---
 
@@ -14,6 +14,13 @@ re-styling.
 
 Visual reference: all mockups in `.sdd/analysis/ui-mock/` share this shell; `dashboard.png` and
 `containers.png` show it best.
+
+INT-16 and the glass-material revision of INT-1/INT-2/INT-3 were added on 2026-08-06, after this
+batch was certified, during a visual rework driven by the reference app: surface alpha lowered and
+the backdrop's glows widened so panels read as glass rather than flat black, the shell chrome
+changed from docked to floating (see "Departures from the spec" in `batches.md` — the mockups are
+still authoritative and will be regenerated with the new graphics), and the responsive behaviour of
+REQ-117 added.
 
 | ID | Type | Where | What | REQ | Depends |
 | --- | --- | --- | --- | --- | --- |
@@ -32,3 +39,4 @@ Visual reference: all mockups in `.sdd/analysis/ui-mock/` share this shell; `das
 | INT-13 | create | client, lint/verification tooling | Automated conformance check that fails on: raw DOM tags, `.css`/CSS-module imports, `style` props and visual `className` outside `client/src/ui/`; and on `backdrop-filter` or `filter: blur(...)` anywhere, except entries of an explicit, commented exception list. | REQ-5, REQ-108 | — |
 | INT-14 | modify | `package.json` (repository root), `client/.oxlintrc.json` | Wire the conformance check into the standard `npm run lint` / `npm run test` commands so it runs by default for every later batch. | REQ-5, REQ-108 | INT-13 |
 | INT-15 | create | client, UI library (`client/src/ui/`) | The library's public entry point: everything above is exported from it, and it is the only import path feature code uses. | REQ-5 | INT-4, INT-5, INT-6, INT-7 |
+| INT-16 | modify | client, UI library (`client/src/ui/`) | Responsive shell: tablet/phone breakpoints on the frame, the rail becoming an off-canvas drawer below the phone breakpoint with a header menu control, a dimmed scrim and close-on-select/scrim/Escape, and wrapping of the header's title/description/actions so they never overflow their card. | REQ-117 | INT-4, INT-5, INT-6 |

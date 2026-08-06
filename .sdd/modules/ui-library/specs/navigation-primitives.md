@@ -27,8 +27,12 @@ the footer status block showing the active Docker context.
 
 - Exactly one `NavItem` in the rail is `active` at a time, matching the currently displayed screen
   (REQ-2).
+- `NavRail` renders as a self-contained glass panel (translucency, hairline border, elevation
+  shadow, top highlight, `--radius-xl` corners on all sides) rather than a flush strip with a single
+  edge border — revised 2026-08-06 alongside Frame's floating shell layout.
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-1
 - plan-docker_management_app/REQ-2
+- plan-docker_management_app/REQ-117

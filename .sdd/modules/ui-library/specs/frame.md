@@ -12,23 +12,50 @@ footer regions so feature code never writes a layout wrapper element itself.
 ## Contract
 
 - `<Frame rail header footer? children?>`
-  - `rail` — rendered in a sticky, full-height left column.
-  - `header` — rendered above the content, flow height.
+  - `rail` — rendered as a floating, full-height left panel (a rounded glass island, not flush to
+    the viewport edge).
+  - `header` — rendered above the content as its own floating rounded panel, flow height.
   - `children` — the active screen, rendered in the scrollable content region.
   - `footer` — optional, rendered below the content.
 
 ## Rules and invariants
 
-- Renders exactly one Backdrop, behind the rail/header/content/footer grid.
-- The frame is a fixed `height: 100vh` grid with `overflow: hidden`: the page itself never
+- Renders exactly one Backdrop, behind the rail/header/content/footer.
+- The frame is a fixed `height: 100vh` flex row with `overflow: hidden`: the page itself never
   scrolls. The rail and the content region each scroll independently within that fixed height, so
   the rail, the header and the footer stay in place while the content scrolls (REQ-2).
-- The rail and main regions each carry an explicit `grid-column` **and** `grid-row`. Both are
-  required together: CSS grid auto-placement assigns rows by DOM order for any axis left
-  implicit, so a component may reorder `rail`/`children` in the DOM (e.g. for reading/tab order)
-  without either explicit `grid-row`, and the auto-placement cursor pushes the second-rendered
-  region onto a new row instead of beside the first — collapsing the two-column layout. Setting
-  `grid-row` on both makes the visual position independent of DOM order.
+- The whole shell is inset from the viewport with a uniform gap (`--space-5`) and the same gap
+  separates rail / header / content, so the Backdrop is visible through the gaps — every region
+  (rail, header, content cards) is its own floating glass panel rather than a flush, edge-to-edge
+  chrome. This is a deliberate departure from the checked-in mock's flush/docked shell (human
+  decision, 2026-08-06), matching the reference glass style requested for the app.
+- The scrollable content region must not clip its cards' shadows, and its cards must share the
+  header card's exact left/right bounds. Two things work against that and both are handled
+  (2026-08-06): (a) `overflow-y: auto` computes `overflow-x` to `auto`, so a scroll container clips
+  every side — hardest at the top, where content can never scroll above the scroll origin, which
+  sliced the first card's shadow off flat; the region therefore carries padding on all four sides
+  for shadow bleed, cancelled by an equal negative margin (top/left/right) so nothing moves
+  visually. (b) The reserved scrollbar gutter (`scrollbar-gutter: stable`) is real layout space
+  taken out of the content area, which would leave the cards narrower than the header. The gutter's
+  width is **not knowable from CSS** — it varies by browser/platform, and `scrollbar-width: thin`
+  makes the engine ignore the `::-webkit-scrollbar` pixel width (measured 11px where the stylesheet
+  declared 8px). Frame therefore measures the real gutter at runtime
+  (`offsetWidth - clientWidth`, re-measured on resize) and publishes it as `--scrollbar-width` on
+  the content element, which the stylesheet subtracts from the right padding. The token in
+  `tokens.css` is only the pre-measurement fallback.
+- The rail is placed visually first via CSS `order` (not DOM order): `children`/`rail` markup order
+  stays content-first for reading/tab order, `order: -1` on the rail wrapper puts it on the left
+  regardless of DOM position — the same independence from DOM order the previous grid-based layout
+  achieved with explicit `grid-column`/`grid-row`.
+- Below the phone breakpoint (`720px`) the rail leaves the flex flow and becomes an off-canvas
+  drawer: `position: fixed`, inset from the viewport edges by `--space-3` on open, translated fully
+  off-screen when closed, sliding on a `transform` transition. A menu-toggle button (rendered by
+  Frame itself, inside the header row) opens/closes it; a dimmed scrim covers the content while
+  open. The drawer closes on: activating the toggle again, tapping the scrim, pressing Escape, or
+  activating any `button`/`a` inside the rail (event-delegated, so a nav-entry selection closes it
+  without Frame knowing about routing). Between `720px` and `1024px` the rail stays docked but
+  narrows (`260px` → `220px`). This transient open/close transition is ordinary UI chrome, not the
+  Backdrop layer — the CLAUDE.md animation ban targets the static background image, not a drawer.
 
 ## Dependencies
 
@@ -38,3 +65,4 @@ footer regions so feature code never writes a layout wrapper element itself.
 
 - plan-docker_management_app/REQ-1
 - plan-docker_management_app/REQ-2
+- plan-docker_management_app/REQ-117

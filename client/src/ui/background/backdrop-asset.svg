@@ -1,28 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="1920" height="1080" role="presentation" aria-hidden="true">
   <defs>
-    <radialGradient id="glow-a" cx="18%" cy="12%" r="60%">
-      <stop offset="0%" stop-color="#1e3a63" stop-opacity="0.55" />
-      <stop offset="45%" stop-color="#16233f" stop-opacity="0.25" />
-      <stop offset="100%" stop-color="#05070c" stop-opacity="0" />
-    </radialGradient>
-    <radialGradient id="glow-b" cx="82%" cy="20%" r="55%">
-      <stop offset="0%" stop-color="#2a2f63" stop-opacity="0.4" />
-      <stop offset="50%" stop-color="#171a33" stop-opacity="0.2" />
-      <stop offset="100%" stop-color="#05070c" stop-opacity="0" />
-    </radialGradient>
-    <radialGradient id="glow-c" cx="70%" cy="88%" r="65%">
-      <stop offset="0%" stop-color="#0f3d3a" stop-opacity="0.45" />
-      <stop offset="50%" stop-color="#0b2624" stop-opacity="0.2" />
-      <stop offset="100%" stop-color="#05070c" stop-opacity="0" />
-    </radialGradient>
-    <radialGradient id="glow-d" cx="8%" cy="92%" r="50%">
-      <stop offset="0%" stop-color="#241b3d" stop-opacity="0.35" />
-      <stop offset="100%" stop-color="#05070c" stop-opacity="0" />
-    </radialGradient>
     <linearGradient id="base" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#0a0d15" />
-      <stop offset="100%" stop-color="#05070c" />
+      <stop offset="0%" stop-color="#101a2e" />
+      <stop offset="100%" stop-color="#080c16" />
     </linearGradient>
+    <radialGradient id="glow-a" cx="20%" cy="15%" r="78%">
+      <stop offset="0%" stop-color="#2f7de0" stop-opacity="0.55" />
+      <stop offset="45%" stop-color="#2f7de0" stop-opacity="0.22" />
+      <stop offset="100%" stop-color="#2f7de0" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="glow-b" cx="83%" cy="18%" r="72%">
+      <stop offset="0%" stop-color="#7c5cff" stop-opacity="0.45" />
+      <stop offset="50%" stop-color="#7c5cff" stop-opacity="0.18" />
+      <stop offset="100%" stop-color="#7c5cff" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="glow-c" cx="68%" cy="88%" r="82%">
+      <stop offset="0%" stop-color="#22c99e" stop-opacity="0.45" />
+      <stop offset="50%" stop-color="#22c99e" stop-opacity="0.18" />
+      <stop offset="100%" stop-color="#22c99e" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="glow-d" cx="10%" cy="92%" r="68%">
+      <stop offset="0%" stop-color="#4f46e5" stop-opacity="0.32" />
+      <stop offset="55%" stop-color="#4f46e5" stop-opacity="0.12" />
+      <stop offset="100%" stop-color="#4f46e5" stop-opacity="0" />
+    </radialGradient>
   </defs>
   <rect width="1920" height="1080" fill="url(#base)" />
   <rect width="1920" height="1080" fill="url(#glow-a)" />

@@ -101,7 +101,7 @@ export function Shell() {
               title={activeScreen.title}
               description={activeScreen.description}
               actions={
-                <Row align="center" gap="var(--space-2)">
+                <Row align="center" gap="var(--space-2)" wrap>
                   <StatusPill
                     tone={statusTone}
                     action={!connection.daemon.reachable ? { label: 'Retry', onClick: connection.retry } : undefined}

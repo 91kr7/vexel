@@ -25,6 +25,11 @@ Shows:
   the asset at authoring time, not computed by the browser (REQ-108).
 - Rendered exactly once per page (by `Frame`), positioned behind every other surface via
   `--z-backdrop`.
+- The asset's colour glows must reach the centre of the viewport, not only its corners: the glass
+  material is translucency over this asset, so wherever the backdrop is flat the panels above it
+  have no colour to transmit and read as flat dark fills. Revised 2026-08-06 — the original
+  corner-concentrated composition left the whole content column colourless, which is what made the
+  panels look black (see `design-tokens.md` for the matching alpha change).
 
 ## Requirements served
 

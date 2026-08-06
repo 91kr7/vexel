@@ -21,6 +21,12 @@ token by name, never a literal value.
   - Spacing scale: `--space-1` (4px) through `--space-10` (64px).
   - Radii: `--radius-{sm,md,lg,xl,full}`.
   - Borders: `--border-width-hairline` (1px).
+  - Scrollbars: `--scrollbar-width` (8px) — the styled scrollbar's width. Styling
+    `::-webkit-scrollbar` opts out of the platform's overlay scrollbars, so this is real layout
+    space a scroll container takes out of its content area. Layouts aligning a scrolling region
+    with a non-scrolling sibling subtract it. Note this value is a **fallback**: the true gutter
+    varies by browser/platform and is measured at runtime where alignment depends on it (see
+    `frame.md`).
   - Elevation: `--shadow-{1,2,3}`.
   - Z-index: `--z-{backdrop,shell,content,overlay,modal,toast}`.
 
@@ -29,8 +35,15 @@ token by name, never a literal value.
 - Every color pairing used for body or secondary text on a glass surface meets at least a 4.5:1
   (body) / 3:1 (secondary, large text) contrast ratio against `--color-surface-1`/`--color-surface-2`
   (REQ-4): `--color-text-primary` (#eef0f5) and `--color-text-secondary` (#a4abbd) on
-  `--color-surface-1`/`--color-surface-2` (near-black translucent over the dark backdrop) both clear
-  these ratios.
+  `--color-surface-1`/`--color-surface-2` clear these ratios across the full range of the Backdrop
+  (from its darkest point, `--color-void`, to the brightest point inside a glow), verified
+  computationally at both ends (2026-08-06): worst case ≥13.7:1 primary / ≥6.8:1 secondary over the
+  void alone, ≥9.4:1 primary / ≥4.7:1 secondary over the most saturated glow.
+- Surface alpha is deliberately low (34–52%, `--color-border-subtle`/`--color-highlight-top` raised
+  to compensate) so the Backdrop's color visibly bleeds through glass panels rather than reading as
+  a flat, near-opaque dark fill — revised 2026-08-06 after the initial batch-1 values (55–76% alpha
+  over a near-black `--color-void`) read as solid black in practice, especially away from the
+  Backdrop's corner-concentrated glows.
 - No component under `client/src/ui/` hard-codes a color, radius, spacing, shadow or z-index value
   outside this file; it references the token by name.
 

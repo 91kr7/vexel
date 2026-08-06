@@ -47,6 +47,9 @@ Navigation:
   (REQ-11/REQ-12) come from providers supplied by the caller (`App`), so they can be
   observed/driven independently of the shell chrome; `ToastProvider` and `ConfirmationProvider`
   (REQ-6/REQ-8) are supplied by the Shell itself.
+- The header's action group is a wrapping `Row` (`wrap`): PageHeader only wraps at its own top
+  level, so a non-wrapping action row would overflow the header card once the viewport is narrow
+  enough that the pill, version badge, search and console no longer fit on one line.
 
 ## Dependencies
 

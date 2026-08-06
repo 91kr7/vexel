@@ -17,7 +17,7 @@ leave a coherent product.
 
 | Batch | Feature | REQ closed | Depends | Status | Human acceptance |
 | --- | --- | --- | --- | --- | --- |
-| 1 · foundation-ui-shell | F1 — Visual foundation and application shell (enabling) | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-107, REQ-108 | — | certified | The app opens on the "Vessel — Docker Control" shell with the 13 navigation entries grouped as in the mockups; clicking each one switches the main area and keeps rail/header/footer; every surface is glass over a static pre-blurred backdrop; nothing on the backdrop moves; a destructive demo action asks for confirmation naming its target and does nothing when cancelled; `npm run lint` fails if a raw `<div>`, a CSS rule, a `className`/`style` prop or a `backdrop-filter`/`filter: blur()` is added to feature code. |
+| 1 · foundation-ui-shell | F1 — Visual foundation and application shell (enabling) | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-107, REQ-108, REQ-117 | — | certified | The app opens on the "Vessel — Docker Control" shell with the 13 navigation entries grouped as in the mockups; clicking each one switches the main area and keeps rail/header/footer; every surface is glass over a static pre-blurred backdrop; nothing on the backdrop moves; a destructive demo action asks for confirmation naming its target and does nothing when cancelled; `npm run lint` fails if a raw `<div>`, a CSS rule, a `className`/`style` prop or a `backdrop-filter`/`filter: blur()` is added to feature code; narrowing the window to tablet width keeps the rail docked but narrower, and to phone width collapses it into a drawer opened by the header's menu control and closed by picking an entry, tapping the scrim or pressing Escape, with the header's title/description/actions never overflowing their card at any width. |
 | 2 · daemon-connectivity | F2 — Daemon connectivity and live state | REQ-9, REQ-10, REQ-11, REQ-12, REQ-13, REQ-110 | 1 | certified | With Docker running, the header shows "connected" and the negotiated Engine API version; stop the daemon → the shell says why and offers retry, no blank screens; start a container from a terminal → the event stream shows it within seconds without refreshing; rename the `docker` binary out of PATH → the app states the CLI is missing and what becomes unavailable. |
 | 3 · local-persistence | F30 — Local persistence and host-path access (enabling) | REQ-115 | 1, 2 | todo | Change screen and a couple of list filters, restart the app → it reopens where it was with the same filters and context; the store lives in a per-user app-data directory created on first run. |
 | 4 · containers-lifecycle | F4 — Container list and lifecycle | REQ-19, REQ-20, REQ-21, REQ-22, REQ-23, REQ-109 | 1, 2 | todo | The Containers screen matches the mockup and lists every container with name/id/state/image/CPU/memory/ports/uptime; each row offers only the actions its state allows and executing one is reflected in the row; rename works; "Prune stopped" confirms, then reports how many were removed; search filters the list; scrolling a long list with a modal open stays smooth. |
@@ -85,7 +85,25 @@ leave a coherent product.
 
 ## Departures from the spec
 
-None. All human decisions taken during validation (both CLI and API channels, full plugin
+**One, decided post-certification of batch 1 (human decision, 2026-08-06): the shell chrome floats
+instead of being docked.** The mockups in `.sdd/analysis/ui-mock/` show the navigation rail and the
+header flush to the viewport edges, with only the content cards floating. The implemented shell
+insets the whole layout by `--space-5` and separates rail / header / content by the same gap, so
+every region is its own rounded glass island with the Backdrop visible between them — the reference
+"liquid glass" look the human asked for. This changes chrome only, never a screen's content,
+composition or information architecture.
+
+**This departure is temporary: the mockups will be regenerated with the new graphics.** Until that
+lands, the rule of `CLAUDE.md` is unchanged and still binding — **read the relevant mockup in
+`.sdd/analysis/ui-mock/` before implementing a screen**. The mockups remain the visual target and
+the authority on each screen's content, layout, composition and interaction. The single thing they
+are temporarily out of date on is the shell chrome: where a current mockup shows the rail and header
+flush to the viewport edges, the implemented floating treatment wins, since that is settled once in
+the UI library and must not be re-flattened per screen. Everything inside the content area follows
+its mockup as drawn. Once the mockups are regenerated, this departure closes and the mockups are
+authoritative again on every point, chrome included.
+
+All other human decisions taken during validation (both CLI and API channels, full plugin
 management, compose write-back, local persistence, product name "Vessel — Docker Control", static
 pre-blurred backdrop with no runtime blur) either sharpen the spec or concern implementation
 constraints the spec left open; they are recorded in `requirements.md` (REQ-104, REQ-110 to REQ-116,
@@ -98,7 +116,7 @@ batch):
 
 | Batch | REQ closed |
 | --- | --- |
-| 1 foundation-ui-shell | 1–8, 107, 108 |
+| 1 foundation-ui-shell | 1–8, 107, 108, 117 |
 | 2 daemon-connectivity | 9–13, 110 |
 | 3 local-persistence | 115 |
 | 4 containers-lifecycle | 19–23, 109 |
@@ -129,7 +147,10 @@ batch):
 | 29 raw-console | 100–104, 112, 114 |
 | 30 coverage-matrix | 105, 106 |
 
-REQ-1 to REQ-116 are all present exactly once. No gap, no duplicate.
+REQ-1 to REQ-117 are all present exactly once. No gap, no duplicate. (REQ-117 — responsive shell —
+was added on 2026-08-06, after batch 1 was certified, to cover the viewport adaptation and phone
+rail drawer built during the post-certification visual rework; it closes in batch 1 alongside the
+rest of F1.)
 
 **REQs whose mechanism is built in one batch and closed in another** (declared, as required):
 

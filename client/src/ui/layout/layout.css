@@ -1,37 +1,103 @@
 .ui-frame {
   position: relative;
   z-index: var(--z-shell);
-  display: grid;
-  grid-template-columns: 260px 1fr;
+  display: flex;
   height: 100vh;
   overflow: hidden;
+  box-sizing: border-box;
+  padding: var(--space-5);
+  gap: var(--space-5);
 }
 
 .ui-frame__rail {
-  grid-column: 1;
-  grid-row: 1;
+  order: -1;
+  flex: none;
+  width: 260px;
   height: 100%;
-  overflow: auto;
+  /* No overflow/border-radius here: this is a plain sizing wrapper. The
+     rounding, background and box-shadow all live on .ui-nav-rail (the actual
+     card) — clipping at this level would cut its shadow off entirely, since
+     a shadow bleeds outside its own element's border box. */
 }
 
 .ui-frame__main {
-  grid-column: 2;
-  grid-row: 1;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   min-width: 0;
   height: 100%;
+  gap: var(--space-5);
 }
 
 .ui-frame__header {
   flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-xl);
+  border: var(--border-width-hairline) solid var(--color-border-subtle);
+  background-color: var(--color-surface-2);
+  box-shadow:
+    var(--shadow-2),
+    inset 0 1px 0 var(--color-highlight-top);
+}
+
+.ui-frame__menu-toggle {
+  display: none;
+  flex: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  border: var(--border-width-hairline) solid var(--color-border-subtle);
+  background: var(--color-surface-1);
+  cursor: pointer;
+}
+
+.ui-frame__menu-toggle span {
+  display: block;
+  width: 16px;
+  height: 2px;
+  border-radius: var(--radius-full);
+  background: var(--color-text-secondary);
+}
+
+.ui-frame__scrim {
+  display: none;
 }
 
 .ui-frame__content {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--space-6);
+  /* A scroll container clips at its padding-box edge on every side — and the
+     top edge clips hardest, since content can never scroll above the scroll
+     origin. Without headroom on all four sides each card's box-shadow is
+     sliced off flat where it bleeds out (most visibly across the top of the
+     first card). Inset with padding for that headroom, then cancel the inset
+     with an equal negative margin so the cards still land flush with the
+     header card's left/right bounds and keep their original vertical
+     position (same trick Toolify's shell uses for the same reason).
+     The top margin cancels .ui-frame__main's row gap exactly, so the visual
+     gap below the header is unchanged; --space-5 also matches .ui-frame's own
+     outer padding, so the horizontal bleed reaches exactly its inner edge.
+     Bottom stays at padding only — a negative bottom margin would overlap the
+     optional footer region.
+     The reserved scrollbar gutter is real layout space taken out of the
+     content area, which would otherwise leave the cards narrower than the
+     header card they must align with, so the right padding is reduced by
+     exactly that width. `stable` keeps the gutter reserved whether or not the
+     screen currently overflows, so cards don't shift sideways as content
+     grows. */
+  scrollbar-gutter: stable;
+  padding: var(--space-5) calc(var(--space-5) - var(--scrollbar-width)) var(--space-5)
+    var(--space-5);
+  margin: calc(-1 * var(--space-5)) calc(-1 * var(--space-5)) 0;
   z-index: var(--z-content);
 }
 
@@ -47,6 +113,7 @@
 .ui-row {
   display: flex;
   flex-direction: row;
+  min-width: 0;
 }
 
 .ui-row--align-center {
@@ -67,4 +134,53 @@
 
 .ui-spacer {
   flex: 1 1 auto;
+}
+
+/* Tablet: the rail stays docked but narrows, matching the phone drawer's
+   width so the transition between the two breakpoints reads as continuous. */
+@media (max-width: 1024px) {
+  .ui-frame__rail {
+    width: 220px;
+  }
+}
+
+/* Phone: the rail leaves the flex flow and becomes an off-canvas drawer
+   sliding in from the left over a dimmed scrim; the menu toggle appears in
+   the header to open it. This is ordinary transient UI chrome, not the
+   static backdrop image — the animation ban in CLAUDE.md targets the
+   backdrop layer, not a drawer's own open/close transition. */
+@media (max-width: 720px) {
+  .ui-frame__menu-toggle {
+    display: inline-flex;
+  }
+
+  .ui-frame__rail {
+    position: fixed;
+    inset: var(--space-3) auto var(--space-3) var(--space-3);
+    z-index: var(--z-overlay);
+    width: 280px;
+    max-width: 82vw;
+    transform: translateX(calc(-100% - var(--space-3)));
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .ui-frame__rail--open {
+    transform: translateX(0);
+  }
+
+  .ui-frame__scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: calc(var(--z-overlay) - 1);
+    background: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+
+  .ui-frame__scrim[data-open='true'] {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }

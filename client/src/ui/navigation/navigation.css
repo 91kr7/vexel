@@ -4,8 +4,12 @@
   gap: var(--space-6);
   height: 100%;
   padding: var(--space-5) var(--space-4);
+  border-radius: var(--radius-xl);
   background-color: var(--color-surface-1);
-  border-right: var(--border-width-hairline) solid var(--color-border-subtle);
+  border: var(--border-width-hairline) solid var(--color-border-subtle);
+  box-shadow:
+    var(--shadow-2),
+    inset 0 1px 0 var(--color-highlight-top);
 }
 
 .ui-nav-rail__brand {
@@ -43,6 +47,11 @@
   gap: var(--space-5);
   flex: 1 1 auto;
   overflow: auto;
+  /* The scrollbar renders flush against this box's own edge; without a
+     reserved gutter it sits right on top of the nav items' hover/active
+     highlight. This padding is the item's stopping point, not the
+     scrollbar's — leaving clearance between the two. */
+  padding-right: var(--space-2);
 }
 
 .ui-nav-group__label {

@@ -19,7 +19,15 @@ writing a wrapper `<div>`.
   (default `repeat(auto-fill, minmax(220px, 1fr))`).
 - `<Spacer />` — a flexible spacer (`flex: 1 1 auto`) that pushes Row/Stack siblings apart.
 
+## Rules and invariants
+
+- `Row` carries `min-width: 0`, overriding the `auto` minimum size a flex item gets by default.
+  Without it a Row nested in a constrained parent refuses to shrink below its content's width and
+  pushes out of its container instead of wrapping or letting its children shrink — which is how the
+  shell header overflowed its card at narrow viewports (REQ-117).
+
 ## Requirements served
 
 - plan-docker_management_app/REQ-1
 - plan-docker_management_app/REQ-2
+- plan-docker_management_app/REQ-117

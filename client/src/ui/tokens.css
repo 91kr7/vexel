@@ -5,14 +5,14 @@
  */
 :root {
   /* Color roles */
-  --color-void: #05070c;
-  --color-surface-1: rgba(22, 26, 36, 0.6);
-  --color-surface-2: rgba(27, 32, 44, 0.68);
-  --color-surface-raised: rgba(34, 40, 54, 0.76);
-  --color-surface-sunken: rgba(12, 15, 22, 0.55);
-  --color-border-subtle: rgba(255, 255, 255, 0.08);
-  --color-border-strong: rgba(255, 255, 255, 0.18);
-  --color-highlight-top: rgba(255, 255, 255, 0.07);
+  --color-void: #0a0f1a;
+  --color-surface-1: rgba(32, 38, 54, 0.36);
+  --color-surface-2: rgba(38, 45, 64, 0.44);
+  --color-surface-raised: rgba(46, 54, 76, 0.52);
+  --color-surface-sunken: rgba(14, 18, 28, 0.42);
+  --color-border-subtle: rgba(255, 255, 255, 0.1);
+  --color-border-strong: rgba(255, 255, 255, 0.22);
+  --color-highlight-top: rgba(255, 255, 255, 0.12);
   --color-highlight-bottom: rgba(255, 255, 255, 0);
 
   --color-text-primary: #eef0f5;
@@ -74,6 +74,12 @@
 
   /* Borders */
   --border-width-hairline: 1px;
+
+  /* Scrollbars — styling ::-webkit-scrollbar opts out of the platform's
+     overlay scrollbars, so this width is real layout space taken out of a
+     scroll container's content area. Layouts that must stay aligned with a
+     non-scrolling sibling subtract it from their own padding. */
+  --scrollbar-width: 8px;
 
   /* Elevation */
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
