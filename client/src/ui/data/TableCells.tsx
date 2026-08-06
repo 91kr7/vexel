@@ -34,9 +34,12 @@ export function TwoLineCell({ title, subtitle }: TwoLineCellProps) {
 
 export interface MetaCellProps {
   children?: ReactNode;
+  /** Wraps long unbroken values (e.g. a PATH-style env line) instead of overflowing; off by default so dense table columns keep truncating normally. */
+  wrap?: boolean;
 }
 
 /** Muted, monospace value for a numeric/meta column (CPU, memory, ports, uptime, …). */
-export function MetaCell({ children }: MetaCellProps) {
-  return <span className="ui-table-meta-cell">{children ?? '–'}</span>;
+export function MetaCell({ children, wrap = false }: MetaCellProps) {
+  const className = wrap ? 'ui-table-meta-cell ui-table-meta-cell--wrap' : 'ui-table-meta-cell';
+  return <span className={className}>{children ?? '–'}</span>;
 }

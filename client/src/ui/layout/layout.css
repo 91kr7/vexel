@@ -132,6 +132,13 @@
   display: grid;
 }
 
+.ui-grid > * {
+  /* Grid tracks default to a minimum content size, so one unbreakable long
+     value (e.g. a PATH-style env line) would otherwise blow out its track
+     and starve the others. */
+  min-width: 0;
+}
+
 .ui-spacer {
   flex: 1 1 auto;
 }

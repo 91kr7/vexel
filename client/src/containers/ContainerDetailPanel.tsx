@@ -8,7 +8,9 @@ import {
   EmptyState,
   ErrorBanner,
   FormFooter,
+  Grid,
   KeyValueEditor,
+  MetaCell,
   NumberField,
   RepeatableRowList,
   Row,
@@ -314,29 +316,42 @@ export function ContainerDetailPanel({ container, onClose, onContainerReplaced }
     }
 
     return (
-      <Stack gap="var(--space-4)">
-        <DefinitionList
-          items={[
-            { label: 'Restart policy', value: data.restartPolicy.maximumRetryCount ? `${data.restartPolicy.name} (max ${data.restartPolicy.maximumRetryCount})` : data.restartPolicy.name },
-            { label: 'CPU limit', value: data.resourceLimits.cpus ? `${data.resourceLimits.cpus} cpus` : '–' },
-            { label: 'Memory limit', value: data.resourceLimits.memoryBytes ? formatBytes(data.resourceLimits.memoryBytes) : '–' },
-            { label: 'Port mapping', value: formatPorts(data.ports) },
-            { label: 'Health check', value: data.healthCheck ? data.healthCheck.test.join(' ') : 'none' },
-            { label: 'Networks', value: data.networks.map((network) => network.name).join(', ') || '–' },
-          ]}
-        />
-        <CollapsibleSection title="Environment" summary={`${data.env.length} variable${data.env.length === 1 ? '' : 's'}`}>
-          <DefinitionList items={data.env.map(parseEnvEntry).map((pair) => ({ label: pair.key, value: pair.value }))} />
-        </CollapsibleSection>
-        <CollapsibleSection title="Mounts" summary={`${data.mounts.length} mount${data.mounts.length === 1 ? '' : 's'}`}>
-          <DefinitionList items={data.mounts.map((mount) => ({ label: mount.destination, value: `${mount.source} (${mount.readOnly ? 'ro' : 'rw'})` }))} />
-        </CollapsibleSection>
-        <Row justify="between">
-          <Button variant="primary" onClick={startEdit}>
-            Edit configuration
-          </Button>
-        </Row>
-      </Stack>
+      <Grid columns="1fr 1fr" gap="var(--space-6)">
+        <Stack gap="var(--space-3)">
+          <SectionHeader variant="eyebrow" title="Runtime configuration" />
+          <DefinitionList
+            items={[
+              { label: 'Restart policy', value: data.restartPolicy.maximumRetryCount ? `${data.restartPolicy.name} (max ${data.restartPolicy.maximumRetryCount})` : data.restartPolicy.name },
+              { label: 'CPU limit', value: data.resourceLimits.cpus ? `${data.resourceLimits.cpus} cpus` : '–' },
+              { label: 'Memory limit', value: data.resourceLimits.memoryBytes ? formatBytes(data.resourceLimits.memoryBytes) : '–' },
+              { label: 'Port mapping', value: formatPorts(data.ports) },
+              { label: 'Health check', value: data.healthCheck ? data.healthCheck.test.join(' ') : 'none' },
+              { label: 'Networks', value: data.networks.map((network) => network.name).join(', ') || '–' },
+            ]}
+          />
+        </Stack>
+        <Stack gap="var(--space-3)">
+          <SectionHeader variant="eyebrow" title="Environment · Mounts" />
+          <Stack gap="var(--space-2)">
+            {data.env.length === 0 && data.mounts.length === 0 ? <MetaCell>–</MetaCell> : null}
+            {data.env.map((entry) => (
+              <MetaCell key={entry} wrap>
+                {entry}
+              </MetaCell>
+            ))}
+            {data.mounts.map((mount) => (
+              <MetaCell key={`${mount.source}:${mount.destination}`} wrap>
+                {`mount: ${mount.source} → ${mount.destination} (${mount.readOnly ? 'ro' : 'rw'})`}
+              </MetaCell>
+            ))}
+          </Stack>
+          <Row>
+            <Button variant="primary" onClick={startEdit}>
+              Edit configuration
+            </Button>
+          </Row>
+        </Stack>
+      </Grid>
     );
   }
 
@@ -371,7 +386,7 @@ export function ContainerDetailPanel({ container, onClose, onContainerReplaced }
             ))}
           </CollapsibleSection>
         ) : null}
-        <SectionHeader title="Raw payload" description="Exactly as received from the Engine API." />
+        <SectionHeader variant="eyebrow" title="Raw payload" description="Exactly as received from the Engine API." />
         <CodeViewer code={JSON.stringify(data.raw, null, 2)} maxHeight="320px" />
       </Stack>
     );
