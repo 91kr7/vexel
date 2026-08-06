@@ -182,32 +182,6 @@ export function Shell() {
                 onRetry={connection.retry}
               />
             ) : null}
-            <Card>
-              <SectionHeader
-                title="CLI availability"
-                description={
-                  connection.unavailableCapabilities.length > 0
-                    ? connection.unavailableCapabilities.join(' ')
-                    : 'docker, compose and buildx are all available.'
-                }
-              />
-              <Row gap="var(--space-3)" wrap>
-                <Badge tone={connection.cli.docker.available ? 'success' : 'danger'}>{cliBadgeLabel('docker', connection.cli.docker)}</Badge>
-                <Badge tone={connection.cli.compose.available ? 'success' : 'danger'}>{cliBadgeLabel('compose', connection.cli.compose)}</Badge>
-                <Badge tone={connection.cli.buildx.available ? 'success' : 'danger'}>{cliBadgeLabel('buildx', connection.cli.buildx)}</Badge>
-              </Row>
-            </Card>
-            <Card title="Daemon event stream">
-              <EventStream entries={eventEntries} emptyLabel="No daemon events yet." />
-            </Card>
-            <Card title="Local storage">
-              <StorageUsageRow
-                label="Analysis cache"
-                description="Cached image extraction and layer-analysis results"
-                sizeLabel={cacheUsage === undefined ? '—' : formatBytes(cacheUsage)}
-                action={{ label: 'Clear', onClick: handleClearCache, disabled: !cacheUsage }}
-              />
-            </Card>
             {activeScreen.id === 'containers' ? (
               <ContainersScreen
                 containers={containers.containers}
@@ -216,7 +190,35 @@ export function Shell() {
                 onRefresh={containers.refresh}
               />
             ) : (
-              <PlaceholderScreen screenLabel={activeScreen.label} />
+              <>
+                <Card>
+                  <SectionHeader
+                    title="CLI availability"
+                    description={
+                      connection.unavailableCapabilities.length > 0
+                        ? connection.unavailableCapabilities.join(' ')
+                        : 'docker, compose and buildx are all available.'
+                    }
+                  />
+                  <Row gap="var(--space-3)" wrap>
+                    <Badge tone={connection.cli.docker.available ? 'success' : 'danger'}>{cliBadgeLabel('docker', connection.cli.docker)}</Badge>
+                    <Badge tone={connection.cli.compose.available ? 'success' : 'danger'}>{cliBadgeLabel('compose', connection.cli.compose)}</Badge>
+                    <Badge tone={connection.cli.buildx.available ? 'success' : 'danger'}>{cliBadgeLabel('buildx', connection.cli.buildx)}</Badge>
+                  </Row>
+                </Card>
+                <Card title="Daemon event stream">
+                  <EventStream entries={eventEntries} emptyLabel="No daemon events yet." />
+                </Card>
+                <Card title="Local storage">
+                  <StorageUsageRow
+                    label="Analysis cache"
+                    description="Cached image extraction and layer-analysis results"
+                    sizeLabel={cacheUsage === undefined ? '—' : formatBytes(cacheUsage)}
+                    action={{ label: 'Clear', onClick: handleClearCache, disabled: !cacheUsage }}
+                  />
+                </Card>
+                <PlaceholderScreen screenLabel={activeScreen.label} />
+              </>
             )}
           </Stack>
         </Frame>
