@@ -3,7 +3,8 @@ import { IconButton } from '../controls/IconButton';
 import './detail-panel.css';
 
 export interface DetailPanelProps {
-  title: string;
+  /** Omit when the object is already labelled by the surface the panel opens from (e.g. a table row). */
+  title?: string;
   subtitle?: string;
   onClose: () => void;
   actions?: ReactNode;
@@ -11,15 +12,15 @@ export interface DetailPanelProps {
 }
 
 /**
- * Detail surface for a selected object: header with title/subtitle and a
- * sticky trailing actions slot, a close control, and a content body below.
+ * Detail surface for a selected object: an optional header with title/subtitle
+ * and a sticky trailing actions slot, a close control, and a content body below.
  */
 export function DetailPanel({ title, subtitle, onClose, actions, children }: DetailPanelProps) {
   return (
     <div className="ui-detail-panel">
       <div className="ui-detail-panel__header">
         <div className="ui-detail-panel__heading">
-          <p className="ui-detail-panel__title">{title}</p>
+          {title ? <p className="ui-detail-panel__title">{title}</p> : null}
           {subtitle ? <p className="ui-detail-panel__subtitle">{subtitle}</p> : null}
         </div>
         {actions ? <div className="ui-detail-panel__actions">{actions}</div> : null}

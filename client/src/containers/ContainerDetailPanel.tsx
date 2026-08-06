@@ -393,7 +393,7 @@ export function ContainerDetailPanel({ container, onClose, onContainerReplaced }
   }
 
   return (
-    <DetailPanel title={container.name} subtitle={`${container.shortId} · ${container.state}`} onClose={onClose}>
+    <DetailPanel onClose={onClose}>
       <Stack gap="var(--space-4)">
         <Tabs
           tabs={[

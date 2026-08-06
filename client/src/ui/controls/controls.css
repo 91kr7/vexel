@@ -238,6 +238,9 @@
 }
 
 .ui-text-field {
+  flex: 1 1 0;
+  min-width: 0;
+  width: 100%;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   border: var(--border-width-hairline) solid var(--color-border-subtle);
@@ -314,13 +317,12 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
-  border-bottom: var(--border-width-hairline) solid var(--color-border-subtle);
 }
 
 .ui-tabs__tab {
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-4);
   border: none;
-  border-bottom: 2px solid transparent;
+  border-radius: var(--radius-full);
   background: transparent;
   color: var(--color-text-secondary);
   font-size: var(--font-size-sm);
@@ -330,12 +332,14 @@
 
 .ui-tabs__tab--active {
   color: var(--color-text-primary);
-  border-bottom-color: var(--color-accent);
+  background: var(--color-surface-raised);
 }
 
 .ui-field {
   display: flex;
   flex-direction: column;
+  flex: 1 1 0;
+  min-width: 0;
   gap: var(--space-1);
 }
 
@@ -354,6 +358,8 @@
 }
 
 .ui-select {
+  flex: 1 1 0;
+  min-width: 0;
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   border: var(--border-width-hairline) solid var(--color-border-subtle);

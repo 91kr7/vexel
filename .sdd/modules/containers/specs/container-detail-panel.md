@@ -18,8 +18,8 @@ data organised in a Config tab (editable) and an Inspect tab (read-only, with th
     container id no longer exists.
 
 Description:
-- A `DetailPanel` titled with the container's name and short id · state, holding a `Tabs` row
-  (Config, Inspect) and the active tab's content.
+- A `DetailPanel` (untitled — the container's name/id/state are already shown by the table row it
+  expands below) holding a `Tabs` row (Config, Inspect) and the active tab's content.
 Shows (Config tab, view mode):
 - A `DefinitionList` of restart policy, CPU limit, memory limit, port mapping, health check command
   and networks; collapsible sections for the full environment variable list and the mount list; an
