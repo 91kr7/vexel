@@ -1,0 +1,46 @@
+---
+module: docker-access
+component: EngineClient
+type: backend service
+---
+
+# EngineClient
+
+**Purpose** → talks to the Docker Engine API of the active context's endpoint (unix socket, SSH or
+TCP+TLS), negotiates the API version, and preserves the daemon's own error message on failure.
+
+## Contract
+
+- `new EngineClient(endpoint: DockerEndpoint)`
+  - `DockerEndpoint`: `{ kind: 'unix', socketPath }` | `{ kind: 'tcp', host, port, tls? }` |
+    `{ kind: 'ssh', destination }`.
+- `getVersion(): Promise<{ apiVersion, engineVersion, minApiVersion? }>`
+  - Calls the daemon's `/version`, then negotiates: the lower of the daemon's reported API version
+    and this client's maximum supported version, raised to the daemon's `MinAPIVersion` when that
+    floor is higher.
+  - Rejects with a `DockerDaemonError` (code `DaemonUnreachable`) when the endpoint cannot be
+    reached, or `UnsupportedApiVersion` when the daemon reports no API version.
+- `request(path, { method?, body? }): Promise<{ statusCode, body }>`
+  - Prefixes `path` with `/v{negotiated apiVersion}`; rejects with a `DockerDaemonError` (code
+    `DaemonRejected`, `statusCode` set) carrying the daemon's own `message` field verbatim when the
+    response status is >= 400.
+- `requestStream(path): Promise<IncomingMessage>`
+  - Same version-prefixing and error mapping as `request`, but returns the raw streamed response
+    (used for `/events`, logs, stats, exec attach, …).
+
+## Rules and invariants
+
+- Every request goes through the endpoint's actual transport (unix socket, TCP(+TLS) socket, or an
+  `ssh … docker system dial-stdio` tunnel) — no transport-specific branching in callers.
+- A `DockerDaemonError`'s `message` is always the daemon's own message when the daemon responded
+  with one; otherwise a description of the low-level connection failure.
+
+## Dependencies
+
+- None (only Node built-ins: `http`, `net`, `tls`, `child_process`).
+
+## Requirements served
+
+- plan-docker_management_app/REQ-9
+- plan-docker_management_app/REQ-10
+- plan-docker_management_app/REQ-13

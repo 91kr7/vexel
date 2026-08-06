@@ -58,6 +58,18 @@
   background: var(--color-danger);
 }
 
+.ui-status-pill__action {
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin-left: var(--space-1);
+  font: inherit;
+  font-weight: var(--font-weight-semibold);
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .ui-button {
   display: inline-flex;
   align-items: center;

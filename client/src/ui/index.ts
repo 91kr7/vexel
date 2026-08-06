@@ -21,7 +21,7 @@ export { NavItem, type NavItemProps } from './navigation/NavItem';
 export { FooterStatus, type FooterStatusProps } from './navigation/FooterStatus';
 
 export { PageHeader, type PageHeaderProps } from './controls/PageHeader';
-export { StatusPill, type StatusPillProps, type StatusTone } from './controls/StatusPill';
+export { StatusPill, type StatusPillProps, type StatusTone, type StatusPillAction } from './controls/StatusPill';
 export { Button, type ButtonProps, type ButtonVariant } from './controls/Button';
 export { IconButton, type IconButtonProps } from './controls/IconButton';
 export { Badge, type BadgeProps, type BadgeTone } from './controls/Badge';
@@ -34,3 +34,4 @@ export { ErrorBanner, type ErrorBannerProps } from './feedback/ErrorBanner';
 export { ProgressBar, type ProgressBarProps } from './feedback/ProgressBar';
 export { Spinner, type SpinnerProps } from './feedback/Spinner';
 export { EmptyState, type EmptyStateProps } from './feedback/EmptyState';
+export { EventStream, type EventStreamProps, type EventStreamEntry } from './feedback/EventStream';

@@ -16,14 +16,20 @@ Description:
   any screen it renders can call `useToast()`/`useConfirmation()` without the caller wiring them).
   Inside, renders a `Frame` whose rail is a `NavRail` built from the navigation data (one
   `NavGroup` per group, one `NavItem` per screen), whose header is a `PageHeader` for the active
-  screen (with a live-events `StatusPill`, a search `Button` with a `KeyHint`, and a console
-  `Button`), and whose footer status (active Docker context) is shown inside the rail.
+  screen (with a live-events `StatusPill`, an "Engine API v…" `Badge` when the daemon is reachable,
+  a search `Button` with a `KeyHint`, and a console `Button`), and whose footer status (active
+  Docker context) is shown inside the rail.
 Shows:
-- The active screen's title and description in the header; a `PlaceholderScreen` (later batches
-  substitute the real screen) plus any active `ErrorBanner`s in the content area.
+- The active screen's title and description in the header; in the content area: any active
+  `ErrorBanner`s (REQ-7), an unreachable-daemon `ErrorBanner` with cause and retry when the daemon
+  cannot be reached (REQ-10), a "CLI availability" `Card` listing docker/compose/buildx presence
+  and version (REQ-110), a "Daemon event stream" `Card` with the live `EventStream` (REQ-11,
+  REQ-12), and a `PlaceholderScreen` (later batches substitute the real per-screen content).
 Actions:
 - Selecting a `NavItem` sets it active and replaces the content area with its screen, without
   remounting the rail, header or footer.
+- The status pill's inline "Retry" action and the unreachable-daemon banner's retry both call
+  `useConnectionStatus().retry()` to re-probe the daemon immediately (REQ-10).
 Navigation:
 - No URL routing in this batch: the active screen is local component state, defaulting to
   `defaultScreenId`.
@@ -31,19 +37,31 @@ Navigation:
 ## Rules and invariants
 
 - Exactly one `NavItem` is active at a time, matching the displayed screen (REQ-2).
-- The header's status pill reflects `useProgress()`'s pending-operation count so an in-flight
-  operation is visible without blocking navigation to another screen (REQ-8).
-- `errors` (REQ-7) and `pending` (REQ-8) come from providers supplied by the caller (`App`), so
-  they can be observed/driven independently of the shell chrome; `ToastProvider` and
-  `ConfirmationProvider` (REQ-6/REQ-8) are supplied by the Shell itself.
+- The header's status pill reflects `useProgress()`'s pending-operation count first; otherwise it
+  reflects daemon reachability (danger when unreachable, warning when reachable but a CLI
+  capability is unavailable, success otherwise) so connectivity is visible without blocking
+  navigation to another screen (REQ-8, REQ-9).
+- The unreachable-daemon banner never replaces or hides the rest of the screen: the CLI
+  availability card, the event stream and the placeholder content remain visible (REQ-10).
+- `errors` (REQ-7), `pending` (REQ-8), `connection` (REQ-9/REQ-10/REQ-13/REQ-110) and `events`
+  (REQ-11/REQ-12) come from providers supplied by the caller (`App`), so they can be
+  observed/driven independently of the shell chrome; `ToastProvider` and `ConfirmationProvider`
+  (REQ-6/REQ-8) are supplied by the Shell itself.
 
 ## Dependencies
 
 - ui-library: Frame, NavRail, NavBrand, NavGroup, NavItem, FooterStatus, PageHeader, StatusPill,
-  Button, KeyHint, Row, Stack, ErrorBanner, ToastProvider
-- Navigation data, PlaceholderScreen, ConfirmationService, ErrorReportingService, ProgressService
+  Badge, Button, KeyHint, Row, Stack, Card, SectionHeader, ErrorBanner, EventStream, ToastProvider
+- Navigation data, PlaceholderScreen, ConfirmationService, ErrorReportingService, ProgressService,
+  ConnectionStatusService, EventStreamService
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-1
 - plan-docker_management_app/REQ-2
+- plan-docker_management_app/REQ-9
+- plan-docker_management_app/REQ-10
+- plan-docker_management_app/REQ-11
+- plan-docker_management_app/REQ-12
+- plan-docker_management_app/REQ-13
+- plan-docker_management_app/REQ-110

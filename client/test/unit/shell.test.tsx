@@ -1,19 +1,46 @@
 import { act } from 'react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Shell } from '../../src/shell/Shell';
+import { ConnectionStatusProvider } from '../../src/shell/services/ConnectionStatusService';
+import { DaemonEventStreamProvider } from '../../src/shell/services/EventStreamService';
 import { ErrorReportingProvider, useErrorReporter } from '../../src/shell/services/ErrorReportingService';
 import { ProgressProvider, useProgress } from '../../src/shell/services/ProgressService';
 
-afterEach(cleanup);
+class FakeEventSource {
+  onmessage: ((event: { data: string }) => void) | null = null;
+  constructor(public url: string) {}
+}
+
+const reachableStatus = {
+  daemon: { reachable: true },
+  apiVersion: '1.43',
+  engineVersion: '24.0.0',
+  cli: {
+    docker: { available: true, version: '24.0.0' },
+    compose: { available: true, version: '2.24.0' },
+    buildx: { available: true, version: '0.11.0' },
+  },
+  unavailableCapabilities: [],
+};
+
+beforeEach(() => {
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(reachableStatus) }));
+  vi.stubGlobal('EventSource', FakeEventSource);
+});
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 interface ShellApi {
   reportError: ReturnType<typeof useErrorReporter>['reportError'];
   run: ReturnType<typeof useProgress>['run'];
 }
 
-function renderShell() {
+async function renderShell() {
   const api: Partial<ShellApi> = {};
 
   function Driver() {
@@ -25,19 +52,28 @@ function renderShell() {
   render(
     <ErrorReportingProvider>
       <ProgressProvider>
-        <Driver />
-        <Shell />
+        <ConnectionStatusProvider>
+          <DaemonEventStreamProvider>
+            <Driver />
+            <Shell />
+          </DaemonEventStreamProvider>
+        </ConnectionStatusProvider>
       </ProgressProvider>
     </ErrorReportingProvider>,
   );
+
+  // Connectivity status resolves asynchronously (REQ-9); wait for it so the
+  // header status pill has settled before tests written for batch 1's
+  // REQ-1/2/7/8 assert on other parts of the shell.
+  await waitFor(() => expect(screen.getByText('Live · daemon events')).toBeInTheDocument());
 
   return api as ShellApi;
 }
 
 describe('Shell', () => {
   // plan-docker_management_app/REQ-1
-  it('opens on the Dashboard screen with the Vessel brand and the active-context footer', () => {
-    renderShell();
+  it('opens on the Dashboard screen with the Vessel brand and the active-context footer', async () => {
+    await renderShell();
 
     expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument();
     expect(screen.getByText('Vessel')).toBeInTheDocument();
@@ -47,7 +83,7 @@ describe('Shell', () => {
   // plan-docker_management_app/REQ-2
   it('activating a nav entry replaces the main area and marks it active, keeping rail/header/footer', async () => {
     const user = userEvent.setup();
-    renderShell();
+    await renderShell();
 
     await user.click(screen.getByRole('button', { name: /Containers/ }));
 
@@ -62,7 +98,7 @@ describe('Shell', () => {
 
   // app-shell/specs/error-reporting-service.md — the shell renders errors alongside the screen, not instead of it (REQ-7)
   it('shows a reported error next to the active screen without hiding it', async () => {
-    const api = renderShell();
+    const api = await renderShell();
 
     act(() => {
       api.reportError('Failed to remove container', 'Error: cannot remove a running container');
@@ -76,7 +112,7 @@ describe('Shell', () => {
 
   // app-shell/specs/shell.md — the header status pill reflects the pending-operation count (REQ-8)
   it('reflects an in-flight operation in the header status pill without leaving the screen', async () => {
-    const api = renderShell();
+    const api = await renderShell();
 
     expect(screen.getByText('Live · daemon events')).toBeInTheDocument();
 

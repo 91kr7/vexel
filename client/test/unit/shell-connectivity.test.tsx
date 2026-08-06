@@ -1,0 +1,132 @@
+import { act } from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+
+// Both the connectivity data client (fetch) and the event-stream data client
+// (a module-level EventSource singleton) need a fresh module registry per
+// test so mocks from one test never leak into the next.
+class FakeEventSource {
+  onmessage: ((event: { data: string }) => void) | null = null;
+  url: string;
+  constructor(url: string) {
+    this.url = url;
+  }
+}
+
+let currentEventSource: FakeEventSource | undefined;
+
+beforeEach(() => {
+  vi.resetModules();
+  currentEventSource = undefined;
+  vi.stubGlobal(
+    'EventSource',
+    class extends FakeEventSource {
+      constructor(url: string) {
+        super(url);
+        currentEventSource = this;
+      }
+    },
+  );
+});
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
+const reachableStatus = {
+  daemon: { reachable: true },
+  apiVersion: '1.43',
+  engineVersion: '24.0.0',
+  cli: {
+    docker: { available: true, version: '24.0.0' },
+    compose: { available: true, version: '2.24.0' },
+    buildx: { available: true, version: '0.11.0' },
+  },
+  unavailableCapabilities: [],
+};
+
+const unreachableStatus = {
+  daemon: { reachable: false, cause: 'Connection refused by the Docker endpoint' },
+  cli: {
+    docker: { available: false },
+    compose: { available: false },
+    buildx: { available: false },
+  },
+  unavailableCapabilities: ['The raw console CLI channel is unavailable: the docker CLI was not found.'],
+};
+
+async function renderShellWith(status: unknown) {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(status) });
+  vi.stubGlobal('fetch', fetchMock);
+
+  const { Shell } = await import('../../src/shell/Shell');
+  const { ErrorReportingProvider } = await import('../../src/shell/services/ErrorReportingService');
+  const { ProgressProvider } = await import('../../src/shell/services/ProgressService');
+  const { ConnectionStatusProvider } = await import('../../src/shell/services/ConnectionStatusService');
+  const { DaemonEventStreamProvider } = await import('../../src/shell/services/EventStreamService');
+
+  render(
+    <ErrorReportingProvider>
+      <ProgressProvider>
+        <ConnectionStatusProvider>
+          <DaemonEventStreamProvider>
+            <Shell />
+          </DaemonEventStreamProvider>
+        </ConnectionStatusProvider>
+      </ProgressProvider>
+    </ErrorReportingProvider>,
+  );
+
+  return { fetchMock };
+}
+
+describe('Shell — daemon connectivity (app-shell/specs/shell.md)', () => {
+  // plan-docker_management_app/REQ-13 — the negotiated Engine API version is surfaced once the daemon is reachable
+  it('shows the negotiated Engine API version once the daemon reports reachable', async () => {
+    await renderShellWith(reachableStatus);
+
+    await waitFor(() => expect(screen.getByText(/Engine API v1\.43/)).toBeInTheDocument());
+    expect(screen.queryByText(unreachableStatus.daemon.cause)).not.toBeInTheDocument();
+  });
+
+  // plan-docker_management_app/REQ-10 — the unreachable cause is explained with a retry action, screen stays usable
+  it('explains the unreachable cause with a retry action while the rest of the screen stays visible', async () => {
+    await renderShellWith(unreachableStatus);
+
+    await waitFor(() => expect(screen.getByText(unreachableStatus.daemon.cause)).toBeInTheDocument());
+    expect(screen.getAllByRole('button', { name: 'Retry' }).length).toBeGreaterThan(0);
+
+    // The unreachable banner does not replace or hide the rest of the screen.
+    expect(screen.getByText('CLI availability')).toBeInTheDocument();
+    expect(screen.getByText('Daemon event stream')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
+  });
+
+  // plan-docker_management_app/REQ-10 — the retry action re-probes the daemon immediately
+  it('retrying re-fetches the connectivity status', async () => {
+    const { fetchMock } = await renderShellWith(unreachableStatus);
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const user = userEvent.setup();
+    await user.click(screen.getAllByRole('button', { name: 'Retry' })[0]);
+
+    await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2));
+  });
+
+  // plan-docker_management_app/REQ-11, plan-docker_management_app/REQ-12 — a live event updates the event stream panel without a manual refresh
+  it('shows a live daemon event in the "Daemon event stream" panel as it arrives', async () => {
+    await renderShellWith(reachableStatus);
+    await waitFor(() => expect(currentEventSource).toBeDefined());
+
+    act(() => {
+      currentEventSource!.onmessage?.({
+        data: JSON.stringify({ id: 'evt-1', timestamp: new Date().toISOString(), type: 'network', action: 'create', actor: 'test-net' }),
+      });
+    });
+
+    await waitFor(() => expect(screen.getByText('test-net')).toBeInTheDocument());
+  });
+});
