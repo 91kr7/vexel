@@ -24,15 +24,19 @@ Shows:
   `ErrorBanner`s (REQ-7), an unreachable-daemon `ErrorBanner` with cause and retry when the daemon
   cannot be reached (REQ-10), a "CLI availability" `Card` listing docker/compose/buildx presence
   and version (REQ-110), a "Daemon event stream" `Card` with the live `EventStream` (REQ-11,
-  REQ-12), and a `PlaceholderScreen` (later batches substitute the real per-screen content).
+  REQ-12), a "Local storage" `Card` with a `StorageUsageRow` for the analysis cache's size and a
+  "Clear" action (REQ-113, REQ-115), and a `PlaceholderScreen` (later batches substitute the real
+  per-screen content).
 Actions:
-- Selecting a `NavItem` sets it active and replaces the content area with its screen, without
-  remounting the rail, header or footer.
+- Selecting a `NavItem` sets it active, persists it as `lastScreenId` via `usePreferences()`, and
+  replaces the content area with its screen, without remounting the rail, header or footer.
 - The status pill's inline "Retry" action and the unreachable-daemon banner's retry both call
   `useConnectionStatus().retry()` to re-probe the daemon immediately (REQ-10).
+- The "Local storage" card's "Clear" action calls `clearAnalysisCache()` then refreshes the shown
+  size; it is disabled while the cache is empty or its size has not loaded yet.
 Navigation:
 - No URL routing in this batch: the active screen is local component state, defaulting to
-  `defaultScreenId`.
+  `defaultScreenId` until preferences restore it (see below).
 
 ## Rules and invariants
 
@@ -42,7 +46,8 @@ Navigation:
   capability is unavailable, success otherwise) so connectivity is visible without blocking
   navigation to another screen (REQ-8, REQ-9).
 - The unreachable-daemon banner never replaces or hides the rest of the screen: the CLI
-  availability card, the event stream and the placeholder content remain visible (REQ-10).
+  availability card, the event stream, the local-storage card and the placeholder content remain
+  visible (REQ-10).
 - `errors` (REQ-7), `pending` (REQ-8), `connection` (REQ-9/REQ-10/REQ-13/REQ-110) and `events`
   (REQ-11/REQ-12) come from providers supplied by the caller (`App`), so they can be
   observed/driven independently of the shell chrome; `ToastProvider` and `ConfirmationProvider`
@@ -50,13 +55,23 @@ Navigation:
 - The header's action group is a wrapping `Row` (`wrap`): PageHeader only wraps at its own top
   level, so a non-wrapping action row would overflow the header card once the viewport is narrow
   enough that the pill, version badge, search and console no longer fit on one line.
+- Once `usePreferences()` reports `loaded`, the active screen is set to `preferences.lastScreenId`
+  if it names a known screen; this restore runs exactly once per mount, so a later external change
+  to `preferences.lastScreenId` (e.g. from another tab) does not yank the operator to a different
+  screen while they are using this one (REQ-115).
+- `selectedContext` and `listFilters` are carried by `OperatorPreferences` and persisted through
+  `usePreferences()`, but nothing in this batch's shell reads or writes them: no context switcher
+  or per-screen filter control exists yet (they land with the screens that own them in later
+  batches).
 
 ## Dependencies
 
 - ui-library: Frame, NavRail, NavBrand, NavGroup, NavItem, FooterStatus, PageHeader, StatusPill,
-  Badge, Button, KeyHint, Row, Stack, Card, SectionHeader, ErrorBanner, EventStream, ToastProvider
+  Badge, Button, KeyHint, Row, Stack, Card, SectionHeader, ErrorBanner, EventStream,
+  StorageUsageRow, ToastProvider
 - Navigation data, PlaceholderScreen, ConfirmationService, ErrorReportingService, ProgressService,
   ConnectionStatusService, EventStreamService
+- local-persistence: usePreferences, fetchAnalysisCacheUsage, clearAnalysisCache
 
 ## Requirements served
 
@@ -68,3 +83,5 @@ Navigation:
 - plan-docker_management_app/REQ-12
 - plan-docker_management_app/REQ-13
 - plan-docker_management_app/REQ-110
+- plan-docker_management_app/REQ-113
+- plan-docker_management_app/REQ-115

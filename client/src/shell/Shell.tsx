@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Badge,
   Button,
@@ -17,9 +17,12 @@ import {
   SectionHeader,
   Stack,
   StatusPill,
+  StorageUsageRow,
   ToastProvider,
   type StatusTone,
 } from '../ui';
+import { clearAnalysisCache, fetchAnalysisCacheUsage } from '../data/preferences-client';
+import { usePreferences } from '../data/use-preferences';
 import { defaultScreenId, navGroupOrder, screens } from './navigation';
 import { PlaceholderScreen } from './screens/PlaceholderScreen';
 import { ConfirmationProvider } from './services/ConfirmationService';
@@ -37,6 +40,18 @@ function cliBadgeLabel(name: string, status: { available: boolean; version?: str
   return status.available ? `${name} ${status.version}` : `${name} not found`;
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let value = bytes / 1024;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  return `${value.toFixed(1)}${units[unitIndex]}`;
+}
+
 /**
  * "Vessel — Docker Control" shell: rail, header, footer stay in place while
  * the content area is replaced by the active screen (REQ-1, REQ-2).
@@ -52,6 +67,40 @@ export function Shell() {
   const { pending } = useProgress();
   const connection = useConnectionStatus();
   const { events } = useDaemonEventStream();
+  const { preferences, loaded: preferencesLoaded, updatePreferences } = usePreferences();
+  const [cacheUsage, setCacheUsage] = useState<number | undefined>(undefined);
+  const restoredScreenRef = useRef(false);
+
+  // Restore the last active screen once preferences have loaded (REQ-115).
+  useEffect(() => {
+    if (!preferencesLoaded || restoredScreenRef.current) return;
+    restoredScreenRef.current = true;
+    if (preferences.lastScreenId && screens.some((screen) => screen.id === preferences.lastScreenId)) {
+      setActiveId(preferences.lastScreenId);
+    }
+  }, [preferencesLoaded, preferences.lastScreenId]);
+
+  const refreshCacheUsage = useCallback(() => {
+    fetchAnalysisCacheUsage()
+      .then((usage) => setCacheUsage(usage.totalSizeBytes))
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    refreshCacheUsage();
+  }, [refreshCacheUsage]);
+
+  const selectScreen = useCallback(
+    (id: string) => {
+      setActiveId(id);
+      updatePreferences({ lastScreenId: id });
+    },
+    [updatePreferences],
+  );
+
+  const handleClearCache = useCallback(() => {
+    clearAnalysisCache().then(refreshCacheUsage).catch(() => undefined);
+  }, [refreshCacheUsage]);
 
   const activeScreen = screens.find((screen) => screen.id === activeId) ?? screens[0];
 
@@ -89,7 +138,7 @@ export function Shell() {
                         glyph={screen.glyph}
                         label={screen.label}
                         active={screen.id === activeScreen.id}
-                        onSelect={() => setActiveId(screen.id)}
+                        onSelect={() => selectScreen(screen.id)}
                       />
                     ))}
                 </NavGroup>
@@ -146,6 +195,14 @@ export function Shell() {
             </Card>
             <Card title="Daemon event stream">
               <EventStream entries={eventEntries} emptyLabel="No daemon events yet." />
+            </Card>
+            <Card title="Local storage">
+              <StorageUsageRow
+                label="Analysis cache"
+                description="Cached image extraction and layer-analysis results"
+                sizeLabel={cacheUsage === undefined ? '—' : formatBytes(cacheUsage)}
+                action={{ label: 'Clear', onClick: handleClearCache, disabled: !cacheUsage }}
+              />
             </Card>
             <PlaceholderScreen screenLabel={activeScreen.label} />
           </Stack>

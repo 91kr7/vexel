@@ -26,6 +26,8 @@ export { Button, type ButtonProps, type ButtonVariant } from './controls/Button'
 export { IconButton, type IconButtonProps } from './controls/IconButton';
 export { Badge, type BadgeProps, type BadgeTone } from './controls/Badge';
 export { KeyHint, type KeyHintProps } from './controls/KeyHint';
+export { PathInput, type PathInputProps, type PathInputValidationState } from './controls/PathInput';
+export { StorageUsageRow, type StorageUsageRowProps, type StorageUsageRowAction } from './controls/StorageUsageRow';
 
 export { Modal, type ModalProps } from './feedback/Modal';
 export { ConfirmDialog, type ConfirmDialogProps } from './feedback/ConfirmDialog';
