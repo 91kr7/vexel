@@ -24,9 +24,10 @@ stays smooth (REQ-109).
   - `selectedRowKey?: string`, `onRowSelect?(row)` — clicking a row calls `onRowSelect`; the row
     whose key matches `selectedRowKey` renders in its selected state.
   - `emptyState?: ReactNode` — shown instead of the header/body rows when `rows` is empty.
-  - `expandedRowKey?: string`, `renderExpanded?(row)` — when a mounted row's key matches
-    `expandedRowKey`, `renderExpanded(row)`'s content is inserted in normal flow directly below
-    that row (e.g. a detail panel), pushing the rows after it down.
+  - `expandedRowKey?: string`, `renderExpanded?(row)` — when a row's key matches `expandedRowKey`,
+    that row is always kept mounted (even outside the naive virtualisation window) and
+    `renderExpanded(row)`'s content is inserted in normal flow directly below it (e.g. a detail
+    panel), pushing the rows after it down.
 
 ## Rules and invariants
 
@@ -34,10 +35,13 @@ stays smooth (REQ-109).
   not their layout, so scrolling never recomputes the glass material (REQ-109).
 - Every column in `columns` renders in the header and in every row, in the same order and using the
   same `width`/`align`.
-- Virtualisation only accounts for the fixed `rowHeight` of each row; an expanded row's extra height
-  is not reserved in the scroll-window calculation. Acceptable for the moderate list sizes this
-  table serves; a future batch revisits it if a screen needs both virtualisation and expansion at
-  very large row counts.
+- Virtualisation only accounts for the fixed `rowHeight` of each row when reserving scroll-window
+  space; an expanded row's extra height is not reserved (spacer heights stay an approximation).
+  Acceptable for the moderate list sizes this table serves; a future batch revisits it if a screen
+  needs both virtualisation and expansion at very large row counts.
+- The row matching `expandedRowKey` is never unmounted by virtualisation while it remains in
+  `rows`, regardless of scroll position: its component instance (and therefore its internal state,
+  e.g. an in-progress edit) survives scrolling.
 
 ## Dependencies
 

@@ -34,7 +34,10 @@ const OVERSCAN_ROWS = 6;
  * virtualised scrolling when `maxHeight` is set (REQ-109): only the rows in
  * and around the visible window are mounted. When `expandedRowKey` matches a
  * mounted row, `renderExpanded` content is inserted in normal flow directly
- * below that row, pushing the rows after it down.
+ * below that row, pushing the rows after it down. The row matching
+ * `expandedRowKey` is always kept mounted regardless of scroll position, so
+ * its expanded content never loses its component instance (and thus its
+ * internal state) while scrolling.
  */
 export function DataTable<T>({
   columns,
@@ -64,10 +67,22 @@ export function DataTable<T>({
   const headerRowStyle: CSSProperties = { gridTemplateColumns };
 
   const virtualized = Boolean(maxHeight);
-  const startIndex = virtualized ? Math.max(0, Math.floor(scrollTop / rowHeight) - OVERSCAN_ROWS) : 0;
-  const endIndex = virtualized
+  let startIndex = virtualized ? Math.max(0, Math.floor(scrollTop / rowHeight) - OVERSCAN_ROWS) : 0;
+  let endIndex = virtualized
     ? Math.min(rows.length, Math.ceil((scrollTop + viewportHeight) / rowHeight) + OVERSCAN_ROWS)
     : rows.length;
+  // The expanded row's actual height diverges from `rowHeight` (its
+  // `renderExpanded` content can be much taller), so the naive scrollTop-based
+  // window can compute it as out of view while it is still visible on screen.
+  // Widening the window to always include it keeps it mounted and prevents
+  // its component instance (and thus its internal state) from being reset.
+  if (virtualized && expandedRowKey !== undefined) {
+    const expandedIndex = rows.findIndex((row) => rowKey(row) === expandedRowKey);
+    if (expandedIndex !== -1) {
+      startIndex = Math.min(startIndex, expandedIndex);
+      endIndex = Math.max(endIndex, expandedIndex + 1);
+    }
+  }
   const visibleRows = rows.slice(startIndex, endIndex);
   // Spacers stand in for the rows above/below the visible window, so the
   // scrollbar reflects the full list while only the window is mounted; a

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -126,5 +127,55 @@ describe('DataTable', () => {
 
     expect(onAction).toHaveBeenCalledTimes(1);
     expect(onRowSelect).not.toHaveBeenCalled();
+  });
+});
+
+describe('DataTable — expanded row survives scrolling under virtualisation', () => {
+  function ExpandedNote({ row }: { row: Row }) {
+    const [value, setValue] = useState('');
+    return <input aria-label={`note-${row.id}`} value={value} onChange={(event) => setValue(event.target.value)} />;
+  }
+
+  // ui-library/specs/data-table.md — the row matching expandedRowKey is never unmounted by virtualisation regardless of scroll position, so its component instance (and internal state) survives scrolling
+  it('preserves the expanded row content\'s internal state when scrolling moves it out of the naive virtualisation window', async () => {
+    const user = userEvent.setup();
+    const rows = makeRows(200);
+    const { container } = render(
+      <DataTable
+        columns={columns}
+        rows={rows}
+        rowKey={(row) => row.id}
+        maxHeight="300px"
+        expandedRowKey="row-100"
+        renderExpanded={(row) => <ExpandedNote row={row} />}
+      />,
+    );
+    const scrollArea = container.querySelector('.ui-scroll-area') as HTMLDivElement;
+
+    await user.type(screen.getByLabelText('note-row-100'), 'draft note');
+    expect(screen.getByLabelText('note-row-100')).toHaveValue('draft note');
+
+    // Scrolls far enough that the naive scrollTop-based window would no longer include row-100.
+    fireEvent.scroll(scrollArea, { target: { scrollTop: rows.length * 56 } });
+
+    expect(screen.getByLabelText('note-row-100')).toHaveValue('draft note');
+  });
+
+  // ui-library/specs/data-table.md — virtualisation still limits what is mounted (REQ-109); the expanded-row exemption widens the window, it does not disable virtualisation
+  it('still leaves rows far from both the scroll position and the expanded row unmounted', () => {
+    const rows = makeRows(200);
+    render(
+      <DataTable
+        columns={columns}
+        rows={rows}
+        rowKey={(row) => row.id}
+        maxHeight="300px"
+        expandedRowKey="row-100"
+        renderExpanded={(row) => <span>{`expanded-${row.id}`}</span>}
+      />,
+    );
+
+    expect(screen.queryByText('row-199')).not.toBeInTheDocument();
+    expect(screen.getAllByText(/^row-\d+$/).length).toBeLessThan(200);
   });
 });
