@@ -14,11 +14,18 @@ bootstrap imports directly.
 - Imports the design tokens.
 - Applies the base reset: `box-sizing: border-box` everywhere, full-height `html`/`body`/`#root`,
   body typography and background from tokens, form-control font inheritance.
+- Applies one themed, thin scrollbar treatment (`scrollbar-width`/`scrollbar-color` and the
+  `::-webkit-scrollbar*` pseudo-elements) to every scrollable element in the app, so no component
+  restyles its own scrollbar.
 
 ## Rules and invariants
 
 - Every other stylesheet in the library is imported by the component that owns it, not by this
-  file: this file only carries global, cross-cutting rules.
+  file: this file only carries global, cross-cutting rules — the scrollbar treatment is the one
+  deliberate exception, kept here as a single source of truth instead of repeated per scrollable
+  component.
+- `body` is `overflow: hidden`: the page itself never scrolls. Frame is the only component that
+  establishes its own fixed-height, independently-scrolling regions (see `frame.md`).
 
 ## Dependencies
 
