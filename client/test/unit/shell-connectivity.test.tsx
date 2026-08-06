@@ -58,8 +58,28 @@ const unreachableStatus = {
   unavailableCapabilities: ['The raw console CLI channel is unavailable: the docker CLI was not found.'],
 };
 
+function requestUrl(input: RequestInfo | URL): string {
+  return typeof input === 'string' ? input : input.toString();
+}
+
+// Shell mounts more than the connectivity probe this suite targets (the
+// containers list for the nav badge, preferences, analysis-cache usage); the
+// mock must route each endpoint to a response of the right shape, or those
+// other hooks crash / hang on data meant for a different endpoint.
 async function renderShellWith(status: unknown) {
-  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(status) });
+  const fetchMock = vi.fn((input: RequestInfo | URL) => {
+    const url = requestUrl(input);
+    if (url.startsWith('/api/containers')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    }
+    if (url.startsWith('/api/persistence/preferences')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ listFilters: {}, logFollow: true, logTimestamps: false }) });
+    }
+    if (url.startsWith('/api/persistence/analysis-cache')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ totalSizeBytes: 0 }) });
+    }
+    return Promise.resolve({ ok: true, json: () => Promise.resolve(status) });
+  });
   vi.stubGlobal('fetch', fetchMock);
 
   const { Shell } = await import('../../src/shell/Shell');
@@ -108,12 +128,13 @@ describe('Shell — daemon connectivity (app-shell/specs/shell.md)', () => {
   // plan-docker_management_app/REQ-10 — the retry action re-probes the daemon immediately
   it('retrying re-fetches the connectivity status', async () => {
     const { fetchMock } = await renderShellWith(unreachableStatus);
+    const connectivityCalls = () => fetchMock.mock.calls.filter(([input]) => requestUrl(input).startsWith('/api/connectivity/status'));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(connectivityCalls()).toHaveLength(1));
     const user = userEvent.setup();
     await user.click(screen.getAllByRole('button', { name: 'Retry' })[0]);
 
-    await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2));
+    await waitFor(() => expect(connectivityCalls().length).toBeGreaterThanOrEqual(2));
   });
 
   // plan-docker_management_app/REQ-11, plan-docker_management_app/REQ-12 — a live event updates the event stream panel without a manual refresh

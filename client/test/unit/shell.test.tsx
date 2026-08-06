@@ -25,8 +25,31 @@ const reachableStatus = {
   unavailableCapabilities: [],
 };
 
+function requestUrl(input: RequestInfo | URL): string {
+  return typeof input === 'string' ? input : input.toString();
+}
+
 beforeEach(() => {
-  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve(reachableStatus) }));
+  // Shell mounts more than the connectivity probe (the containers list for
+  // the nav badge, preferences, analysis-cache usage); route each endpoint
+  // to a response of the right shape so those hooks don't choke on data
+  // meant for a different endpoint.
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((input: RequestInfo | URL) => {
+      const url = requestUrl(input);
+      if (url.startsWith('/api/containers')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      }
+      if (url.startsWith('/api/persistence/preferences')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ listFilters: {}, logFollow: true, logTimestamps: false }) });
+      }
+      if (url.startsWith('/api/persistence/analysis-cache')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ totalSizeBytes: 0 }) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(reachableStatus) });
+    }),
+  );
   vi.stubGlobal('EventSource', FakeEventSource);
 });
 
