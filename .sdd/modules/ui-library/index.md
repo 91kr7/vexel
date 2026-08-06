@@ -51,6 +51,9 @@
 | DefinitionList | UI component | `client/src/ui/data/DefinitionList.tsx` | Label → value rows with an optional copy affordance | `specs/definition-list.md` |
 | CodeViewer | UI component | `client/src/ui/data/CodeViewer.tsx` | Read-only monospace code/JSON block with a copy affordance | `specs/code-viewer.md` |
 | LogStream | UI component | `client/src/ui/data/LogStream.tsx` | Virtualised monospace log surface: follow/jump-to-live, timestamps, stdout/stderr tagging, match highlighting, copy/download | `specs/log-stream.md` |
+| MetricTile | UI component | `client/src/ui/metrics/MetricTile.tsx` | Metric reading: label, prominent value, sub-label and a slot for a meter/sparkline | `specs/metric-primitives.md` |
+| Meter | UI component | `client/src/ui/metrics/Meter.tsx` | Proportional bar for a used/limit pair, with its reading | `specs/metric-primitives.md` |
+| Sparkline | UI component | `client/src/ui/metrics/Sparkline.tsx` | Compact line over a bounded window of recent samples, redrawn only on new samples | `specs/metric-primitives.md` |
 | Modal | UI component | `client/src/ui/feedback/Modal.tsx` | Centered glass dialog over a dimmed overlay | `specs/modal.md` |
 | ConfirmDialog | UI component | `client/src/ui/feedback/ConfirmDialog.tsx` | Destructive-confirmation dialog naming the target and the consequence | `specs/confirm-dialog.md` |
 | ToastProvider, useToast | UI component | `client/src/ui/feedback/Toast.tsx` | Transient toast notification stack and its provider/hook | `specs/toast.md` |

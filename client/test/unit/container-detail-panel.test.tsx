@@ -227,12 +227,12 @@ describe('ContainerDetailPanel — Config tab (REQ-24, REQ-25)', () => {
 });
 
 describe('ContainerDetailPanel — Logs tab (REQ-30)', () => {
-  // container-detail-panel.md — the tab row is Logs, Config, Inspect, and Config is the tab selected on open
+  // container-detail-panel.md — the tab row is Logs, Stats, Config, Processes, Inspect, and Config is the tab selected on open
   it('offers a Logs tab first and opens on the Config tab', async () => {
     renderPanel();
 
     await screen.findByRole('button', { name: 'Edit configuration' });
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Logs', 'Config', 'Inspect']);
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Logs', 'Stats', 'Config', 'Processes', 'Inspect']);
     expect(screen.getByRole('tab', { name: 'Config' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'Logs' })).toHaveAttribute('aria-selected', 'false');
   });

@@ -1,6 +1,8 @@
 import { Router, type Request, type Response } from "express";
 import { DockerDaemonError } from "../docker/errors.js";
 import { streamContainerLogs, type ContainerLogOptions } from "./container-logs-service.js";
+import { listContainerProcesses } from "./container-processes-service.js";
+import { streamContainerStats } from "./container-stats-service.js";
 import {
   getContainerInspect,
   killContainer,
@@ -61,38 +63,31 @@ containersRouter.patch("/:id/config", async (req, res) => {
   }
 });
 
-containersRouter.get("/:id/logs/stream", async (req, res) => {
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-  res.flushHeaders();
-
-  let cancel: (() => void) | undefined;
-  let closed = false;
-
-  req.on("close", () => {
-    closed = true;
-    cancel?.();
-  });
-
-  try {
-    cancel = await streamContainerLogs(req.params.id, readLogOptions(req), {
+containersRouter.get("/:id/logs/stream", (req, res) =>
+  runEventStream(req, res, () =>
+    streamContainerLogs(req.params.id, readLogOptions(req), {
       onLine: (line) => writeServerSentEvent(res, "line", line),
-      onError: (message) => {
-        writeServerSentEvent(res, "error", { message });
-        res.end();
-      },
-      onEnd: () => {
-        writeServerSentEvent(res, "end", {});
-        res.end();
-      },
-    });
-    // The client may have disconnected while the stream was being opened.
-    if (closed) cancel();
+      onError: (message) => endWithError(res, message),
+      onEnd: () => endWithEvent(res),
+    }),
+  ),
+);
+
+containersRouter.get("/:id/stats/stream", (req, res) =>
+  runEventStream(req, res, () =>
+    streamContainerStats(req.params.id, {
+      onSample: (sample) => writeServerSentEvent(res, "sample", sample),
+      onError: (message) => endWithError(res, message),
+      onEnd: () => endWithEvent(res),
+    }),
+  ),
+);
+
+containersRouter.get("/:id/processes", async (req, res) => {
+  try {
+    res.json(await listContainerProcesses(req.params.id));
   } catch (error) {
-    if (closed) return;
-    writeServerSentEvent(res, "error", { message: (error as Error).message });
-    res.end();
+    respondError(res, error);
   }
 });
 
@@ -126,6 +121,41 @@ function readBooleanQuery(value: string | undefined, fallback: boolean): boolean
 
 function writeServerSentEvent(res: Response, event: string, payload: unknown): void {
   res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
+}
+
+function endWithEvent(res: Response): void {
+  writeServerSentEvent(res, "end", {});
+  res.end();
+}
+
+function endWithError(res: Response, message: string): void {
+  writeServerSentEvent(res, "error", { message });
+  res.end();
+}
+
+/** Opens an unbuffered SSE response and cancels the upstream stream as soon as the client disconnects. */
+async function runEventStream(req: Request, res: Response, open: () => Promise<() => void>): Promise<void> {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  let cancel: (() => void) | undefined;
+  let closed = false;
+
+  req.on("close", () => {
+    closed = true;
+    cancel?.();
+  });
+
+  try {
+    cancel = await open();
+    // The client may have disconnected while the stream was being opened.
+    if (closed) cancel();
+  } catch (error) {
+    if (closed) return;
+    endWithError(res, (error as Error).message);
+  }
 }
 
 async function runLifecycle(res: Response, action: () => Promise<void>): Promise<void> {

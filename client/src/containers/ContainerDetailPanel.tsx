@@ -32,12 +32,14 @@ import {
   type PortBinding,
 } from '../data/containers-client';
 import { ContainerLogsView } from './ContainerLogsView';
+import { ContainerProcessesView } from './ContainerProcessesView';
+import { ContainerStatsView } from './ContainerStatsView';
 import { useContainerDetail } from '../data/use-container-detail';
 import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
 import { useProgress } from '../shell/services/ProgressService';
 
-type ContainerDetailTab = 'logs' | 'config' | 'inspect';
+type ContainerDetailTab = 'logs' | 'stats' | 'config' | 'processes' | 'inspect';
 
 export interface ContainerDetailPanelProps {
   container: ContainerSummary;
@@ -401,7 +403,9 @@ export function ContainerDetailPanel({ container, onClose, onContainerReplaced }
         <Tabs
           tabs={[
             { id: 'logs', label: 'Logs' },
+            { id: 'stats', label: 'Stats' },
             { id: 'config', label: 'Config' },
+            { id: 'processes', label: 'Processes' },
             { id: 'inspect', label: 'Inspect' },
           ]}
           activeId={activeTab}
@@ -409,6 +413,11 @@ export function ContainerDetailPanel({ container, onClose, onContainerReplaced }
         />
         {activeTab === 'logs' ? (
           <ContainerLogsView container={container} />
+        ) : activeTab === 'stats' ? (
+          // Unmounting the view is what stops the live stats stream (REQ-32).
+          <ContainerStatsView container={container} />
+        ) : activeTab === 'processes' ? (
+          <ContainerProcessesView container={container} />
         ) : (
           <>
             {error ? <ErrorBanner title="Could not load container details" detail={error} onRetry={refresh} /> : null}

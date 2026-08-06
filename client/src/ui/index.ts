@@ -55,6 +55,10 @@ export { DefinitionList, type DefinitionListProps, type DefinitionItem } from '.
 export { CodeViewer, type CodeViewerProps } from './data/CodeViewer';
 export { LogStream, type LogStreamProps, type LogStreamLine } from './data/LogStream';
 
+export { MetricTile, type MetricTileProps, type MetricTone } from './metrics/MetricTile';
+export { Meter, type MeterProps } from './metrics/Meter';
+export { Sparkline, type SparklineProps } from './metrics/Sparkline';
+
 export { Modal, type ModalProps } from './feedback/Modal';
 export { ConfirmDialog, type ConfirmDialogProps } from './feedback/ConfirmDialog';
 export { ToastProvider, useToast, type ToastInput, type ToastTone } from './feedback/Toast';

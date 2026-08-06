@@ -7,8 +7,8 @@ type: UI component
 # ContainerDetailPanel
 
 **Purpose** → the container detail surface opened from a row of the Containers screen: the
-container's logs, its inspect data in an editable Config tab, and the read-only Inspect tab with
-the raw payload.
+container's logs, its live statistics, its inspect data in an editable Config tab, the processes
+running inside it, and the read-only Inspect tab with the raw payload.
 
 ## Contract
 
@@ -20,10 +20,14 @@ the raw payload.
 
 Description:
 - A `DetailPanel` (untitled — the container's name/id/state are already shown by the table row it
-  expands below) holding a `Tabs` row (Logs, Config, Inspect) and the active tab's content. Config
-  is the tab selected when the panel opens.
+  expands below) holding a `Tabs` row (Logs, Stats, Config, Processes, Inspect) and the active tab's
+  content. Config is the tab selected when the panel opens.
 Shows (Logs tab):
 - The container's `ContainerLogsView`; the inspect data is neither needed nor awaited for it.
+Shows (Stats tab):
+- The container's `ContainerStatsView`; the inspect data is neither needed nor awaited for it.
+Shows (Processes tab):
+- The container's `ContainerProcessesView`; the inspect data is neither needed nor awaited for it.
 Shows (Config tab, view mode):
 - A `DefinitionList` of restart policy, CPU limit, memory limit, port mapping, health check command
   and networks; collapsible sections for the full environment variable list and the mount list; an
@@ -57,6 +61,8 @@ Actions:
 
 ## Rules and invariants
 
+- Only the active tab's content exists: leaving the Stats tab (switching tab, closing the panel or
+  selecting another row) unmounts the stats view and thereby stops the live stats stream (REQ-32).
 - Switching `container` (a different row selected) resets edit mode and any in-progress edit.
 - The save action is disabled while there is nothing to save (no field differs from the value edit
   mode was seeded with) and while a save is in flight.
@@ -64,6 +70,8 @@ Actions:
 ## Dependencies
 
 - ContainerLogsView
+- ContainerStatsView
+- ContainerProcessesView
 - ui-library: DetailPanel, Tabs, DefinitionList, CollapsibleSection, CodeViewer, Select, NumberField,
   Toggle, TextField, KeyValueEditor, RepeatableRowList, FormFooter, SectionHeader, Row, Stack,
   Button, ErrorBanner, EmptyState, useToast
@@ -77,3 +85,5 @@ Actions:
 - plan-docker_management_app/REQ-25
 - plan-docker_management_app/REQ-26
 - plan-docker_management_app/REQ-30
+- plan-docker_management_app/REQ-32
+- plan-docker_management_app/REQ-33
