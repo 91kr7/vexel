@@ -24,7 +24,9 @@ import {
 import { clearAnalysisCache, fetchAnalysisCacheUsage } from '../data/preferences-client';
 import { usePreferences } from '../data/use-preferences';
 import { useContainers } from '../data/use-containers';
+import { useImages } from '../data/use-images';
 import { ContainersScreen } from '../containers/ContainersScreen';
+import { ImagesScreen } from '../images/ImagesScreen';
 import { defaultScreenId, navGroupOrder, screens } from './navigation';
 import { PlaceholderScreen } from './screens/PlaceholderScreen';
 import { ConfirmationProvider } from './services/ConfirmationService';
@@ -71,6 +73,7 @@ export function Shell() {
   const { events } = useDaemonEventStream();
   const { preferences, loaded: preferencesLoaded, updatePreferences } = usePreferences();
   const containers = useContainers();
+  const images = useImages();
   const [cacheUsage, setCacheUsage] = useState<number | undefined>(undefined);
   const restoredScreenRef = useRef(false);
 
@@ -141,7 +144,13 @@ export function Shell() {
                         glyph={screen.glyph}
                         label={screen.label}
                         active={screen.id === activeScreen.id}
-                        count={screen.id === 'containers' ? containers.containers.length : undefined}
+                        count={
+                          screen.id === 'containers'
+                            ? containers.containers.length
+                            : screen.id === 'images-layers'
+                              ? images.images.length
+                              : undefined
+                        }
                         onSelect={() => selectScreen(screen.id)}
                       />
                     ))}
@@ -189,6 +198,8 @@ export function Shell() {
                 error={containers.error}
                 onRefresh={containers.refresh}
               />
+            ) : activeScreen.id === 'images-layers' ? (
+              <ImagesScreen images={images.images} loaded={images.loaded} error={images.error} onRefresh={images.refresh} />
             ) : (
               <>
                 <Card>

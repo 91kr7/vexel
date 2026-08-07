@@ -47,6 +47,7 @@
 | TimeRangeField | UI component | `client/src/ui/controls/TimeRangeField.tsx` | Since/until pair of inputs bounding a stream in time | `specs/time-range-field.md` |
 | StreamSearchField | UI component | `client/src/ui/controls/StreamSearchField.tsx` | In-surface stream search box with match count and next/previous | `specs/stream-search-field.md` |
 | DataTable | UI component | `client/src/ui/data/DataTable.tsx` | Dense, column-defined table with hover/selected row states, virtualised scrolling, and an optional per-row expansion slot | `specs/data-table.md` |
+| CardList | UI component | `client/src/ui/data/CardList.tsx` | Full-width card rows (title, monospace subtitle, trailing badge group and meta values), selectable, with an optional expanded content slot inside the same card | `specs/card-list.md` |
 | StatusDotCell, TwoLineCell, MetaCell | UI component | `client/src/ui/data/TableCells.tsx` | Reusable DataTable cell contents: status dot, title/subtitle pair, muted monospace value | `specs/table-cells.md` |
 | DefinitionList | UI component | `client/src/ui/data/DefinitionList.tsx` | Label → value rows with an optional copy affordance | `specs/definition-list.md` |
 | CodeViewer | UI component | `client/src/ui/data/CodeViewer.tsx` | Read-only monospace code/JSON block with a copy affordance | `specs/code-viewer.md` |
@@ -59,6 +60,8 @@
 | ToastProvider, useToast | UI component | `client/src/ui/feedback/Toast.tsx` | Transient toast notification stack and its provider/hook | `specs/toast.md` |
 | ErrorBanner | UI component | `client/src/ui/feedback/ErrorBanner.tsx` | Inline failure banner showing the upstream error message verbatim, with an optional retry action | `specs/error-banner.md` |
 | ProgressBar | UI component | `client/src/ui/feedback/ProgressBar.tsx` | Determinate or indeterminate progress indicator | `specs/progress-bar.md` |
+| StepProgressList | UI component | `client/src/ui/feedback/StepProgressList.tsx` | One row per unit of work (e.g. an image layer transfer), each with its own progress and terminal state | `specs/step-progress-list.md` |
+| FormDialog | UI component | `client/src/ui/feedback/FormDialog.tsx` | Dialog shell for a short create/pull/tag form: description, body slot, cancel/submit footer | `specs/form-dialog.md` |
 | Spinner | UI component | `client/src/ui/feedback/Spinner.tsx` | Small rotating pending indicator | `specs/spinner.md` |
 | EmptyState | UI component | `client/src/ui/feedback/EmptyState.tsx` | Placeholder for a screen or list with nothing to display | `specs/empty-state.md` |
 | EventStream | UI component | `client/src/ui/feedback/EventStream.tsx` | Monospace, timestamped daemon event list with type/action emphasis | `specs/event-stream.md` |

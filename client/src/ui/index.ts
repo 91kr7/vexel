@@ -54,6 +54,7 @@ export { StatusDotCell, type StatusDotCellProps, TwoLineCell, type TwoLineCellPr
 export { DefinitionList, type DefinitionListProps, type DefinitionItem } from './data/DefinitionList';
 export { CodeViewer, type CodeViewerProps } from './data/CodeViewer';
 export { LogStream, type LogStreamProps, type LogStreamLine } from './data/LogStream';
+export { CardList, type CardListProps, type CardListRowContent } from './data/CardList';
 
 export { MetricTile, type MetricTileProps, type MetricTone } from './metrics/MetricTile';
 export { Meter, type MeterProps } from './metrics/Meter';
@@ -67,6 +68,8 @@ export { ProgressBar, type ProgressBarProps } from './feedback/ProgressBar';
 export { Spinner, type SpinnerProps } from './feedback/Spinner';
 export { EmptyState, type EmptyStateProps } from './feedback/EmptyState';
 export { EventStream, type EventStreamProps, type EventStreamEntry } from './feedback/EventStream';
+export { FormDialog, type FormDialogProps } from './feedback/FormDialog';
+export { StepProgressList, type StepProgressListProps, type ProgressStep, type ProgressStepStatus } from './feedback/StepProgressList';
 
 export { Terminal, type TerminalHandle, type TerminalProps } from './terminal/Terminal';
 export {

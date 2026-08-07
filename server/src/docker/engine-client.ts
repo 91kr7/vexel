@@ -44,9 +44,14 @@ export class EngineClient {
     return { statusCode: response.statusCode, body: response.body };
   }
 
-  async requestStream(path: string): Promise<IncomingMessage> {
+  async requestStream(path: string, options: { method?: string; headers?: Record<string, string>; body?: string } = {}): Promise<IncomingMessage> {
     const version = await this.getVersion();
-    return requestStream(this.endpoint, { path: `/v${version.apiVersion}${path}` });
+    return requestStream(this.endpoint, {
+      method: options.method,
+      path: `/v${version.apiVersion}${path}`,
+      headers: options.body ? { "content-type": "application/json", ...options.headers } : options.headers,
+      body: options.body,
+    });
   }
 
   /** Opens a hijacked (exec start, attach) raw duplex stream against the negotiated API version. */
