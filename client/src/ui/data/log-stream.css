@@ -16,7 +16,7 @@
   position: relative;
   border-radius: var(--radius-md);
   border: var(--border-width-hairline) solid var(--color-border-subtle);
-  background: var(--color-void);
+  background: var(--color-surface-code);
   overflow: hidden;
 }
 
@@ -26,7 +26,7 @@
   padding: var(--space-3);
   font-family: var(--font-family-mono);
   font-size: var(--font-size-xs);
-  color: var(--color-text-primary);
+  color: var(--color-text-wash-strong);
 }
 
 .ui-log-stream__line {
@@ -48,7 +48,7 @@
 
 .ui-log-stream__timestamp {
   flex: none;
-  color: var(--color-text-muted);
+  color: var(--color-text-wash-muted);
 }
 
 .ui-log-stream__text {

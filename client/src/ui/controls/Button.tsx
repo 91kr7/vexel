@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import './controls.css';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'destructive' | 'subtle';
 export type ButtonSize = 'md' | 'sm';
 
 export interface ButtonProps {
@@ -13,7 +13,7 @@ export interface ButtonProps {
   type?: 'button' | 'submit';
 }
 
-/** Button with primary/secondary/ghost/destructive variants and md/sm sizes. */
+/** Button with primary/secondary/ghost/destructive/subtle variants and md/sm sizes. */
 export function Button({ children, variant = 'secondary', size = 'md', disabled = false, onClick, type = 'button' }: ButtonProps) {
   const classes = [
     'ui-button',

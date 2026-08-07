@@ -19,7 +19,7 @@
 .ui-metric-tile__value {
   margin: 0;
   font-family: var(--font-family-mono);
-  font-size: var(--font-size-xl);
+  font-size: var(--font-size-lg);
   line-height: var(--line-height-tight);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
@@ -86,8 +86,7 @@
 .ui-meter__track {
   height: 6px;
   border-radius: var(--radius-full);
-  background: var(--color-surface-sunken);
-  border: var(--border-width-hairline) solid var(--color-border-subtle);
+  background: var(--color-wash-2);
   overflow: hidden;
 }
 

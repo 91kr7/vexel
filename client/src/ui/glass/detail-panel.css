@@ -1,8 +1,15 @@
 .ui-detail-panel {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-4) 0;
+  gap: var(--space-3);
+  padding: var(--space-1) 0 var(--space-4);
+}
+
+.ui-detail-panel__close {
+  position: absolute;
+  top: var(--space-1);
+  right: 0;
 }
 
 .ui-detail-panel__header {
@@ -10,6 +17,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3);
+  padding-right: 40px;
 }
 
 .ui-detail-panel__heading {

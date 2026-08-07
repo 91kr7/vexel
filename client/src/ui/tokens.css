@@ -15,6 +15,18 @@
   --color-highlight-top: rgba(255, 255, 255, 0.12);
   --color-highlight-bottom: rgba(255, 255, 255, 0);
 
+  /* Nested glass-on-glass wash — for content living inside a surface that is
+     already glass (rows, pills and code blocks inside a panel that itself sits
+     on a card on the Backdrop). Stacking the surface-* tokens above at that
+     depth reads as a second, more opaque box instead of the same glass
+     continuing, so this is a lighter neutral overlay instead. */
+  --color-wash-1: rgba(255, 255, 255, 0.04);
+  --color-wash-2: rgba(255, 255, 255, 0.08);
+  --color-wash-3: rgba(255, 255, 255, 0.14);
+  --color-surface-code: rgba(4, 10, 20, 0.6);
+  --color-text-wash-strong: rgba(255, 255, 255, 0.62);
+  --color-text-wash-muted: rgba(255, 255, 255, 0.5);
+
   --color-text-primary: #eef0f5;
   --color-text-secondary: #a4abbd;
   --color-text-muted: #767f95;

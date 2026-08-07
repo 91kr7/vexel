@@ -114,6 +114,13 @@
   color: var(--color-danger-strong);
 }
 
+/** For a button nested inside a surface that is already glass (e.g. inside a detail panel). */
+.ui-button--subtle {
+  background: var(--color-wash-2);
+  border-color: var(--color-wash-3);
+  color: var(--color-text-primary);
+}
+
 .ui-button--sm {
   padding: var(--space-1) var(--space-2);
   font-size: var(--font-size-xs);
@@ -320,19 +327,19 @@
 }
 
 .ui-tabs__tab {
-  padding: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-3);
   border: none;
   border-radius: var(--radius-full);
   background: transparent;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
+  color: var(--color-text-wash-muted);
+  font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
   cursor: pointer;
 }
 
 .ui-tabs__tab--active {
   color: var(--color-text-primary);
-  background: var(--color-surface-raised);
+  background: var(--color-wash-3);
 }
 
 .ui-field {
@@ -463,7 +470,7 @@
 }
 
 .ui-segmented__segment--active {
-  background: var(--color-surface-raised);
+  background: var(--color-wash-3);
   color: var(--color-text-primary);
 }
 

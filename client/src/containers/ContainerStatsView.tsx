@@ -29,7 +29,7 @@ function formatPercent(percent: number): string {
 function loadTone(percent: number): MetricTone {
   if (percent >= 90) return 'danger';
   if (percent >= 70) return 'warning';
-  return 'accent';
+  return 'neutral';
 }
 
 /**

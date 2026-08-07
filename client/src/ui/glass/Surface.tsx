@@ -5,7 +5,7 @@ export type SurfaceElevation = 'flat' | 'raised' | 'sunken';
 export type SurfacePadding = 'none' | 'sm' | 'md' | 'lg';
 
 const paddingClass: Record<SurfacePadding, string> = {
-  none: '',
+  none: 'ui-surface--pad-none',
   sm: 'ui-surface--pad-sm',
   md: 'ui-surface--pad-md',
   lg: 'ui-surface--pad-lg',
