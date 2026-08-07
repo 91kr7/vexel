@@ -62,7 +62,7 @@ test.describe('Container logs (REQ-30, REQ-31)', () => {
 
   // plan-docker_management_app/REQ-30 — a container's logs can be viewed, with both streams and a live follow
   test('the Logs tab shows the container output from both streams and keeps following it live', async ({ page }) => {
-    const name = `vessel-e2e-logs-live-${Date.now()}`;
+    const name = `vexel-e2e-logs-live-${Date.now()}`;
     try {
       await createLoggingContainer(name);
       const detail = await openLogsTab(page, name);
@@ -78,7 +78,7 @@ test.describe('Container logs (REQ-30, REQ-31)', () => {
 
   // plan-docker_management_app/REQ-30 — the streams shown are selectable
   test('turning stdout off leaves only the stderr output on screen', async ({ page }) => {
-    const name = `vessel-e2e-logs-streams-${Date.now()}`;
+    const name = `vexel-e2e-logs-streams-${Date.now()}`;
     try {
       await createLoggingContainer(name);
       const detail = await openLogsTab(page, name);
@@ -95,7 +95,7 @@ test.describe('Container logs (REQ-30, REQ-31)', () => {
 
   // plan-docker_management_app/REQ-30 — timestamps can be turned on
   test('turning timestamps on shows the instant of each line', async ({ page }) => {
-    const name = `vessel-e2e-logs-timestamps-${Date.now()}`;
+    const name = `vexel-e2e-logs-timestamps-${Date.now()}`;
     try {
       await createLoggingContainer(name);
       const detail = await openLogsTab(page, name);
@@ -117,7 +117,7 @@ test.describe('Container logs (REQ-30, REQ-31)', () => {
 
   // plan-docker_management_app/REQ-30 — the tail size bounds the log to that many trailing lines
   test('picking a tail size reloads the log bounded to that many trailing lines', async ({ page }) => {
-    const name = `vessel-e2e-logs-tail-${Date.now()}`;
+    const name = `vexel-e2e-logs-tail-${Date.now()}`;
     try {
       // 200 lines at once: the search match count is what makes the loaded
       // window observable to the operator.
@@ -136,7 +136,7 @@ test.describe('Container logs (REQ-30, REQ-31)', () => {
 
   // plan-docker_management_app/REQ-31 — the displayed logs can be text-searched with the matches highlighted
   test('searching the log highlights the matches, counts them and moves between them', async ({ page }) => {
-    const name = `vessel-e2e-logs-search-${Date.now()}`;
+    const name = `vexel-e2e-logs-search-${Date.now()}`;
     try {
       // 20 lines, of which bulk-1, bulk-10 … bulk-19 match "bulk-1": a match
       // count that does not move while the test looks at it.
@@ -162,7 +162,7 @@ test.describe('Container logs (REQ-30, REQ-31)', () => {
   // plan-docker_management_app/REQ-31 — the visible log can be copied
   test('copying the log puts the visible lines on the clipboard', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-    const name = `vessel-e2e-logs-copy-${Date.now()}`;
+    const name = `vexel-e2e-logs-copy-${Date.now()}`;
     try {
       await createLoggingContainer(name);
       const detail = await openLogsTab(page, name);
@@ -179,7 +179,7 @@ test.describe('Container logs (REQ-30, REQ-31)', () => {
 
   // plan-docker_management_app/REQ-31 — the visible log can be downloaded
   test('downloading the log saves it as <container name>-logs.txt', async ({ page }) => {
-    const name = `vessel-e2e-logs-download-${Date.now()}`;
+    const name = `vexel-e2e-logs-download-${Date.now()}`;
     try {
       await createLoggingContainer(name);
       const detail = await openLogsTab(page, name);

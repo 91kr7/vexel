@@ -14,7 +14,7 @@ interface DaemonStub {
 }
 
 function startDaemonStub(handler: (req: IncomingMessage, res: ServerResponse) => void): Promise<DaemonStub> {
-  const socketPath = join(tmpdir(), `vessel-engine-client-test-${randomUUID()}.sock`);
+  const socketPath = join(tmpdir(), `vexel-engine-client-test-${randomUUID()}.sock`);
   const server = createServer(handler);
   return new Promise((resolve) => {
     server.listen(socketPath, () => {
@@ -43,7 +43,7 @@ function jsonResponse(res: ServerResponse, statusCode: number, body: unknown): v
 
 // docker-access/specs/engine-client.md — DaemonUnreachable when the endpoint cannot be reached
 test("getVersion rejects with a DaemonUnreachable DockerDaemonError when the socket does not exist", async () => {
-  const client = new EngineClient({ kind: "unix", socketPath: join(tmpdir(), `vessel-no-daemon-${randomUUID()}.sock`) });
+  const client = new EngineClient({ kind: "unix", socketPath: join(tmpdir(), `vexel-no-daemon-${randomUUID()}.sock`) });
 
   await assert.rejects(
     () => client.getVersion(),

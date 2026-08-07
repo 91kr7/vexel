@@ -64,7 +64,7 @@ async function fetchList(url: string): Promise<ContainerSummary[]> {
 
 // plan-docker_management_app/REQ-19 — the list carries name, short id, state, image, published ports and uptime
 test("GET /api/containers lists a running container with its name, short id, state, image, published ports and status", async () => {
-  const name = `vessel-test-list-${Date.now()}`;
+  const name = `vexel-test-list-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
   const id = await createSleepingContainer(name, ["-p", "0:5432"]);
@@ -85,7 +85,7 @@ test("GET /api/containers lists a running container with its name, short id, sta
 
 // plan-docker_management_app/REQ-20 — stop applies to the daemon and the row reflects the resulting state
 test("POST /api/containers/:id/stop stops a running container and the list reflects the exited state", async () => {
-  const name = `vessel-test-stop-${Date.now()}`;
+  const name = `vexel-test-stop-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
   const id = await createSleepingContainer(name);
@@ -102,7 +102,7 @@ test("POST /api/containers/:id/stop stops a running container and the list refle
 
 // plan-docker_management_app/REQ-20 — pause and unpause apply to the daemon and the row reflects each resulting state
 test("POST pause and unpause toggle a running container's reported state", async () => {
-  const name = `vessel-test-pause-${Date.now()}`;
+  const name = `vexel-test-pause-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
   const id = await createSleepingContainer(name);
@@ -124,7 +124,7 @@ test("POST pause and unpause toggle a running container's reported state", async
 
 // plan-docker_management_app/REQ-20 — kill applies to the daemon and the row reflects the resulting state
 test("POST /api/containers/:id/kill kills a running container and the list reflects the exited state", async () => {
-  const name = `vessel-test-kill-${Date.now()}`;
+  const name = `vexel-test-kill-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
   const id = await createSleepingContainer(name);
@@ -141,7 +141,7 @@ test("POST /api/containers/:id/kill kills a running container and the list refle
 
 // plan-docker_management_app/REQ-20 — restart applies to the daemon and the container is running again afterwards
 test("POST /api/containers/:id/restart restarts a running container", async () => {
-  const name = `vessel-test-restart-${Date.now()}`;
+  const name = `vexel-test-restart-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
   const id = await createSleepingContainer(name);
@@ -158,7 +158,7 @@ test("POST /api/containers/:id/restart restarts a running container", async () =
 
 // plan-docker_management_app/REQ-20 — remove is offered regardless of state and applies to the daemon
 test("DELETE /api/containers/:id removes the container so it no longer appears in the list", async () => {
-  const name = `vessel-test-remove-${Date.now()}`;
+  const name = `vexel-test-remove-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
   const id = await createSleepingContainer(name);
@@ -189,7 +189,7 @@ test("POST /api/containers/:id/stop with an unknown id responds with the daemon'
 
 // plan-docker_management_app/REQ-21 — a container can be renamed and the change is reflected in the list
 test("POST /api/containers/:id/rename renames the container", async () => {
-  const originalName = `vessel-test-rename-${Date.now()}`;
+  const originalName = `vexel-test-rename-${Date.now()}`;
   const newName = `${originalName}-renamed`;
   const app = buildApp();
   const { url, close } = await startApp(app);
@@ -213,7 +213,7 @@ test("POST /api/containers/:id/rename renames the container", async () => {
 
 // containers-endpoints.md — a blank name is rejected with 400 before reaching the daemon (REQ-21)
 test("POST /api/containers/:id/rename rejects a blank name with 400 and leaves the container untouched", async () => {
-  const name = `vessel-test-rename-blank-${Date.now()}`;
+  const name = `vexel-test-rename-blank-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
   const id = await createSleepingContainer(name);
@@ -238,7 +238,7 @@ test("POST /api/containers/:id/rename rejects a blank name with 400 and leaves t
 // This exercises the daemon's own prune semantics, which remove every currently stopped container on the host, not only
 // the one created by this test.
 test("POST /api/containers/prune removes stopped containers and reports the removed count and reclaimed space", async () => {
-  const name = `vessel-test-prune-${Date.now()}`;
+  const name = `vexel-test-prune-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
   const id = await createSleepingContainer(name);
@@ -263,7 +263,7 @@ test("POST /api/containers/prune removes stopped containers and reports the remo
 // plan-docker_management_app/REQ-24 — the detail view's inspect data carries identity, image, restart
 // policy, resource limits, environment, ports, labels, networks and state
 test("GET /api/containers/:id/inspect returns the full configuration of a container", async () => {
-  const name = `vessel-test-inspect-${Date.now()}`;
+  const name = `vexel-test-inspect-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
   const id = await createSleepingContainer(name, [
@@ -272,7 +272,7 @@ test("GET /api/containers/:id/inspect returns the full configuration of a contai
     "-e",
     "FOO=bar",
     "--label",
-    "team=vessel",
+    "team=vexel",
     "--restart",
     "on-failure:3",
     "--cpus",
@@ -292,7 +292,7 @@ test("GET /api/containers/:id/inspect returns the full configuration of a contai
     assert.ok(inspect.resourceLimits.cpus && Math.abs(inspect.resourceLimits.cpus - 0.5) < 0.01);
     assert.equal(inspect.resourceLimits.memoryBytes, 128 * 1024 * 1024);
     assert.ok(inspect.env.includes("FOO=bar"));
-    assert.equal(inspect.labels.team, "vessel");
+    assert.equal(inspect.labels.team, "vexel");
     assert.ok(inspect.ports.some((port) => port.containerPort === 5432 && typeof port.hostPort === "number"));
     assert.ok(inspect.networks.some((network) => network.name === "bridge"));
     assert.equal(inspect.state.status, "running");
@@ -318,7 +318,7 @@ test("GET /api/containers/:id/inspect with an unknown id responds with the daemo
 
 // plan-docker_management_app/REQ-26 — the raw inspect payload is exactly what the Engine API returned, unmodified
 test("GET /api/containers/:id/inspect carries the raw payload exactly as received from the Engine API", async () => {
-  const name = `vessel-test-inspect-raw-${Date.now()}`;
+  const name = `vexel-test-inspect-raw-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
   const id = await createSleepingContainer(name);
@@ -341,7 +341,7 @@ test("GET /api/containers/:id/inspect carries the raw payload exactly as receive
 
 // plan-docker_management_app/REQ-25 — restart policy alone is applied to the daemon in place, keeping the same container id
 test("PATCH /api/containers/:id/config applies a restart-policy-only change in place", async () => {
-  const name = `vessel-test-config-inplace-${Date.now()}`;
+  const name = `vexel-test-config-inplace-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
   const id = await createSleepingContainer(name);
@@ -367,8 +367,8 @@ test("PATCH /api/containers/:id/config applies a restart-policy-only change in p
 // plan-docker_management_app/REQ-25 — an environment change recreates the container, preserving its name, mounts and networks,
 // and restarting it since it was running before
 test("PATCH /api/containers/:id/config recreates the container for an environment change, preserving name, mounts and networks", async () => {
-  const name = `vessel-test-config-recreate-${Date.now()}`;
-  const volumeName = `vessel-test-config-recreate-vol-${Date.now()}`;
+  const name = `vexel-test-config-recreate-${Date.now()}`;
+  const volumeName = `vexel-test-config-recreate-vol-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
   const id = await createSleepingContainer(name, ["-v", `${volumeName}:/data`]);

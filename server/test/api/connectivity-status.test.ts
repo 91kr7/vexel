@@ -76,7 +76,7 @@ test("GET /api/connectivity/status names the unavailable capabilities when no CL
 // plan-docker_management_app/REQ-9, plan-docker_management_app/REQ-10 — an unreachable daemon is explained, not opaque
 test("GET /api/connectivity/status explains the cause instead of failing when the daemon is unreachable", async () => {
   const previousDockerHost = process.env.DOCKER_HOST;
-  process.env.DOCKER_HOST = `unix:///tmp/vessel-unreachable-${Date.now()}.sock`;
+  process.env.DOCKER_HOST = `unix:///tmp/vexel-unreachable-${Date.now()}.sock`;
   const { getConnectionStatus: getStatusAgainstUnreachableDaemon } = await import(
     `../../src/connectivity/connection-status-service.js?unreachable=${Date.now()}`
   );

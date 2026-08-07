@@ -120,7 +120,7 @@ function samplesOf(events: SseEvent[]): StatsSample[] {
 
 // plan-docker_management_app/REQ-32 — a container's live resource usage is shown and keeps updating while the view is open
 test("GET /api/containers/:id/stats/stream delivers CPU, memory, network and block-I/O readings, sample after sample", async () => {
-  const name = `vessel-test-stats-live-${Date.now()}`;
+  const name = `vexel-test-stats-live-${Date.now()}`;
   const { url, close } = await startApp();
   const id = await createBusyContainer(name);
   try {
@@ -187,7 +187,7 @@ test("GET /api/containers/:id/stats/stream for an unknown container reports the 
 
 // container-stats-endpoint.md — the daemon stream is cancelled when the client disconnects, including mid-stream
 test("a client disconnecting from the stats stream leaves the endpoint serving further requests", async () => {
-  const name = `vessel-test-stats-cancel-${Date.now()}`;
+  const name = `vexel-test-stats-cancel-${Date.now()}`;
   const { url, close } = await startApp();
   const id = await createBusyContainer(name);
   try {
@@ -208,7 +208,7 @@ test("a client disconnecting from the stats stream leaves the endpoint serving f
 
 // container-stats-endpoint.md — a disconnect while the stream is still being opened is cancelled too
 test("a client disconnecting while the stats stream is being opened leaves the endpoint serving", async () => {
-  const name = `vessel-test-stats-cancel-early-${Date.now()}`;
+  const name = `vexel-test-stats-cancel-early-${Date.now()}`;
   const { url, close } = await startApp();
   const id = await createBusyContainer(name);
   try {
@@ -229,7 +229,7 @@ test("a client disconnecting while the stats stream is being opened leaves the e
 
 // plan-docker_management_app/REQ-33 — the processes running inside a container are listed with pid, user and command
 test("GET /api/containers/:id/processes lists the processes running inside the container with pid, user and command", async () => {
-  const name = `vessel-test-top-${Date.now()}`;
+  const name = `vexel-test-top-${Date.now()}`;
   const { url, close } = await startApp();
   const id = await createBusyContainer(name);
   try {
@@ -253,7 +253,7 @@ test("GET /api/containers/:id/processes lists the processes running inside the c
 
 // plan-docker_management_app/REQ-33 — the listing can be refreshed on demand: a later read reports the current processes
 test("GET /api/containers/:id/processes read again reports a process started in the meantime", async () => {
-  const name = `vessel-test-top-refresh-${Date.now()}`;
+  const name = `vexel-test-top-refresh-${Date.now()}`;
   const { url, close } = await startApp();
   const id = await createBusyContainer(name);
   const marker = "424242";
@@ -291,7 +291,7 @@ test("GET /api/containers/:id/processes for an unknown container reports the dae
 
 // container-processes-endpoint.md — a stopped container has no process listing; the daemon's refusal is passed on
 test("GET /api/containers/:id/processes for a stopped container reports the daemon's own message", async () => {
-  const name = `vessel-test-top-stopped-${Date.now()}`;
+  const name = `vexel-test-top-stopped-${Date.now()}`;
   const { url, close } = await startApp();
   const id = await createBusyContainer(name);
   try {

@@ -73,7 +73,7 @@ test.beforeEach(async ({ page }) => {
 
 // plan-docker_management_app/REQ-37 — the images screen lists local images with repository:tag, size and creation age
 test('lists a local image with its tag, size and creation age', async ({ page }) => {
-  const tag = `vessel-e2e-list-${Date.now()}:v1`;
+  const tag = `vexel-e2e-list-${Date.now()}:v1`;
   try {
     await tagFromPostgres(tag);
 
@@ -89,7 +89,7 @@ test('lists a local image with its tag, size and creation age', async ({ page })
 
 // plan-docker_management_app/REQ-41 — the image list can be text-searched by reference
 test('searching narrows the list to images whose reference matches the search text', async ({ page }) => {
-  const tag = `vessel-e2e-search-${Date.now()}:v1`;
+  const tag = `vexel-e2e-search-${Date.now()}:v1`;
   try {
     await tagFromPostgres(tag);
 
@@ -116,9 +116,9 @@ test('searching by digest also narrows the list to the matching image', async ({
 
 // plan-docker_management_app/REQ-39 — an image can be tagged with a new reference, reflected in the list
 test('tagging an image adds the new reference and confirms with a success toast', async ({ page }) => {
-  const containerName = `vessel-e2e-tagsrc-${Date.now()}`;
-  const sourceTag = `vessel-e2e-tagsrc-${Date.now()}:v1`;
-  const newTag = `vessel-e2e-tagged-${Date.now()}:v1`;
+  const containerName = `vexel-e2e-tagsrc-${Date.now()}`;
+  const sourceTag = `vexel-e2e-tagsrc-${Date.now()}:v1`;
+  const newTag = `vexel-e2e-tagged-${Date.now()}:v1`;
   try {
     await createStandaloneImage(sourceTag, containerName);
     await page.reload();
@@ -145,12 +145,12 @@ test('tagging an image adds the new reference and confirms with a success toast'
 // plan-docker_management_app/REQ-39 — a single per-tag untag action removes just that reference, leaving the image's other tag in place
 test('untagging one of several tags removes just that reference, leaving the other tag in place', async ({ page }) => {
   const runId = Date.now();
-  const keptTag = `vessel-e2e-untag-${runId}-keep:v1`;
-  const removedTag = `vessel-e2e-untag-${runId}-remove:v1`;
+  const keptTag = `vexel-e2e-untag-${runId}-keep:v1`;
+  const removedTag = `vexel-e2e-untag-${runId}-remove:v1`;
   try {
     await tagFromPostgres(keptTag);
     await tagFromPostgres(removedTag);
-    await page.getByPlaceholder('Search reference or digest…').fill(`vessel-e2e-untag-${runId}`);
+    await page.getByPlaceholder('Search reference or digest…').fill(`vexel-e2e-untag-${runId}`);
 
     const row = imageRow(page, keptTag);
     await expect(row).toBeVisible({ timeout: 10_000 });
@@ -169,8 +169,8 @@ test('untagging one of several tags removes just that reference, leaving the oth
 
 // plan-docker_management_app/REQ-39, REQ-6 — removing an image asks for confirmation naming it and performs nothing on cancel
 test('removing an image asks for confirmation, does nothing on cancel and removes it on confirm', async ({ page }) => {
-  const containerName = `vessel-e2e-remove-src-${Date.now()}`;
-  const tag = `vessel-e2e-remove-${Date.now()}:v1`;
+  const containerName = `vexel-e2e-remove-src-${Date.now()}`;
+  const tag = `vexel-e2e-remove-${Date.now()}:v1`;
   try {
     await createStandaloneImage(tag, containerName);
     await page.reload();
@@ -197,8 +197,8 @@ test('removing an image asks for confirmation, does nothing on cancel and remove
 
 // plan-docker_management_app/REQ-39 — dangling images can be pruned in one bulk action, reporting the removed count and reclaimed space
 test('pruning dangling images removes them and reports the outcome', async ({ page }) => {
-  const containerName = `vessel-e2e-prune-src-${Date.now()}`;
-  const danglingTag = `vessel-e2e-prune-dangling-${Date.now()}:v1`;
+  const containerName = `vexel-e2e-prune-src-${Date.now()}`;
+  const danglingTag = `vexel-e2e-prune-dangling-${Date.now()}:v1`;
   await execFileAsync('docker', ['create', '--name', containerName, 'hello-world']);
   const { stdout: firstId } = await execFileAsync('docker', ['commit', '--change', 'LABEL step=1', containerName, danglingTag]);
   await new Promise((resolve) => setTimeout(resolve, 1100));
@@ -224,10 +224,10 @@ test('pruning dangling images removes them and reports the outcome', async ({ pa
 
 // plan-docker_management_app/REQ-40 — an image's inspect data (config, env, labels, exposed ports, digest, history) is viewable
 test('selecting an image expands its detail panel with structured inspect data and the raw payload', async ({ page }) => {
-  const containerName = `vessel-e2e-inspect-src-${Date.now()}`;
-  const tag = `vessel-e2e-inspect-${Date.now()}:v1`;
+  const containerName = `vexel-e2e-inspect-src-${Date.now()}`;
+  const tag = `vexel-e2e-inspect-${Date.now()}:v1`;
   await execFileAsync('docker', ['create', '--name', containerName, 'hello-world']);
-  await execFileAsync('docker', ['commit', '--change', 'LABEL team=vessel', '--change', 'EXPOSE 9999/tcp', containerName, tag]);
+  await execFileAsync('docker', ['commit', '--change', 'LABEL team=vexel', '--change', 'EXPOSE 9999/tcp', containerName, tag]);
   try {
     await page.reload();
     await page.getByPlaceholder('Search reference or digest…').fill(tag);
@@ -238,9 +238,9 @@ test('selecting an image expands its detail panel with structured inspect data a
     const expanded = row.locator('.ui-card-list__expanded');
     await expect(expanded).toBeVisible();
     await expect(expanded).toContainText('9999/tcp');
-    await expect(expanded).toContainText('vessel');
+    await expect(expanded).toContainText('vexel');
     await expect(expanded.getByText('History')).toBeVisible();
-    await expect(expanded.getByText(/"team":\s*"vessel"/)).toBeVisible();
+    await expect(expanded.getByText(/"team":\s*"vexel"/)).toBeVisible();
   } finally {
     await execFileAsync('docker', ['rm', '-f', containerName]).catch(() => undefined);
     await removeTagQuietly(tag);
@@ -254,8 +254,8 @@ test('pushing an image to a registry shows per-layer progress until it completes
   // Docker only pushes a reference the image is already locally tagged as, so the push target is
   // tagged directly, then selected in the push dialog (images-screen.md: pushing one of the image's
   // own existing tags).
-  const containerName = `vessel-e2e-push-src-${Date.now()}`;
-  const pushReference = `localhost:${PUSH_REGISTRY_PORT}/vessel-e2e-push-${Date.now()}:v1`;
+  const containerName = `vexel-e2e-push-src-${Date.now()}`;
+  const pushReference = `localhost:${PUSH_REGISTRY_PORT}/vexel-e2e-push-${Date.now()}:v1`;
   await createStandaloneImage(pushReference, containerName);
   try {
     await page.reload();

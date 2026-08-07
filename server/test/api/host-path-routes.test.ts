@@ -26,7 +26,7 @@ function mountedApp() {
   return app;
 }
 
-const existingDir = mkdtempSync(join(tmpdir(), "vessel-host-path-endpoint-"));
+const existingDir = mkdtempSync(join(tmpdir(), "vexel-host-path-endpoint-"));
 
 // plan-docker_management_app/REQ-116 — an existing, absolute path validates successfully
 test("POST /api/host-paths/validate accepts an existing absolute path", async () => {

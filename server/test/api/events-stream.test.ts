@@ -50,7 +50,7 @@ test("GET /api/events/stream republishes a real daemon change as a typed, timest
     }
   })();
 
-  const networkName = `vessel-test-net-${Date.now()}`;
+  const networkName = `vexel-test-net-${Date.now()}`;
   try {
     await execFileAsync("docker", ["network", "create", networkName]);
     await Promise.race([collectUntilNetworkCreate, delay(8000)]);

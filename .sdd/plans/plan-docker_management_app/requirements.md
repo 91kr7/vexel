@@ -17,7 +17,7 @@ Visual reference: `.sdd/analysis/ui-mock/` constrains look, layout and interacti
 
 | ID | Requirement |
 | --- | --- |
-| REQ-1 | The application presents itself as "Vessel — Docker Control" in a persistent shell composed of a left navigation rail grouped into sections (Workloads, Artifacts, Environment, Full coverage), a header carrying the current screen title and its one-line description with the global actions (live-events indicator, search, console), and a footer showing the active Docker context. |
+| REQ-1 | The application presents itself as "Vexel — Docker Control" in a persistent shell composed of a left navigation rail grouped into sections (Workloads, Artifacts, Environment, Full coverage), a header carrying the current screen title and its one-line description with the global actions (live-events indicator, search, console), and a footer showing the active Docker context. |
 | REQ-2 | Activating a navigation entry replaces the main area with the corresponding screen and marks that entry as active, while the rail, header and footer stay in place. |
 | REQ-3 | Every surface of the application is rendered with one single "liquid glass" visual language — translucency over a pre-blurred static background: alpha layers, borders, inner highlights and gradient overlays, with consistent elevation, radii, spacing and typography — defined in one place and applied identically on every screen. |
 | REQ-4 | Text and interactive controls placed on glass surfaces remain legible: body text, secondary text and control labels meet a documented minimum contrast ratio against their backdrop on every screen. |

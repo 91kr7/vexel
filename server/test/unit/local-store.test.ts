@@ -4,28 +4,28 @@ import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
-const dataDir = mkdtempSync(join(tmpdir(), "vessel-local-store-"));
-process.env.VESSEL_DATA_DIR = dataDir;
+const dataDir = mkdtempSync(join(tmpdir(), "vexel-local-store-"));
+process.env.VEXEL_DATA_DIR = dataDir;
 
 const { readNamespace, writeNamespace, resolveDataDir, cacheDir } = await import(
   "../../src/persistence/local-store.js"
 );
 
-// local-persistence/specs/local-store.md — resolveDataDir honors the VESSEL_DATA_DIR override
-test("resolveDataDir returns VESSEL_DATA_DIR when it is set", () => {
-  const previous = process.env.VESSEL_DATA_DIR;
-  const override = join(tmpdir(), "vessel-data-dir-override-check");
-  process.env.VESSEL_DATA_DIR = override;
+// local-persistence/specs/local-store.md — resolveDataDir honors the VEXEL_DATA_DIR override
+test("resolveDataDir returns VEXEL_DATA_DIR when it is set", () => {
+  const previous = process.env.VEXEL_DATA_DIR;
+  const override = join(tmpdir(), "vexel-data-dir-override-check");
+  process.env.VEXEL_DATA_DIR = override;
   assert.equal(resolveDataDir(), override);
-  process.env.VESSEL_DATA_DIR = previous;
+  process.env.VEXEL_DATA_DIR = previous;
 });
 
 // local-persistence/specs/local-store.md — resolveDataDir falls back to the per-user directory when unset
-test("resolveDataDir falls back to ~/.vessel when VESSEL_DATA_DIR is unset", () => {
-  const previous = process.env.VESSEL_DATA_DIR;
-  delete process.env.VESSEL_DATA_DIR;
-  assert.equal(resolveDataDir(), join(homedir(), ".vessel"));
-  process.env.VESSEL_DATA_DIR = previous;
+test("resolveDataDir falls back to ~/.vexel when VEXEL_DATA_DIR is unset", () => {
+  const previous = process.env.VEXEL_DATA_DIR;
+  delete process.env.VEXEL_DATA_DIR;
+  assert.equal(resolveDataDir(), join(homedir(), ".vexel"));
+  process.env.VEXEL_DATA_DIR = previous;
 });
 
 // local-persistence/specs/local-store.md — a namespace with no file yet returns the caller's fallback

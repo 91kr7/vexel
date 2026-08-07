@@ -52,7 +52,7 @@ describe('containerSessionUrl (REQ-34, REQ-35)', () => {
 
   // container-session-client.md — the URL protocol matches the page's protocol (wss over https)
   it('builds a wss:// URL when the page is served over https', () => {
-    stubLocation('https:', 'vessel.example.com');
-    expect(containerSessionUrl('container-1', 'attach')).toBe('wss://vessel.example.com/api/containers/container-1/attach');
+    stubLocation('https:', 'vexel.example.com');
+    expect(containerSessionUrl('container-1', 'attach')).toBe('wss://vexel.example.com/api/containers/container-1/attach');
   });
 });

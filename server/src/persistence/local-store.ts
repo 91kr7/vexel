@@ -16,7 +16,7 @@ interface StoreRecord<T> {
 }
 
 export function resolveDataDir(): string {
-  return process.env.VESSEL_DATA_DIR ?? join(homedir(), ".vessel");
+  return process.env.VEXEL_DATA_DIR ?? join(homedir(), ".vexel");
 }
 
 const dataDir = resolveDataDir();

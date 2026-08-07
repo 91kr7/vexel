@@ -14,8 +14,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 // plan-docker_management_app/REQ-1
-test('opens on the Vessel — Docker Control shell with the thirteen entries grouped as in the mockups', async ({ page }) => {
-  await expect(page.getByText('Vessel', { exact: true })).toBeVisible();
+test('opens on the Vexel — Docker Control shell with the thirteen entries grouped as in the mockups', async ({ page }) => {
+  await expect(page.getByText('Vexel', { exact: true })).toBeVisible();
 
   for (const [group, labels] of Object.entries(groups)) {
     await expect(page.getByText(group, { exact: true })).toBeVisible();
@@ -48,7 +48,7 @@ test('activating a nav entry switches the main area and marks it active, keeping
   await expect(activeEntry).toHaveAccessibleName(/Containers/);
 
   // Rail and footer stay in place.
-  await expect(page.getByText('Vessel', { exact: true })).toBeVisible();
+  await expect(page.getByText('Vexel', { exact: true })).toBeVisible();
   await expect(page.getByRole('navigation').getByText('Active context')).toBeVisible();
 
   // Switching again replaces the content without losing the rail.

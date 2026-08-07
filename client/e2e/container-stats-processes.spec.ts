@@ -92,7 +92,7 @@ test.describe('Container stats and processes (REQ-32, REQ-33)', () => {
 
   // plan-docker_management_app/REQ-32 — the live resource usage is shown and keeps updating while the view is open
   test('the Stats tab shows the live CPU, memory, network and block-I/O usage and keeps updating it', async ({ page }) => {
-    const name = `vessel-e2e-stats-live-${Date.now()}`;
+    const name = `vexel-e2e-stats-live-${Date.now()}`;
     try {
       await createBusyContainer(name);
       const detail = await openTab(page, name, 'Stats');
@@ -114,7 +114,7 @@ test.describe('Container stats and processes (REQ-32, REQ-33)', () => {
 
   // plan-docker_management_app/REQ-32 — leaving the view stops the live stream
   test('leaving the Stats tab closes the live stats subscription', async ({ page }) => {
-    const name = `vessel-e2e-stats-leave-${Date.now()}`;
+    const name = `vexel-e2e-stats-leave-${Date.now()}`;
     try {
       await createBusyContainer(name);
       const detail = await openTab(page, name, 'Stats');
@@ -144,7 +144,7 @@ test.describe('Container stats and processes (REQ-32, REQ-33)', () => {
 
   // plan-docker_management_app/REQ-33 — the processes are listed with pid, user and command
   test('the Processes tab lists the processes running inside the container', async ({ page }) => {
-    const name = `vessel-e2e-processes-${Date.now()}`;
+    const name = `vexel-e2e-processes-${Date.now()}`;
     try {
       await createBusyContainer(name);
       const detail = await openTab(page, name, 'Processes');
@@ -160,7 +160,7 @@ test.describe('Container stats and processes (REQ-32, REQ-33)', () => {
 
   // plan-docker_management_app/REQ-33 — the listing is refreshed on demand, and only then
   test('the process listing changes only when Refresh is used', async ({ page }) => {
-    const name = `vessel-e2e-processes-refresh-${Date.now()}`;
+    const name = `vexel-e2e-processes-refresh-${Date.now()}`;
     const marker = '424242';
     try {
       await createBusyContainer(name);

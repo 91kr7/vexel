@@ -106,7 +106,7 @@ function linesOf(events: SseEvent[]): LogLinePayload[] {
 
 // plan-docker_management_app/REQ-30 — a container's logs can be viewed, with stdout and stderr both selectable and tagged
 test("GET /api/containers/:id/logs/stream delivers the container's stdout and stderr as tagged line events, then ends", async () => {
-  const name = `vessel-test-logs-both-${Date.now()}`;
+  const name = `vexel-test-logs-both-${Date.now()}`;
   const { url, close } = await startApp();
   const id = await createLoggingContainer(name, "echo out-line; echo err-line 1>&2; sleep 300");
   try {
@@ -142,7 +142,7 @@ test("GET /api/containers/:id/logs/stream delivers the container's stdout and st
 
 // plan-docker_management_app/REQ-30 — the streams shown are selectable
 test("GET /api/containers/:id/logs/stream with stderr=false delivers only the stdout output", async () => {
-  const name = `vessel-test-logs-stdout-${Date.now()}`;
+  const name = `vexel-test-logs-stdout-${Date.now()}`;
   const { url, close } = await startApp();
   const id = await createLoggingContainer(name, "echo out-line; echo err-line 1>&2; sleep 300");
   try {
@@ -162,7 +162,7 @@ test("GET /api/containers/:id/logs/stream with stderr=false delivers only the st
 
 // plan-docker_management_app/REQ-30 — timestamps can be turned on
 test("GET /api/containers/:id/logs/stream with timestamps=true carries the instant separately from the text", async () => {
-  const name = `vessel-test-logs-ts-${Date.now()}`;
+  const name = `vexel-test-logs-ts-${Date.now()}`;
   const { url, close } = await startApp();
   const id = await createLoggingContainer(name, "echo timestamped-line; sleep 300");
   try {
@@ -188,7 +188,7 @@ test("GET /api/containers/:id/logs/stream with timestamps=true carries the insta
 
 // plan-docker_management_app/REQ-30 — the tail size bounds the output to the last n lines
 test("GET /api/containers/:id/logs/stream with tail=1 delivers only the last line", async () => {
-  const name = `vessel-test-logs-tail-${Date.now()}`;
+  const name = `vexel-test-logs-tail-${Date.now()}`;
   const { url, close } = await startApp();
   const id = await createLoggingContainer(name, "echo line-one; echo line-two; echo line-three; sleep 300");
   try {
@@ -207,7 +207,7 @@ test("GET /api/containers/:id/logs/stream with tail=1 delivers only the last lin
 
 // plan-docker_management_app/REQ-30 — a since/until time filter bounds the output
 test("GET /api/containers/:id/logs/stream with a relative since bound drops the output printed before it", async () => {
-  const name = `vessel-test-logs-since-${Date.now()}`;
+  const name = `vexel-test-logs-since-${Date.now()}`;
   const { url, close } = await startApp();
   const id = await createLoggingContainer(name, "echo early-line; sleep 6; echo late-line; sleep 300");
   try {
@@ -248,7 +248,7 @@ test("GET /api/containers/:id/logs/stream for an unknown container reports the d
 
 // container-logs-endpoint.md — a client disconnecting mid-stream cancels the daemon stream and leaves the endpoint serving
 test("a client disconnecting from a followed stream leaves the endpoint serving further requests", async () => {
-  const name = `vessel-test-logs-cancel-${Date.now()}`;
+  const name = `vexel-test-logs-cancel-${Date.now()}`;
   const { url, close } = await startApp();
   const id = await createLoggingContainer(name, "echo cancel-line; sleep 300");
   try {

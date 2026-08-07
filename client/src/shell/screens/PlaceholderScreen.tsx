@@ -32,7 +32,7 @@ export function PlaceholderScreen({ screenLabel }: PlaceholderScreenProps) {
   return (
     <EmptyState
       title={`${screenLabel} is not built yet`}
-      description="This area of Vessel is scaffolded by the foundation batch and will be replaced by its own feature batch."
+      description="This area of Vexel is scaffolded by the foundation batch and will be replaced by its own feature batch."
       action={
         <Button variant="destructive" onClick={handleRemoveDemoContainer} disabled={removed}>
           {removed ? `${demoTargetName} removed` : `Remove ${demoTargetName}`}

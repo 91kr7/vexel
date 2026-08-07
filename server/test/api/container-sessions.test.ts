@@ -130,7 +130,7 @@ async function waitUntil(predicate: () => boolean | Promise<boolean>, timeoutMs 
 // The input is sent as soon as the socket reports itself open, which is the earliest an operator
 // (or the client hook, which only sends while the channel is open) can type.
 test("WS /api/containers/:id/exec — keystrokes reach the process and its output is delivered", async () => {
-  const name = `vessel-test-exec-basic-${Date.now()}`;
+  const name = `vexel-test-exec-basic-${Date.now()}`;
   const { open, close } = await startApp();
   const id = await createIdleContainer(name);
   try {
@@ -148,7 +148,7 @@ test("WS /api/containers/:id/exec — keystrokes reach the process and its outpu
 
 // container-sessions-endpoint.md — REQ-34: the interactive session runs the chosen command in the chosen working directory
 test("WS /api/containers/:id/exec — runs the chosen command in the chosen working directory", async () => {
-  const name = `vessel-test-exec-workdir-${Date.now()}`;
+  const name = `vexel-test-exec-workdir-${Date.now()}`;
   const { open, close } = await startApp();
   const id = await createIdleContainer(name);
   try {
@@ -165,7 +165,7 @@ test("WS /api/containers/:id/exec — runs the chosen command in the chosen work
 
 // container-sessions-endpoint.md — REQ-34: the interactive session runs as the chosen user
 test("WS /api/containers/:id/exec — runs the chosen command as the chosen user", async () => {
-  const name = `vessel-test-exec-user-${Date.now()}`;
+  const name = `vexel-test-exec-user-${Date.now()}`;
   const { open, close } = await startApp();
   const id = await createIdleContainer(name);
   try {
@@ -182,7 +182,7 @@ test("WS /api/containers/:id/exec — runs the chosen command as the chosen user
 
 // container-sessions-endpoint.md — REQ-34: the session follows the available terminal size once resized
 test("WS /api/containers/:id/exec — a resize control message reflows the session's terminal size", async () => {
-  const name = `vessel-test-exec-resize-${Date.now()}`;
+  const name = `vexel-test-exec-resize-${Date.now()}`;
   const { open, close } = await startApp();
   const id = await createIdleContainer(name);
   try {
@@ -204,7 +204,7 @@ test("WS /api/containers/:id/exec — a resize control message reflows the sessi
 
 // container-sessions-endpoint.md — an exit control frame carries the process's exit code, then the socket closes
 test("WS /api/containers/:id/exec — reports the process's exit code and then closes", async () => {
-  const name = `vessel-test-exec-exit-${Date.now()}`;
+  const name = `vexel-test-exec-exit-${Date.now()}`;
   const { open, close } = await startApp();
   const id = await createIdleContainer(name);
   try {
@@ -244,7 +244,7 @@ test("WS /api/containers/:id/exec — an unknown container reports an error cont
 // plan-docker_management_app/REQ-36 — leaving an exec session releases the underlying exec resource
 // on the daemon: the shell it started must no longer be running inside the container afterwards.
 test("WS /api/containers/:id/exec — closing the client's socket ends the exec'd process on the daemon", async () => {
-  const name = `vessel-test-exec-cleanup-${Date.now()}`;
+  const name = `vexel-test-exec-cleanup-${Date.now()}`;
   const { open, close } = await startApp();
   const id = await createIdleContainer(name);
   try {
@@ -267,7 +267,7 @@ test("WS /api/containers/:id/exec — closing the client's socket ends the exec'
 
 // container-sessions-endpoint.md — REQ-35: attach relays the container's own stdio
 test("WS /api/containers/:id/attach — relays the running container's own stdio", async () => {
-  const name = `vessel-test-attach-basic-${Date.now()}`;
+  const name = `vexel-test-attach-basic-${Date.now()}`;
   const { open, close } = await startApp();
   const id = await createTickingContainer(name);
   try {
@@ -284,7 +284,7 @@ test("WS /api/containers/:id/attach — relays the running container's own stdio
 
 // plan-docker_management_app/REQ-35, REQ-36 — detaching from an attach session never stops the container
 test("WS /api/containers/:id/attach — detaching leaves the container running", async () => {
-  const name = `vessel-test-attach-detach-${Date.now()}`;
+  const name = `vexel-test-attach-detach-${Date.now()}`;
   const { open, close } = await startApp();
   const id = await createTickingContainer(name);
   try {

@@ -6,7 +6,7 @@ requirements: .sdd/plans/plan-docker_management_app/requirements.md
 status: validated
 ---
 
-# Batches — Docker management app ("Vessel — Docker Control")
+# Batches — Docker management app ("Vexel — Docker Control")
 
 One batch = one feature, delivered vertically (UI-library contribution → server → data access →
 screen). Two batches are declared **enabling**: `foundation-ui-shell` and `local-persistence`.
@@ -17,7 +17,7 @@ leave a coherent product.
 
 | Batch | Feature | REQ closed | Depends | Status | Human acceptance |
 | --- | --- | --- | --- | --- | --- |
-| 1 · foundation-ui-shell | F1 — Visual foundation and application shell (enabling) | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-107, REQ-108, REQ-117 | — | certified | The app opens on the "Vessel — Docker Control" shell with the 13 navigation entries grouped as in the mockups; clicking each one switches the main area and keeps rail/header/footer; every surface is glass over a static pre-blurred backdrop; nothing on the backdrop moves; a destructive demo action asks for confirmation naming its target and does nothing when cancelled; `npm run lint` fails if a raw `<div>`, a CSS rule, a `className`/`style` prop or a `backdrop-filter`/`filter: blur()` is added to feature code; narrowing the window to tablet width keeps the rail docked but narrower, and to phone width collapses it into a drawer opened by the header's menu control and closed by picking an entry, tapping the scrim or pressing Escape, with the header's title/description/actions never overflowing their card at any width. |
+| 1 · foundation-ui-shell | F1 — Visual foundation and application shell (enabling) | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-107, REQ-108, REQ-117 | — | certified | The app opens on the "Vexel — Docker Control" shell with the 13 navigation entries grouped as in the mockups; clicking each one switches the main area and keeps rail/header/footer; every surface is glass over a static pre-blurred backdrop; nothing on the backdrop moves; a destructive demo action asks for confirmation naming its target and does nothing when cancelled; `npm run lint` fails if a raw `<div>`, a CSS rule, a `className`/`style` prop or a `backdrop-filter`/`filter: blur()` is added to feature code; narrowing the window to tablet width keeps the rail docked but narrower, and to phone width collapses it into a drawer opened by the header's menu control and closed by picking an entry, tapping the scrim or pressing Escape, with the header's title/description/actions never overflowing their card at any width. |
 | 2 · daemon-connectivity | F2 — Daemon connectivity and live state | REQ-9, REQ-10, REQ-11, REQ-12, REQ-13, REQ-110 | 1 | certified | With Docker running, the header shows "connected" and the negotiated Engine API version; stop the daemon → the shell says why and offers retry, no blank screens; start a container from a terminal → the event stream shows it within seconds without refreshing; rename the `docker` binary out of PATH → the app states the CLI is missing and what becomes unavailable. |
 | 3 · local-persistence | F30 — Local persistence and host-path access (enabling) | REQ-115 | 1, 2 | certified | Change screen and a couple of list filters, restart the app → it reopens where it was with the same filters and context; the store lives in a per-user app-data directory created on first run. |
 | 4 · containers-lifecycle | F4 — Container list and lifecycle | REQ-19, REQ-20, REQ-21, REQ-22, REQ-23, REQ-109 | 1, 2 | certified | The Containers screen matches the mockup and lists every container with name/id/state/image/CPU/memory/ports/uptime; each row offers only the actions its state allows and executing one is reflected in the row; rename works; "Prune stopped" confirms, then reports how many were removed; search filters the list; scrolling a long list with a modal open stays smooth. |
@@ -104,7 +104,7 @@ its mockup as drawn. Once the mockups are regenerated, this departure closes and
 authoritative again on every point, chrome included.
 
 All other human decisions taken during validation (both CLI and API channels, full plugin
-management, compose write-back, local persistence, product name "Vessel — Docker Control", static
+management, compose write-back, local persistence, product name "Vexel — Docker Control", static
 pre-blurred backdrop with no runtime blur) either sharpen the spec or concern implementation
 constraints the spec left open; they are recorded in `requirements.md` (REQ-104, REQ-110 to REQ-116,
 REQ-107 to REQ-109) and in the assumptions above. The spec file needs no correction.

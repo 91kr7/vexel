@@ -101,7 +101,7 @@ after(async () => {
 test("GET /api/images/:id/push/stream pushes an image to a registry and ends once it completes", async () => {
   const app = buildApp();
   const { url, close } = await startApp(app);
-  const repository = `vessel-test-push-${Date.now()}`;
+  const repository = `vexel-test-push-${Date.now()}`;
   const reference = `localhost:${TEST_REGISTRY_PORT}/${repository}:v1`;
   await execFileAsync("docker", ["tag", "postgres:16", reference]);
   const { stdout: imageId } = await execFileAsync("docker", ["inspect", reference, "--format", "{{.Id}}"]);

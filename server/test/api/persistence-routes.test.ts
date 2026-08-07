@@ -18,7 +18,7 @@ function startApp(app: Express): Promise<{ url: string; close: () => Promise<voi
   });
 }
 
-process.env.VESSEL_DATA_DIR = mkdtempSync(join(tmpdir(), "vessel-persistence-routes-"));
+process.env.VEXEL_DATA_DIR = mkdtempSync(join(tmpdir(), "vexel-persistence-routes-"));
 
 const { persistenceRouter, DEFAULT_PREFERENCES } = await import("../../src/persistence/persistence-routes.js");
 

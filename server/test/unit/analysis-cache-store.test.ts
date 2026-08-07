@@ -4,14 +4,14 @@ import { existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:f
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-process.env.VESSEL_DATA_DIR = mkdtempSync(join(tmpdir(), "vessel-analysis-cache-"));
+process.env.VEXEL_DATA_DIR = mkdtempSync(join(tmpdir(), "vexel-analysis-cache-"));
 
 const { cacheDir } = await import("../../src/persistence/local-store.js");
 const { lookup, insert, invalidate, totalSizeBytes, clear, reclaimOrphans } = await import(
   "../../src/persistence/analysis-cache-store.js"
 );
 
-const sourcesDir = mkdtempSync(join(tmpdir(), "vessel-analysis-cache-sources-"));
+const sourcesDir = mkdtempSync(join(tmpdir(), "vexel-analysis-cache-sources-"));
 
 function sourceFile(name: string, content: string): string {
   const path = join(sourcesDir, name);

@@ -6,7 +6,7 @@ type: UI component
 
 # Shell
 
-**Purpose** → the "Vessel — Docker Control" application shell: the persistent rail/header/footer
+**Purpose** → the "Vexel — Docker Control" application shell: the persistent rail/header/footer
 around the active screen.
 
 ## Contract

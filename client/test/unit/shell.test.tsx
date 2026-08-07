@@ -95,11 +95,11 @@ async function renderShell() {
 
 describe('Shell', () => {
   // plan-docker_management_app/REQ-1
-  it('opens on the Dashboard screen with the Vessel brand and the active-context footer', async () => {
+  it('opens on the Dashboard screen with the Vexel brand and the active-context footer', async () => {
     await renderShell();
 
     expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument();
-    expect(screen.getByText('Vessel')).toBeInTheDocument();
+    expect(screen.getByText('Vexel')).toBeInTheDocument();
     expect(screen.getByText('Active context')).toBeInTheDocument();
   });
 
@@ -111,7 +111,7 @@ describe('Shell', () => {
     await user.click(screen.getByRole('button', { name: /Containers/ }));
 
     expect(screen.getByRole('heading', { level: 1, name: 'Containers' })).toBeInTheDocument();
-    expect(screen.getByText('Vessel')).toBeInTheDocument();
+    expect(screen.getByText('Vexel')).toBeInTheDocument();
     expect(screen.getByText('Active context')).toBeInTheDocument();
 
     const activeEntries = screen.getAllByRole('button', { current: 'page' });

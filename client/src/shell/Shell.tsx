@@ -57,7 +57,7 @@ function formatBytes(bytes: number): string {
 }
 
 /**
- * "Vessel — Docker Control" shell: rail, header, footer stay in place while
+ * "Vexel — Docker Control" shell: rail, header, footer stay in place while
  * the content area is replaced by the active screen (REQ-1, REQ-2).
  *
  * Owns the toast and confirmation services itself (screen-local concerns);
@@ -131,7 +131,7 @@ export function Shell() {
         <Frame
           rail={
             <NavRail
-              brand={<NavBrand name="Vessel" tagline="Docker control" />}
+              brand={<NavBrand name="Vexel" tagline="Docker control" />}
               footer={<FooterStatus label="Active context" value="default (local)" />}
             >
               {navGroupOrder.map((group) => (

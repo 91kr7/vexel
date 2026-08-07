@@ -5,13 +5,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { validateHostPath } from "../../src/host-fs/host-path-validator.js";
 
-const root = mkdtempSync(join(tmpdir(), "vessel-host-path-root-"));
+const root = mkdtempSync(join(tmpdir(), "vexel-host-path-root-"));
 const fileInRoot = join(root, "context.txt");
 writeFileSync(fileInRoot, "content", "utf-8");
 const dirInRoot = join(root, "subdir");
 mkdirSync(dirInRoot);
 
-const outsideRoot = mkdtempSync(join(tmpdir(), "vessel-host-path-outside-"));
+const outsideRoot = mkdtempSync(join(tmpdir(), "vexel-host-path-outside-"));
 const escapingLink = join(root, "escape-link");
 symlinkSync(outsideRoot, escapingLink);
 

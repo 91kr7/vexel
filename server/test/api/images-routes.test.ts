@@ -75,7 +75,7 @@ async function readSseUntilDone(response: Response, timeoutMs = 60_000): Promise
 
 // plan-docker_management_app/REQ-37 — the images screen lists local images with repository:tag (all tags), digest, platform(s), size and age
 test("GET /api/images lists a local image with its tags, size and creation age", async () => {
-  const tag = `vessel-test-list-${Date.now()}:v1`;
+  const tag = `vexel-test-list-${Date.now()}:v1`;
   const app = buildApp();
   const { url, close } = await startApp(app);
   await execFileAsync("docker", ["tag", "postgres:16", tag]);
@@ -98,13 +98,13 @@ test("GET /api/images lists a local image with its tags, size and creation age",
 test("GET /api/images/:id/inspect returns the image's full inspect data", async () => {
   const app = buildApp();
   const { url, close } = await startApp(app);
-  const containerName = `vessel-test-inspect-src-${Date.now()}`;
-  const tag = `vessel-test-inspect-${Date.now()}:v1`;
+  const containerName = `vexel-test-inspect-src-${Date.now()}`;
+  const tag = `vexel-test-inspect-${Date.now()}:v1`;
   await execFileAsync("docker", ["create", "--name", containerName, "hello-world"]);
   await execFileAsync("docker", [
     "commit",
     "--change",
-    "LABEL team=vessel",
+    "LABEL team=vexel",
     "--change",
     "EXPOSE 9999/tcp",
     "--change",
@@ -121,7 +121,7 @@ test("GET /api/images/:id/inspect returns the image's full inspect data", async 
     assert.deepEqual(inspect.entrypoint, []);
     assert.deepEqual(inspect.command, ["/hello"]);
     assert.ok(inspect.env.includes("FOO=bar"));
-    assert.equal(inspect.labels.team, "vessel");
+    assert.equal(inspect.labels.team, "vexel");
     assert.ok(inspect.exposedPorts.includes("9999/tcp"));
     assert.ok(inspect.history.length > 0);
     assert.ok(typeof inspect.sizeBytes === "number" && inspect.sizeBytes > 0);
@@ -187,7 +187,7 @@ test("GET /api/images/pull/stream reports the daemon's rejection as an error eve
   const app = buildApp();
   const { url, close } = await startApp(app);
   try {
-    const response = await fetch(`${url}/api/images/pull/stream?reference=vessel-e2e-nonexistent-repo-${Date.now()}:latest`);
+    const response = await fetch(`${url}/api/images/pull/stream?reference=vexel-e2e-nonexistent-repo-${Date.now()}:latest`);
     const events = await readSseUntilDone(response);
 
     const errorEvent = events.find((event) => event.event === "error");
@@ -200,8 +200,8 @@ test("GET /api/images/pull/stream reports the daemon's rejection as an error eve
 
 // plan-docker_management_app/REQ-39 — an image can be tagged with a new reference
 test("POST /api/images/:id/tag adds a new reference, reflected in the list", async () => {
-  const sourceTag = `vessel-test-tagsrc-${Date.now()}:v1`;
-  const newTag = `vessel-test-tagged-${Date.now()}:v1`;
+  const sourceTag = `vexel-test-tagsrc-${Date.now()}:v1`;
+  const newTag = `vexel-test-tagged-${Date.now()}:v1`;
   const app = buildApp();
   const { url, close } = await startApp(app);
   await execFileAsync("docker", ["tag", "postgres:16", sourceTag]);
@@ -241,8 +241,8 @@ test("POST /api/images/:id/tag rejects a blank reference with 400", async () => 
 
 // plan-docker_management_app/REQ-39 — a tag can be removed (untagged), leaving the underlying image and its other tags in place
 test("DELETE /api/images/untag removes just that tag reference, leaving the image's other tag in place", async () => {
-  const keptTag = `vessel-test-untag-keep-${Date.now()}:v1`;
-  const removedTag = `vessel-test-untag-remove-${Date.now()}:v1`;
+  const keptTag = `vexel-test-untag-keep-${Date.now()}:v1`;
+  const removedTag = `vexel-test-untag-remove-${Date.now()}:v1`;
   const app = buildApp();
   const { url, close } = await startApp(app);
   await execFileAsync("docker", ["tag", "postgres:16", keptTag]);
@@ -277,7 +277,7 @@ test("DELETE /api/images/untag rejects a missing reference with 400", async () =
 
 // plan-docker_management_app/REQ-39 — an image can be removed
 test("DELETE /api/images/:id force-removes the image so it no longer appears in the list", async () => {
-  const tag = `vessel-test-remove-${Date.now()}:v1`;
+  const tag = `vexel-test-remove-${Date.now()}:v1`;
   const app = buildApp();
   const { url, close } = await startApp(app);
   await execFileAsync("docker", ["tag", "postgres:16", tag]);
@@ -297,8 +297,8 @@ test("DELETE /api/images/:id force-removes the image so it no longer appears in 
 test("POST /api/images/prune removes dangling images and reports the reclaimed space", async () => {
   const app = buildApp();
   const { url, close } = await startApp(app);
-  const containerName = `vessel-test-prune-src-${Date.now()}`;
-  const danglingTag = `vessel-test-prune-dangling-${Date.now()}:v1`;
+  const containerName = `vexel-test-prune-src-${Date.now()}`;
+  const danglingTag = `vexel-test-prune-dangling-${Date.now()}:v1`;
   await execFileAsync("docker", ["create", "--name", containerName, "hello-world"]);
   const { stdout: firstId } = await execFileAsync("docker", ["commit", "--change", "LABEL step=1", containerName, danglingTag]);
   await new Promise((resolve) => setTimeout(resolve, 1100)); // ensure a different image config timestamp

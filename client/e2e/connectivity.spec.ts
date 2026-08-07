@@ -29,7 +29,7 @@ test('reports the local docker CLI availability with its version', async ({ page
 test('reflects a real daemon change in the live event stream panel without a manual refresh', async ({ page }) => {
   await expect(page.getByText('Daemon event stream')).toBeVisible();
 
-  const networkName = `vessel-e2e-net-${Date.now()}`;
+  const networkName = `vexel-e2e-net-${Date.now()}`;
   try {
     await execFileAsync('docker', ['network', 'create', networkName]);
     await expect(page.getByText(networkName)).toBeVisible({ timeout: 10_000 });

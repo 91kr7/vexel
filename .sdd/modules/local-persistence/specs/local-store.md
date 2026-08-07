@@ -11,8 +11,8 @@ JSON file per namespace inside a per-user application-data directory, created on
 
 ## Contract
 
-- `resolveDataDir(): string` — the application-data directory: `$VESSEL_DATA_DIR` when set
-  (test/override hook), otherwise `~/.vessel`. Created (recursively) on module load if missing.
+- `resolveDataDir(): string` — the application-data directory: `$VEXEL_DATA_DIR` when set
+  (test/override hook), otherwise `~/.vexel`. Created (recursively) on module load if missing.
 - `readNamespace<T>(namespace, fallback: T): T`
   - `namespace`: `'preferences' | 'console-history' | 'analysis-cache-index'`.
   - Returns the stored record's data when the namespace file exists and its schema version matches

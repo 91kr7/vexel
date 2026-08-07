@@ -76,7 +76,7 @@ test.describe('Container exec sessions (REQ-34, REQ-36)', () => {
 
   // plan-docker_management_app/REQ-34 — keystrokes reach the process and its output is rendered
   test('an exec session runs the chosen shell, and keystrokes reach the process with its output rendered', async ({ page }) => {
-    const name = `vessel-e2e-exec-basic-${Date.now()}`;
+    const name = `vexel-e2e-exec-basic-${Date.now()}`;
     try {
       await createIdleContainer(name);
       const detail = await openTab(page, name, 'Exec');
@@ -96,7 +96,7 @@ test.describe('Container exec sessions (REQ-34, REQ-36)', () => {
 
   // plan-docker_management_app/REQ-34 — the session runs the chosen command, as the chosen user, in the chosen working directory
   test('an exec session runs the chosen custom command as the chosen user and working directory', async ({ page }) => {
-    const name = `vessel-e2e-exec-options-${Date.now()}`;
+    const name = `vexel-e2e-exec-options-${Date.now()}`;
     try {
       await createIdleContainer(name);
       const detail = await openTab(page, name, 'Exec');
@@ -117,7 +117,7 @@ test.describe('Container exec sessions (REQ-34, REQ-36)', () => {
 
   // plan-docker_management_app/REQ-36 — leaving the Exec tab closes the session, and the operator returns to the launch form
   test('leaving the Exec tab closes the session and returns the tab to its pre-session state', async ({ page }) => {
-    const name = `vessel-e2e-exec-leave-${Date.now()}`;
+    const name = `vexel-e2e-exec-leave-${Date.now()}`;
     try {
       await createIdleContainer(name);
       const detail = await openTab(page, name, 'Exec');
@@ -139,7 +139,7 @@ test.describe('Container attach sessions (REQ-35, REQ-36)', () => {
 
   // plan-docker_management_app/REQ-35 — attach relays the running container's own stdio
   test('an attach session relays the running container\'s own output', async ({ page }) => {
-    const name = `vessel-e2e-attach-basic-${Date.now()}`;
+    const name = `vexel-e2e-attach-basic-${Date.now()}`;
     try {
       await createTickingContainer(name);
       const detail = await openTab(page, name, 'Attach');
@@ -157,7 +157,7 @@ test.describe('Container attach sessions (REQ-35, REQ-36)', () => {
 
   // plan-docker_management_app/REQ-35, REQ-36 — detaching stops neither the session's relay nor the container itself
   test('detaching from an attach session leaves the container running', async ({ page }) => {
-    const name = `vessel-e2e-attach-detach-${Date.now()}`;
+    const name = `vexel-e2e-attach-detach-${Date.now()}`;
     try {
       await createTickingContainer(name);
       const detail = await openTab(page, name, 'Attach');
@@ -224,7 +224,7 @@ test.describe('Session terminal sizing (REQ-34, REQ-35)', () => {
 
   // ui-library/terminal.md — the host region is sized to fill its container; plan-docker_management_app/REQ-34 — the session follows the *available* terminal size
   test('the terminal settles at the size its surface offers instead of growing without bound', async ({ page }) => {
-    const name = `vessel-e2e-term-size-${Date.now()}`;
+    const name = `vexel-e2e-term-size-${Date.now()}`;
     try {
       await createIdleContainer(name);
       const detail = await openTab(page, name, 'Exec');
@@ -247,7 +247,7 @@ test.describe('Session terminal sizing (REQ-34, REQ-35)', () => {
 
   // plan-docker_management_app/REQ-34 — the session follows the terminal size, so a settled layout stops resizing it
   test('an exec session stops sending resize requests once its terminal has settled', async ({ page }) => {
-    const name = `vessel-e2e-term-resize-exec-${Date.now()}`;
+    const name = `vexel-e2e-term-resize-exec-${Date.now()}`;
     try {
       await installResizeFrameCounter(page);
       await page.goto('/');
@@ -270,7 +270,7 @@ test.describe('Session terminal sizing (REQ-34, REQ-35)', () => {
 
   // plan-docker_management_app/REQ-35 — attaching relays the container's stdio; it must not drive the daemon with resize traffic
   test('an attach session stops sending resize requests once its terminal has settled', async ({ page }) => {
-    const name = `vessel-e2e-term-resize-attach-${Date.now()}`;
+    const name = `vexel-e2e-term-resize-attach-${Date.now()}`;
     try {
       await installResizeFrameCounter(page);
       await page.goto('/');
@@ -293,7 +293,7 @@ test.describe('Session terminal sizing (REQ-34, REQ-35)', () => {
 
   // plan-docker_management_app/REQ-19 — the list re-reads on daemon events; an open attach session must not turn that into a refetch storm
   test('an open attach session does not flood the container list with refetches', async ({ page }) => {
-    const name = `vessel-e2e-attach-calls-${Date.now()}`;
+    const name = `vexel-e2e-attach-calls-${Date.now()}`;
     const listReads: string[] = [];
     page.on('request', (request) => {
       if (new URL(request.url()).pathname === '/api/containers') listReads.push(request.url());
@@ -318,7 +318,7 @@ test.describe('Session terminal sizing (REQ-34, REQ-35)', () => {
   // ui-library/data-table.md — the table body is capped at `maxHeight` and scrolls; its scrollable
   // content must stay stable, otherwise the scrollbar thumb shrinks away as the content runs off
   test('the containers table keeps a stable scroll extent while a session is open', async ({ page }) => {
-    const name = `vessel-e2e-table-scroll-${Date.now()}`;
+    const name = `vexel-e2e-table-scroll-${Date.now()}`;
     try {
       await createIdleContainer(name);
       const detail = await openTab(page, name, 'Exec');
