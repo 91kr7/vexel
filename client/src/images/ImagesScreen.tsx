@@ -1,21 +1,24 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActionButtonGroup,
-  Badge,
+  BadgeListCell,
   Card,
-  CardList,
+  DataTable,
   EmptyState,
   ErrorBanner,
   FormDialog,
+  IdentifierCell,
   MetaCell,
   ScreenToolbar,
   SearchField,
   Select,
   Stack,
+  StatusDotCell,
   StepProgressList,
   TextField,
+  TwoLineCell,
   useToast,
-  type CardListRowContent,
+  type DataTableColumn,
   type ProgressStep,
   type RowAction,
 } from '../ui';
@@ -71,6 +74,11 @@ function displayTitle(image: ImageSummary): string {
   return image.tags.length > 0 ? image.tags.join(', ') : `<none> (${image.shortId})`;
 }
 
+/** The reference shown as the row's primary line; a dangling image has none. */
+function primaryReference(image: ImageSummary): string {
+  return image.tags[0] ?? '<none>';
+}
+
 function matchesSearch(image: ImageSummary, term: string): boolean {
   if (!term.trim()) return true;
   const needle = term.trim().toLowerCase();
@@ -110,6 +118,9 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
   const [tagTarget, setTagTarget] = useState<ImageSummary | null>(null);
   const [tagReference, setTagReference] = useState('');
   const [tagSaving, setTagSaving] = useState(false);
+
+  const [untagTarget, setUntagTarget] = useState<ImageSummary | null>(null);
+  const [untagReference, setUntagReference] = useState('');
 
   const [pushTarget, setPushTarget] = useState<ImageSummary | null>(null);
   const [pushReference, setPushReference] = useState('');
@@ -185,6 +196,27 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
     }
   }
 
+  /**
+   * One tag untags straight away; several tags need the operator to say which
+   * reference to drop, so the choice moves to a dialog rather than to one row
+   * button per tag (the row's action column holds a fixed number of actions).
+   */
+  function startUntag(image: ImageSummary) {
+    if (image.tags.length === 1) {
+      void handleUntag(image.tags[0]);
+      return;
+    }
+    setUntagTarget(image);
+    setUntagReference(image.tags[0] ?? '');
+  }
+
+  async function submitUntag() {
+    if (!untagTarget || !untagReference) return;
+    const reference = untagReference;
+    setUntagTarget(null);
+    await handleUntag(reference);
+  }
+
   function openPushDialog(image: ImageSummary) {
     setPushTarget(image);
     setPushReference(image.tags[0] ?? '');
@@ -231,36 +263,51 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
     }
   }
 
+  /** Fixed set of four actions, sized to fit the row's action column. */
   function actionsFor(image: ImageSummary): RowAction[] {
-    const actions: RowAction[] = [
+    return [
       { id: 'tag', label: 'tag', onClick: () => openTagDialog(image) },
+      { id: 'untag', label: 'untag', onClick: () => startUntag(image), disabled: image.tags.length === 0 },
       { id: 'push', label: 'push', onClick: () => openPushDialog(image), disabled: image.tags.length === 0 },
       { id: 'remove', label: 'remove', destructive: true, onClick: () => handleRemove(image) },
     ];
-    if (image.tags.length === 1) {
-      actions.splice(1, 0, { id: 'untag', label: 'untag', onClick: () => handleUntag(image.tags[0]) });
-    } else if (image.tags.length > 1) {
-      // Multiple tags: untag each individually so the choice is unambiguous.
-      image.tags.forEach((tag, index) =>
-        actions.splice(1 + index, 0, { id: `untag-${tag}`, label: `untag ${tag}`, onClick: () => handleUntag(tag) }),
-      );
-    }
-    return actions;
   }
 
-  function renderRow(image: ImageSummary): CardListRowContent {
-    return {
-      title: displayTitle(image),
-      subtitle: `${image.digest ?? image.shortId}${image.platforms.length > 0 ? ` · ${image.platforms.join(', ')}` : ''}`,
-      badges: image.tags.length === 0 ? <Badge tone="warning">dangling</Badge> : undefined,
-      meta: (
-        <Stack gap="var(--space-1)">
-          <MetaCell>{formatAge(image.createdAt)}</MetaCell>
-          <MetaCell>{formatBytes(image.sizeBytes)}</MetaCell>
-        </Stack>
-      ),
-    };
-  }
+  const columns: DataTableColumn<ImageSummary>[] = [
+    {
+      id: 'status',
+      header: '',
+      width: '20px',
+      render: (image) => <StatusDotCell tone={image.tags.length > 0 ? 'success' : 'warning'} />,
+    },
+    {
+      id: 'repository',
+      header: 'REPOSITORY:TAG',
+      width: '1.8fr',
+      render: (image) => <TwoLineCell title={primaryReference(image)} subtitle={image.shortId} />,
+    },
+    {
+      id: 'tags',
+      header: 'TAGS',
+      width: '1.2fr',
+      render: (image) => <BadgeListCell labels={image.tags} maxVisible={2} emptyLabel="dangling" emptyTone="warning" />,
+    },
+    { id: 'digest', header: 'DIGEST', width: '1fr', render: (image) => <IdentifierCell value={image.digest ?? image.id} maxChars={19} /> },
+    {
+      id: 'platform',
+      header: 'PLATFORM',
+      width: '1fr',
+      render: (image) => <MetaCell>{image.platforms.length > 0 ? image.platforms.join(', ') : undefined}</MetaCell>,
+    },
+    { id: 'size', header: 'SIZE', align: 'end', width: '0.6fr', render: (image) => <MetaCell>{formatBytes(image.sizeBytes)}</MetaCell> },
+    { id: 'created', header: 'CREATED', width: '1fr', render: (image) => <MetaCell>{formatAge(image.createdAt)}</MetaCell> },
+    {
+      id: 'actions',
+      header: 'ACTIONS',
+      width: 'var(--data-table-action-column-width)',
+      render: (image) => <ActionButtonGroup actions={actionsFor(image)} />,
+    },
+  ];
 
   const filtered = images.filter((image) => matchesSearch(image, search));
   const hasDangling = images.some((image) => image.tags.length === 0);
@@ -292,19 +339,15 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
       />
       {error ? <ErrorBanner title="Could not load images" detail={error} onRetry={onRefresh} /> : null}
       <Card padding="none">
-        <CardList
-          items={filtered}
-          itemKey={(image) => image.id}
-          renderRow={renderRow}
-          selectedKey={selectedId}
-          onSelect={toggleSelection}
-          expandedKey={selectedId}
-          renderExpanded={(image) => (
-            <Stack gap="var(--space-3)">
-              <ActionButtonGroup actions={actionsFor(image)} />
-              <ImageDetailPanel image={image} onClose={() => setSelectedId(undefined)} />
-            </Stack>
-          )}
+        <DataTable
+          columns={columns}
+          rows={filtered}
+          rowKey={(image) => image.id}
+          maxHeight="60vh"
+          selectedRowKey={selectedId}
+          onRowSelect={toggleSelection}
+          expandedRowKey={selectedId}
+          renderExpanded={(image) => <ImageDetailPanel image={image} onClose={() => setSelectedId(undefined)} />}
           emptyState={<EmptyState title={loaded ? 'No images match' : 'Loading images…'} description={loaded ? 'Try a different search.' : undefined} />}
         />
       </Card>
@@ -344,6 +387,23 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
         onCancel={() => setTagTarget(null)}
       >
         <TextField ariaLabel="New reference" placeholder="e.g. myrepo/name:tag" value={tagReference} onChange={setTagReference} autoFocus />
+      </FormDialog>
+
+      <FormDialog
+        open={untagTarget !== null}
+        title={untagTarget ? `Untag ${displayTitle(untagTarget)}` : 'Untag image'}
+        description="Removes one repository:tag reference from this image."
+        submitLabel="Untag"
+        submitDisabled={!untagReference}
+        onSubmit={submitUntag}
+        onCancel={() => setUntagTarget(null)}
+      >
+        <Select
+          ariaLabel="Reference to untag"
+          value={untagReference}
+          options={(untagTarget?.tags ?? []).map((tag) => ({ value: tag, label: tag }))}
+          onChange={setUntagReference}
+        />
       </FormDialog>
 
       <FormDialog

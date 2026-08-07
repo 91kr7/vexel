@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { Badge, type BadgeTone } from '../controls/Badge';
 import type { StatusTone } from '../controls/StatusPill';
 import './data-table.css';
 
@@ -77,6 +78,69 @@ export function MetaCell({ children, wrap = false, title }: MetaCellProps) {
   return (
     <span className={className} title={tooltip}>
       {children ?? '–'}
+    </span>
+  );
+}
+
+export interface IdentifierCellProps {
+  value?: string;
+  /** Characters kept before the value is cut at its tail; unset keeps the whole value. */
+  maxChars?: number;
+}
+
+/**
+ * An opaque identifier (hash, digest, key) in monospace. Cutting at a fixed
+ * character count — not only at the column's width — keeps every row showing
+ * the same amount of the identifier; the full value stays available as a
+ * native tooltip.
+ */
+export function IdentifierCell({ value, maxChars }: IdentifierCellProps) {
+  if (!value) return <span className="ui-table-identifier-cell">–</span>;
+  const shortened = maxChars !== undefined && value.length > maxChars ? `${value.slice(0, maxChars)}…` : value;
+  return (
+    <span className="ui-table-identifier-cell" title={value}>
+      {shortened}
+    </span>
+  );
+}
+
+export interface BadgeListCellProps {
+  labels: string[];
+  tone?: BadgeTone;
+  /** Badges rendered before the overflow indicator takes over. Default 3. */
+  maxVisible?: number;
+  emptyLabel?: string;
+  emptyTone?: BadgeTone;
+}
+
+/**
+ * A single line of badges for a list-valued column, with a `+N` indicator
+ * carrying the hidden entries in its tooltip so the row height never changes
+ * with the number of entries.
+ */
+export function BadgeListCell({ labels, tone = 'neutral', maxVisible = 3, emptyLabel, emptyTone = 'neutral' }: BadgeListCellProps) {
+  if (labels.length === 0) {
+    if (!emptyLabel) return <span className="ui-table-badge-list-cell">–</span>;
+    return (
+      <span className="ui-table-badge-list-cell">
+        <Badge tone={emptyTone}>{emptyLabel}</Badge>
+      </span>
+    );
+  }
+  const visible = labels.slice(0, maxVisible);
+  const hidden = labels.slice(maxVisible);
+  return (
+    <span className="ui-table-badge-list-cell">
+      {visible.map((label) => (
+        <span key={label} className="ui-table-badge-list-cell__item" title={label}>
+          <Badge tone={tone}>{label}</Badge>
+        </span>
+      ))}
+      {hidden.length > 0 ? (
+        <span className="ui-table-badge-list-cell__item" title={hidden.join(', ')}>
+          <Badge>{`+${hidden.length}`}</Badge>
+        </span>
+      ) : null}
     </span>
   );
 }

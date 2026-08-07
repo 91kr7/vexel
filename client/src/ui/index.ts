@@ -50,7 +50,18 @@ export { TimeRangeField, type TimeRangeFieldProps, type TimeRange } from './cont
 export { StreamSearchField, type StreamSearchFieldProps } from './controls/StreamSearchField';
 
 export { DataTable, type DataTableProps, type DataTableColumn } from './data/DataTable';
-export { StatusDotCell, type StatusDotCellProps, TwoLineCell, type TwoLineCellProps, MetaCell, type MetaCellProps } from './data/TableCells';
+export {
+  StatusDotCell,
+  type StatusDotCellProps,
+  TwoLineCell,
+  type TwoLineCellProps,
+  MetaCell,
+  type MetaCellProps,
+  IdentifierCell,
+  type IdentifierCellProps,
+  BadgeListCell,
+  type BadgeListCellProps,
+} from './data/TableCells';
 export { DefinitionList, type DefinitionListProps, type DefinitionItem } from './data/DefinitionList';
 export { CodeViewer, type CodeViewerProps } from './data/CodeViewer';
 export { LogStream, type LogStreamProps, type LogStreamLine } from './data/LogStream';

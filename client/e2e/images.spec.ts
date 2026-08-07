@@ -28,16 +28,25 @@ async function removeStandaloneImage(tag: string, containerName: string): Promis
   await execFileAsync('docker', ['rm', '-f', containerName]).catch(() => undefined);
 }
 
-// CardList renders each item as its own glass card (a Surface direct child of .ui-card-list), with
-// the clickable header row and any expanded content as siblings inside it
-// (ui-library/specs/card-list.md) — so a card's action buttons and detail panel are found by scoping
-// to that per-row Surface, not to the header row alone (and not to the list's own outer Surface).
+// The images list is a DataTable laid out like the containers table
+// (images/specs/images-screen.md): one `.ui-data-table__row` per image, its
+// actions inside the row, and the expanded detail panel as a sibling element
+// after the row — not nested inside it.
 function imageRow(page: Page, text: string) {
-  return page.locator('.ui-card-list > .ui-surface').filter({ hasText: text });
+  return page.locator('.ui-data-table__row', { hasText: text });
 }
 
-function rowHeader(row: ReturnType<typeof imageRow>) {
-  return row.locator('.ui-card-list__item');
+/** Selects a row by clicking a non-action cell (the action group swallows its own clicks). */
+async function selectRow(row: ReturnType<typeof imageRow>): Promise<void> {
+  await row.locator('.ui-data-table__cell').first().click();
+}
+
+function expandedPanel(page: Page) {
+  return page.locator('.ui-data-table__expanded');
+}
+
+function searchField(page: Page) {
+  return page.getByPlaceholder('Search reference or digest…');
 }
 
 // A disposable, unauthenticated local registry: lets the push test below exercise a real registry
@@ -71,17 +80,51 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible();
 });
 
-// plan-docker_management_app/REQ-37 — the images screen lists local images with repository:tag, size and creation age
-test('lists a local image with its tag, size and creation age', async ({ page }) => {
+// plan-docker_management_app/REQ-37 — the images screen lists local images with repository:tag, digest, platform, size and creation age
+test('lists a local image in a table row with its reference, digest, platform, size and creation age', async ({ page }) => {
+  // Built locally on purpose: a multi-platform image pulled as an index can be
+  // stored by the daemon without a platform-specific config, and then reports
+  // neither an architecture nor a creation date of its own.
+  const containerName = `vexel-e2e-list-src-${Date.now()}`;
   const tag = `vexel-e2e-list-${Date.now()}:v1`;
   try {
-    await tagFromPostgres(tag);
+    await createStandaloneImage(tag, containerName);
+    await page.reload();
 
-    await page.getByPlaceholder('Search reference or digest…').fill(tag);
+    await searchField(page).fill(tag);
     const row = imageRow(page, tag);
     await expect(row).toBeVisible({ timeout: 10_000 });
     await expect(row).toContainText(/ago/);
-    await expect(row).toContainText(/B$|KB$|MB$|GB$/);
+    await expect(row).toContainText(/B|KB|MB|GB/);
+    await expect(row).toContainText('linux/');
+    await expect(row).toContainText('sha256:');
+  } finally {
+    await execFileAsync('docker', ['rm', '-f', containerName]).catch(() => undefined);
+    await removeTagQuietly(tag);
+  }
+});
+
+// plan-docker_management_app/REQ-37 — the columns are named by a header row, as on the containers table
+test('shows a header row naming every image column', async ({ page }) => {
+  const headers = page.locator('.ui-data-table__header-cell');
+
+  await expect(headers).toHaveText(['', 'REPOSITORY:TAG', 'TAGS', 'DIGEST', 'PLATFORM', 'SIZE', 'CREATED', 'ACTIONS']);
+});
+
+// plan-docker_management_app/REQ-37 — the four per-image actions are on every row, visible without expanding it
+test('shows tag, untag, push and remove on the row itself, without expanding it', async ({ page }) => {
+  const tag = `vexel-e2e-actions-${Date.now()}:v1`;
+  try {
+    await tagFromPostgres(tag);
+    await searchField(page).fill(tag);
+    const row = imageRow(page, tag);
+    await expect(row).toBeVisible({ timeout: 10_000 });
+
+    // No row is expanded at this point: the actions must already be there.
+    await expect(expandedPanel(page)).toHaveCount(0);
+    for (const label of ['tag', 'untag', 'push', 'remove']) {
+      await expect(row.getByRole('button', { name: label, exact: true })).toBeVisible();
+    }
   } finally {
     await removeTagQuietly(tag);
   }
@@ -93,10 +136,10 @@ test('searching narrows the list to images whose reference matches the search te
   try {
     await tagFromPostgres(tag);
 
-    await page.getByPlaceholder('Search reference or digest…').fill(tag);
+    await searchField(page).fill(tag);
 
     await expect(imageRow(page, tag)).toBeVisible({ timeout: 10_000 });
-    const otherRows = page.locator('.ui-card-list__item').filter({ hasNotText: tag });
+    const otherRows = page.locator('.ui-data-table__row').filter({ hasNotText: tag });
     await expect(otherRows).toHaveCount(0);
   } finally {
     await removeTagQuietly(tag);
@@ -109,7 +152,7 @@ test('searching by digest also narrows the list to the matching image', async ({
   const fullDigest = stdout.trim().split('@')[1]!; // e.g. sha256:f8e2cc2a36dd...
   const shortDigest = fullDigest.slice(0, 19); // "sha256:" (7) + 12 hex chars
 
-  await page.getByPlaceholder('Search reference or digest…').fill(shortDigest);
+  await searchField(page).fill(shortDigest);
 
   await expect(imageRow(page, 'postgres')).toBeVisible({ timeout: 10_000 });
 });
@@ -122,11 +165,10 @@ test('tagging an image adds the new reference and confirms with a success toast'
   try {
     await createStandaloneImage(sourceTag, containerName);
     await page.reload();
-    await page.getByPlaceholder('Search reference or digest…').fill(sourceTag);
+    await searchField(page).fill(sourceTag);
     const row = imageRow(page, sourceTag);
     await expect(row).toBeVisible({ timeout: 10_000 });
 
-    await rowHeader(row).click();
     await row.getByRole('button', { name: 'tag', exact: true }).click();
     const dialogHeading = page.getByRole('heading', { name: `Tag ${sourceTag}` });
     const dialog = page.locator('.ui-modal').filter({ has: dialogHeading });
@@ -134,7 +176,7 @@ test('tagging an image adds the new reference and confirms with a success toast'
     await dialog.getByRole('button', { name: 'Tag' }).click();
 
     await expect(page.locator('.ui-toast-viewport')).toContainText('Image tagged', { timeout: 10_000 });
-    await page.getByPlaceholder('Search reference or digest…').fill(newTag);
+    await searchField(page).fill(newTag);
     await expect(imageRow(page, newTag)).toBeVisible({ timeout: 10_000 });
   } finally {
     await removeTagQuietly(newTag);
@@ -142,28 +184,83 @@ test('tagging an image adds the new reference and confirms with a success toast'
   }
 });
 
-// plan-docker_management_app/REQ-39 — a single per-tag untag action removes just that reference, leaving the image's other tag in place
+// plan-docker_management_app/REQ-39 — untagging removes just the chosen reference, leaving the image's other tag in place.
+// images-screen.md: with several tags the row's untag action asks which reference to drop.
 test('untagging one of several tags removes just that reference, leaving the other tag in place', async ({ page }) => {
   const runId = Date.now();
+  const containerName = `vexel-e2e-untag-src-${runId}`;
   const keptTag = `vexel-e2e-untag-${runId}-keep:v1`;
   const removedTag = `vexel-e2e-untag-${runId}-remove:v1`;
   try {
-    await tagFromPostgres(keptTag);
-    await tagFromPostgres(removedTag);
-    await page.getByPlaceholder('Search reference or digest…').fill(`vexel-e2e-untag-${runId}`);
+    // A standalone image with exactly the two references under test, so both
+    // are visible on the row (the TAGS column shows two badges before it folds
+    // the rest into a +N indicator).
+    await createStandaloneImage(keptTag, containerName);
+    await execFileAsync('docker', ['tag', keptTag, removedTag]);
+    await page.reload();
+    await searchField(page).fill(`vexel-e2e-untag-${runId}`);
 
     const row = imageRow(page, keptTag);
     await expect(row).toBeVisible({ timeout: 10_000 });
     await expect(row).toContainText(removedTag);
-    await rowHeader(row).click();
 
-    await row.getByRole('button', { name: `untag ${removedTag}` }).click();
+    await row.getByRole('button', { name: 'untag', exact: true }).click();
+    const dialog = page.locator('.ui-modal');
+    await dialog.getByRole('combobox', { name: 'Reference to untag' }).selectOption(removedTag);
+    await dialog.getByRole('button', { name: 'Untag' }).click();
 
     await expect(row).not.toContainText(removedTag, { timeout: 10_000 });
     await expect(row).toContainText(keptTag);
   } finally {
     await removeTagQuietly(removedTag);
+    await execFileAsync('docker', ['rm', '-f', containerName]).catch(() => undefined);
     await removeTagQuietly(keptTag);
+  }
+});
+
+// plan-docker_management_app/REQ-39 — untagging an image that has a single tag needs no choice
+test('untagging a single-tag image drops its reference straight away', async ({ page }) => {
+  const containerName = `vexel-e2e-untag-solo-src-${Date.now()}`;
+  const tag = `vexel-e2e-untag-solo-${Date.now()}:v1`;
+  try {
+    await createStandaloneImage(tag, containerName);
+    await page.reload();
+    await searchField(page).fill(tag);
+    const row = imageRow(page, tag);
+    await expect(row).toBeVisible({ timeout: 10_000 });
+
+    await row.getByRole('button', { name: 'untag', exact: true }).click();
+
+    await expect(page.locator('.ui-modal')).toHaveCount(0);
+    await expect(imageRow(page, tag)).toHaveCount(0, { timeout: 10_000 });
+  } finally {
+    await execFileAsync('docker', ['rm', '-f', containerName]).catch(() => undefined);
+    await removeTagQuietly(tag);
+  }
+});
+
+// plan-docker_management_app/REQ-37 — a dangling image is marked as such and has no reference to untag or push
+test('marks a dangling image with a dangling badge and disables its untag and push actions', async ({ page }) => {
+  const containerName = `vexel-e2e-dangling-src-${Date.now()}`;
+  const tag = `vexel-e2e-dangling-${Date.now()}:v1`;
+  await execFileAsync('docker', ['create', '--name', containerName, 'hello-world']);
+  const { stdout: firstId } = await execFileAsync('docker', ['commit', '--change', 'LABEL step=1', containerName, tag]);
+  await new Promise((resolve) => setTimeout(resolve, 1100));
+  await execFileAsync('docker', ['commit', '--change', 'LABEL step=2', containerName, tag]);
+  try {
+    await page.reload();
+    await searchField(page).fill(firstId.trim().slice(7, 19));
+    const row = page.locator('.ui-data-table__row').first();
+    await expect(row).toBeVisible({ timeout: 10_000 });
+
+    await expect(row).toContainText('dangling');
+    await expect(row).toContainText('<none>');
+    await expect(row.getByRole('button', { name: 'untag', exact: true })).toBeDisabled();
+    await expect(row.getByRole('button', { name: 'push', exact: true })).toBeDisabled();
+  } finally {
+    await execFileAsync('docker', ['rm', '-f', containerName]).catch(() => undefined);
+    await execFileAsync('docker', ['rmi', '-f', firstId.trim()]).catch(() => undefined);
+    await removeTagQuietly(tag);
   }
 });
 
@@ -174,17 +271,16 @@ test('removing an image asks for confirmation, does nothing on cancel and remove
   try {
     await createStandaloneImage(tag, containerName);
     await page.reload();
-    await page.getByPlaceholder('Search reference or digest…').fill(tag);
+    await searchField(page).fill(tag);
     const row = imageRow(page, tag);
     await expect(row).toBeVisible({ timeout: 10_000 });
-    await rowHeader(row).click();
 
-    await row.getByRole('button', { name: 'remove' }).click();
+    await row.getByRole('button', { name: 'remove', exact: true }).click();
     await expect(page.getByRole('heading', { name: `Confirm: ${tag}` })).toBeVisible();
     await page.getByRole('button', { name: 'Cancel' }).click();
     await expect(imageRow(page, tag)).toBeVisible();
 
-    await row.getByRole('button', { name: 'remove' }).click();
+    await row.getByRole('button', { name: 'remove', exact: true }).click();
     await expect(page.getByRole('heading', { name: `Confirm: ${tag}` })).toBeVisible();
     await page.getByRole('button', { name: 'Remove' }).last().click();
 
@@ -214,8 +310,8 @@ test('pruning dangling images removes them and reports the outcome', async ({ pa
     await page.getByRole('button', { name: 'Prune dangling' }).last().click();
 
     await expect(page.locator('.ui-toast-viewport')).toContainText(/removed/i, { timeout: 15_000 });
-    await page.getByPlaceholder('Search reference or digest…').fill(firstId.trim().slice(7, 19));
-    await expect(page.locator('.ui-card-list__item')).toHaveCount(0);
+    await searchField(page).fill(firstId.trim().slice(7, 19));
+    await expect(page.locator('.ui-data-table__row')).toHaveCount(0);
   } finally {
     await execFileAsync('docker', ['rm', '-f', containerName]).catch(() => undefined);
     await removeTagQuietly(danglingTag);
@@ -230,17 +326,91 @@ test('selecting an image expands its detail panel with structured inspect data a
   await execFileAsync('docker', ['commit', '--change', 'LABEL team=vexel', '--change', 'EXPOSE 9999/tcp', containerName, tag]);
   try {
     await page.reload();
-    await page.getByPlaceholder('Search reference or digest…').fill(tag);
+    await searchField(page).fill(tag);
     const row = imageRow(page, tag);
     await expect(row).toBeVisible({ timeout: 10_000 });
-    await rowHeader(row).click();
 
-    const expanded = row.locator('.ui-card-list__expanded');
+    await selectRow(row);
+
+    const expanded = expandedPanel(page);
     await expect(expanded).toBeVisible();
     await expect(expanded).toContainText('9999/tcp');
     await expect(expanded).toContainText('vexel');
     await expect(expanded.getByText('History')).toBeVisible();
     await expect(expanded.getByText(/"team":\s*"vexel"/)).toBeVisible();
+    // images-screen.md: the expanded region carries the detail panel alone.
+    await expect(expanded.getByRole('button', { name: 'remove', exact: true })).toHaveCount(0);
+  } finally {
+    await execFileAsync('docker', ['rm', '-f', containerName]).catch(() => undefined);
+    await removeTagQuietly(tag);
+  }
+});
+
+// plan-docker_management_app/REQ-3 — the images table and the containers table present identically:
+// same header row treatment, same column typography, same row height, same hover and selected treatment.
+test('the images table and the containers table present with the same header, typography, row height, hover and selected treatment', async ({
+  page,
+}) => {
+  const containerName = `vexel-e2e-homogeneity-${Date.now()}`;
+  const tag = `vexel-e2e-homogeneity-${Date.now()}:v1`;
+  try {
+    await execFileAsync('docker', ['run', '-d', '--name', containerName, '--entrypoint', 'sleep', 'postgres:16', '300']);
+    await tagFromPostgres(tag);
+
+    const measure = async () => {
+      const table = page.locator('.ui-data-table');
+      await expect(table.locator('.ui-data-table__row').first()).toBeVisible({ timeout: 15_000 });
+
+      const header = await table.locator('.ui-data-table__header').evaluate((node) => {
+        const style = getComputedStyle(node);
+        return { background: style.backgroundColor, padding: style.padding, borderBottom: style.borderBottom };
+      });
+      const headerCell = await table
+        .locator('.ui-data-table__header-cell')
+        .nth(1)
+        .evaluate((node) => {
+          const style = getComputedStyle(node);
+          return {
+            fontSize: style.fontSize,
+            fontWeight: style.fontWeight,
+            letterSpacing: style.letterSpacing,
+            textTransform: style.textTransform,
+            color: style.color,
+          };
+        });
+      const row = table.locator('.ui-data-table__row').first();
+      const rowBox = await row.boundingBox();
+      const restingBackground = await row.evaluate((node) => getComputedStyle(node).backgroundColor);
+      await row.hover();
+      const hoverBackground = await row.evaluate((node) => getComputedStyle(node).backgroundColor);
+      const cell = await table
+        .locator('.ui-data-table__cell')
+        .nth(1)
+        .evaluate((node) => {
+          const style = getComputedStyle(node);
+          return { fontSize: style.fontSize, color: style.color, padding: style.padding };
+        });
+
+      await row.locator('.ui-data-table__cell').first().click();
+      const selected = table.locator('.ui-data-table__row--selected').first();
+      const selectedBackground = await selected.evaluate((node) => getComputedStyle(node).backgroundColor);
+
+      return { header, headerCell, rowHeight: rowBox?.height, restingBackground, hoverBackground, cell, selectedBackground };
+    };
+
+    await page.getByRole('button', { name: /Containers/ }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
+    const containersLook = await measure();
+
+    await page.getByRole('button', { name: /Images & layers/ }).click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible();
+    const imagesLook = await measure();
+
+    expect(imagesLook).toEqual(containersLook);
+    // A meaningful comparison: hovering must actually change the row, and the
+    // selected row must differ from a resting one on both screens.
+    expect(imagesLook.hoverBackground).not.toBe(imagesLook.restingBackground);
+    expect(imagesLook.selectedBackground).not.toBe(imagesLook.restingBackground);
   } finally {
     await execFileAsync('docker', ['rm', '-f', containerName]).catch(() => undefined);
     await removeTagQuietly(tag);
@@ -259,12 +429,11 @@ test('pushing an image to a registry shows per-layer progress until it completes
   await createStandaloneImage(pushReference, containerName);
   try {
     await page.reload();
-    await page.getByPlaceholder('Search reference or digest…').fill(pushReference);
+    await searchField(page).fill(pushReference);
     const row = imageRow(page, pushReference);
     await expect(row).toBeVisible({ timeout: 10_000 });
-    await rowHeader(row).click();
 
-    await row.getByRole('button', { name: 'push' }).click();
+    await row.getByRole('button', { name: 'push', exact: true }).click();
     const dialogHeading = page.getByRole('heading', { name: `Push ${pushReference}` });
     const dialog = page.locator('.ui-modal').filter({ has: dialogHeading });
     await dialog.getByRole('button', { name: 'Push' }).click();
@@ -289,6 +458,6 @@ test('pulling an image by reference shows per-layer progress and the image appea
   await expect(page.getByText(/Pending|In progress|Done/).first()).toBeVisible({ timeout: 15_000 });
   // images-screen.md: the pull dialog closes on its own once the transfer ends, and the list re-reads.
   await expect(dialogHeading).toHaveCount(0, { timeout: 30_000 });
-  await page.getByPlaceholder('Search reference or digest…').fill('hello-world');
+  await searchField(page).fill('hello-world');
   await expect(imageRow(page, 'hello-world:latest')).toBeVisible({ timeout: 10_000 });
 });

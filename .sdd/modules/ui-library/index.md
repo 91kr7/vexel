@@ -48,7 +48,7 @@
 | StreamSearchField | UI component | `client/src/ui/controls/StreamSearchField.tsx` | In-surface stream search box with match count and next/previous | `specs/stream-search-field.md` |
 | DataTable | UI component | `client/src/ui/data/DataTable.tsx` | Dense, column-defined table with hover/selected row states, virtualised scrolling, and an optional per-row expansion slot | `specs/data-table.md` |
 | CardList | UI component | `client/src/ui/data/CardList.tsx` | Full-width card rows (title, monospace subtitle, trailing badge group and meta values), selectable, with an optional expanded content slot inside the same card | `specs/card-list.md` |
-| StatusDotCell, TwoLineCell, MetaCell | UI component | `client/src/ui/data/TableCells.tsx` | Reusable DataTable cell contents: status dot, title/subtitle pair, muted monospace value | `specs/table-cells.md` |
+| StatusDotCell, TwoLineCell, MetaCell, IdentifierCell, BadgeListCell | UI component | `client/src/ui/data/TableCells.tsx` | Reusable DataTable cell contents: status dot, title/subtitle pair, muted monospace value, truncated identifier, badge list with overflow indicator | `specs/table-cells.md` |
 | DefinitionList | UI component | `client/src/ui/data/DefinitionList.tsx` | Label → value rows with an optional copy affordance | `specs/definition-list.md` |
 | CodeViewer | UI component | `client/src/ui/data/CodeViewer.tsx` | Read-only monospace code/JSON block with a copy affordance | `specs/code-viewer.md` |
 | LogStream | UI component | `client/src/ui/data/LogStream.tsx` | Virtualised monospace log surface: follow/jump-to-live, timestamps, stdout/stderr tagging, match highlighting, copy/download | `specs/log-stream.md` |

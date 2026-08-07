@@ -142,6 +142,33 @@
   color: var(--color-text-secondary);
 }
 
+.ui-table-identifier-cell {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.ui-table-badge-list-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.ui-table-badge-list-cell__item {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 0 1 auto;
+}
+
 .ui-table-meta-cell--wrap {
   white-space: normal;
   overflow-wrap: anywhere;
