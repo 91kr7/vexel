@@ -92,9 +92,12 @@ Run from the repository root (npm workspaces):
   - `npm run test:sweep -w server` — removes containers left behind by a killed run; scoped to the
     ownership label, so it never touches an object the operator created. Runs automatically before
     the two daemon-backed passes.
-- Client tests: `npx vitest run` and `npx playwright test`, both **run from `client/`**, not from the
-  repository root: `ui-conformance-check.test.ts` resolves the conformance script from
-  `process.cwd()`, so `--root client` from the root fails 8 tests that pass from the workspace. The e2e suite runs with a **single worker on purpose** — every spec drives the
+- Client tests: `npm run test -w client` (UI-boundary check + `vitest run`) and
+  `npm run test:e2e -w client` (Playwright). Use the workspace-scoped scripts, not `vitest`/
+  `playwright` invoked by hand with a `--root`: `ui-conformance-check.test.ts` resolves the
+  conformance script from `process.cwd()`, so running the binaries from the repository root fails 8
+  tests that pass under the npm scripts.
+- Whole suite: `npm run test` from the repository root chains server then client. The e2e suite runs with a **single worker on purpose** — every spec drives the
   same daemon, so concurrency turns contention into spurious timeouts at no wall-clock gain; see the
   rationale in `client/playwright.config.ts`. Destructive specs live in `client/e2e/exclusive/` and
   run in their own project, after the rest.
