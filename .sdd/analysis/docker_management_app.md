@@ -98,13 +98,22 @@ escape-hatch raw-command/API console for the long tail of rare flags.
   service, edit and validate compose files.
 - **Swarm / orchestration management**: initialize/join/leave a swarm; manage nodes, services,
   tasks, stacks and secrets/configs in swarm mode, for users who operate clustered Docker.
+  ~~Deploying a stack from a compose file~~ — **withdrawn 2026-08-07 by human decision: deploying
+  needs a compose file on the machine running the server, which a remote operator cannot see, and a
+  deployed stack keeps no link to that file. Listing and removing stacks is unaffected. See
+  "Departures from the spec" in `.sdd/plans/plan-docker_management_app/batches.md`**.
 - **Registry interaction**: log in/out of registries, browse repositories and tags reachable from
   configured registries, manage credentials.
 - **Build system (BuildKit/buildx) management**: manage builders/build instances, ~~multi-platform
-  builds~~ (**withdrawn 2026-08-07 with image building — same decision as above**), build cache
-  import/export, and inspect build cache usage.
+  builds~~ (**withdrawn 2026-08-07 with image building — same decision as above**), ~~build cache
+  import/export~~ (**withdrawn 2026-08-07: buildx transfers a cache only as flags of a build, which
+  went with image building, and a local destination is a directory on the server the operator cannot
+  see — same place in `batches.md`**), and inspect build cache usage.
 - **Context and daemon management**: list, create, switch between and remove Docker contexts
-  (local, remote-over-SSH, remote-over-TCP); view daemon-level information (version, storage
+  (local, remote-over-SSH, ~~remote-over-TCP~~ — **creating a TCP+TLS context withdrawn 2026-08-07
+  by human decision: it needs CA/client certificate and key files at paths on the server the
+  operator cannot see. Listing, selecting and using a TCP+TLS context created elsewhere is
+  unaffected. Same place in `batches.md`**); view daemon-level information (version, storage
   driver, root directory, resource totals) and system-wide disk usage; run system prune operations
   (containers/images/volumes/networks/build cache) with selectable scope.
 - **Plugin awareness**: list installed CLI/daemon plugins and their status, where introspectable.

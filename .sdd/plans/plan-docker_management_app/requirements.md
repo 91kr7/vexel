@@ -113,8 +113,18 @@ Visual reference: `.sdd/analysis/ui-mock/` constrains look, layout and interacti
 
 | ID | Requirement |
 | --- | --- |
-| REQ-42 | One or more images can be saved to a tarball, and images can be loaded back from a tarball, with progress and the resulting references reported. |
-| REQ-43 | A container's filesystem can be exported to a tarball, and an image can be imported from a filesystem tarball with an optional target reference and config changes. |
+| REQ-42 | One or more images can be saved to a tarball downloaded through the browser to the operator's own machine, and images can be loaded back from a tarball the operator uploads from their own machine, with progress and the resulting references reported. |
+| REQ-43 | A container's filesystem can be exported to a tarball downloaded through the browser, and an image can be imported from a filesystem tarball the operator uploads, with an optional target reference and config changes. |
+
+**Transport is the browser, not the server's filesystem (human decision, 2026-08-07).** REQ-42 and
+REQ-43 originally said only "saved to a tarball" / "loaded back from a tarball", and the plan read
+that as a tarball path on the machine running the server, typed by the operator. That is the F12
+defect once more: a tarball written to a path on a remote server is an artefact the operator cannot
+see, cannot reach and did not want there, and a tarball to load would have to be put on that machine
+by some other means first, which defeats the feature. These four artefacts belong to the operator,
+so they travel over the same channel the operator is already using — the browser. Both directions
+stream, so a multi-gigabyte image is never buffered whole on the server. No host path is involved
+and REQ-116 no longer applies here.
 
 ## F12 — Image build from Dockerfile — **withdrawn (human decision, 2026-08-07)**
 
@@ -163,8 +173,22 @@ The REQ numbers 44 to 46 are retired and never reused.
 | REQ-58 | For an entry of the extracted tree, its size, permissions, owner uid/gid, modification time, entry type and symlink target are shown. |
 | REQ-59 | A file's content can be previewed as text or as a hex dump, the mode being chosen automatically from the content and overridable by the operator, with oversized files truncated and the truncation stated. |
 | REQ-60 | The tree can be filtered and searched by name or path fragment (e.g. to locate binaries, shared libraries or CA-certificate bundles), showing the matches in their position in the tree. |
-| REQ-61 | A selected file can be downloaded through the browser, and a selected file or subtree can additionally be exported to a destination path on the host typed by the operator, the outcome (what was written, where) being reported. |
-| REQ-62 | An export can never write outside the chosen destination: `../` segments and symlinks pointing outside the extracted tree are neutralised or refused, the destination path itself is refused when it is unsafe, non-existent or not writable, and every refusal is reported with its reason. |
+| REQ-61 | A selected file can be downloaded through the browser, and a selected subtree can be downloaded through the browser as a single archive, the outcome (what the archive contains) being reported. |
+| REQ-62 | An export can never escape the extracted tree nor endanger the machine it is extracted on: a `../` segment or a symlink pointing outside the extracted tree is neutralised or refused instead of being followed, so no byte outside that tree is ever read or served; the archive produced for a subtree contains no absolute path and no `../` segment, so extracting it on the operator's machine cannot write outside the directory they chose; and every refusal is reported with its reason. |
+
+**Export is a browser download, not a host write (human decision, 2026-08-07).** REQ-61 originally
+offered, alongside the browser download, an export "to a destination path on the host typed by the
+operator" — the same unknowable server filesystem that withdrew F12. An extracted file belongs to
+the operator, so it travels over the browser; a subtree travels the same way, as one archive.
+
+**REQ-62 is reframed, not weakened.** With nothing written on the server, the containment problem
+does not disappear — it moves, and in one direction it gets worse. A symlink escaping the extracted
+tree no longer risks a stray write on the server; it risks the server *reading* a file of its own
+host and serving it to whoever is using the application, which is an exfiltration channel. And the
+archive built for a subtree is extracted on the operator's machine, so a `../` or absolute entry
+inside it turns into a write outside the directory they picked, on their machine instead of the
+server's. REQ-62 therefore keeps its number and its status as a first-class requirement, restated
+over reads and over the archive's contents rather than over a destination path.
 
 ## F16 — Cross-image filesystem diff
 
@@ -220,8 +244,18 @@ The REQ numbers 44 to 46 are retired and never reused.
 | REQ-80 | The manager and worker join tokens can be displayed and rotated. |
 | REQ-81 | Swarm nodes are listed with hostname, role, availability and status; a node's role and availability can be changed and a node can be removed. |
 | REQ-82 | Swarm services are listed with image, mode (replicated/global), running/desired replicas and published ports; a service can be created, updated (image, replicas, env, ports), inspected together with its tasks, and removed. |
-| REQ-83 | Swarm stacks can be deployed from a compose file, listed with their services, and removed. |
+| REQ-83 | Swarm stacks are listed with their services and can be removed; the application does not deploy stacks (see the note below). |
 | REQ-84 | Swarm secrets and configs are listed with name and age, created, inspected as metadata (never revealing a secret's value) and removed. |
+
+**Stack deployment withdrawn (human decision, 2026-08-07).** REQ-83 originally read "Swarm stacks
+can be deployed from a compose file, listed with their services, and removed". Deploying takes a
+compose file the operator must point at *on the machine running the server* — the same ill-posed
+input that withdrew F12. Unlike a Compose project, a deployed stack keeps no link to that file: the
+services, networks, secrets and configs become swarm objects in the cluster's raft store and the
+file is consumed once and forgotten, so there is nothing the path buys after the deploy. Listing and
+removal need no path and stay. `docker stack deploy` remains reachable through the raw console
+(F28), and the coverage matrix (F29) declares stack deployment **console-only**. REQ-83 keeps its
+number in reduced form; no number is retired.
 
 ## F23 — Registries
 
@@ -238,15 +272,38 @@ The REQ numbers 44 to 46 are retired and never reused.
 | REQ-88 | buildx builders are listed with name, driver, endpoint, supported platforms, status and cache size; the builder currently in use is identified and another one can be selected as the active builder. |
 | REQ-89 | A builder can be created (name, driver, endpoint, platforms) and removed. |
 | ~~REQ-90~~ | *Withdrawn (human decision, 2026-08-07) — launching a multi-platform build is image creation, the same capability withdrawn with F12; it goes with it. The builders themselves (REQ-88, REQ-89) and their cache (REQ-91) are unaffected: the cache grows whenever the operator builds from a terminal, and `docker system prune` does not reclaim it, so listing and pruning it stays valuable. Number retired, never reused.* |
-| REQ-91 | The build cache is listed record by record with id, type, size and usage state (in use, shared, reclaimable), and can be pruned, exported and imported, reporting the space reclaimed or transferred. |
+| REQ-91 | The build cache is listed record by record with id, type, size and usage state (in use, shared, reclaimable), and can be pruned, reporting the space reclaimed. |
+
+**Cache export/import withdrawn (human decision, 2026-08-07).** REQ-91 originally ended "and can be
+pruned, exported and imported, reporting the space reclaimed or transferred". Two reasons. First,
+the destination: a `type=local` cache export writes to a directory on the machine running the
+server, which the operator cannot see — the F12 defect again. Second, and decisive, the capability
+has no vehicle left: buildx exports and imports a cache only as flags of a build
+(`docker buildx build --cache-to / --cache-from`); there is no standalone cache export subcommand,
+and builds went out with F12. Its purpose is also foreign to this product — a shared cache serves
+CI runners on other machines, not an operator inspecting one installation. The inventory and prune
+half is untouched and is where the value was: a `docker-container` builder's cache is invisible to
+`docker system prune` and is often many GB. REQ-91 keeps its number in reduced form; no number is
+retired.
 
 ## F25 — Contexts and daemon information
 
 | ID | Requirement |
 | --- | --- |
-| REQ-92 | Docker contexts are listed with name, endpoint and which one is active; a context can be created (local socket, SSH, TCP with TLS), selected as active, and removed. |
+| REQ-92 | Docker contexts are listed with name, endpoint and which one is active, whatever their endpoint kind; a context can be created for a local socket or an SSH endpoint, selected as active, and removed. |
 | REQ-93 | Selecting another context re-points every screen of the application at the newly selected daemon, and the active-context indicator in the shell updates. |
 | REQ-94 | The daemon of the active context reports its version, Engine API version, BuildKit version, storage driver, cgroup driver, OS/architecture, root directory and container counts. |
+
+**Creation of TCP+TLS contexts withdrawn (human decision, 2026-08-07).** REQ-92 originally offered
+the three endpoint kinds "local socket, SSH, TCP with TLS". A TCP+TLS context requires three files —
+CA certificate, client certificate and client private key — readable *by the machine running the
+server*, so the form asked the operator for three paths on a filesystem they cannot see. Local
+socket and SSH endpoints need no such input (SSH authenticates with the server's own keys) and stay.
+**A TCP+TLS context created outside the application is listed, selectable and usable exactly like
+any other**: only its creation goes, not its support — the withdrawal costs an entry form, not a
+deployment. `docker context create` remains reachable through the raw console (F28), and the
+coverage matrix (F29) declares TCP+TLS context creation **console-only**. REQ-92 keeps its number in
+reduced form; no number is retired.
 
 ## F26 — System disk usage and prune
 
@@ -289,7 +346,20 @@ The REQ numbers 44 to 46 are retired and never reused.
 | REQ-113 | The result of an image extraction/layer analysis is kept across application restarts and reused when the same image content is inspected again instead of being recomputed, is invalidated when the image content changes, and its total size is shown and can be cleared by the operator. |
 | REQ-114 | The raw console's command history survives application restarts. |
 | REQ-115 | Operator UI preferences (last screen, list filters, log follow/timestamps toggles, selected context) survive application restarts. |
-| REQ-116 | Every host path supplied by the operator (compose file, tarball source/target, export destination) is validated before use — existence, kind, accessibility, and absence of traversal outside the allowed root — and is refused with the reason stated when it does not qualify. Paths are resolved on the machine running the server, which is not necessarily the operator's machine; the refusal message says so when the path does not exist. |
+| REQ-116 | Every host path the application reads or writes on behalf of a screen — today only the compose file of a Compose project, discovered from the daemon's own labels — is validated before use: existence, kind, accessibility, and absence of traversal outside the allowed root, refused with the reason stated when it does not qualify. Paths are resolved on the machine running the server, which is not necessarily the operator's machine, and the refusal message says so when the path does not exist. |
+
+**No host path is typed by the operator anywhere in this product (human decisions, 2026-08-07).**
+REQ-116 originally covered three operator-typed paths — "compose file, tarball source/target, export
+destination" — and the plan later added the stack compose file, the build-cache destination and the
+context TLS material. All of them are gone: the artefacts that belong to the operator now travel
+through the browser (REQ-42, REQ-43, REQ-61), and the capabilities that could only ever have taken a
+server path were withdrawn (REQ-83, REQ-91, REQ-92). **One path survives, and it is not typed**: the
+compose file of a Compose project, which the application learns from the
+`com.docker.compose.project.config_files` label the daemon itself reports, and writes back to
+because that file *is* the project's state. Validation still applies to it — the value arrives as a
+string from CLI output and is written to — which is why REQ-116 survives with its number, restated
+around that one case. It is built in batch 3 and now closes in batch 20, the only batch left that
+consumes it.
 
 ## Assumptions carried by these requirements
 
