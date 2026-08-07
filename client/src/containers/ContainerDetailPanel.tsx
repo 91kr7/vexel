@@ -20,6 +20,7 @@ import {
   Tabs,
   TextField,
   Toggle,
+  triggerDownload,
   useToast,
   type KeyValuePair,
 } from '../ui';
@@ -31,6 +32,7 @@ import {
   type MountInfo,
   type PortBinding,
 } from '../data/containers-client';
+import { exportContainerUrl } from '../data/container-transfer-client';
 import { ContainerLogsView } from './ContainerLogsView';
 import { ContainerProcessesView } from './ContainerProcessesView';
 import { ContainerSessionView } from './ContainerSessionView';
@@ -165,8 +167,10 @@ function updateRequiresRecreate(update: ContainerConfigUpdate): boolean {
  * tab showing and editing restart policy, resource limits, environment,
  * ports, mounts and health check (warning before a Docker-required
  * recreate), an Inspect tab with the full structured inspect data plus the
- * raw payload, copyable, and — for running containers — Exec/Attach tabs
- * opening an interactive session. Rename lives on the row instead (REQ-21).
+ * raw payload, copyable, an "Export filesystem…" action downloading a tarball
+ * straight to the operator's own machine (REQ-43), and — for running
+ * containers — Exec/Attach tabs opening an interactive session. Rename lives
+ * on the row instead (REQ-21).
  */
 export function ContainerDetailPanel({ container, onClose, onContainerReplaced }: ContainerDetailPanelProps) {
   const { inspect, loaded, error, refresh } = useContainerDetail(container.id);
@@ -186,6 +190,13 @@ export function ContainerDetailPanel({ container, onClose, onContainerReplaced }
     setForm(null);
     setInitialForm(null);
   }, [container.id]);
+
+  /** Downloads the container's current filesystem straight to the operator's own machine (REQ-43): the browser owns the transfer, so the app only announces it. */
+  function startExport() {
+    const filename = `${container.name}.tar`;
+    triggerDownload(exportContainerUrl(container.id, filename));
+    push({ title: 'Download started', message: filename, tone: 'success' });
+  }
 
   function startEdit() {
     if (!inspect) return;
@@ -401,7 +412,14 @@ export function ContainerDetailPanel({ container, onClose, onContainerReplaced }
   }
 
   return (
-    <DetailPanel onClose={onClose}>
+    <DetailPanel
+      onClose={onClose}
+      actions={
+        <Button variant="subtle" size="sm" onClick={startExport}>
+          Export filesystem…
+        </Button>
+      }
+    >
       <Stack gap="var(--space-4)">
         <Tabs
           tabs={[

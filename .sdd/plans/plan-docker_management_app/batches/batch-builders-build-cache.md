@@ -1,23 +1,40 @@
 ---
 batch: 21 · builders-build-cache
 feature: F24 — Builders and build cache
-closed_req: [REQ-88, REQ-89, REQ-90, REQ-91]
-depends: [2, 11]
+closed_req: [REQ-88, REQ-89, REQ-91]
+depends: [2]
 ---
 
 # Batch 21 — Builders and build cache
 
-Reuses the build execution and output surfaces of batch 11, adding buildx builder management and
-the build-cache inventory.
+buildx builder management and the build-cache inventory.
 
-Visual reference: `.sdd/analysis/ui-mock/build-and-cache.png`.
+**This screen observes builders and their cache; it does not run builds.** REQ-90 (launching a
+multi-platform build on the selected builder) was withdrawn on 2026-08-07 together with F12 — see
+"Departures from the spec" in `batches.md`. With it went the batch's dependency on batch 11, which
+existed only to reuse that batch's build execution and output streaming. Do not add a build-launch
+affordance to this screen.
+
+**Nor does it export or import the cache.** That half of REQ-91 was withdrawn on 2026-08-07 — same
+place in `batches.md`. buildx exports and imports a cache only as flags of a build
+(`--cache-to` / `--cache-from`), so the capability lost its vehicle along with REQ-90, and a
+`type=local` destination would be a directory on the server's filesystem the operator cannot see.
+Do not add export or import affordances to the cache panel.
+
+The cache inventory and prune stand on their own merit regardless: a build cache grows whenever the
+operator builds from a terminal, and `docker system prune` does not reclaim a `docker-container`
+builder's cache — only `docker buildx prune` does. Surfacing and reclaiming it is a genuine
+contribution.
+
+Visual reference: `.sdd/analysis/ui-mock/builders_cache.png` — **ignore the build configuration rows
+it shows**; they belong to the withdrawn REQ-90.
 
 | ID | Type | Where | What | REQ | Depends |
 | --- | --- | --- | --- | --- | --- |
 | INT-1 | create | client, UI library (`client/src/ui/`) | Selection-state badge variants ("in use" / "use" action) on the list-card primitive, and a usage-state badge set (shared / in use / reclaimable) for cache records. | REQ-88, REQ-91 | — |
 | INT-2 | create | server, build area | buildx builder inventory through the CLI channel: name, driver, endpoint, supported platforms, status and cache size, which builder is in use, plus select-active, create (name, driver, endpoint, platforms) and remove. | REQ-88, REQ-89 | — |
-| INT-3 | create | server, build area | Multi-platform build launch on a selected builder (context, Dockerfile, target, platforms, build args, cache from/to, output/push), reusing the build execution and output streaming of batch 11. | REQ-90 | INT-2 |
-| INT-4 | create | server, build area | Build-cache inventory (record id, type, size, usage state) with prune, export and import, reporting the space reclaimed or transferred. | REQ-91 | — |
-| INT-5 | create | client, data-access layer | Builder queries and mutations, cache inventory queries and prune/export/import mutations, and the build launch with its output stream. | REQ-88, REQ-89, REQ-90, REQ-91 | INT-2, INT-3, INT-4 |
-| INT-6 | create | client, build feature area | Builders & cache screen: builder list with driver, endpoint, platforms, status, cache size and the active one switchable; create and remove a builder; build-cache records with usage state and prune/import/export; multi-platform build configuration with live output. | REQ-88, REQ-89, REQ-90, REQ-91 | INT-1, INT-5 |
+| ~~INT-3~~ | — | — | *Withdrawn 2026-08-07 with REQ-90 (multi-platform build launch). Number retired.* | — | — |
+| INT-4 | create | server, build area | Build-cache inventory (record id, type, size, usage state) with prune, reporting the space reclaimed. | REQ-91 | — |
+| INT-5 | create | client, data-access layer | Builder queries and mutations, and cache inventory queries with the prune mutation. | REQ-88, REQ-89, REQ-91 | INT-2, INT-4 |
+| INT-6 | create | client, build feature area | Builders & cache screen: builder list with driver, endpoint, platforms, status, cache size and the active one switchable; create and remove a builder; build-cache records with usage state and prune. | REQ-88, REQ-89, REQ-91 | INT-1, INT-5 |
 | INT-7 | modify | client, application shell area (created by `batch-foundation-ui-shell`) | Replace the "Builders & cache" placeholder with the real screen. | REQ-88 | INT-6 |

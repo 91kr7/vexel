@@ -1,10 +1,13 @@
 import { Router, type Request, type Response } from "express";
 import { DockerDaemonError } from "../docker/errors.js";
 import {
+  loadImages,
+  openImageSaveStream,
   pruneDanglingImages,
   pullImage,
   pushImage,
   removeImage,
+  sanitizeTarFilename,
   tagImage,
   untagImage,
 } from "./image-transfer-service.js";
@@ -50,6 +53,72 @@ imagesRouter.get("/:id/push/stream", (req, res) =>
     });
   }),
 );
+
+/**
+ * Saves one or several images as a tarball streamed straight to the HTTP
+ * response as a browser download (REQ-42): no whole tarball ever sits in
+ * server memory or on its filesystem. `filename` is an optional client
+ * suggestion (e.g. the reference or "N-images"), sanitized either way.
+ */
+imagesRouter.get("/save", async (req, res) => {
+  try {
+    const references = readStringListQuery(req.query.references).filter((value) => value.trim() !== "");
+    if (references.length === 0) {
+      res.status(400).json({ error: "At least one reference is required" });
+      return;
+    }
+    const filenameHint = typeof req.query.filename === "string" ? req.query.filename : undefined;
+    const { response, suggestedFilename } = await openImageSaveStream(references, filenameHint);
+    res.setHeader("Content-Type", "application/x-tar");
+    res.setHeader("Content-Disposition", `attachment; filename="${sanitizeTarFilename(suggestedFilename)}"`);
+    req.on("close", () => response.destroy());
+    response.on("error", () => res.destroy());
+    response.pipe(res);
+  } catch (error) {
+    respondError(res, error);
+  }
+});
+
+/**
+ * Loads images from an uploaded tarball request body (REQ-42): the body
+ * streams straight into the Engine API, never buffered whole. Responds once
+ * the daemon reports completion, carrying the references loaded.
+ */
+imagesRouter.post("/load", async (req, res) => {
+  let cancel: (() => void) | undefined;
+  let closed = false;
+  let responded = false;
+  // Bound to the response, not the request: the upload body finishes arriving
+  // (and `req` closes) well before the daemon answers, so a `req`-bound
+  // listener would cancel a still-legitimately-running load. `res` only
+  // closes early like this on a genuine client disconnect; `responded` guards
+  // the normal case where it closes afterwards (e.g. on keep-alive teardown).
+  res.on("close", () => {
+    if (responded) return;
+    closed = true;
+    cancel?.();
+  });
+
+  try {
+    const result = await new Promise<{ references: string[] }>((resolve, reject) => {
+      loadImages(req, {
+        onError: (message) => reject(new Error(message)),
+        onEnd: resolve,
+      })
+        .then((c) => {
+          cancel = c;
+          if (closed) cancel();
+        })
+        .catch(reject);
+    });
+    responded = true;
+    res.json(result);
+  } catch (error) {
+    responded = true;
+    if (closed) return;
+    respondError(res, error);
+  }
+});
 
 imagesRouter.post("/:id/tag", async (req, res) => {
   const reference = (req.body as { reference?: unknown } | undefined)?.reference;
@@ -97,12 +166,17 @@ imagesRouter.post("/prune", async (_req, res) => {
   }
 });
 
+function readStringListQuery(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((entry): entry is string => typeof entry === "string");
+  return typeof value === "string" ? [value] : [];
+}
+
 function writeServerSentEvent(res: Response, event: string, payload: unknown): void {
   res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
 }
 
-function endWithEvent(res: Response): void {
-  writeServerSentEvent(res, "end", {});
+function endWithEvent(res: Response, payload: unknown = {}): void {
+  writeServerSentEvent(res, "end", payload);
   res.end();
 }
 

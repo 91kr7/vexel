@@ -9,7 +9,7 @@ depends: [1, 2]
 
 Enabling batch. It provides the local store (preferences, console history, analysis cache) and the
 host-path validation used by every feature that accepts an operator-typed path. Only REQ-115 is
-observable here; REQ-113 closes in batch 14, REQ-114 in batch 29, REQ-116 in batch 11 (declared in
+observable here; REQ-113 closes in batch 14, REQ-114 in batch 29, REQ-116 in batch 20 (declared in
 `batches.md`).
 
 | ID | Type | Where | What | REQ | Depends |

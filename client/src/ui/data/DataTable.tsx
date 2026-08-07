@@ -11,6 +11,13 @@ export interface DataTableColumn<T> {
   render: (row: T) => ReactNode;
 }
 
+export interface DataTableSelection<T> {
+  selectedKeys: string[];
+  onToggle: (row: T) => void;
+  onToggleAll?: () => void;
+  allSelected?: boolean;
+}
+
 export interface DataTableProps<T> {
   columns: DataTableColumn<T>[];
   rows: T[];
@@ -25,6 +32,8 @@ export interface DataTableProps<T> {
   /** Content rendered in normal flow directly below the row whose key matches `expandedRowKey`. */
   expandedRowKey?: string;
   renderExpanded?: (row: T) => ReactNode;
+  /** Adds a leading multi-select checkbox column, independent of `onRowSelect`'s single-row selection. */
+  selection?: DataTableSelection<T>;
 }
 
 const OVERSCAN_ROWS = 6;
@@ -50,6 +59,7 @@ export function DataTable<T>({
   emptyState,
   expandedRowKey,
   renderExpanded,
+  selection,
 }: DataTableProps<T>) {
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -63,7 +73,9 @@ export function DataTable<T>({
     setScrollTop(event.currentTarget.scrollTop);
   }
 
-  const gridTemplateColumns = columns.map((column) => column.width ?? '1fr').join(' ');
+  const gridTemplateColumns = (selection ? ['36px', ...columns.map((column) => column.width ?? '1fr')] : columns.map((column) => column.width ?? '1fr')).join(
+    ' ',
+  );
   const headerRowStyle: CSSProperties = { gridTemplateColumns };
 
   const virtualized = Boolean(maxHeight);
@@ -94,6 +106,17 @@ export function DataTable<T>({
   return (
     <div className="ui-data-table">
       <div className="ui-data-table__header" style={headerRowStyle}>
+        {selection ? (
+          <span className="ui-data-table__header-cell ui-data-table__select-cell">
+            <input
+              type="checkbox"
+              aria-label="Select all"
+              checked={Boolean(selection.allSelected)}
+              onChange={() => selection.onToggleAll?.()}
+              disabled={!selection.onToggleAll}
+            />
+          </span>
+        ) : null}
         {columns.map((column) => (
           <span
             key={column.id}
@@ -121,6 +144,16 @@ export function DataTable<T>({
                     onClick={onRowSelect ? () => onRowSelect(row) : undefined}
                     aria-selected={onRowSelect ? selected : undefined}
                   >
+                    {selection ? (
+                      <div className="ui-data-table__cell ui-data-table__select-cell" onClick={(event) => event.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          aria-label="Select row"
+                          checked={selection.selectedKeys.includes(key)}
+                          onChange={() => selection.onToggle(row)}
+                        />
+                      </div>
+                    ) : null}
                     {columns.map((column) => (
                       <div
                         key={column.id}

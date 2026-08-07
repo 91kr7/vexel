@@ -21,9 +21,9 @@ exec and attach interactive sessions. Rename lives on the row instead (REQ-21), 
 
 Description:
 - A `DetailPanel` (untitled — the container's name/id/state are already shown by the table row it
-  expands below) holding a `Tabs` row (Logs, Stats, Config, Processes, Inspect, and — only when the
-  container is running — Exec, Attach) and the active tab's content. Config is the tab selected when
-  the panel opens.
+  expands below) with an "Export filesystem…" header action, holding a `Tabs` row (Logs, Stats,
+  Config, Processes, Inspect, and — only when the container is running — Exec, Attach) and the
+  active tab's content. Config is the tab selected when the panel opens.
 Shows (Logs tab):
 - The container's `ContainerLogsView`; the inspect data is neither needed nor awaited for it.
 Shows (Stats tab):
@@ -52,6 +52,10 @@ Shows (Inspect tab):
   health check) the latest health status/failing streak/log entries; the raw inspect payload as
   formatted, copyable JSON (REQ-26).
 Actions:
+- "Export filesystem…" immediately triggers a browser download of the container's current
+  filesystem named `<container name>.tar` via `triggerDownload`, and reports a "Download started"
+  toast naming the file (REQ-43): the browser owns the download and its own progress from here, so
+  no dialog is opened.
 - "Edit configuration" switches the Config tab to edit mode, seeded from the current inspect data.
 - Saving computes which fields changed since edit mode was entered (REQ-25):
   - only restart policy and/or resource limits changed → applied directly, no warning.
@@ -85,8 +89,9 @@ Actions:
 - ContainerSessionView
 - ui-library: DetailPanel, Tabs, DefinitionList, CollapsibleSection, CodeViewer, Select, NumberField,
   Toggle, TextField, KeyValueEditor, RepeatableRowList, FormFooter, SectionHeader, Row, Stack,
-  Button, ErrorBanner, EmptyState, useToast
+  Button, ErrorBanner, EmptyState, FormDialog, triggerDownload, useToast
 - Containers client (updateContainerConfig)
+- Container transfer client
 - useContainerDetail
 - app-shell: ConfirmationService, ProgressService, ErrorReportingService
 
@@ -101,3 +106,4 @@ Actions:
 - plan-docker_management_app/REQ-34
 - plan-docker_management_app/REQ-35
 - plan-docker_management_app/REQ-36
+- plan-docker_management_app/REQ-43

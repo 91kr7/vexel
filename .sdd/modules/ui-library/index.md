@@ -32,6 +32,8 @@
 | TextField, SearchField | UI component | `client/src/ui/controls/TextField.tsx`, `client/src/ui/controls/SearchField.tsx` | Single-line text input, and its full-width search/filter variant | `specs/search-field.md` |
 | FilterChips | UI component | `client/src/ui/controls/FilterChips.tsx` | Single-select row of filter chips | `specs/filter-chips.md` |
 | ActionButtonGroup | UI component | `client/src/ui/controls/ActionButtonGroup.tsx` | Inline group of dense row-action buttons, with a destructive variant | `specs/action-button-group.md` |
+| BulkActionBar | UI component | `client/src/ui/controls/BulkActionBar.tsx` | Bar shown above a list once rows are multi-selected: selection count, bulk actions, clear | `specs/bulk-action-bar.md` |
+| FilePicker | UI component | `client/src/ui/controls/FilePicker.tsx` | Picks a file from the operator's own machine to upload, showing its chosen name and size | `specs/file-picker.md` |
 | ScreenToolbar | UI component | `client/src/ui/controls/ScreenToolbar.tsx` | Screen action bar: leading primary action, secondary actions, trailing destructive action, optional filters row | `specs/screen-toolbar.md` |
 | Tabs | UI component | `client/src/ui/controls/Tabs.tsx` | Single-select row of tabs switching a detail surface's active content panel | `specs/tabs.md` |
 | CopyButton | UI component | `client/src/ui/controls/CopyButton.tsx` | Copies an exact value to the clipboard, with a transient "Copied" confirmation | `specs/copy-button.md` |
@@ -65,6 +67,7 @@
 | ErrorBanner | UI component | `client/src/ui/feedback/ErrorBanner.tsx` | Inline failure banner showing the upstream error message verbatim, with an optional retry action | `specs/error-banner.md` |
 | ProgressBar | UI component | `client/src/ui/feedback/ProgressBar.tsx` | Determinate or indeterminate progress indicator | `specs/progress-bar.md` |
 | StepProgressList | UI component | `client/src/ui/feedback/StepProgressList.tsx` | One row per unit of work (e.g. an image layer transfer), each with its own progress and terminal state | `specs/step-progress-list.md` |
+| TransferProgressDialog | UI component | `client/src/ui/feedback/TransferProgressDialog.tsx` | Dialog for a long-running byte transfer: byte progress bar, cancel while active, close once ended | `specs/transfer-progress-dialog.md` |
 | FormDialog | UI component | `client/src/ui/feedback/FormDialog.tsx` | Dialog shell for a short create/pull/tag form: description, body slot, cancel/submit footer | `specs/form-dialog.md` |
 | FormSheet | UI component | `client/src/ui/feedback/FormSheet.tsx` | Dialog surface for a long, sectioned form: pinned banner slot, scrolling body of sections, footer holding cancel plus several commit choices | `specs/form-sheet.md` |
 | Spinner | UI component | `client/src/ui/feedback/Spinner.tsx` | Small rotating pending indicator | `specs/spinner.md` |
@@ -72,4 +75,5 @@
 | EventStream | UI component | `client/src/ui/feedback/EventStream.tsx` | Monospace, timestamped daemon event list with type/action emphasis | `specs/event-stream.md` |
 | Terminal | UI component | `client/src/ui/terminal/Terminal.tsx` | Interactive terminal surface wrapping the xterm.js emulator (documented `CLAUDE.md` escape hatch); typed write/focus/dispose handle and input/resize callbacks | `specs/terminal.md` |
 | SessionHeader, SessionEndedOverlay, SessionSurface | UI component | `client/src/ui/terminal/SessionChrome.tsx` | Session header with connection state and disconnect/detach action, session-ended overlay, and the surface that positions one over the other | `specs/session-chrome.md` |
+| triggerDownload | UI utility | `client/src/ui/utils/trigger-download.ts` | Triggers a native browser download of a URL via a transient, invisible anchor, so the app never reads or buffers the response body | `specs/trigger-download.md` |
 | UI library entry point | module entry | `client/src/ui/index.ts` | Re-exports every UI-library component; the only import path feature code uses | `specs/library-entry-point.md` |

@@ -53,7 +53,7 @@ export const screens: ScreenDefinition[] = [
     glyph: 'IM',
     group: 'Artifacts',
     title: 'Images & layers',
-    description: 'Image registry actions, transport, build and layer inspection',
+    description: 'Image registry actions, transport and layer inspection',
   },
   {
     id: 'volumes-networks',

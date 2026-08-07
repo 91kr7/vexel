@@ -15,6 +15,7 @@ interface RecordedStreamRequest {
   path: string;
   method?: string;
   headers?: Record<string, string>;
+  body?: unknown;
 }
 let requests: RecordedRequest[] = [];
 let streamRequests: RecordedStreamRequest[] = [];
@@ -28,8 +29,8 @@ mock.module(new URL("../../src/connectivity/connection-status-service.ts", impor
         requests.push({ path, method: options.method });
         return { statusCode: 200, body: requestBody };
       },
-      requestStream: async (path: string, options: { method?: string; headers?: Record<string, string> } = {}) => {
-        streamRequests.push({ path, method: options.method, headers: options.headers });
+      requestStream: async (path: string, options: { method?: string; headers?: Record<string, string>; body?: unknown } = {}) => {
+        streamRequests.push({ path, method: options.method, headers: options.headers, body: options.body });
         currentStream = new PassThrough();
         return currentStream;
       },
@@ -37,9 +38,8 @@ mock.module(new URL("../../src/connectivity/connection-status-service.ts", impor
   },
 });
 
-const { pullImage, pushImage, tagImage, untagImage, removeImage, pruneDanglingImages } = await import(
-  "../../src/images/image-transfer-service.js"
-);
+const { pullImage, pushImage, tagImage, untagImage, removeImage, pruneDanglingImages, openImageSaveStream, loadImages, sanitizeTarFilename } =
+  await import("../../src/images/image-transfer-service.js");
 
 beforeEach(() => {
   requests = [];
@@ -220,4 +220,94 @@ test("the cancel function stops further step/error/end callbacks and is idempote
 
   assert.equal(steps.length, 0);
   assert.equal(ended, false);
+});
+
+// image-transfer-service.md — GET /images/get?names=... repeated once per reference (REQ-42)
+test("openImageSaveStream requests /images/get with one 'names' query parameter per reference", async () => {
+  await openImageSaveStream(["repo/a:1", "repo/b:2"]);
+
+  const call = streamRequests[0]!;
+  assert.match(call.path, /^\/images\/get\?/);
+  const query = new URLSearchParams(call.path.split("?")[1]);
+  assert.deepEqual(query.getAll("names"), ["repo/a:1", "repo/b:2"]);
+});
+
+// image-transfer-service.md — the caller pipes the Engine API's raw response straight through: never buffered whole (REQ-42)
+test("openImageSaveStream hands back the Engine API's own response stream, unread and unbuffered", async () => {
+  const { response } = await openImageSaveStream(["repo/a:1"]);
+
+  assert.strictEqual(response, currentStream, "expected the raw daemon stream itself, not a copy or a buffered read of it");
+});
+
+// image-transfer-service.md — suggestedFilename: the sole reference, "<count>-images" for several, or an explicit hint, always sanitized (REQ-42)
+test("openImageSaveStream derives the suggested filename from the reference, from the count, or from an explicit hint", async () => {
+  const single = await openImageSaveStream(["repo/app:1.0"]);
+  assert.equal(single.suggestedFilename, "repo_app_1.0.tar");
+
+  const several = await openImageSaveStream(["repo/a:1", "repo/b:2"]);
+  assert.equal(several.suggestedFilename, "2-images.tar");
+
+  const hinted = await openImageSaveStream(["repo/a:1"], "my custom name.tar");
+  assert.equal(hinted.suggestedFilename, "my_custom_name.tar");
+});
+
+// image-transfer-service.md — sanitizeTarFilename strips a trailing .tar, replaces unsafe characters with "_", and falls back to "download.tar" for an empty hint
+test("sanitizeTarFilename strips a trailing .tar, replaces unsafe characters and falls back to download.tar for an empty hint", () => {
+  assert.equal(sanitizeTarFilename("repo/app:1.0.tar"), "repo_app_1.0.tar");
+  assert.equal(sanitizeTarFilename("repo/app:1.0"), "repo_app_1.0.tar");
+  assert.equal(sanitizeTarFilename(""), "download.tar");
+});
+
+// image-transfer-service.md — POST /images/load with the raw upload request stream piped straight through, never buffered whole (REQ-42)
+test("loadImages passes the upload request body straight into the /images/load call, unread and unbuffered", async () => {
+  const body = new PassThrough();
+  await loadImages(body, { onError: () => undefined, onEnd: () => undefined });
+
+  const call = streamRequests[0]!;
+  assert.equal(call.path, "/images/load");
+  assert.equal(call.method, "POST");
+  assert.strictEqual(call.body, body, "expected the raw upload stream itself, not a copy or a buffered read of it");
+});
+
+// image-transfer-service.md — result.references parsed from the daemon's own "Loaded image: …" status lines
+test("loadImages parses the daemon's 'Loaded image: …' status lines into the resulting references", async () => {
+  const results: { references: string[] }[] = [];
+  await loadImages(new PassThrough(), { onError: () => undefined, onEnd: (result) => results.push(result) });
+
+  currentStream!.write('{"stream":"Loaded image: myrepo/app:1.0\\n"}\n');
+  currentStream!.write('{"stream":"Loaded image ID: sha256:abcdef123456\\n"}\n');
+  currentStream!.end();
+  await settle();
+
+  assert.deepEqual(results[0]!.references, ["myrepo/app:1.0", "sha256:abcdef123456"]);
+});
+
+// image-transfer-service.md — onError fires on the daemon's own error line, and no onEnd follows
+test("loadImages reports the daemon's error line via onError instead of onEnd", async () => {
+  const errors: string[] = [];
+  let ended = false;
+  await loadImages(new PassThrough(), { onError: (message) => errors.push(message), onEnd: () => (ended = true) });
+
+  currentStream!.write('{"error":"open /var/lib/docker: no space left on device"}\n');
+  await settle();
+
+  assert.deepEqual(errors, ["open /var/lib/docker: no space left on device"]);
+  assert.equal(ended, false);
+});
+
+// image-transfer-service.md — the cancel function destroys the upload body and the response stream, and is idempotent
+test("loadImages' cancel function destroys the upload body and the response stream, and is idempotent", async () => {
+  const body = new PassThrough();
+  let ended = false;
+  const cancel = await loadImages(body, { onError: () => undefined, onEnd: () => (ended = true) });
+
+  cancel();
+  cancel(); // idempotent: calling twice must not throw or double-act
+  currentStream!.write('{"stream":"Loaded image: myrepo/app:1.0\\n"}\n');
+  currentStream!.end();
+  await settle();
+
+  assert.equal(body.destroyed, true);
+  assert.equal(currentStream!.destroyed, true);
+  assert.equal(ended, false, "no onEnd call should follow a cancel");
 });

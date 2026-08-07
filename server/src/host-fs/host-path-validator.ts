@@ -31,7 +31,7 @@ export function validateHostPath(request: HostPathValidationRequest): HostPathVa
     return { valid: false, reason: "The path may not contain '..' traversal segments." };
   }
   if (!existsSync(rawPath)) {
-    return { valid: false, reason: "The path does not exist." };
+    return { valid: false, reason: "The path does not exist on the machine running the server, which may not be your own machine." };
   }
 
   const resolvedPath = realpathSync(rawPath);

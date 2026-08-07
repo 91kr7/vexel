@@ -404,3 +404,32 @@ describe('ContainerDetailPanel — Exec/Attach tabs (REQ-34, REQ-35, REQ-36)', (
     expect(latestSocket().readyState).toBe(FakeWebSocket.CLOSED);
   });
 });
+
+// container-detail-panel.md — "Export filesystem…" immediately triggers a browser download of the
+// container's current filesystem, named "<container name>.tar", with no dialog opened first (REQ-43).
+describe('ContainerDetailPanel — export filesystem (plan-docker_management_app/REQ-43)', () => {
+  it('downloads the container filesystem as <name>.tar with no dialog opened first, and reports a toast', async () => {
+    const user = userEvent.setup();
+    const downloadedHrefs: string[] = [];
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        downloadedHrefs.push(this.href);
+      });
+
+    try {
+      renderPanel();
+
+      await user.click(await screen.findByRole('button', { name: 'Export filesystem…' }));
+
+      expect(downloadedHrefs).toHaveLength(1);
+      expect(downloadedHrefs[0]).toContain('/api/containers/container-1/export');
+      expect(downloadedHrefs[0]).toContain('filename=web-nginx.tar');
+      expect(document.querySelector('.ui-modal')).toBeNull();
+      expect(screen.getByText('Download started')).toBeInTheDocument();
+      expect(screen.getByText('web-nginx.tar')).toBeInTheDocument();
+    } finally {
+      clickSpy.mockRestore();
+    }
+  });
+});

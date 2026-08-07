@@ -15,19 +15,20 @@ for pull/push.
   void` re-reads the list (the caller, the Shell, owns `useImages()`).
 
 Description:
-- A `ScreenToolbar` with a "Pull image…" primary action, disabled "Build from Dockerfile…" and
-  "Load tarball" secondary actions (wired by later batches — image build and image transport), a
-  "Prune dangling" destructive action, and a search filter — above a `DataTable` of every image
-  matching the current search, laid out exactly like the containers table (same header row, row
-  height, typography, hover and selected treatment).
+- A `ScreenToolbar` with a "Pull image…" primary action, "Load tarball…" and "Import filesystem…"
+  secondary actions, a "Prune dangling" destructive action, and a search filter — above an optional
+  `BulkActionBar`
+  (shown once at least one row is multi-selected) and a `DataTable` of every image matching the
+  current search, laid out exactly like the containers table (same header row, row height,
+  typography, hover and selected treatment), with a leading multi-select checkbox column.
 Shows:
 - A header row and one row per matching image, in these columns: a leading status dot (green when
   the image has at least one tag, amber when it is dangling), `REPOSITORY:TAG` — the first reference
   (or `<none>`) over the short id, `TAGS` — one badge per tag (at most 2, then a `+N` badge) or a
   single `dangling` warning badge when it has none, `DIGEST` — the digest (falling back to the id)
   cut to a short identifier, `PLATFORM`, `SIZE` (right-aligned), `CREATED` — the age, and `ACTIONS`.
-- The five per-image actions (run, tag, untag, push, remove) on every row, always visible, without
-  expanding it; untag and push are disabled for a dangling image.
+- The six per-image actions (run, tag, untag, push, save, remove) on every row, always visible,
+  without expanding it; untag and push are disabled for a dangling image.
 - Selecting a row expands an `ImageDetailPanel` with its inspect data directly below it; the
   expanded region carries the panel alone.
 - An empty/loading state inside the table area when there are no matching images.
@@ -49,6 +50,20 @@ Actions:
   has more than one tag); submitting opens the push progress stream and shows its steps until it
   ends. As with pull, a successful end closes the dialog and re-reads the list on its own; a failed
   end leaves the dialog open with the error shown.
+- A row's "save" action, and the `BulkActionBar`'s "Save to tarball…" action for every selected
+  image, immediately trigger a browser download of the tarball named after the reference (or
+  `"<count>-images.tar"` for several) via `triggerDownload`, and report a "Download started" toast
+  naming the file (REQ-42): no dialog collects a target, since the browser owns the download and its
+  own progress from here.
+- "Load tarball…" opens a `FormDialog` with a `FilePicker` for a local tarball (REQ-42); submitting
+  closes that dialog and opens a `TransferProgressDialog` driven by `useFileUpload`, showing upload
+  byte progress with a genuine cancel while it runs, the references loaded once it ends (Close
+  re-reads the list), or the failure.
+- "Import filesystem…" opens a `FormDialog` with a `FilePicker` for a local filesystem tarball and an
+  optional target reference (REQ-43); submitting opens the same kind of `TransferProgressDialog`
+  (a second, independent `useFileUpload`) over the containers' filesystem-import upload, showing the
+  resulting reference (or the daemon's own image id when none was given) once it ends, or the
+  failure.
 - A row's "remove" action goes through `useConfirmation().confirm()` first; cancelling performs
   nothing. "Prune dangling" also confirms first and reports the removed count and reclaimed space
   via `useToast()` on success. Any failure reports the daemon's own message via
@@ -59,18 +74,21 @@ Actions:
 
 - "Prune dangling" is disabled when no image is currently dangling (untagged).
 - "Push" and "untag" are disabled for a dangling image (no reference to act on).
-- Every row carries the same five actions in the same order, so the action column's width is
+- Every row carries the same six actions in the same order, so the action column's width is
   constant and the row never overflows.
 - Only one image row can be expanded at a time, and it is the selected one.
+- Multi-selection (the checkbox column and `BulkActionBar`) is independent of the single-row
+  expansion selection driving `ImageDetailPanel`.
 
 ## Dependencies
 
-- ui-library: ScreenToolbar, SearchField, DataTable, StatusDotCell, TwoLineCell, MetaCell,
-  IdentifierCell, BadgeListCell, ActionButtonGroup, FormDialog, StepProgressList, TextField, Select,
-  Card, ErrorBanner, EmptyState, Stack, useToast
-- Images client, useImageTransferStream
+- ui-library: ScreenToolbar, SearchField, DataTable, BulkActionBar, StatusDotCell, TwoLineCell,
+  MetaCell, IdentifierCell, BadgeListCell, ActionButtonGroup, FormDialog, StepProgressList,
+  TransferProgressDialog, FilePicker, triggerDownload, TextField, Select, Card, ErrorBanner,
+  EmptyState, Stack, useToast
+- Images client, useImageTransferStream, useFileUpload
 - ImageDetailPanel
-- containers: ContainerCreateForm
+- containers: ContainerCreateForm, Container transfer client
 - app-shell: ConfirmationService, ProgressService, ErrorReportingService
 
 ## Requirements served
@@ -81,3 +99,5 @@ Actions:
 - plan-docker_management_app/REQ-39
 - plan-docker_management_app/REQ-41
 - plan-docker_management_app/REQ-29
+- plan-docker_management_app/REQ-42
+- plan-docker_management_app/REQ-43

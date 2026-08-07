@@ -2,10 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   ActionButtonGroup,
   BadgeListCell,
+  BulkActionBar,
   Card,
   DataTable,
   EmptyState,
   ErrorBanner,
+  FilePicker,
   FormDialog,
   IdentifierCell,
   MetaCell,
@@ -16,22 +18,28 @@ import {
   StatusDotCell,
   StepProgressList,
   TextField,
+  TransferProgressDialog,
   TwoLineCell,
+  triggerDownload,
   useToast,
   type DataTableColumn,
   type ProgressStep,
   type RowAction,
 } from '../ui';
 import {
+  IMAGE_LOAD_URL,
   imagePullStreamUrl,
   imagePushStreamUrl,
   pruneDanglingImages,
   removeImage,
+  saveImagesUrl,
   tagImage,
   untagImage,
+  type ImageSaveLoadResult,
   type ImageSummary,
 } from '../data/images-client';
-import { useImageTransferStream } from '../data/use-image-transfer';
+import { useFileUpload, useImageTransferStream } from '../data/use-image-transfer';
+import { containerImportUploadUrl, type ContainerImportResult } from '../data/container-transfer-client';
 import { ContainerCreateForm } from '../containers/ContainerCreateForm';
 import { ImageDetailPanel } from './ImageDetailPanel';
 import { useConfirmation } from '../shell/services/ConfirmationService';
@@ -97,10 +105,11 @@ function stepStatus(step: { status: string }): ProgressStep['status'] {
 }
 
 /**
- * Images screen (REQ-37–41): toolbar with pull and prune-dangling (build and
- * load are wired by batches 11 and 12), a searchable card list of local
- * images, per-image tag/untag/push/remove actions with destructive
- * confirmation for remove, and an inspect surface with the raw payload.
+ * Images screen (REQ-37–42): toolbar with pull, load tarball and
+ * prune-dangling, a searchable table of local images with multi-select,
+ * per-image tag/untag/push/save/remove actions with destructive confirmation
+ * for remove, save-to-tarball (a browser download) for one or several
+ * selected images, and an inspect surface with the raw payload.
  */
 export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenProps) {
   const { confirm } = useConfirmation();
@@ -110,6 +119,7 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
 
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const [pullOpen, setPullOpen] = useState(false);
   const [pullReference, setPullReference] = useState('');
@@ -129,8 +139,17 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
   const [pushReference, setPushReference] = useState('');
   const [pushStreamUrl, setPushStreamUrl] = useState<string | undefined>(undefined);
 
+  const [loadOpen, setLoadOpen] = useState(false);
+  const [loadFile, setLoadFile] = useState<File | null>(null);
+
+  const [importOpen, setImportOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importTargetReference, setImportTargetReference] = useState('');
+
   const pullTransfer = useImageTransferStream(pullStreamUrl);
   const pushTransfer = useImageTransferStream(pushStreamUrl);
+  const loadUpload = useFileUpload<ImageSaveLoadResult>();
+  const importUpload = useFileUpload<ContainerImportResult>();
 
   const closePullDialog = useCallback(() => {
     setPullOpen(false);
@@ -246,6 +265,55 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
     }
   }
 
+  /** Downloads a tarball of `references` straight to the operator's own machine (REQ-42): the browser owns the transfer, so the app only announces it. */
+  function startSave(references: string[]) {
+    if (references.length === 0) return;
+    const filename = references.length === 1 ? `${references[0]}.tar` : `${references.length}-images.tar`;
+    triggerDownload(saveImagesUrl(references, filename));
+    push({ title: 'Download started', message: filename, tone: 'success' });
+  }
+
+  function openLoadDialog() {
+    setLoadFile(null);
+    loadUpload.reset();
+    setLoadOpen(true);
+  }
+
+  function startLoad() {
+    if (!loadFile) return;
+    setLoadOpen(false);
+    loadUpload.start(IMAGE_LOAD_URL, loadFile);
+  }
+
+  function closeLoadTransfer() {
+    const wasDone = loadUpload.status === 'done';
+    loadUpload.reset();
+    if (wasDone) onRefresh();
+  }
+
+  function openImportDialog() {
+    setImportFile(null);
+    setImportTargetReference('');
+    importUpload.reset();
+    setImportOpen(true);
+  }
+
+  function startImport() {
+    if (!importFile) return;
+    setImportOpen(false);
+    importUpload.start(containerImportUploadUrl(importTargetReference.trim() || undefined), importFile);
+  }
+
+  function closeImportTransfer() {
+    const wasDone = importUpload.status === 'done';
+    importUpload.reset();
+    if (wasDone) onRefresh();
+  }
+
+  function toggleSelectImage(image: ImageSummary) {
+    setSelectedIds((current) => (current.includes(image.id) ? current.filter((id) => id !== image.id) : [...current, image.id]));
+  }
+
   async function handlePruneDangling() {
     const confirmed = await confirm({
       targetName: 'dangling images',
@@ -266,13 +334,14 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
     }
   }
 
-  /** Fixed set of five actions, sized to fit the row's action column. */
+  /** Fixed set of six actions, sized to fit the row's action column. */
   function actionsFor(image: ImageSummary): RowAction[] {
     return [
       { id: 'run', label: 'run', onClick: () => setRunReference(image.tags[0] ?? image.shortId) },
       { id: 'tag', label: 'tag', onClick: () => openTagDialog(image) },
       { id: 'untag', label: 'untag', onClick: () => startUntag(image), disabled: image.tags.length === 0 },
       { id: 'push', label: 'push', onClick: () => openPushDialog(image), disabled: image.tags.length === 0 },
+      { id: 'save', label: 'save', onClick: () => startSave([image.tags[0] ?? image.id]) },
       { id: 'remove', label: 'remove', destructive: true, onClick: () => handleRemove(image) },
     ];
   }
@@ -330,18 +399,34 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
     percent: step.totalBytes ? Math.round(((step.currentBytes ?? 0) / step.totalBytes) * 100) : undefined,
   }));
 
+  const selectedImages = images.filter((image) => selectedIds.includes(image.id));
+
   return (
     <Stack gap="var(--space-4)">
       <ScreenToolbar
         primaryAction={{ label: 'Pull image…', onClick: openPullDialog }}
         secondaryActions={[
-          { label: 'Build from Dockerfile…', onClick: () => undefined, disabled: true },
-          { label: 'Load tarball', onClick: () => undefined, disabled: true },
+          { label: 'Load tarball…', onClick: openLoadDialog },
+          { label: 'Import filesystem…', onClick: openImportDialog },
         ]}
         destructiveAction={{ label: 'Prune dangling', onClick: handlePruneDangling, disabled: !hasDangling }}
         filters={<SearchField value={search} onChange={setSearch} placeholder="Search reference or digest…" />}
       />
       {error ? <ErrorBanner title="Could not load images" detail={error} onRetry={onRefresh} /> : null}
+      <BulkActionBar
+        count={selectedIds.length}
+        actions={[
+          {
+            id: 'save',
+            label: 'Save to tarball…',
+            onClick: () => {
+              startSave(selectedImages.map((image) => image.tags[0] ?? image.id));
+              setSelectedIds([]);
+            },
+          },
+        ]}
+        onClear={() => setSelectedIds([])}
+      />
       <Card padding="none">
         <DataTable
           columns={columns}
@@ -353,6 +438,12 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
           expandedRowKey={selectedId}
           renderExpanded={(image) => <ImageDetailPanel image={image} onClose={() => setSelectedId(undefined)} />}
           emptyState={<EmptyState title={loaded ? 'No images match' : 'Loading images…'} description={loaded ? 'Try a different search.' : undefined} />}
+          selection={{
+            selectedKeys: selectedIds,
+            onToggle: toggleSelectImage,
+            onToggleAll: () => setSelectedIds((current) => (current.length === filtered.length ? [] : filtered.map((image) => image.id))),
+            allSelected: filtered.length > 0 && selectedIds.length === filtered.length,
+          }}
         />
       </Card>
 
@@ -441,6 +532,70 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
           {pushTransfer.error ? <ErrorBanner title="Push failed" detail={pushTransfer.error} /> : null}
         </Stack>
       </FormDialog>
+
+      <FormDialog
+        open={loadOpen}
+        title="Load tarball"
+        description="Loads images from a tarball on your own machine, uploaded with progress."
+        submitLabel="Load"
+        submitDisabled={!loadFile}
+        onSubmit={startLoad}
+        onCancel={() => setLoadOpen(false)}
+      >
+        <FilePicker label="Tarball" ariaLabel="Tarball to load" accept=".tar" file={loadFile} onChange={setLoadFile} />
+      </FormDialog>
+
+      <TransferProgressDialog
+        open={loadUpload.status !== 'idle'}
+        title="Loading tarball"
+        description={loadFile?.name}
+        currentBytes={loadUpload.currentBytes}
+        totalBytes={loadUpload.totalBytes}
+        status={loadUpload.status === 'error' ? 'error' : loadUpload.status === 'done' ? 'done' : 'active'}
+        errorMessage={loadUpload.error}
+        onCancel={() => loadUpload.cancel()}
+        onClose={closeLoadTransfer}
+      >
+        <Stack gap="var(--space-1)">
+          {(loadUpload.result?.references ?? []).map((reference) => (
+            <MetaCell key={reference}>{reference}</MetaCell>
+          ))}
+        </Stack>
+      </TransferProgressDialog>
+
+      <FormDialog
+        open={importOpen}
+        title="Import filesystem tarball"
+        description="Imports an image from a filesystem tarball (docker import) on your own machine, uploaded with progress."
+        submitLabel="Import"
+        submitDisabled={!importFile}
+        onSubmit={startImport}
+        onCancel={() => setImportOpen(false)}
+      >
+        <Stack gap="var(--space-3)">
+          <FilePicker label="Filesystem tarball" ariaLabel="Filesystem tarball to import" accept=".tar" file={importFile} onChange={setImportFile} />
+          <TextField
+            ariaLabel="Target reference (optional)"
+            placeholder="Target reference (optional, e.g. myrepo/name:tag)"
+            value={importTargetReference}
+            onChange={setImportTargetReference}
+          />
+        </Stack>
+      </FormDialog>
+
+      <TransferProgressDialog
+        open={importUpload.status !== 'idle'}
+        title="Importing filesystem tarball"
+        description={importFile?.name}
+        currentBytes={importUpload.currentBytes}
+        totalBytes={importUpload.totalBytes}
+        status={importUpload.status === 'error' ? 'error' : importUpload.status === 'done' ? 'done' : 'active'}
+        errorMessage={importUpload.error}
+        onCancel={() => importUpload.cancel()}
+        onClose={closeImportTransfer}
+      >
+        <MetaCell>{importUpload.result?.reference ?? importUpload.result?.id ?? '–'}</MetaCell>
+      </TransferProgressDialog>
 
       <ContainerCreateForm
         open={runReference !== undefined}

@@ -4,7 +4,7 @@
 // and ssh endpoints are all served by the same request path.
 import http from "node:http";
 import type { ClientRequestArgs } from "node:http";
-import type { Duplex } from "node:stream";
+import type { Duplex, Readable } from "node:stream";
 import { dial } from "./transport.js";
 import { DockerDaemonError } from "./errors.js";
 import type { DockerEndpoint } from "./types.js";
@@ -26,7 +26,8 @@ export interface DockerRequestOptions {
   method?: string;
   path: string;
   headers?: Record<string, string>;
-  body?: string;
+  /** A `Readable` streams the request body (e.g. a tarball read from disk) instead of buffering it. */
+  body?: string | Readable;
 }
 
 export interface BufferedResponse {
@@ -49,7 +50,12 @@ function send(endpoint: DockerEndpoint, options: DockerRequestOptions): Promise<
     request.once("error", (error: NodeJS.ErrnoException) =>
       reject(new DockerDaemonError("DaemonUnreachable", describeConnectionError(error), error)),
     );
-    request.end(options.body);
+    if (options.body && typeof options.body !== "string") {
+      options.body.once("error", (error: Error) => request.destroy(error));
+      options.body.pipe(request);
+    } else {
+      request.end(options.body);
+    }
   });
 }
 

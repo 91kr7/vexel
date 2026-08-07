@@ -39,6 +39,10 @@ export interface PruneResult {
   reclaimedBytes: number;
 }
 
+export interface ImageSaveLoadResult {
+  references: string[];
+}
+
 async function extractErrorMessage(response: Response): Promise<string> {
   try {
     const body = (await response.json()) as { error?: string };
@@ -79,6 +83,17 @@ export function imagePushStreamUrl(id: string, reference?: string): string {
   const query = params.toString();
   return `/api/images/${encodeURIComponent(id)}/push/stream${query ? `?${query}` : ''}`;
 }
+
+/** Builds the browser-download URL for saving one or several images (REQ-42); triggered with `triggerDownload`. */
+export function saveImagesUrl(references: string[], filename?: string): string {
+  const params = new URLSearchParams();
+  for (const reference of references) params.append('references', reference);
+  if (filename) params.set('filename', filename);
+  return `/api/images/save?${params.toString()}`;
+}
+
+/** The upload URL for loading images from a local tarball (REQ-42); consumed with `useFileUpload`. */
+export const IMAGE_LOAD_URL = '/api/images/load';
 
 export async function tagImage(id: string, reference: string): Promise<void> {
   const response = await fetch(`/api/images/${encodeURIComponent(id)}/tag`, {

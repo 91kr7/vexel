@@ -18,6 +18,10 @@ knows their URLs.
 - `imagePullStreamUrl(reference, platform?): string` — `/api/images/pull/stream?reference=...
   [&platform=...]`.
 - `imagePushStreamUrl(id, reference?): string` — `/api/images/:id/push/stream[?reference=...]`.
+- `saveImagesUrl(references, filename?): string` — `/api/images/save?references=...[&filename=...]`
+  (REQ-42); triggered with `triggerDownload` (ui-library), the browser handling the download itself.
+- `IMAGE_LOAD_URL` — `/api/images/load` (REQ-42); the `POST` upload target consumed with
+  `useFileUpload`.
 - `tagImage(id, reference): Promise<void>` — `POST /api/images/:id/tag`.
 - `untagImage(reference): Promise<void>` — `DELETE /api/images/untag?reference=...`.
 - `removeImage(id): Promise<void>` — `DELETE /api/images/:id`.
@@ -35,3 +39,4 @@ knows their URLs.
 - plan-docker_management_app/REQ-38
 - plan-docker_management_app/REQ-39
 - plan-docker_management_app/REQ-40
+- plan-docker_management_app/REQ-42
