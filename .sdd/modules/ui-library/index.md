@@ -62,4 +62,6 @@
 | Spinner | UI component | `client/src/ui/feedback/Spinner.tsx` | Small rotating pending indicator | `specs/spinner.md` |
 | EmptyState | UI component | `client/src/ui/feedback/EmptyState.tsx` | Placeholder for a screen or list with nothing to display | `specs/empty-state.md` |
 | EventStream | UI component | `client/src/ui/feedback/EventStream.tsx` | Monospace, timestamped daemon event list with type/action emphasis | `specs/event-stream.md` |
+| Terminal | UI component | `client/src/ui/terminal/Terminal.tsx` | Interactive terminal surface wrapping the xterm.js emulator (documented `CLAUDE.md` escape hatch); typed write/focus/dispose handle and input/resize callbacks | `specs/terminal.md` |
+| SessionHeader, SessionEndedOverlay, SessionSurface | UI component | `client/src/ui/terminal/SessionChrome.tsx` | Session header with connection state and disconnect/detach action, session-ended overlay, and the surface that positions one over the other | `specs/session-chrome.md` |
 | UI library entry point | module entry | `client/src/ui/index.ts` | Re-exports every UI-library component; the only import path feature code uses | `specs/library-entry-point.md` |

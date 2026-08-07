@@ -67,3 +67,14 @@ export { ProgressBar, type ProgressBarProps } from './feedback/ProgressBar';
 export { Spinner, type SpinnerProps } from './feedback/Spinner';
 export { EmptyState, type EmptyStateProps } from './feedback/EmptyState';
 export { EventStream, type EventStreamProps, type EventStreamEntry } from './feedback/EventStream';
+
+export { Terminal, type TerminalHandle, type TerminalProps } from './terminal/Terminal';
+export {
+  SessionHeader,
+  type SessionHeaderProps,
+  type SessionConnectionState,
+  SessionEndedOverlay,
+  type SessionEndedOverlayProps,
+  SessionSurface,
+  type SessionSurfaceProps,
+} from './terminal/SessionChrome';

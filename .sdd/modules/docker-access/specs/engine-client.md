@@ -26,7 +26,13 @@ TCP+TLS), negotiates the API version, and preserves the daemon's own error messa
     response status is >= 400.
 - `requestStream(path): Promise<IncomingMessage>`
   - Same version-prefixing and error mapping as `request`, but returns the raw streamed response
-    (used for `/events`, logs, stats, exec attach, …).
+    (used for `/events`, logs, stats, …).
+- `hijack(path, { method?, body? }): Promise<{ socket: Duplex, head: Buffer }>`
+  - Prefixes `path` with `/v{negotiated apiVersion}` and asks the daemon to hijack the connection
+    (exec start, attach): resolves with the raw duplex socket once the daemon switches protocols;
+    rejects with a `DockerDaemonError` (code `DaemonRejected`, `statusCode` set) when the daemon
+    answers with a normal (non-upgraded) error response instead.
+  - Sets `Content-Type: application/json` when `body` is given, same as `request`.
 
 ## Rules and invariants
 
@@ -44,3 +50,5 @@ TCP+TLS), negotiates the API version, and preserves the daemon's own error messa
 - plan-docker_management_app/REQ-9
 - plan-docker_management_app/REQ-10
 - plan-docker_management_app/REQ-13
+- plan-docker_management_app/REQ-34
+- plan-docker_management_app/REQ-35

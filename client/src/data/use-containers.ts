@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchContainers, type ContainerSummary } from './containers-client';
-import { onDaemonObjectTypeChanged } from './event-stream';
+import { subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
 
 const POLL_INTERVAL_MS = 3000;
+
+/**
+ * Container actions that fire on every terminal resize or exec lifecycle step
+ * (REQ-34, REQ-35) but never change what the container list displays —
+ * excluded so an open exec/attach session does not drive a refetch loop.
+ */
+const ACTIONS_NOT_AFFECTING_LIST = new Set(['resize', 'exec_create', 'exec_start', 'exec_die', 'exec_detach', 'top']);
 
 export interface UseContainersResult {
   containers: ContainerSummary[];
@@ -13,7 +20,10 @@ export interface UseContainersResult {
 
 /**
  * Reads the container list, re-reading on a bounded poll and whenever a
- * `container` daemon event arrives (REQ-19, REQ-20, REQ-21, REQ-22).
+ * `container` daemon event that can change the list arrives (REQ-19, REQ-20,
+ * REQ-21, REQ-22) — resize and exec lifecycle events are excluded, since an
+ * open exec/attach session (REQ-34, REQ-35) fires those on every terminal
+ * resize without changing anything the list displays.
  */
 export function useContainers(): UseContainersResult {
   const [containers, setContainers] = useState<ContainerSummary[]>([]);
@@ -46,7 +56,13 @@ export function useContainers(): UseContainersResult {
     };
   }, [refresh]);
 
-  useEffect(() => onDaemonObjectTypeChanged('container', refresh), [refresh]);
+  useEffect(
+    () =>
+      subscribeToDaemonEvents((event: DaemonEvent) => {
+        if (event.type === 'container' && !ACTIONS_NOT_AFFECTING_LIST.has(event.action)) refresh();
+      }),
+    [refresh],
+  );
 
   useEffect(() => {
     const interval = window.setInterval(refresh, POLL_INTERVAL_MS);

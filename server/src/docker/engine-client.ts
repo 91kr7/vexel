@@ -3,7 +3,7 @@
 // with the negotiated version (mirrors the Docker CLI's own negotiation).
 import type { IncomingMessage } from "node:http";
 import { DockerDaemonError } from "./errors.js";
-import { requestBuffered, requestStream } from "./http-client.js";
+import { hijack, requestBuffered, requestStream, type HijackedConnection } from "./http-client.js";
 import type { DockerEndpoint } from "./types.js";
 
 // The highest Engine API version this client was written against.
@@ -47,6 +47,17 @@ export class EngineClient {
   async requestStream(path: string): Promise<IncomingMessage> {
     const version = await this.getVersion();
     return requestStream(this.endpoint, { path: `/v${version.apiVersion}${path}` });
+  }
+
+  /** Opens a hijacked (exec start, attach) raw duplex stream against the negotiated API version. */
+  async hijack(path: string, options: { method?: string; body?: string } = {}): Promise<HijackedConnection> {
+    const version = await this.getVersion();
+    return hijack(this.endpoint, {
+      method: options.method ?? "POST",
+      path: `/v${version.apiVersion}${path}`,
+      headers: options.body ? { "content-type": "application/json" } : undefined,
+      body: options.body,
+    });
   }
 }
 

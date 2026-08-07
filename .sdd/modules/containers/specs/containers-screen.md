@@ -23,7 +23,7 @@ Shows:
   %, memory used/limit, published ports (`publicPort→privatePort`, `–` when none), the daemon's own
   uptime/status text, and a lifecycle action group.
 - The lifecycle actions shown depend on the container's state (REQ-20):
-  - `running` → rename, stop, pause, restart, kill, rm.
+  - `running` → rename, exec, attach, stop, pause, restart, kill, rm.
   - `paused` → rename, unpause, restart, kill, rm.
   - `restarting` → rename, kill, rm.
   - `created` / `exited` / `dead` / `removing` → rename, start, rm.
@@ -44,6 +44,8 @@ Actions:
   that is removed from the daemon closes its detail panel; one merely filtered out of view stays
   selected (its panel reappears if the filter changes back). After a configuration change recreates
   the container, the panel stays open on the new container's id.
+- A running row's `exec`/`attach` action opens its `ContainerDetailPanel` directly on the
+  corresponding tab (REQ-34, REQ-35).
 
 ## Rules and invariants
 
@@ -68,4 +70,6 @@ Actions:
 - plan-docker_management_app/REQ-22
 - plan-docker_management_app/REQ-23
 - plan-docker_management_app/REQ-24
+- plan-docker_management_app/REQ-34
+- plan-docker_management_app/REQ-35
 - plan-docker_management_app/REQ-109

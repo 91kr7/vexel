@@ -33,19 +33,22 @@ import {
 } from '../data/containers-client';
 import { ContainerLogsView } from './ContainerLogsView';
 import { ContainerProcessesView } from './ContainerProcessesView';
+import { ContainerSessionView } from './ContainerSessionView';
 import { ContainerStatsView } from './ContainerStatsView';
 import { useContainerDetail } from '../data/use-container-detail';
 import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
 import { useProgress } from '../shell/services/ProgressService';
 
-type ContainerDetailTab = 'logs' | 'stats' | 'config' | 'processes' | 'inspect';
+type ContainerDetailTab = 'logs' | 'stats' | 'config' | 'processes' | 'inspect' | 'exec' | 'attach';
 
 export interface ContainerDetailPanelProps {
   container: ContainerSummary;
   onClose: () => void;
   /** Called after a recreate with the new container id, since the old one no longer exists. */
   onContainerReplaced: (newId: string) => void;
+  /** Opens the panel directly on this tab (e.g. from a row's "exec"/"attach" action). */
+  focusTab?: ContainerDetailTab;
 }
 
 interface ConfigFormState {
@@ -165,7 +168,7 @@ function updateRequiresRecreate(update: ContainerConfigUpdate): boolean {
  * health check (warning before a Docker-required recreate), and an Inspect
  * tab with the full structured inspect data plus the raw payload, copyable.
  */
-export function ContainerDetailPanel({ container, onClose, onContainerReplaced }: ContainerDetailPanelProps) {
+export function ContainerDetailPanel({ container, onClose, onContainerReplaced, focusTab }: ContainerDetailPanelProps) {
   const { inspect, loaded, error, refresh } = useContainerDetail(container.id);
   const { confirm } = useConfirmation();
   const { push } = useToast();
@@ -183,6 +186,10 @@ export function ContainerDetailPanel({ container, onClose, onContainerReplaced }
     setForm(null);
     setInitialForm(null);
   }, [container.id]);
+
+  useEffect(() => {
+    if (focusTab) setActiveTab(focusTab);
+  }, [container.id, focusTab]);
 
   function startEdit() {
     if (!inspect) return;
@@ -351,7 +358,7 @@ export function ContainerDetailPanel({ container, onClose, onContainerReplaced }
             ))}
           </Stack>
           <Row>
-            <Button variant="primary" onClick={startEdit}>
+            <Button variant="subtle" onClick={startEdit}>
               Edit configuration
             </Button>
           </Row>
@@ -407,6 +414,7 @@ export function ContainerDetailPanel({ container, onClose, onContainerReplaced }
             { id: 'config', label: 'Config' },
             { id: 'processes', label: 'Processes' },
             { id: 'inspect', label: 'Inspect' },
+            ...(container.state === 'running' ? [{ id: 'exec', label: 'Exec' }, { id: 'attach', label: 'Attach' }] : []),
           ]}
           activeId={activeTab}
           onSelect={(id) => setActiveTab(id as ContainerDetailTab)}
@@ -418,6 +426,11 @@ export function ContainerDetailPanel({ container, onClose, onContainerReplaced }
           <ContainerStatsView container={container} />
         ) : activeTab === 'processes' ? (
           <ContainerProcessesView container={container} />
+        ) : activeTab === 'exec' ? (
+          // Unmounting the view is what closes the interactive session (REQ-36).
+          <ContainerSessionView container={container} kind="exec" />
+        ) : activeTab === 'attach' ? (
+          <ContainerSessionView container={container} kind="attach" />
         ) : (
           <>
             {error ? <ErrorBanner title="Could not load container details" detail={error} onRetry={refresh} /> : null}

@@ -1,5 +1,6 @@
 import express from "express";
 import { connectivityRouter } from "./connectivity/connectivity-routes.js";
+import { handleContainerSessionUpgrade } from "./containers/container-sessions-routes.js";
 import { containersRouter } from "./containers/containers-routes.js";
 import { startStatsSampler } from "./containers/containers-service.js";
 import { eventsRouter } from "./events/events-routes.js";
@@ -27,6 +28,11 @@ eventStreamService.start();
 startStatsSampler();
 reclaimOrphans();
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`Server listening on port ${port}`);
+});
+
+server.on("upgrade", (request, socket, head) => {
+  const handled = handleContainerSessionUpgrade(request, socket, head);
+  if (!handled) socket.destroy();
 });

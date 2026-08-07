@@ -296,3 +296,60 @@ describe('ContainersScreen — text/state filtering (REQ-23)', () => {
     expect(screen.queryByText('cache-redis')).not.toBeInTheDocument();
   });
 });
+
+// The detail panel opened by a row's exec/attach action reads the container's
+// inspect data (via fetch) and re-reads it on daemon events (via a
+// module-level EventSource neither of which jsdom implements natively.
+class FakeEventSource {
+  static instances: FakeEventSource[] = [];
+  private listeners = new Map<string, Array<(event: unknown) => void>>();
+
+  constructor(public url: string) {
+    FakeEventSource.instances.push(this);
+  }
+
+  addEventListener(type: string, listener: (event: unknown) => void) {
+    const existing = this.listeners.get(type) ?? [];
+    existing.push(listener);
+    this.listeners.set(type, existing);
+  }
+
+  close() {}
+}
+
+describe('ContainersScreen — exec/attach row actions (REQ-34, REQ-35)', () => {
+  beforeEach(() => {
+    FakeEventSource.instances = [];
+    vi.stubGlobal('EventSource', FakeEventSource);
+  });
+
+  it('offers exec and attach only for a running container', () => {
+    renderScreen([makeContainer({ state: 'running' })]);
+    expect(screen.getByRole('button', { name: 'exec' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'attach' })).toBeInTheDocument();
+
+    cleanup();
+    renderScreen([makeContainer({ state: 'paused' })]);
+    expect(screen.queryByRole('button', { name: 'exec' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'attach' })).not.toBeInTheDocument();
+  });
+
+  // containers-screen.md — a running row's exec/attach action opens its ContainerDetailPanel directly on the corresponding tab
+  it("opens the detail panel directly on the Exec tab when a row's exec action is used", async () => {
+    const user = userEvent.setup();
+    renderScreen([makeContainer({ id: 'container-1', name: 'web-nginx', state: 'running' })]);
+
+    await user.click(screen.getByRole('button', { name: 'exec' }));
+
+    expect(await screen.findByRole('tab', { name: 'Exec' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it("opens the detail panel directly on the Attach tab when a row's attach action is used", async () => {
+    const user = userEvent.setup();
+    renderScreen([makeContainer({ id: 'container-1', name: 'web-nginx', state: 'running' })]);
+
+    await user.click(screen.getByRole('button', { name: 'attach' }));
+
+    expect(await screen.findByRole('tab', { name: 'Attach' })).toHaveAttribute('aria-selected', 'true');
+  });
+});

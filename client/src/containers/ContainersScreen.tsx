@@ -121,6 +121,7 @@ export function ContainersScreen({ containers, loaded, error, onRefresh }: Conta
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
+  const [focusTab, setFocusTab] = useState<'exec' | 'attach' | undefined>(undefined);
 
   useEffect(() => {
     if (selectedId && !containers.some((container) => container.id === selectedId)) setSelectedId(undefined);
@@ -215,6 +216,8 @@ export function ContainersScreen({ containers, loaded, error, onRefresh }: Conta
       case 'running':
         return [
           rename,
+          { id: 'exec', label: 'exec', disabled, onClick: () => openSession(container, 'exec') },
+          { id: 'attach', label: 'attach', disabled, onClick: () => openSession(container, 'attach') },
           make('stop', () => stopContainer(container.id)),
           make('pause', () => pauseContainer(container.id)),
           make('restart', () => restartContainer(container.id)),
@@ -238,6 +241,13 @@ export function ContainersScreen({ containers, loaded, error, onRefresh }: Conta
 
   function toggleSelection(container: ContainerSummary) {
     setSelectedId((current) => (current === container.id ? undefined : container.id));
+  }
+
+  /** Opens the row's detail panel directly on the exec/attach tab. */
+  function openSession(container: ContainerSummary, tab: 'exec' | 'attach') {
+    setSelectedId(container.id);
+    setFocusTab(tab);
+    setTimeout(() => setFocusTab(undefined), 0);
   }
 
   function renderNameCell(container: ContainerSummary) {
@@ -295,7 +305,7 @@ export function ContainersScreen({ containers, loaded, error, onRefresh }: Conta
         }
       />
       {error ? <ErrorBanner title="Could not load containers" detail={error} onRetry={onRefresh} /> : null}
-      <Card>
+      <Card padding="none">
         <DataTable
           columns={columns}
           rows={filtered}
@@ -312,6 +322,7 @@ export function ContainersScreen({ containers, loaded, error, onRefresh }: Conta
                 setSelectedId(newId);
                 onRefresh();
               }}
+              focusTab={selectedId === container.id ? focusTab : undefined}
             />
           )}
           emptyState={

@@ -22,11 +22,15 @@ managing polling or event subscriptions itself.
 
 - Re-reads on a 3-second poll and whenever a `container`-typed daemon event arrives (REQ-19), so the
   list reflects a lifecycle change without the operator refreshing.
+- Does not re-read for a `resize`, `exec_create`, `exec_start`, `exec_die`, `exec_detach` or `top`
+  action: these fire on every terminal resize or exec lifecycle step of an open exec/attach session
+  (REQ-34, REQ-35) without changing anything the container list displays, so refetching on them
+  would starve the UI with an unbounded refresh loop.
 
 ## Dependencies
 
 - Containers client (fetchContainers)
-- events: onDaemonObjectTypeChanged
+- events: subscribeToDaemonEvents
 
 ## Requirements served
 

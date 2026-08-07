@@ -25,11 +25,15 @@ without the caller managing fetching or event subscriptions itself.
 
 - Re-reads whenever `id` changes and whenever a `container`-typed daemon event arrives, so the
   detail view reflects a lifecycle or configuration change without the operator refreshing.
+- Does not re-read for a `resize`, `exec_create`, `exec_start`, `exec_die`, `exec_detach` or `top`
+  action: these fire on every terminal resize or exec lifecycle step of an open exec/attach session
+  (REQ-34, REQ-35) without changing anything the inspect payload reports, so refetching on them
+  would starve the UI with an unbounded refresh loop.
 
 ## Dependencies
 
 - Containers client (fetchContainerInspect)
-- events: onDaemonObjectTypeChanged
+- events: subscribeToDaemonEvents
 
 ## Requirements served
 

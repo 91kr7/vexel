@@ -81,6 +81,49 @@ export async function requestStream(endpoint: DockerEndpoint, options: DockerReq
   return response;
 }
 
+export interface HijackedConnection {
+  socket: Duplex;
+  head: Buffer;
+}
+
+/**
+ * Sends a request that asks the daemon to hijack the connection (exec start,
+ * attach): on success the daemon switches protocols and the raw duplex socket
+ * carries the multiplexed/tty stdio directly, with no further HTTP framing.
+ */
+export function hijack(endpoint: DockerEndpoint, options: DockerRequestOptions): Promise<HijackedConnection> {
+  return new Promise((resolve, reject) => {
+    const agent = new EndpointAgent(endpoint);
+    const request = http.request({
+      agent,
+      method: options.method ?? "POST",
+      path: options.path,
+      headers: { host: "docker", connection: "Upgrade", upgrade: "tcp", ...options.headers },
+    });
+    request.once("upgrade", (_response, socket: Duplex, head: Buffer) => {
+      resolve({ socket, head });
+    });
+    request.once("response", (response) => {
+      readAll(response)
+        .then((body) =>
+          reject(
+            new DockerDaemonError(
+              "DaemonRejected",
+              extractDaemonMessage(body) ?? `Daemon returned HTTP ${response.statusCode}`,
+              undefined,
+              response.statusCode,
+            ),
+          ),
+        )
+        .catch(reject);
+    });
+    request.once("error", (error: NodeJS.ErrnoException) =>
+      reject(new DockerDaemonError("DaemonUnreachable", describeConnectionError(error), error)),
+    );
+    request.end(options.body);
+  });
+}
+
 async function readAll(response: http.IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const chunk of response) chunks.push(chunk as Buffer);

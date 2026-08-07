@@ -1,0 +1,12 @@
+/* Host element owned by the xterm.js emulator (see Terminal.tsx for the
+   escape-hatch rationale). Fills its parent's definite height (ui-session-
+   surface) — the emulator fits its own character grid to that fixed space via
+   ResizeObserver, no runtime blur or animation. */
+.ui-terminal-host {
+  flex: 1 1 auto;
+  min-height: 0;
+  border-radius: var(--radius-md);
+  border: var(--border-width-hairline) solid var(--color-border-subtle);
+  background: var(--color-surface-code);
+  padding: var(--space-2);
+}

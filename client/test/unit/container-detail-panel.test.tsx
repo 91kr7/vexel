@@ -227,12 +227,12 @@ describe('ContainerDetailPanel — Config tab (REQ-24, REQ-25)', () => {
 });
 
 describe('ContainerDetailPanel — Logs tab (REQ-30)', () => {
-  // container-detail-panel.md — the tab row is Logs, Stats, Config, Processes, Inspect, and Config is the tab selected on open
-  it('offers a Logs tab first and opens on the Config tab', async () => {
+  // container-detail-panel.md — the tab row is Logs, Stats, Config, Processes, Inspect and (for a running container) Exec, Attach; Config is the tab selected on open
+  it('offers a Logs tab first, Exec/Attach for a running container, and opens on the Config tab', async () => {
     renderPanel();
 
     await screen.findByRole('button', { name: 'Edit configuration' });
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Logs', 'Stats', 'Config', 'Processes', 'Inspect']);
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Logs', 'Stats', 'Config', 'Processes', 'Inspect', 'Exec', 'Attach']);
     expect(screen.getByRole('tab', { name: 'Config' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'Logs' })).toHaveAttribute('aria-selected', 'false');
   });
@@ -271,5 +271,147 @@ describe('ContainerDetailPanel — Inspect tab (REQ-26)', () => {
     await user.click(copyButtons[copyButtons.length - 1]);
 
     expect(writeText).toHaveBeenCalledWith(JSON.stringify(baseInspect().raw, null, 2));
+  });
+});
+
+// Stands in for the browser's WebSocket underneath useContainerSession, so the
+// Exec/Attach tabs' session lifecycle is driven directly from the test.
+class FakeWebSocket {
+  static CONNECTING = 0;
+  static OPEN = 1;
+  static CLOSED = 3;
+  static instances: FakeWebSocket[] = [];
+
+  readyState = FakeWebSocket.CONNECTING;
+  binaryType = '';
+  private listeners = new Map<string, Array<(event: unknown) => void>>();
+
+  constructor(public url: string) {
+    FakeWebSocket.instances.push(this);
+  }
+
+  addEventListener(type: string, listener: (event: unknown) => void) {
+    const existing = this.listeners.get(type) ?? [];
+    existing.push(listener);
+    this.listeners.set(type, existing);
+  }
+
+  send() {}
+
+  close() {
+    this.readyState = FakeWebSocket.CLOSED;
+    this.dispatch('close', {});
+  }
+
+  emitOpen() {
+    this.readyState = FakeWebSocket.OPEN;
+    this.dispatch('open', {});
+  }
+
+  private dispatch(type: string, event: unknown) {
+    for (const listener of this.listeners.get(type) ?? []) listener(event);
+  }
+}
+
+function latestSocket(): FakeWebSocket {
+  return FakeWebSocket.instances[FakeWebSocket.instances.length - 1];
+}
+
+describe('ContainerDetailPanel — Exec/Attach tabs (REQ-34, REQ-35, REQ-36)', () => {
+  beforeEach(() => {
+    FakeWebSocket.instances = [];
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+    // The real Terminal (xterm.js) needs browser APIs jsdom does not provide;
+    // these no-op stand-ins let it mount so the tab's own tests can run.
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn() }),
+    );
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+  });
+
+  // container-detail-panel.md — the Exec and Attach tabs are only offered for a running container
+  it('offers no Exec/Attach tabs for a container that is not running', async () => {
+    render(
+      <ErrorReportingProvider>
+        <ProgressProvider>
+          <ConfirmationProvider>
+            <ToastProvider>
+              <ContainerDetailPanel container={{ ...container, state: 'exited' }} onClose={vi.fn()} onContainerReplaced={vi.fn()} />
+            </ToastProvider>
+          </ConfirmationProvider>
+        </ProgressProvider>
+      </ErrorReportingProvider>,
+    );
+
+    await screen.findByRole('button', { name: 'Edit configuration' });
+    expect(screen.queryByRole('tab', { name: 'Exec' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Attach' })).not.toBeInTheDocument();
+  });
+
+  // container-detail-panel.md — focusTab switches the active tab directly to Exec
+  it("opens directly on the Exec tab's launch form when focusTab is 'exec'", async () => {
+    render(
+      <ErrorReportingProvider>
+        <ProgressProvider>
+          <ConfirmationProvider>
+            <ToastProvider>
+              <ContainerDetailPanel container={container} onClose={vi.fn()} onContainerReplaced={vi.fn()} focusTab="exec" />
+            </ToastProvider>
+          </ConfirmationProvider>
+        </ProgressProvider>
+      </ErrorReportingProvider>,
+    );
+
+    expect(await screen.findByRole('tab', { name: 'Exec' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('button', { name: 'Launch session' })).toBeInTheDocument();
+  });
+
+  // container-detail-panel.md — focusTab switches the active tab directly to Attach
+  it("opens directly on the Attach tab's action when focusTab is 'attach'", async () => {
+    render(
+      <ErrorReportingProvider>
+        <ProgressProvider>
+          <ConfirmationProvider>
+            <ToastProvider>
+              <ContainerDetailPanel container={container} onClose={vi.fn()} onContainerReplaced={vi.fn()} focusTab="attach" />
+            </ToastProvider>
+          </ConfirmationProvider>
+        </ProgressProvider>
+      </ErrorReportingProvider>,
+    );
+
+    expect(await screen.findByRole('tab', { name: 'Attach' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('button', { name: 'Attach' })).toBeInTheDocument();
+  });
+
+  // container-detail-panel.md — leaving the Exec tab closes the interactive session (REQ-36)
+  it('closes the active exec session when leaving the Exec tab', async () => {
+    const user = userEvent.setup();
+    render(
+      <ErrorReportingProvider>
+        <ProgressProvider>
+          <ConfirmationProvider>
+            <ToastProvider>
+              <ContainerDetailPanel container={container} onClose={vi.fn()} onContainerReplaced={vi.fn()} focusTab="exec" />
+            </ToastProvider>
+          </ConfirmationProvider>
+        </ProgressProvider>
+      </ErrorReportingProvider>,
+    );
+
+    await user.click(await screen.findByRole('button', { name: 'Launch session' }));
+    await act(async () => latestSocket().emitOpen());
+
+    await user.click(screen.getByRole('tab', { name: 'Config' }));
+
+    expect(latestSocket().readyState).toBe(FakeWebSocket.CLOSED);
   });
 });

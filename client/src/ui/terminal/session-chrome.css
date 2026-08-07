@@ -1,0 +1,41 @@
+/* A definite, bounded height (not flex:1 inside the unbounded scrollable
+   detail panel) so the terminal fits once and settles: an unbounded host
+   would grow every time xterm's fit adds rows, which the fit's own
+   ResizeObserver would then see as a resize and fit again, forever. */
+.ui-session-surface {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 420px;
+}
+
+.ui-session-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.ui-session-header__title {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+/* Overlaid over the terminal surface, translucent — never blurred. */
+.ui-session-ended-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  background: var(--color-surface-sunken);
+  border-radius: var(--radius-md);
+}
+
+.ui-session-ended-overlay__message {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
