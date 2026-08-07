@@ -6,8 +6,9 @@ type: UI component
 
 # ContainersScreen
 
-**Purpose** → the Containers screen: every container with its lifecycle actions, rename, bulk prune
-and text/state filtering.
+**Purpose** → the Containers screen: every container with its state-transition lifecycle actions, an
+inline rename affordance on its name, bulk prune and text/state filtering; exec/attach are reached
+through the row's detail panel.
 
 ## Contract
 
@@ -19,14 +20,18 @@ Description:
   state `FilterChips`: all/running/stopped/paused), above a `DataTable` of every container matching
   the current search/filter.
 Shows:
-- One row per matching container: a state-tone status dot, name over short id · state, image, CPU
-  %, memory used/limit, published ports (`publicPort→privatePort`, `–` when none), the daemon's own
-  uptime/status text, and a lifecycle action group.
-- The lifecycle actions shown depend on the container's state (REQ-20):
-  - `running` → rename, exec, attach, stop, pause, restart, kill, rm.
-  - `paused` → rename, unpause, restart, kill, rm.
-  - `restarting` → rename, kill, rm.
-  - `created` / `exited` / `dead` / `removing` → rename, start, rm.
+- One row per matching container: a state-tone status dot, name over short id · state (with a
+  rename icon action revealed on hover/focus next to the name), image, CPU %, memory used/limit,
+  published ports (`publicPort→privatePort`, `–` when none, single line — truncates with the full
+  list available as a tooltip when it does not fit), the daemon's own uptime/status text, and a
+  lifecycle action group.
+- The lifecycle actions shown depend on the container's state (REQ-20), state-transition actions
+  only, at most 5, always fitting on a single line — never rename (which sits on the name cell
+  instead), exec or attach, which live in the row's detail panel:
+  - `running` → stop, pause, restart, kill, rm.
+  - `paused` → start, unpause, restart, kill, rm.
+  - `restarting` → kill, rm.
+  - `created` / `exited` / `dead` / `removing` → start, rm.
 - An empty/loading state inside the table area when there are no matching containers.
 Actions:
 - Any non-destructive lifecycle action (start, stop, pause, unpause, restart) runs immediately
@@ -34,18 +39,19 @@ Actions:
 - `kill`, `rm` and "Prune stopped" go through `useConfirmation().confirm()` first; cancelling
   performs nothing. "Prune stopped" reports the removed count and reclaimed space via `useToast()`
   on success. Any failure reports the daemon's own message via `useErrorReporter()`.
-- `rename` replaces the name cell with an inline text field (pre-filled with the current name);
-  submitting (Enter or the save icon) renames the container and re-reads the list; the cancel icon
-  discards the edit. Submitting an unchanged or empty value is a no-op.
+- The name cell's rename icon action (REQ-21) replaces the cell with an inline text field
+  (pre-filled with the current name); submitting (Enter or the save icon) renames the container and
+  re-reads the list; the cancel icon discards the edit. Submitting an unchanged or empty value is a
+  no-op. The action is always reachable via Tab/keyboard even though it is only visually revealed on
+  row hover or focus.
 - The search field matches name, image or state (case-insensitive substring); state chips narrow to
   running / stopped (`created`, `exited`, `dead`) / paused (`paused`, `restarting`) / all.
 - Selecting a row (anywhere outside its action buttons) opens a `ContainerDetailPanel` inline below
   it (REQ-24); selecting the same row again, or its close control, closes it. A selected container
   that is removed from the daemon closes its detail panel; one merely filtered out of view stays
   selected (its panel reappears if the filter changes back). After a configuration change recreates
-  the container, the panel stays open on the new container's id.
-- A running row's `exec`/`attach` action opens its `ContainerDetailPanel` directly on the
-  corresponding tab (REQ-34, REQ-35).
+  the container, the panel stays open on the new container's id. A running container's `exec`/
+  `attach` sessions (REQ-34, REQ-35) are reached as tabs of that same panel.
 
 ## Rules and invariants
 

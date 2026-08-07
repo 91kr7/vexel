@@ -61,45 +61,52 @@ afterEach(() => {
 });
 
 describe('ContainersScreen — lifecycle actions restricted by state (REQ-20)', () => {
-  it('offers rename, stop, pause, restart, kill and rm for a running container', () => {
+  // The lifecycle column carries state-transition actions only — never rename,
+  // exec or attach — and never more than five, so the group always fits on a
+  // single line inside the row's fixed height instead of wrapping out of it.
+  const LIFECYCLE_ONLY = ['start', 'stop', 'pause', 'unpause', 'restart', 'kill', 'rm'];
+
+  function lifecycleButtonLabels() {
+    return screen
+      .getAllByRole('button')
+      .map((button) => button.textContent?.trim() ?? '')
+      .filter((label) => LIFECYCLE_ONLY.includes(label));
+  }
+
+  it('offers stop, pause, restart, kill and rm for a running container', () => {
     renderScreen([makeContainer({ state: 'running' })]);
 
-    for (const label of ['rename', 'stop', 'pause', 'restart', 'kill', 'rm']) {
-      expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
-    }
-    expect(screen.queryByRole('button', { name: 'start' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'unpause' })).not.toBeInTheDocument();
+    expect(lifecycleButtonLabels()).toEqual(['stop', 'pause', 'restart', 'kill', 'rm']);
   });
 
-  it('offers rename, unpause, restart, kill and rm for a paused container', () => {
+  it('offers start, unpause, restart, kill and rm for a paused container', () => {
     renderScreen([makeContainer({ state: 'paused' })]);
 
-    for (const label of ['rename', 'unpause', 'restart', 'kill', 'rm']) {
-      expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
-    }
-    expect(screen.queryByRole('button', { name: 'start' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'stop' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'pause' })).not.toBeInTheDocument();
+    expect(lifecycleButtonLabels()).toEqual(['start', 'unpause', 'restart', 'kill', 'rm']);
   });
 
-  it('offers only rename, kill and rm for a restarting container', () => {
+  it('offers only kill and rm for a restarting container', () => {
     renderScreen([makeContainer({ state: 'restarting' })]);
 
-    for (const label of ['rename', 'kill', 'rm']) {
-      expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
-    }
-    expect(screen.queryByRole('button', { name: 'restart' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'start' })).not.toBeInTheDocument();
+    expect(lifecycleButtonLabels()).toEqual(['kill', 'rm']);
   });
 
-  it('offers rename, start and rm for an exited container', () => {
+  it('offers start and rm for an exited container', () => {
     renderScreen([makeContainer({ state: 'exited' })]);
 
-    for (const label of ['rename', 'start', 'rm']) {
-      expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
+    expect(lifecycleButtonLabels()).toEqual(['start', 'rm']);
+  });
+
+  it('never puts rename, exec or attach in the lifecycle column, in any state', () => {
+    for (const state of ['running', 'paused', 'restarting', 'exited'] as const) {
+      cleanup();
+      renderScreen([makeContainer({ state })]);
+
+      for (const label of ['rename', 'exec', 'attach']) {
+        expect(screen.queryByRole('button', { name: label })).not.toBeInTheDocument();
+      }
+      expect(lifecycleButtonLabels().length).toBeLessThanOrEqual(5);
     }
-    expect(screen.queryByRole('button', { name: 'stop' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'kill' })).not.toBeInTheDocument();
   });
 });
 
@@ -172,12 +179,23 @@ describe('ContainersScreen — running lifecycle actions (REQ-20)', () => {
   });
 });
 
+// Rename is triggered from an icon action on the name cell itself, not from a
+// lifecycle button and not from the detail panel, so the lifecycle column stays
+// limited to state transitions.
 describe('ContainersScreen — rename (REQ-21)', () => {
+  it('exposes a rename action on the name cell, reachable without hovering', () => {
+    renderScreen([makeContainer({ name: 'web-nginx', state: 'running' })]);
+
+    // Revealed on hover/focus via opacity, never `display: none`, so it stays
+    // in the accessibility tree and in the tab order.
+    expect(screen.getByRole('button', { name: 'Rename web-nginx' })).toBeInTheDocument();
+  });
+
   it('replaces the name cell with a pre-filled field and renames on submit', async () => {
     const user = userEvent.setup();
     const { onRefresh } = renderScreen([makeContainer({ id: 'container-1', name: 'web-nginx', state: 'running' })]);
 
-    await user.click(screen.getByRole('button', { name: 'rename' }));
+    await user.click(screen.getByRole('button', { name: 'Rename web-nginx' }));
 
     const field = screen.getByRole('textbox', { name: 'New name for web-nginx' });
     expect(field).toHaveValue('web-nginx');
@@ -195,7 +213,7 @@ describe('ContainersScreen — rename (REQ-21)', () => {
     const user = userEvent.setup();
     const { onRefresh } = renderScreen([makeContainer({ name: 'web-nginx', state: 'running' })]);
 
-    await user.click(screen.getByRole('button', { name: 'rename' }));
+    await user.click(screen.getByRole('button', { name: 'Rename web-nginx' }));
     await user.type(screen.getByRole('textbox', { name: 'New name for web-nginx' }), '{Enter}');
 
     expect(fetchMock).not.toHaveBeenCalled();
@@ -207,7 +225,7 @@ describe('ContainersScreen — rename (REQ-21)', () => {
     const user = userEvent.setup();
     renderScreen([makeContainer({ name: 'web-nginx', state: 'running' })]);
 
-    await user.click(screen.getByRole('button', { name: 'rename' }));
+    await user.click(screen.getByRole('button', { name: 'Rename web-nginx' }));
     await user.type(screen.getByRole('textbox', { name: 'New name for web-nginx' }), 'discarded-name');
     await user.click(screen.getByRole('button', { name: 'Cancel rename' }));
 
@@ -297,59 +315,9 @@ describe('ContainersScreen — text/state filtering (REQ-23)', () => {
   });
 });
 
-// The detail panel opened by a row's exec/attach action reads the container's
-// inspect data (via fetch) and re-reads it on daemon events (via a
-// module-level EventSource neither of which jsdom implements natively.
-class FakeEventSource {
-  static instances: FakeEventSource[] = [];
-  private listeners = new Map<string, Array<(event: unknown) => void>>();
-
-  constructor(public url: string) {
-    FakeEventSource.instances.push(this);
-  }
-
-  addEventListener(type: string, listener: (event: unknown) => void) {
-    const existing = this.listeners.get(type) ?? [];
-    existing.push(listener);
-    this.listeners.set(type, existing);
-  }
-
-  close() {}
-}
-
-describe('ContainersScreen — exec/attach row actions (REQ-34, REQ-35)', () => {
-  beforeEach(() => {
-    FakeEventSource.instances = [];
-    vi.stubGlobal('EventSource', FakeEventSource);
-  });
-
-  it('offers exec and attach only for a running container', () => {
-    renderScreen([makeContainer({ state: 'running' })]);
-    expect(screen.getByRole('button', { name: 'exec' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'attach' })).toBeInTheDocument();
-
-    cleanup();
-    renderScreen([makeContainer({ state: 'paused' })]);
-    expect(screen.queryByRole('button', { name: 'exec' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'attach' })).not.toBeInTheDocument();
-  });
-
-  // containers-screen.md — a running row's exec/attach action opens its ContainerDetailPanel directly on the corresponding tab
-  it("opens the detail panel directly on the Exec tab when a row's exec action is used", async () => {
-    const user = userEvent.setup();
-    renderScreen([makeContainer({ id: 'container-1', name: 'web-nginx', state: 'running' })]);
-
-    await user.click(screen.getByRole('button', { name: 'exec' }));
-
-    expect(await screen.findByRole('tab', { name: 'Exec' })).toHaveAttribute('aria-selected', 'true');
-  });
-
-  it("opens the detail panel directly on the Attach tab when a row's attach action is used", async () => {
-    const user = userEvent.setup();
-    renderScreen([makeContainer({ id: 'container-1', name: 'web-nginx', state: 'running' })]);
-
-    await user.click(screen.getByRole('button', { name: 'attach' }));
-
-    expect(await screen.findByRole('tab', { name: 'Attach' })).toHaveAttribute('aria-selected', 'true');
-  });
-});
+// Exec and attach (REQ-34, REQ-35) are no longer duplicated as row buttons —
+// which is what overflowed the lifecycle column — and are reached through the
+// detail panel's tabs instead. Their absence from the row is asserted above;
+// the tabs themselves are covered by container-detail-panel.test.tsx, which
+// mounts the panel with a realistic inspect payload and the browser stubs it
+// needs.

@@ -18,6 +18,8 @@ container's lifecycle actions), with a destructive variant.
 
 - Stops click-event propagation, so a click on any action button never also triggers a containing
   `DataTable` row's `onRowSelect`.
+- Never wraps to a second line: the group stays on a single row regardless of how many actions it
+  holds, clipped by its containing cell rather than overflowing it.
 
 ## Dependencies
 

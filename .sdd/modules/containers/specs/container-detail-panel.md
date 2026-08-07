@@ -9,24 +9,21 @@ type: UI component
 **Purpose** → the container detail surface opened from a row of the Containers screen: the
 container's logs, its live statistics, its inspect data in an editable Config tab, the processes
 running inside it, the read-only Inspect tab with the raw payload, and — for a running container —
-exec and attach interactive sessions.
+exec and attach interactive sessions. Rename lives on the row instead (REQ-21), not in this panel.
 
 ## Contract
 
-- `<ContainerDetailPanel container onClose onContainerReplaced focusTab? />`
+- `<ContainerDetailPanel container onClose onContainerReplaced />`
   - `container: ContainerSummary` — the selected row.
   - `onClose: () => void` — called when the panel's close control is used.
   - `onContainerReplaced: (newId: string) => void` — called after a recreate, since the original
     container id no longer exists.
-  - `focusTab?: 'logs' | 'stats' | 'config' | 'processes' | 'inspect' | 'exec' | 'attach'` — when
-    given, switches the active tab to it (e.g. a row's "exec"/"attach" action opening the panel
-    directly on that tab).
 
 Description:
 - A `DetailPanel` (untitled — the container's name/id/state are already shown by the table row it
   expands below) holding a `Tabs` row (Logs, Stats, Config, Processes, Inspect, and — only when the
   container is running — Exec, Attach) and the active tab's content. Config is the tab selected when
-  the panel opens, unless `focusTab` says otherwise.
+  the panel opens.
 Shows (Logs tab):
 - The container's `ContainerLogsView`; the inspect data is neither needed nor awaited for it.
 Shows (Stats tab):

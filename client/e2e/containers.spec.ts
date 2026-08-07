@@ -90,7 +90,9 @@ test('renaming a container replaces the name cell and the new name is reflected 
     const row = containerRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
 
-    await row.getByRole('button', { name: 'rename' }).click();
+    // Rename is an icon action on the name cell, revealed on row hover.
+    await row.hover();
+    await row.getByRole('button', { name: `Rename ${name}` }).click();
     // The name cell is replaced by the input while renaming, so it stops matching the
     // row locator's text filter; query the field by its accessible name at the page level.
     const field = page.getByRole('textbox', { name: `New name for ${name}` });

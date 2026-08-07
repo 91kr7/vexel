@@ -138,6 +138,12 @@
   cursor: pointer;
 }
 
+.ui-icon-button--sm {
+  width: 24px;
+  height: 24px;
+  font-size: var(--font-size-xs);
+}
+
 .ui-badge {
   display: inline-flex;
   align-items: center;
@@ -296,8 +302,10 @@
 
 .ui-action-button-group {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: var(--space-1);
+  min-width: 0;
 }
 
 .ui-screen-toolbar {

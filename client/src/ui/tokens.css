@@ -93,6 +93,14 @@
      non-scrolling sibling subtract it from their own padding. */
   --scrollbar-width: 8px;
 
+  /* DataTable column sizing — a `DataTable` renders each row as its own
+     independent grid, so a column holding a per-row `ActionButtonGroup` must
+     use a fixed (not fractional/content-based) track, sized for the widest
+     action set that column can ever hold, or the buttons silently clip past
+     the row's edge. Sized for up to 5 dense (`size="sm"`) action buttons on
+     one line, with slack for a slightly wider label. */
+  --data-table-action-column-width: 248px;
+
   /* Elevation */
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.35);

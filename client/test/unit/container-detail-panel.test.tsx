@@ -356,39 +356,27 @@ describe('ContainerDetailPanel — Exec/Attach tabs (REQ-34, REQ-35, REQ-36)', (
     expect(screen.queryByRole('tab', { name: 'Attach' })).not.toBeInTheDocument();
   });
 
-  // container-detail-panel.md — focusTab switches the active tab directly to Exec
-  it("opens directly on the Exec tab's launch form when focusTab is 'exec'", async () => {
+  // container-detail-panel.md — the Exec and Attach tabs reach their session for a running container
+  it('reaches the Exec launch form and the Attach action through their tabs', async () => {
+    const user = userEvent.setup();
     render(
       <ErrorReportingProvider>
         <ProgressProvider>
           <ConfirmationProvider>
             <ToastProvider>
-              <ContainerDetailPanel container={container} onClose={vi.fn()} onContainerReplaced={vi.fn()} focusTab="exec" />
+              <ContainerDetailPanel container={container} onClose={vi.fn()} onContainerReplaced={vi.fn()} />
             </ToastProvider>
           </ConfirmationProvider>
         </ProgressProvider>
       </ErrorReportingProvider>,
     );
 
-    expect(await screen.findByRole('tab', { name: 'Exec' })).toHaveAttribute('aria-selected', 'true');
+    await user.click(await screen.findByRole('tab', { name: 'Exec' }));
+    expect(screen.getByRole('tab', { name: 'Exec' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('button', { name: 'Launch session' })).toBeInTheDocument();
-  });
 
-  // container-detail-panel.md — focusTab switches the active tab directly to Attach
-  it("opens directly on the Attach tab's action when focusTab is 'attach'", async () => {
-    render(
-      <ErrorReportingProvider>
-        <ProgressProvider>
-          <ConfirmationProvider>
-            <ToastProvider>
-              <ContainerDetailPanel container={container} onClose={vi.fn()} onContainerReplaced={vi.fn()} focusTab="attach" />
-            </ToastProvider>
-          </ConfirmationProvider>
-        </ProgressProvider>
-      </ErrorReportingProvider>,
-    );
-
-    expect(await screen.findByRole('tab', { name: 'Attach' })).toHaveAttribute('aria-selected', 'true');
+    await user.click(screen.getByRole('tab', { name: 'Attach' }));
+    expect(screen.getByRole('tab', { name: 'Attach' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('button', { name: 'Attach' })).toBeInTheDocument();
   });
 
@@ -400,13 +388,14 @@ describe('ContainerDetailPanel — Exec/Attach tabs (REQ-34, REQ-35, REQ-36)', (
         <ProgressProvider>
           <ConfirmationProvider>
             <ToastProvider>
-              <ContainerDetailPanel container={container} onClose={vi.fn()} onContainerReplaced={vi.fn()} focusTab="exec" />
+              <ContainerDetailPanel container={container} onClose={vi.fn()} onContainerReplaced={vi.fn()} />
             </ToastProvider>
           </ConfirmationProvider>
         </ProgressProvider>
       </ErrorReportingProvider>,
     );
 
+    await user.click(await screen.findByRole('tab', { name: 'Exec' }));
     await user.click(await screen.findByRole('button', { name: 'Launch session' }));
     await act(async () => latestSocket().emitOpen());
 

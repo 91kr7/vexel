@@ -47,8 +47,6 @@ export interface ContainerDetailPanelProps {
   onClose: () => void;
   /** Called after a recreate with the new container id, since the old one no longer exists. */
   onContainerReplaced: (newId: string) => void;
-  /** Opens the panel directly on this tab (e.g. from a row's "exec"/"attach" action). */
-  focusTab?: ContainerDetailTab;
 }
 
 interface ConfigFormState {
@@ -163,12 +161,14 @@ function updateRequiresRecreate(update: ContainerConfigUpdate): boolean {
 }
 
 /**
- * Container detail surface (REQ-24, REQ-25, REQ-26): a Config tab showing and
- * editing restart policy, resource limits, environment, ports, mounts and
- * health check (warning before a Docker-required recreate), and an Inspect
- * tab with the full structured inspect data plus the raw payload, copyable.
+ * Container detail surface (REQ-24, REQ-25, REQ-26, REQ-34, REQ-35): a Config
+ * tab showing and editing restart policy, resource limits, environment,
+ * ports, mounts and health check (warning before a Docker-required
+ * recreate), an Inspect tab with the full structured inspect data plus the
+ * raw payload, copyable, and — for running containers — Exec/Attach tabs
+ * opening an interactive session. Rename lives on the row instead (REQ-21).
  */
-export function ContainerDetailPanel({ container, onClose, onContainerReplaced, focusTab }: ContainerDetailPanelProps) {
+export function ContainerDetailPanel({ container, onClose, onContainerReplaced }: ContainerDetailPanelProps) {
   const { inspect, loaded, error, refresh } = useContainerDetail(container.id);
   const { confirm } = useConfirmation();
   const { push } = useToast();
@@ -186,10 +186,6 @@ export function ContainerDetailPanel({ container, onClose, onContainerReplaced, 
     setForm(null);
     setInitialForm(null);
   }, [container.id]);
-
-  useEffect(() => {
-    if (focusTab) setActiveTab(focusTab);
-  }, [container.id, focusTab]);
 
   function startEdit() {
     if (!inspect) return;

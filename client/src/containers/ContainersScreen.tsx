@@ -104,10 +104,12 @@ function matchesStateFilter(container: ContainerSummary, filter: string): boolea
 /**
  * Containers screen (REQ-19–23, REQ-24–26, REQ-109): toolbar with search/state
  * filters and a bulk "Prune stopped" action, a dense virtualised table with
- * per-row lifecycle actions restricted to what the container's state allows,
- * and inline rename. Selecting a row (outside its action buttons) opens its
- * detail panel inline below it. Destructive actions (kill, remove, prune) go
- * through the shell's confirmation service.
+ * per-row lifecycle actions restricted to what the container's state allows
+ * (state transitions only, at most 5, always on one line) and a hover-revealed
+ * rename affordance on the name cell. Selecting a row (outside its action
+ * buttons) opens its detail panel inline below it; exec/attach live there as
+ * panel tabs. Destructive actions (kill, remove, prune) go through the
+ * shell's confirmation service.
  */
 export function ContainersScreen({ containers, loaded, error, onRefresh }: ContainersScreenProps) {
   const { confirm } = useConfirmation();
@@ -121,7 +123,6 @@ export function ContainersScreen({ containers, loaded, error, onRefresh }: Conta
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
-  const [focusTab, setFocusTab] = useState<'exec' | 'attach' | undefined>(undefined);
 
   useEffect(() => {
     if (selectedId && !containers.some((container) => container.id === selectedId)) setSelectedId(undefined);
@@ -201,9 +202,13 @@ export function ContainersScreen({ containers, loaded, error, onRefresh }: Conta
     }
   }
 
+  /**
+   * State-transition actions only, at most 5, always fitting on one line
+   * (rename lives on the name cell instead; exec/attach live as panel tabs,
+   * reachable once the row is selected).
+   */
   function lifecycleActionsFor(container: ContainerSummary): RowAction[] {
     const disabled = busyIds.has(container.id);
-    const rename: RowAction = { id: 'rename', label: 'rename', onClick: () => startRename(container), disabled };
     const make = (id: string, task: () => Promise<void>, destructive = false): RowAction => ({
       id,
       label: id,
@@ -215,9 +220,6 @@ export function ContainersScreen({ containers, loaded, error, onRefresh }: Conta
     switch (container.state) {
       case 'running':
         return [
-          rename,
-          { id: 'exec', label: 'exec', disabled, onClick: () => openSession(container, 'exec') },
-          { id: 'attach', label: 'attach', disabled, onClick: () => openSession(container, 'attach') },
           make('stop', () => stopContainer(container.id)),
           make('pause', () => pauseContainer(container.id)),
           make('restart', () => restartContainer(container.id)),
@@ -226,28 +228,21 @@ export function ContainersScreen({ containers, loaded, error, onRefresh }: Conta
         ];
       case 'paused':
         return [
-          rename,
+          make('start', () => startContainer(container.id)),
           make('unpause', () => unpauseContainer(container.id)),
           make('restart', () => restartContainer(container.id)),
           make('kill', () => killContainer(container.id), true),
           make('rm', () => removeContainer(container.id), true),
         ];
       case 'restarting':
-        return [rename, make('kill', () => killContainer(container.id), true), make('rm', () => removeContainer(container.id), true)];
+        return [make('kill', () => killContainer(container.id), true), make('rm', () => removeContainer(container.id), true)];
       default:
-        return [rename, make('start', () => startContainer(container.id)), make('rm', () => removeContainer(container.id), true)];
+        return [make('start', () => startContainer(container.id)), make('rm', () => removeContainer(container.id), true)];
     }
   }
 
   function toggleSelection(container: ContainerSummary) {
     setSelectedId((current) => (current === container.id ? undefined : container.id));
-  }
-
-  /** Opens the row's detail panel directly on the exec/attach tab. */
-  function openSession(container: ContainerSummary, tab: 'exec' | 'attach') {
-    setSelectedId(container.id);
-    setFocusTab(tab);
-    setTimeout(() => setFocusTab(undefined), 0);
   }
 
   function renderNameCell(container: ContainerSummary) {
@@ -270,7 +265,19 @@ export function ContainersScreen({ containers, loaded, error, onRefresh }: Conta
         </Row>
       );
     }
-    return <TwoLineCell title={container.name} subtitle={`${container.shortId} · ${container.state}`} />;
+    return (
+      <TwoLineCell
+        title={container.name}
+        subtitle={`${container.shortId} · ${container.state}`}
+        action={
+          <Row onClick={(event) => event.stopPropagation()}>
+            <IconButton size="sm" label={`Rename ${container.name}`} onClick={() => startRename(container)}>
+              ✎
+            </IconButton>
+          </Row>
+        }
+      />
+    );
   }
 
   const columns: DataTableColumn<ContainerSummary>[] = [
@@ -287,7 +294,12 @@ export function ContainersScreen({ containers, loaded, error, onRefresh }: Conta
     { id: 'memory', header: 'MEMORY', width: '1.2fr', render: (container) => <MetaCell>{formatMemory(container)}</MetaCell> },
     { id: 'ports', header: 'PORTS', width: '1fr', render: (container) => <MetaCell>{formatPorts(container.ports)}</MetaCell> },
     { id: 'uptime', header: 'UPTIME', width: '1fr', render: (container) => <MetaCell>{container.status}</MetaCell> },
-    { id: 'lifecycle', header: 'LIFECYCLE', width: '2.6fr', render: (container) => <ActionButtonGroup actions={lifecycleActionsFor(container)} /> },
+    {
+      id: 'lifecycle',
+      header: 'LIFECYCLE',
+      width: 'var(--data-table-action-column-width)',
+      render: (container) => <ActionButtonGroup actions={lifecycleActionsFor(container)} />,
+    },
   ];
 
   const filtered = containers.filter((container) => matchesStateFilter(container, stateFilter) && matchesSearch(container, search));
@@ -322,7 +334,6 @@ export function ContainersScreen({ containers, loaded, error, onRefresh }: Conta
                 setSelectedId(newId);
                 onRefresh();
               }}
-              focusTab={selectedId === container.id ? focusTab : undefined}
             />
           )}
           emptyState={

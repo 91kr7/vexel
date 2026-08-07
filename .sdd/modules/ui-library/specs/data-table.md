@@ -42,6 +42,8 @@ stays smooth (REQ-109).
 - The row matching `expandedRowKey` is never unmounted by virtualisation while it remains in
   `rows`, regardless of scroll position: its component instance (and therefore its internal state,
   e.g. an in-progress edit) survives scrolling.
+- A row's content that exceeds its fixed `rowHeight` is clipped, never grows the row or spills into
+  the row below.
 
 ## Dependencies
 

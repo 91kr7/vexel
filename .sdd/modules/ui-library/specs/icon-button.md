@@ -10,8 +10,10 @@ type: UI component
 
 ## Contract
 
-- `<IconButton label onClick? children?>` — `label` is required and becomes the button's
-  accessible name (`aria-label`); `children` is the icon content.
+- `<IconButton label onClick? children? size? />` — `label` is required and becomes the button's
+  accessible name (`aria-label`); `children` is the icon content; `size`: `'md' | 'sm'` (default
+  `'md'`) — `'sm'` is a compact variant sized for inline use inside dense content (e.g. a table
+  cell).
 
 ## Requirements served
 
