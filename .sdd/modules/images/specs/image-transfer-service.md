@@ -7,7 +7,8 @@ type: backend service
 # ImageTransferService
 
 **Purpose** → runs the registry-facing operations on local images: pull and push (both with
-per-layer progress), tag, untag, remove and prune of dangling images.
+per-layer progress), tag, untag, remove and prune of dangling images; also opens/consumes the
+browser-facing save/load tarball streams (REQ-42).
 
 ## Contract
 
@@ -27,6 +28,17 @@ per-layer progress), tag, untag, remove and prune of dangling images.
   - `onError` fires (and no further steps follow) when the daemon reports `{ error }` on the stream,
     or the stream itself errors.
   - `onEnd` fires once the daemon closes the stream without an error.
+- `openImageSaveStream(references, filenameHint?): Promise<{ response: IncomingMessage,
+  suggestedFilename: string }>` — `GET /images/get?names=...` (repeated for each reference); the
+  caller pipes `response`'s raw bytes straight to the HTTP response as a download (REQ-42).
+  `suggestedFilename` is `filenameHint` when given, otherwise the sole reference or
+  `"<count>-images"`, always sanitized through `sanitizeTarFilename`.
+- `loadImages(body, handlers): Promise<() => void>` — `POST /images/load` with `body` (the raw
+  upload request stream) piped straight into the request (REQ-42); returns a cancel function.
+  - `handlers`: `{ onError(message), onEnd(result) }`; `result`: `{ references: string[] }` parsed
+    from the daemon's own "Loaded image: …" status lines.
+- `sanitizeTarFilename(hint): string` — strips a trailing `.tar`, replaces every character outside
+  `[a-zA-Z0-9._-]` with `_`, and appends `.tar`; falls back to `"download.tar"` for an empty hint.
 - `tagImage(id, newReference): Promise<void>` — `POST /images/{id}/tag?repo=...&tag=...`.
 - `untagImage(tagReference): Promise<void>` — `DELETE /images/{tagReference}`; removes just that tag
   reference, leaving the underlying image (and its other tags, if any) in place.
@@ -38,8 +50,10 @@ per-layer progress), tag, untag, remove and prune of dangling images.
 
 - Pull/push progress is decoded from the daemon's newline-delimited JSON stream, one `onStep`/
   `onError` call per line; a malformed/partial line is skipped rather than failing the transfer.
-- The cancel function returned by `pullImage`/`pushImage` is idempotent and destroys the underlying
-  HTTP stream; no further `onStep`/`onError`/`onEnd` calls follow it.
+- The cancel function returned by `pullImage`/`pushImage`/`loadImages` is idempotent and destroys
+  the underlying HTTP stream(s); no further handler calls follow it.
+- Neither `openImageSaveStream` nor `loadImages` ever buffers the tarball whole: the Engine API
+  response/request body is piped through as it arrives.
 - Every non-streaming call rejects with a `DockerDaemonError` carrying the daemon's own message on
   failure.
 
@@ -51,3 +65,4 @@ per-layer progress), tag, untag, remove and prune of dangling images.
 
 - plan-docker_management_app/REQ-38
 - plan-docker_management_app/REQ-39
+- plan-docker_management_app/REQ-42

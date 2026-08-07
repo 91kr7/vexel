@@ -19,7 +19,8 @@ path (build context, Dockerfile, compose file, tarball source/target, export des
   - Refusal reasons (each returned as `reason`, `valid: false`), checked in this order:
     1. `path` is missing or not absolute.
     2. `path` contains a `..` traversal segment.
-    3. `path` does not exist.
+    3. `path` does not exist — the reason states that the path is resolved on the machine running
+       the server, which may not be the operator's own machine (REQ-116).
     4. `path` resolves (through symlinks) outside `root`, when `root` is given.
     5. `path` resolves to a kind other than the requested `kind`, when `kind` is given.
     6. the resolved path is not readable.

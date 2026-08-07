@@ -1,5 +1,11 @@
 // Registry-facing image operations over the Engine API (REQ-38, REQ-39): pull
 // and push stream per-layer progress, tag/untag/remove/prune are single calls.
+// Save/load (REQ-42) stream a tarball straight through the browser: save opens
+// the Engine API's own response for the caller to pipe to the HTTP response,
+// load pipes the uploaded request body straight into the Engine API — neither
+// direction ever buffers the tarball on the server.
+import type { IncomingMessage } from "node:http";
+import type { Readable } from "node:stream";
 import { getEngineClient } from "../connectivity/connection-status-service.js";
 
 export interface ImageTransferStep {
@@ -54,6 +60,86 @@ export async function removeImage(id: string): Promise<void> {
   await getEngineClient().request(`/images/${id}?force=true`, { method: "DELETE" });
 }
 
+export interface ImageSaveStream {
+  /** The Engine API's raw tarball response; the caller pipes it straight to the HTTP response. */
+  response: IncomingMessage;
+  suggestedFilename: string;
+}
+
+export interface ImageLoadResult {
+  references: string[];
+}
+
+/** Opens the save stream for one or several images (REQ-42), `GET /images/get`. */
+export async function openImageSaveStream(references: string[], filenameHint?: string): Promise<ImageSaveStream> {
+  const query = new URLSearchParams();
+  for (const reference of references) query.append("names", reference);
+  const response = await getEngineClient().requestStream(`/images/get?${query.toString()}`);
+  return { response, suggestedFilename: sanitizeTarFilename(filenameHint ?? defaultSaveFilename(references)) };
+}
+
+/** Loads images from an uploaded tarball body (REQ-42), streamed straight into `POST /images/load`. */
+export async function loadImages(
+  body: Readable,
+  handlers: { onError: (message: string) => void; onEnd: (result: ImageLoadResult) => void },
+): Promise<() => void> {
+  let stopped = false;
+  const response = await getEngineClient().requestStream("/images/load", {
+    method: "POST",
+    headers: { "content-type": "application/x-tar" },
+    body,
+  });
+
+  const decoder = new NdjsonDecoder();
+  const references: string[] = [];
+  response.on("data", (chunk: Buffer) => {
+    if (stopped) return;
+    decoder.push(chunk, (entry) => {
+      if (stopped) return;
+      if (typeof entry.error === "string") {
+        stopped = true;
+        handlers.onError(entry.error);
+        return;
+      }
+      const loaded = typeof entry.stream === "string" ? extractLoadedReference(entry.stream) : undefined;
+      if (loaded) references.push(loaded);
+    });
+  });
+  response.on("error", (error: Error) => {
+    if (stopped) return;
+    stopped = true;
+    handlers.onError(error.message);
+  });
+  response.on("end", () => {
+    if (stopped) return;
+    stopped = true;
+    handlers.onEnd({ references });
+  });
+
+  return () => {
+    if (stopped) return;
+    stopped = true;
+    body.destroy();
+    response.destroy();
+  };
+}
+
+/** Extracts a reference from one of the daemon's "Loaded image: <ref>" load status lines. */
+function extractLoadedReference(streamLine: string): string | undefined {
+  const match = /Loaded image(?: ID)?:\s*(\S+)/.exec(streamLine);
+  return match?.[1];
+}
+
+function defaultSaveFilename(references: string[]): string {
+  return references.length === 1 ? references[0] : `${references.length}-images`;
+}
+
+/** Turns a client-suggested or reference-derived name into a safe `.tar` file name for `Content-Disposition`. */
+export function sanitizeTarFilename(hint: string): string {
+  const base = hint.replace(/\.tar$/i, "").replace(/[^a-zA-Z0-9._-]+/g, "_");
+  return `${base || "download"}.tar`;
+}
+
 export async function pruneDanglingImages(): Promise<PruneResult> {
   const filters = encodeURIComponent(JSON.stringify({ dangling: ["true"] }));
   const response = await getEngineClient().request(`/images/prune?filters=${filters}`, { method: "POST" });
@@ -105,15 +191,17 @@ async function streamTransfer(path: string, handlers: ImageTransferHandlers, hea
   };
 }
 
-interface NdjsonEntry {
+export interface NdjsonEntry {
   id?: string;
   status?: string;
   error?: string;
+  /** The daemon's own progress/status line, e.g. an `/images/load` "Loaded image: …" line. */
+  stream?: string;
   progressDetail?: { current?: number; total?: number };
 }
 
-/** Docker's pull/push progress stream: one JSON object per line, not framed. */
-class NdjsonDecoder {
+/** Docker's pull/push/load/import status stream: one JSON object per line, not framed. */
+export class NdjsonDecoder {
   private pending = "";
 
   push(chunk: Buffer, emit: (entry: NdjsonEntry) => void): void {
@@ -132,7 +220,7 @@ class NdjsonDecoder {
   }
 }
 
-function splitReference(reference: string): { repository: string; tag: string } {
+export function splitReference(reference: string): { repository: string; tag: string } {
   const digestIndex = reference.indexOf("@");
   if (digestIndex !== -1) return { repository: reference.slice(0, digestIndex), tag: reference.slice(digestIndex + 1) };
   const lastColon = reference.lastIndexOf(":");

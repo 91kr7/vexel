@@ -34,6 +34,8 @@ export { TextField, type TextFieldProps } from './controls/TextField';
 export { SearchField, type SearchFieldProps } from './controls/SearchField';
 export { FilterChips, type FilterChipsProps, type FilterChipOption } from './controls/FilterChips';
 export { ActionButtonGroup, type ActionButtonGroupProps, type RowAction } from './controls/ActionButtonGroup';
+export { BulkActionBar, type BulkActionBarProps, type BulkActionBarAction } from './controls/BulkActionBar';
+export { FilePicker, type FilePickerProps } from './controls/FilePicker';
 export { ScreenToolbar, type ScreenToolbarProps, type ScreenToolbarAction } from './controls/ScreenToolbar';
 export { Tabs, type TabsProps, type TabItem } from './controls/Tabs';
 export { CopyButton, type CopyButtonProps } from './controls/CopyButton';
@@ -53,7 +55,7 @@ export { TailSizeSelector, type TailSizeSelectorProps, type TailSize } from './c
 export { TimeRangeField, type TimeRangeFieldProps, type TimeRange } from './controls/TimeRangeField';
 export { StreamSearchField, type StreamSearchFieldProps } from './controls/StreamSearchField';
 
-export { DataTable, type DataTableProps, type DataTableColumn } from './data/DataTable';
+export { DataTable, type DataTableProps, type DataTableColumn, type DataTableSelection } from './data/DataTable';
 export {
   StatusDotCell,
   type StatusDotCellProps,
@@ -86,6 +88,9 @@ export { EventStream, type EventStreamProps, type EventStreamEntry } from './fee
 export { FormDialog, type FormDialogProps } from './feedback/FormDialog';
 export { FormSheet, type FormSheetProps, type FormSheetCommit } from './feedback/FormSheet';
 export { StepProgressList, type StepProgressListProps, type ProgressStep, type ProgressStepStatus } from './feedback/StepProgressList';
+export { TransferProgressDialog, type TransferProgressDialogProps, type TransferStatus } from './feedback/TransferProgressDialog';
+
+export { triggerDownload } from './utils/trigger-download';
 
 export { Terminal, type TerminalHandle, type TerminalProps } from './terminal/Terminal';
 export {

@@ -292,3 +292,73 @@ test("DELETE /api/images/:id force-removes the image so it no longer appears in 
   }
 });
 
+// plan-docker_management_app/REQ-42 — an image can be saved to a tarball downloaded through the browser, and loaded back, reporting the resulting references
+test("GET /api/images/save streams a tarball download that POST /api/images/load loads back under the same reference", async () => {
+  const tag = `vexel-test-save-${Date.now()}:v1`;
+  const app = buildApp();
+  const { url, close } = await startApp(app);
+  // registry:2 (megabytes, not the multi-gigabyte range): a stable, moderately-sized fixture — unlike
+  // hello-world, whose tag another test in this same file removes and re-pulls, this one's tag is never
+  // touched by a concurrently-running test file, so tagging it here cannot race that removal.
+  await execFileAsync("docker", ["tag", "registry:2", tag]);
+  try {
+    const response = await fetch(`${url}/api/images/save?${new URLSearchParams({ references: tag }).toString()}`);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("content-type"), "application/x-tar");
+    assert.match(response.headers.get("content-disposition") ?? "", /attachment; filename="vexel-test-save-\d+_v1\.tar"/);
+    // image-transfer-service.md — the tarball is piped through as it arrives, so its total size is
+    // never known ahead of time: no Content-Length header, unlike a buffered-then-sent response.
+    assert.equal(response.headers.get("content-length"), null);
+    const tarball = Buffer.from(await response.arrayBuffer());
+    assert.ok(tarball.length > 0);
+
+    await removeTagQuietly(tag);
+    const loadResponse = await fetch(`${url}/api/images/load`, {
+      method: "POST",
+      headers: { "content-type": "application/x-tar" },
+      body: tarball,
+    });
+    assert.equal(loadResponse.status, 200);
+    const loadResult = (await loadResponse.json()) as { references: string[] };
+    assert.ok(loadResult.references.includes(tag), `expected the loaded references to include ${tag}, got ${JSON.stringify(loadResult.references)}`);
+
+    const images = await fetchList(url);
+    assert.ok(images.some((image) => image.tags.includes(tag)), "the reloaded image should be back in the list");
+  } finally {
+    await removeTagQuietly(tag);
+    await close();
+  }
+});
+
+// images-endpoints.md — saving with no references is rejected with 400 before the daemon is touched
+test("GET /api/images/save with no references responds 400 without opening any daemon stream", async () => {
+  const app = buildApp();
+  const { url, close } = await startApp(app);
+  try {
+    const response = await fetch(`${url}/api/images/save`);
+    assert.equal(response.status, 400);
+    const body = (await response.json()) as { error?: string };
+    assert.ok(typeof body.error === "string" && body.error.length > 0);
+  } finally {
+    await close();
+  }
+});
+
+// images-endpoints.md — a malformed upload is rejected with the daemon's own rejection message rather than succeeding silently
+test("POST /api/images/load with a malformed tarball responds with the daemon's own rejection message", async () => {
+  const app = buildApp();
+  const { url, close } = await startApp(app);
+  try {
+    const response = await fetch(`${url}/api/images/load`, {
+      method: "POST",
+      headers: { "content-type": "application/x-tar" },
+      body: Buffer.from("not a tar file"),
+    });
+    assert.notEqual(response.status, 200);
+    const body = (await response.json()) as { error?: string };
+    assert.ok(typeof body.error === "string" && body.error.length > 0);
+  } finally {
+    await close();
+  }
+});
+

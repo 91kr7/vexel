@@ -2,6 +2,7 @@
 // version once reachability is confirmed, then prefixes every request path
 // with the negotiated version (mirrors the Docker CLI's own negotiation).
 import type { IncomingMessage } from "node:http";
+import type { Readable } from "node:stream";
 import { DockerDaemonError } from "./errors.js";
 import { hijack, requestBuffered, requestStream, type HijackedConnection } from "./http-client.js";
 import type { DockerEndpoint } from "./types.js";
@@ -44,12 +45,18 @@ export class EngineClient {
     return { statusCode: response.statusCode, body: response.body };
   }
 
-  async requestStream(path: string, options: { method?: string; headers?: Record<string, string>; body?: string } = {}): Promise<IncomingMessage> {
+  async requestStream(
+    path: string,
+    options: { method?: string; headers?: Record<string, string>; body?: string | Readable } = {},
+  ): Promise<IncomingMessage> {
     const version = await this.getVersion();
+    // A streamed (non-string) body carries its own Content-Type (e.g. a
+    // tarball upload); only a JSON string body gets the default here.
+    const headers = typeof options.body === "string" ? { "content-type": "application/json", ...options.headers } : options.headers;
     return requestStream(this.endpoint, {
       method: options.method,
       path: `/v${version.apiVersion}${path}`,
-      headers: options.body ? { "content-type": "application/json", ...options.headers } : options.headers,
+      headers,
       body: options.body,
     });
   }

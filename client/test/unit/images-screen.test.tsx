@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ImagesScreen } from '../../src/images/ImagesScreen';
 import type { ImageSummary } from '../../src/data/images-client';
@@ -130,7 +130,8 @@ describe('ImagesScreen — image list columns (plan-docker_management_app/REQ-37
     renderScreen([makeImage()]);
 
     expect(document.querySelector('.ui-data-table')).not.toBeNull();
-    expect(headerLabels()).toEqual(['', 'REPOSITORY:TAG', 'TAGS', 'DIGEST', 'PLATFORM', 'SIZE', 'CREATED', 'ACTIONS']);
+    // images-screen.md — a leading multi-select checkbox column (REQ-42) precedes the status dot column.
+    expect(headerLabels()).toEqual(['', '', 'REPOSITORY:TAG', 'TAGS', 'DIGEST', 'PLATFORM', 'SIZE', 'CREATED', 'ACTIONS']);
   });
 
   it('shows the first reference over the short id, the tags, the digest, the platform, the size and the age', () => {
@@ -189,22 +190,22 @@ describe('ImagesScreen — image list columns (plan-docker_management_app/REQ-37
   });
 });
 
-// images/specs/images-screen.md — the five per-image actions on every row,
-// always visible, without expanding it.
-describe('ImagesScreen — per-row actions (plan-docker_management_app/REQ-37)', () => {
+// images/specs/images-screen.md — the six per-image actions on every row,
+// always visible, without expanding it (REQ-42 added "save" as the fifth).
+describe('ImagesScreen — per-row actions (plan-docker_management_app/REQ-37, plan-docker_management_app/REQ-42)', () => {
   function rowActionLabels(row: HTMLElement): string[] {
     return within(row)
       .getAllByRole('button')
       .map((button) => button.textContent?.trim() ?? '');
   }
 
-  it('shows run, tag, untag, push and remove on the row without expanding it', () => {
+  it('shows run, tag, untag, push, save and remove on the row without expanding it', () => {
     renderScreen([makeImage()]);
 
-    expect(rowActionLabels(tableRows()[0]!)).toEqual(['run', 'tag', 'untag', 'push', 'remove']);
+    expect(rowActionLabels(tableRows()[0]!)).toEqual(['run', 'tag', 'untag', 'push', 'save', 'remove']);
   });
 
-  it('carries the same five actions in the same order on every row', () => {
+  it('carries the same six actions in the same order on every row', () => {
     renderScreen([
       makeImage({ id: 'image-a', tags: ['a:1'] }),
       makeImage({ id: 'image-b', tags: [] }),
@@ -212,7 +213,7 @@ describe('ImagesScreen — per-row actions (plan-docker_management_app/REQ-37)',
     ]);
 
     for (const row of tableRows()) {
-      expect(rowActionLabels(row)).toEqual(['run', 'tag', 'untag', 'push', 'remove']);
+      expect(rowActionLabels(row)).toEqual(['run', 'tag', 'untag', 'push', 'save', 'remove']);
     }
   });
 
@@ -419,5 +420,248 @@ describe('ImagesScreen — prune dangling (plan-docker_management_app/REQ-37)', 
     renderScreen([makeImage({ id: 'a', tags: ['nginx:1.27'] }), makeImage({ id: 'b', tags: [] })]);
 
     expect(screen.getByRole('button', { name: 'Prune dangling' })).toBeEnabled();
+  });
+});
+
+// Stands in for the browser's XMLHttpRequest: useFileUpload's only channel
+// for the load/import upload, so the load/import tests below drive it by
+// emitting the same events a real upload would (REQ-42, REQ-43).
+class FakeXMLHttpRequest {
+  static instances: FakeXMLHttpRequest[] = [];
+  method?: string;
+  url?: string;
+  status = 0;
+  responseText = '';
+  sentBody?: unknown;
+  aborted = false;
+  private listeners = new Map<string, Array<(event: unknown) => void>>();
+  upload = {
+    listeners: new Map<string, Array<(event: unknown) => void>>(),
+    addEventListener: (type: string, listener: (event: unknown) => void) => {
+      const existing = this.upload.listeners.get(type) ?? [];
+      existing.push(listener);
+      this.upload.listeners.set(type, existing);
+    },
+    emit: (type: string, event: unknown) => {
+      for (const listener of this.upload.listeners.get(type) ?? []) listener(event);
+    },
+  };
+
+  constructor() {
+    FakeXMLHttpRequest.instances.push(this);
+  }
+
+  open(method: string, url: string) {
+    this.method = method;
+    this.url = url;
+  }
+
+  setRequestHeader() {
+    // header values are not asserted on here
+  }
+
+  addEventListener(type: string, listener: (event: unknown) => void) {
+    const existing = this.listeners.get(type) ?? [];
+    existing.push(listener);
+    this.listeners.set(type, existing);
+  }
+
+  send(body: unknown) {
+    this.sentBody = body;
+  }
+
+  abort() {
+    this.aborted = true;
+    this.emit('abort', {});
+  }
+
+  emit(type: string, event: unknown) {
+    for (const listener of this.listeners.get(type) ?? []) listener(event);
+  }
+
+  respond(status: number, responseText: string) {
+    this.status = status;
+    this.responseText = responseText;
+    this.emit('load', {});
+  }
+}
+
+function latestUpload(): FakeXMLHttpRequest {
+  return FakeXMLHttpRequest.instances[FakeXMLHttpRequest.instances.length - 1]!;
+}
+
+function makeTarballFile(name = 'images.tar', sizeBytes = 1024): File {
+  return new File([new Uint8Array(sizeBytes)], name, { type: 'application/x-tar' });
+}
+
+// images-screen.md — a row's "save" action, and the BulkActionBar's "Save to
+// tarball…" action, immediately trigger a browser download: the browser owns
+// the transfer, so no dialog collects a target (REQ-42).
+describe('ImagesScreen — save to tarball (plan-docker_management_app/REQ-42)', () => {
+  let clickSpy: ReturnType<typeof vi.spyOn>;
+  let downloadedHrefs: string[];
+
+  beforeEach(() => {
+    downloadedHrefs = [];
+    clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      downloadedHrefs.push(this.href);
+    });
+  });
+
+  afterEach(() => {
+    clickSpy.mockRestore();
+  });
+
+  it('downloads a single image\'s tarball via the row action, with no dialog opened first', async () => {
+    const user = userEvent.setup();
+    renderScreen([makeImage({ tags: ['nginx:1.27'] })]);
+
+    await user.click(within(tableRows()[0]!).getByRole('button', { name: 'save' }));
+
+    expect(downloadedHrefs).toHaveLength(1);
+    expect(downloadedHrefs[0]).toContain('/api/images/save');
+    expect(downloadedHrefs[0]).toContain('references=nginx%3A1.27');
+    expect(downloadedHrefs[0]).toContain('filename=nginx%3A1.27.tar');
+    expect(screen.getByText('Download started')).toBeInTheDocument();
+    expect(screen.getByText('nginx:1.27.tar')).toBeInTheDocument();
+    // No form dialog collects a target: the browser owns the download.
+    expect(document.querySelector('.ui-modal')).toBeNull();
+  });
+
+  it('downloads a combined tarball for every selected image via the bulk action, then clears the selection', async () => {
+    const user = userEvent.setup();
+    renderScreen([makeImage({ id: 'image-a', tags: ['a:1'] }), makeImage({ id: 'image-b', tags: ['b:1'] })]);
+
+    await user.click(within(tableRows()[0]!).getByRole('checkbox'));
+    await user.click(within(tableRows()[1]!).getByRole('checkbox'));
+    await user.click(screen.getByRole('button', { name: 'Save to tarball…' }));
+
+    expect(downloadedHrefs[0]).toContain('references=a%3A1');
+    expect(downloadedHrefs[0]).toContain('references=b%3A1');
+    expect(downloadedHrefs[0]).toContain('filename=2-images.tar');
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Save to tarball…' })).not.toBeInTheDocument());
+  });
+});
+
+// images-screen.md — "Load tarball…" opens a FormDialog with a FilePicker
+// (no path field: the operator picks a file from their own machine), then a
+// TransferProgressDialog driven by useFileUpload shows byte progress with a
+// genuine cancel (REQ-42).
+describe('ImagesScreen — load tarball (plan-docker_management_app/REQ-42)', () => {
+  beforeEach(() => {
+    FakeXMLHttpRequest.instances = [];
+    vi.stubGlobal('XMLHttpRequest', FakeXMLHttpRequest);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('opens a dialog with a file picker and no path/location field, disabled until a file is chosen', async () => {
+    const user = userEvent.setup();
+    renderScreen([]);
+
+    await user.click(screen.getByRole('button', { name: 'Load tarball…' }));
+
+    expect(screen.getByRole('heading', { name: 'Load tarball' })).toBeInTheDocument();
+    const dialog = document.querySelector<HTMLElement>('.ui-modal')!;
+    expect(within(dialog).getByLabelText('Tarball to load')).toBeInTheDocument();
+    expect(dialog.querySelector('.ui-path-input')).toBeNull();
+    // The operator picks a file from their own machine: no text field for a server-side location.
+    expect(within(dialog).queryByRole('textbox')).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Load' })).toBeDisabled();
+  });
+
+  it('uploads the chosen file with byte progress, a working cancel, and reports the loaded references once done', async () => {
+    const user = userEvent.setup();
+    const { onRefresh } = renderScreen([]);
+    const file = makeTarballFile('images.tar', 1000);
+
+    await user.click(screen.getByRole('button', { name: 'Load tarball…' }));
+    await user.upload(screen.getByLabelText('Tarball to load'), file);
+    await user.click(screen.getByRole('button', { name: 'Load' }));
+
+    expect(latestUpload().method).toBe('POST');
+    expect(latestUpload().url).toContain('/api/images/load');
+    expect(latestUpload().sentBody).toBe(file);
+    // The dialog collecting the file closes once the upload starts.
+    expect(screen.queryByRole('heading', { name: 'Load tarball' })).not.toBeInTheDocument();
+
+    act(() => latestUpload().upload.emit('progress', { lengthComputable: true, loaded: 400, total: 1000 }));
+    expect(screen.getByText('400B / 1000B')).toBeInTheDocument();
+    expect(document.querySelector<HTMLElement>('.ui-progress-bar__fill')?.style.width).toBe('40%');
+
+    // A genuine cancel while the upload runs.
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(latestUpload().aborted).toBe(true);
+    expect(screen.queryByText(/transferred|%/)).not.toBeInTheDocument();
+
+    // Restart and let it complete.
+    await user.click(screen.getByRole('button', { name: 'Load tarball…' }));
+    await user.upload(screen.getByLabelText('Tarball to load'), file);
+    await user.click(screen.getByRole('button', { name: 'Load' }));
+    act(() => latestUpload().respond(200, JSON.stringify({ references: ['myrepo/app:1.0'] })));
+
+    expect(screen.getByText('myrepo/app:1.0')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(onRefresh).toHaveBeenCalled());
+  });
+
+  it('shows the daemon\'s own failure message when the load is refused', async () => {
+    const user = userEvent.setup();
+    renderScreen([]);
+
+    await user.click(screen.getByRole('button', { name: 'Load tarball…' }));
+    await user.upload(screen.getByLabelText('Tarball to load'), makeTarballFile());
+    await user.click(screen.getByRole('button', { name: 'Load' }));
+    await act(async () => latestUpload().respond(400, JSON.stringify({ error: 'invalid tar header' })));
+
+    expect(screen.getByText('invalid tar header')).toBeInTheDocument();
+  });
+});
+
+// images-screen.md — "Import filesystem…" opens a dialog with a FilePicker
+// and an optional target reference (a reference, not a host path), then the
+// same kind of TransferProgressDialog over the container transfer client's
+// import upload (REQ-43).
+describe('ImagesScreen — import filesystem (plan-docker_management_app/REQ-43)', () => {
+  beforeEach(() => {
+    FakeXMLHttpRequest.instances = [];
+    vi.stubGlobal('XMLHttpRequest', FakeXMLHttpRequest);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('opens a dialog with a file picker, an optional target-reference field and no path field', async () => {
+    const user = userEvent.setup();
+    renderScreen([]);
+
+    await user.click(screen.getByRole('button', { name: 'Import filesystem…' }));
+
+    expect(screen.getByRole('heading', { name: 'Import filesystem tarball' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Filesystem tarball to import')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Target reference (optional)' })).toBeInTheDocument();
+    expect(document.querySelector('.ui-path-input')).toBeNull();
+  });
+
+  it('uploads the chosen filesystem tarball to the container import endpoint with the target reference, and reports the result', async () => {
+    const user = userEvent.setup();
+    const { onRefresh } = renderScreen([]);
+
+    await user.click(screen.getByRole('button', { name: 'Import filesystem…' }));
+    await user.upload(screen.getByLabelText('Filesystem tarball to import'), makeTarballFile('rootfs.tar'));
+    await user.type(screen.getByRole('textbox', { name: 'Target reference (optional)' }), 'myrepo/imported:v1');
+    await user.click(screen.getByRole('button', { name: 'Import' }));
+
+    expect(latestUpload().url).toContain('/api/containers/import');
+    expect(latestUpload().url).toContain('targetReference=myrepo%2Fimported%3Av1');
+
+    act(() => latestUpload().respond(200, JSON.stringify({ reference: 'myrepo/imported:v1' })));
+
+    expect(screen.getByText('myrepo/imported:v1')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(onRefresh).toHaveBeenCalled());
   });
 });

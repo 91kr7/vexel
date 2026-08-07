@@ -13,7 +13,7 @@ stays smooth (REQ-109).
 ## Contract
 
 - `<DataTable columns rows rowKey rowHeight? maxHeight? selectedRowKey? onRowSelect? emptyState?
-  expandedRowKey? renderExpanded? />`
+  expandedRowKey? renderExpanded? selection? />`
   - `columns: DataTableColumn<T>[]` — `{ id, header, width?, align?, render(row) }`; `width` is a
     `grid-template-columns` track (default `'1fr'`); `align`: `'start' | 'end'` (default `'start'`).
   - `rows: T[]`, `rowKey(row): string`.
@@ -28,9 +28,14 @@ stays smooth (REQ-109).
     that row is always kept mounted (even outside the naive virtualisation window) and
     `renderExpanded(row)`'s content is inserted in normal flow directly below it (e.g. a detail
     panel), pushing the rows after it down.
+  - `selection?: { selectedKeys: string[], onToggle(row), onToggleAll?(), allSelected? }` — adds a
+    leading checkbox column, independent of `onRowSelect`'s single-row selection: a row's checkbox
+    calls `onToggle` and reflects membership in `selectedKeys`; the header checkbox calls
+    `onToggleAll` (omit to disable it) and reflects `allSelected`.
 
 ## Rules and invariants
 
+- A row's checkbox click never also triggers `onRowSelect` on that row.
 - A row's height never changes with scroll position: virtualisation swaps which rows are mounted,
   not their layout, so scrolling never recomputes the glass material (REQ-109).
 - Every column in `columns` renders in the header and in every row, in the same order and using the
