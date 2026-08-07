@@ -84,6 +84,17 @@ Not achieved — carried forward:
   to interference; the cause is not established.
 - **`local-persistence.spec.ts:18`** fails alone as well — a defect of its own, untouched here.
 
+## Certification (human decision, 2026-08-07)
+
+Certified on the server result: the API suite, which was failing intermittently and being rerun
+serially to work around it, now passes three consecutive parallel runs with zero failures, and the
+destructive prune tests can no longer delete another test's fixtures mid-assertion.
+
+Certified **knowingly short of two of its own acceptance criteria**, both recorded above rather than
+quietly dropped: the suite is not faster than the 489s baseline, and the full e2e run is not green.
+The e2e failures pre-date this batch and pass when their specs run alone; they are carried forward as
+open work, not treated as satisfied.
+
 ## Defect found in the product (not fixed here — testers do not touch source)
 
 `server/src/container-logs-service.ts`, `toUnixSeconds`: `Math.floor(parsed / 1000)` drops the
