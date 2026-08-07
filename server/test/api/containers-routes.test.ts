@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import express, { type Express } from "express";
 import type { AddressInfo } from "node:net";
 import { containersRouter } from "../../src/containers/containers-routes.js";
+import { ownershipArgs } from "../support/fixtures.js";
 import type {
   ContainerConfigUpdateResult,
   ContainerInspect,
@@ -40,6 +41,7 @@ async function createSleepingContainer(name: string, extraArgs: string[] = []): 
     "-d",
     "--name",
     name,
+    ...ownershipArgs(name),
     ...extraArgs,
     "--entrypoint",
     "sleep",
@@ -234,31 +236,6 @@ test("POST /api/containers/:id/rename rejects a blank name with 400 and leaves t
   }
 });
 
-// plan-docker_management_app/REQ-22 — stopped containers are pruned in bulk, reporting the removed count and reclaimed space.
-// This exercises the daemon's own prune semantics, which remove every currently stopped container on the host, not only
-// the one created by this test.
-test("POST /api/containers/prune removes stopped containers and reports the removed count and reclaimed space", async () => {
-  const name = `vexel-test-prune-${Date.now()}`;
-  const app = buildApp();
-  const { url, close } = await startApp(app);
-  const id = await createSleepingContainer(name);
-  try {
-    const stopResponse = await fetch(`${url}/api/containers/${id}/stop`, { method: "POST" });
-    assert.equal(stopResponse.status, 204);
-
-    const pruneResponse = await fetch(`${url}/api/containers/prune`, { method: "POST" });
-    assert.equal(pruneResponse.status, 200);
-    const body = (await pruneResponse.json()) as { removedCount: number; reclaimedBytes: number };
-    assert.ok(body.removedCount >= 1);
-    assert.ok(typeof body.reclaimedBytes === "number" && body.reclaimedBytes >= 0);
-
-    const containers = await fetchList(url);
-    assert.ok(!containers.some((container) => container.id === id));
-  } finally {
-    await removeContainerQuietly(name);
-    await close();
-  }
-});
 
 // plan-docker_management_app/REQ-24 — the detail view's inspect data carries identity, image, restart
 // policy, resource limits, environment, ports, labels, networks and state

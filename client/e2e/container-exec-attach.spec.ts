@@ -1,12 +1,13 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
+import { ownershipArgs } from './support/fixtures.js';
 
 const execFileAsync = promisify(execFile);
 
 /** An idle container: its main process sleeps, so exec sessions run independently of it. */
 async function createIdleContainer(name: string): Promise<void> {
-  await execFileAsync('docker', ['run', '-d', '--name', name, '--entrypoint', 'sh', 'postgres:16', '-c', 'sleep 300']);
+  await execFileAsync('docker', ['run', '-d', '--name', name, ...ownershipArgs(name), '--entrypoint', 'sh', 'postgres:16', '-c', 'sleep 300']);
 }
 
 /** A container whose own main process (no exec involved) keeps printing to stdout, for attach. */

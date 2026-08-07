@@ -31,7 +31,7 @@ test('reflects a real daemon change in the live event stream panel without a man
 
   const networkName = `vexel-e2e-net-${Date.now()}`;
   try {
-    await execFileAsync('docker', ['network', 'create', networkName]);
+    await execFileAsync('docker', ['network', 'create', '--label', `vexel.test.case=connectivity`, networkName]);
     await expect(page.getByText(networkName)).toBeVisible({ timeout: 10_000 });
   } finally {
     await execFileAsync('docker', ['network', 'rm', networkName]).catch(() => {});

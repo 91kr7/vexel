@@ -83,7 +83,21 @@ Run from the repository root (npm workspaces):
 - Server dev (watch mode): `npm run dev:server` (equivalent to `npm run dev -w server`)
 - Build both: `npm run build` (`tsc -b && vite build` for client, `tsc -p tsconfig.json` for server)
 - Lint client: `npm run lint` (`oxlint`, low-verbosity by default)
-- Server tests: `npm run test` (`node --test`; no test files yet)
+- Server tests: `npm run test -w server` — chains the three passes below, in this order:
+  - `npm run test:unit -w server` — pure unit tests, no daemon involved
+  - `npm run test:api -w server` — REST-level tests against the real daemon, files in parallel;
+    every fixture it creates carries the `vexel.test.run` ownership label
+  - `npm run test:exclusive -w server` — the prune tests, alone and serial: the daemon's prune acts
+    on every stopped container / dangling image on the host, so no labelling can scope them
+  - `npm run test:sweep -w server` — removes containers left behind by a killed run; scoped to the
+    ownership label, so it never touches an object the operator created. Runs automatically before
+    the two daemon-backed passes.
+- Client tests: `npx vitest run` and `npx playwright test`, both **run from `client/`**, not from the
+  repository root: `ui-conformance-check.test.ts` resolves the conformance script from
+  `process.cwd()`, so `--root client` from the root fails 8 tests that pass from the workspace. The e2e suite runs with a **single worker on purpose** — every spec drives the
+  same daemon, so concurrency turns contention into spurious timeouts at no wall-clock gain; see the
+  rationale in `client/playwright.config.ts`. Destructive specs live in `client/e2e/exclusive/` and
+  run in their own project, after the rest.
 - Server production start (after build): `npm start -w server` (`node dist/index.js`)
 
 ## Assumptions

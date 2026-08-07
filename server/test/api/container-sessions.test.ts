@@ -6,6 +6,7 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { WebSocket } from "ws";
 import { handleContainerSessionUpgrade } from "../../src/containers/container-sessions-routes.js";
+import { ownershipArgs } from "../support/fixtures.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -73,7 +74,7 @@ function startApp(): Promise<{ open: (path: string) => Promise<OpenedSession>; c
 }
 
 async function createIdleContainer(name: string): Promise<string> {
-  const { stdout } = await execFileAsync("docker", ["run", "-d", "--name", name, "--entrypoint", "sh", "postgres:16", "-c", "sleep 300"]);
+  const { stdout } = await execFileAsync("docker", ["run", "-d", "--name", name, ...ownershipArgs(name), "--entrypoint", "sh", "postgres:16", "-c", "sleep 300"]);
   return stdout.trim();
 }
 
@@ -84,6 +85,7 @@ async function createTickingContainer(name: string): Promise<string> {
     "-d",
     "--name",
     name,
+    ...ownershipArgs(name),
     "--entrypoint",
     "sh",
     "postgres:16",

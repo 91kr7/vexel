@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
+import { ownershipArgs } from './support/fixtures.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -10,7 +11,7 @@ const execFileAsync = promisify(execFile);
 const LOG_SCRIPT = 'echo hello-from-stdout; echo boom-from-stderr 1>&2; i=0; while true; do i=$((i+1)); echo tick-$i; sleep 1; done';
 
 async function createLoggingContainer(name: string): Promise<void> {
-  await execFileAsync('docker', ['run', '-d', '--name', name, '--entrypoint', 'sh', 'postgres:16', '-c', LOG_SCRIPT]);
+  await execFileAsync('docker', ['run', '-d', '--name', name, ...ownershipArgs(name), '--entrypoint', 'sh', 'postgres:16', '-c', LOG_SCRIPT]);
 }
 
 /** Prints `count` numbered lines at once, then stays alive: a log of a known, stable size. */

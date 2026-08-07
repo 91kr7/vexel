@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import express, { type Express } from "express";
 import type { AddressInfo } from "node:net";
 import { containersRouter } from "../../src/containers/containers-routes.js";
+import { ownershipArgs } from "../support/fixtures.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -44,7 +45,7 @@ function startApp(): Promise<{ url: string; close: () => Promise<void> }> {
 // A tiny, already-cached image whose entrypoint is overridden to `sh` so the
 // container starts instantly, prints known output and then stays alive.
 async function createLoggingContainer(name: string, script: string): Promise<string> {
-  const { stdout } = await execFileAsync("docker", ["run", "-d", "--name", name, "--entrypoint", "sh", "postgres:16", "-c", script]);
+  const { stdout } = await execFileAsync("docker", ["run", "-d", "--name", name, ...ownershipArgs(name), "--entrypoint", "sh", "postgres:16", "-c", script]);
   return stdout.trim();
 }
 
@@ -64,6 +65,35 @@ async function waitForOutput(name: string, needle: string, timeoutMs = 20_000): 
     if (Date.now() > deadline) throw new Error(`container ${name} never printed ${needle}`);
     await delay(200);
   }
+}
+
+/**
+ * An ISO-8601 instant falling on a whole second strictly between the two lines,
+ * taken from the timestamps the daemon recorded.
+ *
+ * Two properties matter. Reading the bound from the log instead of from the
+ * test's own clock keeps it independent of when the test happens to look. Landing
+ * it on a whole second keeps it independent of sub-second precision, which the
+ * requirement does not speak about: the fixture leaves several seconds between
+ * its two lines so that such an instant always exists.
+ */
+async function instantBetween(name: string, before: string, after: string): Promise<string> {
+  const { stdout } = await execFileAsync("docker", ["logs", "--timestamps", name]);
+  const stamp = (needle: string): number => {
+    const line = stdout.split("\n").find((candidate) => candidate.includes(needle));
+    assert.ok(line, `expected ${needle} in the recorded log`);
+    const instant = Date.parse(line!.split(" ")[0]!);
+    assert.ok(!Number.isNaN(instant), `unreadable timestamp on the ${needle} entry`);
+    return instant;
+  };
+  const start = stamp(before);
+  const end = stamp(after);
+  const boundary = (Math.floor(start / 1000) + 1) * 1000;
+  assert.ok(
+    boundary > start && boundary < end,
+    "the fixture must leave a whole second strictly between its two lines",
+  );
+  return new Date(boundary).toISOString();
 }
 
 /** Reads the SSE response until a terminating event arrives or the budget runs out. */
@@ -205,15 +235,22 @@ test("GET /api/containers/:id/logs/stream with tail=1 delivers only the last lin
   }
 });
 
-// plan-docker_management_app/REQ-30 — a since/until time filter bounds the output
-test("GET /api/containers/:id/logs/stream with a relative since bound drops the output printed before it", async () => {
+// plan-docker_management_app/REQ-30 — a since/until time filter bounds the output.
+// The bound is an ISO-8601 instant (container-logs-endpoint.md accepts either that or a relative
+// duration) read back from the timestamps the daemon itself recorded, never from the test's own
+// clock: a wall-clock reading races the polling that precedes it, and a relative window races
+// however long the fixture took to reach the request.
+test("GET /api/containers/:id/logs/stream with a since bound drops the output printed before it", async () => {
   const name = `vexel-test-logs-since-${Date.now()}`;
   const { url, close } = await startApp();
-  const id = await createLoggingContainer(name, "echo early-line; sleep 6; echo late-line; sleep 300");
+  const id = await createLoggingContainer(name, "echo early-line; sleep 3; echo late-line; sleep 300");
   try {
     await waitForOutput(name, "late-line", 30_000);
+    const boundary = await instantBetween(name, "early-line", "late-line");
 
-    const response = await fetch(`${url}/api/containers/${id}/logs/stream?follow=false&since=3s`);
+    const response = await fetch(
+      `${url}/api/containers/${id}/logs/stream?follow=false&since=${encodeURIComponent(boundary)}`,
+    );
     const lines = linesOf(await readEvents(response, { until: ["end", "error"] }));
 
     assert.ok(
@@ -223,6 +260,29 @@ test("GET /api/containers/:id/logs/stream with a relative since bound drops the 
     assert.ok(
       !lines.some((line) => line.text.includes("early-line")),
       "the line printed before the bound must be dropped",
+    );
+  } finally {
+    await removeContainerQuietly(name);
+    await close();
+  }
+});
+
+// plan-docker_management_app/REQ-30 — the relative-duration form of the bound is accepted too
+// (container-logs-endpoint.md). A window wide enough to contain the whole fixture keeps the
+// assertion about the parsing, not about the clock.
+test("GET /api/containers/:id/logs/stream accepts a relative since bound", async () => {
+  const name = `vexel-test-logs-since-relative-${Date.now()}`;
+  const { url, close } = await startApp();
+  const id = await createLoggingContainer(name, "echo relative-line; sleep 300");
+  try {
+    await waitForOutput(name, "relative-line", 30_000);
+
+    const response = await fetch(`${url}/api/containers/${id}/logs/stream?follow=false&since=1h`);
+    const lines = linesOf(await readEvents(response, { until: ["end", "error"] }));
+
+    assert.ok(
+      lines.some((line) => line.text.includes("relative-line")),
+      "a window wide enough must keep the output it contains",
     );
   } finally {
     await removeContainerQuietly(name);

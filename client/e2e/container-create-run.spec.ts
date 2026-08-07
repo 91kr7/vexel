@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
+import { ownershipArgs } from './support/fixtures.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -124,7 +125,7 @@ test('shows the pull progress and, on a daemon refusal, its own message with eve
   test.setTimeout(120_000);
   const takenName = `vexel-e2e-taken-${Date.now()}`;
   try {
-    await execFileAsync('docker', ['create', '--name', takenName, '--entrypoint', 'sleep', 'postgres:16', '300']);
+    await execFileAsync('docker', ['create', '--name', takenName, ...ownershipArgs(takenName), '--entrypoint', 'sleep', 'postgres:16', '300']);
     await removeHelloWorldImage();
 
     await page.getByRole('button', { name: 'Run container…' }).click();

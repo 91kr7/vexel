@@ -292,35 +292,3 @@ test("DELETE /api/images/:id force-removes the image so it no longer appears in 
   }
 });
 
-// plan-docker_management_app/REQ-39 — dangling images can be pruned, reporting the space reclaimed. This exercises the
-// daemon's own prune semantics, which remove every currently dangling image on the host, not only the one set up here.
-test("POST /api/images/prune removes dangling images and reports the reclaimed space", async () => {
-  const app = buildApp();
-  const { url, close } = await startApp(app);
-  const containerName = `vexel-test-prune-src-${Date.now()}`;
-  const danglingTag = `vexel-test-prune-dangling-${Date.now()}:v1`;
-  await execFileAsync("docker", ["create", "--name", containerName, "hello-world"]);
-  const { stdout: firstId } = await execFileAsync("docker", ["commit", "--change", "LABEL step=1", containerName, danglingTag]);
-  await new Promise((resolve) => setTimeout(resolve, 1100)); // ensure a different image config timestamp
-  await execFileAsync("docker", ["commit", "--change", "LABEL step=2", containerName, danglingTag]);
-  try {
-    const beforeImages = await fetchList(url);
-    assert.ok(
-      beforeImages.some((image) => image.id === firstId.trim() && image.tags.length === 0),
-      "the superseded image should be dangling before pruning",
-    );
-
-    const response = await fetch(`${url}/api/images/prune`, { method: "POST" });
-    assert.equal(response.status, 200);
-    const body = (await response.json()) as { removedCount: number; reclaimedBytes: number };
-    assert.ok(body.removedCount >= 1);
-    assert.ok(typeof body.reclaimedBytes === "number" && body.reclaimedBytes >= 0);
-
-    const afterImages = await fetchList(url);
-    assert.ok(!afterImages.some((image) => image.id === firstId.trim()), "the pruned dangling image should be gone");
-  } finally {
-    await execFileAsync("docker", ["rm", "-f", containerName]).catch(() => undefined);
-    await removeTagQuietly(danglingTag);
-    await close();
-  }
-});

@@ -1,13 +1,14 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
+import { ownershipArgs } from './support/fixtures.js';
 
 const execFileAsync = promisify(execFile);
 
 // A tiny, already-cached image whose entrypoint is overridden to `sleep` so the
 // container starts instantly and needs no network pull or app init.
 async function createSleepingContainer(name: string, extraArgs: string[] = []): Promise<void> {
-  await execFileAsync('docker', ['run', '-d', '--name', name, ...extraArgs, '--entrypoint', 'sleep', 'postgres:16', '300']);
+  await execFileAsync('docker', ['run', '-d', '--name', name, ...ownershipArgs(name), ...extraArgs, '--entrypoint', 'sleep', 'postgres:16', '300']);
 }
 
 async function removeContainerQuietly(name: string): Promise<void> {
@@ -111,29 +112,6 @@ test('renaming a container replaces the name cell and the new name is reflected 
   }
 });
 
-// plan-docker_management_app/REQ-22 — stopped containers are pruned in one bulk action, reporting the removed count and reclaimed space
-test('pruning stopped containers removes them from the list and reports the outcome', async ({ page }) => {
-  const name = `vexel-e2e-prune-${Date.now()}`;
-  try {
-    await createSleepingContainer(name);
-    const row = containerRow(page, name);
-    await expect(row).toBeVisible({ timeout: 15_000 });
-    await row.getByRole('button', { name: 'stop' }).click();
-    await expect(row).toContainText('exited', { timeout: 10_000 });
-
-    const pruneButton = page.getByRole('button', { name: 'Prune stopped' });
-    await expect(pruneButton).toBeEnabled();
-    await pruneButton.click();
-    await expect(page.getByRole('heading', { name: /^Confirm:/ })).toBeVisible();
-    const confirmButtons = page.getByRole('button', { name: 'Prune stopped' });
-    await confirmButtons.last().click();
-
-    await expect(containerRow(page, name)).toHaveCount(0, { timeout: 10_000 });
-    await expect(page.getByText(/removed/i)).toBeVisible();
-  } finally {
-    await removeContainerQuietly(name);
-  }
-});
 
 // plan-docker_management_app/REQ-23 — the container list can be text-searched by name
 test('searching narrows the list to containers whose name matches the search text', async ({ page }) => {

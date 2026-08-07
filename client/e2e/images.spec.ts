@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
+import { ownershipArgs } from './support/fixtures.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -19,7 +20,7 @@ async function removeTagQuietly(tag: string): Promise<void> {
 
 /** A standalone single-tag image (its own id, unrelated to any other locally tagged image). */
 async function createStandaloneImage(tag: string, containerName: string): Promise<void> {
-  await execFileAsync('docker', ['create', '--name', containerName, 'hello-world']);
+  await execFileAsync('docker', ['create', '--name', containerName, ...ownershipArgs(containerName), 'hello-world']);
   await execFileAsync('docker', ['commit', containerName, tag]);
 }
 
@@ -55,7 +56,7 @@ const PUSH_REGISTRY_PORT = 5082;
 let pushRegistryContainerId = '';
 
 test.beforeAll(async () => {
-  const { stdout } = await execFileAsync('docker', ['run', '-d', '-p', `${PUSH_REGISTRY_PORT}:5000`, 'registry:2']);
+  const { stdout } = await execFileAsync('docker', ['run', '-d', '-p', `${PUSH_REGISTRY_PORT}:5000`, ...ownershipArgs('registry'), 'registry:2']);
   pushRegistryContainerId = stdout.trim();
   const deadline = Date.now() + 15_000;
   for (;;) {
@@ -243,7 +244,7 @@ test('untagging a single-tag image drops its reference straight away', async ({ 
 test('marks a dangling image with a dangling badge and disables its untag and push actions', async ({ page }) => {
   const containerName = `vexel-e2e-dangling-src-${Date.now()}`;
   const tag = `vexel-e2e-dangling-${Date.now()}:v1`;
-  await execFileAsync('docker', ['create', '--name', containerName, 'hello-world']);
+  await execFileAsync('docker', ['create', '--name', containerName, ...ownershipArgs(containerName), 'hello-world']);
   const { stdout: firstId } = await execFileAsync('docker', ['commit', '--change', 'LABEL step=1', containerName, tag]);
   await new Promise((resolve) => setTimeout(resolve, 1100));
   await execFileAsync('docker', ['commit', '--change', 'LABEL step=2', containerName, tag]);
@@ -291,38 +292,12 @@ test('removing an image asks for confirmation, does nothing on cancel and remove
   }
 });
 
-// plan-docker_management_app/REQ-39 — dangling images can be pruned in one bulk action, reporting the removed count and reclaimed space
-test('pruning dangling images removes them and reports the outcome', async ({ page }) => {
-  const containerName = `vexel-e2e-prune-src-${Date.now()}`;
-  const danglingTag = `vexel-e2e-prune-dangling-${Date.now()}:v1`;
-  await execFileAsync('docker', ['create', '--name', containerName, 'hello-world']);
-  const { stdout: firstId } = await execFileAsync('docker', ['commit', '--change', 'LABEL step=1', containerName, danglingTag]);
-  await new Promise((resolve) => setTimeout(resolve, 1100));
-  await execFileAsync('docker', ['commit', '--change', 'LABEL step=2', containerName, danglingTag]);
-  try {
-    await page.reload();
-    await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible();
-
-    const pruneButton = page.getByRole('button', { name: 'Prune dangling' });
-    await expect(pruneButton).toBeEnabled({ timeout: 10_000 });
-    await pruneButton.click();
-    await expect(page.getByRole('heading', { name: 'Confirm: dangling images' })).toBeVisible();
-    await page.getByRole('button', { name: 'Prune dangling' }).last().click();
-
-    await expect(page.locator('.ui-toast-viewport')).toContainText(/removed/i, { timeout: 15_000 });
-    await searchField(page).fill(firstId.trim().slice(7, 19));
-    await expect(page.locator('.ui-data-table__row')).toHaveCount(0);
-  } finally {
-    await execFileAsync('docker', ['rm', '-f', containerName]).catch(() => undefined);
-    await removeTagQuietly(danglingTag);
-  }
-});
 
 // plan-docker_management_app/REQ-40 — an image's inspect data (config, env, labels, exposed ports, digest, history) is viewable
 test('selecting an image expands its detail panel with structured inspect data and the raw payload', async ({ page }) => {
   const containerName = `vexel-e2e-inspect-src-${Date.now()}`;
   const tag = `vexel-e2e-inspect-${Date.now()}:v1`;
-  await execFileAsync('docker', ['create', '--name', containerName, 'hello-world']);
+  await execFileAsync('docker', ['create', '--name', containerName, ...ownershipArgs(containerName), 'hello-world']);
   await execFileAsync('docker', ['commit', '--change', 'LABEL team=vexel', '--change', 'EXPOSE 9999/tcp', containerName, tag]);
   try {
     await page.reload();
@@ -354,7 +329,7 @@ test('the images table and the containers table present with the same header, ty
   const containerName = `vexel-e2e-homogeneity-${Date.now()}`;
   const tag = `vexel-e2e-homogeneity-${Date.now()}:v1`;
   try {
-    await execFileAsync('docker', ['run', '-d', '--name', containerName, '--entrypoint', 'sleep', 'postgres:16', '300']);
+    await execFileAsync('docker', ['run', '-d', '--name', containerName, ...ownershipArgs(containerName), '--entrypoint', 'sleep', 'postgres:16', '300']);
     await tagFromPostgres(tag);
 
     const measure = async () => {

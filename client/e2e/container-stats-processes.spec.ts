@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
+import { ownershipArgs } from './support/fixtures.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -22,6 +23,7 @@ async function createBusyContainer(name: string): Promise<void> {
     '-d',
     '--name',
     name,
+    ...ownershipArgs(name),
     '--memory',
     '512m',
     '--entrypoint',

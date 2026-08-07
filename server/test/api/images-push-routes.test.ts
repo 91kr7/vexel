@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import express, { type Express } from "express";
 import type { AddressInfo } from "node:net";
 import { imagesRouter } from "../../src/images/images-routes.js";
+import { ownershipArgs } from "../support/fixtures.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -75,7 +76,7 @@ const TEST_REGISTRY_PORT = 5081;
 let registryContainerId = "";
 
 before(async () => {
-  const { stdout } = await execFileAsync("docker", ["run", "-d", "-p", `${TEST_REGISTRY_PORT}:5000`, "registry:2"]);
+  const { stdout } = await execFileAsync("docker", ["run", "-d", "-p", `${TEST_REGISTRY_PORT}:5000`, ...ownershipArgs("push-registry"), "registry:2"]);
   registryContainerId = stdout.trim();
   const deadline = Date.now() + 15_000;
   for (;;) {

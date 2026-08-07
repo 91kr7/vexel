@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import express, { type Express } from "express";
 import type { AddressInfo } from "node:net";
 import { containersRouter } from "../../src/containers/containers-routes.js";
+import { ownershipArgs } from "../support/fixtures.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -64,6 +65,7 @@ async function createBusyContainer(name: string): Promise<string> {
     "-d",
     "--name",
     name,
+    ...ownershipArgs(name),
     "--memory",
     "512m",
     "--entrypoint",
