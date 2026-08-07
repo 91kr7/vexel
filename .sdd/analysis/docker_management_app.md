@@ -82,8 +82,11 @@ escape-hatch raw-command/API console for the long tail of rare flags.
   restart policies, resource limits, environment variables, port mappings, volume mounts and
   health checks; view and manage container processes.
 - **Image management**: list, inspect (including layer history), pull, push, tag, remove, prune;
-  build images from a Dockerfile or build context with full build-argument, target, platform and
-  cache configuration; inspect an image's layer stack, per-layer size and metadata; export/import
+  ~~build images from a Dockerfile or build context with full build-argument, target, platform and
+  cache configuration~~ — **withdrawn 2026-08-07 by human decision: the application does not build
+  images; the capability stays reachable through the raw console. See "Departures from the spec" in
+  `.sdd/plans/plan-docker_management_app/batches.md`**; inspect an image's layer stack, per-layer
+  size and metadata; export/import
   and save/load images as tarballs; view and act on vulnerability/health recommendations (Docker
   Scout-equivalent surface) where available.
 - **Volume management**: list, inspect, create, remove, prune; browse/manage the association
@@ -97,8 +100,9 @@ escape-hatch raw-command/API console for the long tail of rare flags.
   tasks, stacks and secrets/configs in swarm mode, for users who operate clustered Docker.
 - **Registry interaction**: log in/out of registries, browse repositories and tags reachable from
   configured registries, manage credentials.
-- **Build system (BuildKit/buildx) management**: manage builders/build instances, multi-platform
-  builds, build cache import/export, and inspect build cache usage.
+- **Build system (BuildKit/buildx) management**: manage builders/build instances, ~~multi-platform
+  builds~~ (**withdrawn 2026-08-07 with image building — same decision as above**), build cache
+  import/export, and inspect build cache usage.
 - **Context and daemon management**: list, create, switch between and remove Docker contexts
   (local, remote-over-SSH, remote-over-TCP); view daemon-level information (version, storage
   driver, root directory, resource totals) and system-wide disk usage; run system prune operations

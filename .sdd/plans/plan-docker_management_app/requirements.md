@@ -116,13 +116,24 @@ Visual reference: `.sdd/analysis/ui-mock/` constrains look, layout and interacti
 | REQ-42 | One or more images can be saved to a tarball, and images can be loaded back from a tarball, with progress and the resulting references reported. |
 | REQ-43 | A container's filesystem can be exported to a tarball, and an image can be imported from a filesystem tarball with an optional target reference and config changes. |
 
-## F12 — Image build from Dockerfile
+## F12 — Image build from Dockerfile — **withdrawn (human decision, 2026-08-07)**
 
-| ID | Requirement |
-| --- | --- |
-| REQ-44 | An image can be built from a chosen build context and Dockerfile with build arguments, target stage, platform(s), tags, labels and cache options (cache-from, cache-to, no-cache). |
-| REQ-45 | The build output is streamed live while the build runs, showing each step, whether it was cached or executed, warnings and errors, and reporting the resulting image reference on success. |
-| REQ-46 | A running build can be cancelled, and the cancellation is reported. |
+REQ-44, REQ-45 and REQ-46 are withdrawn: the application does not build images. Two reasons, both
+given by the human owner:
+
+1. **Scope** — creating images is judged beyond what this product should do; it manages an existing
+   Docker installation rather than producing artefacts for it.
+2. **Deployment reality** — a build takes an operator-typed build context and Dockerfile *on the
+   filesystem of the machine running the server*. Vexel is expected to be able to run on a remote
+   host, where the operator has no knowledge of, and no reasonable way to discover, that
+   filesystem. The requirement is therefore not merely out of scope but ill-posed for the intended
+   deployment.
+
+Image building remains reachable through the raw command console (F28), which runs `docker build`
+against the active context and streams its output — the same treatment the spec already gives
+Docker Scout. The coverage matrix (F29) declares image building as **console-only**.
+
+The REQ numbers 44 to 46 are retired and never reused.
 
 ## F13 — Layer stack and per-layer changesets
 
@@ -226,7 +237,7 @@ Visual reference: `.sdd/analysis/ui-mock/` constrains look, layout and interacti
 | --- | --- |
 | REQ-88 | buildx builders are listed with name, driver, endpoint, supported platforms, status and cache size; the builder currently in use is identified and another one can be selected as the active builder. |
 | REQ-89 | A builder can be created (name, driver, endpoint, platforms) and removed. |
-| REQ-90 | A multi-platform build can be configured and launched on the selected builder (context, Dockerfile, target stage, platforms, build args, cache from/to, output/push) with its output streamed live. |
+| ~~REQ-90~~ | *Withdrawn (human decision, 2026-08-07) — launching a multi-platform build is image creation, the same capability withdrawn with F12; it goes with it. The builders themselves (REQ-88, REQ-89) and their cache (REQ-91) are unaffected: the cache grows whenever the operator builds from a terminal, and `docker system prune` does not reclaim it, so listing and pruning it stays valuable. Number retired, never reused.* |
 | REQ-91 | The build cache is listed record by record with id, type, size and usage state (in use, shared, reclaimable), and can be pruned, exported and imported, reporting the space reclaimed or transferred. |
 
 ## F25 — Contexts and daemon information
@@ -278,7 +289,7 @@ Visual reference: `.sdd/analysis/ui-mock/` constrains look, layout and interacti
 | REQ-113 | The result of an image extraction/layer analysis is kept across application restarts and reused when the same image content is inspected again instead of being recomputed, is invalidated when the image content changes, and its total size is shown and can be cleared by the operator. |
 | REQ-114 | The raw console's command history survives application restarts. |
 | REQ-115 | Operator UI preferences (last screen, list filters, log follow/timestamps toggles, selected context) survive application restarts. |
-| REQ-116 | Every host path supplied by the operator (build context, Dockerfile, compose file, tarball source/target, export destination) is validated before use — existence, kind, accessibility, and absence of traversal outside the allowed root — and is refused with the reason stated when it does not qualify. |
+| REQ-116 | Every host path supplied by the operator (compose file, tarball source/target, export destination) is validated before use — existence, kind, accessibility, and absence of traversal outside the allowed root — and is refused with the reason stated when it does not qualify. Paths are resolved on the machine running the server, which is not necessarily the operator's machine; the refusal message says so when the path does not exist. |
 
 ## Assumptions carried by these requirements
 

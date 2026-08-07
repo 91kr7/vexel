@@ -27,8 +27,8 @@ leave a coherent product.
 | 8 · container-exec-attach | F9 — Container exec and attach | REQ-34, REQ-35, REQ-36 | 4 | certified | An interactive shell can be opened in a running container with a chosen command, user and working directory; typing reaches the process, output renders, resizing the window reflows the terminal; stdio of a container can be attached and detached without stopping it; leaving the view leaves no exec/attach session alive on the daemon. |
 | 9 · images-core | F10 — Image list and registry-facing actions | REQ-37, REQ-38, REQ-39, REQ-40, REQ-41 | 1, 2 | certified | The Images & layers screen matches the mockup; pulling a reference shows per-layer progress until done; tag, untag, push, remove and prune dangling work with confirmation on the destructive ones; inspect shows config/env/labels/ports/digest/history; search filters by reference or digest. |
 | 10 · container-create-run | F6 — Container creation and run | REQ-27, REQ-28, REQ-29 | 4, 9 | certified | "Run container…" and "Create from image…" open a form covering name, command, env, ports, volumes, networks, restart policy, limits, labels and privileges; the image can be picked from local images or typed and is pulled when missing, with progress; a daemon rejection is shown with its own message and the entered values are preserved. |
-| 11 · image-build | F12 — Image build from Dockerfile | REQ-44, REQ-45, REQ-46, REQ-116 | 3, 9 | todo | A build from a typed context path and Dockerfile with build args, target, platforms, tags and cache options streams its steps live showing cached vs executed, ends by naming the produced image, and can be cancelled mid-run; a non-existent, unreadable or traversing path is refused with the reason before anything runs. |
-| 12 · image-transport | F11 — Image transport (save/load, export/import) | REQ-42, REQ-43 | 3, 9 | todo | Saving selected images produces a tarball at the given path with progress; loading that tarball back restores the images and reports their references; a container's filesystem exports to a tarball and can be imported back as an image under a chosen reference. |
+| ~~11 · image-build~~ | *Withdrawn 2026-08-07 — see "Departures from the spec". Number retired.* | — | — | withdrawn | — |
+| 12 · image-transport | F11 — Image transport (save/load, export/import) | REQ-42, REQ-43, REQ-116 | 3, 9 | todo | Saving selected images produces a tarball at the given path with progress; loading that tarball back restores the images and reports their references; a container's filesystem exports to a tarball and can be imported back as an image under a chosen reference; a non-existent, unreadable, wrong-kind or traversing path is refused with the reason before anything runs, and the refusal makes clear the path is resolved on the server's machine. |
 | 13 · layer-stack-changesets | F13 — Layer stack and per-layer changesets | REQ-47, REQ-48, REQ-49, REQ-50, REQ-51 | 3, 9 | todo | An image shows its ordered layer stack with digest, compressed/uncompressed size, empty-layer flag and originating instruction with full command text; a registry-pulled image (not built locally) still shows every layer, with genuinely missing data marked unavailable rather than hidden; selecting a layer lists exactly what that layer added, modified and deleted, with a file deleted by a later layer reported as deleted (whiteout) and an opaque directory handled; layers shared with other images are marked with those images; a multi-GB image warns about cost first and shows cancellable progress. |
 | 14 · image-filesystem-browser | F14 — Runtime-independent image filesystem browser | REQ-52, REQ-53, REQ-54, REQ-55, REQ-56, REQ-57, REQ-113 | 3, 9, 13 | todo | Browsing the filesystem of a distroless image (no shell) yields the same complete merged tree as for a normal image; during and after the operation `docker ps -a` shows no leftover container, including when the operation is cancelled or fails mid-way; the source image digest and tags are unchanged and no container was started; a large image warns about time/disk first and shows cancellable progress; re-opening the same image after restarting the app reuses the cached analysis instead of re-extracting, and the cache size is visible and clearable. |
 | 15 · in-tree-file-operations | F15 — In-tree file operations | REQ-58, REQ-59, REQ-60, REQ-61, REQ-62 | 14 | todo | Selecting an entry shows size, permissions, uid/gid, mtime, type and symlink target; a text file previews as text and a binary as hex, the mode can be forced, and an oversized file is truncated with a notice; searching finds binaries/libraries/CA bundles in place; a file downloads through the browser and a subtree exports to a typed host path; an image containing a symlink or `../` pointing outside the tree cannot cause a write outside the chosen destination and the refusal is explained. |
@@ -37,7 +37,7 @@ leave a coherent product.
 | 18 · volumes | F19 — Volumes | REQ-70, REQ-71 | 1, 2 | todo | The Volumes panel matches the mockup: name, driver, mountpoint, size and mounting containers, with unattached volumes visible; creating a volume with driver options and labels works, inspect shows the full payload, remove and prune confirm and report the space reclaimed. |
 | 19 · networks | F20 — Networks | REQ-72, REQ-73, REQ-74 | 1, 2, 18 | todo | The Networks panel matches the mockup: name, driver, scope, subnet/gateway and attached containers as chips; creating a network with subnet/gateway/options works, inspect shows the full payload, remove and prune confirm; attaching and detaching a container updates the chips and is visible in `docker network inspect`. |
 | 20 · compose | F21 — Compose | REQ-75, REQ-76, REQ-77, REQ-78 | 2, 3, 4 | todo | Compose projects are discovered with their file path and per-service state; up, down, restart and per-service scaling work and the states follow; the compose file is shown, can be edited and — after confirmation — is written back to disk, and validation reports valid/invalid with errors plus the services/volumes/networks summary; aggregated logs stream live with the service name on each line. |
-| 21 · builders-build-cache | F24 — Builders and build cache | REQ-88, REQ-89, REQ-90, REQ-91 | 2, 11 | todo | The Builders & cache screen matches the mockup: builders with driver, endpoint, platforms, status and cache size, the active one marked and switchable; creating and removing a builder works; a multi-platform build runs on the selected builder with live output and the configured output/push; the cache is listed record by record with type, size and usage state and can be pruned, exported and imported with the space reported. |
+| 21 · builders-build-cache | F24 — Builders and build cache | REQ-88, REQ-89, REQ-91 | 2 | todo | The Builders & cache screen matches the mockup: builders with driver, endpoint, platforms, status and cache size, the active one marked and switchable; creating and removing a builder works; the cache is listed record by record with type, size and usage state and can be pruned, exported and imported with the space reported. The screen carries no build-launch affordance: after the withdrawal of REQ-90 the screen observes builders and their cache, it does not run builds. |
 | 22 · layer-build-cache-traceability | F18 — Layer to build-cache traceability | REQ-68, REQ-69 | 13, 21 | todo | From a layer of a locally built image, the build step and the cache entry behind it can be reached in one move; for a registry-pulled image where the association does not exist, the reason is stated instead of an empty panel; from a cache entry, the images/layers it relates to can be reached when known. |
 | 23 · contexts-daemon | F25 — Contexts and daemon information | REQ-92, REQ-93, REQ-94 | 2 | todo | The Contexts screen matches the mockup; creating a local/SSH/TCP+TLS context works, selecting one re-points every screen at that daemon and updates the footer, removing one confirms; the daemon panel reports version, Engine API, BuildKit, storage driver, cgroup driver, OS/arch, root directory and container counts. |
 | 24 · system-prune | F26 — System disk usage and prune | REQ-95, REQ-96, REQ-97 | 2, 9, 18, 19, 21 | todo | The System & prune screen matches the mockup with the five reclaimable categories, their sizes and what they contain; pruning one category and running a scoped system prune both confirm, state that the daemon is shared with other tools, and report the space actually reclaimed, after which the breakdown refreshes. |
@@ -87,7 +87,55 @@ leave a coherent product.
 
 ## Departures from the spec
 
-**One, decided post-certification of batch 1 (human decision, 2026-08-06): the shell chrome floats
+**One — the only capability the spec asks for that this product will not deliver (human decision,
+2026-08-07): Vexel does not build images.** F12 (REQ-44, REQ-45, REQ-46) is withdrawn and batch 11
+retired; REQ-90 (launching a multi-platform build from the Builders screen) goes with it, being the
+same capability under another name. Two reasons were given:
+
+1. **Scope** — creating images is beyond what this product should do. Vexel manages an existing
+   Docker installation; it does not produce artefacts for it.
+2. **Deployment reality, and the stronger of the two** — a build needs an operator-typed build
+   context and Dockerfile resolved *on the filesystem of the machine running the server*. Vexel is
+   expected to be able to run on a remote host, where the operator neither knows that filesystem nor
+   has any way to browse it. The requirement is not merely out of scope, it is ill-posed for the
+   intended deployment.
+
+This is a genuine reduction of the spec's scope, not a sharpening of it, which is why it is recorded
+here rather than in `requirements.md` alone. What it costs and what it does not:
+
+- **Image building leaves the dedicated-screen surface entirely** and stays reachable through the
+  raw command console (F28), which runs `docker build` against the active context and streams its
+  output. This is exactly the treatment the spec already chose for Docker Scout. Batch 30's coverage
+  matrix declares image building **console-only** — one data entry in its coverage map (INT-2), no
+  structural change to that batch.
+- **Batch 21 survives nearly intact.** REQ-88 (list builders, switch the active one), REQ-89 (create
+  and remove a builder) and REQ-91 (cache inventory, prune, export/import) never needed batch 11;
+  only REQ-90 did. Batch 21's dependency drops from `2, 11` to `2`, and its INT-3 is deleted. The
+  cache half keeps its full value independently of this decision: a build cache grows whenever the
+  operator builds from a terminal, and `docker system prune` does not reclaim a `docker-container`
+  builder's cache — only `docker buildx prune` does. Making that visible and reclaimable is a real
+  contribution of the product.
+- **Nothing else in the plan depended on batch 11.** Batches 22, 24 and 25 depend on batch 21, for
+  its builder and cache parts, not for build execution. No other batch referenced it.
+- **REQ-116 moves.** It closed in batch 11 as the first operator-typed host path; it now closes in
+  batch 12 (tarball source/target), the first surviving one, and is still exercised by batches 15
+  and 20. The validation service itself was built in batch 3 and is unaffected. Its wording lost
+  "build context, Dockerfile" and gained the statement that paths resolve on the server's machine —
+  the same remote-deployment concern that motivated the withdrawal.
+- **One shipped artefact must be removed**: batch 9 left a disabled "Build from Dockerfile…"
+  secondary action on the Images screen toolbar as a placeholder for batch 11. It has no future and
+  is deleted, along with its line in `images-screen.md`.
+
+REQ-44, REQ-45, REQ-46 and REQ-90 are retired numbers and are never reused.
+
+**A related question is deliberately left open.** The remote-deployment argument that killed F12
+applies, less fatally, to every remaining operator-typed host path: the tarball source and target of
+batch 12, the export destination of batch 15, the compose file path of batch 20, and the cache
+export/import of batch 21. Those requirements survive because unlike a Dockerfile the operator often
+does control those paths, or is willing to type one on the server. They have not been re-examined
+here, and doing so is a separate decision.
+
+**Two, decided post-certification of batch 1 (human decision, 2026-08-06): the shell chrome floats
 instead of being docked.** The mockups in `.sdd/analysis/ui-mock/` show the navigation rail and the
 header flush to the viewport edges, with only the content cards floating. The implemented shell
 insets the whole layout by `--space-5` and separates rail / header / content by the same gap, so
@@ -109,7 +157,13 @@ All other human decisions taken during validation (both CLI and API channels, fu
 management, compose write-back, local persistence, product name "Vexel — Docker Control", static
 pre-blurred backdrop with no runtime blur) either sharpen the spec or concern implementation
 constraints the spec left open; they are recorded in `requirements.md` (REQ-104, REQ-110 to REQ-116,
-REQ-107 to REQ-109) and in the assumptions above. The spec file needs no correction.
+REQ-107 to REQ-109) and in the assumptions above. Those need no correction to the spec file.
+
+**The first departure above does.** `.sdd/analysis/docker_management_app.md` lists image building
+twice in its functional scope — under "Image management" and under "Build system (BuildKit/buildx)
+management" — and both places are annotated on the spot with the withdrawal, pointing here. The
+analysis is otherwise left as written: it is the record of what the analysis phase concluded, not a
+live specification, and rewriting its conclusions after the fact would destroy that record.
 
 ## Coverage check
 
@@ -128,8 +182,8 @@ batch):
 | 8 container-exec-attach | 34–36 |
 | 9 images-core | 37–41 |
 | 10 container-create-run | 27–29 |
-| 11 image-build | 44–46, 116 |
-| 12 image-transport | 42, 43 |
+| ~~11 image-build~~ | *withdrawn — 44–46 retired* |
+| 12 image-transport | 42, 43, 116 |
 | 13 layer-stack-changesets | 47–51 |
 | 14 image-filesystem-browser | 52–57, 113 |
 | 15 in-tree-file-operations | 58–62 |
@@ -138,7 +192,7 @@ batch):
 | 18 volumes | 70, 71 |
 | 19 networks | 72–74 |
 | 20 compose | 75–78 |
-| 21 builders-build-cache | 88–91 |
+| 21 builders-build-cache | 88, 89, 91 (90 retired) |
 | 22 layer-build-cache-traceability | 68, 69 |
 | 23 contexts-daemon | 92–94 |
 | 24 system-prune | 95–97 |
@@ -149,10 +203,13 @@ batch):
 | 29 raw-console | 100–104, 112, 114 |
 | 30 coverage-matrix | 105, 106 |
 
-REQ-1 to REQ-117 are all present exactly once. No gap, no duplicate. (REQ-117 — responsive shell —
-was added on 2026-08-06, after batch 1 was certified, to cover the viewport adaptation and phone
-rail drawer built during the post-certification visual rework; it closes in batch 1 alongside the
-rest of F1.)
+REQ-1 to REQ-117 are all present exactly once, **except the four retired numbers REQ-44, REQ-45,
+REQ-46 and REQ-90**, withdrawn on 2026-08-07 with F12 (see "Departures from the spec"). Retired
+numbers are never reused. Excluding them: no gap, no duplicate.
+
+(REQ-117 — responsive shell — was added on 2026-08-06, after batch 1 was certified, to cover the
+viewport adaptation and phone rail drawer built during the post-certification visual rework; it
+closes in batch 1 alongside the rest of F1.)
 
 **REQs whose mechanism is built in one batch and closed in another** (declared, as required):
 
@@ -164,8 +221,8 @@ rest of F1.)
   batch 14, the first batch producing analysis results to cache.
 - REQ-114 (console history across restarts): store in batch 3, closes in batch 29.
 - REQ-116 (host-path validation): the validation service is built in batch 3, the REQ closes in
-  batch 11 (first operator-typed path: build context/Dockerfile) and is exercised again by
-  batches 12, 15 and 20.
+  batch 12 (first surviving operator-typed path: tarball source/target) and is exercised again by
+  batches 15 and 20. It closed in batch 11 until that batch was withdrawn on 2026-08-07.
 - REQ-109 (scroll smoothness of the glass material): the material is built in batch 1, the REQ
   closes in batch 4, the first screen dense enough to make it observable.
 - REQ-5 / REQ-108 (conformance check): the check is built in batch 1 and closes there; it then runs

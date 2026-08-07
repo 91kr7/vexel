@@ -334,10 +334,7 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
     <Stack gap="var(--space-4)">
       <ScreenToolbar
         primaryAction={{ label: 'Pull image…', onClick: openPullDialog }}
-        secondaryActions={[
-          { label: 'Build from Dockerfile…', onClick: () => undefined, disabled: true },
-          { label: 'Load tarball', onClick: () => undefined, disabled: true },
-        ]}
+        secondaryActions={[{ label: 'Load tarball', onClick: () => undefined, disabled: true }]}
         destructiveAction={{ label: 'Prune dangling', onClick: handlePruneDangling, disabled: !hasDangling }}
         filters={<SearchField value={search} onChange={setSearch} placeholder="Search reference or digest…" />}
       />

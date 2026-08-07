@@ -15,8 +15,8 @@ for pull/push.
   void` re-reads the list (the caller, the Shell, owns `useImages()`).
 
 Description:
-- A `ScreenToolbar` with a "Pull image…" primary action, disabled "Build from Dockerfile…" and
-  "Load tarball" secondary actions (wired by later batches — image build and image transport), a
+- A `ScreenToolbar` with a "Pull image…" primary action, a disabled "Load tarball" secondary action
+  (wired by a later batch — image transport), a
   "Prune dangling" destructive action, and a search filter — above a `DataTable` of every image
   matching the current search, laid out exactly like the containers table (same header row, row
   height, typography, hover and selected treatment).
