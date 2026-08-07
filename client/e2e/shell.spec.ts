@@ -1,4 +1,20 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+/**
+ * Pins the persisted `lastScreenId` and reloads: the shell restores the
+ * persisted screen on load (REQ-115, app-shell/specs/shell.md), so a test that
+ * depends on which screen is showing states it instead of inheriting whatever
+ * a previous run left behind. The preference is a single per-operator record
+ * on the server, which any other test navigating the rail also writes, so the
+ * pin-and-load pair is retried as a whole rather than assumed to win the race.
+ */
+async function openOnScreen(page: Page, screenId: string, screenLabel: string): Promise<void> {
+  await expect(async () => {
+    await page.request.put('/api/persistence/preferences', { data: { lastScreenId: screenId } });
+    await page.goto('/');
+    await expect(page.getByRole('heading', { level: 1, name: screenLabel })).toBeVisible({ timeout: 5_000 });
+  }).toPass({ timeout: 30_000 });
+}
 
 const groups: Record<string, string[]> = {
   Workloads: ['Dashboard', 'Containers', 'Compose', 'Swarm'],
@@ -13,8 +29,11 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/');
 });
 
-// plan-docker_management_app/REQ-1
+// plan-docker_management_app/REQ-1, plan-docker_management_app/REQ-115
 test('opens on the Vexel — Docker Control shell with the thirteen entries grouped as in the mockups', async ({ page }) => {
+  // The shell opens on the persisted screen, not on a fixed one (REQ-115).
+  await openOnScreen(page, 'dashboard', 'Dashboard');
+
   await expect(page.getByText('Vexel', { exact: true })).toBeVisible();
 
   for (const [group, labels] of Object.entries(groups)) {
@@ -25,7 +44,9 @@ test('opens on the Vexel — Docker Control shell with the thirteen entries grou
   }
   expect(allScreenLabels).toHaveLength(13);
 
+  // The restored screen is the persisted one, and it is the one the rail marks active.
   await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible();
+  await expect(page.locator('[aria-current="page"]')).toHaveAccessibleName(/Dashboard/);
   const header = page.locator('header');
   await expect(page.getByText('Live · daemon events')).toBeVisible();
   await expect(header.getByRole('button', { name: /Search/ })).toBeVisible();
@@ -40,8 +61,11 @@ test('opens on the Vexel — Docker Control shell with the thirteen entries grou
 test('activating a nav entry switches the main area and marks it active, keeping rail/header/footer', async ({ page }) => {
   await page.getByRole('button', { name: /Containers/ }).click();
 
+  // app-shell/specs/shell.md: the containers entry now shows the real
+  // ContainersScreen — its own toolbar — not a placeholder.
   await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
-  await expect(page.getByText(/Containers is not built yet/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Run container…' })).toBeVisible();
+  await expect(page.getByText(/is not built yet/)).toHaveCount(0);
 
   const activeEntry = page.locator('[aria-current="page"]');
   await expect(activeEntry).toHaveCount(1);
@@ -51,9 +75,11 @@ test('activating a nav entry switches the main area and marks it active, keeping
   await expect(page.getByText('Vexel', { exact: true })).toBeVisible();
   await expect(page.getByRole('navigation').getByText('Active context')).toBeVisible();
 
-  // Switching again replaces the content without losing the rail.
+  // Switching again replaces the content without losing the rail; a screen with
+  // no feature batch yet still shows its placeholder (shell.md, placeholder-screen.md).
   await page.getByRole('button', { name: /Swarm/ }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Swarm' })).toBeVisible();
+  await expect(page.getByText(/Swarm is not built yet/)).toBeVisible();
   await expect(page.getByRole('button', { name: /Containers/ })).toBeVisible();
 });
 
@@ -74,8 +100,9 @@ test('the backdrop is a single static image with nothing animated', async ({ pag
 
 // plan-docker_management_app/REQ-108
 test('no runtime blur is computed on the shell surfaces', async ({ page }) => {
-  const header = page.getByRole('heading', { level: 1, name: 'Dashboard' });
-  const headerBackdropFilter = await header.evaluate((element) => getComputedStyle(element.closest('header') ?? element).backdropFilter);
+  // The shell chrome is the subject here, whichever screen the preferences restore.
+  const header = page.locator('header');
+  const headerBackdropFilter = await header.evaluate((element) => getComputedStyle(element).backdropFilter);
   expect(headerBackdropFilter === 'none' || headerBackdropFilter === '').toBe(true);
 
   const nav = page.getByRole('navigation');
@@ -85,6 +112,10 @@ test('no runtime blur is computed on the shell surfaces', async ({ page }) => {
 
 // plan-docker_management_app/REQ-6
 test('a destructive demo action asks for confirmation naming its target and does nothing when cancelled', async ({ page }) => {
+  // The destructive-confirmation demo lives on a screen with no feature batch
+  // yet (placeholder-screen.md), so the screen is stated rather than inherited.
+  await openOnScreen(page, 'dashboard', 'Dashboard');
+
   const candidates = page.getByRole('button', { name: /remove|delete|kill|prune|down|leave|log ?out/i });
   const candidateCount = await candidates.count();
   expect(

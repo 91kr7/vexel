@@ -42,6 +42,10 @@
 | KeyValueEditor | UI component | `client/src/ui/controls/KeyValueEditor.tsx` | Repeatable key/value row editor (e.g. environment variables) | `specs/key-value-editor.md` |
 | RepeatableRowList | UI component | `client/src/ui/controls/RepeatableRowList.tsx` | Generic repeatable list of custom-rendered rows with add/remove (e.g. ports, mounts) | `specs/repeatable-row-list.md` |
 | FormFooter | UI component | `client/src/ui/controls/FormFooter.tsx` | Save/cancel form footer with a dirty indicator | `specs/form-footer.md` |
+| FormField | UI component | `client/src/ui/controls/FormField.tsx` | Labelled form control with a hint line replaced by the validation message when invalid | `specs/form-field.md` |
+| FormSection | UI component | `client/src/ui/controls/FormSection.tsx` | One titled group of fields inside a long, sectioned form | `specs/form-section.md` |
+| Combobox | UI component | `client/src/ui/controls/Combobox.tsx` | Text input suggesting known (possibly asynchronously loaded) options while accepting any free text | `specs/combobox.md` |
+| ChipInput | UI component | `client/src/ui/controls/ChipInput.tsx` | Free-form list of short values, each entered value becoming a removable chip | `specs/chip-input.md` |
 | SegmentedControl | UI component | `client/src/ui/controls/SegmentedControl.tsx` | Row of joined segments selecting one or several options, never emptied | `specs/segmented-control.md` |
 | TailSizeSelector | UI component | `client/src/ui/controls/TailSizeSelector.tsx` | Picks how many trailing lines of a stream to load, or all of them | `specs/tail-size-selector.md` |
 | TimeRangeField | UI component | `client/src/ui/controls/TimeRangeField.tsx` | Since/until pair of inputs bounding a stream in time | `specs/time-range-field.md` |
@@ -62,6 +66,7 @@
 | ProgressBar | UI component | `client/src/ui/feedback/ProgressBar.tsx` | Determinate or indeterminate progress indicator | `specs/progress-bar.md` |
 | StepProgressList | UI component | `client/src/ui/feedback/StepProgressList.tsx` | One row per unit of work (e.g. an image layer transfer), each with its own progress and terminal state | `specs/step-progress-list.md` |
 | FormDialog | UI component | `client/src/ui/feedback/FormDialog.tsx` | Dialog shell for a short create/pull/tag form: description, body slot, cancel/submit footer | `specs/form-dialog.md` |
+| FormSheet | UI component | `client/src/ui/feedback/FormSheet.tsx` | Dialog surface for a long, sectioned form: pinned banner slot, scrolling body of sections, footer holding cancel plus several commit choices | `specs/form-sheet.md` |
 | Spinner | UI component | `client/src/ui/feedback/Spinner.tsx` | Small rotating pending indicator | `specs/spinner.md` |
 | EmptyState | UI component | `client/src/ui/feedback/EmptyState.tsx` | Placeholder for a screen or list with nothing to display | `specs/empty-state.md` |
 | EventStream | UI component | `client/src/ui/feedback/EventStream.tsx` | Monospace, timestamped daemon event list with type/action emphasis | `specs/event-stream.md` |

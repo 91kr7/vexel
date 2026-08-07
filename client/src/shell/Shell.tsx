@@ -75,12 +75,16 @@ export function Shell() {
   const containers = useContainers();
   const images = useImages();
   const [cacheUsage, setCacheUsage] = useState<number | undefined>(undefined);
-  const restoredScreenRef = useRef(false);
+  // Set as soon as the restore has had its chance — either because it ran, or
+  // because the operator picked a screen first. Guards both against a second
+  // restore and against a slow preferences read yanking the operator off the
+  // screen they have already chosen (REQ-2, REQ-115).
+  const screenSettledRef = useRef(false);
 
   // Restore the last active screen once preferences have loaded (REQ-115).
   useEffect(() => {
-    if (!preferencesLoaded || restoredScreenRef.current) return;
-    restoredScreenRef.current = true;
+    if (!preferencesLoaded || screenSettledRef.current) return;
+    screenSettledRef.current = true;
     if (preferences.lastScreenId && screens.some((screen) => screen.id === preferences.lastScreenId)) {
       setActiveId(preferences.lastScreenId);
     }
@@ -98,6 +102,7 @@ export function Shell() {
 
   const selectScreen = useCallback(
     (id: string) => {
+      screenSettledRef.current = true;
       setActiveId(id);
       updatePreferences({ lastScreenId: id });
     },
@@ -197,6 +202,8 @@ export function Shell() {
                 loaded={containers.loaded}
                 error={containers.error}
                 onRefresh={containers.refresh}
+                images={images.images}
+                imagesLoaded={images.loaded}
               />
             ) : activeScreen.id === 'images-layers' ? (
               <ImagesScreen images={images.images} loaded={images.loaded} error={images.error} onRefresh={images.refresh} />

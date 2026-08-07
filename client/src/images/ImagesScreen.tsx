@@ -32,6 +32,7 @@ import {
   type ImageSummary,
 } from '../data/images-client';
 import { useImageTransferStream } from '../data/use-image-transfer';
+import { ContainerCreateForm } from '../containers/ContainerCreateForm';
 import { ImageDetailPanel } from './ImageDetailPanel';
 import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
@@ -121,6 +122,8 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
 
   const [untagTarget, setUntagTarget] = useState<ImageSummary | null>(null);
   const [untagReference, setUntagReference] = useState('');
+
+  const [runReference, setRunReference] = useState<string | undefined>(undefined);
 
   const [pushTarget, setPushTarget] = useState<ImageSummary | null>(null);
   const [pushReference, setPushReference] = useState('');
@@ -263,9 +266,10 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
     }
   }
 
-  /** Fixed set of four actions, sized to fit the row's action column. */
+  /** Fixed set of five actions, sized to fit the row's action column. */
   function actionsFor(image: ImageSummary): RowAction[] {
     return [
+      { id: 'run', label: 'run', onClick: () => setRunReference(image.tags[0] ?? image.shortId) },
       { id: 'tag', label: 'tag', onClick: () => openTagDialog(image) },
       { id: 'untag', label: 'untag', onClick: () => startUntag(image), disabled: image.tags.length === 0 },
       { id: 'push', label: 'push', onClick: () => openPushDialog(image), disabled: image.tags.length === 0 },
@@ -437,6 +441,15 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
           {pushTransfer.error ? <ErrorBanner title="Push failed" detail={pushTransfer.error} /> : null}
         </Stack>
       </FormDialog>
+
+      <ContainerCreateForm
+        open={runReference !== undefined}
+        images={images}
+        imagesLoaded={loaded}
+        initialImage={runReference}
+        onCancel={() => setRunReference(undefined)}
+        onCreated={() => setRunReference(undefined)}
+      />
     </Stack>
   );
 }

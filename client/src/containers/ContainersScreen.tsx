@@ -34,6 +34,8 @@ import {
   type ContainerState,
   type ContainerSummary,
 } from '../data/containers-client';
+import type { ImageSummary } from '../data/images-client';
+import { ContainerCreateForm } from './ContainerCreateForm';
 import { ContainerDetailPanel } from './ContainerDetailPanel';
 import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
@@ -44,6 +46,9 @@ export interface ContainersScreenProps {
   loaded: boolean;
   error?: string;
   onRefresh: () => void;
+  /** Local images offered as suggestions by the create/run form. */
+  images?: ImageSummary[];
+  imagesLoaded?: boolean;
 }
 
 const STATE_FILTER_OPTIONS = [
@@ -111,7 +116,7 @@ function matchesStateFilter(container: ContainerSummary, filter: string): boolea
  * panel tabs. Destructive actions (kill, remove, prune) go through the
  * shell's confirmation service.
  */
-export function ContainersScreen({ containers, loaded, error, onRefresh }: ContainersScreenProps) {
+export function ContainersScreen({ containers, loaded, error, onRefresh, images = [], imagesLoaded = true }: ContainersScreenProps) {
   const { confirm } = useConfirmation();
   const { push } = useToast();
   const { run } = useProgress();
@@ -123,6 +128,7 @@ export function ContainersScreen({ containers, loaded, error, onRefresh }: Conta
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
+  const [createMode, setCreateMode] = useState<'run' | 'create' | null>(null);
 
   useEffect(() => {
     if (selectedId && !containers.some((container) => container.id === selectedId)) setSelectedId(undefined);
@@ -308,6 +314,8 @@ export function ContainersScreen({ containers, loaded, error, onRefresh }: Conta
   return (
     <Stack gap="var(--space-4)">
       <ScreenToolbar
+        primaryAction={{ label: 'Run container…', onClick: () => setCreateMode('run') }}
+        secondaryActions={[{ label: 'Create from image…', onClick: () => setCreateMode('create') }]}
         destructiveAction={{ label: 'Prune stopped', onClick: handlePruneStopped, disabled: !hasStoppedContainers }}
         filters={
           <>
@@ -344,6 +352,19 @@ export function ContainersScreen({ containers, loaded, error, onRefresh }: Conta
           }
         />
       </Card>
+
+      <ContainerCreateForm
+        open={createMode !== null}
+        images={images}
+        imagesLoaded={imagesLoaded}
+        defaultStart={createMode !== 'create'}
+        onCancel={() => setCreateMode(null)}
+        onCreated={(result) => {
+          setCreateMode(null);
+          setSelectedId(result.id);
+          onRefresh();
+        }}
+      />
     </Stack>
   );
 }

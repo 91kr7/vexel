@@ -12,11 +12,14 @@ through the row's detail panel.
 
 ## Contract
 
-- `<ContainersScreen containers loaded error? onRefresh />` — `containers: ContainerSummary[]`,
-  `onRefresh: () => void` re-reads the list (the caller, the Shell, owns `useContainers()`).
+- `<ContainersScreen containers loaded error? onRefresh images? imagesLoaded? />` —
+  `containers: ContainerSummary[]`, `onRefresh: () => void` re-reads the list (the caller, the
+  Shell, owns `useContainers()`); `images?: ImageSummary[]` are the local images the create/run
+  form offers as suggestions.
 
 Description:
-- A `ScreenToolbar` with a "Prune stopped" destructive action and a filters row (a `SearchField` and
+- A `ScreenToolbar` with a "Run container…" primary action, a "Create from image…" secondary
+  action, a "Prune stopped" destructive action and a filters row (a `SearchField` and
   state `FilterChips`: all/running/stopped/paused), above a `DataTable` of every container matching
   the current search/filter.
 Shows:
@@ -44,6 +47,10 @@ Actions:
   re-reads the list; the cancel icon discards the edit. Submitting an unchanged or empty value is a
   no-op. The action is always reachable via Tab/keyboard even though it is only visually revealed on
   row hover or focus.
+- "Run container…" and "Create from image…" both open the same `ContainerCreateForm` (REQ-27); the
+  first makes "Create and start" the primary commit action, the second "Create only". A created
+  container closes the form, becomes the selected row and the list is re-read; cancelling changes
+  nothing.
 - The search field matches name, image or state (case-insensitive substring); state chips narrow to
   running / stopped (`created`, `exited`, `dead`) / paused (`paused`, `restarting`) / all.
 - Selecting a row (anywhere outside its action buttons) opens a `ContainerDetailPanel` inline below
@@ -64,8 +71,8 @@ Actions:
 - ui-library: ScreenToolbar, SearchField, FilterChips, DataTable, StatusDotCell, TwoLineCell,
   MetaCell, ActionButtonGroup, TextField, IconButton, Card, ErrorBanner, EmptyState, Row, Stack,
   useToast
-- Containers client
-- ContainerDetailPanel
+- Containers client, Images client (`ImageSummary`)
+- ContainerDetailPanel, ContainerCreateForm
 - app-shell: ConfirmationService, ProgressService, ErrorReportingService
 
 ## Requirements served

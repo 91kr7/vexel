@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { DockerDaemonError } from "../docker/errors.js";
+import { createContainer, type ContainerCreateSpec } from "./container-create-service.js";
 import { streamContainerLogs, type ContainerLogOptions } from "./container-logs-service.js";
 import { listContainerProcesses } from "./container-processes-service.js";
 import { streamContainerStats } from "./container-stats-service.js";
@@ -27,6 +28,35 @@ containersRouter.get("/", async (_req, res) => {
   } catch (error) {
     respondError(res, error);
   }
+});
+
+/**
+ * Creation (REQ-27, REQ-28, REQ-29). The configuration is too large for a query
+ * string and the response has to carry pull progress, so this is a POST whose
+ * body streams back newline-delimited JSON events rather than a server-sent
+ * event stream (which the browser can only open with GET). The stream always
+ * ends with exactly one `created` or `error` event, and the HTTP status stays
+ * 200 even on a refusal — the daemon's own message travels in the `error`
+ * event so the client can keep the operator's entered values.
+ */
+containersRouter.post("/", async (req, res) => {
+  res.setHeader("Content-Type", "application/x-ndjson");
+  res.setHeader("Cache-Control", "no-cache");
+  res.flushHeaders();
+
+  const spec = (req.body ?? {}) as ContainerCreateSpec;
+  await createContainer(spec, {
+    onImageResolved: (pulled) => writeNdjson(res, { type: "image-resolved", pulled }),
+    onPullStep: (step) => writeNdjson(res, { type: "pull-step", step }),
+    onCreated: (result) => {
+      writeNdjson(res, { type: "created", result });
+      res.end();
+    },
+    onError: (message) => {
+      writeNdjson(res, { type: "error", message });
+      res.end();
+    },
+  });
 });
 
 containersRouter.post("/:id/start", (req, res) => runLifecycle(res, () => startContainer(req.params.id)));
@@ -117,6 +147,10 @@ function readLogOptions(req: Request): ContainerLogOptions {
 function readBooleanQuery(value: string | undefined, fallback: boolean): boolean {
   if (value === undefined) return fallback;
   return value !== "false" && value !== "0";
+}
+
+function writeNdjson(res: Response, payload: unknown): void {
+  res.write(`${JSON.stringify(payload)}\n`);
 }
 
 function writeServerSentEvent(res: Response, event: string, payload: unknown): void {

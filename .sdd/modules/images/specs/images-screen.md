@@ -26,7 +26,7 @@ Shows:
   (or `<none>`) over the short id, `TAGS` — one badge per tag (at most 2, then a `+N` badge) or a
   single `dangling` warning badge when it has none, `DIGEST` — the digest (falling back to the id)
   cut to a short identifier, `PLATFORM`, `SIZE` (right-aligned), `CREATED` — the age, and `ACTIONS`.
-- The four per-image actions (tag, untag, push, remove) on every row, always visible, without
+- The five per-image actions (run, tag, untag, push, remove) on every row, always visible, without
   expanding it; untag and push are disabled for a dangling image.
 - Selecting a row expands an `ImageDetailPanel` with its inspect data directly below it; the
   expanded region carries the panel alone.
@@ -37,6 +37,9 @@ Actions:
   successfully, the dialog closes itself and re-reads the list, with no action required from the
   operator; if it ends in error, the dialog stays open showing the failure so the operator can read
   it, and closing it (Cancel) still re-reads the list.
+- A row's "run" action opens the containers' `ContainerCreateForm` pre-filled with that image's
+  reference (its short id when it is dangling), so the image can be run without leaving the screen
+  (REQ-29); creating or cancelling closes the form and leaves the images list as it was.
 - A row's "tag" action opens a `FormDialog` for a new reference; submitting tags the image, shows a
   success toast, and re-reads the list.
 - A row's "untag" action untags immediately when the image has a single tag; when it has several, it
@@ -56,7 +59,7 @@ Actions:
 
 - "Prune dangling" is disabled when no image is currently dangling (untagged).
 - "Push" and "untag" are disabled for a dangling image (no reference to act on).
-- Every row carries the same four actions in the same order, so the action column's width is
+- Every row carries the same five actions in the same order, so the action column's width is
   constant and the row never overflows.
 - Only one image row can be expanded at a time, and it is the selected one.
 
@@ -67,6 +70,7 @@ Actions:
   Card, ErrorBanner, EmptyState, Stack, useToast
 - Images client, useImageTransferStream
 - ImageDetailPanel
+- containers: ContainerCreateForm
 - app-shell: ConfirmationService, ProgressService, ErrorReportingService
 
 ## Requirements served
@@ -76,3 +80,4 @@ Actions:
 - plan-docker_management_app/REQ-38
 - plan-docker_management_app/REQ-39
 - plan-docker_management_app/REQ-41
+- plan-docker_management_app/REQ-29

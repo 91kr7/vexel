@@ -189,7 +189,7 @@ describe('ImagesScreen — image list columns (plan-docker_management_app/REQ-37
   });
 });
 
-// images/specs/images-screen.md — the four per-image actions on every row,
+// images/specs/images-screen.md — the five per-image actions on every row,
 // always visible, without expanding it.
 describe('ImagesScreen — per-row actions (plan-docker_management_app/REQ-37)', () => {
   function rowActionLabels(row: HTMLElement): string[] {
@@ -198,13 +198,13 @@ describe('ImagesScreen — per-row actions (plan-docker_management_app/REQ-37)',
       .map((button) => button.textContent?.trim() ?? '');
   }
 
-  it('shows tag, untag, push and remove on the row without expanding it', () => {
+  it('shows run, tag, untag, push and remove on the row without expanding it', () => {
     renderScreen([makeImage()]);
 
-    expect(rowActionLabels(tableRows()[0]!)).toEqual(['tag', 'untag', 'push', 'remove']);
+    expect(rowActionLabels(tableRows()[0]!)).toEqual(['run', 'tag', 'untag', 'push', 'remove']);
   });
 
-  it('carries the same four actions in the same order on every row', () => {
+  it('carries the same five actions in the same order on every row', () => {
     renderScreen([
       makeImage({ id: 'image-a', tags: ['a:1'] }),
       makeImage({ id: 'image-b', tags: [] }),
@@ -212,7 +212,7 @@ describe('ImagesScreen — per-row actions (plan-docker_management_app/REQ-37)',
     ]);
 
     for (const row of tableRows()) {
-      expect(rowActionLabels(row)).toEqual(['tag', 'untag', 'push', 'remove']);
+      expect(rowActionLabels(row)).toEqual(['run', 'tag', 'untag', 'push', 'remove']);
     }
   });
 

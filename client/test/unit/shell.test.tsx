@@ -38,7 +38,7 @@ beforeEach(() => {
     'fetch',
     vi.fn((input: RequestInfo | URL) => {
       const url = requestUrl(input);
-      if (url.startsWith('/api/containers')) {
+      if (url.startsWith('/api/containers') || url.startsWith('/api/images')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
       }
       if (url.startsWith('/api/persistence/preferences')) {

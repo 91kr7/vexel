@@ -44,6 +44,10 @@ export { FieldMessage, type FieldMessageProps, type FieldMessageTone } from './c
 export { KeyValueEditor, type KeyValueEditorProps, type KeyValuePair } from './controls/KeyValueEditor';
 export { RepeatableRowList, type RepeatableRowListProps } from './controls/RepeatableRowList';
 export { FormFooter, type FormFooterProps } from './controls/FormFooter';
+export { FormField, type FormFieldProps } from './controls/FormField';
+export { FormSection, type FormSectionProps } from './controls/FormSection';
+export { Combobox, type ComboboxProps, type ComboboxOption } from './controls/Combobox';
+export { ChipInput, type ChipInputProps } from './controls/ChipInput';
 export { SegmentedControl, type SegmentedControlProps, type SegmentedOption } from './controls/SegmentedControl';
 export { TailSizeSelector, type TailSizeSelectorProps, type TailSize } from './controls/TailSizeSelector';
 export { TimeRangeField, type TimeRangeFieldProps, type TimeRange } from './controls/TimeRangeField';
@@ -80,6 +84,7 @@ export { Spinner, type SpinnerProps } from './feedback/Spinner';
 export { EmptyState, type EmptyStateProps } from './feedback/EmptyState';
 export { EventStream, type EventStreamProps, type EventStreamEntry } from './feedback/EventStream';
 export { FormDialog, type FormDialogProps } from './feedback/FormDialog';
+export { FormSheet, type FormSheetProps, type FormSheetCommit } from './feedback/FormSheet';
 export { StepProgressList, type StepProgressListProps, type ProgressStep, type ProgressStepStatus } from './feedback/StepProgressList';
 
 export { Terminal, type TerminalHandle, type TerminalProps } from './terminal/Terminal';

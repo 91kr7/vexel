@@ -48,11 +48,13 @@ test('stopping a running container updates its row to the stopped state and its 
     const row = containerRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
 
-    await row.getByRole('button', { name: 'stop' }).click();
+    // Exact match: the name cell's rename action is labelled with the container's
+    // own name, which contains the action word in these fixtures.
+    await row.getByRole('button', { name: 'stop', exact: true }).click();
 
     await expect(row).toContainText('exited', { timeout: 10_000 });
-    await expect(row.getByRole('button', { name: 'start' })).toBeVisible();
-    await expect(row.getByRole('button', { name: 'stop' })).toHaveCount(0);
+    await expect(row.getByRole('button', { name: 'start', exact: true })).toBeVisible();
+    await expect(row.getByRole('button', { name: 'stop', exact: true })).toHaveCount(0);
   } finally {
     await removeContainerQuietly(name);
   }
@@ -66,14 +68,16 @@ test('killing a container asks for confirmation naming it, does nothing on cance
     const row = containerRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
 
-    await row.getByRole('button', { name: 'kill' }).click();
+    // Exact match: the name cell's rename action is labelled with the container's
+    // own name, which contains the action word in these fixtures.
+    await row.getByRole('button', { name: 'kill', exact: true }).click();
     await expect(page.getByRole('heading', { name: `Confirm: ${name}` })).toBeVisible();
     await page.getByRole('button', { name: 'Cancel' }).click();
     await expect(row).toContainText('running');
 
-    await row.getByRole('button', { name: 'kill' }).click();
+    await row.getByRole('button', { name: 'kill', exact: true }).click();
     await expect(page.getByRole('heading', { name: `Confirm: ${name}` })).toBeVisible();
-    await page.getByRole('button', { name: 'kill' }).last().click();
+    await page.getByRole('button', { name: 'kill', exact: true }).last().click();
 
     await expect(row).toContainText('exited', { timeout: 10_000 });
   } finally {

@@ -26,7 +26,8 @@ Shows:
   and version (REQ-110), a "Daemon event stream" `Card` with the live `EventStream` (REQ-11,
   REQ-12), a "Local storage" `Card` with a `StorageUsageRow` for the analysis cache's size and a
   "Clear" action (REQ-113, REQ-115), then the active screen's real content: `ContainersScreen` for
-  the `containers` screen (REQ-19–REQ-23, REQ-109), `ImagesScreen` for the `images-layers` screen
+  the `containers` screen (REQ-19–REQ-23, REQ-109) — which also receives the live image list from
+  `useImages()`, since its create/run form suggests the local images (REQ-29) —, `ImagesScreen` for the `images-layers` screen
   (REQ-37–REQ-41), a `PlaceholderScreen` for every screen not yet built by its own feature batch.
 - The Containers `NavItem`'s count badge is the live container count from `useContainers()`, and
   the Images & layers `NavItem`'s count badge is the live image count from `useImages()`, both
@@ -60,9 +61,12 @@ Navigation:
   level, so a non-wrapping action row would overflow the header card once the viewport is narrow
   enough that the pill, version badge, search and console no longer fit on one line.
 - Once `usePreferences()` reports `loaded`, the active screen is set to `preferences.lastScreenId`
-  if it names a known screen; this restore runs exactly once per mount, so a later external change
-  to `preferences.lastScreenId` (e.g. from another tab) does not yank the operator to a different
-  screen while they are using this one (REQ-115).
+  if it names a known screen; this restore runs at most once per mount and only while the operator
+  has not yet selected a screen themselves. A preferences read that settles after the operator has
+  already picked a `NavItem` leaves them where they are, and a later external change to
+  `preferences.lastScreenId` (e.g. from another tab) never yanks the operator to a different screen
+  while they are using this one (REQ-2, REQ-115). With no persisted `lastScreenId`, `defaultScreenId`
+  stays active.
 - `selectedContext` and `listFilters` are carried by `OperatorPreferences` and persisted through
   `usePreferences()`, but nothing in this batch's shell reads or writes them: no context switcher
   or per-screen filter control exists yet (they land with the screens that own them in later
