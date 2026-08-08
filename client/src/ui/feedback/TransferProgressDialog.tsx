@@ -18,6 +18,8 @@ export interface TransferProgressDialogProps {
   onCancel: () => void;
   onClose: () => void;
   children?: ReactNode;
+  /** Overrides the default byte-formatted caption, for a determinate operation whose progress is not measured in bytes (e.g. a layer count). Receives the raw `currentBytes`/`totalBytes` values. */
+  formatCaption?: (currentBytes: number, totalBytes?: number) => string;
 }
 
 function formatBytes(bytes: number): string {
@@ -48,9 +50,14 @@ export function TransferProgressDialog({
   onCancel,
   onClose,
   children,
+  formatCaption,
 }: TransferProgressDialogProps) {
   const percent = totalBytes ? Math.min(100, Math.round((currentBytes / totalBytes) * 100)) : undefined;
-  const caption = totalBytes ? `${formatBytes(currentBytes)} / ${formatBytes(totalBytes)}` : `${formatBytes(currentBytes)} transferred`;
+  const caption = formatCaption
+    ? formatCaption(currentBytes, totalBytes)
+    : totalBytes
+      ? `${formatBytes(currentBytes)} / ${formatBytes(totalBytes)}`
+      : `${formatBytes(currentBytes)} transferred`;
 
   return (
     <Modal

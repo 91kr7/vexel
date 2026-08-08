@@ -58,6 +58,12 @@
   padding: var(--space-6) var(--space-4);
 }
 
+.ui-data-table__select-cell {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
 .ui-data-table__expanded {
   padding: var(--space-4) var(--space-6) var(--space-5);
   background: var(--color-wash-1);
@@ -173,6 +179,44 @@
   white-space: normal;
   overflow-wrap: anywhere;
   text-overflow: clip;
+}
+
+.ui-table-meta-cell--unavailable {
+  font-style: italic;
+}
+
+.ui-table-proportion-bar-cell {
+  display: block;
+  width: 100%;
+}
+
+.ui-table-proportion-bar-cell__fill {
+  display: block;
+  max-width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  background: var(--color-accent-tint);
+  color: var(--color-accent);
+}
+
+.ui-table-proportion-bar-cell__fill--tone-success {
+  background: var(--color-success-tint);
+  color: var(--color-success);
+}
+
+.ui-table-proportion-bar-cell__fill--tone-warning {
+  background: var(--color-warning-tint);
+  color: var(--color-warning);
+}
+
+.ui-table-proportion-bar-cell__fill--tone-danger {
+  background: var(--color-danger-tint);
+  color: var(--color-danger-strong);
 }
 
 .ui-definition-list {

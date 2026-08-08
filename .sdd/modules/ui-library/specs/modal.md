@@ -10,10 +10,13 @@ type: UI component
 
 ## Contract
 
-- `<Modal open title children? actions? onClose>`
+- `<Modal open title children? actions? onClose size?>`
   - `open` — when `false`, renders nothing.
   - `onClose` — called when the dimmed overlay is clicked; content clicks do not propagate to it.
   - `actions` — optional trailing action row (e.g. Cancel/Confirm buttons).
+  - `size`: `'default' | 'large'` (default `'default'`) — `'large'` widens the dialog and caps its
+    height with its own scroll, for richer content (e.g. a data table) that would not fit the
+    default short-message/form width.
 
 ## Rules and invariants
 

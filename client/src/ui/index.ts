@@ -67,6 +67,8 @@ export {
   type IdentifierCellProps,
   BadgeListCell,
   type BadgeListCellProps,
+  ProportionBarCell,
+  type ProportionBarCellProps,
 } from './data/TableCells';
 export { DefinitionList, type DefinitionListProps, type DefinitionItem } from './data/DefinitionList';
 export { CodeViewer, type CodeViewerProps } from './data/CodeViewer';
@@ -77,7 +79,7 @@ export { MetricTile, type MetricTileProps, type MetricTone } from './metrics/Met
 export { Meter, type MeterProps } from './metrics/Meter';
 export { Sparkline, type SparklineProps } from './metrics/Sparkline';
 
-export { Modal, type ModalProps } from './feedback/Modal';
+export { Modal, type ModalProps, type ModalSize } from './feedback/Modal';
 export { ConfirmDialog, type ConfirmDialogProps } from './feedback/ConfirmDialog';
 export { ToastProvider, useToast, type ToastInput, type ToastTone } from './feedback/Toast';
 export { ErrorBanner, type ErrorBannerProps } from './feedback/ErrorBanner';

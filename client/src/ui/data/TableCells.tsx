@@ -63,6 +63,12 @@ export interface MetaCellProps {
   wrap?: boolean;
   /** Full value shown as a tooltip when the content is truncated; defaults to the text content itself. */
   title?: string;
+  /**
+   * When `children` is empty and this is given, renders "unavailable" instead
+   * of the default '–', with the reason as a tooltip — for a value the
+   * daemon genuinely cannot provide (as opposed to one that is merely empty).
+   */
+  unavailableReason?: string;
 }
 
 /**
@@ -72,8 +78,16 @@ export interface MetaCellProps {
  * tooltip (native `title`), so a row never grows taller than its fixed
  * height regardless of content length.
  */
-export function MetaCell({ children, wrap = false, title }: MetaCellProps) {
+export function MetaCell({ children, wrap = false, title, unavailableReason }: MetaCellProps) {
   const className = wrap ? 'ui-table-meta-cell ui-table-meta-cell--wrap' : 'ui-table-meta-cell';
+  const isEmpty = children === undefined || children === null || children === '';
+  if (isEmpty && unavailableReason) {
+    return (
+      <span className={`${className} ui-table-meta-cell--unavailable`} title={unavailableReason}>
+        unavailable
+      </span>
+    );
+  }
   const tooltip = title ?? (typeof children === 'string' || typeof children === 'number' ? String(children) : undefined);
   return (
     <span className={className} title={tooltip}>
@@ -141,6 +155,35 @@ export function BadgeListCell({ labels, tone = 'neutral', maxVisible = 3, emptyL
           <Badge>{`+${hidden.length}`}</Badge>
         </span>
       ) : null}
+    </span>
+  );
+}
+
+export interface ProportionBarCellProps {
+  /** This row's share of the column's largest row, `0..1`; clamped, and treated as `0` when not finite. */
+  fraction: number;
+  label: ReactNode;
+  tone?: BadgeTone;
+}
+
+/**
+ * A rounded bar filled to `fraction` of the cell's width, carrying `label`
+ * inside it — the row's magnitude relative to the largest row in the same
+ * column (e.g. a build step's share of its layer stack's largest layer). A
+ * small minimum width keeps a near-zero row's bar visible and selectable.
+ */
+export function ProportionBarCell({ fraction, label, tone = 'neutral' }: ProportionBarCellProps) {
+  const clamped = Number.isFinite(fraction) ? Math.min(1, Math.max(0, fraction)) : 0;
+  const tooltip = typeof label === 'string' ? label : undefined;
+  return (
+    <span className="ui-table-proportion-bar-cell">
+      <span
+        className={`ui-table-proportion-bar-cell__fill ui-table-proportion-bar-cell__fill--tone-${tone}`}
+        style={{ width: `${Math.max(clamped * 100, 8)}%` }}
+        title={tooltip}
+      >
+        {label}
+      </span>
     </span>
   );
 }
