@@ -19,6 +19,9 @@ type: configuration
   independent of whether any client has connected yet.
 - Calls `reclaimOrphans()` once at startup, before listening, so analysis-cache files left behind by
   a previously interrupted run are cleaned up before any client can observe cache usage.
+- Calls `sweepAbandonedExtractionContainers()` once at startup (its failure, e.g. an unreachable
+  daemon, is not fatal to boot) so any intermediate filesystem-extraction container left behind by
+  an interrupted run is removed before any client can observe the container list (REQ-54, REQ-57).
 - Listens on `process.env.PORT`, defaulting to `3000`.
 
 ## Dependencies
@@ -27,12 +30,14 @@ type: configuration
 - events: eventsRouter, eventStreamService
 - local-persistence: persistenceRouter, hostPathsRouter, reclaimOrphans
 - images: imagesRouter
-- image-analysis: imageAnalysisRouter
+- image-analysis: imageAnalysisRouter, sweepAbandonedExtractionContainers
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-9
 - plan-docker_management_app/REQ-12
+- plan-docker_management_app/REQ-54
+- plan-docker_management_app/REQ-57
 - plan-docker_management_app/REQ-113
 - plan-docker_management_app/REQ-115
 - plan-docker_management_app/REQ-116

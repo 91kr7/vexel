@@ -12,6 +12,7 @@ import {
 } from '../ui';
 import type { ImageSummary } from '../data/images-client';
 import { useImageInspect } from '../data/use-image-inspect';
+import { FilesystemBrowser } from './FilesystemBrowser';
 import { LayerExplorer } from './LayerExplorer';
 
 export interface ImageDetailPanelProps {
@@ -40,9 +41,18 @@ function formatBytes(bytes: number): string {
 export function ImageDetailPanel({ image, onClose }: ImageDetailPanelProps) {
   const { inspect, loaded, error, refresh } = useImageInspect(image.id);
   const [layersOpen, setLayersOpen] = useState(false);
+  const [filesystemOpen, setFilesystemOpen] = useState(false);
 
   return (
-    <DetailPanel onClose={onClose} actions={<Button variant="secondary" onClick={() => setLayersOpen(true)}>Explore layers…</Button>}>
+    <DetailPanel
+      onClose={onClose}
+      actions={
+        <>
+          <Button variant="secondary" onClick={() => setLayersOpen(true)}>Explore layers…</Button>
+          <Button variant="secondary" onClick={() => setFilesystemOpen(true)}>Browse filesystem…</Button>
+        </>
+      }
+    >
       <Stack gap="var(--space-4)">
         {error ? <ErrorBanner title="Could not load image details" detail={error} onRetry={refresh} /> : null}
         {!inspect ? (
@@ -82,6 +92,7 @@ export function ImageDetailPanel({ image, onClose }: ImageDetailPanelProps) {
         )}
       </Stack>
       <LayerExplorer image={image} open={layersOpen} onClose={() => setLayersOpen(false)} />
+      <FilesystemBrowser image={image} open={filesystemOpen} onClose={() => setFilesystemOpen(false)} />
     </DetailPanel>
   );
 }

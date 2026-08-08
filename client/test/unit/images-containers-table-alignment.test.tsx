@@ -11,14 +11,25 @@ import { ProgressProvider } from '../../src/shell/services/ProgressService';
 import { ToastProvider } from '../../src/ui';
 
 /**
- * plan-docker_management_app/REQ-3 — the two core list screens must present the
- * same kind of object with one single visual language: same header row
- * treatment, same column typography, same row height, same hover/selected
- * treatment. In jsdom no stylesheet is applied, so what is comparable here is
- * the markup the visual language is carried by: the table element, its header
- * and cell class names (which the typography is attached to), the row height,
- * the selected-row class, the table's wrapper and its height policy. The
- * computed-style side of the comparison is covered by the e2e suite.
+ * plan-docker_management_app/REQ-3, batch-images-table-alignment's "Human
+ * acceptance" — the two core list screens must apply the same `DataTable`
+ * treatment uniformly: same header style, same column typography, same row
+ * height, same hover/selected treatment. Per images-screen.md's and
+ * containers-screen.md's own documented rationale, this is deliberately
+ * **not** a promise that the two screens share an identical column set:
+ * Images alone carries a leading multi-select checkbox column (and
+ * `BulkActionBar`) because it alone has a bulk action needing a selection
+ * ("Save to tarball…"); Containers has no per-row bulk action, so it carries
+ * none. A test asserting identical column counts or an identical header/cell
+ * class fingerprint therefore over-specifies REQ-3 and would forbid either
+ * screen from ever gaining a feature the other does not need. What is
+ * compared below is exactly what is promised — table/wrapper/header/row
+ * treatment and the treatment of the columns both screens do share — plus an
+ * explicit, spec-grounded assertion of the one documented difference (the
+ * selection column). In jsdom no stylesheet is applied, so what is
+ * comparable here is the markup the visual language is carried by: class
+ * names, row height, selected-row class. The computed-style side of the
+ * comparison is covered by the e2e suite.
  */
 
 const container: ContainerSummary = {
@@ -110,11 +121,15 @@ interface TableFingerprint {
   tableClass: string;
   wrapperClass: string;
   headerClass: string;
-  headerCellClasses: string[];
+  /** Only the genuine data-column header cells — the (Images-only) selection column is excluded on
+   *  purpose (`.ui-data-table__select-cell` marks a structural control, not column data, per
+   *  `DataTable.tsx`'s own comment), since REQ-3 promises identical treatment of the columns both
+   *  screens share, never an identical column set. */
+  dataHeaderCellClasses: string[];
   scrollAreaMaxHeight: string;
   rowClass: string;
   rowHeight: string;
-  cellClasses: string[];
+  dataCellClasses: string[];
   actionColumnTrack: string;
   actionGroupClass: string;
 }
@@ -125,19 +140,28 @@ function fingerprint(root: HTMLElement): TableFingerprint {
   const row = table.querySelector<HTMLElement>('.ui-data-table__row')!;
   const scrollArea = table.querySelector<HTMLElement>('[style*="max-height"], .ui-scroll-area');
   const headerTracks = header.style.gridTemplateColumns.split(' ');
+  const dataHeaderCells = Array.from(header.children).filter((cell) => !cell.classList.contains('ui-data-table__select-cell'));
+  const dataCells = Array.from(row.children).filter((cell) => !cell.classList.contains('ui-data-table__select-cell'));
   return {
     tableCount: root.querySelectorAll('.ui-data-table').length,
     tableClass: table.className,
     wrapperClass: table.parentElement?.className ?? '',
     headerClass: header.className,
-    headerCellClasses: Array.from(new Set(Array.from(header.children).map((cell) => cell.className))),
+    dataHeaderCellClasses: Array.from(new Set(dataHeaderCells.map((cell) => cell.className))),
     scrollAreaMaxHeight: scrollArea?.style.maxHeight ?? '',
     rowClass: row.className,
     rowHeight: row.style.height,
-    cellClasses: Array.from(new Set(Array.from(row.children).map((cell) => cell.className))),
+    dataCellClasses: Array.from(new Set(dataCells.map((cell) => cell.className))),
     actionColumnTrack: headerTracks[headerTracks.length - 1] ?? '',
     actionGroupClass: row.querySelector('.ui-action-button-group')?.className ?? '',
   };
+}
+
+/** Whether the screen's table carries the (Images-only) leading multi-select checkbox column. */
+function hasSelectionColumn(root: HTMLElement): boolean {
+  const header = root.querySelector<HTMLElement>('.ui-data-table__header')!;
+  const row = root.querySelector<HTMLElement>('.ui-data-table__row')!;
+  return header.querySelector('.ui-data-table__select-cell') !== null && row.querySelector('.ui-data-table__select-cell') !== null;
 }
 
 function renderContainers() {
@@ -170,7 +194,7 @@ afterEach(() => {
 });
 
 describe('Images and Containers present the same table (plan-docker_management_app/REQ-3)', () => {
-  it('renders both lists with the same table component, wrapper, header, row and cell treatment', () => {
+  it('renders both lists with the same table component, wrapper, header, row and shared-column cell treatment', () => {
     const imagesRoot = renderImages();
     const imagesFingerprint = fingerprint(imagesRoot);
     cleanup();
@@ -178,6 +202,19 @@ describe('Images and Containers present the same table (plan-docker_management_a
     const containersFingerprint = fingerprint(containersRoot);
 
     expect(imagesFingerprint).toEqual(containersFingerprint);
+  });
+
+  // images-screen.md, containers-screen.md — Images alone carries the leading multi-select
+  // checkbox column (and BulkActionBar) because it alone has a bulk action needing a selection
+  // ("Save to tarball…"); Containers deliberately carries none ("Prune stopped" needs no per-row
+  // selection). This is the one documented, intentional column-set difference REQ-3 does not forbid.
+  it("gives Images alone the multi-select checkbox column, which Containers deliberately does not carry", () => {
+    const imagesRoot = renderImages();
+    expect(hasSelectionColumn(imagesRoot)).toBe(true);
+    cleanup();
+
+    const containersRoot = renderContainers();
+    expect(hasSelectionColumn(containersRoot)).toBe(false);
   });
 
   it('gives both lists the same row height', () => {
@@ -208,17 +245,23 @@ describe('Images and Containers present the same table (plan-docker_management_a
     expect(imagesAriaSelected).toBe(containersSelectedRow.getAttribute('aria-selected'));
   });
 
-  it('gives both lists the same header column typography and uppercase headers', () => {
+  // Every header label is uppercase on both screens, and every genuine data-column header (the
+  // selection column excluded — it carries no label) uses the exact same class on both screens.
+  // What is *not* asserted is that the two screens have the same number of headers: REQ-3 promises
+  // shared column typography, not an identical column set (images-screen.md, containers-screen.md).
+  it('gives both lists the same header column typography and uppercase headers on their own columns', () => {
     const imagesRoot = renderImages();
     const imagesHeaders = Array.from(imagesRoot.querySelectorAll('.ui-data-table__header-cell')).map((cell) => cell.textContent ?? '');
+    const imagesDataHeaderClasses = fingerprint(imagesRoot).dataHeaderCellClasses;
     cleanup();
     const containersRoot = renderContainers();
     const containersHeaders = Array.from(containersRoot.querySelectorAll('.ui-data-table__header-cell')).map((cell) => cell.textContent ?? '');
+    const containersDataHeaderClasses = fingerprint(containersRoot).dataHeaderCellClasses;
 
     for (const label of [...imagesHeaders, ...containersHeaders]) {
       expect(label).toBe(label.toUpperCase());
     }
-    expect(imagesHeaders.length).toBe(containersHeaders.length);
+    expect(imagesDataHeaderClasses).toEqual(containersDataHeaderClasses);
   });
 
   it('reserves the same action column width on both lists', () => {

@@ -2,6 +2,7 @@
 // REQ-22), plus a bounded-rate CPU/memory sampler for running containers
 // (REQ-19) whose latest reading is merged into every list response.
 import { getEngineClient } from "../connectivity/connection-status-service.js";
+import { INTERNAL_CONTAINER_LABEL } from "../image-analysis/filesystem-extraction-service.js";
 
 export type ContainerState = "created" | "running" | "paused" | "restarting" | "removing" | "exited" | "dead";
 
@@ -116,6 +117,7 @@ interface RawContainer {
   State: string;
   Status: string;
   Ports?: { PrivatePort: number; PublicPort?: number; Type: string }[];
+  Labels?: Record<string, string>;
 }
 
 interface RawInspect {
@@ -164,7 +166,9 @@ let samplerStarted = false;
 export async function listContainers(): Promise<ContainerSummary[]> {
   const response = await getEngineClient().request("/containers/json?all=true");
   const raw = JSON.parse(response.body) as RawContainer[];
-  return raw.map(toSummary);
+  // Intermediate filesystem-extraction containers are internal plumbing
+  // (REQ-54): never shown as a container anywhere in the application.
+  return raw.filter((container) => container.Labels?.[INTERNAL_CONTAINER_LABEL] !== "true").map(toSummary);
 }
 
 export async function startContainer(id: string): Promise<void> {

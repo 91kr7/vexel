@@ -79,6 +79,13 @@ Actions:
 - Only one image row can be expanded at a time, and it is the selected one.
 - Multi-selection (the checkbox column and `BulkActionBar`) is independent of the single-row
   expansion selection driving `ImageDetailPanel`.
+- REQ-3's "same visual language" between this table and the Containers table (batch 31's
+  remediation) is about the treatment the `DataTable` primitive applies uniformly — row height,
+  header style, column typography, hover and selected treatment — never about the two screens
+  sharing an identical column set. Images alone carries the leading multi-select checkbox column
+  (and `BulkActionBar`) because it alone has a bulk action that needs a selection (`Save to
+  tarball…`); Containers has no equivalent per-row bulk action (see `containers-screen.md`), so it
+  carries none. That difference is intentional and does not violate REQ-3.
 
 ## Dependencies
 

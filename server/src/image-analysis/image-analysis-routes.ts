@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { DockerDaemonError } from "../docker/errors.js";
 import { computeImageChangesets } from "./changeset-service.js";
+import { extractImageFilesystem, listImageFilesystemChildren } from "./filesystem-extraction-service.js";
 import { getImageLayerStack } from "./layer-metadata-service.js";
 import { getSharedLayerImages } from "./shared-layer-service.js";
 
@@ -34,6 +35,39 @@ imageAnalysisRouter.get("/:id/changesets/stream", (req, res) =>
     }),
   ),
 );
+
+/** Cancellable filesystem extraction stream (REQ-52–56, REQ-113): serves the analysis cache when available (or `force=true` bypasses it), otherwise creates an unstarted container, exports it and indexes it, cancelling — and cleaning up — on client disconnect. */
+imageAnalysisRouter.get("/:id/filesystem/stream", (req, res) =>
+  runEventStream(req, res, () =>
+    extractImageFilesystem(
+      req.params.id,
+      { force: req.query.force === "true" },
+      {
+        onProgress: (progress) => writeServerSentEvent(res, "progress", progress),
+        onError: (message) => endWithError(res, message),
+        onEnd: (result) => {
+          writeServerSentEvent(res, "result", result);
+          endWithEvent(res);
+        },
+      },
+    ),
+  ),
+);
+
+/** Direct children of a path in a previously extracted filesystem (REQ-52), lazily read one directory level at a time. */
+imageAnalysisRouter.get("/:id/filesystem/entries", async (req, res) => {
+  try {
+    const path = typeof req.query.path === "string" ? req.query.path : undefined;
+    const entries = await listImageFilesystemChildren(req.params.id, path);
+    if (!entries) {
+      res.status(404).json({ error: "This image's filesystem has not been extracted yet." });
+      return;
+    }
+    res.json({ path: path ?? "", entries });
+  } catch (error) {
+    respondError(res, error);
+  }
+});
 
 function writeServerSentEvent(res: Response, event: string, payload: unknown): void {
   res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);

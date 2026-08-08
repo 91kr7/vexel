@@ -6,8 +6,9 @@ type: REST endpoint
 
 # Image analysis endpoints
 
-**Purpose** → exposes the layer stack (with shared-layer markers) and a cancellable changeset
-analysis progress stream to the client (REQ-47–51).
+**Purpose** → exposes the layer stack (with shared-layer markers), a cancellable changeset analysis
+progress stream, and the runtime-independent filesystem extraction/tree-read pair, to the client
+(REQ-47–56, REQ-113).
 
 ## Contract
 
@@ -18,15 +19,24 @@ analysis progress stream to the client (REQ-47–51).
   `progress` (one per `ChangesetProgress`), `result` (the final `ImageChangesets`, sent just before
   `end`), `end`, or `error` (`{ message }`) if it fails. Disconnecting cancels the in-flight
   analysis.
+- `GET /api/images/:id/filesystem/stream[?force=true]` → server-sent events driving
+  `extractImageFilesystem`: `progress` (one per `FilesystemExtractionProgress`), `result` (the final
+  `FilesystemExtractionResult`, sent just before `end`), `end`, or `error` (`{ message }`) if it
+  fails. `force=true` bypasses the cache and re-extracts. Disconnecting cancels the in-flight
+  extraction — the intermediate container is still removed.
+- `GET /api/images/:id/filesystem/entries[?path=...]` → `{ path, entries }`, the direct children of
+  `path` (root when omitted) from `listImageFilesystemChildren`; `404` when this image's filesystem
+  has not been extracted yet.
 
 ## Rules and invariants
 
-- A `DockerDaemonError` from either service answers with its `statusCode` (default 502) and its own
+- A `DockerDaemonError` from any service answers with its `statusCode` (default 502) and its own
   message; any other failure answers `500` with the failure's message.
 
 ## Dependencies
 
-- image-analysis: LayerMetadataService, SharedLayerService, ChangesetService
+- image-analysis: LayerMetadataService, SharedLayerService, ChangesetService,
+  FilesystemExtractionService
 - docker-access: DockerDaemonError
 
 ## Requirements served
@@ -36,3 +46,9 @@ analysis progress stream to the client (REQ-47–51).
 - plan-docker_management_app/REQ-49
 - plan-docker_management_app/REQ-50
 - plan-docker_management_app/REQ-51
+- plan-docker_management_app/REQ-52
+- plan-docker_management_app/REQ-53
+- plan-docker_management_app/REQ-54
+- plan-docker_management_app/REQ-55
+- plan-docker_management_app/REQ-56
+- plan-docker_management_app/REQ-113
