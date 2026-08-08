@@ -6,17 +6,21 @@ type: UI component
 
 # TransferProgressDialog
 
-**Purpose** → the dialog for a long-running byte transfer (e.g. saving/loading an image tarball,
-exporting a container's filesystem): a byte progress bar with a genuine cancel action while the
-transfer runs, and a close action once it ends.
+**Purpose** → the dialog for a long-running cancellable determinate operation reporting numeric
+progress (e.g. saving/loading an image tarball, exporting a container's filesystem, analyzing an
+image's layers): a progress bar with a genuine cancel action while it runs, and a close action once
+it ends.
 
 ## Contract
 
 - `<TransferProgressDialog open title description? currentBytes totalBytes? status errorMessage?
-  onCancel onClose children? />`
-  - `currentBytes: number`, `totalBytes?: number` — `totalBytes` known renders a determinate bar and
-    a `"<current> / <total>"` caption; unknown renders an indeterminate bar and a `"<current>
-    transferred"` caption.
+  onCancel onClose children? formatCaption? />`
+  - `currentBytes: number`, `totalBytes?: number` — the current/total progress units; `totalBytes`
+    known renders a determinate bar, unknown an indeterminate one.
+  - `formatCaption?: (currentBytes, totalBytes?) => string` — overrides the caption entirely, for a
+    progress unit other than bytes (e.g. a layer count); omitted, the default byte-formatted caption
+    applies: `"<current> / <total>"` when `totalBytes` is known, `"<current> transferred"`
+    otherwise.
   - `status: 'active' | 'done' | 'error'`.
   - `errorMessage?` — shown (in an `ErrorBanner`) only while `status` is `'error'`.
   - `onCancel` — called by the Cancel action, shown only while `status` is `'active'`, and by the

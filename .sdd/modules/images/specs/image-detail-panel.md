@@ -14,12 +14,17 @@ type: UI component
   data to load (via `useImageInspect(image.id)`); `onClose` closes the panel.
 
 Description:
-- A `DetailPanel` (own close control) showing a `DefinitionList` of id, tags, digest, platform(s),
-  size, created timestamp, entrypoint, command and exposed ports, then collapsible `Environment`,
-  `Labels` and `History` sections, then the raw payload in a `CodeViewer` (REQ-40).
+- A `DetailPanel` (own close control, an "Explore layers…" header action) showing a `DefinitionList`
+  of id, tags, digest, platform(s), size, created timestamp, entrypoint, command and exposed ports,
+  then collapsible `Environment`, `Labels` and `History` sections, then the raw payload in a
+  `CodeViewer` (REQ-40).
 Shows:
 - An `EmptyState` while loading or when no inspect data is available; an `ErrorBanner` with retry on
   failure.
+Actions:
+- "Explore layers…" → opens the `LayerExplorer` for this image (REQ-47).
+Navigation:
+- The layer explorer opens over the panel and closes back to it.
 
 ## Rules and invariants
 
@@ -27,10 +32,12 @@ Shows:
 
 ## Dependencies
 
-- ui-library: DetailPanel, DefinitionList, CollapsibleSection, CodeViewer, SectionHeader,
+- ui-library: Button, DetailPanel, DefinitionList, CollapsibleSection, CodeViewer, SectionHeader,
   EmptyState, ErrorBanner, Stack
 - useImageInspect
+- LayerExplorer
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-40
+- plan-docker_management_app/REQ-47

@@ -13,7 +13,8 @@ type: configuration
 - `GET /health` → `{ status: "ok" }` (unchanged from the scaffold).
 - Parses JSON request bodies (`express.json()`) for every route.
 - Mounts `connectivityRouter` at `/api/connectivity`, `eventsRouter` at `/api/events`,
-  `persistenceRouter` at `/api/persistence` and `hostPathsRouter` at `/api/host-paths`.
+  `persistenceRouter` at `/api/persistence`, `hostPathsRouter` at `/api/host-paths`, and
+  `imageAnalysisRouter` alongside `imagesRouter` at `/api/images`.
 - Starts `eventStreamService` so the daemon event subscription is live as soon as the server boots,
   independent of whether any client has connected yet.
 - Calls `reclaimOrphans()` once at startup, before listening, so analysis-cache files left behind by
@@ -25,6 +26,8 @@ type: configuration
 - connectivity: connectivityRouter
 - events: eventsRouter, eventStreamService
 - local-persistence: persistenceRouter, hostPathsRouter, reclaimOrphans
+- images: imagesRouter
+- image-analysis: imageAnalysisRouter
 
 ## Requirements served
 

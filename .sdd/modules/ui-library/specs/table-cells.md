@@ -1,14 +1,14 @@
 ---
 module: ui-library
-component: StatusDotCell, TwoLineCell, MetaCell, IdentifierCell, BadgeListCell
+component: StatusDotCell, TwoLineCell, MetaCell, IdentifierCell, BadgeListCell, ProportionBarCell
 type: UI component
 ---
 
 # Table cells
 
 **Purpose** → the reusable cell contents composed inside a `DataTable` column's `render`: a colored
-status dot, a title-over-subtitle pair, a muted monospace value, a truncated identifier, and a list
-of badges with an overflow indicator.
+status dot, a title-over-subtitle pair, a muted monospace value, a truncated identifier, a list of
+badges with an overflow indicator, and a magnitude bar sized relative to the column's largest row.
 
 ## Contract
 
@@ -18,12 +18,14 @@ of badges with an overflow indicator.
   state) in muted monospace underneath, and an optional trailing `action` (e.g. an edit affordance)
   hidden until the cell is hovered or a descendant gains keyboard focus — never `display: none`, so
   it stays reachable via Tab and to assistive technology regardless of hover state.
-- `<MetaCell children? wrap? title? />` — muted monospace text for a numeric/meta value (CPU,
-  memory, ports, uptime, …); renders `'–'` when `children` is empty. Single line by default:
-  overflowing text ellipsis-truncates instead of wrapping or growing the row, with the full value
-  available as a native tooltip (`title`, defaulting to the text content itself when `children` is a
-  string or number). `wrap: true` instead wraps long unbroken values (e.g. a PATH-style line) onto
-  multiple lines within the cell.
+- `<MetaCell children? wrap? title? unavailableReason? />` — muted monospace text for a
+  numeric/meta value (CPU, memory, ports, uptime, …); renders `'–'` when `children` is empty. Single
+  line by default: overflowing text ellipsis-truncates instead of wrapping or growing the row, with
+  the full value available as a native tooltip (`title`, defaulting to the text content itself when
+  `children` is a string or number). `wrap: true` instead wraps long unbroken values (e.g. a
+  PATH-style line) onto multiple lines within the cell. When `children` is empty and
+  `unavailableReason` is given, renders `'unavailable'` instead of `'–'`, with the reason as a
+  tooltip — for a value the source genuinely cannot provide, as opposed to one merely absent.
 - `<IdentifierCell value? maxChars? />` — an opaque identifier (hash, digest, key) in monospace.
   Renders `'–'` when `value` is empty. When `maxChars` is given and the value is longer, the value is
   cut at its tail and the cut is marked with an ellipsis character, so every row shows the same
@@ -37,6 +39,12 @@ of badges with an overflow indicator.
   - `tone` applies to the label badges (default `neutral`); the `+N` badge is always `neutral`
   - empty `labels` → `emptyLabel` rendered as a single badge with `emptyTone` (default `neutral`)
     when given, otherwise `'–'`
+- `<ProportionBarCell fraction label tone? />` — a rounded bar filled to `fraction` (`0..1`, clamped;
+  non-finite treated as `0`) of the cell's width, carrying `label` inside it.
+  - `tone`: `BadgeTone` (default `'neutral'`), colors the fill the same way `Badge` colors a tag.
+  - the fill never shrinks below a small minimum width, so a near-zero row's bar stays visible and
+    legible even at `fraction` `0`.
+  - `label`, when a string, is also the fill's tooltip (shown when the label itself is truncated).
 
 ## Rules and invariants
 
@@ -48,3 +56,6 @@ of badges with an overflow indicator.
 - plan-docker_management_app/REQ-3
 - plan-docker_management_app/REQ-19
 - plan-docker_management_app/REQ-37
+- plan-docker_management_app/REQ-47
+- plan-docker_management_app/REQ-48
+- plan-docker_management_app/REQ-49

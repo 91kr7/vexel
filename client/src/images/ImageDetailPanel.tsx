@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import {
+  Button,
   CodeViewer,
   CollapsibleSection,
   DefinitionList,
@@ -10,6 +12,7 @@ import {
 } from '../ui';
 import type { ImageSummary } from '../data/images-client';
 import { useImageInspect } from '../data/use-image-inspect';
+import { LayerExplorer } from './LayerExplorer';
 
 export interface ImageDetailPanelProps {
   image: ImageSummary;
@@ -36,9 +39,10 @@ function formatBytes(bytes: number): string {
  */
 export function ImageDetailPanel({ image, onClose }: ImageDetailPanelProps) {
   const { inspect, loaded, error, refresh } = useImageInspect(image.id);
+  const [layersOpen, setLayersOpen] = useState(false);
 
   return (
-    <DetailPanel onClose={onClose}>
+    <DetailPanel onClose={onClose} actions={<Button variant="secondary" onClick={() => setLayersOpen(true)}>Explore layers…</Button>}>
       <Stack gap="var(--space-4)">
         {error ? <ErrorBanner title="Could not load image details" detail={error} onRetry={refresh} /> : null}
         {!inspect ? (
@@ -77,6 +81,7 @@ export function ImageDetailPanel({ image, onClose }: ImageDetailPanelProps) {
           </>
         )}
       </Stack>
+      <LayerExplorer image={image} open={layersOpen} onClose={() => setLayersOpen(false)} />
     </DetailPanel>
   );
 }

@@ -14,6 +14,12 @@
   padding: var(--space-6);
 }
 
+.ui-modal--size-large {
+  width: min(1100px, 92vw);
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
 .ui-modal__title {
   margin: 0 0 var(--space-2);
   font-size: var(--font-size-lg);

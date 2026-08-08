@@ -30,8 +30,9 @@ data.
   - `entrypoint`/`command` — the image's `Entrypoint`/`Cmd`, empty array when unset.
   - `exposedPorts` — the keys of `Config.ExposedPorts` (e.g. `"80/tcp"`).
   - `history`: `{ createdAt, createdBy, sizeBytes, comment?, emptyLayer }[]` — one entry per
-    recorded build step, oldest first, exactly as the daemon returns it; `emptyLayer` is `true` when
-    the step added no data (`sizeBytes === 0`).
+    recorded build step, exactly as the daemon returns it (verified against a running daemon: newest
+    layer first, not reordered here); `emptyLayer` is `true` when the step added no data
+    (`sizeBytes === 0`).
   - `raw` — the full inspect payload exactly as received, unmodified.
 
 ## Rules and invariants

@@ -35,7 +35,8 @@ stays smooth (REQ-109).
 
 ## Rules and invariants
 
-- A row's checkbox click never also triggers `onRowSelect` on that row.
+- Only the checkbox control's own click is swallowed before it reaches `onRowSelect`; the rest of
+  its column cell behaves like any other cell and still selects/expands the row.
 - A row's height never changes with scroll position: virtualisation swaps which rows are mounted,
   not their layout, so scrolling never recomputes the glass material (REQ-109).
 - Every column in `columns` renders in the header and in every row, in the same order and using the

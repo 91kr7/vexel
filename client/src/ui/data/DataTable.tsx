@@ -145,12 +145,18 @@ export function DataTable<T>({
                     aria-selected={onRowSelect ? selected : undefined}
                   >
                     {selection ? (
-                      <div className="ui-data-table__cell ui-data-table__select-cell" onClick={(event) => event.stopPropagation()}>
+                      // Only the checkbox's own click is swallowed (its hit area, not the
+                      // whole 36px column): clicking the cell's padding still selects/expands
+                      // the row like any other cell, and this cell is deliberately not also a
+                      // `.ui-data-table__cell` — that class marks a real column cell, and a
+                      // selection checkbox is a structural control, not column data.
+                      <div className="ui-data-table__select-cell">
                         <input
                           type="checkbox"
                           aria-label="Select row"
                           checked={selection.selectedKeys.includes(key)}
                           onChange={() => selection.onToggle(row)}
+                          onClick={(event) => event.stopPropagation()}
                         />
                       </div>
                     ) : null}
