@@ -55,6 +55,8 @@ Actions:
   `"<count>-images.tar"` for several) via `triggerDownload`, and report a "Download started" toast
   naming the file (REQ-42): no dialog collects a target, since the browser owns the download and its
   own progress from here.
+- The `BulkActionBar`'s "Compare filesystems…" action, enabled only when exactly two images are
+  selected, opens the `ImageDiffView` with both pre-picked and clears the selection (REQ-63).
 - "Load tarball…" opens a `FormDialog` with a `FilePicker` for a local tarball (REQ-42); submitting
   closes that dialog and opens a `TransferProgressDialog` driven by `useFileUpload`, showing upload
   byte progress with a genuine cancel while it runs, the references loaded once it ends (Close
@@ -94,7 +96,7 @@ Actions:
   TransferProgressDialog, FilePicker, triggerDownload, TextField, Select, Card, ErrorBanner,
   EmptyState, Stack, useToast
 - Images client, useImageTransferStream, useFileUpload
-- ImageDetailPanel
+- ImageDetailPanel, ImageDiffView
 - containers: ContainerCreateForm, Container transfer client
 - app-shell: ConfirmationService, ProgressService, ErrorReportingService
 
@@ -108,3 +110,4 @@ Actions:
 - plan-docker_management_app/REQ-29
 - plan-docker_management_app/REQ-42
 - plan-docker_management_app/REQ-43
+- plan-docker_management_app/REQ-63

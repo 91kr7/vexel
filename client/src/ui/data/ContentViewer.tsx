@@ -1,3 +1,4 @@
+import type { Ref, UIEvent } from 'react';
 import { ScrollArea } from '../glass/ScrollArea';
 import { FieldMessage } from '../controls/FieldMessage';
 import './content-viewer.css';
@@ -21,14 +22,17 @@ export interface TextViewerProps {
   truncated?: boolean;
   totalSizeBytes?: number;
   maxHeight?: string;
+  /** Forwarded to the internal scrollable element; lets a caller (e.g. a side-by-side pairing) read/drive its scroll position. */
+  scrollRef?: Ref<HTMLDivElement>;
+  onScroll?: (event: UIEvent<HTMLDivElement>) => void;
 }
 
 /** Read-only monospace text preview with a line-number gutter and a truncation notice for an oversized file (REQ-59). */
-export function TextViewer({ content, truncated, totalSizeBytes, maxHeight = '360px' }: TextViewerProps) {
+export function TextViewer({ content, truncated, totalSizeBytes, maxHeight = '360px', scrollRef, onScroll }: TextViewerProps) {
   const lines = content.length === 0 ? [] : content.split('\n');
   return (
     <div className="ui-content-viewer">
-      <ScrollArea maxHeight={maxHeight}>
+      <ScrollArea ref={scrollRef} maxHeight={maxHeight} onScroll={onScroll}>
         <div className="ui-content-viewer__text">
           {lines.map((line, index) => (
             <div className="ui-content-viewer__line" key={index}>
@@ -49,13 +53,16 @@ export interface HexDumpViewerProps {
   truncated?: boolean;
   totalSizeBytes?: number;
   maxHeight?: string;
+  /** Forwarded to the internal scrollable element; lets a caller (e.g. a side-by-side pairing) read/drive its scroll position. */
+  scrollRef?: Ref<HTMLDivElement>;
+  onScroll?: (event: UIEvent<HTMLDivElement>) => void;
 }
 
 /** Read-only monospace hex-dump preview of a binary file's bytes, with the same truncation notice as `TextViewer` (REQ-59). */
-export function HexDumpViewer({ content, truncated, totalSizeBytes, maxHeight = '360px' }: HexDumpViewerProps) {
+export function HexDumpViewer({ content, truncated, totalSizeBytes, maxHeight = '360px', scrollRef, onScroll }: HexDumpViewerProps) {
   return (
     <div className="ui-content-viewer">
-      <ScrollArea maxHeight={maxHeight}>
+      <ScrollArea ref={scrollRef} maxHeight={maxHeight} onScroll={onScroll}>
         <pre className="ui-content-viewer__hex">{content}</pre>
       </ScrollArea>
       <TruncationNotice truncated={truncated} totalSizeBytes={totalSizeBytes} />

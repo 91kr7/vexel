@@ -7,8 +7,9 @@ type: REST endpoint
 # Image analysis endpoints
 
 **Purpose** → exposes the layer stack (with shared-layer markers), a cancellable changeset analysis
-progress stream, the runtime-independent filesystem extraction/tree-read pair, and the in-tree
-metadata/content/search/export operations built on it, to the client (REQ-47–62, REQ-113).
+progress stream, the runtime-independent filesystem extraction/tree-read pair, the in-tree
+metadata/content/search/export operations built on it, and the cross-image filesystem diff
+stream/tree-read pair, to the client (REQ-47–64, REQ-113).
 
 ## Contract
 
@@ -43,6 +44,13 @@ metadata/content/search/export operations built on it, to the client (REQ-47–6
 - `GET /api/images/:id/filesystem/subtree-download?path=...` → streams a subtree's freshly built tar
   archive as a browser download from `openSubtreeArchiveDownload` (REQ-61); `404` when not extracted,
   `409` with `{ error }` on a refusal.
+- `GET /api/images/diff/stream?a=...&b=...` → server-sent events driving `compareImageFilesystems`
+  for images `a` and `b`: `progress` (one per `ImageDiffProgress`), `result` (the final
+  `ImageFilesystemDiff`, sent just before `end`), `end`, or `error` (`{ message }`) if it fails
+  (REQ-63, REQ-64). Disconnecting cancels the in-flight comparison (and any extraction it started).
+- `GET /api/images/diff/entries?a=...&b=...[&path=...]` → `{ path, entries }`, the direct children
+  of `path` (root when omitted) from `listDiffChildren` for the pair `(a, b)`; `404` when this pair
+  has not been compared yet.
 
 ## Rules and invariants
 
@@ -57,7 +65,7 @@ metadata/content/search/export operations built on it, to the client (REQ-47–6
 
 - image-analysis: LayerMetadataService, SharedLayerService, ChangesetService,
   FilesystemExtractionService, FilesystemContainment, FilesystemEntryService,
-  FilesystemContentService, FilesystemSearchService, FilesystemExportService
+  FilesystemContentService, FilesystemSearchService, FilesystemExportService, ImageDiffService
 - images: `sanitizeTarFilename` (reused for the subtree archive's download filename)
 - docker-access: DockerDaemonError
 
@@ -78,4 +86,6 @@ metadata/content/search/export operations built on it, to the client (REQ-47–6
 - plan-docker_management_app/REQ-60
 - plan-docker_management_app/REQ-61
 - plan-docker_management_app/REQ-62
+- plan-docker_management_app/REQ-63
+- plan-docker_management_app/REQ-64
 - plan-docker_management_app/REQ-113

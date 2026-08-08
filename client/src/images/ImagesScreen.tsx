@@ -42,6 +42,7 @@ import { useFileUpload, useImageTransferStream } from '../data/use-image-transfe
 import { containerImportUploadUrl, type ContainerImportResult } from '../data/container-transfer-client';
 import { ContainerCreateForm } from '../containers/ContainerCreateForm';
 import { ImageDetailPanel } from './ImageDetailPanel';
+import { ImageDiffView } from './ImageDiffView';
 import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
 import { useProgress } from '../shell/services/ProgressService';
@@ -145,6 +146,10 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
   const [importOpen, setImportOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importTargetReference, setImportTargetReference] = useState('');
+
+  const [diffOpen, setDiffOpen] = useState(false);
+  const [diffImageAId, setDiffImageAId] = useState<string | undefined>(undefined);
+  const [diffImageBId, setDiffImageBId] = useState<string | undefined>(undefined);
 
   const pullTransfer = useImageTransferStream(pullStreamUrl);
   const pushTransfer = useImageTransferStream(pushStreamUrl);
@@ -314,6 +319,15 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
     setSelectedIds((current) => (current.includes(image.id) ? current.filter((id) => id !== image.id) : [...current, image.id]));
   }
 
+  /** Starts a comparison from a two-image bulk selection (REQ-63). */
+  function startCompareSelected() {
+    if (selectedIds.length !== 2) return;
+    setDiffImageAId(selectedIds[0]);
+    setDiffImageBId(selectedIds[1]);
+    setDiffOpen(true);
+    setSelectedIds([]);
+  }
+
   async function handlePruneDangling() {
     const confirmed = await confirm({
       targetName: 'dangling images',
@@ -424,6 +438,12 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
               setSelectedIds([]);
             },
           },
+          {
+            id: 'compare',
+            label: 'Compare filesystems…',
+            onClick: startCompareSelected,
+            disabled: selectedIds.length !== 2,
+          },
         ]}
         onClear={() => setSelectedIds([])}
       />
@@ -436,7 +456,7 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
           selectedRowKey={selectedId}
           onRowSelect={toggleSelection}
           expandedRowKey={selectedId}
-          renderExpanded={(image) => <ImageDetailPanel image={image} onClose={() => setSelectedId(undefined)} />}
+          renderExpanded={(image) => <ImageDetailPanel image={image} images={images} onClose={() => setSelectedId(undefined)} />}
           emptyState={<EmptyState title={loaded ? 'No images match' : 'Loading images…'} description={loaded ? 'Try a different search.' : undefined} />}
           selection={{
             selectedKeys: selectedIds,
@@ -605,6 +625,8 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
         onCancel={() => setRunReference(undefined)}
         onCreated={() => setRunReference(undefined)}
       />
+
+      <ImageDiffView images={images} initialImageAId={diffImageAId} initialImageBId={diffImageBId} open={diffOpen} onClose={() => setDiffOpen(false)} />
     </Stack>
   );
 }

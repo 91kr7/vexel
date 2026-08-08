@@ -543,6 +543,51 @@ describe('ImagesScreen — save to tarball (plan-docker_management_app/REQ-42)',
   });
 });
 
+// images-screen.md — the BulkActionBar's "Compare filesystems…" action is enabled only when exactly
+// two images are selected, and opens the diff view with both pre-picked (REQ-63).
+describe('ImagesScreen — compare filesystems (plan-docker_management_app/REQ-63)', () => {
+  it('keeps "Compare filesystems…" disabled with only one image selected', async () => {
+    const user = userEvent.setup();
+    renderScreen([makeImage({ id: 'image-a', tags: ['a:1'] }), makeImage({ id: 'image-b', tags: ['b:1'] })]);
+
+    await user.click(within(tableRows()[0]!).getByRole('checkbox'));
+
+    expect(screen.getByRole('button', { name: 'Compare filesystems…' })).toBeDisabled();
+  });
+
+  it('enables "Compare filesystems…" with exactly two images selected, opening the diff view pre-picked with both and clearing the selection', async () => {
+    const user = userEvent.setup();
+    renderScreen([makeImage({ id: 'image-a', tags: ['a:1'] }), makeImage({ id: 'image-b', tags: ['b:1'] })]);
+
+    await user.click(within(tableRows()[0]!).getByRole('checkbox'));
+    await user.click(within(tableRows()[1]!).getByRole('checkbox'));
+    expect(screen.getByRole('button', { name: 'Compare filesystems…' })).toBeEnabled();
+
+    await user.click(screen.getByRole('button', { name: 'Compare filesystems…' }));
+
+    expect(screen.getByRole('heading', { name: 'Compare filesystems' })).toBeInTheDocument();
+    expect(screen.getByLabelText('First image')).toHaveValue('image-a');
+    expect(screen.getByLabelText('Second image')).toHaveValue('image-b');
+    // The bulk selection is cleared once the diff view takes over.
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Compare filesystems…' })).not.toBeInTheDocument());
+  });
+
+  it('disables "Compare filesystems…" again once a third image is also selected', async () => {
+    const user = userEvent.setup();
+    renderScreen([
+      makeImage({ id: 'image-a', tags: ['a:1'] }),
+      makeImage({ id: 'image-b', tags: ['b:1'] }),
+      makeImage({ id: 'image-c', tags: ['c:1'] }),
+    ]);
+
+    await user.click(within(tableRows()[0]!).getByRole('checkbox'));
+    await user.click(within(tableRows()[1]!).getByRole('checkbox'));
+    await user.click(within(tableRows()[2]!).getByRole('checkbox'));
+
+    expect(screen.getByRole('button', { name: 'Compare filesystems…' })).toBeDisabled();
+  });
+});
+
 // images-screen.md — "Load tarball…" opens a FormDialog with a FilePicker
 // (no path field: the operator picks a file from their own machine), then a
 // TransferProgressDialog driven by useFileUpload shows byte progress with a

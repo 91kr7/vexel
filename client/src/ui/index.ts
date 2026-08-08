@@ -77,6 +77,8 @@ export { TextViewer, type TextViewerProps, HexDumpViewer, type HexDumpViewerProp
 export { LogStream, type LogStreamProps, type LogStreamLine } from './data/LogStream';
 export { CardList, type CardListProps, type CardListRowContent } from './data/CardList';
 export { TreeView, type TreeViewProps, type TreeNode, type TreeEntryKind } from './data/TreeView';
+export { DiffTreeView, type DiffTreeViewProps, type DiffTreeNode, type DiffStatus, type DiffStatusFilter } from './data/DiffTreeView';
+export { SideBySideViewer, type SideBySideViewerProps, type SideBySideSide } from './data/SideBySideViewer';
 
 export { MetricTile, type MetricTileProps, type MetricTone } from './metrics/MetricTile';
 export { Meter, type MeterProps } from './metrics/Meter';
