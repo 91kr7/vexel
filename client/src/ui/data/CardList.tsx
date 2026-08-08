@@ -10,6 +10,8 @@ export interface CardListRowContent {
   badges?: ReactNode;
   /** Trailing meta values (e.g. size, age). */
   meta?: ReactNode;
+  /** Extra interactive content below the row, outside the selectable header (e.g. chips with their own actions). */
+  content?: ReactNode;
 }
 
 export interface CardListProps<T> {
@@ -59,6 +61,7 @@ export function CardList<T>({ items, itemKey, renderRow, selectedKey, onSelect, 
                 {row.meta ? <div className="ui-card-list__meta">{row.meta}</div> : null}
               </div>
             </div>
+            {row.content ? <div className="ui-card-list__content">{row.content}</div> : null}
             {expanded && renderExpanded ? <div className="ui-card-list__expanded">{renderExpanded(item)}</div> : null}
           </Surface>
         );

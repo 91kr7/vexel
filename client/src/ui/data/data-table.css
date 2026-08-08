@@ -332,6 +332,10 @@
   min-width: 64px;
 }
 
+.ui-card-list__content {
+  padding: 0 var(--space-5) var(--space-4);
+}
+
 .ui-card-list__expanded {
   padding: 0 var(--space-5) var(--space-5);
   border-top: var(--border-width-hairline) solid var(--color-border-subtle);

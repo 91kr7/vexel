@@ -49,6 +49,7 @@
 | FormSection | UI component | `client/src/ui/controls/FormSection.tsx` | One titled group of fields inside a long, sectioned form | `specs/form-section.md` |
 | Combobox | UI component | `client/src/ui/controls/Combobox.tsx` | Text input suggesting known (possibly asynchronously loaded) options while accepting any free text | `specs/combobox.md` |
 | ChipInput | UI component | `client/src/ui/controls/ChipInput.tsx` | Free-form list of short values, each entered value becoming a removable chip | `specs/chip-input.md` |
+| Chip, ChipGroup | UI component | `client/src/ui/controls/Chip.tsx` | Label chip with an optional inline secondary action, and a row of such chips with an optional trailing "add" affordance | `specs/chip.md` |
 | SegmentedControl | UI component | `client/src/ui/controls/SegmentedControl.tsx` | Row of joined segments selecting one or several options, never emptied | `specs/segmented-control.md` |
 | TailSizeSelector | UI component | `client/src/ui/controls/TailSizeSelector.tsx` | Picks how many trailing lines of a stream to load, or all of them | `specs/tail-size-selector.md` |
 | TimeRangeField | UI component | `client/src/ui/controls/TimeRangeField.tsx` | Since/until pair of inputs bounding a stream in time | `specs/time-range-field.md` |

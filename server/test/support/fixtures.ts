@@ -126,6 +126,10 @@ export async function removeVolumeQuietly(name: string): Promise<void> {
   await execFileAsync("docker", ["volume", "rm", "-f", name]).catch(() => undefined);
 }
 
+export async function removeNetworkQuietly(name: string): Promise<void> {
+  await execFileAsync("docker", ["network", "rm", "-f", name]).catch(() => undefined);
+}
+
 export async function removeImageQuietly(reference: string): Promise<void> {
   await execFileAsync("docker", ["rmi", "-f", reference]).catch(() => undefined);
 }
