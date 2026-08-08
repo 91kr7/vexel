@@ -12,6 +12,19 @@ export function resolveActiveEndpoint(): DockerEndpoint {
   return dockerHost ? parseDockerHost(dockerHost) : defaultLocalSocket();
 }
 
+/**
+ * Whether the active endpoint comes from an operator-set `DOCKER_HOST`, as
+ * opposed to the platform-default local socket assumed when nothing is
+ * configured. A CLI spawn cares about this distinction: forcing `DOCKER_HOST`
+ * on every call makes tools that keep per-context local state (e.g. buildx's
+ * current-builder file) key that state on the forced value rather than on
+ * the operator's real named Docker context, which is a different identity
+ * even when both happen to dial the same socket.
+ */
+export function isExplicitEndpoint(): boolean {
+  return process.env.DOCKER_HOST !== undefined;
+}
+
 function defaultLocalSocket(): DockerEndpoint {
   const socketPath = process.platform === "win32" ? "\\\\.\\pipe\\docker_engine" : "/var/run/docker.sock";
   return { kind: "unix", socketPath };

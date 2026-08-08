@@ -2,6 +2,7 @@
 // presence/version detection, and running a command against the active
 // context with streamed stdout/stderr, exit code and cancellation.
 import { spawn } from "node:child_process";
+import { isExplicitEndpoint } from "./endpoint.js";
 import type { DockerEndpoint } from "./types.js";
 
 export interface CliToolStatus {
@@ -39,7 +40,7 @@ export async function detectCliAvailability(): Promise<CliAvailability> {
 
 /** Runs `command args...` against the active context; output streams as it is produced. */
 export function runCliCommand(command: string, args: string[], endpoint: DockerEndpoint): CliRunHandle {
-  const child = spawn(command, args, { env: { ...process.env, ...endpointToCliEnv(endpoint) } });
+  const child = spawn(command, args, { env: cliEnv(endpoint) });
   const stdoutListeners: Array<(chunk: string) => void> = [];
   const stderrListeners: Array<(chunk: string) => void> = [];
   const spawnErrorListeners: Array<(message: string) => void> = [];
@@ -91,4 +92,18 @@ function endpointToCliEnv(endpoint: DockerEndpoint): Record<string, string> {
   if (endpoint.kind === "unix") return { DOCKER_HOST: `unix://${endpoint.socketPath}` };
   if (endpoint.kind === "tcp") return { DOCKER_HOST: `tcp://${endpoint.host}:${endpoint.port}` };
   return { DOCKER_HOST: `ssh://${endpoint.destination}` };
+}
+
+/**
+ * The environment a spawned CLI process runs with. When the operator has not
+ * set `DOCKER_HOST` themselves, the parent's own environment is passed through
+ * unchanged rather than forcing one derived from the assumed default socket:
+ * that lets `docker`/`buildx` resolve the active Docker context exactly as a
+ * bare terminal invocation would (`~/.docker/config.json`'s current context),
+ * which matters for tools that key local state on that resolved identity
+ * (e.g. buildx's current-builder file) rather than on the dialed socket path.
+ */
+function cliEnv(endpoint: DockerEndpoint): NodeJS.ProcessEnv {
+  if (!isExplicitEndpoint()) return process.env;
+  return { ...process.env, ...endpointToCliEnv(endpoint) };
 }

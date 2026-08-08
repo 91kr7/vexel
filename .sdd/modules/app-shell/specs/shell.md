@@ -30,8 +30,10 @@ Shows:
   `useImages()`, since its create/run form suggests the local images (REQ-29) —, `ImagesScreen` for the `images-layers` screen
   (REQ-37–REQ-41), `ComposeScreen` for the `compose` screen (REQ-75–REQ-78) — fed the live project
   list from `useComposeProjects()` —, `VolumesNetworksScreen` for the `volumes-networks` screen
-  (REQ-70, REQ-71) — fed the live volume list from `useVolumes()` —, a `PlaceholderScreen` for every
-  screen not yet built by its own feature batch.
+  (REQ-70, REQ-71) — fed the live volume list from `useVolumes()` —, `BuildersScreen` for the
+  `builders-cache` screen (REQ-88, REQ-89, REQ-91) — self-sufficient, reading its own builder and
+  build-cache inventories —, a `PlaceholderScreen` for every screen not yet built by its own feature
+  batch.
 - The Containers `NavItem`'s count badge is the live container count from `useContainers()`, the
   Images & layers `NavItem`'s count badge is the live image count from `useImages()`, and the
   Compose `NavItem`'s count badge is the live compose project count from `useComposeProjects()`, all
@@ -89,6 +91,7 @@ Navigation:
 - compose: useComposeProjects, ComposeScreen
 - volumes: useVolumes
 - volumes-networks: VolumesNetworksScreen
+- builders: BuildersScreen
 
 ## Requirements served
 
@@ -107,6 +110,9 @@ Navigation:
 - plan-docker_management_app/REQ-78
 - plan-docker_management_app/REQ-70
 - plan-docker_management_app/REQ-71
+- plan-docker_management_app/REQ-88
+- plan-docker_management_app/REQ-89
+- plan-docker_management_app/REQ-91
 - plan-docker_management_app/REQ-110
 - plan-docker_management_app/REQ-113
 - plan-docker_management_app/REQ-115

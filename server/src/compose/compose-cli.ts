@@ -3,6 +3,7 @@
 // sibling service file goes through here rather than spawning on its own.
 import { runCliCommand } from "../docker/cli-runner.js";
 import { resolveActiveEndpoint } from "../docker/endpoint.js";
+import { DockerDaemonError } from "../docker/errors.js";
 
 /** Runs `docker compose <args>`, buffers its output and parses it as a single JSON value (e.g. `docker compose config`, which always emits one object). Rejects with the daemon's own stderr message on a non-zero exit, a spawn failure, or malformed output. */
 export async function runComposeJson<T>(args: string[]): Promise<T> {
@@ -35,8 +36,8 @@ export function runComposeCapture(args: string[]): Promise<string> {
   handle.onSpawnError((message) => (spawnError = message));
 
   return handle.done.then(({ exitCode }) => {
-    if (spawnError) throw new Error(spawnError);
-    if (exitCode !== 0) throw new Error(stderr.trim() || `docker compose exited with code ${exitCode}`);
+    if (spawnError) throw new DockerDaemonError("DaemonRejected", spawnError);
+    if (exitCode !== 0) throw new DockerDaemonError("DaemonRejected", stderr.trim() || `docker compose exited with code ${exitCode}`);
     return stdout;
   });
 }

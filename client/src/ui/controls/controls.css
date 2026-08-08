@@ -189,6 +189,16 @@
   color: var(--color-danger-strong);
 }
 
+.ui-badge--clickable {
+  border: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.ui-badge--clickable:hover {
+  background: var(--color-wash-3);
+}
+
 .ui-path-input {
   display: flex;
   flex-direction: column;
