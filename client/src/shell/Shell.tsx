@@ -25,8 +25,10 @@ import { clearAnalysisCache, fetchAnalysisCacheUsage } from '../data/preferences
 import { usePreferences } from '../data/use-preferences';
 import { useContainers } from '../data/use-containers';
 import { useImages } from '../data/use-images';
+import { useVolumes } from '../data/use-volumes';
 import { ContainersScreen } from '../containers/ContainersScreen';
 import { ImagesScreen } from '../images/ImagesScreen';
+import { VolumesNetworksScreen } from '../volumes-networks/VolumesNetworksScreen';
 import { defaultScreenId, navGroupOrder, screens } from './navigation';
 import { PlaceholderScreen } from './screens/PlaceholderScreen';
 import { ConfirmationProvider } from './services/ConfirmationService';
@@ -74,6 +76,7 @@ export function Shell() {
   const { preferences, loaded: preferencesLoaded, updatePreferences } = usePreferences();
   const containers = useContainers();
   const images = useImages();
+  const volumes = useVolumes();
   const [cacheUsage, setCacheUsage] = useState<number | undefined>(undefined);
   // Set as soon as the restore has had its chance — either because it ran, or
   // because the operator picked a screen first. Guards both against a second
@@ -207,6 +210,10 @@ export function Shell() {
               />
             ) : activeScreen.id === 'images-layers' ? (
               <ImagesScreen images={images.images} loaded={images.loaded} error={images.error} onRefresh={images.refresh} />
+            ) : activeScreen.id === 'volumes-networks' ? (
+              <VolumesNetworksScreen
+                volumes={{ volumes: volumes.volumes, loaded: volumes.loaded, error: volumes.error, onRefresh: volumes.refresh }}
+              />
             ) : (
               <>
                 <Card>
