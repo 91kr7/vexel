@@ -36,7 +36,7 @@ async function createFilesystemFixtureContainer(caseName: string): Promise<strin
 }
 
 async function removeContainerQuietly(id: string): Promise<void> {
-  await execFileAsync("docker", ["rm", "-f", id]).catch(() => undefined);
+  await execFileAsync("docker", ["rm", "-fv", id]).catch(() => undefined);
 }
 
 async function removeImageQuietly(reference: string): Promise<void> {

@@ -12,7 +12,7 @@ async function createStandaloneImage(tag: string, containerName: string): Promis
 
 async function removeStandaloneImage(tag: string, containerName: string): Promise<void> {
   await execFileAsync('docker', ['rmi', '-f', tag]).catch(() => undefined);
-  await execFileAsync('docker', ['rm', '-f', containerName]).catch(() => undefined);
+  await execFileAsync('docker', ['rm', '-fv', containerName]).catch(() => undefined);
 }
 
 function imageRow(page: Page, text: string) {
@@ -63,16 +63,18 @@ test.beforeEach(async ({ page }) => {
 // plan-docker_management_app/REQ-47, plan-docker_management_app/REQ-48 — a registry-pulled image
 // (never built locally) shows its whole layer stack, with the compressed size marked unavailable.
 test('opens the layer explorer from the image detail panel and shows the ordered layer stack for a registry-pulled image', async ({ page }) => {
-  await searchField(page).fill('postgres');
-  const row = imageRow(page, 'postgres:16');
+  await searchField(page).fill('registry');
+  const row = imageRow(page, 'registry:2');
   await expect(row).toBeVisible({ timeout: 10_000 });
   await selectRow(row);
 
   await page.getByRole('button', { name: 'Explore layers…' }).click();
 
-  const modal = layerExplorerModal(page, 'Layer stack — postgres:16');
+  const modal = layerExplorerModal(page, 'Layer stack — registry:2');
   await expect(modal).toBeVisible();
-  await expect(modal.locator('.ui-data-table__header-cell')).toHaveText(['#', 'INSTRUCTION', 'SHARED', 'SIZE', 'COMPRESSED']);
+  // SIGNALS marks the layers carrying an efficiency or secret finding
+  // (images/specs/layer-explorer.md).
+  await expect(modal.locator('.ui-data-table__header-cell')).toHaveText(['#', 'INSTRUCTION', 'SHARED', 'SIGNALS', 'SIZE', 'COMPRESSED']);
   const rows = modal.locator('.ui-data-table__row');
   await expect(rows.first()).toBeVisible({ timeout: 10_000 });
   expect(await rows.count()).toBeGreaterThan(1);

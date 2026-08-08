@@ -11,8 +11,9 @@
     "test": "npm run test:unit && npm run test:api && npm run test:exclusive",
     "test:unit": "node --experimental-test-module-mocks --import tsx --test-reporter=dot --test \"test/unit/**/*.test.ts\"",
     "test:sweep": "tsx test/support/sweep.ts",
-    "test:api": "npm run test:sweep && node --experimental-test-module-mocks --import tsx --test-reporter=dot --test \"test/api/**/*.test.ts\"",
-    "test:exclusive": "npm run test:sweep && node --experimental-test-module-mocks --import tsx --test-reporter=dot --test-concurrency=1 --test \"test/exclusive/**/*.test.ts\""
+    "test:reset-data-dir": "D=\"${TMPDIR:-/tmp}/vexel-server-test-data\" && rm -rf \"$D\" && mkdir -p \"$D\"",
+    "test:api": "npm run test:sweep && VEXEL_DATA_DIR=\"${TMPDIR:-/tmp}/vexel-server-test-data\" node --experimental-test-module-mocks --import tsx --test-reporter=dot --test \"test/api/**/*.test.ts\"",
+    "test:exclusive": "npm run test:sweep && VEXEL_DATA_DIR=\"${TMPDIR:-/tmp}/vexel-server-test-data\" node --experimental-test-module-mocks --import tsx --test-reporter=dot --test-concurrency=1 --test \"test/exclusive/**/*.test.ts\""
   },
   "dependencies": {
     "express": "^5.2.1",

@@ -70,7 +70,7 @@ async function createBusyContainer(name: string): Promise<string> {
     "512m",
     "--entrypoint",
     "sh",
-    "postgres:16",
+    "alpine:3.20",
     "-c",
     "i=0; while true; do i=$((i+1)); done",
   ]);
@@ -78,7 +78,7 @@ async function createBusyContainer(name: string): Promise<string> {
 }
 
 async function removeContainerQuietly(name: string): Promise<void> {
-  await execFileAsync("docker", ["rm", "-f", name]).catch(() => undefined);
+  await execFileAsync("docker", ["rm", "-fv", name]).catch(() => undefined);
 }
 
 function delay(ms: number): Promise<void> {

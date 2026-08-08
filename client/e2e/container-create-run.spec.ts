@@ -11,7 +11,7 @@ const execFileAsync = promisify(execFile);
 test.describe.configure({ mode: 'serial' });
 
 async function removeContainerQuietly(name: string): Promise<void> {
-  await execFileAsync('docker', ['rm', '-f', name]).catch(() => undefined);
+  await execFileAsync('docker', ['rm', '-fv', name]).catch(() => undefined);
 }
 
 async function removeHelloWorldImage(): Promise<void> {
@@ -41,7 +41,7 @@ test('running a container from the toolbar creates it with its configuration and
   const name = `vexel-e2e-run-${Date.now()}`;
   try {
     await page.getByRole('button', { name: 'Run container…' }).click();
-    await imageField(page).fill('postgres:16');
+    await imageField(page).fill('alpine:3.20');
     await page.getByRole('textbox', { name: 'Container name' }).fill(name);
     await page.getByRole('textbox', { name: 'Entrypoint' }).fill('sleep');
     await page.getByRole('textbox', { name: 'Command' }).fill('300');
@@ -60,7 +60,7 @@ test('running a container from the toolbar creates it with its configuration and
     const row = containerRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
     await expect(row).toContainText('running');
-    await expect(row).toContainText('postgres:16');
+    await expect(row).toContainText('alpine:3.20');
 
     const { stdout } = await execFileAsync('docker', ['inspect', name, '--format', '{{.Config.Env}} {{.State.Running}}']);
     expect(stdout).toContain('VEXEL_E2E=on');
@@ -75,7 +75,7 @@ test('creating from an image without starting it leaves the container stopped in
   const name = `vexel-e2e-create-only-${Date.now()}`;
   try {
     await page.getByRole('button', { name: 'Create from image…' }).click();
-    await imageField(page).fill('postgres:16');
+    await imageField(page).fill('alpine:3.20');
     await page.getByRole('textbox', { name: 'Container name' }).fill(name);
     await page.getByRole('textbox', { name: 'Entrypoint' }).fill('sleep');
     await page.getByRole('textbox', { name: 'Command' }).fill('300');
@@ -125,7 +125,7 @@ test('shows the pull progress and, on a daemon refusal, its own message with eve
   test.setTimeout(120_000);
   const takenName = `vexel-e2e-taken-${Date.now()}`;
   try {
-    await execFileAsync('docker', ['create', '--name', takenName, ...ownershipArgs(takenName), '--entrypoint', 'sleep', 'postgres:16', '300']);
+    await execFileAsync('docker', ['create', '--name', takenName, ...ownershipArgs(takenName), '--entrypoint', 'sleep', 'alpine:3.20', '300']);
     await removeHelloWorldImage();
 
     await page.getByRole('button', { name: 'Run container…' }).click();
@@ -156,14 +156,14 @@ test('shows the pull progress and, on a daemon refusal, its own message with eve
 // plan-docker_management_app/REQ-28 — what the browser can check is checked before submitting: nothing is sent while it fails
 test('refuses to submit an invalid container name, showing the reason on the field', async ({ page }) => {
   await page.getByRole('button', { name: 'Run container…' }).click();
-  await imageField(page).fill('postgres:16');
+  await imageField(page).fill('alpine:3.20');
   await page.getByRole('textbox', { name: 'Container name' }).fill('-not a valid name');
 
   await page.getByRole('button', { name: 'Create and start' }).click();
 
   await expect(page.getByText(/Use letters, digits/)).toBeVisible();
   // The sheet stays open, with the values in place and nothing created.
-  await expect(imageField(page)).toHaveValue('postgres:16');
+  await expect(imageField(page)).toHaveValue('alpine:3.20');
   await expect(page.locator('.ui-error-banner')).toHaveCount(0);
 });
 
@@ -181,7 +181,7 @@ test('refuses to submit without an image reference', async ({ page }) => {
 test('cancelling the form creates no container', async ({ page }) => {
   const name = `vexel-e2e-cancel-${Date.now()}`;
   await page.getByRole('button', { name: 'Run container…' }).click();
-  await imageField(page).fill('postgres:16');
+  await imageField(page).fill('alpine:3.20');
   await page.getByRole('textbox', { name: 'Container name' }).fill(name);
 
   await page.getByRole('button', { name: 'Cancel' }).click();
@@ -197,13 +197,13 @@ test('running an image from its row opens the same form pre-filled with that ref
   try {
     await page.getByRole('button', { name: /Images & layers/ }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible();
-    await page.getByPlaceholder('Search reference or digest…').fill('postgres:16');
-    const row = page.locator('.ui-data-table__row', { hasText: 'postgres:16' }).first();
+    await page.getByPlaceholder('Search reference or digest…').fill('alpine:3.20');
+    const row = page.locator('.ui-data-table__row', { hasText: 'alpine:3.20' }).first();
     await expect(row).toBeVisible({ timeout: 15_000 });
 
     await row.getByRole('button', { name: 'run', exact: true }).click();
 
-    await expect(imageField(page)).toHaveValue('postgres:16');
+    await expect(imageField(page)).toHaveValue('alpine:3.20');
 
     // The pre-filled reference is what actually gets created.
     await page.getByRole('textbox', { name: 'Container name' }).fill(name);
@@ -213,7 +213,7 @@ test('running an image from its row opens the same form pre-filled with that ref
 
     await expect(imageField(page)).toHaveCount(0, { timeout: 30_000 });
     const { stdout } = await execFileAsync('docker', ['inspect', name, '--format', '{{.Config.Image}}']);
-    expect(stdout.trim()).toBe('postgres:16');
+    expect(stdout.trim()).toBe('alpine:3.20');
   } finally {
     await removeContainerQuietly(name);
   }

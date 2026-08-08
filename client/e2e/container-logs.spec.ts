@@ -11,7 +11,7 @@ const execFileAsync = promisify(execFile);
 const LOG_SCRIPT = 'echo hello-from-stdout; echo boom-from-stderr 1>&2; i=0; while true; do i=$((i+1)); echo tick-$i; sleep 1; done';
 
 async function createLoggingContainer(name: string): Promise<void> {
-  await execFileAsync('docker', ['run', '-d', '--name', name, ...ownershipArgs(name), '--entrypoint', 'sh', 'postgres:16', '-c', LOG_SCRIPT]);
+  await execFileAsync('docker', ['run', '-d', '--name', name, ...ownershipArgs(name), '--entrypoint', 'sh', 'alpine:3.20', '-c', LOG_SCRIPT]);
 }
 
 /** Prints `count` numbered lines at once, then stays alive: a log of a known, stable size. */
@@ -23,14 +23,14 @@ async function createBulkLoggingContainer(name: string, count: number): Promise<
     name,
     '--entrypoint',
     'sh',
-    'postgres:16',
+    'alpine:3.20',
     '-c',
     `for i in $(seq 1 ${count}); do echo bulk-$i; done; sleep 300`,
   ]);
 }
 
 async function removeContainerQuietly(name: string): Promise<void> {
-  await execFileAsync('docker', ['rm', '-f', name]).catch(() => undefined);
+  await execFileAsync('docker', ['rm', '-fv', name]).catch(() => undefined);
 }
 
 function containerRow(page: Page, name: string) {

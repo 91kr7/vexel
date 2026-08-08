@@ -12,7 +12,7 @@ async function createStandaloneImage(tag: string, containerName: string): Promis
 
 async function removeStandaloneImage(tag: string, containerName: string): Promise<void> {
   await execFileAsync('docker', ['rmi', '-f', tag]).catch(() => undefined);
-  await execFileAsync('docker', ['rm', '-f', containerName]).catch(() => undefined);
+  await execFileAsync('docker', ['rm', '-fv', containerName]).catch(() => undefined);
 }
 
 function imageRow(page: Page, text: string) {

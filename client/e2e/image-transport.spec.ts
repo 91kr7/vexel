@@ -3,7 +3,7 @@ import { promisify } from 'node:util';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Download, type Page } from '@playwright/test';
 import { ownershipArgs } from './support/fixtures.js';
 
 const execFileAsync = promisify(execFile);
@@ -17,7 +17,7 @@ async function removeTagQuietly(tag: string): Promise<void> {
 }
 
 async function removeContainerQuietly(name: string): Promise<void> {
-  await execFileAsync('docker', ['rm', '-f', name]).catch(() => undefined);
+  await execFileAsync('docker', ['rm', '-fv', name]).catch(() => undefined);
 }
 
 /** A standalone single-tag image (its own id, unrelated to any other locally tagged image). */
@@ -157,6 +157,10 @@ test('exporting a container filesystem and importing it back builds an image und
   const targetReference = `vexel-e2e-transport-imported-${Date.now()}:v1`;
   await execFileAsync('docker', ['create', '--name', containerName, ...ownershipArgs(containerName), 'hello-world']);
   let tarPath: string | undefined;
+  // Kept out of the try so the finally can hand the file back to Playwright,
+  // which owns it: a downloaded file lives inside the runner's own artifact
+  // directory, and deleting that directory by hand races the runner's cleanup.
+  let download: Download | undefined;
   try {
     await page.getByRole('button', { name: /Containers/ }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
@@ -168,7 +172,7 @@ test('exporting a container filesystem and importing it back builds an image und
 
     const downloadPromise = page.waitForEvent('download');
     await detail.getByRole('button', { name: 'Export filesystem…' }).click();
-    const download = await downloadPromise;
+    download = await downloadPromise;
     expect(download.suggestedFilename()).toBe(`${containerName}.tar`);
     await expect(detail.locator('.ui-modal')).toHaveCount(0);
     tarPath = (await download.path()) ?? undefined;
@@ -198,6 +202,6 @@ test('exporting a container filesystem and importing it back builds an image und
   } finally {
     await removeTagQuietly(targetReference);
     await removeContainerQuietly(containerName);
-    if (tarPath) await fs.rm(path.dirname(tarPath), { recursive: true, force: true });
+    await download?.delete();
   }
 });

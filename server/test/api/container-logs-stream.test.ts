@@ -45,12 +45,12 @@ function startApp(): Promise<{ url: string; close: () => Promise<void> }> {
 // A tiny, already-cached image whose entrypoint is overridden to `sh` so the
 // container starts instantly, prints known output and then stays alive.
 async function createLoggingContainer(name: string, script: string): Promise<string> {
-  const { stdout } = await execFileAsync("docker", ["run", "-d", "--name", name, ...ownershipArgs(name), "--entrypoint", "sh", "postgres:16", "-c", script]);
+  const { stdout } = await execFileAsync("docker", ["run", "-d", "--name", name, ...ownershipArgs(name), "--entrypoint", "sh", "alpine:3.20", "-c", script]);
   return stdout.trim();
 }
 
 async function removeContainerQuietly(name: string): Promise<void> {
-  await execFileAsync("docker", ["rm", "-f", name]).catch(() => undefined);
+  await execFileAsync("docker", ["rm", "-fv", name]).catch(() => undefined);
 }
 
 function delay(ms: number): Promise<void> {

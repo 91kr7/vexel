@@ -28,14 +28,14 @@ async function createBusyContainer(name: string): Promise<void> {
     '512m',
     '--entrypoint',
     'sh',
-    'postgres:16',
+    'alpine:3.20',
     '-c',
     'i=0; while true; do i=$((i+1)); done',
   ]);
 }
 
 async function removeContainerQuietly(name: string): Promise<void> {
-  await execFileAsync('docker', ['rm', '-f', name]).catch(() => undefined);
+  await execFileAsync('docker', ['rm', '-fv', name]).catch(() => undefined);
 }
 
 function containerRow(page: Page, name: string) {

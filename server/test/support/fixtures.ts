@@ -20,7 +20,7 @@ export const RUN_ID = `${process.pid}-${Date.now()}`;
  * Already-cached image whose entrypoint the fixtures override, so a container
  * starts instantly and needs no network pull nor any application init.
  */
-export const BASE_IMAGE = "postgres:16";
+export const BASE_IMAGE = "alpine:3.20";
 
 export interface RunningApp {
   url: string;
@@ -119,7 +119,7 @@ export async function createScriptedContainer(
 }
 
 export async function removeContainerQuietly(name: string): Promise<void> {
-  await execFileAsync("docker", ["rm", "-f", name]).catch(() => undefined);
+  await execFileAsync("docker", ["rm", "-fv", name]).catch(() => undefined);
 }
 
 export async function removeVolumeQuietly(name: string): Promise<void> {
@@ -143,5 +143,5 @@ export async function sweepOwnFixtures(): Promise<void> {
   ]).catch(() => ({ stdout: "" }));
   const ids = stdout.split("\n").filter((id) => id.length > 0);
   if (ids.length === 0) return;
-  await execFileAsync("docker", ["rm", "-f", ...ids]).catch(() => undefined);
+  await execFileAsync("docker", ["rm", "-fv", ...ids]).catch(() => undefined);
 }

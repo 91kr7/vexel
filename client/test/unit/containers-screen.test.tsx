@@ -267,7 +267,7 @@ describe('ContainersScreen — text/state filtering (REQ-23)', () => {
   const containers = [
     makeContainer({ id: 'a', name: 'web-nginx', image: 'nginx:1.27', state: 'running' }),
     makeContainer({ id: 'b', name: 'cache-redis', image: 'redis:7', state: 'exited' }),
-    makeContainer({ id: 'c', name: 'db-postgres', image: 'postgres:16', state: 'paused' }),
+    makeContainer({ id: 'c', name: 'db-alpine', image: 'alpine:3.20', state: 'paused' }),
   ];
 
   it('matches by name, image or state, case-insensitively', async () => {
@@ -278,7 +278,7 @@ describe('ContainersScreen — text/state filtering (REQ-23)', () => {
 
     expect(screen.getByText('cache-redis')).toBeInTheDocument();
     expect(screen.queryByText('web-nginx')).not.toBeInTheDocument();
-    expect(screen.queryByText('db-postgres')).not.toBeInTheDocument();
+    expect(screen.queryByText('db-alpine')).not.toBeInTheDocument();
   });
 
   it('narrows to running containers when the Running chip is active', async () => {
@@ -289,7 +289,7 @@ describe('ContainersScreen — text/state filtering (REQ-23)', () => {
 
     expect(screen.getByText('web-nginx')).toBeInTheDocument();
     expect(screen.queryByText('cache-redis')).not.toBeInTheDocument();
-    expect(screen.queryByText('db-postgres')).not.toBeInTheDocument();
+    expect(screen.queryByText('db-alpine')).not.toBeInTheDocument();
   });
 
   it('narrows to stopped containers when the Stopped chip is active', async () => {
@@ -300,7 +300,7 @@ describe('ContainersScreen — text/state filtering (REQ-23)', () => {
 
     expect(screen.getByText('cache-redis')).toBeInTheDocument();
     expect(screen.queryByText('web-nginx')).not.toBeInTheDocument();
-    expect(screen.queryByText('db-postgres')).not.toBeInTheDocument();
+    expect(screen.queryByText('db-alpine')).not.toBeInTheDocument();
   });
 
   it('narrows to paused containers when the Paused chip is active', async () => {
@@ -309,7 +309,7 @@ describe('ContainersScreen — text/state filtering (REQ-23)', () => {
 
     await user.click(screen.getByRole('button', { name: 'Paused' }));
 
-    expect(screen.getByText('db-postgres')).toBeInTheDocument();
+    expect(screen.getByText('db-alpine')).toBeInTheDocument();
     expect(screen.queryByText('web-nginx')).not.toBeInTheDocument();
     expect(screen.queryByText('cache-redis')).not.toBeInTheDocument();
   });

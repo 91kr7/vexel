@@ -100,13 +100,45 @@ async function assertNoLeftoverInternalContainer(timeoutMs = 8_000): Promise<voi
 }
 
 /** Collects every daemon event for objects carrying the intermediate-extraction label, until stopped. */
-function captureInternalContainerEvents(): { stop: () => Promise<{ action: string }[]> } {
+function captureInternalContainerEvents(): { ready: () => Promise<void>; stop: () => Promise<{ action: string }[]> } {
   const lines: string[] = [];
   const child = spawn("docker", ["events", "--format", "{{json .}}", "--filter", `label=${INTERNAL_CONTAINER_LABEL}=true`]);
   child.stdout.on("data", (chunk: Buffer) => {
     for (const line of chunk.toString().split("\n")) if (line.trim().length > 0) lines.push(line);
   });
   return {
+    /**
+     * Resolves once the subscription is demonstrably live, by creating a probe
+     * container carrying the same label and waiting to see its own event.
+     *
+     * Waiting a fixed moment instead was the flake this replaces: `docker
+     * events` is a process that has to start and connect, and on a busy daemon
+     * that outran the delay — the extraction's `create` event then landed
+     * before anything was listening, and the test failed reporting that no
+     * container had been created when one had.
+     */
+    ready: async () => {
+      const probeName = `vexel-test-events-probe-${process.pid}-${lines.length}`;
+      const deadline = Date.now() + 20_000;
+      while (Date.now() < deadline) {
+        await execFileAsync("docker", [
+          "create",
+          "--name",
+          probeName,
+          "--label",
+          `${INTERNAL_CONTAINER_LABEL}=true`,
+          ...ownershipArgs(probeName),
+          "alpine:3.20",
+        ]).catch(() => undefined);
+        await execFileAsync("docker", ["rm", "-fv", probeName]).catch(() => undefined);
+        const seen = await new Promise<boolean>((resolve) => setTimeout(() => resolve(lines.length > 0), 500));
+        if (seen) {
+          lines.length = 0;
+          return;
+        }
+      }
+      throw new Error("the docker events subscription never delivered the probe container's own event");
+    },
     stop: async () => {
       // Gives the daemon's own event bus a moment to deliver the removal event that follows the
       // extraction's own cleanup (which runs just after the SSE response has already ended).
@@ -120,7 +152,7 @@ function captureInternalContainerEvents(): { stop: () => Promise<{ action: strin
 async function buildImage(tag: string, dockerfile: string): Promise<void> {
   const contextDir = await mkdtemp(join(tmpdir(), "vexel-fs-fixture-"));
   await writeFile(join(contextDir, "Dockerfile"), dockerfile);
-  await execFileAsync("docker", ["build", "-t", tag, contextDir]);
+  await execFileAsync("docker", ["build", ...ownershipArgs(tag), "-t", tag, contextDir]);
 }
 
 async function removeImageQuietly(tag: string): Promise<void> {
@@ -312,8 +344,7 @@ test("GET /:id/filesystem/stream merges content across layers, never starts the 
   const digestBefore = await dockerInspect("{{.Id}}", MERGE_TAG);
   const tagsBefore = await dockerInspect("{{json .RepoTags}}", MERGE_TAG);
   const watcher = captureInternalContainerEvents();
-  // Gives the `docker events` subscription a moment to attach before the run starts.
-  await new Promise((resolve) => setTimeout(resolve, 300));
+  await watcher.ready();
   try {
     const response = await fetch(`${url}/api/images/${encodeURIComponent(mergeImageId)}/filesystem/stream?force=true`);
     const events = await readSseUntilDone(response);
@@ -471,7 +502,7 @@ test("the cache is invalidated by a content change (new image id) and reused for
       join(contextDirV1, "Dockerfile"),
       ["FROM scratch", "COPY v1.txt /v1.txt", 'ENTRYPOINT ["/none"]', ""].join("\n"),
     );
-    await execFileAsync("docker", ["build", "-t", contentTag, contextDirV1]);
+    await execFileAsync("docker", ["build", ...ownershipArgs(contentTag), "-t", contentTag, contextDirV1]);
     const idV1 = await dockerInspect("{{.Id}}", contentTag);
 
     const firstResponse = await fetch(`${url}/api/images/${encodeURIComponent(idV1)}/filesystem/stream`);
@@ -503,7 +534,7 @@ test("the cache is invalidated by a content change (new image id) and reused for
       join(contextDirV2, "Dockerfile"),
       ["FROM scratch", "COPY v2.txt /v2.txt", 'ENTRYPOINT ["/none"]', ""].join("\n"),
     );
-    await execFileAsync("docker", ["build", "-t", contentTag, contextDirV2]);
+    await execFileAsync("docker", ["build", ...ownershipArgs(contentTag), "-t", contentTag, contextDirV2]);
     const idV2 = await dockerInspect("{{.Id}}", contentTag);
     assert.notEqual(idV2, idV1, "rebuilding with different content must produce a different image id");
 

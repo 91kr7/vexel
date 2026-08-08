@@ -74,7 +74,7 @@ function startApp(): Promise<{ open: (path: string) => Promise<OpenedSession>; c
 }
 
 async function createIdleContainer(name: string): Promise<string> {
-  const { stdout } = await execFileAsync("docker", ["run", "-d", "--name", name, ...ownershipArgs(name), "--entrypoint", "sh", "postgres:16", "-c", "sleep 300"]);
+  const { stdout } = await execFileAsync("docker", ["run", "-d", "--name", name, ...ownershipArgs(name), "--entrypoint", "sh", "alpine:3.20", "-c", "sleep 300"]);
   return stdout.trim();
 }
 
@@ -88,7 +88,7 @@ async function createTickingContainer(name: string): Promise<string> {
     ...ownershipArgs(name),
     "--entrypoint",
     "sh",
-    "postgres:16",
+    "alpine:3.20",
     "-c",
     "i=0; while true; do i=$((i+1)); echo tick-$i; sleep 1; done",
   ]);
@@ -96,7 +96,7 @@ async function createTickingContainer(name: string): Promise<string> {
 }
 
 async function removeContainerQuietly(name: string): Promise<void> {
-  await execFileAsync("docker", ["rm", "-f", name]).catch(() => undefined);
+  await execFileAsync("docker", ["rm", "-fv", name]).catch(() => undefined);
 }
 
 async function isRunning(id: string): Promise<boolean> {

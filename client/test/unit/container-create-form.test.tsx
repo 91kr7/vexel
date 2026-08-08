@@ -287,9 +287,9 @@ describe('ContainerCreateForm — image choice and pull (plan-docker_management_
 
   // container-create-form.md — initialImage pre-fills the reference ("run this image" from an image row)
   it('pre-fills the reference it is opened with', () => {
-    renderForm({ initialImage: 'postgres:16' });
+    renderForm({ initialImage: 'alpine:3.20' });
 
-    expect(screen.getByRole('combobox', { name: 'Image reference' })).toHaveValue('postgres:16');
+    expect(screen.getByRole('combobox', { name: 'Image reference' })).toHaveValue('alpine:3.20');
   });
 
   // container-create-form.md — the pull progress is shown while the image is being fetched
@@ -545,13 +545,13 @@ describe('ContainerCreateForm — opening (containers/specs/container-create-for
     rerender(
       <ErrorReportingProvider>
         <ToastProvider>
-          <ContainerCreateForm open images={[makeImage()]} initialImage="postgres:16" onCancel={vi.fn()} onCreated={vi.fn()} />
+          <ContainerCreateForm open images={[makeImage()]} initialImage="alpine:3.20" onCancel={vi.fn()} onCreated={vi.fn()} />
         </ToastProvider>
       </ErrorReportingProvider>,
     );
 
     expect(screen.getByRole('textbox', { name: 'Container name' })).toHaveValue('');
-    expect(screen.getByRole('combobox', { name: 'Image reference' })).toHaveValue('postgres:16');
+    expect(screen.getByRole('combobox', { name: 'Image reference' })).toHaveValue('alpine:3.20');
   });
 
   // container-create-form.md — while the local images are still being read, the combobox reports it

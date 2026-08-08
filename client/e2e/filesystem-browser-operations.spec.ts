@@ -15,7 +15,7 @@ test.describe.configure({ mode: 'serial' });
 async function buildImage(tag: string, dockerfile: string): Promise<void> {
   const contextDir = await mkdtemp(join(tmpdir(), 'vexel-e2e-fsops-'));
   await writeFile(join(contextDir, 'Dockerfile'), dockerfile);
-  await execFileAsync('docker', ['build', '-t', tag, contextDir]);
+  await execFileAsync('docker', ['build', ...ownershipArgs(tag), '-t', tag, contextDir]);
 }
 
 async function removeImageQuietly(tag: string): Promise<void> {

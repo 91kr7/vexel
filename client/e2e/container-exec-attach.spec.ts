@@ -7,7 +7,7 @@ const execFileAsync = promisify(execFile);
 
 /** An idle container: its main process sleeps, so exec sessions run independently of it. */
 async function createIdleContainer(name: string): Promise<void> {
-  await execFileAsync('docker', ['run', '-d', '--name', name, ...ownershipArgs(name), '--entrypoint', 'sh', 'postgres:16', '-c', 'sleep 300']);
+  await execFileAsync('docker', ['run', '-d', '--name', name, ...ownershipArgs(name), '--entrypoint', 'sh', 'alpine:3.20', '-c', 'sleep 300']);
 }
 
 /** A container whose own main process (no exec involved) keeps printing to stdout, for attach. */
@@ -19,14 +19,14 @@ async function createTickingContainer(name: string): Promise<void> {
     name,
     '--entrypoint',
     'sh',
-    'postgres:16',
+    'alpine:3.20',
     '-c',
     'i=0; while true; do i=$((i+1)); echo tick-$i; sleep 1; done',
   ]);
 }
 
 async function removeContainerQuietly(name: string): Promise<void> {
-  await execFileAsync('docker', ['rm', '-f', name]).catch(() => undefined);
+  await execFileAsync('docker', ['rm', '-fv', name]).catch(() => undefined);
 }
 
 async function isRunning(name: string): Promise<boolean> {
@@ -58,6 +58,12 @@ async function typeIntoTerminal(detail: ReturnType<typeof containerRow>, page: P
   // can make Playwright's stability check spin forever; a forced click still
   // reaches and focuses the host's hidden input.
   await detail.locator('.ui-terminal-host').click({ force: true });
+  // "Connected" only says the session opened; the shell inside the container
+  // still has to start and draw its prompt, and anything typed before that is
+  // swallowed — leaving a mangled command line rather than a clean failure.
+  await expect
+    .poll(async () => terminalText(detail), { timeout: 15_000, message: 'expected the shell prompt to be drawn before typing' })
+    .toMatch(/[$#]\s*$/);
   await page.keyboard.type(text);
 }
 
@@ -82,6 +88,10 @@ test.describe('Container exec sessions (REQ-34, REQ-36)', () => {
       await createIdleContainer(name);
       const detail = await openTab(page, name, 'Exec');
 
+      // The requirement is that the *chosen* shell runs, so the choice is made
+      // explicitly: the fixture image ships `/bin/sh` and no bash, which is the
+      // ordinary case for a small image.
+      await detail.getByRole('combobox', { name: 'Shell' }).selectOption('/bin/sh');
       await detail.getByRole('button', { name: 'Launch session' }).click();
       await expect(detail.getByText('Connected')).toBeVisible({ timeout: 15_000 });
 

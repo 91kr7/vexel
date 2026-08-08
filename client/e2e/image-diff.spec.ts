@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 
+import { ownershipArgs } from './support/fixtures.js';
+
 const execFileAsync = promisify(execFile);
 
 // Every test compares the very same fixture pair; running serially avoids
@@ -15,7 +17,7 @@ test.describe.configure({ mode: 'serial' });
 async function buildImage(tag: string, dockerfile: string): Promise<void> {
   const contextDir = await mkdtemp(join(tmpdir(), 'vexel-e2e-diff-'));
   await writeFile(join(contextDir, 'Dockerfile'), dockerfile);
-  await execFileAsync('docker', ['build', '-t', tag, contextDir]);
+  await execFileAsync('docker', ['build', ...ownershipArgs(tag), '-t', tag, contextDir]);
 }
 
 async function removeImageQuietly(tag: string): Promise<void> {
