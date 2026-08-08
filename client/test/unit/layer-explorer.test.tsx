@@ -3,7 +3,11 @@ import { act, cleanup, render, screen, waitFor, within } from '@testing-library/
 import userEvent from '@testing-library/user-event';
 import { LayerExplorer } from '../../src/images/LayerExplorer';
 import type { ImageSummary } from '../../src/data/images-client';
-import type { LayerMetadata } from '../../src/data/image-layers-client';
+import type { LayerBuildCacheLink, LayerMetadata } from '../../src/data/image-layers-client';
+// Following a layer's build-cache reference reaches the Builders & cache screen
+// (images/specs/layer-explorer.md), so the explorer only stands inside a
+// cross-navigation provider.
+import { CrossNavigationProvider, useCrossNavigation, type CrossNavigationRequest } from '../../src/shell/services/CrossNavigationService';
 
 // Stands in for the browser's EventSource: the changeset analysis stream's
 // only channel (REQ-49, REQ-51), so the tests drive it by emitting events on
@@ -73,18 +77,44 @@ function makeLayer(overrides: Partial<LayerMetadata & { sharedWith: { id: string
   };
 }
 
+const IMAGE_ID = 'sha256:0123456789abcdef0123456789abcdef0123456789abcdef';
+
+/** A layer-to-build-cache link as the server answers with it (images/specs/use-image-build-cache-trace.md). */
+function makeCacheLink(overrides: Partial<LayerBuildCacheLink> = {}): LayerBuildCacheLink {
+  return {
+    layerIndex: 0,
+    diffId: 'sha256:layer-diff',
+    instruction: 'RUN',
+    command: 'RUN /bin/sh -c apt-get install -y curl # buildkit',
+    cacheRecord: { id: 'cache-record-1', type: 'regular', sizeBytes: 4096, usageState: 'reclaimable' },
+    ...overrides,
+  };
+}
+
 let fetchMock: ReturnType<typeof vi.fn>;
 let layers: ReturnType<typeof makeLayer>[];
+let cacheLinks: LayerBuildCacheLink[];
+let cacheTraceFailure: string | undefined;
+/** The cross-navigation request the explorer posted, if any — how "reaches that record on the Builders & cache screen" is observed. */
+let lastNavigationRequest: CrossNavigationRequest | undefined;
+
+function NavigationProbe() {
+  lastNavigationRequest = useCrossNavigation().request;
+  return null;
+}
 
 beforeEach(() => {
   layers = [makeLayer()];
-  fetchMock = vi.fn().mockImplementation(() =>
-    Promise.resolve({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ imageId: 'sha256:0123456789abcdef0123456789abcdef0123456789abcdef', layers }),
-    }),
-  );
+  cacheLinks = [makeCacheLink()];
+  cacheTraceFailure = undefined;
+  lastNavigationRequest = undefined;
+  fetchMock = vi.fn().mockImplementation((url: string) => {
+    if (String(url).includes('/layers/build-cache')) {
+      if (cacheTraceFailure) return Promise.resolve({ ok: false, status: 502, json: () => Promise.resolve({ error: cacheTraceFailure }) });
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ imageId: IMAGE_ID, layers: cacheLinks }) });
+    }
+    return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ imageId: IMAGE_ID, layers }) });
+  });
   vi.stubGlobal('fetch', fetchMock);
   FakeEventSource.instances = [];
   vi.stubGlobal('EventSource', FakeEventSource);
@@ -100,7 +130,12 @@ afterEach(() => {
 async function renderExplorer(overrides: Partial<ImageSummary> = {}) {
   const image = makeImage(overrides);
   const onClose = vi.fn();
-  render(<LayerExplorer image={image} open onClose={onClose} />);
+  render(
+    <CrossNavigationProvider>
+      <NavigationProbe />
+      <LayerExplorer image={image} open onClose={onClose} />
+    </CrossNavigationProvider>,
+  );
   await waitFor(() => expect(document.querySelector('.ui-data-table__row')).not.toBeNull());
   await userEvent.click(document.querySelector('.ui-data-table__row .ui-data-table__cell')!);
   await waitFor(() => expect(screen.getByRole('button', { name: 'Analyze changesets…' })).toBeInTheDocument());
@@ -110,9 +145,15 @@ async function renderExplorer(overrides: Partial<ImageSummary> = {}) {
 // layer-explorer.md — a large Modal holding a DataTable of layers, expanding below the selected
 // row into the changeset view for that layer
 describe('LayerExplorer — layer stack (plan-docker_management_app/REQ-47, plan-docker_management_app/REQ-48, plan-docker_management_app/REQ-50)', () => {
+  // layer-explorer.md — "The layer stack and the build-cache association both load only while the
+  // explorer is open, so a closed explorer performs no fetch."
   it('performs no fetch while closed', () => {
     const image = makeImage();
-    render(<LayerExplorer image={image} open={false} onClose={vi.fn()} />);
+    render(
+      <CrossNavigationProvider>
+        <LayerExplorer image={image} open={false} onClose={vi.fn()} />
+      </CrossNavigationProvider>,
+    );
 
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -294,6 +335,107 @@ describe('LayerExplorer — changeset view (plan-docker_management_app/REQ-49)',
 
     expect(screen.queryByRole('heading', { name: 'Analyzing layer changesets' })).not.toBeInTheDocument();
     expect(screen.getByText('Changesets not analyzed yet')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Analyze changesets…' })).toBeInTheDocument();
+  });
+});
+
+// layer-explorer.md — per layer, the build-cache record behind it is named and reachable in one
+// move, or the reason no such record exists is stated; a registry-pulled image therefore shows an
+// explanation, never an empty panel.
+describe('LayerExplorer — build step & build cache (plan-docker_management_app/REQ-68)', () => {
+  // layer-explorer.md — "Per layer, in the cache column: a followable CrossReference to the
+  // build-cache record behind it when the association exists"
+  it('shows a followable cache reference in the layer row when the association exists', async () => {
+    await renderExplorer();
+
+    const row = outerLayerRows()[0]!;
+    const reference = row.querySelector('.ui-cross-reference--navigable');
+    expect(reference).not.toBeNull();
+    // Never blank: a followable reference always names the object it leads to.
+    expect(reference!.textContent!.trim().length).toBeGreaterThan(0);
+    expect(row.querySelector('.ui-cross-reference--unavailable')).toBeNull();
+  });
+
+  // layer-explorer.md — "otherwise `unavailable` with the reason as its tooltip"; a layer with no
+  // cache record is never shown blank.
+  it('shows the cache column as unavailable, carrying the reason as its tooltip, when there is no record', async () => {
+    cacheLinks = [
+      makeCacheLink({
+        cacheRecord: undefined,
+        unavailableReason: 'NoMatchingCacheRecord',
+        unavailableDetail: 'No local build-cache record matches this step: the image was not built on this host.',
+      }),
+    ];
+    await renderExplorer();
+
+    const row = outerLayerRows()[0]!;
+    // The compressed-size column is unavailable on every row too, so the cache column is
+    // identified by the reason it carries rather than by position.
+    const unavailable = Array.from(row.querySelectorAll<HTMLElement>('[title]')).filter(
+      (element) => element.getAttribute('title') === 'No local build-cache record matches this step: the image was not built on this host.',
+    );
+    expect(unavailable).toHaveLength(1);
+    expect(unavailable[0]!.textContent).toContain('unavailable');
+    expect(row.querySelector('.ui-cross-reference--navigable')).toBeNull();
+  });
+
+  // layer-explorer.md — above the changeset view, a "Build step & build cache" section with the
+  // layer's full recorded command and its cache reference, carrying the record's type, usage state
+  // and size next to it.
+  it('shows the selected layer\'s full recorded command and its cache record in the expanded section', async () => {
+    await renderExplorer();
+
+    const section = screen.getByText('Build step & build cache').closest('.ui-data-table__expanded, .ui-stack, .ui-surface') ?? document.body;
+    expect(section.textContent).toContain('RUN /bin/sh -c apt-get install -y curl # buildkit');
+    expect(section.textContent).toContain('regular');
+    expect(section.textContent).toContain('reclaimable');
+  });
+
+  // plan-docker_management_app/REQ-68 — "when it is not, the reason is stated rather than left
+  // blank": the registry-pulled case shows the full sentence, not an empty panel.
+  it('states the full reason sentence in the expanded section when the association does not exist', async () => {
+    const detail = 'No local build-cache record matches this step: the image was not built on this host — a registry-pulled image leaves no build cache behind — or its record has been pruned since.';
+    cacheLinks = [makeCacheLink({ cacheRecord: undefined, unavailableReason: 'NoMatchingCacheRecord', unavailableDetail: detail })];
+    await renderExplorer();
+
+    expect(screen.getByText('Build step & build cache')).toBeInTheDocument();
+    expect(screen.getByText(detail)).toBeInTheDocument();
+  });
+
+  // layer-explorer.md — "Following a layer's build-cache reference (in the column or in the
+  // expanded section) closes the explorer and reaches that record on the Builders & cache screen."
+  it('following the cache reference closes the explorer and asks to reach that record on another screen', async () => {
+    const { onClose } = await renderExplorer();
+
+    await userEvent.click(document.querySelector('.ui-cross-reference--navigable')!);
+
+    expect(onClose).toHaveBeenCalled();
+    expect(lastNavigationRequest).toBeDefined();
+    expect(lastNavigationRequest!.objectId).toBe('cache-record-1');
+  });
+
+  // layer-explorer.md — an unavailable reference is never followable.
+  it('never makes an unavailable cache reference followable', async () => {
+    cacheLinks = [
+      makeCacheLink({ cacheRecord: undefined, unavailableReason: 'MetadataOnlyStep', unavailableDetail: 'This step only changed image metadata.' }),
+    ];
+    const { onClose } = await renderExplorer();
+
+    expect(document.querySelector('.ui-cross-reference--navigable')).toBeNull();
+    await userEvent.click(document.querySelector('.ui-cross-reference--unavailable')!);
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(lastNavigationRequest).toBeUndefined();
+  });
+
+  // layer-explorer.md — "a failed read: an ErrorBanner with retry, leaving the rest of the explorer
+  // usable."
+  it('reports a failed association read with a retry, leaving the layer stack usable', async () => {
+    cacheTraceFailure = 'buildx du: failed to connect to the builder';
+    await renderExplorer();
+
+    await waitFor(() => expect(screen.getByText(/failed to connect to the builder/)).toBeInTheDocument());
+    expect(outerLayerRows()).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Analyze changesets…' })).toBeInTheDocument();
   });
 });

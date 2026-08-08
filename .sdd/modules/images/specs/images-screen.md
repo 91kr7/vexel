@@ -72,6 +72,11 @@ Actions:
   `useErrorReporter()`.
 - The search field matches any tag, the digest or the id (case-insensitive substring) (REQ-41).
 
+Navigation:
+- Arriving here from a build-cache record's reference (REQ-69) selects the named image and hands its
+  detail panel the layer to open at, then acknowledges the navigation request. The layer focus
+  applies only to the image it names: selecting another row afterwards never inherits it.
+
 ## Rules and invariants
 
 - "Prune dangling" is disabled when no image is currently dangling (untagged).
@@ -98,7 +103,7 @@ Actions:
 - Images client, useImageTransferStream, useFileUpload
 - ImageDetailPanel, ImageDiffView
 - containers: ContainerCreateForm, Container transfer client
-- app-shell: ConfirmationService, ProgressService, ErrorReportingService
+- app-shell: ConfirmationService, ProgressService, ErrorReportingService, CrossNavigationService
 
 ## Requirements served
 
@@ -111,3 +116,4 @@ Actions:
 - plan-docker_management_app/REQ-42
 - plan-docker_management_app/REQ-43
 - plan-docker_management_app/REQ-63
+- plan-docker_management_app/REQ-69

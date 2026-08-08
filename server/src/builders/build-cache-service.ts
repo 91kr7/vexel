@@ -9,6 +9,8 @@ export interface BuildCacheRecord {
   type: string;
   sizeBytes: number;
   usageState: BuildCacheUsageState;
+  /** Build step the record was produced by, as buildx recorded it; absent when it recorded none (REQ-68, REQ-69). */
+  description?: string;
 }
 
 export interface BuildCachePruneResult {
@@ -21,6 +23,7 @@ interface RawCacheRecord {
   Size: string;
   Shared: boolean;
   Reclaimable: boolean;
+  Description?: string;
 }
 
 export async function listBuildCache(): Promise<BuildCacheRecord[]> {
@@ -35,7 +38,14 @@ export async function pruneBuildCache(): Promise<BuildCachePruneResult> {
 }
 
 function toCacheRecord(raw: RawCacheRecord): BuildCacheRecord {
-  return { id: raw.ID, type: raw.Type, sizeBytes: parseHumanSize(raw.Size), usageState: usageStateOf(raw) };
+  const description = typeof raw.Description === "string" ? raw.Description.trim() : "";
+  return {
+    id: raw.ID,
+    type: raw.Type,
+    sizeBytes: parseHumanSize(raw.Size),
+    usageState: usageStateOf(raw),
+    description: description === "" ? undefined : description,
+  };
 }
 
 /** A record still attached to a build in progress is not reclaimable regardless of whether it is also shared. */

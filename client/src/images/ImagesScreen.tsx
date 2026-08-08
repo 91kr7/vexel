@@ -44,6 +44,7 @@ import { ContainerCreateForm } from '../containers/ContainerCreateForm';
 import { ImageDetailPanel } from './ImageDetailPanel';
 import { ImageDiffView } from './ImageDiffView';
 import { useConfirmation } from '../shell/services/ConfirmationService';
+import { useCrossNavigation } from '../shell/services/CrossNavigationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
 import { useProgress } from '../shell/services/ProgressService';
 
@@ -117,10 +118,12 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
   const { push } = useToast();
   const { run } = useProgress();
   const { reportError } = useErrorReporter();
+  const { request, consumeRequest } = useCrossNavigation();
 
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [layerFocus, setLayerFocus] = useState<{ imageId: string; layerIndex?: number; requestId: number } | undefined>(undefined);
 
   const [pullOpen, setPullOpen] = useState(false);
   const [pullReference, setPullReference] = useState('');
@@ -177,6 +180,16 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
   useEffect(() => {
     if (pushStreamUrl && pushTransfer.done && !pushTransfer.error) closePushDialog();
   }, [pushStreamUrl, pushTransfer.done, pushTransfer.error, closePushDialog]);
+
+  // A cross-reference followed from a build-cache record arrives here naming
+  // an image and one of its layers (REQ-69): select the image, hand the layer
+  // to its detail panel, then acknowledge the request.
+  useEffect(() => {
+    if (request?.screenId !== 'images-layers' || !request.objectId) return;
+    setSelectedId(request.objectId);
+    setLayerFocus({ imageId: request.objectId, layerIndex: request.position, requestId: request.requestId });
+    consumeRequest();
+  }, [request, consumeRequest]);
 
   function toggleSelection(image: ImageSummary) {
     setSelectedId((current) => (current === image.id ? undefined : image.id));
@@ -456,7 +469,14 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
           selectedRowKey={selectedId}
           onRowSelect={toggleSelection}
           expandedRowKey={selectedId}
-          renderExpanded={(image) => <ImageDetailPanel image={image} images={images} onClose={() => setSelectedId(undefined)} />}
+          renderExpanded={(image) => (
+            <ImageDetailPanel
+              image={image}
+              images={images}
+              onClose={() => setSelectedId(undefined)}
+              layerFocus={layerFocus?.imageId === image.id ? layerFocus : undefined}
+            />
+          )}
           emptyState={<EmptyState title={loaded ? 'No images match' : 'Loading images…'} description={loaded ? 'Try a different search.' : undefined} />}
           selection={{
             selectedKeys: selectedIds,

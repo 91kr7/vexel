@@ -53,6 +53,13 @@ export { FormSection, type FormSectionProps } from './controls/FormSection';
 export { Combobox, type ComboboxProps, type ComboboxOption } from './controls/Combobox';
 export { ChipInput, type ChipInputProps } from './controls/ChipInput';
 export { Chip, type ChipProps, ChipGroup, type ChipGroupProps, type ChipGroupItem } from './controls/Chip';
+export {
+  CrossReference,
+  type CrossReferenceProps,
+  CrossReferenceList,
+  type CrossReferenceListProps,
+  type CrossReferenceItem,
+} from './controls/CrossReference';
 export { SegmentedControl, type SegmentedControlProps, type SegmentedOption } from './controls/SegmentedControl';
 export { TailSizeSelector, type TailSizeSelectorProps, type TailSize } from './controls/TailSizeSelector';
 export { TimeRangeField, type TimeRangeFieldProps, type TimeRange } from './controls/TimeRangeField';

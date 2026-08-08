@@ -1,6 +1,7 @@
 import { Router, type Response } from "express";
 import { DockerDaemonError } from "../docker/errors.js";
 import { pruneBuildCache, listBuildCache } from "./build-cache-service.js";
+import { getBuildCacheUsage } from "./build-cache-usage-service.js";
 import { createBuilder, listBuilders, removeBuilder, useBuilder } from "./builders-service.js";
 
 export const buildersRouter = Router();
@@ -53,6 +54,20 @@ buildersRouter.post("/:name/use", async (req, res) => {
 buildersRouter.get("/cache", async (_req, res) => {
   try {
     res.json(await listBuildCache());
+  } catch (error) {
+    respondError(res, error);
+  }
+});
+
+/** The images and layers a cache record relates to, or the reason none can be named (REQ-69). */
+buildersRouter.get("/cache/:id/usage", async (req, res) => {
+  try {
+    const usage = await getBuildCacheUsage(req.params.id);
+    if (!usage) {
+      res.status(404).json({ error: `No build-cache record with id "${req.params.id}".` });
+      return;
+    }
+    res.json(usage);
   } catch (error) {
     respondError(res, error);
   }

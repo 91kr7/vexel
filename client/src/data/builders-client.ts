@@ -24,10 +24,32 @@ export interface BuildCacheRecord {
   type: string;
   sizeBytes: number;
   usageState: BuildCacheUsageState;
+  /** Build step the record was produced by, as buildx recorded it; absent when it recorded none. */
+  description?: string;
 }
 
 export interface BuildCachePruneResult {
   reclaimedBytes: number;
+}
+
+export type BuildCacheUsageUnavailableReason = 'NonLayerCacheRecord' | 'NoRecordedDescription' | 'NoMatchingImage';
+
+export interface BuildCacheLayerReference {
+  imageId: string;
+  imageShortId: string;
+  tags: string[];
+  layerIndex: number;
+  diffId?: string;
+  instruction: string;
+  command?: string;
+}
+
+export interface BuildCacheUsage {
+  record: BuildCacheRecord;
+  references: BuildCacheLayerReference[];
+  unavailableReason?: BuildCacheUsageUnavailableReason;
+  /** Sentence stating why no reference can be named; present exactly when `unavailableReason` is. */
+  unavailableDetail?: string;
 }
 
 async function extractErrorMessage(response: Response): Promise<string> {
@@ -76,6 +98,13 @@ export async function fetchBuildCache(): Promise<BuildCacheRecord[]> {
   const response = await fetch('/api/builders/cache');
   await requireOk(response);
   return (await response.json()) as BuildCacheRecord[];
+}
+
+/** The images and layers a cache record relates to, or the reason none can be named (REQ-69). */
+export async function fetchBuildCacheUsage(recordId: string, signal?: AbortSignal): Promise<BuildCacheUsage> {
+  const response = await fetch(`/api/builders/cache/${encodeURIComponent(recordId)}/usage`, { signal });
+  await requireOk(response);
+  return (await response.json()) as BuildCacheUsage;
 }
 
 export async function pruneBuildCache(): Promise<BuildCachePruneResult> {

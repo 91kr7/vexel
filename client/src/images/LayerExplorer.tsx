@@ -3,21 +3,27 @@ import {
   Badge,
   Button,
   ConfirmDialog,
+  CrossReference,
   DataTable,
+  DefinitionList,
   EmptyState,
   ErrorBanner,
   IdentifierCell,
   MetaCell,
   Modal,
   ProportionBarCell,
+  Row,
+  SectionHeader,
   Stack,
   TransferProgressDialog,
   type DataTableColumn,
 } from '../ui';
 import type { ImageSummary } from '../data/images-client';
 import { imageChangesetsStreamUrl, type LayerChangesetPath, type LayerMetadata } from '../data/image-layers-client';
+import { useImageBuildCacheTrace } from '../data/use-image-build-cache-trace';
 import { useImageChangesetStream } from '../data/use-image-changesets';
 import { useImageLayerStack } from '../data/use-image-layers';
+import { useCrossNavigation } from '../shell/services/CrossNavigationService';
 
 export interface LayerExplorerProps {
   image: ImageSummary;
@@ -57,14 +63,22 @@ function statusTone(status: LayerChangesetPath['status']): 'success' | 'warning'
   return 'danger';
 }
 
+function truncateId(id: string): string {
+  return id.length > 14 ? `${id.slice(0, 14)}…` : id;
+}
+
 /**
- * Layer explorer (REQ-47–51): the image's layer stack in build order, each
- * layer's instruction shown as a bar proportional to its uncompressed size,
- * shared-layer markers naming the images that reuse it, and — once analysed,
- * behind a cost warning — the selected layer's added/modified/deleted paths.
+ * Layer explorer (REQ-47–51, REQ-68): the image's layer stack in build order,
+ * each layer's instruction shown as a bar proportional to its uncompressed
+ * size, shared-layer markers naming the images that reuse it, the build-cache
+ * record behind each layer — or the stated reason there is none — and, once
+ * analysed behind a cost warning, the selected layer's added/modified/deleted
+ * paths.
  */
 export function LayerExplorer({ image, open, onClose, initialSelectedLayerIndex, autoAnalyze, layersWithFindings }: LayerExplorerProps) {
   const { stack, loaded, error, refresh } = useImageLayerStack(open ? image.id : undefined);
+  const trace = useImageBuildCacheTrace(open ? image.id : undefined);
+  const { navigateTo } = useCrossNavigation();
   const [selectedIndex, setSelectedIndex] = useState<number | undefined>(undefined);
   const [warningOpen, setWarningOpen] = useState(false);
   // `analysisUrl` drives the stream/result lifetime; `progressDialogOpen` only
@@ -86,6 +100,14 @@ export function LayerExplorer({ image, open, onClose, initialSelectedLayerIndex,
   const layers = stack?.layers ?? [];
   const maxSize = layers.reduce((max, layer) => Math.max(max, layer.uncompressedSizeBytes), 0);
   const selectedChangeset = changesets.result?.layers.find((layer) => layer.layerIndex === selectedIndex);
+  const buildCacheLinks = trace.trace?.layers ?? [];
+  const selectedLink = buildCacheLinks.find((link) => link.layerIndex === selectedIndex);
+
+  /** Leaves the explorer and reaches the record on the Builders & cache screen (REQ-68). */
+  function goToCacheRecord(recordId: string) {
+    onClose();
+    navigateTo({ screenId: 'builders-cache', objectId: recordId });
+  }
 
   function startAnalysis() {
     setWarningOpen(false);
@@ -137,6 +159,18 @@ export function LayerExplorer({ image, open, onClose, initialSelectedLayerIndex,
         return count ? <Badge tone="danger">{`findings · ${count}`}</Badge> : <MetaCell />;
       },
     },
+    {
+      id: 'cache',
+      header: 'CACHE',
+      width: '1.2fr',
+      render: (layer) => {
+        const link = buildCacheLinks.find((candidate) => candidate.layerIndex === layer.index);
+        if (!link) return <MetaCell>{trace.loaded ? undefined : '…'}</MetaCell>;
+        const record = link.cacheRecord;
+        if (!record) return <MetaCell unavailableReason={link.unavailableDetail} />;
+        return <CrossReference kind="cached" label={truncateId(record.id)} onNavigate={() => goToCacheRecord(record.id)} />;
+      },
+    },
     { id: 'uncompressed', header: 'SIZE', align: 'end', width: '0.8fr', render: (layer) => <MetaCell>{formatBytes(layer.uncompressedSizeBytes)}</MetaCell> },
     {
       id: 'compressed',
@@ -150,6 +184,23 @@ export function LayerExplorer({ image, open, onClose, initialSelectedLayerIndex,
       ),
     },
   ];
+
+  /** The selected layer's cache record, reachable in one move — or, where the association does not exist, the reason (REQ-68). */
+  function renderSelectedCacheReference() {
+    if (!trace.loaded && !selectedLink) return <MetaCell>Reading the build-cache association…</MetaCell>;
+    const record = selectedLink?.cacheRecord;
+    if (!record) {
+      return <CrossReference kind="build cache" unavailableReason={selectedLink?.unavailableDetail ?? 'This layer has no recorded build step to trace.'} />;
+    }
+    return (
+      <Row gap="var(--space-2)" align="center" wrap>
+        <CrossReference kind="build cache" label={truncateId(record.id)} onNavigate={() => goToCacheRecord(record.id)} />
+        <Badge>{record.type}</Badge>
+        <Badge tone={record.usageState === 'in-use' ? 'neutral' : record.usageState === 'shared' ? 'success' : 'warning'}>{record.usageState}</Badge>
+        <MetaCell>{formatBytes(record.sizeBytes)}</MetaCell>
+      </Row>
+    );
+  }
 
   const pathColumns: DataTableColumn<LayerChangesetPath>[] = [
     { id: 'status', header: '', width: '110px', render: (path) => <Badge tone={statusTone(path.status)}>{path.status}</Badge> },
@@ -175,27 +226,37 @@ export function LayerExplorer({ image, open, onClose, initialSelectedLayerIndex,
           onRowSelect={(layer) => setSelectedIndex(layer.index)}
           expandedRowKey={selectedIndex !== undefined ? String(selectedIndex) : undefined}
           emptyState={<EmptyState title={loaded ? 'No layer data available' : 'Loading layer stack…'} />}
-          renderExpanded={() =>
-            !changesets.result ? (
-              <EmptyState
-                title="Changesets not analyzed yet"
-                description="Reading every layer's added, modified and deleted paths takes time and temporary disk space on a large image."
-                action={
-                  <Button onClick={() => setWarningOpen(true)} disabled={analysisUrl !== undefined}>
-                    Analyze changesets…
-                  </Button>
-                }
-              />
-            ) : (
-              <DataTable
-                columns={pathColumns}
-                rows={selectedChangeset?.paths ?? []}
-                rowKey={(path) => path.path}
-                maxHeight="320px"
-                emptyState={<EmptyState title="No changes recorded for this layer" />}
-              />
-            )
-          }
+          renderExpanded={() => (
+            <Stack gap="var(--space-4)">
+              <Stack gap="var(--space-2)">
+                <SectionHeader variant="eyebrow" title="Build step & build cache" />
+                {trace.error ? <ErrorBanner title="Could not load the build-cache association" detail={trace.error} onRetry={trace.refresh} /> : null}
+                <DefinitionList
+                  items={[{ label: 'Build step', value: selectedLink?.command ?? selectedLink?.instruction ?? '–', copyValue: selectedLink?.command }]}
+                />
+                {renderSelectedCacheReference()}
+              </Stack>
+              {!changesets.result ? (
+                <EmptyState
+                  title="Changesets not analyzed yet"
+                  description="Reading every layer's added, modified and deleted paths takes time and temporary disk space on a large image."
+                  action={
+                    <Button onClick={() => setWarningOpen(true)} disabled={analysisUrl !== undefined}>
+                      Analyze changesets…
+                    </Button>
+                  }
+                />
+              ) : (
+                <DataTable
+                  columns={pathColumns}
+                  rows={selectedChangeset?.paths ?? []}
+                  rowKey={(path) => path.path}
+                  maxHeight="320px"
+                  emptyState={<EmptyState title="No changes recorded for this layer" />}
+                />
+              )}
+            </Stack>
+          )}
         />
       </Stack>
 

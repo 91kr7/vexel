@@ -8,6 +8,7 @@ import { getSubtreeExportSummary, openFilesystemEntryDownload, openSubtreeArchiv
 import { extractImageFilesystem, listImageFilesystemChildren } from "./filesystem-extraction-service.js";
 import { compareImageFilesystems, listDiffChildren } from "./image-diff-service.js";
 import { searchFilesystemEntries } from "./filesystem-search-service.js";
+import { getImageBuildCacheTrace } from "./layer-build-cache-service.js";
 import { getImageLayerStack } from "./layer-metadata-service.js";
 import { analyzeLayerSignals } from "./layer-signals-service.js";
 import { getSharedLayerImages } from "./shared-layer-service.js";
@@ -52,6 +53,15 @@ imageAnalysisRouter.get("/:id/layers", async (req, res) => {
       sharedWith: layer.diffId ? (sharing[layer.diffId] ?? []) : [],
     }));
     res.json({ imageId: stack.imageId, layers });
+  } catch (error) {
+    respondError(res, error);
+  }
+});
+
+/** Each layer of the image paired with the build-cache record behind it, or with the reason that association does not exist (REQ-68). */
+imageAnalysisRouter.get("/:id/layers/build-cache", async (req, res) => {
+  try {
+    res.json(await getImageBuildCacheTrace(req.params.id));
   } catch (error) {
     respondError(res, error);
   }

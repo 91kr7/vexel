@@ -87,13 +87,18 @@ async function renderShellWith(status: unknown) {
   const { ProgressProvider } = await import('../../src/shell/services/ProgressService');
   const { ConnectionStatusProvider } = await import('../../src/shell/services/ConnectionStatusService');
   const { DaemonEventStreamProvider } = await import('../../src/shell/services/EventStreamService');
+  // The Shell switches to the screen a cross-navigation request names
+  // (app-shell/specs/shell.md), so it only stands inside a provider.
+  const { CrossNavigationProvider } = await import('../../src/shell/services/CrossNavigationService');
 
   render(
     <ErrorReportingProvider>
       <ProgressProvider>
         <ConnectionStatusProvider>
           <DaemonEventStreamProvider>
-            <Shell />
+            <CrossNavigationProvider>
+              <Shell />
+            </CrossNavigationProvider>
           </DaemonEventStreamProvider>
         </ConnectionStatusProvider>
       </ProgressProvider>

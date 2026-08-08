@@ -3,9 +3,11 @@
 | Component | Type | Path | Responsibility | Spec |
 |-----------|------|------|-----------------|------|
 | BuildersService | backend service | `server/src/builders/builders-service.ts` | buildx builder inventory (name, driver, endpoint, platforms, status, cache size, active builder) and create/remove/select-active through the CLI channel | `specs/builders-service.md` |
-| BuildCacheService | backend service | `server/src/builders/build-cache-service.ts` | Build-cache inventory (id, type, size, usage state) and prune through the CLI channel, reporting the space reclaimed | `specs/build-cache-service.md` |
-| Builders endpoints | REST endpoint | `server/src/builders/builders-routes.ts` | Exposes builder listing/create/remove/use and build-cache listing/prune to the client | `specs/builders-endpoints.md` |
-| Builders client | frontend data client | `client/src/data/builders-client.ts` | Typed `fetch` wrapper for the builders and build-cache endpoints | `specs/builders-client.md` |
+| BuildCacheService | backend service | `server/src/builders/build-cache-service.ts` | Build-cache inventory (id, type, size, usage state, recorded build step) and prune through the CLI channel, reporting the space reclaimed | `specs/build-cache-service.md` |
+| BuildCacheUsageService | backend service | `server/src/builders/build-cache-usage-service.ts` | Reverse lookup from a build-cache record to the local images and layers it relates to, or the stated reason none can be named | `specs/build-cache-usage-service.md` |
+| Builders endpoints | REST endpoint | `server/src/builders/builders-routes.ts` | Exposes builder listing/create/remove/use, build-cache listing/prune and a record's related images/layers to the client | `specs/builders-endpoints.md` |
+| Builders client | frontend data client | `client/src/data/builders-client.ts` | Typed `fetch` wrapper for the builders, build-cache and build-cache traceability endpoints | `specs/builders-client.md` |
 | useBuilders | frontend hook | `client/src/data/use-builders.ts` | Reads the builder list, re-reading on a bounded poll; drives create/remove/select-active | `specs/use-builders.md` |
 | useBuildCache | frontend hook | `client/src/data/use-build-cache.ts` | Reads the build-cache inventory, re-reading on a bounded poll; drives prune | `specs/use-build-cache.md` |
-| BuildersScreen | UI component | `client/src/builders/BuildersScreen.tsx` | The Builders & cache screen: builder inventory with active-builder switching, create/remove, and build-cache inventory with usage state and prune | `specs/builders-screen.md` |
+| useBuildCacheUsage | frontend hook | `client/src/data/use-build-cache-usage.ts` | Reads the images and layers one build-cache record relates to, re-reading on record change | `specs/use-build-cache-usage.md` |
+| BuildersScreen | UI component | `client/src/builders/BuildersScreen.tsx` | The Builders & cache screen: builder inventory with active-builder switching, create/remove, and build-cache inventory with usage state, prune, and each record's related images/layers — or the stated reason it has none | `specs/builders-screen.md` |

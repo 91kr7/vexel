@@ -6,7 +6,8 @@ type: frontend data client
 
 # Builders client
 
-**Purpose** → typed `fetch` wrapper for the builders and build-cache endpoints.
+**Purpose** → typed `fetch` wrapper for the builders, build-cache and build-cache traceability
+endpoints.
 
 ## Contract
 
@@ -15,6 +16,15 @@ type: frontend data client
 - `removeBuilder(name): Promise<void>`
 - `activateBuilder(name): Promise<BuilderSummary>` — sets `name` as the active builder.
 - `fetchBuildCache(): Promise<BuildCacheRecord[]>`
+  - `BuildCacheRecord`: `{ id, type, sizeBytes, usageState, description? }`.
+- `fetchBuildCacheUsage(recordId, signal?): Promise<BuildCacheUsage>` —
+  `GET /api/builders/cache/{recordId}/usage` (REQ-69); aborting `signal` abandons the read, so a
+  caller can supersede it.
+  - `BuildCacheUsage`: `{ record, references, unavailableReason?, unavailableDetail? }`.
+  - `BuildCacheLayerReference`: `{ imageId, imageShortId, tags, layerIndex, diffId?, instruction,
+    command? }`.
+  - `BuildCacheUsageUnavailableReason`: `'NonLayerCacheRecord' | 'NoRecordedDescription' |
+    'NoMatchingImage'`; present exactly when `references` is empty.
 - `pruneBuildCache(): Promise<BuildCachePruneResult>`
 - Every call rejects with the server's own `error` message (or a generic HTTP-status message when the
   response carries no JSON body) on a non-2xx response.
@@ -28,3 +38,4 @@ type: frontend data client
 - plan-docker_management_app/REQ-88
 - plan-docker_management_app/REQ-89
 - plan-docker_management_app/REQ-91
+- plan-docker_management_app/REQ-69

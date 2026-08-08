@@ -23,6 +23,9 @@ client.
   - `200` → the resulting builder (now `active`).
 - `GET /api/builders/cache` → the build-cache inventory.
   - `200` → `BuildCacheRecord[]`.
+- `GET /api/builders/cache/:id/usage` → the images and layers `:id` relates to (REQ-69).
+  - `200` → `BuildCacheUsage` (references, or the reason none can be named).
+  - `404` → no build-cache record carries that id.
 - `POST /api/builders/cache/prune` → prunes reclaimable build-cache records.
   - `200` → `{ reclaimedBytes }`.
 - Any daemon/CLI-side failure on the above → `502` (or the error's own status code) with
@@ -30,10 +33,11 @@ client.
 
 ## Dependencies
 
-- builders: BuildersService, BuildCacheService
+- builders: BuildersService, BuildCacheService, BuildCacheUsageService
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-88
 - plan-docker_management_app/REQ-89
 - plan-docker_management_app/REQ-91
+- plan-docker_management_app/REQ-69

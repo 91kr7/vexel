@@ -4,6 +4,9 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Shell } from '../../src/shell/Shell';
 import { ConnectionStatusProvider } from '../../src/shell/services/ConnectionStatusService';
+// The Shell switches to the screen a cross-navigation request names
+// (app-shell/specs/shell.md), so it only stands inside a provider.
+import { CrossNavigationProvider } from '../../src/shell/services/CrossNavigationService';
 import { DaemonEventStreamProvider } from '../../src/shell/services/EventStreamService';
 import { ErrorReportingProvider, useErrorReporter } from '../../src/shell/services/ErrorReportingService';
 import { ProgressProvider, useProgress } from '../../src/shell/services/ProgressService';
@@ -77,8 +80,10 @@ async function renderShell() {
       <ProgressProvider>
         <ConnectionStatusProvider>
           <DaemonEventStreamProvider>
-            <Driver />
-            <Shell />
+            <CrossNavigationProvider>
+              <Driver />
+              <Shell />
+            </CrossNavigationProvider>
           </DaemonEventStreamProvider>
         </ConnectionStatusProvider>
       </ProgressProvider>

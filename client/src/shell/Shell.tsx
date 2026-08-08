@@ -38,6 +38,7 @@ import { defaultScreenId, navGroupOrder, screens } from './navigation';
 import { PlaceholderScreen } from './screens/PlaceholderScreen';
 import { ConfirmationProvider } from './services/ConfirmationService';
 import { useConnectionStatus } from './services/ConnectionStatusService';
+import { useCrossNavigation } from './services/CrossNavigationService';
 import { useDaemonEventStream } from './services/EventStreamService';
 import { useErrorReporter } from './services/ErrorReportingService';
 import { useProgress } from './services/ProgressService';
@@ -79,6 +80,7 @@ export function Shell() {
   const connection = useConnectionStatus();
   const { events } = useDaemonEventStream();
   const { preferences, loaded: preferencesLoaded, updatePreferences } = usePreferences();
+  const { request: crossNavigationRequest } = useCrossNavigation();
   const containers = useContainers();
   const images = useImages();
   const volumes = useVolumes();
@@ -118,6 +120,14 @@ export function Shell() {
     },
     [updatePreferences],
   );
+
+  // A cross-reference followed from another screen brings its own screen into
+  // view (REQ-68, REQ-69); the destination screen then reveals the object and
+  // acknowledges the request itself.
+  useEffect(() => {
+    if (!crossNavigationRequest) return;
+    selectScreen(crossNavigationRequest.screenId);
+  }, [crossNavigationRequest, selectScreen]);
 
   const handleClearCache = useCallback(() => {
     clearAnalysisCache().then(refreshCacheUsage).catch(() => undefined);

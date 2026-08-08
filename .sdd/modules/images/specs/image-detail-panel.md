@@ -10,9 +10,12 @@ type: UI component
 
 ## Contract
 
-- `<ImageDetailPanel image images onClose />` — `image: ImageSummary` identifies which image's
-  inspect data to load (via `useImageInspect(image.id)`); `images: ImageSummary[]` is every local
-  image, offered as the other side of a comparison; `onClose` closes the panel.
+- `<ImageDetailPanel image images onClose layerFocus? />` — `image: ImageSummary` identifies which
+  image's inspect data to load (via `useImageInspect(image.id)`); `images: ImageSummary[]` is every
+  local image, offered as the other side of a comparison; `onClose` closes the panel.
+  - `layerFocus?: { layerIndex?, requestId }` — opens the layer explorer at that layer as soon as it
+    arrives, and again on every later `requestId` (REQ-69); changesets stay behind their cost
+    warning, since nothing here says they are already cached.
 
 Description:
 - A `DetailPanel` (own close control, "Explore layers…", "Efficiency & signals…", "Browse
@@ -34,6 +37,8 @@ Navigation:
 - A finding selected in the efficiency/signals view closes it and opens the layer explorer already
   selecting and analyzing the layer it concerns (REQ-65, REQ-67); the layer explorer, once the
   efficiency/signals view has been analyzed at least once, marks every layer carrying a finding.
+- A `layerFocus` handed down by the screen opens the layer explorer at that layer, which is how a
+  build-cache record's reference lands on the layer it names (REQ-69).
 
 ## Rules and invariants
 
@@ -55,3 +60,4 @@ Navigation:
 - plan-docker_management_app/REQ-65
 - plan-docker_management_app/REQ-66
 - plan-docker_management_app/REQ-67
+- plan-docker_management_app/REQ-69

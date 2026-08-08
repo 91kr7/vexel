@@ -72,9 +72,9 @@ test('opens the layer explorer from the image detail panel and shows the ordered
 
   const modal = layerExplorerModal(page, 'Layer stack — registry:2');
   await expect(modal).toBeVisible();
-  // SIGNALS marks the layers carrying an efficiency or secret finding
-  // (images/specs/layer-explorer.md).
-  await expect(modal.locator('.ui-data-table__header-cell')).toHaveText(['#', 'INSTRUCTION', 'SHARED', 'SIGNALS', 'SIZE', 'COMPRESSED']);
+  // SIGNALS marks the layers carrying an efficiency or secret finding, and CACHE the build-cache
+  // record behind each layer — between the signals marker and the sizes (images/specs/layer-explorer.md).
+  await expect(modal.locator('.ui-data-table__header-cell')).toHaveText(['#', 'INSTRUCTION', 'SHARED', 'SIGNALS', 'CACHE', 'SIZE', 'COMPRESSED']);
   const rows = modal.locator('.ui-data-table__row');
   await expect(rows.first()).toBeVisible({ timeout: 10_000 });
   expect(await rows.count()).toBeGreaterThan(1);

@@ -11,8 +11,12 @@ type: backend service
 ## Contract
 
 - `listBuildCache(): Promise<BuildCacheRecord[]>`
-  - `BuildCacheRecord`: `{ id, type, sizeBytes, usageState }`, `usageState`:
+  - `BuildCacheRecord`: `{ id, type, sizeBytes, usageState, description? }`, `usageState`:
     `"shared" | "in-use" | "reclaimable"`.
+  - `description` — the build step the record was produced by, as buildx recorded it (e.g.
+    `mount / from exec /bin/sh -c …`, `[3/3] COPY x /y`, `local source for context`); absent when
+    buildx recorded none or recorded it blank. It is what the traceability of REQ-68/REQ-69 matches
+    a layer against.
   - `usageState` pseudocode:
     ```
     if record is not reclaimable → "in-use"      (attached to a build in progress)
@@ -42,3 +46,5 @@ type: backend service
 ## Requirements served
 
 - plan-docker_management_app/REQ-91
+- plan-docker_management_app/REQ-68
+- plan-docker_management_app/REQ-69

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActionButtonGroup,
   Badge,
@@ -7,10 +7,12 @@ import {
   CardList,
   ChipInput,
   Combobox,
+  CrossReferenceList,
   EmptyState,
   ErrorBanner,
   FormDialog,
   FormField,
+  MetaCell,
   Row,
   SectionHeader,
   Stack,
@@ -21,8 +23,10 @@ import {
 } from '../ui';
 import type { BuildCacheRecord, BuildCacheUsageState, BuilderSummary } from '../data/builders-client';
 import { useBuildCache } from '../data/use-build-cache';
+import { useBuildCacheUsage } from '../data/use-build-cache-usage';
 import { useBuilders } from '../data/use-builders';
 import { useConfirmation } from '../shell/services/ConfirmationService';
+import { useCrossNavigation } from '../shell/services/CrossNavigationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
 import { useProgress } from '../shell/services/ProgressService';
 
@@ -70,19 +74,20 @@ function truncateId(id: string): string {
 function cacheRow(record: BuildCacheRecord): CardListRowContent {
   return {
     title: truncateId(record.id),
-    subtitle: record.type,
+    subtitle: record.description ? [record.type, record.description] : record.type,
     badges: <Badge tone={USAGE_TONES[record.usageState]}>{USAGE_LABELS[record.usageState]}</Badge>,
     meta: formatBytes(record.sizeBytes),
   };
 }
 
 /**
- * The Builders & cache screen (REQ-88, REQ-89, REQ-91): every buildx builder
- * with its driver, endpoint, platforms, status and cache size, selecting the
- * active one, create and remove; and the build-cache inventory with its
- * usage state and prune, reporting the space reclaimed. Does not launch
- * builds (REQ-90 withdrawn) and does not export/import the cache (withdrawn
- * half of REQ-91).
+ * The Builders & cache screen (REQ-88, REQ-89, REQ-91, REQ-69): every buildx
+ * builder with its driver, endpoint, platforms, status and cache size,
+ * selecting the active one, create and remove; and the build-cache inventory
+ * with its usage state and prune, reporting the space reclaimed, each record
+ * opening on the images and layers it relates to — or on the stated reason
+ * none can be named. Does not launch builds (REQ-90 withdrawn) and does not
+ * export/import the cache (withdrawn half of REQ-91).
  */
 export function BuildersScreen() {
   const builders = useBuilders();
@@ -91,6 +96,18 @@ export function BuildersScreen() {
   const { push } = useToast();
   const { run } = useProgress();
   const { reportError } = useErrorReporter();
+  const { request, navigateTo, consumeRequest } = useCrossNavigation();
+
+  const [selectedRecordId, setSelectedRecordId] = useState<string | undefined>(undefined);
+  const usage = useBuildCacheUsage(selectedRecordId);
+
+  // A cross-reference followed from a layer arrives here naming its record
+  // (REQ-68): open it, then acknowledge the request.
+  useEffect(() => {
+    if (request?.screenId !== 'builders-cache') return;
+    setSelectedRecordId(request.objectId);
+    consumeRequest();
+  }, [request, consumeRequest]);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState('');
@@ -156,6 +173,34 @@ export function BuildersScreen() {
     }
   }
 
+  /** Leaves this screen and reaches the layer inside the Images & layers screen (REQ-69). */
+  function goToImageLayer(imageId: string, layerIndex: number) {
+    navigateTo({ screenId: 'images-layers', objectId: imageId, position: layerIndex });
+  }
+
+  /** The images and layers the selected record relates to, or the stated reason none can be named (REQ-69). */
+  function renderCacheUsage() {
+    return (
+      <Stack gap="var(--space-2)">
+        <SectionHeader variant="eyebrow" title="Related images & layers" />
+        {usage.error ? <ErrorBanner title="Could not load the related images" detail={usage.error} onRetry={usage.refresh} /> : null}
+        {!usage.loaded && !usage.usage ? (
+          <MetaCell>Looking for the images this record relates to…</MetaCell>
+        ) : (
+          <CrossReferenceList
+            items={(usage.usage?.references ?? []).map((reference) => ({
+              key: `${reference.imageId}:${reference.layerIndex}`,
+              kind: reference.tags[0] ?? reference.imageShortId,
+              label: `layer ${String(reference.layerIndex + 1).padStart(2, '0')} · ${reference.instruction}`,
+              onNavigate: () => goToImageLayer(reference.imageId, reference.layerIndex),
+            }))}
+            unavailableReason={usage.usage?.unavailableDetail}
+          />
+        )}
+      </Stack>
+    );
+  }
+
   function builderRow(builder: BuilderSummary): CardListRowContent {
     return {
       title: builder.name,
@@ -205,6 +250,10 @@ export function BuildersScreen() {
             items={cache.records}
             itemKey={(record) => record.id}
             renderRow={cacheRow}
+            selectedKey={selectedRecordId}
+            onSelect={(record) => setSelectedRecordId((current) => (current === record.id ? undefined : record.id))}
+            expandedKey={selectedRecordId}
+            renderExpanded={renderCacheUsage}
             emptyState={<EmptyState title={cache.loaded ? 'No build-cache records' : 'Loading build cache…'} />}
           />
         </Stack>

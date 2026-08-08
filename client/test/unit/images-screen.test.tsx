@@ -4,6 +4,9 @@ import userEvent from '@testing-library/user-event';
 import { ImagesScreen } from '../../src/images/ImagesScreen';
 import type { ImageSummary } from '../../src/data/images-client';
 import { ConfirmationProvider } from '../../src/shell/services/ConfirmationService';
+// ImagesScreen reaches a layer named by another screen (images/specs/images-screen.md),
+// so it only stands inside a cross-navigation provider.
+import { CrossNavigationProvider } from '../../src/shell/services/CrossNavigationService';
 import { ErrorReportingProvider, useErrorReporter } from '../../src/shell/services/ErrorReportingService';
 import { ProgressProvider } from '../../src/shell/services/ProgressService';
 import { ToastProvider } from '../../src/ui';
@@ -54,10 +57,12 @@ function renderScreen(images: ImageSummary[], onRefresh = vi.fn()) {
     <ErrorReportingProvider>
       <ProgressProvider>
         <ConfirmationProvider>
-          <ToastProvider>
-            <ImagesScreen images={images} loaded onRefresh={onRefresh} />
-            <ReportedErrors />
-          </ToastProvider>
+          <CrossNavigationProvider>
+            <ToastProvider>
+              <ImagesScreen images={images} loaded onRefresh={onRefresh} />
+              <ReportedErrors />
+            </ToastProvider>
+          </CrossNavigationProvider>
         </ConfirmationProvider>
       </ProgressProvider>
     </ErrorReportingProvider>,

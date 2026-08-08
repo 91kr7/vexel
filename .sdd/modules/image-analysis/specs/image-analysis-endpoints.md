@@ -17,6 +17,9 @@ operations built on it, and the cross-image filesystem diff stream/tree-read pai
 - `GET /api/images/:id/layers` → `{ imageId, layers }`, one entry per `LayerMetadataService` layer
   plus `sharedWith: SharingImage[]` (from `SharedLayerService`, empty when the layer has no known
   diff id or shares with nothing).
+- `GET /api/images/:id/layers/build-cache` → the `ImageBuildCacheTrace` from
+  `LayerBuildCacheService`: one entry per layer, each carrying its build-cache record or the reason
+  the association does not exist (REQ-68).
 - `GET /api/images/:id/changesets/stream` → server-sent events driving `computeImageChangesets`:
   `progress` (one per `ChangesetProgress`), `result` (the final `ImageChangesets`, sent just before
   `end`), `end`, or `error` (`{ message }`) if it fails. Disconnecting cancels the in-flight
@@ -70,7 +73,8 @@ operations built on it, and the cross-image filesystem diff stream/tree-read pai
 
 - image-analysis: LayerMetadataService, SharedLayerService, ChangesetService, LayerSignalsService,
   FilesystemExtractionService, FilesystemContainment, FilesystemEntryService,
-  FilesystemContentService, FilesystemSearchService, FilesystemExportService, ImageDiffService
+  FilesystemContentService, FilesystemSearchService, FilesystemExportService, ImageDiffService,
+  LayerBuildCacheService
 - images: `sanitizeTarFilename` (reused for the subtree archive's download filename)
 - docker-access: DockerDaemonError
 
@@ -96,4 +100,5 @@ operations built on it, and the cross-image filesystem diff stream/tree-read pai
 - plan-docker_management_app/REQ-65
 - plan-docker_management_app/REQ-66
 - plan-docker_management_app/REQ-67
+- plan-docker_management_app/REQ-68
 - plan-docker_management_app/REQ-113

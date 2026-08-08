@@ -7,6 +7,9 @@ import type { ContainerSummary } from '../../src/data/containers-client';
 import type { ImageSummary } from '../../src/data/images-client';
 import type { ContainerCreateSpec } from '../../src/data/container-create-client';
 import { ConfirmationProvider } from '../../src/shell/services/ConfirmationService';
+// ImagesScreen reaches a layer named by another screen (images/specs/images-screen.md),
+// so it only stands inside a cross-navigation provider.
+import { CrossNavigationProvider } from '../../src/shell/services/CrossNavigationService';
 import { ErrorReportingProvider } from '../../src/shell/services/ErrorReportingService';
 import { ProgressProvider } from '../../src/shell/services/ProgressService';
 import { ToastProvider } from '../../src/ui';
@@ -87,7 +90,9 @@ function providers(children: React.ReactNode) {
     <ErrorReportingProvider>
       <ProgressProvider>
         <ConfirmationProvider>
-          <ToastProvider>{children}</ToastProvider>
+          <CrossNavigationProvider>
+            <ToastProvider>{children}</ToastProvider>
+          </CrossNavigationProvider>
         </ConfirmationProvider>
       </ProgressProvider>
     </ErrorReportingProvider>

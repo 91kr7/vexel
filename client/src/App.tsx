@@ -1,5 +1,6 @@
 import { Shell } from './shell/Shell';
 import { ConnectionStatusProvider } from './shell/services/ConnectionStatusService';
+import { CrossNavigationProvider } from './shell/services/CrossNavigationService';
 import { DaemonEventStreamProvider } from './shell/services/EventStreamService';
 import { ErrorReportingProvider } from './shell/services/ErrorReportingService';
 import { ProgressProvider } from './shell/services/ProgressService';
@@ -10,7 +11,9 @@ function App() {
       <ProgressProvider>
         <ConnectionStatusProvider>
           <DaemonEventStreamProvider>
-            <Shell />
+            <CrossNavigationProvider>
+              <Shell />
+            </CrossNavigationProvider>
           </DaemonEventStreamProvider>
         </ConnectionStatusProvider>
       </ProgressProvider>

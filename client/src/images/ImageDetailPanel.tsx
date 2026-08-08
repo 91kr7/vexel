@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Button,
   CodeViewer,
@@ -22,6 +22,8 @@ export interface ImageDetailPanelProps {
   /** Every local image, offered as the other side of a comparison ("Compare with…", REQ-63). */
   images: ImageSummary[];
   onClose: () => void;
+  /** Opens the layer explorer at this layer as soon as it arrives (REQ-69), e.g. following a build-cache record's reference. */
+  layerFocus?: { layerIndex?: number; requestId: number };
 }
 
 function formatBytes(bytes: number): string {
@@ -42,7 +44,7 @@ function formatBytes(bytes: number): string {
  * payload. Later batches (layer stack, build-cache traceability) extend this
  * panel with further content.
  */
-export function ImageDetailPanel({ image, images, onClose }: ImageDetailPanelProps) {
+export function ImageDetailPanel({ image, images, onClose, layerFocus }: ImageDetailPanelProps) {
   const { inspect, loaded, error, refresh } = useImageInspect(image.id);
   const [layersOpen, setLayersOpen] = useState(false);
   const [filesystemOpen, setFilesystemOpen] = useState(false);
@@ -51,6 +53,14 @@ export function ImageDetailPanel({ image, images, onClose }: ImageDetailPanelPro
   const [autoAnalyzeLayers, setAutoAnalyzeLayers] = useState(false);
   const [initialSelectedLayerIndex, setInitialSelectedLayerIndex] = useState<number | undefined>(undefined);
   const [layersWithFindings, setLayersWithFindings] = useState<Map<number, number>>(new Map());
+
+  /** A reference followed from a build-cache record opens the layer explorer at the layer it names (REQ-69); changesets stay behind their cost warning, nothing here says they are cached. */
+  useEffect(() => {
+    if (!layerFocus) return;
+    setInitialSelectedLayerIndex(layerFocus.layerIndex);
+    setAutoAnalyzeLayers(false);
+    setLayersOpen(true);
+  }, [layerFocus]);
 
   /** A signals finding closes the signals view and opens the layer explorer at the layer it concerns, already-cached so analysis starts without the cost warning (REQ-65, REQ-67). */
   function navigateToLayer(layerIndex: number) {

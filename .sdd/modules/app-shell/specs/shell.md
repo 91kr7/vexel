@@ -41,6 +41,10 @@ Shows:
 Actions:
 - Selecting a `NavItem` sets it active, persists it as `lastScreenId` via `usePreferences()`, and
   replaces the content area with its screen, without remounting the rail, header or footer.
+- A pending cross-navigation request (`useCrossNavigation()`) makes the screen it names active, by
+  the same path as an operator's own selection — so it is persisted as `lastScreenId` too. The
+  Shell does not clear the request: the destination screen reveals the object and acknowledges it
+  (REQ-68, REQ-69).
 - The status pill's inline "Retry" action and the unreachable-daemon banner's retry both call
   `useConnectionStatus().retry()` to re-probe the daemon immediately (REQ-10).
 - The "Local storage" card's "Clear" action calls `clearAnalysisCache()` then refreshes the shown
@@ -113,6 +117,8 @@ Navigation:
 - plan-docker_management_app/REQ-88
 - plan-docker_management_app/REQ-89
 - plan-docker_management_app/REQ-91
+- plan-docker_management_app/REQ-68
+- plan-docker_management_app/REQ-69
 - plan-docker_management_app/REQ-110
 - plan-docker_management_app/REQ-113
 - plan-docker_management_app/REQ-115
