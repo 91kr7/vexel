@@ -13,10 +13,13 @@ import {
 import type { ImageSummary } from '../data/images-client';
 import { useImageInspect } from '../data/use-image-inspect';
 import { FilesystemBrowser } from './FilesystemBrowser';
+import { ImageDiffView } from './ImageDiffView';
 import { LayerExplorer } from './LayerExplorer';
 
 export interface ImageDetailPanelProps {
   image: ImageSummary;
+  /** Every local image, offered as the other side of a comparison ("Compare with…", REQ-63). */
+  images: ImageSummary[];
   onClose: () => void;
 }
 
@@ -38,10 +41,11 @@ function formatBytes(bytes: number): string {
  * payload. Later batches (layer stack, build-cache traceability) extend this
  * panel with further content.
  */
-export function ImageDetailPanel({ image, onClose }: ImageDetailPanelProps) {
+export function ImageDetailPanel({ image, images, onClose }: ImageDetailPanelProps) {
   const { inspect, loaded, error, refresh } = useImageInspect(image.id);
   const [layersOpen, setLayersOpen] = useState(false);
   const [filesystemOpen, setFilesystemOpen] = useState(false);
+  const [diffOpen, setDiffOpen] = useState(false);
 
   return (
     <DetailPanel
@@ -50,6 +54,7 @@ export function ImageDetailPanel({ image, onClose }: ImageDetailPanelProps) {
         <>
           <Button variant="secondary" onClick={() => setLayersOpen(true)}>Explore layers…</Button>
           <Button variant="secondary" onClick={() => setFilesystemOpen(true)}>Browse filesystem…</Button>
+          <Button variant="secondary" onClick={() => setDiffOpen(true)} disabled={images.length < 2}>Compare with…</Button>
         </>
       }
     >
@@ -93,6 +98,7 @@ export function ImageDetailPanel({ image, onClose }: ImageDetailPanelProps) {
       </Stack>
       <LayerExplorer image={image} open={layersOpen} onClose={() => setLayersOpen(false)} />
       <FilesystemBrowser image={image} open={filesystemOpen} onClose={() => setFilesystemOpen(false)} />
+      <ImageDiffView images={images} initialImageAId={image.id} open={diffOpen} onClose={() => setDiffOpen(false)} />
     </DetailPanel>
   );
 }

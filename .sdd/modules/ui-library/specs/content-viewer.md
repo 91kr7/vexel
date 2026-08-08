@@ -12,16 +12,18 @@ was too large to read in full (REQ-59).
 
 ## Contract
 
-- `<TextViewer content truncated? totalSizeBytes? maxHeight? />`
+- `<TextViewer content truncated? totalSizeBytes? maxHeight? scrollRef? onScroll? />`
   - `content: string` — split on `\n` and rendered one line per row, each with its 1-based line
     number in a gutter.
   - `truncated?: boolean` — when `true`, a `FieldMessage` below the content states the preview is
     truncated, naming `totalSizeBytes` when given.
   - `maxHeight?: string` (default `'360px'`) — caps the block's height with a scrollbar.
-- `<HexDumpViewer content truncated? totalSizeBytes? maxHeight? />`
+  - `scrollRef?`, `onScroll?` — forwarded to the internal scrollable element, so a caller pairing two
+    viewers (`SideBySideViewer`) can read/drive their scroll position in sync.
+- `<HexDumpViewer content truncated? totalSizeBytes? maxHeight? scrollRef? onScroll? />`
   - `content: string` — a preformatted hex dump (offset, hex bytes, ASCII column per line), computed
     by the caller; rendered verbatim in a monospace block.
-  - `truncated?`, `totalSizeBytes?`, `maxHeight?` — same as `TextViewer`.
+  - `truncated?`, `totalSizeBytes?`, `maxHeight?`, `scrollRef?`, `onScroll?` — same as `TextViewer`.
 
 ## Dependencies
 
@@ -30,3 +32,4 @@ was too large to read in full (REQ-59).
 ## Requirements served
 
 - plan-docker_management_app/REQ-59
+- plan-docker_management_app/REQ-64

@@ -35,6 +35,10 @@ be loaded on demand by the caller (REQ-52).
   - `emptyState?: ReactNode` — shown instead of the tree when `rootNodes` is empty.
   - `matchedIds?: Set<string>` — ids marked as matching an in-progress search (REQ-60); a matched
     row not currently selected is highlighted in place, distinctly from the selected row.
+  - `statusById?: Map<string, 'success' | 'warning' | 'danger'>` — a node's status accent, rendered
+    as a small colored dot before its glyph; a node absent from the map renders no accent. Generic
+    (not diff-specific): the tree's own dedicated diff composition, `DiffTreeView`, is what actually
+    feeds it (REQ-63).
 
 ## Rules and invariants
 
@@ -56,3 +60,4 @@ be loaded on demand by the caller (REQ-52).
 
 - plan-docker_management_app/REQ-52
 - plan-docker_management_app/REQ-60
+- plan-docker_management_app/REQ-63

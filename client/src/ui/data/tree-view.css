@@ -67,6 +67,25 @@
   background: var(--color-warning);
 }
 
+.ui-tree-view__status {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+}
+
+.ui-tree-view__status--tone-success {
+  background: var(--color-success);
+}
+
+.ui-tree-view__status--tone-warning {
+  background: var(--color-warning);
+}
+
+.ui-tree-view__status--tone-danger {
+  background: var(--color-danger);
+}
+
 .ui-tree-view__label {
   flex: 1 1 auto;
   min-width: 0;

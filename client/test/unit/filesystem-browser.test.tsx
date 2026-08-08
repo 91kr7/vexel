@@ -1,6 +1,8 @@
+import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { ToastProvider } from '../../src/ui';
 import { FilesystemBrowser } from '../../src/images/FilesystemBrowser';
 import type { ImageSummary } from '../../src/data/images-client';
 import type { FilesystemEntry } from '../../src/data/image-filesystem-client';
@@ -60,14 +62,27 @@ beforeEach(() => {
     ],
     bin: [{ path: 'bin/sh', name: 'sh', kind: 'file', sizeBytes: 64 }],
   };
+  // The browser reads its tree from /filesystem/entries and, for a selected entry, its metadata
+  // from /filesystem/metadata and — for a file — its preview from /filesystem/content. Each
+  // endpoint answers under its own key, so the stub routes on the pathname rather than on `path`.
   fetchMock = vi.fn().mockImplementation((input: string) => {
     const url = new URL(String(input), 'http://localhost');
     const path = url.searchParams.get('path') ?? '';
-    return Promise.resolve({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ path, entries: entriesByPath[path] ?? [] }),
-    });
+    const body = (): unknown => {
+      if (url.pathname.endsWith('/filesystem/metadata')) {
+        const entry = Object.values(entriesByPath)
+          .flat()
+          .find((candidate) => candidate.path === path);
+        return { metadata: entry ? { ...entry, permissions: '-rw-r--r--', uid: 0, gid: 0 } : undefined };
+      }
+      if (url.pathname.endsWith('/filesystem/content')) {
+        return {
+          result: { path, mode: 'text', autoMode: 'text', content: 'preview', totalSizeBytes: 7, truncated: false },
+        };
+      }
+      return { path, entries: entriesByPath[path] ?? [] };
+    };
+    return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body()) });
   });
   vi.stubGlobal('fetch', fetchMock);
   FakeEventSource.instances = [];
@@ -78,6 +93,14 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
+
+/**
+ * FilesystemBrowser pushes toasts (archive-export failures), so it reads the toast context the way
+ * it does in the application, where Shell mounts every screen under a ToastProvider.
+ */
+function withToast({ children }: { children?: ReactNode }) {
+  return <ToastProvider>{children}</ToastProvider>;
+}
 
 /** Completes a full extraction (creating/copying/indexing, then a result) and waits for the root tree level to be loaded. */
 async function completeExtraction(fromCache = false) {
@@ -90,14 +113,14 @@ async function completeExtraction(fromCache = false) {
 
 describe('FilesystemBrowser — before extraction (plan-docker_management_app/REQ-52, plan-docker_management_app/REQ-53)', () => {
   it('shows the not-extracted-yet prompt and performs no fetch while closed', () => {
-    render(<FilesystemBrowser image={makeImage()} open={false} onClose={vi.fn()} />);
+    render(<FilesystemBrowser image={makeImage()} open={false} onClose={vi.fn()} />, { wrapper: withToast });
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(FakeEventSource.instances).toHaveLength(0);
   });
 
   it('shows the explanatory prompt with a "Browse filesystem…" action', () => {
-    render(<FilesystemBrowser image={makeImage()} open onClose={vi.fn()} />);
+    render(<FilesystemBrowser image={makeImage()} open onClose={vi.fn()} />, { wrapper: withToast });
 
     expect(screen.getByText('Filesystem not extracted yet')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Browse filesystem…' })).toBeInTheDocument();
@@ -109,7 +132,7 @@ describe('FilesystemBrowser — before extraction (plan-docker_management_app/RE
 describe('FilesystemBrowser — cost warning, progress and cancel (plan-docker_management_app/REQ-55)', () => {
   it('opens a cost-warning dialog naming the image before starting extraction, and starts nothing on cancel', async () => {
     const image = makeImage({ tags: ['nginx:1.27'] });
-    render(<FilesystemBrowser image={image} open onClose={vi.fn()} />);
+    render(<FilesystemBrowser image={image} open onClose={vi.fn()} />, { wrapper: withToast });
 
     await userEvent.click(screen.getByRole('button', { name: 'Browse filesystem…' }));
 
@@ -126,7 +149,7 @@ describe('FilesystemBrowser — cost warning, progress and cancel (plan-docker_m
   });
 
   it('starts the extraction stream on confirm and shows a cancellable progress dialog', async () => {
-    render(<FilesystemBrowser image={makeImage()} open onClose={vi.fn()} />);
+    render(<FilesystemBrowser image={makeImage()} open onClose={vi.fn()} />, { wrapper: withToast });
 
     await userEvent.click(screen.getByRole('button', { name: 'Browse filesystem…' }));
     await userEvent.click(screen.getByRole('button', { name: 'Extract' }));
@@ -139,7 +162,7 @@ describe('FilesystemBrowser — cost warning, progress and cancel (plan-docker_m
   // filesystem-browser.md — Cancel discards the run (the container is still removed server-side)
   // and returns to the "not extracted yet" prompt
   it('cancelling the progress dialog while active stops the extraction stream and returns to "not extracted yet"', async () => {
-    render(<FilesystemBrowser image={makeImage()} open onClose={vi.fn()} />);
+    render(<FilesystemBrowser image={makeImage()} open onClose={vi.fn()} />, { wrapper: withToast });
     await userEvent.click(screen.getByRole('button', { name: 'Browse filesystem…' }));
     await userEvent.click(screen.getByRole('button', { name: 'Extract' }));
     const source = latestSource();
@@ -155,7 +178,7 @@ describe('FilesystemBrowser — cost warning, progress and cancel (plan-docker_m
 
   // filesystem-browser.md — Close, once failed, clears the run so extraction can be retried
   it('re-offers extraction after closing the dialog on failure', async () => {
-    render(<FilesystemBrowser image={makeImage()} open onClose={vi.fn()} />);
+    render(<FilesystemBrowser image={makeImage()} open onClose={vi.fn()} />, { wrapper: withToast });
     await userEvent.click(screen.getByRole('button', { name: 'Browse filesystem…' }));
     await userEvent.click(screen.getByRole('button', { name: 'Extract' }));
 
@@ -173,7 +196,7 @@ describe('FilesystemBrowser — cost warning, progress and cancel (plan-docker_m
 // selected entry's details; the cache-source header names the data's origin
 describe('FilesystemBrowser — browsing the extracted tree (plan-docker_management_app/REQ-52, plan-docker_management_app/REQ-113)', () => {
   it('shows the cache-source header and the root tree once extraction completes', async () => {
-    render(<FilesystemBrowser image={makeImage()} open onClose={vi.fn()} />);
+    render(<FilesystemBrowser image={makeImage()} open onClose={vi.fn()} />, { wrapper: withToast });
 
     await completeExtraction(false);
 
@@ -185,7 +208,7 @@ describe('FilesystemBrowser — browsing the extracted tree (plan-docker_managem
   // filesystem-browser.md — once extraction completes, a disclosure names the daemon's own
   // container-creation scaffolding included in the tree, so it is not misread as image content.
   it('discloses that the tree includes Docker\'s own container-creation scaffolding', async () => {
-    render(<FilesystemBrowser image={makeImage()} open onClose={vi.fn()} />);
+    render(<FilesystemBrowser image={makeImage()} open onClose={vi.fn()} />, { wrapper: withToast });
 
     await completeExtraction();
 
@@ -194,7 +217,7 @@ describe('FilesystemBrowser — browsing the extracted tree (plan-docker_managem
   });
 
   it('names the data as coming from the cache when the result says so', async () => {
-    render(<FilesystemBrowser image={makeImage()} open onClose={vi.fn()} />);
+    render(<FilesystemBrowser image={makeImage()} open onClose={vi.fn()} />, { wrapper: withToast });
 
     await completeExtraction(true);
 
@@ -202,7 +225,7 @@ describe('FilesystemBrowser — browsing the extracted tree (plan-docker_managem
   });
 
   it("loads a directory's children the first time it is expanded, and does not re-fetch on a second expansion", async () => {
-    render(<FilesystemBrowser image={makeImage()} open onClose={vi.fn()} />);
+    render(<FilesystemBrowser image={makeImage()} open onClose={vi.fn()} />, { wrapper: withToast });
     await completeExtraction();
     const fetchCountAfterExtraction = fetchMock.mock.calls.length;
 
@@ -220,7 +243,7 @@ describe('FilesystemBrowser — browsing the extracted tree (plan-docker_managem
   });
 
   it("shows a selected entry's path, type and size in the right-hand pane", async () => {
-    render(<FilesystemBrowser image={makeImage()} open onClose={vi.fn()} />);
+    render(<FilesystemBrowser image={makeImage()} open onClose={vi.fn()} />, { wrapper: withToast });
     await completeExtraction();
 
     await userEvent.click(screen.getByText('app.txt'));
@@ -232,7 +255,7 @@ describe('FilesystemBrowser — browsing the extracted tree (plan-docker_managem
   // filesystem-browser.md — a re-extraction resets every loaded tree level, expansion state and
   // selection before the new stream starts
   it('resets the tree and selection when re-extracting', async () => {
-    render(<FilesystemBrowser image={makeImage()} open onClose={vi.fn()} />);
+    render(<FilesystemBrowser image={makeImage()} open onClose={vi.fn()} />, { wrapper: withToast });
     await completeExtraction();
     await userEvent.click(screen.getByText('app.txt'));
     expect(screen.getByText('/app.txt')).toBeInTheDocument();

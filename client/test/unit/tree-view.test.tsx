@@ -201,4 +201,38 @@ describe('TreeView (plan-docker_management_app/REQ-52)', () => {
 
     expect(screen.getAllByText(/^n-\d+$/)).toHaveLength(200);
   });
+
+  // ui-library/specs/tree-view.md (plan-docker_management_app/REQ-63) — statusById renders a small
+  // colored dot, before the glyph, for a node present in the map
+  it('renders a status accent for a node present in statusById', () => {
+    const withStatus = node({ id: 'changed.txt', label: 'changed.txt', kind: 'file' });
+    render(
+      <TreeView
+        rootNodes={[withStatus]}
+        childrenById={new Map()}
+        expandedIds={new Set()}
+        onToggleExpand={vi.fn()}
+        statusById={new Map([['changed.txt', 'warning']])}
+      />,
+    );
+
+    expect(document.querySelector('.ui-tree-view__status--tone-warning')).not.toBeNull();
+  });
+
+  // ui-library/specs/tree-view.md (plan-docker_management_app/REQ-63) — a node absent from statusById renders no accent at all
+  it('renders no status accent for a node absent from statusById', () => {
+    const withStatus = node({ id: 'changed.txt', label: 'changed.txt', kind: 'file' });
+    const withoutStatus = node({ id: 'plain.txt', label: 'plain.txt', kind: 'file' });
+    render(
+      <TreeView
+        rootNodes={[withStatus, withoutStatus]}
+        childrenById={new Map()}
+        expandedIds={new Set()}
+        onToggleExpand={vi.fn()}
+        statusById={new Map([['changed.txt', 'danger']])}
+      />,
+    );
+
+    expect(document.querySelectorAll('[class*="ui-tree-view__status--tone-"]')).toHaveLength(1);
+  });
 });

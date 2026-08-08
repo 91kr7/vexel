@@ -33,6 +33,8 @@ export interface TreeViewProps {
   emptyState?: ReactNode;
   /** Ids marked as matching an in-progress search (REQ-60): their row is highlighted in place, distinct from the selected row. */
   matchedIds?: Set<string>;
+  /** A node's status accent (e.g. a diff's added/changed/removed), rendered as a small colored dot before its glyph; a node with no entry here renders no accent (REQ-63). */
+  statusById?: Map<string, 'success' | 'warning' | 'danger'>;
 }
 
 type FlatRow = { key: string; depth: number } & ({ type: 'node'; node: TreeNode } | { type: 'loading' });
@@ -75,6 +77,7 @@ export function TreeView({
   rowHeight = 32,
   emptyState,
   matchedIds = EMPTY_SET,
+  statusById = EMPTY_STATUS,
 }: TreeViewProps) {
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -196,6 +199,7 @@ export function TreeView({
                   {expandable ? (expanded ? '▾' : '▸') : ''}
                 </span>
                 <span className={`ui-tree-view__glyph ui-tree-view__glyph--${node.kind}`} />
+                {statusById.has(node.id) ? <span className={`ui-tree-view__status ui-tree-view__status--tone-${statusById.get(node.id)}`} /> : null}
                 <span className="ui-tree-view__label">{node.label}</span>
                 {node.meta ? <span className="ui-tree-view__meta">{node.meta}</span> : null}
               </div>
@@ -209,3 +213,4 @@ export function TreeView({
 }
 
 const EMPTY_SET: Set<string> = new Set();
+const EMPTY_STATUS: Map<string, 'success' | 'warning' | 'danger'> = new Map();

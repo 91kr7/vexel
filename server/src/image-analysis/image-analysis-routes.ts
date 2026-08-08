@@ -6,12 +6,40 @@ import { resolveRequestPath } from "./filesystem-containment.js";
 import { getFilesystemEntryMetadata } from "./filesystem-entry-service.js";
 import { getSubtreeExportSummary, openFilesystemEntryDownload, openSubtreeArchiveDownload } from "./filesystem-export-service.js";
 import { extractImageFilesystem, listImageFilesystemChildren } from "./filesystem-extraction-service.js";
+import { compareImageFilesystems, listDiffChildren } from "./image-diff-service.js";
 import { searchFilesystemEntries } from "./filesystem-search-service.js";
 import { getImageLayerStack } from "./layer-metadata-service.js";
 import { getSharedLayerImages } from "./shared-layer-service.js";
 import { sanitizeTarFilename } from "../images/image-transfer-service.js";
 
 export const imageAnalysisRouter = Router();
+
+/** Cancellable cross-image filesystem comparison stream (REQ-63, REQ-64): extracts each side (reusing its cache when already extracted), then compares, cancelling on client disconnect. */
+imageAnalysisRouter.get("/diff/stream", (req, res) =>
+  runEventStream(req, res, () =>
+    compareImageFilesystems(String(req.query.a ?? ""), String(req.query.b ?? ""), {
+      onProgress: (progress) => writeServerSentEvent(res, "progress", progress),
+      onError: (message) => endWithError(res, message),
+      onEnd: (result) => {
+        writeServerSentEvent(res, "result", result);
+        endWithEvent(res);
+      },
+    }),
+  ),
+);
+
+/** Direct children of a path in the last compared pair's diff tree (REQ-63), lazily read one directory level at a time. */
+imageAnalysisRouter.get("/diff/entries", (req, res) => {
+  const a = String(req.query.a ?? "");
+  const b = String(req.query.b ?? "");
+  const path = typeof req.query.path === "string" ? req.query.path : undefined;
+  const entries = listDiffChildren(a, b, path);
+  if (!entries) {
+    res.status(404).json({ error: "These two images have not been compared yet." });
+    return;
+  }
+  res.json({ path: path ?? "", entries });
+});
 
 imageAnalysisRouter.get("/:id/layers", async (req, res) => {
   try {
