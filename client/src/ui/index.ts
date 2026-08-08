@@ -73,6 +73,7 @@ export {
 } from './data/TableCells';
 export { DefinitionList, type DefinitionListProps, type DefinitionItem } from './data/DefinitionList';
 export { CodeViewer, type CodeViewerProps } from './data/CodeViewer';
+export { TextViewer, type TextViewerProps, HexDumpViewer, type HexDumpViewerProps } from './data/ContentViewer';
 export { LogStream, type LogStreamProps, type LogStreamLine } from './data/LogStream';
 export { CardList, type CardListProps, type CardListRowContent } from './data/CardList';
 export { TreeView, type TreeViewProps, type TreeNode, type TreeEntryKind } from './data/TreeView';

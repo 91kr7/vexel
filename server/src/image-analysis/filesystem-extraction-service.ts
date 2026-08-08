@@ -17,8 +17,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { getEngineClient } from "../connectivity/connection-status-service.js";
-import { insert as insertCache, invalidate as invalidateCache, lookup as lookupCache } from "../persistence/analysis-cache-store.js";
+import { insert as insertCache, invalidate as invalidateCache, lookup as lookupCache, type AnalysisCacheEntry } from "../persistence/analysis-cache-store.js";
 import { cacheDir } from "../persistence/local-store.js";
+import { type ContainmentRefusal, resolveEntryPath, resolveSymlinkTarget } from "./filesystem-containment.js";
 import { forEachTarEntry } from "./tar-reader.js";
 
 /** Tags the intermediate container so no other surface of the application ever lists it or counts it (REQ-54). */
@@ -31,11 +32,21 @@ export interface FilesystemEntry {
   name: string;
   kind: FilesystemEntryKind;
   sizeBytes?: number;
+  /** POSIX permission bits, e.g. `0o755` (REQ-58). */
+  mode?: number;
+  uid?: number;
+  gid?: number;
+  /** Modification time, milliseconds since epoch (REQ-58). */
+  mtimeMs?: number;
+  /** Target text of a symlink entry, resolved and validated against the tree, never a raw unchecked value (REQ-58, REQ-62). */
+  linkTarget?: string;
 }
 
 export interface ImageFilesystem {
   imageId: string;
   entries: FilesystemEntry[];
+  /** Tar entries excluded because their own name, or a symlink's target, attempted to leave the extracted tree (REQ-62). */
+  refusals: ContainmentRefusal[];
 }
 
 export type FilesystemExtractionProgress = { phase: "creating" } | { phase: "copying" } | { phase: "indexing" };
@@ -44,6 +55,7 @@ export interface FilesystemExtractionResult {
   imageId: string;
   entryCount: number;
   fromCache: boolean;
+  refusedCount: number;
 }
 
 export interface FilesystemExtractionHandlers {
@@ -54,6 +66,11 @@ export interface FilesystemExtractionHandlers {
 
 function cacheKey(imageId: string): string {
   return `filesystem:${imageId}`;
+}
+
+/** Distinct key for the raw exported tarball itself, kept so entry content can be read back later (REQ-59, REQ-61) without re-extracting. */
+function archiveCacheKey(imageId: string): string {
+  return `filesystem-archive:${imageId}`;
 }
 
 /**
@@ -73,13 +90,16 @@ export async function extractImageFilesystem(
   let destroyExportStream: (() => void) | undefined;
   const key = cacheKey(imageId);
 
-  if (options.force) await invalidateCache(key);
+  if (options.force) {
+    await invalidateCache(key);
+    await invalidateCache(archiveCacheKey(imageId));
+  }
 
   const cached = lookupCache(key);
   if (cached) {
     readCachedResult(cached.fileName)
       .then((filesystem) => {
-        if (!cancelled) handlers.onEnd({ imageId, entryCount: filesystem.entries.length, fromCache: true });
+        if (!cancelled) handlers.onEnd({ imageId, entryCount: filesystem.entries.length, fromCache: true, refusedCount: filesystem.refusals.length });
       })
       .catch((error: Error) => {
         if (!cancelled) handlers.onError(error.message);
@@ -113,14 +133,17 @@ export async function extractImageFilesystem(
       if (cancelled) return;
 
       handlers.onProgress({ phase: "indexing" });
-      const entries = await readFilesystemEntries(exportPath);
+      const { entries, refusals } = await readFilesystemEntries(exportPath);
       if (cancelled) return;
 
-      const filesystem: ImageFilesystem = { imageId, entries };
+      const filesystem: ImageFilesystem = { imageId, entries, refusals };
       const resultPath = join(workDir, "result.json");
       await writeFile(resultPath, JSON.stringify(filesystem));
       await insertCache(key, resultPath);
-      if (!cancelled) handlers.onEnd({ imageId, entryCount: entries.length, fromCache: false });
+      // The raw tarball is kept too (REQ-59, REQ-61): entry content and
+      // subtree archives are read from it later, without re-extracting.
+      await insertCache(archiveCacheKey(imageId), exportPath);
+      if (!cancelled) handlers.onEnd({ imageId, entryCount: entries.length, fromCache: false, refusedCount: refusals.length });
     } catch (error) {
       if (!cancelled) handlers.onError((error as Error).message);
     } finally {
@@ -142,11 +165,34 @@ export async function extractImageFilesystem(
  * no cached extraction yet (the caller must extract first).
  */
 export async function listImageFilesystemChildren(imageId: string, parentPath?: string): Promise<FilesystemEntry[] | undefined> {
-  const cached = lookupCache(cacheKey(imageId));
-  if (!cached) return undefined;
-  const filesystem = await readCachedResult(cached.fileName);
+  const filesystem = await getExtractedFilesystem(imageId);
+  if (!filesystem) return undefined;
   const normalizedParent = normalizePath(parentPath);
   return filesystem.entries.filter((entry) => parentOf(entry.path) === normalizedParent);
+}
+
+/**
+ * The full previously extracted, still-cached filesystem for `imageId`
+ * (REQ-58, REQ-59, REQ-60, REQ-61) — the shared read path for entry
+ * metadata, content, search and export. `undefined` when this image has no
+ * cached extraction yet.
+ */
+export async function getExtractedFilesystem(imageId: string): Promise<ImageFilesystem | undefined> {
+  const cached = lookupCache(cacheKey(imageId));
+  if (!cached) return undefined;
+  return readCachedResult(cached.fileName);
+}
+
+/**
+ * Path to this image's cached raw export tarball (REQ-59, REQ-61), used to
+ * read an entry's bytes back or build a subtree archive without
+ * re-extracting. `undefined` when not cached (e.g. an extraction performed
+ * before this cache was introduced) — the caller asks the operator to
+ * re-extract.
+ */
+export function getExtractedArchivePath(imageId: string): string | undefined {
+  const cached: AnalysisCacheEntry | undefined = lookupCache(archiveCacheKey(imageId));
+  return cached ? join(cacheDir(), cached.fileName) : undefined;
 }
 
 /** Removes every intermediate extraction container left behind by an interrupted run (REQ-54, REQ-57); called once at server startup. */
@@ -190,7 +236,8 @@ async function removeIntermediateContainer(id: string): Promise<void> {
 
 async function readCachedResult(fileName: string): Promise<ImageFilesystem> {
   const raw = await readFile(join(cacheDir(), fileName), "utf8");
-  return JSON.parse(raw) as ImageFilesystem;
+  const parsed = JSON.parse(raw) as ImageFilesystem;
+  return { ...parsed, refusals: parsed.refusals ?? [] };
 }
 
 function toEntryKind(typeFlag: string): FilesystemEntryKind {
@@ -199,25 +246,63 @@ function toEntryKind(typeFlag: string): FilesystemEntryKind {
   return "file";
 }
 
-/** Reads the exported tarball once, entry by entry (never buffered whole), into a flat list (REQ-52). */
-async function readFilesystemEntries(filePath: string): Promise<FilesystemEntry[]> {
+/**
+ * Reads the exported tarball once, entry by entry (never buffered whole),
+ * into a flat list (REQ-52) carrying full POSIX metadata (REQ-58). Every
+ * entry's own name, and a symlink's own target, is validated against the
+ * tree before being kept; one that attempts to leave it is excluded and
+ * reported instead of being indexed (REQ-62).
+ */
+async function readFilesystemEntries(filePath: string): Promise<{ entries: FilesystemEntry[]; refusals: ContainmentRefusal[] }> {
   const entries: FilesystemEntry[] = [];
+  const refusals: ContainmentRefusal[] = [];
   await forEachTarEntry(createReadStream(filePath), async (entry, _readAll, skip) => {
     await skip();
     if (entry.typeFlag === "x" || entry.typeFlag === "g" || entry.typeFlag === "K" || entry.typeFlag === "L") return;
-    const normalized = normalizePath(entry.name);
+
+    const resolvedPath = resolveEntryPath(entry.name);
+    if ("refusal" in resolvedPath) {
+      refusals.push(resolvedPath.refusal);
+      return;
+    }
+    const normalized = resolvedPath.path;
     if (!normalized) return;
+
     const kind = toEntryKind(entry.typeFlag);
-    entries.push({ path: normalized, name: normalized.split("/").pop() ?? normalized, kind, sizeBytes: kind === "file" ? entry.size : undefined });
+    let linkTarget: string | undefined;
+    if (kind === "symlink" && entry.linkName) {
+      const resolvedTarget = resolveSymlinkTarget(normalized, entry.linkName);
+      if ("refusal" in resolvedTarget) {
+        refusals.push(resolvedTarget.refusal);
+        return;
+      }
+      // The contained, tree-root-relative value — never the tar header's own
+      // raw text, which may be absolute or carry a `..` chain and would
+      // otherwise leak straight through every reader of this entry (REQ-58,
+      // REQ-62), including the metadata endpoint showing it to the operator.
+      linkTarget = resolvedTarget.path;
+    }
+
+    entries.push({
+      path: normalized,
+      name: normalized.split("/").pop() ?? normalized,
+      kind,
+      sizeBytes: kind === "file" ? entry.size : undefined,
+      mode: entry.mode,
+      uid: entry.uid,
+      gid: entry.gid,
+      mtimeMs: entry.mtimeMs,
+      linkTarget,
+    });
   });
-  return entries.sort((a, b) => a.path.localeCompare(b.path));
+  return { entries: entries.sort((a, b) => a.path.localeCompare(b.path)), refusals };
 }
 
-function normalizePath(path: string | undefined): string {
+export function normalizePath(path: string | undefined): string {
   return (path ?? "").replace(/^\.\//, "").replace(/^\/+/, "").replace(/\/+$/, "");
 }
 
-function parentOf(path: string): string {
+export function parentOf(path: string): string {
   const index = path.lastIndexOf("/");
   return index === -1 ? "" : path.slice(0, index);
 }

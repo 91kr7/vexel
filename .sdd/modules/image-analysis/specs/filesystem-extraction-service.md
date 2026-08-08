@@ -22,15 +22,31 @@ analysis cache across restarts when the image content is unchanged (REQ-113).
   - `FilesystemExtractionProgress`: `{ phase: 'creating' } | { phase: 'copying' } | { phase:
     'indexing' }` — creating the intermediate container, streaming its export to temporary disk,
     then reading it into the flat entry list.
-  - `onEnd(result)`: `FilesystemExtractionResult`: `{ imageId, entryCount, fromCache }`.
+  - `onEnd(result)`: `FilesystemExtractionResult`: `{ imageId, entryCount, fromCache, refusedCount
+    }` — `refusedCount` is how many tar entries INT-7's containment check excluded (REQ-62).
   - Returns a cancel function; calling it stops the run at its next await point, no further handler
     fires, and the intermediate container is still removed.
 - `listImageFilesystemChildren(imageId, parentPath?): Promise<FilesystemEntry[] | undefined>` —
   direct children of `parentPath` (default the root) from a previously extracted, still-cached
   filesystem; `undefined` when this image has no cached extraction (the caller must extract first).
   One directory level per call — designed for lazy expansion of a large tree.
-  - `FilesystemEntry`: `{ path, name, kind: 'file' | 'directory' | 'symlink', sizeBytes? }` —
-    `sizeBytes` only for a `file`.
+  - `FilesystemEntry`: `{ path, name, kind: 'file' | 'directory' | 'symlink', sizeBytes?, mode?,
+    uid?, gid?, mtimeMs?, linkTarget? }` — `sizeBytes` only for a `file`; `mode`/`uid`/`gid`/
+    `mtimeMs` are the tar header's own POSIX metadata when present (REQ-58); `linkTarget` only for a
+    `symlink`, `FilesystemContainment.resolveSymlinkTarget`'s resolved, tree-root-relative value —
+    never the tar header's own raw target text, which may be absolute or carry a `..` chain (REQ-58,
+    REQ-62). A symlink whose target cannot be resolved this way is excluded entirely (see
+    `refusals` below), never indexed with an unresolved or partially-resolved target.
+- `getExtractedFilesystem(imageId): Promise<ImageFilesystem | undefined>` — the full previously
+  extracted, still-cached filesystem (`{ imageId, entries, refusals }`); the shared read path
+  `FilesystemEntryService`, `FilesystemContentService`, `FilesystemSearchService` and
+  `FilesystemExportService` build on. `refusals`: `{ path, reason }[]`, the entries INT-7 excluded.
+- `getExtractedArchivePath(imageId): string | undefined` — filesystem path to this image's cached
+  raw export tarball, read back by `FilesystemContentService` and `FilesystemExportService` without
+  re-extracting; `undefined` when not cached (e.g. an extraction performed before this cache was
+  introduced — the caller asks the operator to re-extract).
+- `normalizePath(path)`, `parentOf(path)` — the path-normalization helpers shared with the other
+  filesystem services, so every one of them treats a path identically.
 - `sweepAbandonedExtractionContainers(): Promise<void>` — removes every container carrying the
   intermediate-extraction label, regardless of the image it was created from; called once at server
   startup to clean up after an interrupted run (REQ-54, REQ-57).
@@ -49,7 +65,14 @@ analysis cache across restarts when the image content is unchanged (REQ-113).
   true`, creating no container and reading no export.
 - The exported tarball is written to a per-run temporary directory and read once, entry by entry
   (never buffered whole); the directory is removed once the run ends, cancels or fails.
-- A successful, non-cached run's result is inserted into the analysis cache before `onEnd` fires.
+- A successful, non-cached run's result is inserted into the analysis cache before `onEnd` fires,
+  together with the raw export tarball itself, under a distinct cache key, kept so entry content and
+  subtree archives can be read back later without re-extracting (REQ-59, REQ-61); `force` invalidates
+  both.
+- Every tar entry's own name, and every symlink entry's own target text, is validated against the
+  tree before being indexed (via `FilesystemContainment`): one that attempts to leave it (an absolute
+  path or a `../` segment) is excluded from `entries` and appended to `refusals` with its reason
+  instead, and is never followed (REQ-62).
 - `onError` and `onEnd` are mutually exclusive and each fires at most once per call.
 - Extraction never starts the intermediate container and never mutates the source image, its tags,
   or any pre-existing container (REQ-53, REQ-56).
@@ -71,7 +94,7 @@ analysis cache across restarts when the image content is unchanged (REQ-113).
 ## Dependencies
 
 - docker-access: EngineClient (via `getEngineClient()`)
-- image-analysis: the tar reader (internal)
+- image-analysis: the tar reader (internal), FilesystemContainment
 - local-persistence: AnalysisCacheStore (`lookup`, `insert`, `invalidate`), LocalStore (`cacheDir`)
 
 ## Requirements served
@@ -82,4 +105,6 @@ analysis cache across restarts when the image content is unchanged (REQ-113).
 - plan-docker_management_app/REQ-55
 - plan-docker_management_app/REQ-56
 - plan-docker_management_app/REQ-57
+- plan-docker_management_app/REQ-58
+- plan-docker_management_app/REQ-62
 - plan-docker_management_app/REQ-113

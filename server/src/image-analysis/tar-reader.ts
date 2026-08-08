@@ -17,6 +17,14 @@ export interface TarEntry {
   name: string;
   size: number;
   typeFlag: string;
+  /** POSIX permission bits (e.g. `0o755`); `undefined` when the header carries none. */
+  mode?: number;
+  uid?: number;
+  gid?: number;
+  /** Modification time, milliseconds since epoch. */
+  mtimeMs?: number;
+  /** Symlink/hardlink target (typeflag `2`/`1`); empty for every other entry. */
+  linkName?: string;
 }
 
 export interface TarEntryLocation {
@@ -81,11 +89,30 @@ function readCString(buffer: Buffer, start: number, length: number): string {
   return (nulIndex === -1 ? slice : slice.subarray(0, nulIndex)).toString("utf8");
 }
 
-function parseHeader(header: Buffer): { name: string; size: number; typeFlag: string; prefix: string } {
+function parseOctal(header: Buffer, start: number, length: number): number {
+  return parseInt(readCString(header, start, length).trim() || "0", 8) || 0;
+}
+
+function parseHeader(header: Buffer): {
+  name: string;
+  size: number;
+  typeFlag: string;
+  prefix: string;
+  mode: number;
+  uid: number;
+  gid: number;
+  mtimeMs: number;
+  linkName: string;
+} {
   return {
     name: readCString(header, 0, 100),
+    mode: parseOctal(header, 100, 8),
+    uid: parseOctal(header, 108, 8),
+    gid: parseOctal(header, 116, 8),
     size: parseInt(readCString(header, 124, 12).trim() || "0", 8) || 0,
+    mtimeMs: parseOctal(header, 136, 12) * 1000,
     typeFlag: String.fromCharCode(header[156] ?? 48),
+    linkName: readCString(header, 157, 100),
     prefix: readCString(header, 345, 155),
   };
 }
@@ -122,7 +149,7 @@ export async function forEachTarEntry(
     if (header.length < BLOCK_SIZE || isZeroBlock(header)) return;
     assertValidHeaderChecksum(header);
 
-    const { name: rawName, size, typeFlag, prefix } = parseHeader(header);
+    const { name: rawName, size, typeFlag, prefix, mode, uid, gid, mtimeMs, linkName } = parseHeader(header);
     const padded = paddedSize(size);
 
     if (typeFlag === "L") {
@@ -136,7 +163,7 @@ export async function forEachTarEntry(
 
     let consumed = false;
     await onEntry(
-      { name, size, typeFlag },
+      { name, size, typeFlag, mode, uid, gid, mtimeMs, linkName },
       async () => {
         consumed = true;
         const data = await cursor.take(padded);
@@ -189,6 +216,19 @@ export async function readTarEntryAt(filePath: string, location: TarEntryLocatio
   try {
     const buffer = Buffer.alloc(location.size);
     await handle.read(buffer, 0, location.size, location.offset);
+    return buffer;
+  } finally {
+    await handle.close();
+  }
+}
+
+/** Reads at most `maxBytes` of a located entry's content, for a bounded preview of a possibly large file. */
+export async function readTarEntryPrefix(filePath: string, location: TarEntryLocation, maxBytes: number): Promise<Buffer> {
+  const readSize = Math.min(location.size, maxBytes);
+  const handle = await open(filePath, "r");
+  try {
+    const buffer = Buffer.alloc(readSize);
+    await handle.read(buffer, 0, readSize, location.offset);
     return buffer;
   } finally {
     await handle.close();

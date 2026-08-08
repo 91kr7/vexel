@@ -23,6 +23,11 @@
   background: var(--color-accent-tint);
 }
 
+.ui-tree-view__row--matched:not(.ui-tree-view__row--selected) {
+  background: var(--color-warning-tint);
+  box-shadow: inset 2px 0 0 var(--color-warning);
+}
+
 .ui-tree-view__row--loading {
   cursor: default;
 }

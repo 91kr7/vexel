@@ -21,11 +21,21 @@ in two places instead of one, and the first is more dangerous than what it repla
 1. **On reads** — a `../` segment or a symlink pointing outside the extracted tree must be
    neutralised or refused, never followed. Otherwise the server reads a file of its own host and
    serves it to whoever is using the application: an exfiltration channel, not a stray write.
-2. **On the archive produced for a subtree** — no entry may carry an absolute path or a `../`
-   segment. That archive is extracted on the operator's machine, so a poisoned entry writes outside
-   the directory they chose, on their machine.
+2. **On the archive produced for a subtree** — no entry **name** may carry an absolute path or a
+   `../` segment. That archive is extracted on the operator's machine, so a poisoned name writes
+   outside the directory they chose, on their machine.
 
 Both refusals are reported with their reason.
+
+**A symlink's recorded target is a third case, and not the same as an entry name** (clause sharpened
+2026-08-08 after testing showed the original wording was self-defeating — see the note under REQ-62
+in `requirements.md`). The target is content, not a write path. Once it has been contained within
+the tree it must be expressed **relative to the symlink's own directory**, because that is how POSIX
+resolves a relative symlink. Rewriting it root-relative carries no `../` and looks safer, but points
+at the wrong place for every symlink not sitting exactly at the tree's root, so it resolves to
+nothing once extracted: the archive would be safe and useless. The `../` this form requires cannot
+reach outside the extracted footprint, the target having already been contained. What must never
+happen is the raw, unresolved target being written through.
 
 | ID | Type | Where | What | REQ | Depends |
 | --- | --- | --- | --- | --- | --- |

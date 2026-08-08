@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { Surface } from '../glass/Surface';
 import './feedback.css';
 
@@ -12,7 +12,7 @@ export interface ToastInput {
 }
 
 interface ToastEntry extends ToastInput {
-  id: number;
+  id: string;
 }
 
 interface ToastContextValue {
@@ -21,18 +21,22 @@ interface ToastContextValue {
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
+/** A per-instance counter would collide across concurrently mounted providers (and reset on remount); a random id never does. */
+function createToastId(): string {
+  return typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+}
+
 /** Provides `useToast()` and renders the toast stack, bottom-right. */
 export function ToastProvider({ children }: { children?: ReactNode }) {
   const [toasts, setToasts] = useState<ToastEntry[]>([]);
-  const nextId = useRef(0);
 
-  const dismiss = useCallback((id: number) => {
+  const dismiss = useCallback((id: string) => {
     setToasts((current) => current.filter((toast) => toast.id !== id));
   }, []);
 
   const push = useCallback(
     (toast: ToastInput) => {
-      const id = nextId.current++;
+      const id = createToastId();
       setToasts((current) => [...current, { id, ...toast }]);
       window.setTimeout(() => dismiss(id), toast.durationMs ?? 5000);
     },
