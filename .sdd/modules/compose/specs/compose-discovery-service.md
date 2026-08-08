@@ -27,6 +27,12 @@ CLI channel; the compose file path is never operator-typed, it comes straight fr
   - `error?: string` — the daemon's own message, set only when this project's services could not be
     read (`docker compose ps` failed for it); `state` is `'unknown'` in that case.
 
+## Rules and invariants
+
+- A non-zero exit or a spawn failure of the underlying CLI command rejects with a `DockerDaemonError`
+  (`docker-access`, code `DaemonRejected`) carrying the daemon's own message, so the REST layer maps
+  it to `502` rather than an opaque `500`.
+
 ## Dependencies
 
 - docker-access: CLI runner (`runCliCommand`, via the module-internal `compose-cli.ts` helper)

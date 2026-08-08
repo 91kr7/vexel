@@ -17,8 +17,19 @@ detects presence and version, and runs a command against the active context.
   - A tool that is missing, or exits non-zero, or is not on `PATH`, reports `available: false`
     rather than throwing.
 - `runCliCommand(command, args, endpoint): CliRunHandle`
-  - Spawns `command args…` with `DOCKER_HOST` set from `endpoint` so the run targets the active
-    context.
+  - Spawns `command args…` targeting the active context.
+    - When the operator has explicitly set `DOCKER_HOST` (real context switching is not built yet,
+      REQ-92/93/94 land later): `DOCKER_HOST` is forced from `endpoint` on the child's environment,
+      so the run targets that endpoint regardless of what the server process itself inherited.
+    - Otherwise: the child inherits the server's own environment unchanged, with no `DOCKER_HOST`
+      override — the same environment a bare terminal invocation on the same machine would have.
+      This matters beyond just dialing the right socket: a tool that keeps its own local state keyed
+      by Docker context identity (e.g. buildx's current-builder file) computes that identity from
+      `DOCKER_HOST`/the resolved Docker context, not from the socket path alone — forcing an
+      env-derived `DOCKER_HOST` that happens to dial the same socket as the operator's real named
+      context still keys that state under a *different* identity, and a later bare `docker buildx …`
+      (or a later run of this very function once the operator's context resolution changes) would
+      then read a different slot.
   - `CliRunHandle`: `{ cancel(), onStdout(listener), onStderr(listener), onSpawnError(listener), done: Promise<{ exitCode }> }`.
   - `cancel()` kills the child process; `done` resolves once the process has exited, with whatever
     exit code it reported (`null` if killed before exiting).

@@ -29,6 +29,7 @@ import { useVolumes } from '../data/use-volumes';
 import { useNetworks } from '../data/use-networks';
 import { useComposeProjects } from '../data/use-compose-projects';
 import { ComposeScreen } from '../compose/ComposeScreen';
+import { BuildersScreen } from '../builders/BuildersScreen';
 import { ContainersScreen } from '../containers/ContainersScreen';
 import { ImagesScreen } from '../images/ImagesScreen';
 import { VolumesNetworksScreen } from '../volumes-networks/VolumesNetworksScreen';
@@ -232,6 +233,8 @@ export function Shell() {
                   />
                 }
               />
+            ) : activeScreen.id === 'builders-cache' ? (
+              <BuildersScreen />
             ) : (
               <>
                 <Card>
