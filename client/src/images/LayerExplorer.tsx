@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Badge,
   Button,
@@ -23,6 +23,12 @@ export interface LayerExplorerProps {
   image: ImageSummary;
   open: boolean;
   onClose: () => void;
+  /** Selects this layer once the stack is loaded (REQ-65, REQ-67), e.g. arriving from a signals finding. */
+  initialSelectedLayerIndex?: number;
+  /** Starts changeset analysis immediately on open, bypassing the cost warning — safe when the caller already knows the changeset job is cached (REQ-65, REQ-67). */
+  autoAnalyze?: boolean;
+  /** Layer index → finding count, from the efficiency/signals view (REQ-65, REQ-67); marks the layers carrying findings. */
+  layersWithFindings?: Map<number, number>;
 }
 
 /** Above this uncompressed image size, the cost warning names a meaningfully longer estimate (REQ-51). */
@@ -57,7 +63,7 @@ function statusTone(status: LayerChangesetPath['status']): 'success' | 'warning'
  * shared-layer markers naming the images that reuse it, and — once analysed,
  * behind a cost warning — the selected layer's added/modified/deleted paths.
  */
-export function LayerExplorer({ image, open, onClose }: LayerExplorerProps) {
+export function LayerExplorer({ image, open, onClose, initialSelectedLayerIndex, autoAnalyze, layersWithFindings }: LayerExplorerProps) {
   const { stack, loaded, error, refresh } = useImageLayerStack(open ? image.id : undefined);
   const [selectedIndex, setSelectedIndex] = useState<number | undefined>(undefined);
   const [warningOpen, setWarningOpen] = useState(false);
@@ -69,6 +75,13 @@ export function LayerExplorer({ image, open, onClose }: LayerExplorerProps) {
   const [analysisUrl, setAnalysisUrl] = useState<string | undefined>(undefined);
   const [progressDialogOpen, setProgressDialogOpen] = useState(false);
   const changesets = useImageChangesetStream(analysisUrl);
+
+  useEffect(() => {
+    if (!open) return;
+    if (initialSelectedLayerIndex !== undefined) setSelectedIndex(initialSelectedLayerIndex);
+    if (autoAnalyze && analysisUrl === undefined) setAnalysisUrl(imageChangesetsStreamUrl(image.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialSelectedLayerIndex, autoAnalyze]);
 
   const layers = stack?.layers ?? [];
   const maxSize = layers.reduce((max, layer) => Math.max(max, layer.uncompressedSizeBytes), 0);
@@ -114,6 +127,15 @@ export function LayerExplorer({ image, open, onClose }: LayerExplorerProps) {
         ) : (
           <MetaCell />
         ),
+    },
+    {
+      id: 'findings',
+      header: 'SIGNALS',
+      width: '0.9fr',
+      render: (layer) => {
+        const count = layersWithFindings?.get(layer.index);
+        return count ? <Badge tone="danger">{`findings · ${count}`}</Badge> : <MetaCell />;
+      },
     },
     { id: 'uncompressed', header: 'SIZE', align: 'end', width: '0.8fr', render: (layer) => <MetaCell>{formatBytes(layer.uncompressedSizeBytes)}</MetaCell> },
     {

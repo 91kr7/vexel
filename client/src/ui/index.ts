@@ -88,6 +88,7 @@ export { Modal, type ModalProps, type ModalSize } from './feedback/Modal';
 export { ConfirmDialog, type ConfirmDialogProps } from './feedback/ConfirmDialog';
 export { ToastProvider, useToast, type ToastInput, type ToastTone } from './feedback/Toast';
 export { ErrorBanner, type ErrorBannerProps } from './feedback/ErrorBanner';
+export { Callout, type CalloutProps, type CalloutTone } from './feedback/Callout';
 export { ProgressBar, type ProgressBarProps } from './feedback/ProgressBar';
 export { Spinner, type SpinnerProps } from './feedback/Spinner';
 export { EmptyState, type EmptyStateProps } from './feedback/EmptyState';

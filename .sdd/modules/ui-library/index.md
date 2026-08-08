@@ -70,6 +70,7 @@
 | ConfirmDialog | UI component | `client/src/ui/feedback/ConfirmDialog.tsx` | Destructive-confirmation dialog naming the target and the consequence | `specs/confirm-dialog.md` |
 | ToastProvider, useToast | UI component | `client/src/ui/feedback/Toast.tsx` | Transient toast notification stack and its provider/hook | `specs/toast.md` |
 | ErrorBanner | UI component | `client/src/ui/feedback/ErrorBanner.tsx` | Inline failure banner showing the upstream error message verbatim, with an optional retry action | `specs/error-banner.md` |
+| Callout | UI component | `client/src/ui/feedback/Callout.tsx` | Persistent, non-dismissible explanatory banner (e.g. a heuristic-signal disclaimer) | `specs/callout.md` |
 | ProgressBar | UI component | `client/src/ui/feedback/ProgressBar.tsx` | Determinate or indeterminate progress indicator | `specs/progress-bar.md` |
 | StepProgressList | UI component | `client/src/ui/feedback/StepProgressList.tsx` | One row per unit of work (e.g. an image layer transfer), each with its own progress and terminal state | `specs/step-progress-list.md` |
 | TransferProgressDialog | UI component | `client/src/ui/feedback/TransferProgressDialog.tsx` | Dialog for a long-running byte transfer: byte progress bar, cancel while active, close once ended | `specs/transfer-progress-dialog.md` |

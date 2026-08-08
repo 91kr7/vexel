@@ -8,17 +8,28 @@ type: UI component
 
 **Purpose** → the layer explorer for one image: its layer stack in build order, shared-layer
 markers, and — once analysed — each selected layer's added/modified/deleted paths, with a cost
-warning and cancellable progress before analysis starts (REQ-47–51).
+warning and cancellable progress before analysis starts (REQ-47–51); also marks layers carrying
+efficiency/secret-signal findings and can be entered pre-selected at a given layer, already
+analyzing (REQ-65, REQ-67).
 
 ## Contract
 
-- `<LayerExplorer image open onClose />` — `image: ImageSummary`; `open` shows the explorer; loads
-  the layer stack only while `open` (via `useImageLayerStack(open ? image.id : undefined)`).
+- `<LayerExplorer image open onClose initialSelectedLayerIndex? autoAnalyze?
+  layersWithFindings? />` — `image: ImageSummary`; `open` shows the explorer; loads the layer stack
+  only while `open` (via `useImageLayerStack(open ? image.id : undefined)`).
+  - `initialSelectedLayerIndex` — selects this layer once the explorer opens (e.g. arriving from a
+    signals finding); re-applied whenever it changes while open.
+  - `autoAnalyze` — starts the changeset analysis immediately on open, bypassing the cost warning;
+    the caller uses this only when the changeset job is already known to be cached (LayerEfficiencyView
+    always is, since it shares the same job).
+  - `layersWithFindings` — `Map<layerIndex, findingCount>` from LayerEfficiencyView; layers present in
+    it show a `findings · <count>` marker in the layer table.
 
 Description:
 - A large `Modal` holding a `DataTable` of layers (index, an instruction bar sized proportionally to
-  the layer's uncompressed size among the stack, a shared/empty marker, uncompressed and compressed
-  size), selectable, expanding below the selected row into the changeset view for that layer.
+  the layer's uncompressed size among the stack, a shared/empty marker, a signals-findings marker,
+  uncompressed and compressed size), selectable, expanding below the selected row into the changeset
+  view for that layer.
 Shows:
 - Before analysis: an `EmptyState` inviting the operator to analyze changesets, with a button that
   opens the cost-warning confirmation.
@@ -66,3 +77,5 @@ Actions:
 - plan-docker_management_app/REQ-49
 - plan-docker_management_app/REQ-50
 - plan-docker_management_app/REQ-51
+- plan-docker_management_app/REQ-65
+- plan-docker_management_app/REQ-67

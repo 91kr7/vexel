@@ -9,6 +9,7 @@ import { extractImageFilesystem, listImageFilesystemChildren } from "./filesyste
 import { compareImageFilesystems, listDiffChildren } from "./image-diff-service.js";
 import { searchFilesystemEntries } from "./filesystem-search-service.js";
 import { getImageLayerStack } from "./layer-metadata-service.js";
+import { analyzeLayerSignals } from "./layer-signals-service.js";
 import { getSharedLayerImages } from "./shared-layer-service.js";
 import { sanitizeTarFilename } from "../images/image-transfer-service.js";
 
@@ -60,6 +61,20 @@ imageAnalysisRouter.get("/:id/layers", async (req, res) => {
 imageAnalysisRouter.get("/:id/changesets/stream", (req, res) =>
   runEventStream(req, res, () =>
     computeImageChangesets(req.params.id, {
+      onProgress: (progress) => writeServerSentEvent(res, "progress", progress),
+      onError: (message) => endWithError(res, message),
+      onEnd: (result) => {
+        writeServerSentEvent(res, "result", result);
+        endWithEvent(res);
+      },
+    }),
+  ),
+);
+
+/** Cancellable layer-efficiency and secret-signal analysis progress stream (REQ-65–67): shares the changeset job/cache of `/changesets/stream` (REQ-49), reporting the same progress and then the derived waste, duplicate-content and secret-pattern findings, cancelling on client disconnect. */
+imageAnalysisRouter.get("/:id/signals/stream", (req, res) =>
+  runEventStream(req, res, () =>
+    analyzeLayerSignals(req.params.id, {
       onProgress: (progress) => writeServerSentEvent(res, "progress", progress),
       onError: (message) => endWithError(res, message),
       onEnd: (result) => {

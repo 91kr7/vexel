@@ -1,0 +1,139 @@
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { expect, test, type Page } from '@playwright/test';
+
+const execFileAsync = promisify(execFile);
+
+async function buildImage(tag: string, dockerfile: string): Promise<void> {
+  const contextDir = await mkdtemp(join(tmpdir(), 'vexel-e2e-signals-'));
+  await writeFile(join(contextDir, 'Dockerfile'), dockerfile);
+  await execFileAsync('docker', ['build', '-t', tag, contextDir]);
+}
+
+async function removeImageQuietly(tag: string): Promise<void> {
+  await execFileAsync('docker', ['rmi', '-f', tag]).catch(() => undefined);
+}
+
+function imageRow(page: Page, text: string) {
+  return page.locator('.ui-data-table__row', { hasText: text });
+}
+
+// Selects a row by clicking a non-action cell (mirrors images.spec.ts's own helper): the
+// multi-select checkbox column, when present, is a `.ui-data-table__select-cell`, not a
+// `.ui-data-table__cell`, so this always lands on the first real column cell.
+async function selectRow(row: ReturnType<typeof imageRow>): Promise<void> {
+  await row.locator('.ui-data-table__cell').first().click();
+}
+
+function searchField(page: Page) {
+  return page.getByPlaceholder('Search reference or digest…');
+}
+
+function signalsModal(page: Page, title: RegExp) {
+  return page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: title }) });
+}
+
+/**
+ * Scopes to the Nth findings list in the view (0: wasted files, 1: duplicated content, 2: flagged
+ * paths — the fixed order the sections appear in). A path can legitimately appear in more than one
+ * category at once (e.g. a credential-looking file later deleted is both wasted bytes, REQ-65, and a
+ * secret-pattern finding, REQ-67), so assertions below are scoped per section rather than searched
+ * across the whole modal.
+ */
+function findingsSection(modal: ReturnType<typeof signalsModal>, index: number) {
+  return modal.locator('.ui-card-list').nth(index);
+}
+
+// A small fixture image (built on the already-local `alpine:3.20`, no network pull needed) with,
+// across two RUN layers: a file overwritten by the second layer (waste, REQ-65), two files sharing
+// identical content in the same layer (duplicate content, REQ-66), and a credential-looking path
+// removed by the second layer (secret-pattern signal, REQ-67) — the same fixture shape verified at
+// the REST API level, exercised here through the operator's own path in the browser.
+const TAG = `vexel-e2e-signals-${Date.now()}:v1`;
+const DOCKERFILE = [
+  'FROM alpine:3.20',
+  "RUN mkdir -p /data /root/.aws && \\",
+  "    printf 'duplicate-payload' > /data/dup1.bin && \\",
+  '    cp /data/dup1.bin /data/dup2.bin && \\',
+  "    printf 'first-version-of-the-file-with-more-bytes' > /data/waste.bin && \\",
+  "    printf 'npm-token-placeholder' > /root/.npmrc && \\",
+  "    printf 'aws-secret-placeholder' > /root/.aws/credentials",
+  "RUN printf 'v2' > /data/waste.bin && rm /root/.npmrc",
+  '',
+].join('\n');
+
+test.beforeAll(async () => {
+  await buildImage(TAG, DOCKERFILE);
+});
+
+test.afterAll(async () => {
+  await removeImageQuietly(TAG);
+});
+
+test.beforeEach(async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Images & layers/ }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible();
+});
+
+// plan-docker_management_app/REQ-65, plan-docker_management_app/REQ-66, plan-docker_management_app/REQ-67 —
+// the efficiency/signals view surfaces a heuristic disclaimer, then, once analysed, all three
+// findings categories for the fixture image; drilling down from a finding reaches the layer explorer
+// pre-selected at the layer it concerns, which in turn marks that layer as carrying findings.
+test('analyzes layer efficiency and secret signals, then navigates from a finding to its layer', async ({ page }) => {
+  await searchField(page).fill(TAG);
+  const row = imageRow(page, TAG);
+  await expect(row).toBeVisible({ timeout: 10_000 });
+  await selectRow(row);
+
+  await page.getByRole('button', { name: 'Efficiency & signals…' }).click();
+  const modal = signalsModal(page, /^Efficiency & signals/);
+  await expect(modal).toBeVisible();
+
+  // layer-efficiency-view.md — the heuristic disclaimer is shown before any analysis has run.
+  await expect(modal.getByText(/heuristic/i)).toBeVisible();
+  await expect(modal.getByText(/security/i)).toBeVisible();
+
+  await modal.getByRole('button', { name: 'Analyze layer efficiency…' }).click();
+  const confirmHeading = page.getByRole('heading', { name: `Confirm: ${TAG}` });
+  await expect(confirmHeading).toBeVisible();
+  await confirmHeading.locator('xpath=..').getByRole('button', { name: 'Analyze', exact: true }).click();
+
+  const progressDialog = page.getByRole('heading', { name: 'Analyzing layer efficiency' }).locator('xpath=..');
+  await expect(progressDialog.getByRole('button', { name: 'Close' })).toBeVisible({ timeout: 60_000 });
+  await progressDialog.getByRole('button', { name: 'Close' }).click();
+
+  const wasteSection = findingsSection(modal, 0);
+  const duplicatesSection = findingsSection(modal, 1);
+  const secretsSection = findingsSection(modal, 2);
+
+  // plan-docker_management_app/REQ-65 — the overwritten data/waste.bin is reported wasted.
+  await expect(wasteSection.getByText('data/waste.bin')).toBeVisible();
+  // plan-docker_management_app/REQ-66 — dup1.bin and dup2.bin share identical content.
+  await expect(duplicatesSection.getByText('data/dup1.bin', { exact: false })).toBeVisible();
+  await expect(duplicatesSection.getByText('data/dup2.bin', { exact: false })).toBeVisible();
+  // plan-docker_management_app/REQ-67 — both the removed and the surviving credential-looking
+  // paths are flagged, as secret-pattern findings specifically (root/.npmrc, since removed, is also
+  // counted among the wasted files above — expected, its bytes are gone too).
+  await expect(secretsSection.getByText('root/.npmrc')).toBeVisible();
+  await expect(secretsSection.getByText('root/.aws/credentials')).toBeVisible();
+
+  // Drilling down from the wasted file navigates to the layer explorer, pre-selected at the layer
+  // that wrote the now-dead bytes, already analyzing (image-detail-panel.md).
+  await wasteSection.getByText('data/waste.bin').click();
+  await wasteSection.getByRole('button', { name: /View layer/i }).click();
+
+  const layerModal = page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: `Layer stack — ${TAG}` }) });
+  await expect(layerModal).toBeVisible();
+  // layer-explorer.md — layers carrying a signals finding show a "findings · <count>" marker; the
+  // fixture's base image itself carries a few heuristic matches too (REQ-67 is explicitly a
+  // heuristic, not an exhaustive verdict), so more than one layer may legitimately show one.
+  await expect(layerModal.getByText(/findings · \d+/).first()).toBeVisible({ timeout: 15_000 });
+  // A row is already selected and its changeset already shown (autoAnalyze, no cost warning), since
+  // this layer's changesets were already computed as part of the shared job.
+  await expect(layerModal.locator('.ui-data-table__row--selected').first()).toBeVisible({ timeout: 15_000 });
+  await expect(layerModal.getByText('Changesets not analyzed yet')).toHaveCount(0);
+});

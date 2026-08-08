@@ -9,6 +9,7 @@ import type { AddressInfo } from "node:net";
 import { imageAnalysisRouter } from "../../src/image-analysis/image-analysis-routes.js";
 import type { ImageLayerStack, LayerMetadata } from "../../src/image-analysis/layer-metadata-service.js";
 import type { ImageChangesets } from "../../src/image-analysis/changeset-service.js";
+import type { LayerSignals } from "../../src/image-analysis/layer-signals-service.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -111,6 +112,37 @@ before(async () => {
 after(async () => {
   await execFileAsync("docker", ["rmi", "-f", RUN_TAG]).catch(() => undefined);
   await execFileAsync("docker", ["rmi", "-f", TINY_TAG]).catch(() => undefined);
+});
+
+// A small fixture image (built on the already-local `alpine:3.20`, no network pull needed) with,
+// across two RUN layers: a file overwritten by the second layer (waste, REQ-65), two files sharing
+// identical content in the same layer (duplicate content, REQ-66), and two credential-looking paths
+// — one removed by the second layer, one left in place (secret-pattern signal, REQ-67).
+const SIGNALS_TAG = `vexel-test-signals-${process.pid}-${Date.now()}:1`;
+
+before(async () => {
+  const { mkdtemp, writeFile } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  const signalsContextDir = await mkdtemp(join(tmpdir(), "vexel-signals-fixture-"));
+  await writeFile(
+    join(signalsContextDir, "Dockerfile"),
+    [
+      "FROM alpine:3.20",
+      "RUN mkdir -p /data /root/.aws && \\",
+      "    printf 'duplicate-payload' > /data/dup1.bin && \\",
+      "    cp /data/dup1.bin /data/dup2.bin && \\",
+      "    printf 'first-version-of-the-file-with-more-bytes' > /data/waste.bin && \\",
+      "    printf 'npm-token-placeholder' > /root/.npmrc && \\",
+      "    printf 'aws-secret-placeholder' > /root/.aws/credentials",
+      "RUN printf 'v2' > /data/waste.bin && rm /root/.npmrc",
+      "",
+    ].join("\n"),
+  );
+  await execFileAsync("docker", ["build", "-t", SIGNALS_TAG, signalsContextDir]);
+});
+
+after(async () => {
+  await execFileAsync("docker", ["rmi", "-f", SIGNALS_TAG]).catch(() => undefined);
 });
 
 // plan-docker_management_app/REQ-48 — layers are shown completely for a registry-pulled image too:
@@ -266,6 +298,107 @@ test("GET /api/images/:id/changesets/stream reports a whiteout-deleted file as a
     assert.ok(addition, `expected an added entry for wh-data/remove.txt, got paths: ${JSON.stringify(allPaths).slice(0, 500)}`);
     assert.ok(deletion, `expected a deletion entry for wh-data/remove.txt, got paths: ${JSON.stringify(allPaths).slice(0, 500)}`);
     assert.equal(deletion!.status, "deleted");
+  } finally {
+    await close();
+  }
+});
+
+// plan-docker_management_app/REQ-65, plan-docker_management_app/REQ-66, plan-docker_management_app/REQ-67 —
+// a single analysis surfaces all three findings categories: a file overwritten by a later layer
+// (waste, with the bytes it still occupies), identical content duplicated across two live paths, and
+// credential-looking paths — including one already removed by a later layer, reported with both the
+// introducing and removing layer.
+test("GET /api/images/:id/signals/stream reports waste, duplicate-content and secret-pattern findings", async () => {
+  const app = buildApp();
+  const { url, close } = await startApp(app);
+  try {
+    const response = await fetch(`${url}/api/images/${encodeURIComponent(SIGNALS_TAG)}/signals/stream`);
+    const events = await readSseUntilDone(response);
+
+    const resultEvent = events.find((event) => event.event === "result");
+    assert.ok(resultEvent, "expected a result event");
+    const result = resultEvent!.data as LayerSignals;
+
+    // REQ-65 — the first, overwritten version of data/waste.bin is reported as waste, superseded by
+    // the layer that overwrote it.
+    const wastedFile = result.waste.wastedFiles.find((file) => file.path === "data/waste.bin");
+    assert.ok(wastedFile, `expected data/waste.bin among wasted files, got: ${JSON.stringify(result.waste.wastedFiles)}`);
+    assert.equal(wastedFile!.reason, "overwritten");
+    assert.ok(wastedFile!.sizeBytes > 0);
+    assert.ok(result.waste.totalWastedBytes >= wastedFile!.sizeBytes);
+    assert.ok(result.waste.efficiencyScore >= 0 && result.waste.efficiencyScore <= 1);
+
+    // REQ-66 — dup1.bin and dup2.bin share identical live content, grouped with the bytes wasted by
+    // the second copy.
+    const duplicateGroup = result.duplicates.duplicates.find((group) => group.paths.some((path) => path.path === "data/dup1.bin"));
+    assert.ok(duplicateGroup, `expected a duplicate-content group containing data/dup1.bin, got: ${JSON.stringify(result.duplicates.duplicates)}`);
+    assert.deepEqual(
+      duplicateGroup!.paths.map((path) => path.path).sort(),
+      ["data/dup1.bin", "data/dup2.bin"],
+    );
+    assert.equal(duplicateGroup!.wastedBytes, duplicateGroup!.sizeBytes);
+
+    // REQ-67 — root/.npmrc, removed by the second custom layer, is flagged with both the
+    // introducing and the removing layer, matching the same two layers waste.bin was written and
+    // overwritten in (the same Dockerfile RUN steps produced both).
+    const npmrcFinding = result.secrets.findings.find((finding) => finding.path === "root/.npmrc");
+    assert.ok(npmrcFinding, `expected root/.npmrc to be flagged, got: ${JSON.stringify(result.secrets.findings)}`);
+    assert.equal(npmrcFinding!.introducedLayerIndex, wastedFile!.layerIndex);
+    assert.equal(npmrcFinding!.removedLayerIndex, wastedFile!.supersededByLayerIndex);
+
+    // REQ-67 — root/.aws/credentials, never removed, is flagged with no removedLayerIndex.
+    const awsFinding = result.secrets.findings.find((finding) => finding.path === "root/.aws/credentials");
+    assert.ok(awsFinding, `expected root/.aws/credentials to be flagged, got: ${JSON.stringify(result.secrets.findings)}`);
+    assert.equal(awsFinding!.removedLayerIndex, undefined);
+  } finally {
+    await close();
+  }
+});
+
+// layer-signals-service.md — this job delegates entirely to computeImageChangesets, sharing its
+// cache with the layer explorer: a signals run followed by a changesets run on the same image reuses
+// the cached changeset, with no export step and no progress events beyond the immediate result. Uses
+// its own dedicated fixture (rather than SIGNALS_TAG, already analysed by the previous test) so the
+// first call below is genuinely uncached.
+test("GET /api/images/:id/signals/stream shares its analysis cache with /changesets/stream", async () => {
+  const { mkdtemp, writeFile } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  const cacheContextDir = await mkdtemp(join(tmpdir(), "vexel-signals-cache-fixture-"));
+  const cacheFileContent = "cache-sharing fixture\n";
+  await writeFile(join(cacheContextDir, "single-file.txt"), cacheFileContent);
+  await writeFile(join(cacheContextDir, "Dockerfile"), ["FROM scratch", "COPY single-file.txt /single-file.txt", ""].join("\n"));
+  const cacheTag = `vexel-test-signals-cache-${process.pid}-${Date.now()}:1`;
+  await execFileAsync("docker", ["build", "-t", cacheTag, cacheContextDir]);
+
+  const app = buildApp();
+  const { url, close } = await startApp(app);
+  try {
+    const signalsResponse = await fetch(`${url}/api/images/${encodeURIComponent(cacheTag)}/signals/stream`);
+    const signalsEvents = await readSseUntilDone(signalsResponse);
+    assert.ok(signalsEvents.some((event) => event.event === "progress"), "expected progress events on the first (uncached) run");
+    assert.ok(signalsEvents.some((event) => event.event === "result"));
+
+    const changesetsResponse = await fetch(`${url}/api/images/${encodeURIComponent(cacheTag)}/changesets/stream`);
+    const changesetsEvents = await readSseUntilDone(changesetsResponse);
+    assert.ok(!changesetsEvents.some((event) => event.event === "progress"), "expected the cached changeset to be reused, with no progress events");
+    assert.ok(changesetsEvents.some((event) => event.event === "result"), "expected the cached result to still be delivered");
+  } finally {
+    await close();
+    await execFileAsync("docker", ["rmi", "-f", cacheTag]).catch(() => undefined);
+  }
+});
+
+// image-analysis-endpoints.md — an unknown image id fails the signals analysis with an error event,
+// never a garbage or empty result.
+test("GET /api/images/:id/signals/stream with an unknown id reports an error, not a result", async () => {
+  const app = buildApp();
+  const { url, close } = await startApp(app);
+  try {
+    const response = await fetch(`${url}/api/images/does-not-exist-${Date.now()}/signals/stream`);
+    const events = await readSseUntilDone(response);
+
+    assert.ok(events.some((event) => event.event === "error"), `expected an error event, got: ${JSON.stringify(events)}`);
+    assert.ok(!events.some((event) => event.event === "result"), "expected no result event for an unknown image");
   } finally {
     await close();
   }

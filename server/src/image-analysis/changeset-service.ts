@@ -7,7 +7,7 @@
 // whole computation is cancellable at any await point.
 import { createWriteStream } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
@@ -22,6 +22,8 @@ export interface LayerChangesetPath {
   status: "added" | "modified" | "deleted";
   sizeBytes?: number;
   sizeUnavailableReason?: string;
+  /** Content hash of a regular file's bytes as written by this layer; present only for a live (non-deleted) regular-file entry, used by the layer-efficiency signals (REQ-65, REQ-66). */
+  contentHash?: string;
 }
 
 export interface LayerChangeset {
@@ -138,7 +140,11 @@ export interface LayerRawEntry {
   name: string;
   size: number;
   typeFlag: string;
+  /** sha1 of a regular file's content; absent for anything else (directory, symlink, whiteout marker included). */
+  contentHash?: string;
 }
+
+const REGULAR_FILE_TYPE_FLAGS = new Set(["0", ""]);
 
 /**
  * Reads one layer's own tar (nested inside the outer export tar, at a known
@@ -146,14 +152,22 @@ export interface LayerRawEntry {
  * lists its raw entries in archive order. The nested reader fails loudly
  * (via `forEachTarEntry`'s header checksum check) if the bytes are neither a
  * valid tar nor gzip-compressed one, rather than emitting garbage entries.
+ * Regular-file entries are read in full to compute a content hash (REQ-65,
+ * REQ-66), buffering the whole file — the same trade-off already made by
+ * ImageDiffService's content comparison; every other entry is only skipped.
  */
 async function readLayerEntries(filePath: string, location: TarEntryLocation): Promise<LayerRawEntry[]> {
   const entries: LayerRawEntry[] = [];
   const nestedSource = await openEntryContentStream(filePath, location);
 
-  await forEachTarEntry(nestedSource, async (entry, _readAll, skip) => {
-    await skip();
-    entries.push({ name: entry.name, size: entry.size, typeFlag: entry.typeFlag });
+  await forEachTarEntry(nestedSource, async (entry, readAll, skip) => {
+    if (REGULAR_FILE_TYPE_FLAGS.has(entry.typeFlag)) {
+      const content = await readAll();
+      entries.push({ name: entry.name, size: entry.size, typeFlag: entry.typeFlag, contentHash: createHash("sha1").update(content).digest("hex") });
+    } else {
+      await skip();
+      entries.push({ name: entry.name, size: entry.size, typeFlag: entry.typeFlag });
+    }
   });
 
   return entries;
@@ -194,7 +208,7 @@ export function computeLayerChangesetPaths(entries: LayerRawEntry[], knownPaths:
 
     const status: LayerChangesetPath["status"] = knownPaths.has(normalized) ? "modified" : "added";
     knownPaths.add(normalized);
-    results.push({ path: normalized, status, sizeBytes: entry.typeFlag === "5" ? 0 : entry.size });
+    results.push({ path: normalized, status, sizeBytes: entry.typeFlag === "5" ? 0 : entry.size, contentHash: entry.contentHash });
   }
 
   return results;

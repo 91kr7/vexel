@@ -96,6 +96,45 @@
   word-break: break-word;
 }
 
+.ui-callout {
+  border-left: var(--border-width-hairline) solid var(--color-accent);
+  padding-left: var(--space-3);
+}
+
+.ui-callout--tone-warning {
+  border-left-color: var(--color-warning);
+}
+
+.ui-callout__glyph {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border-radius: var(--radius-full);
+  background: var(--color-accent-tint);
+  color: var(--color-accent-strong);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+}
+
+.ui-callout--tone-warning .ui-callout__glyph {
+  background: var(--color-warning-tint);
+  color: var(--color-warning);
+}
+
+.ui-callout__title {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.ui-callout__content {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
 .ui-progress-bar {
   width: 100%;
   height: 6px;

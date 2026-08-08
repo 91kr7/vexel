@@ -14,6 +14,7 @@ import type { ImageSummary } from '../data/images-client';
 import { useImageInspect } from '../data/use-image-inspect';
 import { FilesystemBrowser } from './FilesystemBrowser';
 import { ImageDiffView } from './ImageDiffView';
+import { LayerEfficiencyView } from './LayerEfficiencyView';
 import { LayerExplorer } from './LayerExplorer';
 
 export interface ImageDetailPanelProps {
@@ -46,6 +47,18 @@ export function ImageDetailPanel({ image, images, onClose }: ImageDetailPanelPro
   const [layersOpen, setLayersOpen] = useState(false);
   const [filesystemOpen, setFilesystemOpen] = useState(false);
   const [diffOpen, setDiffOpen] = useState(false);
+  const [signalsOpen, setSignalsOpen] = useState(false);
+  const [autoAnalyzeLayers, setAutoAnalyzeLayers] = useState(false);
+  const [initialSelectedLayerIndex, setInitialSelectedLayerIndex] = useState<number | undefined>(undefined);
+  const [layersWithFindings, setLayersWithFindings] = useState<Map<number, number>>(new Map());
+
+  /** A signals finding closes the signals view and opens the layer explorer at the layer it concerns, already-cached so analysis starts without the cost warning (REQ-65, REQ-67). */
+  function navigateToLayer(layerIndex: number) {
+    setSignalsOpen(false);
+    setInitialSelectedLayerIndex(layerIndex);
+    setAutoAnalyzeLayers(true);
+    setLayersOpen(true);
+  }
 
   return (
     <DetailPanel
@@ -53,6 +66,7 @@ export function ImageDetailPanel({ image, images, onClose }: ImageDetailPanelPro
       actions={
         <>
           <Button variant="secondary" onClick={() => setLayersOpen(true)}>Explore layers…</Button>
+          <Button variant="secondary" onClick={() => setSignalsOpen(true)}>Efficiency & signals…</Button>
           <Button variant="secondary" onClick={() => setFilesystemOpen(true)}>Browse filesystem…</Button>
           <Button variant="secondary" onClick={() => setDiffOpen(true)} disabled={images.length < 2}>Compare with…</Button>
         </>
@@ -96,7 +110,15 @@ export function ImageDetailPanel({ image, images, onClose }: ImageDetailPanelPro
           </>
         )}
       </Stack>
-      <LayerExplorer image={image} open={layersOpen} onClose={() => setLayersOpen(false)} />
+      <LayerExplorer
+        image={image}
+        open={layersOpen}
+        onClose={() => setLayersOpen(false)}
+        initialSelectedLayerIndex={initialSelectedLayerIndex}
+        autoAnalyze={autoAnalyzeLayers}
+        layersWithFindings={layersWithFindings}
+      />
+      <LayerEfficiencyView image={image} open={signalsOpen} onClose={() => setSignalsOpen(false)} onNavigateToLayer={navigateToLayer} onFindingsChange={setLayersWithFindings} />
       <FilesystemBrowser image={image} open={filesystemOpen} onClose={() => setFilesystemOpen(false)} />
       <ImageDiffView images={images} initialImageAId={image.id} open={diffOpen} onClose={() => setDiffOpen(false)} />
     </DetailPanel>
