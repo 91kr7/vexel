@@ -14,8 +14,8 @@ type: configuration
 - Parses JSON request bodies (`express.json()`) for every route.
 - Mounts `connectivityRouter` at `/api/connectivity`, `eventsRouter` at `/api/events`,
   `persistenceRouter` at `/api/persistence`, `hostPathsRouter` at `/api/host-paths`,
-  `volumesRouter` at `/api/volumes`, and `imageAnalysisRouter` alongside `imagesRouter` at
-  `/api/images`.
+  `volumesRouter` at `/api/volumes`, `networksRouter` at `/api/networks`, `composeRouter` at
+  `/api/compose`, and `imageAnalysisRouter` alongside `imagesRouter` at `/api/images`.
 - Starts `eventStreamService` so the daemon event subscription is live as soon as the server boots,
   independent of whether any client has connected yet.
 - Calls `reclaimOrphans()` once at startup, before listening, so analysis-cache files left behind by
@@ -33,6 +33,8 @@ type: configuration
 - images: imagesRouter
 - image-analysis: imageAnalysisRouter, sweepAbandonedExtractionContainers
 - volumes: volumesRouter
+- networks: networksRouter
+- compose: composeRouter
 
 ## Requirements served
 

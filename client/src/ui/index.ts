@@ -41,6 +41,7 @@ export { ScreenToolbar, type ScreenToolbarProps, type ScreenToolbarAction } from
 export { Tabs, type TabsProps, type TabItem } from './controls/Tabs';
 export { CopyButton, type CopyButtonProps } from './controls/CopyButton';
 export { NumberField, type NumberFieldProps } from './controls/NumberField';
+export { Stepper, type StepperProps } from './controls/Stepper';
 export { Select, type SelectProps, type SelectOption } from './controls/Select';
 export { Toggle, type ToggleProps } from './controls/Toggle';
 export { FieldMessage, type FieldMessageProps, type FieldMessageTone } from './controls/FieldMessage';
@@ -74,6 +75,8 @@ export {
 } from './data/TableCells';
 export { DefinitionList, type DefinitionListProps, type DefinitionItem } from './data/DefinitionList';
 export { CodeViewer, type CodeViewerProps } from './data/CodeViewer';
+export { CodeEditor, type CodeEditorProps } from './data/CodeEditor';
+export { GroupedRowsPanel, type GroupedRowsPanelProps, type GroupedRowsPanelGroup, type GroupedRowsPanelRow } from './data/GroupedRowsPanel';
 export { TextViewer, type TextViewerProps, HexDumpViewer, type HexDumpViewerProps } from './data/ContentViewer';
 export { LogStream, type LogStreamProps, type LogStreamLine } from './data/LogStream';
 export { CardList, type CardListProps, type CardListRowContent } from './data/CardList';

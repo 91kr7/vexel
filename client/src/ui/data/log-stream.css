@@ -46,6 +46,12 @@
   border-radius: var(--radius-sm);
 }
 
+.ui-log-stream__source {
+  flex: none;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-accent-strong);
+}
+
 .ui-log-stream__timestamp {
   flex: none;
   color: var(--color-text-wash-muted);

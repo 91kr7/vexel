@@ -27,6 +27,8 @@ import { useContainers } from '../data/use-containers';
 import { useImages } from '../data/use-images';
 import { useVolumes } from '../data/use-volumes';
 import { useNetworks } from '../data/use-networks';
+import { useComposeProjects } from '../data/use-compose-projects';
+import { ComposeScreen } from '../compose/ComposeScreen';
 import { ContainersScreen } from '../containers/ContainersScreen';
 import { ImagesScreen } from '../images/ImagesScreen';
 import { VolumesNetworksScreen } from '../volumes-networks/VolumesNetworksScreen';
@@ -80,6 +82,7 @@ export function Shell() {
   const images = useImages();
   const volumes = useVolumes();
   const networks = useNetworks();
+  const compose = useComposeProjects();
   const [cacheUsage, setCacheUsage] = useState<number | undefined>(undefined);
   // Set as soon as the restore has had its chance — either because it ran, or
   // because the operator picked a screen first. Guards both against a second
@@ -160,7 +163,9 @@ export function Shell() {
                             ? containers.containers.length
                             : screen.id === 'images-layers'
                               ? images.images.length
-                              : undefined
+                              : screen.id === 'compose'
+                                ? compose.projects.length
+                                : undefined
                         }
                         onSelect={() => selectScreen(screen.id)}
                       />
@@ -213,6 +218,8 @@ export function Shell() {
               />
             ) : activeScreen.id === 'images-layers' ? (
               <ImagesScreen images={images.images} loaded={images.loaded} error={images.error} onRefresh={images.refresh} />
+            ) : activeScreen.id === 'compose' ? (
+              <ComposeScreen projects={compose.projects} loaded={compose.loaded} error={compose.error} onRefresh={compose.refresh} />
             ) : activeScreen.id === 'volumes-networks' ? (
               <VolumesNetworksScreen
                 volumes={{ volumes: volumes.volumes, loaded: volumes.loaded, error: volumes.error, onRefresh: volumes.refresh }}
