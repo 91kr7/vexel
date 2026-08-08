@@ -46,14 +46,14 @@ async function createSleepingContainer(name: string, extraArgs: string[] = []): 
     ...extraArgs,
     "--entrypoint",
     "sleep",
-    "postgres:16",
+    "alpine:3.20",
     "300",
   ]);
   return stdout.trim();
 }
 
 async function removeContainerQuietly(name: string): Promise<void> {
-  await execFileAsync("docker", ["rm", "-f", name]).catch(() => undefined);
+  await execFileAsync("docker", ["rm", "-fv", name]).catch(() => undefined);
 }
 
 async function removeVolumeQuietly(name: string): Promise<void> {
@@ -77,7 +77,7 @@ test("GET /api/containers lists a running container with its name, short id, sta
     assert.ok(found, "created container not found in the list");
     assert.equal(found!.shortId, id.slice(0, 12));
     assert.equal(found!.state, "running");
-    assert.equal(found!.image, "postgres:16");
+    assert.equal(found!.image, "alpine:3.20");
     assert.ok(found!.ports.some((port) => port.privatePort === 5432 && typeof port.publicPort === "number"));
     assert.ok(found!.status.length > 0);
   } finally {
@@ -192,7 +192,7 @@ test("GET /api/containers excludes an intermediate filesystem-extraction contain
     ...ownershipArgs(internalName),
     "--label",
     `${INTERNAL_CONTAINER_LABEL}=true`,
-    "postgres:16",
+    "alpine:3.20",
   ]);
   const internalId = stdout.trim();
   try {
@@ -299,7 +299,7 @@ test("GET /api/containers/:id/inspect returns the full configuration of a contai
     const inspect = (await response.json()) as ContainerInspect;
 
     assert.equal(inspect.name, name);
-    assert.equal(inspect.image, "postgres:16");
+    assert.equal(inspect.image, "alpine:3.20");
     assert.ok(inspect.entrypoint.includes("sleep"));
     assert.deepEqual(inspect.restartPolicy, { name: "on-failure", maximumRetryCount: 3 });
     assert.ok(inspect.resourceLimits.cpus && Math.abs(inspect.resourceLimits.cpus - 0.5) < 0.01);

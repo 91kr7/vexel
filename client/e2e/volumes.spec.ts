@@ -16,11 +16,11 @@ async function removeVolumeQuietly(name: string): Promise<void> {
 // A tiny, already-cached image whose entrypoint is overridden to `sleep` so the
 // container starts instantly and needs no network pull or app init.
 async function createSleepingContainer(name: string, extraArgs: string[] = []): Promise<void> {
-  await execFileAsync('docker', ['run', '-d', '--name', name, ...ownershipArgs(name), ...extraArgs, '--entrypoint', 'sleep', 'postgres:16', '300']);
+  await execFileAsync('docker', ['run', '-d', '--name', name, ...ownershipArgs(name), ...extraArgs, '--entrypoint', 'sleep', 'alpine:3.20', '300']);
 }
 
 async function removeContainerQuietly(name: string): Promise<void> {
-  await execFileAsync('docker', ['rm', '-f', name]).catch(() => undefined);
+  await execFileAsync('docker', ['rm', '-fv', name]).catch(() => undefined);
 }
 
 function volumeRow(page: Page, name: string) {

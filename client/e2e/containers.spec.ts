@@ -1,18 +1,18 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
-import { ownershipArgs } from './support/fixtures.js';
+import { anonymousVolumes, ownershipArgs, removeAnonymousVolumesSince } from './support/fixtures.js';
 
 const execFileAsync = promisify(execFile);
 
 // A tiny, already-cached image whose entrypoint is overridden to `sleep` so the
 // container starts instantly and needs no network pull or app init.
 async function createSleepingContainer(name: string, extraArgs: string[] = []): Promise<void> {
-  await execFileAsync('docker', ['run', '-d', '--name', name, ...ownershipArgs(name), ...extraArgs, '--entrypoint', 'sleep', 'postgres:16', '300']);
+  await execFileAsync('docker', ['run', '-d', '--name', name, ...ownershipArgs(name), ...extraArgs, '--entrypoint', 'sleep', 'alpine:3.20', '300']);
 }
 
 async function removeContainerQuietly(name: string): Promise<void> {
-  await execFileAsync('docker', ['rm', '-f', name]).catch(() => undefined);
+  await execFileAsync('docker', ['rm', '-fv', name]).catch(() => undefined);
 }
 
 function containerRow(page: Page, name: string) {
@@ -33,7 +33,7 @@ test('lists a running container with its name, state, image and published ports 
 
     const row = containerRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
-    await expect(row).toContainText('postgres:16');
+    await expect(row).toContainText('alpine:3.20');
     await expect(row).toContainText('running');
     await expect(row).toContainText('→5432');
   } finally {
@@ -175,11 +175,11 @@ test.describe('Container detail panel (REQ-24, REQ-25, REQ-26)', () => {
 
       const detail = page.locator('.ui-data-table__expanded');
       await detail.getByRole('tab', { name: 'Inspect' }).click();
-      await expect(detail.getByText(/"Image":\s*"postgres:16"/)).toBeVisible();
+      await expect(detail.getByText(/"Image":\s*"alpine:3.20"/)).toBeVisible();
 
       await detail.getByRole('button', { name: 'Copy' }).last().click();
       const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
-      expect(clipboardText).toContain('"postgres:16"');
+      expect(clipboardText).toContain('"alpine:3.20"');
     } finally {
       await removeContainerQuietly(name);
     }
@@ -237,6 +237,10 @@ test.describe('Container detail panel (REQ-24, REQ-25, REQ-26)', () => {
   // and the outcome is reported
   test('confirming a recreate replaces the container while preserving its name and reports the outcome', async ({ page }) => {
     const name = `vexel-e2e-config-recreate-${Date.now()}`;
+    // The recreate keeps the replaced container's volumes on purpose, so the
+    // anonymous volume of the image's own `VOLUME` declaration outlives it and
+    // is this test's to remove.
+    const volumesBefore = await anonymousVolumes();
     try {
       await createSleepingContainer(name, ['-e', 'FOO=bar']);
       const row = containerRow(page, name);
@@ -257,6 +261,7 @@ test.describe('Container detail panel (REQ-24, REQ-25, REQ-26)', () => {
       await expect(containerRow(page, name)).toBeVisible({ timeout: 15_000 });
     } finally {
       await removeContainerQuietly(name);
+      await removeAnonymousVolumesSince(volumesBefore);
     }
   });
 });

@@ -10,6 +10,8 @@ import { imageAnalysisRouter } from "../../src/image-analysis/image-analysis-rou
 import { getExtractedFilesystem } from "../../src/image-analysis/filesystem-extraction-service.js";
 import { buildApp, startApp, type RunningApp } from "../support/fixtures.js";
 
+import { ownershipArgs } from "../support/fixtures.js";
+
 const execFileAsync = promisify(execFile);
 
 interface SseEvent {
@@ -124,7 +126,7 @@ before(async () => {
       "",
     ].join("\n"),
   );
-  await execFileAsync("docker", ["build", "-t", FIXTURE_TAG, contextDir]);
+  await execFileAsync("docker", ["build", ...ownershipArgs(FIXTURE_TAG), "-t", FIXTURE_TAG, contextDir]);
   fixtureImageId = await dockerInspect("{{.Id}}", FIXTURE_TAG);
 
   hostPasswdContent = await readFileFs("/etc/passwd", "utf-8");

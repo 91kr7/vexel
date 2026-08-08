@@ -11,6 +11,8 @@ import type { ImageLayerStack, LayerMetadata } from "../../src/image-analysis/la
 import type { ImageChangesets } from "../../src/image-analysis/changeset-service.js";
 import type { LayerSignals } from "../../src/image-analysis/layer-signals-service.js";
 
+import { ownershipArgs } from "../support/fixtures.js";
+
 const execFileAsync = promisify(execFile);
 
 function startApp(app: Express): Promise<{ url: string; close: () => Promise<void> }> {
@@ -99,12 +101,12 @@ before(async () => {
       "",
     ].join("\n"),
   );
-  await execFileAsync("docker", ["build", "-t", RUN_TAG, contextDir]);
+  await execFileAsync("docker", ["build", ...ownershipArgs(RUN_TAG), "-t", RUN_TAG, contextDir]);
 
   const tinyContextDir = await mkdtemp(join(tmpdir(), "vexel-tiny-fixture-"));
   await writeFile(join(tinyContextDir, "single-file.txt"), TINY_FILE_CONTENT);
   await writeFile(join(tinyContextDir, "Dockerfile"), ["FROM scratch", "COPY single-file.txt /single-file.txt", ""].join("\n"));
-  await execFileAsync("docker", ["build", "-t", TINY_TAG, tinyContextDir]);
+  await execFileAsync("docker", ["build", ...ownershipArgs(TINY_TAG), "-t", TINY_TAG, tinyContextDir]);
   const { stdout } = await execFileAsync("docker", ["inspect", TINY_TAG, "--format", "{{.Id}}"]);
   tinyImageId = stdout.trim();
 });
@@ -138,7 +140,7 @@ before(async () => {
       "",
     ].join("\n"),
   );
-  await execFileAsync("docker", ["build", "-t", SIGNALS_TAG, signalsContextDir]);
+  await execFileAsync("docker", ["build", ...ownershipArgs(SIGNALS_TAG), "-t", SIGNALS_TAG, signalsContextDir]);
 });
 
 after(async () => {
@@ -151,10 +153,10 @@ test("GET /api/images/:id/layers returns one entry per history step for a regist
   const app = buildApp();
   const { url, close } = await startApp(app);
   try {
-    const { stdout } = await execFileAsync("docker", ["history", "--no-trunc", "--format", "{{.ID}}", "postgres:16"]);
+    const { stdout } = await execFileAsync("docker", ["history", "--no-trunc", "--format", "{{.ID}}", "registry:2"]);
     const expectedStepCount = stdout.split("\n").filter((line) => line.length > 0).length;
 
-    const response = await fetch(`${url}/api/images/postgres:16/layers`);
+    const response = await fetch(`${url}/api/images/registry:2/layers`);
     assert.equal(response.status, 200);
     const body = (await response.json()) as ImageLayerStack;
 
@@ -368,7 +370,7 @@ test("GET /api/images/:id/signals/stream shares its analysis cache with /changes
   await writeFile(join(cacheContextDir, "single-file.txt"), cacheFileContent);
   await writeFile(join(cacheContextDir, "Dockerfile"), ["FROM scratch", "COPY single-file.txt /single-file.txt", ""].join("\n"));
   const cacheTag = `vexel-test-signals-cache-${process.pid}-${Date.now()}:1`;
-  await execFileAsync("docker", ["build", "-t", cacheTag, cacheContextDir]);
+  await execFileAsync("docker", ["build", ...ownershipArgs(cacheTag), "-t", cacheTag, cacheContextDir]);
 
   const app = buildApp();
   const { url, close } = await startApp(app);

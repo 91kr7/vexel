@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { E2E_DATA_DIR } from './e2e/support/fixtures';
 
 // Playwright setup for the client's e2e suite. Since batch-daemon-connectivity
 // wires the shell to the real server API (connectivity status, live events),
@@ -15,6 +16,10 @@ export default defineConfig({
   workers: 1,
   fullyParallel: false,
   reporter: 'dot',
+  // Pulls the shared base images and wipes the run's data directory, so no spec
+  // pays for a cold pull inside its own timeout and no run inherits the state of
+  // the one before it.
+  globalSetup: './e2e/support/global-setup.ts',
   use: {
     baseURL: 'http://localhost:5173',
     trace: 'retain-on-failure',
@@ -49,8 +54,12 @@ export default defineConfig({
       command: 'npm run dev -w server',
       cwd: '..',
       url: 'http://localhost:3000/health',
+      // A server already running for development keeps its own data directory,
+      // so the run would silently inherit the operator's preferences and cache.
+      // Stop it before running the suite when that isolation matters.
       reuseExistingServer: !process.env.CI,
       timeout: 30_000,
+      env: { VEXEL_DATA_DIR: E2E_DATA_DIR },
     },
   ],
 });

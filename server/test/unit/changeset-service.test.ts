@@ -96,11 +96,17 @@ test("computeImageChangesets still succeeds for a genuinely valid layer blob", a
 test("computeLayerChangesetPaths reports a new path as added and a path already known as modified", () => {
   const knownPaths = new Set<string>();
 
+  // Projected onto the three fields under test: an entry also carries the
+  // optional `contentHash`, which is only populated when the layer's content is
+  // read (changeset-service.md) and is not what this test is about.
+  const summarise = (paths: ReturnType<typeof computeLayerChangesetPaths>) =>
+    paths.map((entry) => ({ path: entry.path, status: entry.status, sizeBytes: entry.sizeBytes }));
+
   const first = computeLayerChangesetPaths([{ name: "app/config.yml", size: 100, typeFlag: "0" }], knownPaths);
-  assert.deepEqual(first, [{ path: "app/config.yml", status: "added", sizeBytes: 100 }]);
+  assert.deepEqual(summarise(first), [{ path: "app/config.yml", status: "added", sizeBytes: 100 }]);
 
   const second = computeLayerChangesetPaths([{ name: "app/config.yml", size: 150, typeFlag: "0" }], knownPaths);
-  assert.deepEqual(second, [{ path: "app/config.yml", status: "modified", sizeBytes: 150 }]);
+  assert.deepEqual(summarise(second), [{ path: "app/config.yml", status: "modified", sizeBytes: 150 }]);
 });
 
 // changeset-service.md — an OCI whiteout marker (.wh.<name>) yields a deleted entry for <name> in

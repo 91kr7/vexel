@@ -28,7 +28,7 @@ function buildApp(): Express {
 }
 
 async function removeContainerQuietly(name: string): Promise<void> {
-  await execFileAsync("docker", ["rm", "-f", name]).catch(() => undefined);
+  await execFileAsync("docker", ["rm", "-fv", name]).catch(() => undefined);
 }
 
 async function inspect(name: string, format: string): Promise<string> {
@@ -68,7 +68,7 @@ test("POST /api/containers creates and starts a container carrying every configu
   const { url, close } = await startApp(app);
   try {
     const { status, contentType, events } = await create(url, {
-      image: "postgres:16",
+      image: "alpine:3.20",
       name,
       entrypoint: ["sleep"],
       command: ["300"],
@@ -93,7 +93,7 @@ test("POST /api/containers creates and starts a container carrying every configu
     assert.equal(result.started, true);
 
     assert.equal(await inspect(name, "{{.State.Running}}"), "true");
-    assert.equal(await inspect(name, "{{.Config.Image}}"), "postgres:16");
+    assert.equal(await inspect(name, "{{.Config.Image}}"), "alpine:3.20");
     assert.equal(await inspect(name, "{{index .Config.Entrypoint 0}}"), "sleep");
     assert.equal(await inspect(name, "{{index .Config.Cmd 0}}"), "300");
     assert.match(await inspect(name, "{{.Config.Env}}"), /VEXEL_TEST=on/);
@@ -118,7 +118,7 @@ test("POST /api/containers with start false creates the container without runnin
   const app = buildApp();
   const { url, close } = await startApp(app);
   try {
-    const { events } = await create(url, { image: "postgres:16", name, entrypoint: ["sleep"], command: ["300"], start: false });
+    const { events } = await create(url, { image: "alpine:3.20", name, entrypoint: ["sleep"], command: ["300"], start: false });
 
     const terminal = terminalEvents(events);
     assert.equal(terminal.length, 1);
@@ -141,7 +141,7 @@ test("POST /api/containers attaches the container to the requested network", asy
   await execFileAsync("docker", ["network", "create", network]);
   try {
     const { events } = await create(url, {
-      image: "postgres:16",
+      image: "alpine:3.20",
       name,
       entrypoint: ["sleep"],
       command: ["300"],
@@ -166,7 +166,7 @@ test("POST /api/containers reports the image as already present, with no pull st
   const app = buildApp();
   const { url, close } = await startApp(app);
   try {
-    const { events } = await create(url, { image: "postgres:16", name, entrypoint: ["sleep"], command: ["300"], start: false });
+    const { events } = await create(url, { image: "alpine:3.20", name, entrypoint: ["sleep"], command: ["300"], start: false });
 
     assert.equal(
       events.some((event) => event.type === "pull-step"),
@@ -216,10 +216,10 @@ test("POST /api/containers answers 200 with an error line carrying the daemon's 
   const app = buildApp();
   const { url, close } = await startApp(app);
   try {
-    const first = await create(url, { image: "postgres:16", name, entrypoint: ["sleep"], command: ["300"], start: false });
+    const first = await create(url, { image: "alpine:3.20", name, entrypoint: ["sleep"], command: ["300"], start: false });
     assert.equal(terminalEvents(first.events)[0]!.type, "created");
 
-    const second = await create(url, { image: "postgres:16", name, entrypoint: ["sleep"], command: ["300"], start: false });
+    const second = await create(url, { image: "alpine:3.20", name, entrypoint: ["sleep"], command: ["300"], start: false });
 
     assert.equal(second.status, 200);
     const terminal = terminalEvents(second.events);

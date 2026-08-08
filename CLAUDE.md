@@ -98,6 +98,56 @@ The intended look and layout for each screen is mocked in `.sdd/analysis/ui-mock
 Read the relevant mockup before implementing a screen. Derive reusable primitives from what
 repeats across mockups — those repetitions are the library's component inventory.
 
+## Tests — non-negotiable rule
+
+**A test leaves the machine exactly as it found it, and depends on nothing another test did.**
+
+This application is tested against a real Docker daemon — the operator's own, the same one their
+work runs on. That makes two habits harmful here that would be merely untidy elsewhere: leaving
+objects behind, and reading state somebody else created.
+
+### What a test creates, it destroys
+
+- Every fixture — container, volume, network, built image, tag — is removed by the test that made
+  it, in a `finally` (or `afterAll`) so a failure cleans up as thoroughly as a pass.
+- Remove containers with `docker rm -fv`, never `docker rm -f`. Docker attaches an anonymous volume
+  to every `VOLUME` an image declares, and without `-v` that volume outlives the container carrying
+  no label of ours — invisible to any later cleanup. This one missing letter had accumulated
+  thousands of volumes on the development machine.
+- Where the application itself recreates a container, it deliberately keeps the replaced
+  container's volumes so that editing a setting never destroys data. The orphan is then the test's
+  to remove: `removeAnonymousVolumesSince` in `client/e2e/support/fixtures.ts`.
+- Every fixture carries the ownership labels (`ownershipArgs`), including built images, so a run
+  killed halfway can still be swept. `npm run test:sweep -w server` removes labelled leftovers of
+  every kind and, having nothing else to go on, never touches an object it cannot prove is ours.
+- Files belonging to the runner are the runner's: hand a Playwright download back with
+  `download.delete()` instead of deleting the artifact directory it lives in.
+
+### A test establishes its own starting state
+
+- **Never assume an empty daemon.** The operator has their own containers, images and volumes, and
+  they must neither break a test nor be touched by one. Assert on the fixtures you created — "the
+  container I made is listed, with these values" — never on totals, counts or a list being empty.
+- **Never inherit state from another test**, and that includes the application's own: the last
+  active screen and the analysis cache survive by design (REQ-113, REQ-115), so a spec that needs a
+  particular screen pins it (`openApp`) rather than trusting whichever one the previous spec left.
+  Every suite points the server at its own `VEXEL_DATA_DIR` instead of the operator's `~/.vexel`:
+  the e2e one is emptied per run, the server one is kept between runs so the analysis cache stays
+  warm (empty it with `npm run test:reset-data-dir -w server` when a cold start is the point).
+- **Every spec must pass on its own.** Running one file is what development actually looks like. A
+  fixed order is legitimate for sharing expensive setup — `client/e2e/support/global-setup.ts` pulls
+  the base images once — but never for passing state from one test to the next.
+- Destructive-by-nature tests (`prune` acts on the whole host) cannot be scoped, so they live apart:
+  `server/test/exclusive/` and `client/e2e/exclusive/`, scheduled after everything else.
+
+### Fixtures stay small
+
+Base images are `alpine:3.20` (a container that simply stays up — it declares no `VOLUME`, so it
+cannot orphan one), `registry:2` (the multi-layer registry-pulled image the layer analyses need) and
+`hello-world` (single layer). Roughly 50 MB in total. Do not reach for a heavier image because it
+happens to be lying around: the suite used `postgres:16` this way and paid 663 MB for a process that
+only had to sleep.
+
 ## Conventions
 
 - Source code, identifiers, comments: **English only**.

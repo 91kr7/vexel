@@ -78,7 +78,7 @@ test("GET /api/images lists a local image with its tags, size and creation age",
   const tag = `vexel-test-list-${Date.now()}:v1`;
   const app = buildApp();
   const { url, close } = await startApp(app);
-  await execFileAsync("docker", ["tag", "postgres:16", tag]);
+  await execFileAsync("docker", ["tag", "alpine:3.20", tag]);
   try {
     const images = await fetchList(url);
     const found = images.find((image) => image.tags.includes(tag));
@@ -126,7 +126,7 @@ test("GET /api/images/:id/inspect returns the image's full inspect data", async 
     assert.ok(inspect.history.length > 0);
     assert.ok(typeof inspect.sizeBytes === "number" && inspect.sizeBytes > 0);
   } finally {
-    await execFileAsync("docker", ["rm", "-f", containerName]).catch(() => undefined);
+    await execFileAsync("docker", ["rm", "-fv", containerName]).catch(() => undefined);
     await removeTagQuietly(tag);
     await close();
   }
@@ -137,10 +137,10 @@ test("GET /api/images/:id/inspect shortens the digest to algorithm:12-hex-chars 
   const app = buildApp();
   const { url, close } = await startApp(app);
   try {
-    const response = await fetch(`${url}/api/images/postgres:16/inspect`);
+    const response = await fetch(`${url}/api/images/alpine:3.20/inspect`);
     const inspect = (await response.json()) as ImageInspect;
 
-    assert.ok(inspect.digest, "expected postgres:16 to carry a RepoDigest");
+    assert.ok(inspect.digest, "expected alpine:3.20 to carry a RepoDigest");
     assert.match(inspect.digest!, /^[a-z0-9]+:[0-9a-f]{12}$/);
   } finally {
     await close();
@@ -204,7 +204,7 @@ test("POST /api/images/:id/tag adds a new reference, reflected in the list", asy
   const newTag = `vexel-test-tagged-${Date.now()}:v1`;
   const app = buildApp();
   const { url, close } = await startApp(app);
-  await execFileAsync("docker", ["tag", "postgres:16", sourceTag]);
+  await execFileAsync("docker", ["tag", "alpine:3.20", sourceTag]);
   try {
     const response = await fetch(`${url}/api/images/${sourceTag}/tag`, {
       method: "POST",
@@ -226,7 +226,7 @@ test("POST /api/images/:id/tag rejects a blank reference with 400", async () => 
   const app = buildApp();
   const { url, close } = await startApp(app);
   try {
-    const response = await fetch(`${url}/api/images/postgres:16/tag`, {
+    const response = await fetch(`${url}/api/images/alpine:3.20/tag`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ reference: "   " }),
@@ -245,8 +245,8 @@ test("DELETE /api/images/untag removes just that tag reference, leaving the imag
   const removedTag = `vexel-test-untag-remove-${Date.now()}:v1`;
   const app = buildApp();
   const { url, close } = await startApp(app);
-  await execFileAsync("docker", ["tag", "postgres:16", keptTag]);
-  await execFileAsync("docker", ["tag", "postgres:16", removedTag]);
+  await execFileAsync("docker", ["tag", "alpine:3.20", keptTag]);
+  await execFileAsync("docker", ["tag", "alpine:3.20", removedTag]);
   try {
     const response = await fetch(`${url}/api/images/untag?reference=${encodeURIComponent(removedTag)}`, { method: "DELETE" });
     assert.equal(response.status, 204);
@@ -280,7 +280,7 @@ test("DELETE /api/images/:id force-removes the image so it no longer appears in 
   const tag = `vexel-test-remove-${Date.now()}:v1`;
   const app = buildApp();
   const { url, close } = await startApp(app);
-  await execFileAsync("docker", ["tag", "postgres:16", tag]);
+  await execFileAsync("docker", ["tag", "alpine:3.20", tag]);
   try {
     const response = await fetch(`${url}/api/images/${tag}`, { method: "DELETE" });
     assert.equal(response.status, 204);

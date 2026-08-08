@@ -15,12 +15,12 @@ test.describe.configure({ mode: 'serial' });
 
 async function createSleepingContainer(name: string): Promise<void> {
   await execFileAsync('docker', [
-    'run', '-d', '--name', name, ...ownershipArgs(name), '--entrypoint', 'sleep', 'postgres:16', '300',
+    'run', '-d', '--name', name, ...ownershipArgs(name), '--entrypoint', 'sleep', 'alpine:3.20', '300',
   ]);
 }
 
 async function removeContainerQuietly(name: string): Promise<void> {
-  await execFileAsync('docker', ['rm', '-f', name]).catch(() => undefined);
+  await execFileAsync('docker', ['rm', '-fv', name]).catch(() => undefined);
 }
 
 async function removeTagQuietly(tag: string): Promise<void> {

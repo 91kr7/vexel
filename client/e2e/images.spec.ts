@@ -11,7 +11,7 @@ const execFileAsync = promisify(execFile);
 test.describe.configure({ mode: 'serial' });
 
 async function tagFromPostgres(tag: string): Promise<void> {
-  await execFileAsync('docker', ['tag', 'postgres:16', tag]);
+  await execFileAsync('docker', ['tag', 'alpine:3.20', tag]);
 }
 
 async function removeTagQuietly(tag: string): Promise<void> {
@@ -26,7 +26,7 @@ async function createStandaloneImage(tag: string, containerName: string): Promis
 
 async function removeStandaloneImage(tag: string, containerName: string): Promise<void> {
   await removeTagQuietly(tag);
-  await execFileAsync('docker', ['rm', '-f', containerName]).catch(() => undefined);
+  await execFileAsync('docker', ['rm', '-fv', containerName]).catch(() => undefined);
 }
 
 // The images list is a DataTable laid out like the containers table
@@ -72,7 +72,7 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await execFileAsync('docker', ['rm', '-f', pushRegistryContainerId]).catch(() => undefined);
+  await execFileAsync('docker', ['rm', '-fv', pushRegistryContainerId]).catch(() => undefined);
 });
 
 test.beforeEach(async ({ page }) => {
@@ -100,7 +100,7 @@ test('lists a local image in a table row with its reference, digest, platform, s
     await expect(row).toContainText('linux/');
     await expect(row).toContainText('sha256:');
   } finally {
-    await execFileAsync('docker', ['rm', '-f', containerName]).catch(() => undefined);
+    await execFileAsync('docker', ['rm', '-fv', containerName]).catch(() => undefined);
     await removeTagQuietly(tag);
   }
 });
@@ -109,7 +109,9 @@ test('lists a local image in a table row with its reference, digest, platform, s
 test('shows a header row naming every image column', async ({ page }) => {
   const headers = page.locator('.ui-data-table__header-cell');
 
-  await expect(headers).toHaveText(['', 'REPOSITORY:TAG', 'TAGS', 'DIGEST', 'PLATFORM', 'SIZE', 'CREATED', 'ACTIONS']);
+  // Two unnamed cells lead the row: the bulk-selection checkbox
+  // (ui-library/specs/data-table.md) and the status dot.
+  await expect(headers).toHaveText(['', '', 'REPOSITORY:TAG', 'TAGS', 'DIGEST', 'PLATFORM', 'SIZE', 'CREATED', 'ACTIONS']);
 });
 
 // plan-docker_management_app/REQ-37 — the four per-image actions are on every row, visible without expanding it
@@ -149,13 +151,13 @@ test('searching narrows the list to images whose reference matches the search te
 
 // plan-docker_management_app/REQ-41 — the search also matches by digest
 test('searching by digest also narrows the list to the matching image', async ({ page }) => {
-  const { stdout } = await execFileAsync('docker', ['inspect', 'postgres:16', '--format', '{{index .RepoDigests 0}}']);
+  const { stdout } = await execFileAsync('docker', ['inspect', 'alpine:3.20', '--format', '{{index .RepoDigests 0}}']);
   const fullDigest = stdout.trim().split('@')[1]!; // e.g. sha256:f8e2cc2a36dd...
   const shortDigest = fullDigest.slice(0, 19); // "sha256:" (7) + 12 hex chars
 
   await searchField(page).fill(shortDigest);
 
-  await expect(imageRow(page, 'postgres')).toBeVisible({ timeout: 10_000 });
+  await expect(imageRow(page, 'alpine')).toBeVisible({ timeout: 10_000 });
 });
 
 // plan-docker_management_app/REQ-39 — an image can be tagged with a new reference, reflected in the list
@@ -214,7 +216,7 @@ test('untagging one of several tags removes just that reference, leaving the oth
     await expect(row).toContainText(keptTag);
   } finally {
     await removeTagQuietly(removedTag);
-    await execFileAsync('docker', ['rm', '-f', containerName]).catch(() => undefined);
+    await execFileAsync('docker', ['rm', '-fv', containerName]).catch(() => undefined);
     await removeTagQuietly(keptTag);
   }
 });
@@ -235,7 +237,7 @@ test('untagging a single-tag image drops its reference straight away', async ({ 
     await expect(page.locator('.ui-modal')).toHaveCount(0);
     await expect(imageRow(page, tag)).toHaveCount(0, { timeout: 10_000 });
   } finally {
-    await execFileAsync('docker', ['rm', '-f', containerName]).catch(() => undefined);
+    await execFileAsync('docker', ['rm', '-fv', containerName]).catch(() => undefined);
     await removeTagQuietly(tag);
   }
 });
@@ -259,7 +261,7 @@ test('marks a dangling image with a dangling badge and disables its untag and pu
     await expect(row.getByRole('button', { name: 'untag', exact: true })).toBeDisabled();
     await expect(row.getByRole('button', { name: 'push', exact: true })).toBeDisabled();
   } finally {
-    await execFileAsync('docker', ['rm', '-f', containerName]).catch(() => undefined);
+    await execFileAsync('docker', ['rm', '-fv', containerName]).catch(() => undefined);
     await execFileAsync('docker', ['rmi', '-f', firstId.trim()]).catch(() => undefined);
     await removeTagQuietly(tag);
   }
@@ -287,7 +289,7 @@ test('removing an image asks for confirmation, does nothing on cancel and remove
 
     await expect(imageRow(page, tag)).toHaveCount(0, { timeout: 10_000 });
   } finally {
-    await execFileAsync('docker', ['rm', '-f', containerName]).catch(() => undefined);
+    await execFileAsync('docker', ['rm', '-fv', containerName]).catch(() => undefined);
     await removeTagQuietly(tag);
   }
 });
@@ -316,7 +318,7 @@ test('selecting an image expands its detail panel with structured inspect data a
     // images-screen.md: the expanded region carries the detail panel alone.
     await expect(expanded.getByRole('button', { name: 'remove', exact: true })).toHaveCount(0);
   } finally {
-    await execFileAsync('docker', ['rm', '-f', containerName]).catch(() => undefined);
+    await execFileAsync('docker', ['rm', '-fv', containerName]).catch(() => undefined);
     await removeTagQuietly(tag);
   }
 });
@@ -329,7 +331,7 @@ test('the images table and the containers table present with the same header, ty
   const containerName = `vexel-e2e-homogeneity-${Date.now()}`;
   const tag = `vexel-e2e-homogeneity-${Date.now()}:v1`;
   try {
-    await execFileAsync('docker', ['run', '-d', '--name', containerName, ...ownershipArgs(containerName), '--entrypoint', 'sleep', 'postgres:16', '300']);
+    await execFileAsync('docker', ['run', '-d', '--name', containerName, ...ownershipArgs(containerName), '--entrypoint', 'sleep', 'alpine:3.20', '300']);
     await tagFromPostgres(tag);
 
     const measure = async () => {
@@ -387,7 +389,7 @@ test('the images table and the containers table present with the same header, ty
     expect(imagesLook.hoverBackground).not.toBe(imagesLook.restingBackground);
     expect(imagesLook.selectedBackground).not.toBe(imagesLook.restingBackground);
   } finally {
-    await execFileAsync('docker', ['rm', '-f', containerName]).catch(() => undefined);
+    await execFileAsync('docker', ['rm', '-fv', containerName]).catch(() => undefined);
     await removeTagQuietly(tag);
   }
 });
@@ -422,6 +424,9 @@ test('pushing an image to a registry shows per-layer progress until it completes
 
 // plan-docker_management_app/REQ-38 — pulling an image by reference shows per-layer progress until completion
 test('pulling an image by reference shows per-layer progress and the image appears once it completes', async ({ page }) => {
+  // A real registry pull runs here, so the default per-test budget is not the
+  // measure of anything this test is about.
+  test.setTimeout(120_000);
   await execFileAsync('docker', ['rmi', '-f', 'hello-world:latest']).catch(() => undefined);
 
   await page.getByRole('button', { name: 'Pull image…' }).click();

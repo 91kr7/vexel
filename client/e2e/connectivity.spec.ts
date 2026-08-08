@@ -1,11 +1,14 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { expect, test } from '@playwright/test';
+import { openApp, ownershipArgs } from './support/fixtures.js';
 
 const execFileAsync = promisify(execFile);
 
+// These assertions read the default landing screen's own cards, so the screen a
+// previous spec persisted must not decide what is on display here.
 test.beforeEach(async ({ page }) => {
-  await page.goto('/');
+  await openApp(page);
 });
 
 // plan-docker_management_app/REQ-9, plan-docker_management_app/REQ-13
@@ -31,7 +34,7 @@ test('reflects a real daemon change in the live event stream panel without a man
 
   const networkName = `vexel-e2e-net-${Date.now()}`;
   try {
-    await execFileAsync('docker', ['network', 'create', '--label', `vexel.test.case=connectivity`, networkName]);
+    await execFileAsync('docker', ['network', 'create', ...ownershipArgs('connectivity'), networkName]);
     await expect(page.getByText(networkName)).toBeVisible({ timeout: 10_000 });
   } finally {
     await execFileAsync('docker', ['network', 'rm', networkName]).catch(() => {});

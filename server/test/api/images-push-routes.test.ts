@@ -92,7 +92,7 @@ before(async () => {
 });
 
 after(async () => {
-  await execFileAsync("docker", ["rm", "-f", registryContainerId]).catch(() => undefined);
+  await execFileAsync("docker", ["rm", "-fv", registryContainerId]).catch(() => undefined);
 });
 
 // plan-docker_management_app/REQ-38, REQ-39 — pushing an image to a registry shows per-layer progress until completion.
@@ -104,7 +104,7 @@ test("GET /api/images/:id/push/stream pushes an image to a registry and ends onc
   const { url, close } = await startApp(app);
   const repository = `vexel-test-push-${Date.now()}`;
   const reference = `localhost:${TEST_REGISTRY_PORT}/${repository}:v1`;
-  await execFileAsync("docker", ["tag", "postgres:16", reference]);
+  await execFileAsync("docker", ["tag", "alpine:3.20", reference]);
   const { stdout: imageId } = await execFileAsync("docker", ["inspect", reference, "--format", "{{.Id}}"]);
   try {
     const response = await fetch(`${url}/api/images/${encodeURIComponent(imageId.trim())}/push/stream?reference=${encodeURIComponent(reference)}`);
@@ -131,7 +131,7 @@ test("GET /api/images/:id/push/stream reports the daemon's rejection as an error
   const app = buildApp();
   const { url, close } = await startApp(app);
   const reference = `localhost:1/nonexistent-registry-${Date.now()}:v1`;
-  await execFileAsync("docker", ["tag", "postgres:16", reference]);
+  await execFileAsync("docker", ["tag", "alpine:3.20", reference]);
   const { stdout: imageId } = await execFileAsync("docker", ["inspect", reference, "--format", "{{.Id}}"]);
   try {
     const response = await fetch(`${url}/api/images/${encodeURIComponent(imageId.trim())}/push/stream?reference=${encodeURIComponent(reference)}`);

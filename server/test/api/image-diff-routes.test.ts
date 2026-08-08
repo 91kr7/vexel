@@ -10,6 +10,8 @@ import type { AddressInfo } from "node:net";
 import { imageAnalysisRouter } from "../../src/image-analysis/image-analysis-routes.js";
 import type { ImageDiffEntry, ImageFilesystemDiff } from "../../src/image-analysis/image-diff-service.js";
 
+import { ownershipArgs } from "../support/fixtures.js";
+
 const execFileAsync = promisify(execFile);
 
 function startApp(app: Express): Promise<{ url: string; close: () => Promise<void> }> {
@@ -79,7 +81,7 @@ async function dockerInspect(format: string, reference: string): Promise<string>
 async function buildImage(tag: string, dockerfile: string): Promise<void> {
   const contextDir = await mkdtemp(join(tmpdir(), "vexel-diff-fixture-"));
   await writeFile(join(contextDir, "Dockerfile"), dockerfile);
-  await execFileAsync("docker", ["build", "-t", tag, contextDir]);
+  await execFileAsync("docker", ["build", ...ownershipArgs(tag), "-t", tag, contextDir]);
 }
 
 async function removeImageQuietly(tag: string): Promise<void> {

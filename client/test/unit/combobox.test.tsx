@@ -8,7 +8,7 @@ afterEach(cleanup);
 
 const OPTIONS: ComboboxOption[] = [
   { value: 'nginx:1.27', label: 'nginx:1.27', hint: 'aaaaaaaaaaaa' },
-  { value: 'postgres:16', label: 'postgres:16' },
+  { value: 'alpine:3.20', label: 'alpine:3.20' },
   { value: 'sha256:deadbeef', label: 'deadbeef1234', hint: 'untagged' },
 ];
 
@@ -41,7 +41,7 @@ describe('Combobox (ui-library/specs/combobox.md)', () => {
 
     await user.click(input());
 
-    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual(expect.arrayContaining(['nginx:1.27aaaaaaaaaaaa', 'postgres:16']));
+    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual(expect.arrayContaining(['nginx:1.27aaaaaaaaaaaa', 'alpine:3.20']));
   });
 
   // combobox.md — the visible suggestions are those whose label or value contains the typed text, case-insensitively
@@ -49,11 +49,11 @@ describe('Combobox (ui-library/specs/combobox.md)', () => {
     const user = userEvent.setup();
     render(<Harness />);
 
-    await user.type(input(), 'POSTG');
+    await user.type(input(), 'ALPI');
 
     const options = screen.getAllByRole('option').map((option) => option.textContent);
     expect(options).toHaveLength(1);
-    expect(options[0]).toContain('postgres:16');
+    expect(options[0]).toContain('alpine:3.20');
   });
 
   // combobox.md — a value matching no option is never rejected nor rewritten: free text is a legitimate value
