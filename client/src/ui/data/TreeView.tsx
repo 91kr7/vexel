@@ -31,6 +31,8 @@ export interface TreeViewProps {
   /** Fixed row height in px (default 32). */
   rowHeight?: number;
   emptyState?: ReactNode;
+  /** Ids marked as matching an in-progress search (REQ-60): their row is highlighted in place, distinct from the selected row. */
+  matchedIds?: Set<string>;
 }
 
 type FlatRow = { key: string; depth: number } & ({ type: 'node'; node: TreeNode } | { type: 'loading' });
@@ -72,6 +74,7 @@ export function TreeView({
   maxHeight,
   rowHeight = 32,
   emptyState,
+  matchedIds = EMPTY_SET,
 }: TreeViewProps) {
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -163,15 +166,19 @@ export function TreeView({
             }
             const { node } = row;
             const selected = node.id === selectedId;
+            const matched = matchedIds.has(node.id);
             const expandable = node.kind === 'directory';
             const expanded = expandable && expandedIds.has(node.id);
+            const rowClassName = ['ui-tree-view__row', selected && 'ui-tree-view__row--selected', matched && 'ui-tree-view__row--matched']
+              .filter(Boolean)
+              .join(' ');
             return (
               <div
                 key={row.key}
                 role="treeitem"
                 aria-selected={selected}
                 aria-expanded={expandable ? expanded : undefined}
-                className={selected ? 'ui-tree-view__row ui-tree-view__row--selected' : 'ui-tree-view__row'}
+                className={rowClassName}
                 style={rowStyle}
                 onClick={() => onSelect?.(node)}
               >

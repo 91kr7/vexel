@@ -174,7 +174,7 @@ The REQ numbers 44 to 46 are retired and never reused.
 | REQ-59 | A file's content can be previewed as text or as a hex dump, the mode being chosen automatically from the content and overridable by the operator, with oversized files truncated and the truncation stated. |
 | REQ-60 | The tree can be filtered and searched by name or path fragment (e.g. to locate binaries, shared libraries or CA-certificate bundles), showing the matches in their position in the tree. |
 | REQ-61 | A selected file can be downloaded through the browser, and a selected subtree can be downloaded through the browser as a single archive, the outcome (what the archive contains) being reported. |
-| REQ-62 | An export can never escape the extracted tree nor endanger the machine it is extracted on: a `../` segment or a symlink pointing outside the extracted tree is neutralised or refused instead of being followed, so no byte outside that tree is ever read or served; the archive produced for a subtree contains no absolute path and no `../` segment, so extracting it on the operator's machine cannot write outside the directory they chose; and every refusal is reported with its reason. |
+| REQ-62 | An export can never escape the extracted tree nor endanger the machine it is extracted on: a `../` segment or a symlink pointing outside the extracted tree is neutralised or refused instead of being followed, so no byte outside that tree is ever read or served; no **entry name** in the archive produced for a subtree carries an absolute path or a `../` segment, so extracting it on the operator's machine writes nothing outside the directory they chose; a symlink's recorded **target** is the contained one, expressed so that it resolves correctly once extracted and always inside the extracted tree; and every refusal is reported with its reason. |
 
 **Export is a browser download, not a host write (human decision, 2026-08-07).** REQ-61 originally
 offered, alongside the browser download, an export "to a destination path on the host typed by the
@@ -189,6 +189,19 @@ archive built for a subtree is extracted on the operator's machine, so a `../` o
 inside it turns into a write outside the directory they picked, on their machine instead of the
 server's. REQ-62 therefore keeps its number and its status as a first-class requirement, restated
 over reads and over the archive's contents rather than over a destination path.
+
+**One clause of REQ-62 was sharpened on 2026-08-08, after testing showed the original wording was
+self-defeating.** It forbade any `../` segment anywhere in the produced archive. Applied to a
+symlink's recorded target, that rule breaks the archive: POSIX resolves a relative symlink against
+its own containing directory, so a target rewritten as a root-relative path — the only form with no
+`../` — points at the wrong place for every symlink not sitting exactly at the tree's root, and
+resolves to nothing once extracted. Verified with the real `tar` binary, not reasoned about.
+
+The clause now distinguishes what it always meant to. An **entry name** is a write path: an absolute
+or `../`-carrying name makes extraction write outside the chosen directory, and stays forbidden
+without exception. A symlink's **target** is content, not a write path; once the target has been
+contained within the tree, a `../` in the relative path leading to it cannot reach outside the
+extracted footprint. Forbidding it there bought no safety and cost correctness.
 
 ## F16 — Cross-image filesystem diff
 

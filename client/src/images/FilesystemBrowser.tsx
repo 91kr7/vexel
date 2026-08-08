@@ -1,22 +1,39 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Button,
   ConfirmDialog,
   DefinitionList,
   EmptyState,
+  ErrorBanner,
   FieldMessage,
+  HexDumpViewer,
   Modal,
   Row,
+  SegmentedControl,
+  Spinner,
   SplitPane,
   Stack,
   StatusPill,
+  StreamSearchField,
+  TextViewer,
   TransferProgressDialog,
   TreeView,
+  triggerDownload,
+  useToast,
   type TreeNode,
 } from '../ui';
 import type { ImageSummary } from '../data/images-client';
-import { imageFilesystemStreamUrl, type FilesystemEntry } from '../data/image-filesystem-client';
+import {
+  fetchSubtreeExportSummary,
+  imageFilesystemEntryDownloadUrl,
+  imageFilesystemStreamUrl,
+  imageFilesystemSubtreeDownloadUrl,
+  type FilesystemContentMode,
+  type FilesystemEntry,
+} from '../data/image-filesystem-client';
 import { useImageFilesystemExtraction } from '../data/use-image-filesystem-extraction';
+import { useImageFilesystemEntryContent, useImageFilesystemEntryMetadata } from '../data/use-image-filesystem-entry';
+import { useImageFilesystemSearch } from '../data/use-image-filesystem-search';
 import { useImageFilesystemTree } from '../data/use-image-filesystem-tree';
 
 export interface FilesystemBrowserProps {
@@ -52,11 +69,12 @@ function toTreeNode(entry: FilesystemEntry): TreeNode {
 }
 
 /**
- * Filesystem browser for one image (REQ-52–56, REQ-113): a cost warning,
+ * Filesystem browser for one image (REQ-52–62, REQ-113): a cost warning,
  * then cancellable extraction progress (a container created from the image
  * and never started, its filesystem copied out and removed again), then the
- * merged filesystem as a lazily expanded tree — identically for a
- * distroless/scratch image since nothing from it is ever executed.
+ * merged filesystem as a lazily expanded tree, searchable, with a metadata
+ * and content-preview panel and single-file/subtree download — identically
+ * for a distroless/scratch image since nothing from it is ever executed.
  */
 export function FilesystemBrowser({ image, open, onClose }: FilesystemBrowserProps) {
   const [warningOpen, setWarningOpen] = useState(false);
@@ -65,26 +83,59 @@ export function FilesystemBrowser({ image, open, onClose }: FilesystemBrowserPro
   const [progressDialogOpen, setProgressDialogOpen] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
+  const [modeOverride, setModeOverride] = useState<FilesystemContentMode | undefined>(undefined);
+  const [subtreeExportBusy, setSubtreeExportBusy] = useState(false);
 
   const extraction = useImageFilesystemExtraction(extractionUrl);
   const tree = useImageFilesystemTree(image.id);
+  const search = useImageFilesystemSearch(extraction.result ? image.id : undefined);
+  const toast = useToast();
+
+  const metadataState = useImageFilesystemEntryMetadata(extraction.result ? image.id : undefined, selectedId);
+  const contentState = useImageFilesystemEntryContent(
+    extraction.result && metadataState.metadata?.kind === 'file' ? image.id : undefined,
+    metadataState.metadata?.kind === 'file' ? selectedId : undefined,
+    modeOverride,
+  );
 
   const rootEntries = tree.childrenByPath.get(ROOT_PATH);
   if (extraction.result && rootEntries === undefined && !tree.loadingPaths.has(ROOT_PATH)) tree.loadChildren(ROOT_PATH);
 
-  // Every loaded entry, at any depth, keyed by its own path — the tree only
-  // needs children grouped by parent id, but the detail panel needs to look
-  // up whichever entry is currently selected regardless of its depth.
-  const entriesById = new Map<string, FilesystemEntry>();
   const childrenById = new Map<string, TreeNode[]>();
   for (const [path, entries] of tree.childrenByPath) {
-    for (const entry of entries) entriesById.set(entry.path, entry);
     if (path !== ROOT_PATH) childrenById.set(path, entries.map(toTreeNode));
   }
   const rootNodes = (rootEntries ?? []).map(toTreeNode);
   const loadingIds = new Set(Array.from(tree.loadingPaths).filter((path) => path !== ROOT_PATH));
+  const matchedIds = new Set(search.matches.map((match) => match.path));
 
-  const selectedEntry = selectedId !== undefined ? entriesById.get(selectedId) : undefined;
+  // A fresh selection previews the auto-detected mode again, not a stale override from a previous file.
+  useEffect(() => {
+    setModeOverride(undefined);
+  }, [selectedId]);
+
+  // Reveals a search match's ancestor directories, loading whichever levels are not loaded yet (REQ-60).
+  useEffect(() => {
+    const match = search.matches[search.activeMatchIndex];
+    if (!match) return;
+    setSelectedId(match.path);
+    const segments = match.parentPath === '' ? [] : match.parentPath.split('/');
+    let current = '';
+    const ancestors: string[] = [];
+    for (const segment of segments) {
+      current = current ? `${current}/${segment}` : segment;
+      ancestors.push(current);
+    }
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      ancestors.forEach((id) => next.add(id));
+      return next;
+    });
+    ancestors.forEach((id) => {
+      if (!tree.childrenByPath.has(id) && !tree.loadingPaths.has(id)) tree.loadChildren(id);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search.activeMatchIndex, search.matches]);
 
   function openWarning(force: boolean) {
     setPendingForce(force);
@@ -121,6 +172,29 @@ export function FilesystemBrowser({ image, open, onClose }: FilesystemBrowserPro
     if (!expandedIds.has(node.id) && !tree.childrenByPath.has(node.id) && !tree.loadingPaths.has(node.id)) tree.loadChildren(node.id);
   }
 
+  function downloadFile(path: string) {
+    triggerDownload(imageFilesystemEntryDownloadUrl(image.id, path));
+  }
+
+  /** Previews what the subtree archive would contain (REQ-61) before triggering the actual browser download. */
+  async function downloadSubtree(path: string) {
+    setSubtreeExportBusy(true);
+    try {
+      const summary = await fetchSubtreeExportSummary(image.id, path);
+      const refusedNote = summary.refusals.length > 0 ? ` — ${summary.refusals.length} entr${summary.refusals.length === 1 ? 'y' : 'ies'} skipped` : '';
+      toast.push({
+        title: 'Archive ready',
+        message: `${summary.fileCount} file${summary.fileCount === 1 ? '' : 's'}, ${formatBytes(summary.totalBytes)}${refusedNote}`,
+        tone: summary.refusals.length > 0 ? 'neutral' : 'success',
+      });
+      triggerDownload(imageFilesystemSubtreeDownloadUrl(image.id, path));
+    } catch (cause) {
+      toast.push({ title: 'Could not prepare the archive', message: (cause as Error).message, tone: 'danger' });
+    } finally {
+      setSubtreeExportBusy(false);
+    }
+  }
+
   return (
     <Modal open={open} title={`Filesystem — ${image.tags[0] ?? image.shortId}`} onClose={onClose} size="large">
       <Stack gap="var(--space-4)">
@@ -133,11 +207,21 @@ export function FilesystemBrowser({ image, open, onClose }: FilesystemBrowserPro
               >
                 {extraction.result.fromCache ? 'From cache' : 'Freshly extracted'} · {extraction.result.entryCount} entries
               </StatusPill>
+              <Button variant="secondary" disabled={subtreeExportBusy} onClick={() => downloadSubtree(ROOT_PATH)}>
+                Download whole filesystem…
+              </Button>
             </Row>
             <FieldMessage tone="muted">
               Includes container-creation scaffolding (e.g. .dockerenv, dev/, etc/hostname, proc/, sys/) written by Docker itself,
               not necessarily shipped by the image.
             </FieldMessage>
+            {extraction.result.refusedCount > 0 ? (
+              <FieldMessage tone="danger">
+                {extraction.result.refusedCount} entr{extraction.result.refusedCount === 1 ? 'y was' : 'ies were'} refused because
+                {extraction.result.refusedCount === 1 ? ' it attempted' : ' they attempted'} to leave the extracted tree (an absolute path, a
+                "../" segment, or a symlink target escaping it) and never entered the browsed filesystem.
+              </FieldMessage>
+            ) : null}
           </>
         ) : null}
 
@@ -148,35 +232,94 @@ export function FilesystemBrowser({ image, open, onClose }: FilesystemBrowserPro
             action={<Button onClick={() => openWarning(false)}>Browse filesystem…</Button>}
           />
         ) : (
-          <SplitPane
-            maxHeight="480px"
-            start={
-              <TreeView
-                rootNodes={rootNodes}
-                childrenById={childrenById}
-                loadingIds={loadingIds}
-                expandedIds={expandedIds}
-                onToggleExpand={toggleExpand}
-                selectedId={selectedId}
-                onSelect={(node) => setSelectedId(node.id)}
-                maxHeight="480px"
-                emptyState={<EmptyState title="Empty filesystem" />}
-              />
-            }
-            end={
-              selectedEntry ? (
-                <DefinitionList
-                  items={[
-                    { label: 'Path', value: `/${selectedEntry.path}`, copyValue: `/${selectedEntry.path}` },
-                    { label: 'Type', value: selectedEntry.kind },
-                    { label: 'Size', value: selectedEntry.sizeBytes !== undefined ? formatBytes(selectedEntry.sizeBytes) : '–' },
-                  ]}
+          <>
+            <StreamSearchField
+              value={search.query}
+              onChange={search.setQuery}
+              matchCount={search.matches.length}
+              activeMatchIndex={search.activeMatchIndex}
+              onNext={search.next}
+              onPrevious={search.previous}
+              placeholder="Search files by name or path…"
+            />
+            {search.truncated ? (
+              <FieldMessage tone="muted">
+                Showing the first {search.matches.length} of {search.totalMatches} matches.
+              </FieldMessage>
+            ) : null}
+
+            <SplitPane
+              maxHeight="480px"
+              start={
+                <TreeView
+                  rootNodes={rootNodes}
+                  childrenById={childrenById}
+                  loadingIds={loadingIds}
+                  expandedIds={expandedIds}
+                  onToggleExpand={toggleExpand}
+                  selectedId={selectedId}
+                  onSelect={(node) => setSelectedId(node.id)}
+                  matchedIds={matchedIds}
+                  maxHeight="480px"
+                  emptyState={<EmptyState title="Empty filesystem" />}
                 />
-              ) : (
-                <EmptyState title="No entry selected" description="Select a file, directory or symlink to see its details." />
-              )
-            }
-          />
+              }
+              end={
+                selectedId === undefined ? (
+                  <EmptyState title="No entry selected" description="Select a file, directory or symlink to see its details." />
+                ) : metadataState.loading ? (
+                  <Spinner label="Loading entry metadata" />
+                ) : metadataState.error ? (
+                  <ErrorBanner title="Could not read this entry" detail={metadataState.error} />
+                ) : metadataState.metadata ? (
+                  <Stack gap="var(--space-4)">
+                    <DefinitionList
+                      items={[
+                        { label: 'Path', value: `/${metadataState.metadata.path}`, copyValue: `/${metadataState.metadata.path}` },
+                        { label: 'Type', value: metadataState.metadata.kind },
+                        { label: 'Size', value: metadataState.metadata.sizeBytes !== undefined ? formatBytes(metadataState.metadata.sizeBytes) : '–' },
+                        { label: 'Permissions', value: metadataState.metadata.permissions ?? '–' },
+                        { label: 'Owner (uid:gid)', value: metadataState.metadata.uid !== undefined ? `${metadataState.metadata.uid}:${metadataState.metadata.gid}` : '–' },
+                        { label: 'Modified', value: metadataState.metadata.modifiedAt ? new Date(metadataState.metadata.modifiedAt).toLocaleString() : '–' },
+                        ...(metadataState.metadata.kind === 'symlink' ? [{ label: 'Link target', value: metadataState.metadata.linkTarget ?? '–' }] : []),
+                      ]}
+                    />
+
+                    {metadataState.metadata.kind === 'directory' ? (
+                      <Button variant="secondary" disabled={subtreeExportBusy} onClick={() => downloadSubtree(metadataState.metadata!.path)}>
+                        Download this folder…
+                      </Button>
+                    ) : null}
+
+                    {metadataState.metadata.kind === 'file' ? (
+                      <Stack gap="var(--space-2)">
+                        <Row justify="between" align="center">
+                          <SegmentedControl
+                            options={[{ id: 'text', label: 'Text' }, { id: 'hex', label: 'Hex' }]}
+                            selectedIds={[modeOverride ?? contentState.content?.autoMode ?? 'text']}
+                            onChange={(ids) => setModeOverride(ids[0] as FilesystemContentMode)}
+                            ariaLabel="Preview mode"
+                          />
+                          <Button onClick={() => downloadFile(metadataState.metadata!.path)}>Download</Button>
+                        </Row>
+                        {contentState.loading ? (
+                          <Spinner label="Loading content" />
+                        ) : contentState.error ? (
+                          <FieldMessage tone="muted">{contentState.error}</FieldMessage>
+                        ) : contentState.content ? (
+                          contentState.content.mode === 'text' ? (
+                            <TextViewer content={contentState.content.content} truncated={contentState.content.truncated} totalSizeBytes={contentState.content.totalSizeBytes} />
+                          ) : (
+                            <HexDumpViewer content={contentState.content.content} truncated={contentState.content.truncated} totalSizeBytes={contentState.content.totalSizeBytes} />
+                          )
+                        ) : null}
+                      </Stack>
+                    ) : null}
+                  </Stack>
+                ) : null
+              }
+            />
+          </>
         )}
       </Stack>
 

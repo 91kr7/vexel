@@ -14,7 +14,7 @@ be loaded on demand by the caller (REQ-52).
 ## Contract
 
 - `<TreeView rootNodes childrenById loadingIds? expandedIds onToggleExpand selectedId? onSelect?
-  maxHeight? rowHeight? emptyState? />`
+  maxHeight? rowHeight? emptyState? matchedIds? />`
   - `TreeNode`: `{ id, label, kind: 'file' | 'directory' | 'symlink', meta? }` — `id` is a stable
     identifier unique across the whole tree (e.g. the full path); `meta?` is trailing text (e.g. a
     formatted size).
@@ -33,6 +33,8 @@ be loaded on demand by the caller (REQ-52).
     in and around the visible window are mounted); unset renders every visible row.
   - `rowHeight?: number` — fixed row height in px (default `32`).
   - `emptyState?: ReactNode` — shown instead of the tree when `rootNodes` is empty.
+  - `matchedIds?: Set<string>` — ids marked as matching an in-progress search (REQ-60); a matched
+    row not currently selected is highlighted in place, distinctly from the selected row.
 
 ## Rules and invariants
 
@@ -53,3 +55,4 @@ be loaded on demand by the caller (REQ-52).
 ## Requirements served
 
 - plan-docker_management_app/REQ-52
+- plan-docker_management_app/REQ-60

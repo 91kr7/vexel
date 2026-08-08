@@ -1,9 +1,15 @@
 import { Router, type Request, type Response } from "express";
 import { DockerDaemonError } from "../docker/errors.js";
 import { computeImageChangesets } from "./changeset-service.js";
+import { readFilesystemEntryContent, type FilesystemContentMode } from "./filesystem-content-service.js";
+import { resolveRequestPath } from "./filesystem-containment.js";
+import { getFilesystemEntryMetadata } from "./filesystem-entry-service.js";
+import { getSubtreeExportSummary, openFilesystemEntryDownload, openSubtreeArchiveDownload } from "./filesystem-export-service.js";
 import { extractImageFilesystem, listImageFilesystemChildren } from "./filesystem-extraction-service.js";
+import { searchFilesystemEntries } from "./filesystem-search-service.js";
 import { getImageLayerStack } from "./layer-metadata-service.js";
 import { getSharedLayerImages } from "./shared-layer-service.js";
+import { sanitizeTarFilename } from "../images/image-transfer-service.js";
 
 export const imageAnalysisRouter = Router();
 
@@ -68,6 +74,139 @@ imageAnalysisRouter.get("/:id/filesystem/entries", async (req, res) => {
     respondError(res, error);
   }
 });
+
+/** A previously extracted entry's metadata (REQ-58). */
+imageAnalysisRouter.get("/:id/filesystem/metadata", async (req, res) => {
+  try {
+    const path = requireContainedPath(req, res);
+    if (path === undefined) return;
+    const metadata = await getFilesystemEntryMetadata(req.params.id, path);
+    if (!metadata) {
+      res.status(404).json({ error: "No such entry in this image's extracted filesystem." });
+      return;
+    }
+    res.json({ metadata });
+  } catch (error) {
+    respondError(res, error);
+  }
+});
+
+/** A file's content, auto-detected text/hex unless `mode` overrides it, truncated past the preview bound (REQ-59). */
+imageAnalysisRouter.get("/:id/filesystem/content", async (req, res) => {
+  try {
+    const path = requireContainedPath(req, res);
+    if (path === undefined) return;
+    const requestedMode = req.query.mode === "text" || req.query.mode === "hex" ? (req.query.mode as FilesystemContentMode) : undefined;
+    const outcome = await readFilesystemEntryContent(req.params.id, path, requestedMode);
+    if (!outcome) {
+      res.status(404).json({ error: "This image's filesystem has not been extracted yet." });
+      return;
+    }
+    if ("refusal" in outcome) {
+      res.status(409).json({ error: outcome.refusal });
+      return;
+    }
+    res.json({ result: outcome.result });
+  } catch (error) {
+    respondError(res, error);
+  }
+});
+
+/** Name/path fragment search across the extracted tree, bounded in result count (REQ-60). */
+imageAnalysisRouter.get("/:id/filesystem/search", async (req, res) => {
+  try {
+    const query = typeof req.query.query === "string" ? req.query.query : "";
+    const result = await searchFilesystemEntries(req.params.id, query);
+    if (!result) {
+      res.status(404).json({ error: "This image's filesystem has not been extracted yet." });
+      return;
+    }
+    res.json(result);
+  } catch (error) {
+    respondError(res, error);
+  }
+});
+
+/** Preview of what a subtree download would contain, before the operator confirms it (REQ-61). */
+imageAnalysisRouter.get("/:id/filesystem/subtree-summary", async (req, res) => {
+  try {
+    const path = requireContainedPath(req, res);
+    if (path === undefined) return;
+    const outcome = await getSubtreeExportSummary(req.params.id, path);
+    if (!outcome) {
+      res.status(404).json({ error: "This image's filesystem has not been extracted yet." });
+      return;
+    }
+    if ("refusal" in outcome) {
+      res.status(409).json({ error: outcome.refusal });
+      return;
+    }
+    res.json({ summary: outcome.summary });
+  } catch (error) {
+    respondError(res, error);
+  }
+});
+
+/** Streams a single entry's file content straight to the response as a browser download (REQ-61, REQ-62). */
+imageAnalysisRouter.get("/:id/filesystem/download", async (req, res) => {
+  try {
+    const path = requireContainedPath(req, res);
+    if (path === undefined) return;
+    const outcome = await openFilesystemEntryDownload(req.params.id, path);
+    if (!outcome) {
+      res.status(404).json({ error: "This image's filesystem has not been extracted yet." });
+      return;
+    }
+    if ("refusal" in outcome) {
+      res.status(409).json({ error: outcome.refusal });
+      return;
+    }
+    res.setHeader("Content-Type", "application/octet-stream");
+    res.setHeader("Content-Disposition", `attachment; filename="${sanitizeDownloadFilename(outcome.download.suggestedFilename)}"`);
+    req.on("close", () => outcome.download.stream.destroy());
+    outcome.download.stream.pipe(res);
+  } catch (error) {
+    respondError(res, error);
+  }
+});
+
+/** Streams a subtree as one freshly built tar archive, straight to the response as a browser download (REQ-61, REQ-62). */
+imageAnalysisRouter.get("/:id/filesystem/subtree-download", async (req, res) => {
+  try {
+    const path = requireContainedPath(req, res);
+    if (path === undefined) return;
+    const outcome = await openSubtreeArchiveDownload(req.params.id, path);
+    if (!outcome) {
+      res.status(404).json({ error: "This image's filesystem has not been extracted yet." });
+      return;
+    }
+    if ("refusal" in outcome) {
+      res.status(409).json({ error: outcome.refusal });
+      return;
+    }
+    res.setHeader("Content-Type", "application/x-tar");
+    res.setHeader("Content-Disposition", `attachment; filename="${sanitizeTarFilename(outcome.archive.suggestedFilename)}"`);
+    req.on("close", () => outcome.archive.stream.destroy());
+    outcome.archive.stream.pipe(res);
+  } catch (error) {
+    respondError(res, error);
+  }
+});
+
+/** Validates the `path` query param against the tree before it drives any lookup (REQ-62); answers `400` and returns `undefined` when it escapes. */
+function requireContainedPath(req: Request, res: Response): string | undefined {
+  const raw = typeof req.query.path === "string" ? req.query.path : "";
+  const resolved = resolveRequestPath(raw);
+  if ("refusal" in resolved) {
+    res.status(400).json({ error: resolved.refusal.reason });
+    return undefined;
+  }
+  return resolved.path;
+}
+
+function sanitizeDownloadFilename(name: string): string {
+  return name.replace(/[^a-zA-Z0-9._-]+/g, "_") || "download";
+}
 
 function writeServerSentEvent(res: Response, event: string, payload: unknown): void {
   res.write(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`);
