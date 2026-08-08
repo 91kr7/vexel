@@ -28,11 +28,13 @@ Shows:
   "Clear" action (REQ-113, REQ-115), then the active screen's real content: `ContainersScreen` for
   the `containers` screen (REQ-19–REQ-23, REQ-109) — which also receives the live image list from
   `useImages()`, since its create/run form suggests the local images (REQ-29) —, `ImagesScreen` for the `images-layers` screen
-  (REQ-37–REQ-41), `VolumesNetworksScreen` for the `volumes-networks` screen (REQ-70, REQ-71) — fed
-  the live volume list from `useVolumes()` —, a `PlaceholderScreen` for every screen not yet built by
-  its own feature batch.
-- The Containers `NavItem`'s count badge is the live container count from `useContainers()`, and
-  the Images & layers `NavItem`'s count badge is the live image count from `useImages()`, both
+  (REQ-37–REQ-41), `ComposeScreen` for the `compose` screen (REQ-75–REQ-78) — fed the live project
+  list from `useComposeProjects()` —, `VolumesNetworksScreen` for the `volumes-networks` screen
+  (REQ-70, REQ-71) — fed the live volume list from `useVolumes()` —, a `PlaceholderScreen` for every
+  screen not yet built by its own feature batch.
+- The Containers `NavItem`'s count badge is the live container count from `useContainers()`, the
+  Images & layers `NavItem`'s count badge is the live image count from `useImages()`, and the
+  Compose `NavItem`'s count badge is the live compose project count from `useComposeProjects()`, all
   regardless of which screen is active.
 Actions:
 - Selecting a `NavItem` sets it active, persists it as `lastScreenId` via `usePreferences()`, and
@@ -84,6 +86,7 @@ Navigation:
 - local-persistence: usePreferences, fetchAnalysisCacheUsage, clearAnalysisCache
 - containers: useContainers, ContainersScreen
 - images: useImages, ImagesScreen
+- compose: useComposeProjects, ComposeScreen
 - volumes: useVolumes
 - volumes-networks: VolumesNetworksScreen
 
@@ -98,6 +101,10 @@ Navigation:
 - plan-docker_management_app/REQ-13
 - plan-docker_management_app/REQ-19
 - plan-docker_management_app/REQ-37
+- plan-docker_management_app/REQ-75
+- plan-docker_management_app/REQ-76
+- plan-docker_management_app/REQ-77
+- plan-docker_management_app/REQ-78
 - plan-docker_management_app/REQ-70
 - plan-docker_management_app/REQ-71
 - plan-docker_management_app/REQ-110

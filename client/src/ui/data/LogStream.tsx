@@ -11,6 +11,8 @@ export interface LogStreamLine {
   /** Display-ready timestamp (formatting is a feature-layer concern). */
   timestamp?: string;
   stream?: 'stdout' | 'stderr';
+  /** Origin label (e.g. a compose service name) shown before the timestamp, for an aggregated stream. */
+  source?: string;
 }
 
 export interface LogStreamProps {
@@ -83,7 +85,12 @@ export function LogStream({
     if (atBottom !== follow) onFollowChange(atBottom);
   }
 
-  const plainText = lines.map((line) => (showTimestamps && line.timestamp ? `${line.timestamp} ${line.text}` : line.text)).join('\n');
+  const plainText = lines
+    .map((line) => {
+      const prefix = [line.source, showTimestamps ? line.timestamp : undefined].filter(Boolean).join(' ');
+      return prefix ? `${prefix} ${line.text}` : line.text;
+    })
+    .join('\n');
 
   function download() {
     if (!downloadFileName) return;
@@ -128,6 +135,7 @@ export function LogStream({
                   .join(' ');
                 return (
                   <div key={line.id} className={classes} style={{ height: lineHeight }}>
+                    {line.source ? <span className="ui-log-stream__source">{line.source}</span> : null}
                     {showTimestamps && line.timestamp ? <span className="ui-log-stream__timestamp">{line.timestamp}</span> : null}
                     <span className="ui-log-stream__text">{renderHighlighted(line.text, highlight)}</span>
                   </div>

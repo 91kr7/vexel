@@ -39,6 +39,7 @@
 | Tabs | UI component | `client/src/ui/controls/Tabs.tsx` | Single-select row of tabs switching a detail surface's active content panel | `specs/tabs.md` |
 | CopyButton | UI component | `client/src/ui/controls/CopyButton.tsx` | Copies an exact value to the clipboard, with a transient "Copied" confirmation | `specs/copy-button.md` |
 | NumberField | UI component | `client/src/ui/controls/NumberField.tsx` | Single-line numeric form input | `specs/number-field.md` |
+| Stepper | UI component | `client/src/ui/controls/Stepper.tsx` | Decrement / value / increment control for a small bounded integer (e.g. a service's replica count) | `specs/stepper.md` |
 | Select | UI component | `client/src/ui/controls/Select.tsx` | Single-choice dropdown | `specs/select.md` |
 | Toggle | UI component | `client/src/ui/controls/Toggle.tsx` | Boolean on/off switch | `specs/toggle.md` |
 | FieldMessage | UI component | `client/src/ui/controls/FieldMessage.tsx` | Field-level helper or validation message | `specs/field-message.md` |
@@ -56,11 +57,13 @@
 | StreamSearchField | UI component | `client/src/ui/controls/StreamSearchField.tsx` | In-surface stream search box with match count and next/previous | `specs/stream-search-field.md` |
 | DataTable | UI component | `client/src/ui/data/DataTable.tsx` | Dense, column-defined table with hover/selected row states, virtualised scrolling, and an optional per-row expansion slot | `specs/data-table.md` |
 | CardList | UI component | `client/src/ui/data/CardList.tsx` | Full-width card rows (title, monospace subtitle, trailing badge group and meta values), selectable, with an optional expanded content slot inside the same card | `specs/card-list.md` |
+| GroupedRowsPanel | UI component | `client/src/ui/data/GroupedRowsPanel.tsx` | One card per group with a header (status, title, subtitle, actions) over its indented child rows (status, title, muted subtitle, trailing control) | `specs/grouped-rows-panel.md` |
 | TreeView | UI component | `client/src/ui/data/TreeView.tsx` | Virtualised, expandable/collapsible tree with entry-type glyphs, single selection, keyboard navigation, a lazily loaded subtree contract and an optional per-node status accent | `specs/tree-view.md` |
 | DiffTreeView | UI component | `client/src/ui/data/DiffTreeView.tsx` | Diff variant of TreeView: added/removed/changed node status, directory roll-up counts and a status filter row | `specs/diff-tree-view.md` |
 | StatusDotCell, TwoLineCell, MetaCell, IdentifierCell, BadgeListCell, ProportionBarCell | UI component | `client/src/ui/data/TableCells.tsx` | Reusable DataTable cell contents: status dot, title/subtitle pair, muted monospace value (with an "unavailable" state), truncated identifier, badge list with overflow indicator, magnitude-proportional bar | `specs/table-cells.md` |
 | DefinitionList | UI component | `client/src/ui/data/DefinitionList.tsx` | Label → value rows with an optional copy affordance | `specs/definition-list.md` |
 | CodeViewer | UI component | `client/src/ui/data/CodeViewer.tsx` | Read-only monospace code/JSON block with a copy affordance | `specs/code-viewer.md` |
+| CodeEditor | UI component | `client/src/ui/data/CodeEditor.tsx` | Editable monospace code surface with a line-number gutter, dirty state and a validation status-line slot | `specs/code-editor.md` |
 | TextViewer, HexDumpViewer | UI component | `client/src/ui/data/ContentViewer.tsx` | Read-only monospace text preview with line numbers, and a hex-dump preview, each with a truncation notice for an oversized file and an optional shared-scroll hookup | `specs/content-viewer.md` |
 | SideBySideViewer | UI component | `client/src/ui/data/SideBySideViewer.tsx` | Pairs two content viewers under per-side headers with a shared scroll position | `specs/side-by-side-viewer.md` |
 | LogStream | UI component | `client/src/ui/data/LogStream.tsx` | Virtualised monospace log surface: follow/jump-to-live, timestamps, stdout/stderr tagging, match highlighting, copy/download | `specs/log-stream.md` |

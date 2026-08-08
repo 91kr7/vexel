@@ -1,4 +1,5 @@
 import express from "express";
+import { composeRouter } from "./compose/compose-routes.js";
 import { connectivityRouter } from "./connectivity/connectivity-routes.js";
 import { handleContainerSessionUpgrade } from "./containers/container-sessions-routes.js";
 import { containersRouter } from "./containers/containers-routes.js";
@@ -29,6 +30,7 @@ app.use("/api/images", imagesRouter);
 app.use("/api/images", imageAnalysisRouter);
 app.use("/api/volumes", volumesRouter);
 app.use("/api/networks", networksRouter);
+app.use("/api/compose", composeRouter);
 app.use("/api/events", eventsRouter);
 app.use("/api/persistence", persistenceRouter);
 app.use("/api/host-paths", hostPathsRouter);

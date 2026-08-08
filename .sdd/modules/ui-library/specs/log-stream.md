@@ -20,8 +20,9 @@ Description:
 Props:
 
 - `<LogStream lines showTimestamps? follow? onFollowChange? highlight? activeMatchLineId? maxHeight? lineHeight? emptyLabel? downloadFileName? />`
-  - `lines: { id, text, timestamp?, stream? }[]` — `timestamp` is display-ready text supplied by the
-    caller; `stream` is `'stdout' | 'stderr'`.
+  - `lines: { id, text, timestamp?, stream?, source? }[]` — `timestamp` is display-ready text
+    supplied by the caller; `stream` is `'stdout' | 'stderr'`; `source?` is an origin label (e.g. a
+    compose service name) shown before the timestamp, for an aggregated stream.
   - `showTimestamps?: boolean` (default `false`).
   - `follow?: boolean` (default `true`), `onFollowChange?: (follow: boolean) => void`.
   - `highlight?: string` — case-insensitive substring highlighted in every line that contains it.
@@ -33,8 +34,8 @@ Props:
 
 Shows:
 
-- one row per line, in the given order; a leading timestamp column only when `showTimestamps` is
-  true and the line carries a `timestamp`.
+- one row per line, in the given order; a leading source label when the line carries a `source`,
+  then a timestamp column only when `showTimestamps` is true and the line carries a `timestamp`.
 - lines tagged `stderr` are visually distinguished from `stdout` ones.
 - only the lines in and around the visible window are mounted; the scrollbar still reflects the
   full line count.
@@ -44,8 +45,8 @@ Shows:
 
 Actions:
 
-- "Copy" → puts the full text of `lines` on the clipboard, one line per row, timestamps included
-  only when `showTimestamps` is true.
+- "Copy" → puts the full text of `lines` on the clipboard, one line per row, each prefixed with its
+  `source` when present and its timestamp only when `showTimestamps` is true.
 - "Download" (only when `downloadFileName` is given) → saves that same text as a plain-text file
   named `downloadFileName`.
 - "Jump to live" (only shown when `follow` is false) → calls `onFollowChange(true)`.

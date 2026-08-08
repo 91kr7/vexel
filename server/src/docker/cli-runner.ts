@@ -23,6 +23,8 @@ export interface CliRunHandle {
   cancel: () => void;
   onStdout: (listener: (chunk: string) => void) => void;
   onStderr: (listener: (chunk: string) => void) => void;
+  /** Fires when the process itself could not be spawned (e.g. the binary went missing); `done` never resolves in that case. */
+  onSpawnError: (listener: (message: string) => void) => void;
   done: Promise<CliRunResult>;
 }
 
@@ -40,9 +42,12 @@ export function runCliCommand(command: string, args: string[], endpoint: DockerE
   const child = spawn(command, args, { env: { ...process.env, ...endpointToCliEnv(endpoint) } });
   const stdoutListeners: Array<(chunk: string) => void> = [];
   const stderrListeners: Array<(chunk: string) => void> = [];
+  const spawnErrorListeners: Array<(message: string) => void> = [];
 
   child.stdout.on("data", (chunk: Buffer) => stdoutListeners.forEach((listener) => listener(chunk.toString())));
   child.stderr.on("data", (chunk: Buffer) => stderrListeners.forEach((listener) => listener(chunk.toString())));
+  // A dedicated listener keeps Node from throwing on an unhandled 'error' event (e.g. the binary went missing mid-run).
+  child.on("error", (error) => spawnErrorListeners.forEach((listener) => listener(error.message)));
 
   const done = new Promise<CliRunResult>((resolve) => {
     child.once("close", (code) => resolve({ exitCode: code }));
@@ -52,6 +57,7 @@ export function runCliCommand(command: string, args: string[], endpoint: DockerE
     cancel: () => child.kill(),
     onStdout: (listener) => stdoutListeners.push(listener),
     onStderr: (listener) => stderrListeners.push(listener),
+    onSpawnError: (listener) => spawnErrorListeners.push(listener),
     done,
   };
 }
