@@ -7,9 +7,10 @@ type: REST endpoint
 # Image analysis endpoints
 
 **Purpose** → exposes the layer stack (with shared-layer markers), a cancellable changeset analysis
-progress stream, the runtime-independent filesystem extraction/tree-read pair, the in-tree
-metadata/content/search/export operations built on it, and the cross-image filesystem diff
-stream/tree-read pair, to the client (REQ-47–64, REQ-113).
+progress stream, a cancellable layer-efficiency and secret-signal progress stream, the
+runtime-independent filesystem extraction/tree-read pair, the in-tree metadata/content/search/export
+operations built on it, and the cross-image filesystem diff stream/tree-read pair, to the client
+(REQ-47–67, REQ-113).
 
 ## Contract
 
@@ -20,6 +21,10 @@ stream/tree-read pair, to the client (REQ-47–64, REQ-113).
   `progress` (one per `ChangesetProgress`), `result` (the final `ImageChangesets`, sent just before
   `end`), `end`, or `error` (`{ message }`) if it fails. Disconnecting cancels the in-flight
   analysis.
+- `GET /api/images/:id/signals/stream` → server-sent events driving `analyzeLayerSignals`: `progress`
+  (one per `ChangesetProgress`, shared with `/changesets/stream`), `result` (the final
+  `LayerSignals`, sent just before `end`), `end`, or `error` (`{ message }`) if it fails (REQ-65,
+  REQ-66, REQ-67). Disconnecting cancels the in-flight analysis.
 - `GET /api/images/:id/filesystem/stream[?force=true]` → server-sent events driving
   `extractImageFilesystem`: `progress` (one per `FilesystemExtractionProgress`), `result` (the final
   `FilesystemExtractionResult`, sent just before `end`), `end`, or `error` (`{ message }`) if it
@@ -63,7 +68,7 @@ stream/tree-read pair, to the client (REQ-47–64, REQ-113).
 
 ## Dependencies
 
-- image-analysis: LayerMetadataService, SharedLayerService, ChangesetService,
+- image-analysis: LayerMetadataService, SharedLayerService, ChangesetService, LayerSignalsService,
   FilesystemExtractionService, FilesystemContainment, FilesystemEntryService,
   FilesystemContentService, FilesystemSearchService, FilesystemExportService, ImageDiffService
 - images: `sanitizeTarFilename` (reused for the subtree archive's download filename)
@@ -88,4 +93,7 @@ stream/tree-read pair, to the client (REQ-47–64, REQ-113).
 - plan-docker_management_app/REQ-62
 - plan-docker_management_app/REQ-63
 - plan-docker_management_app/REQ-64
+- plan-docker_management_app/REQ-65
+- plan-docker_management_app/REQ-66
+- plan-docker_management_app/REQ-67
 - plan-docker_management_app/REQ-113

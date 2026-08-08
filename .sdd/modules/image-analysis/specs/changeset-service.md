@@ -21,7 +21,9 @@ warns the caller of a real temporary-disk cost since the image is exported to di
     then one `'analyzing'` call per layer finished.
   - `onEnd(result)`: `ImageChangesets`: `{ imageId, layers }`; `LayerChangeset`: `{ layerIndex,
     diffId?, paths }`; `LayerChangesetPath`: `{ path, status: 'added' | 'modified' | 'deleted',
-    sizeBytes?, sizeUnavailableReason? }`.
+    sizeBytes?, sizeUnavailableReason?, contentHash? }` — `contentHash` (sha1 of the file's bytes as
+    written by this layer) is present only on a regular-file `'added'`/`'modified'` entry, consumed
+    by the layer-efficiency signals (REQ-65, REQ-66) built on this same job.
   - A path already seen in an earlier (lower) layer is `'modified'`, otherwise `'added'`; an OCI
     whiteout marker (`.wh.<name>`) yields a `'deleted'` entry for `<name>` in the marker's directory,
     and an opaque-directory marker (`.wh..wh..opq`) yields a single `'deleted'` entry for the
@@ -50,6 +52,8 @@ warns the caller of a real temporary-disk cost since the image is exported to di
   assumed.
 - Content that is neither a valid tar nor gzip-compressed one fails the run with `onError` — a
   changeset that cannot be computed is never delivered as an empty or garbage result.
+- A regular-file entry is read in full to compute `contentHash`, whatever its size; a directory,
+  symlink or other special entry is only skipped, never hashed.
 - A successful, non-cached run's result is inserted into the analysis cache before `onEnd` fires.
 - `onError` and `onEnd` are mutually exclusive and each fires at most once per call.
 

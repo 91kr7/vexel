@@ -20,7 +20,8 @@ changeset analysis progress stream (REQ-47–51).
   with `useImageChangesetStream`.
 - `ImageChangesets`: `{ imageId, layers }`; `LayerChangeset`: `{ layerIndex, diffId?, paths }`;
   `LayerChangesetPath`: `{ path, status: 'added' | 'modified' | 'deleted', sizeBytes?,
-  sizeUnavailableReason? }`.
+  sizeUnavailableReason?, contentHash? }` — `contentHash` is consumed by the layer-signals view
+  (REQ-65, REQ-66) via Image signals client, not read directly here.
 
 ## Rules and invariants
 

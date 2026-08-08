@@ -15,21 +15,25 @@ type: UI component
   image, offered as the other side of a comparison; `onClose` closes the panel.
 
 Description:
-- A `DetailPanel` (own close control, "Explore layers…", "Browse filesystem…" and "Compare with…"
-  header actions) showing a `DefinitionList` of id, tags, digest, platform(s), size, created
-  timestamp, entrypoint, command and exposed ports, then collapsible `Environment`, `Labels` and
-  `History` sections, then the raw payload in a `CodeViewer` (REQ-40).
+- A `DetailPanel` (own close control, "Explore layers…", "Efficiency & signals…", "Browse
+  filesystem…" and "Compare with…" header actions) showing a `DefinitionList` of id, tags, digest,
+  platform(s), size, created timestamp, entrypoint, command and exposed ports, then collapsible
+  `Environment`, `Labels` and `History` sections, then the raw payload in a `CodeViewer` (REQ-40).
 Shows:
 - An `EmptyState` while loading or when no inspect data is available; an `ErrorBanner` with retry on
   failure.
 Actions:
 - "Explore layers…" → opens the `LayerExplorer` for this image (REQ-47).
+- "Efficiency & signals…" → opens the `LayerEfficiencyView` for this image (REQ-65, REQ-66, REQ-67).
 - "Browse filesystem…" → opens the `FilesystemBrowser` for this image (REQ-52).
 - "Compare with…" → opens the `ImageDiffView` with this image pre-picked as the first side (REQ-63);
   disabled when `images` holds fewer than two images (nothing to compare against).
 Navigation:
-- The layer explorer, the filesystem browser or the diff view opens over the panel and closes back
-  to it.
+- The layer explorer, the efficiency/signals view, the filesystem browser or the diff view opens over
+  the panel and closes back to it.
+- A finding selected in the efficiency/signals view closes it and opens the layer explorer already
+  selecting and analyzing the layer it concerns (REQ-65, REQ-67); the layer explorer, once the
+  efficiency/signals view has been analyzed at least once, marks every layer carrying a finding.
 
 ## Rules and invariants
 
@@ -40,7 +44,7 @@ Navigation:
 - ui-library: Button, DetailPanel, DefinitionList, CollapsibleSection, CodeViewer, SectionHeader,
   EmptyState, ErrorBanner, Stack
 - useImageInspect
-- LayerExplorer, FilesystemBrowser, ImageDiffView
+- LayerExplorer, LayerEfficiencyView, FilesystemBrowser, ImageDiffView
 
 ## Requirements served
 
@@ -48,3 +52,6 @@ Navigation:
 - plan-docker_management_app/REQ-47
 - plan-docker_management_app/REQ-52
 - plan-docker_management_app/REQ-63
+- plan-docker_management_app/REQ-65
+- plan-docker_management_app/REQ-66
+- plan-docker_management_app/REQ-67
