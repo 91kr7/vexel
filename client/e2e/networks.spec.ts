@@ -105,7 +105,9 @@ test('inspecting and removing a network asks for confirmation naming it, and app
     await expect(row).toBeVisible({ timeout: 15_000 });
 
     await row.locator('.ui-card-list__item').click();
-    const expanded = page.locator('.ui-card-list__expanded');
+    // The expanded region of this panel: the volumes panel next to it on the same
+    // screen expands its own rows in a region of the same kind.
+    const expanded = networksPanel(page).locator('.ui-card-list__expanded');
     await expect(expanded).toBeVisible();
     await expect(expanded.getByText('Driver', { exact: true })).toBeVisible();
 

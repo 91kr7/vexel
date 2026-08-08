@@ -72,13 +72,16 @@ test('killing a container asks for confirmation naming it, does nothing on cance
     // Exact match: the name cell's rename action is labelled with the container's
     // own name, which contains the action word in these fixtures.
     await row.getByRole('button', { name: 'kill', exact: true }).click();
-    await expect(page.getByRole('heading', { name: `Confirm: ${name}` })).toBeVisible();
-    await page.getByRole('button', { name: 'Cancel' }).click();
+    const confirmHeading = page.getByRole('heading', { name: `Confirm: ${name}` });
+    await expect(confirmHeading).toBeVisible();
+    // The dialog's own actions: the row behind it carries a "kill" of its own.
+    const confirmDialog = page.locator('.ui-modal').filter({ has: confirmHeading });
+    await confirmDialog.getByRole('button', { name: 'Cancel' }).click();
     await expect(row).toContainText('running');
 
     await row.getByRole('button', { name: 'kill', exact: true }).click();
-    await expect(page.getByRole('heading', { name: `Confirm: ${name}` })).toBeVisible();
-    await page.getByRole('button', { name: 'kill', exact: true }).last().click();
+    await expect(confirmHeading).toBeVisible();
+    await confirmDialog.getByRole('button', { name: 'kill', exact: true }).click();
 
     await expect(row).toContainText('exited', { timeout: 10_000 });
   } finally {
@@ -177,7 +180,9 @@ test.describe('Container detail panel (REQ-24, REQ-25, REQ-26)', () => {
       await detail.getByRole('tab', { name: 'Inspect' }).click();
       await expect(detail.getByText(/"Image":\s*"alpine:3.20"/)).toBeVisible();
 
-      await detail.getByRole('button', { name: 'Copy' }).last().click();
+      // The raw payload's own copy affordance: the Id and Image fields above it
+      // carry a "Copy" each.
+      await detail.locator('.ui-code-viewer').getByRole('button', { name: 'Copy' }).click();
       const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
       expect(clipboardText).toContain('"alpine:3.20"');
     } finally {

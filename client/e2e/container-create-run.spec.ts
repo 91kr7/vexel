@@ -30,6 +30,18 @@ function searchField(page: Page) {
   return page.getByPlaceholder('Search name, image or state…');
 }
 
+/** The create/run form sheet itself, so its actions are never confused with the screen's own. */
+function formSheet(page: Page) {
+  return page.locator('.ui-form-sheet');
+}
+
+// One titled group of fields inside the sheet. Scoping to it is required for the
+// key/value groups: "Environment" and "Labels" are two editors of the same kind in
+// the same sheet, and their rows are named "Key 1"/"Value 1" in both.
+function formSection(page: Page, title: string) {
+  return formSheet(page).locator('.ui-form-section', { has: page.getByRole('heading', { level: 3, name: title }) });
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: /Containers/ }).click();
@@ -46,8 +58,9 @@ test('running a container from the toolbar creates it with its configuration and
     await page.getByRole('textbox', { name: 'Entrypoint' }).fill('sleep');
     await page.getByRole('textbox', { name: 'Command' }).fill('300');
     await page.getByRole('button', { name: 'Add variable' }).click();
-    await page.getByRole('textbox', { name: 'Key 1' }).first().fill('VEXEL_E2E');
-    await page.getByRole('textbox', { name: 'Value 1' }).first().fill('on');
+    const environment = formSection(page, 'Environment');
+    await environment.getByRole('textbox', { name: 'Key 1' }).fill('VEXEL_E2E');
+    await environment.getByRole('textbox', { name: 'Value 1' }).fill('on');
     await page.getByRole('button', { name: 'Add port mapping' }).click();
     await page.getByRole('textbox', { name: 'Container port 1' }).fill('5432');
 
@@ -184,7 +197,7 @@ test('cancelling the form creates no container', async ({ page }) => {
   await imageField(page).fill('alpine:3.20');
   await page.getByRole('textbox', { name: 'Container name' }).fill(name);
 
-  await page.getByRole('button', { name: 'Cancel' }).click();
+  await formSheet(page).getByRole('button', { name: 'Cancel' }).click();
 
   await expect(imageField(page)).toHaveCount(0);
   const { stdout } = await execFileAsync('docker', ['ps', '-a', '--filter', `name=${name}`, '--format', '{{.Names}}']);

@@ -101,7 +101,9 @@ test('inspecting and removing a volume asks for confirmation naming it, and appl
     await expect(row).toBeVisible({ timeout: 15_000 });
 
     await row.click();
-    const expanded = page.locator('.ui-card-list__expanded');
+    // The expanded region of this panel: the networks panel next to it on the same
+    // screen expands its own rows in a region of the same kind.
+    const expanded = volumesPanel(page).locator('.ui-card-list__expanded');
     await expect(expanded).toBeVisible();
     await expect(expanded.getByText('Mountpoint', { exact: true })).toBeVisible();
 

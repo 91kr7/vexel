@@ -279,13 +279,17 @@ test('removing an image asks for confirmation, does nothing on cancel and remove
     await expect(row).toBeVisible({ timeout: 10_000 });
 
     await row.getByRole('button', { name: 'remove', exact: true }).click();
-    await expect(page.getByRole('heading', { name: `Confirm: ${tag}` })).toBeVisible();
-    await page.getByRole('button', { name: 'Cancel' }).click();
+    const confirmHeading = page.getByRole('heading', { name: `Confirm: ${tag}` });
+    await expect(confirmHeading).toBeVisible();
+    // The dialog's own actions: every row behind it carries a "remove" of its own,
+    // which accessible-name matching finds case-insensitively.
+    const confirmDialog = page.locator('.ui-modal').filter({ has: confirmHeading });
+    await confirmDialog.getByRole('button', { name: 'Cancel' }).click();
     await expect(imageRow(page, tag)).toBeVisible();
 
     await row.getByRole('button', { name: 'remove', exact: true }).click();
-    await expect(page.getByRole('heading', { name: `Confirm: ${tag}` })).toBeVisible();
-    await page.getByRole('button', { name: 'Remove' }).last().click();
+    await expect(confirmHeading).toBeVisible();
+    await confirmDialog.getByRole('button', { name: 'Remove' }).click();
 
     await expect(imageRow(page, tag)).toHaveCount(0, { timeout: 10_000 });
   } finally {
@@ -432,8 +436,9 @@ test('pulling an image by reference shows per-layer progress and the image appea
   await page.getByRole('button', { name: 'Pull image…' }).click();
   const dialogHeading = page.getByRole('heading', { name: 'Pull image' });
   await expect(dialogHeading).toBeVisible();
-  await page.getByRole('textbox', { name: 'Image reference' }).fill('hello-world:latest');
-  await page.getByRole('button', { name: 'Pull', exact: true }).click();
+  const dialog = page.locator('.ui-modal').filter({ has: dialogHeading });
+  await dialog.getByRole('textbox', { name: 'Image reference' }).fill('hello-world:latest');
+  await dialog.getByRole('button', { name: 'Pull', exact: true }).click();
 
   await expect(page.getByText(/Pending|In progress|Done/).first()).toBeVisible({ timeout: 15_000 });
   // images-screen.md: the pull dialog closes on its own once the transfer ends, and the list re-reads.

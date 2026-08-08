@@ -95,7 +95,9 @@ test('the Local storage card shows the analysis-cache size and clearing it disab
   await expect(page.getByText('Local storage')).toBeVisible();
   await expect(page.getByText('Analysis cache')).toBeVisible();
 
-  const clearButton = page.getByRole('button', { name: 'Clear' });
+  // The card's own action: "Clear" is a label the rest of the shell can repeat.
+  const localStorageCard = page.locator('.ui-surface', { has: page.locator('.ui-card__title', { hasText: 'Local storage' }) });
+  const clearButton = localStorageCard.getByRole('button', { name: 'Clear' });
   await expect(clearButton).toBeVisible();
 
   // The empty state is established here rather than assumed: any spec that

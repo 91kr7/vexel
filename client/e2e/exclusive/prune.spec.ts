@@ -35,6 +35,11 @@ function searchField(page: Page) {
   return page.getByPlaceholder('Search reference or digest…');
 }
 
+/** The screen's own content: the confirmation dialog renders outside the frame and repeats the toolbar's label on its confirm action. */
+function screenContent(page: Page) {
+  return page.locator('.ui-frame__content');
+}
+
 // plan-docker_management_app/REQ-22 — stopped containers are pruned in one bulk action, reporting the removed count and reclaimed space
 test('pruning stopped containers removes them from the list and reports the outcome', async ({ page }) => {
   const name = `vexel-e2e-prune-${Date.now()}`;
@@ -49,15 +54,17 @@ test('pruning stopped containers removes them from the list and reports the outc
     await row.getByRole('button', { name: 'stop', exact: true }).click();
     await expect(row).toContainText('exited', { timeout: 10_000 });
 
-    const pruneButton = page.getByRole('button', { name: 'Prune stopped' });
+    const pruneButton = screenContent(page).getByRole('button', { name: 'Prune stopped' });
     await expect(pruneButton).toBeEnabled();
     await pruneButton.click();
-    await expect(page.getByRole('heading', { name: /^Confirm:/ })).toBeVisible();
-    const confirmButtons = page.getByRole('button', { name: 'Prune stopped' });
-    await confirmButtons.last().click();
+    const confirmHeading = page.getByRole('heading', { name: /^Confirm:/ });
+    await expect(confirmHeading).toBeVisible();
+    // The dialog's own action: the toolbar behind it carries the same label.
+    const confirmDialog = page.locator('.ui-modal').filter({ has: confirmHeading });
+    await confirmDialog.getByRole('button', { name: 'Prune stopped' }).click();
 
     await expect(containerRow(page, name)).toHaveCount(0, { timeout: 10_000 });
-    await expect(page.getByText(/removed/i)).toBeVisible();
+    await expect(page.locator('.ui-toast-viewport')).toContainText(/removed/i, { timeout: 15_000 });
   } finally {
     await removeContainerQuietly(name);
   }
@@ -76,11 +83,13 @@ test('pruning dangling images removes them and reports the outcome', async ({ pa
     await page.getByRole('button', { name: /Images & layers/ }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible();
 
-    const pruneButton = page.getByRole('button', { name: 'Prune dangling' });
+    const pruneButton = screenContent(page).getByRole('button', { name: 'Prune dangling' });
     await expect(pruneButton).toBeEnabled({ timeout: 10_000 });
     await pruneButton.click();
-    await expect(page.getByRole('heading', { name: 'Confirm: dangling images' })).toBeVisible();
-    await page.getByRole('button', { name: 'Prune dangling' }).last().click();
+    const confirmHeading = page.getByRole('heading', { name: 'Confirm: dangling images' });
+    await expect(confirmHeading).toBeVisible();
+    // The dialog's own action: the toolbar behind it carries the same label.
+    await page.locator('.ui-modal').filter({ has: confirmHeading }).getByRole('button', { name: 'Prune dangling' }).click();
 
     await expect(page.locator('.ui-toast-viewport')).toContainText(/removed/i, { timeout: 15_000 });
     await searchField(page).fill(firstId.trim().slice(7, 19));
