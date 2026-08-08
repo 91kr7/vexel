@@ -4,15 +4,13 @@ import { VolumesPanel, type VolumesPanelProps } from './VolumesPanel';
 
 export interface VolumesNetworksScreenProps {
   volumes: VolumesPanelProps;
-  /** The Networks panel, dropped in by a later batch; the layout stays a single column until then. */
+  /** The Networks panel; the layout stays a single column when it is omitted. */
   networksPanel?: ReactNode;
 }
 
 /**
  * The Volumes & networks screen: two side-by-side panels, each owning its own
- * header and actions (REQ-70). Only the Volumes panel is implemented by this
- * batch; the Networks panel slots into the same layout once a later batch
- * supplies it.
+ * header and actions (REQ-70, REQ-72).
  */
 export function VolumesNetworksScreen({ volumes, networksPanel }: VolumesNetworksScreenProps) {
   return (
