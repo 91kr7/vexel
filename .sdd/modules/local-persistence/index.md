@@ -8,4 +8,4 @@
 | Persistence endpoints | REST endpoint | `server/src/persistence/persistence-routes.ts` | Preferences read/write and analysis-cache size/clear | `specs/persistence-endpoints.md` |
 | GET/POST /api/host-paths | REST endpoint | `server/src/host-fs/host-path-routes.ts` | Exposes HostPathValidator to the client for inline path-field feedback | `specs/host-path-endpoint.md` |
 | Preferences client | frontend data client | `client/src/data/preferences-client.ts` | Typed client for the preferences, analysis-cache and host-path-validation endpoints | `specs/preferences-client.md` |
-| usePreferences | frontend hook | `client/src/data/use-preferences.ts` | Loads persisted operator preferences once and keeps the server in sync on every update | `specs/use-preferences.md` |
+| usePreferences | frontend hook | `client/src/data/use-preferences.ts` | Loads persisted operator preferences once and keeps the server in sync on every update; an update issued before the initial read settles is deferred and flushed, never dropped | `specs/use-preferences.md` |
