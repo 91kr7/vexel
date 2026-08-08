@@ -12,7 +12,9 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 ## Contract
 
 - `listContainers(): Promise<ContainerSummary[]>` — every container regardless of state, via
-  `GET /containers/json?all=true`.
+  `GET /containers/json?all=true`, excluding any container carrying the image-analysis module's
+  `INTERNAL_CONTAINER_LABEL` (an intermediate filesystem-extraction container never appears here,
+  REQ-54).
   - `ContainerSummary`: `{ id, shortId, name, image, state, status, ports, cpuPercent?,
     memoryUsageBytes?, memoryLimitBytes? }`.
   - `state`: `'created' | 'running' | 'paused' | 'restarting' | 'removing' | 'exited' | 'dead'`.
@@ -78,6 +80,7 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 ## Dependencies
 
 - docker-access: EngineClient (via `getEngineClient()`), DockerDaemonError
+- image-analysis: `INTERNAL_CONTAINER_LABEL`
 
 ## Requirements served
 
@@ -88,3 +91,4 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 - plan-docker_management_app/REQ-24
 - plan-docker_management_app/REQ-25
 - plan-docker_management_app/REQ-26
+- plan-docker_management_app/REQ-54

@@ -1,0 +1,85 @@
+.ui-tree-view {
+  outline: none;
+}
+
+.ui-tree-view__body {
+  width: 100%;
+}
+
+.ui-tree-view__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-right: var(--space-4);
+  cursor: pointer;
+  border-bottom: var(--border-width-hairline) solid var(--color-border-subtle);
+}
+
+.ui-tree-view__row:hover {
+  background: var(--color-surface-2);
+}
+
+.ui-tree-view__row--selected {
+  background: var(--color-accent-tint);
+}
+
+.ui-tree-view__row--loading {
+  cursor: default;
+}
+
+.ui-tree-view__caret {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  flex: 0 0 auto;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.ui-tree-view__caret--expandable {
+  cursor: pointer;
+}
+
+.ui-tree-view__glyph {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+}
+
+.ui-tree-view__glyph--directory {
+  border-radius: 2px;
+  background: var(--color-accent);
+}
+
+.ui-tree-view__glyph--file {
+  border-radius: 1px;
+  background: var(--color-text-muted);
+}
+
+.ui-tree-view__glyph--symlink {
+  border-radius: var(--radius-full);
+  background: var(--color-warning);
+}
+
+.ui-tree-view__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+}
+
+.ui-tree-view__meta {
+  flex: 0 0 auto;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.ui-tree-view__empty {
+  padding: var(--space-6) var(--space-4);
+}

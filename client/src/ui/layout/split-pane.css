@@ -1,0 +1,18 @@
+.ui-split-pane {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-4);
+  min-height: 0;
+}
+
+.ui-split-pane__start {
+  flex: 0 0 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.ui-split-pane__end {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}

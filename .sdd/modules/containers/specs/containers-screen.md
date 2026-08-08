@@ -65,6 +65,12 @@ Actions:
 - A row's action buttons disable while that row's own action is in flight, so a second click cannot
   race the first.
 - "Prune stopped" is disabled when no container is currently stopped.
+- This screen deliberately carries no multi-select checkbox column or `BulkActionBar`: "Prune
+  stopped" acts on every stopped container at once, with no per-row selection to drive. REQ-3's
+  "same visual language" as the Images table (batch 31's remediation) means identical `DataTable`
+  row height, header style, column typography, hover and selected treatment — not an identical
+  column set between two screens listing different kinds of object; see `images-screen.md`'s own
+  note on its (Images-only) selection column.
 
 ## Dependencies
 

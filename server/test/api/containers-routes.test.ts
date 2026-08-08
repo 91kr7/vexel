@@ -6,6 +6,7 @@ import express, { type Express } from "express";
 import type { AddressInfo } from "node:net";
 import { containersRouter } from "../../src/containers/containers-routes.js";
 import { ownershipArgs } from "../support/fixtures.js";
+import { INTERNAL_CONTAINER_LABEL } from "../../src/image-analysis/filesystem-extraction-service.js";
 import type {
   ContainerConfigUpdateResult,
   ContainerInspect,
@@ -171,6 +172,41 @@ test("DELETE /api/containers/:id removes the container so it no longer appears i
     assert.ok(!containers.some((container) => container.id === id));
   } finally {
     await removeContainerQuietly(name);
+    await close();
+  }
+});
+
+// plan-docker_management_app/REQ-54 — an intermediate filesystem-extraction container is never
+// shown as a container anywhere in the application: excluded from the list, and therefore from the
+// count derived from it (app-shell/specs/shell.md — the Containers nav badge is the list's own length).
+test("GET /api/containers excludes an intermediate filesystem-extraction container from the list, and so from its count", async () => {
+  const ordinaryName = `vexel-test-int7-ordinary-${Date.now()}`;
+  const internalName = `vexel-test-int7-internal-${Date.now()}`;
+  const app = buildApp();
+  const { url, close } = await startApp(app);
+  const ordinaryId = await createSleepingContainer(ordinaryName);
+  const { stdout } = await execFileAsync("docker", [
+    "create",
+    "--name",
+    internalName,
+    ...ownershipArgs(internalName),
+    "--label",
+    `${INTERNAL_CONTAINER_LABEL}=true`,
+    "postgres:16",
+  ]);
+  const internalId = stdout.trim();
+  try {
+    const containers = await fetchList(url);
+
+    assert.ok(containers.some((container) => container.id === ordinaryId), "expected the ordinary container to still be listed");
+    assert.ok(!containers.some((container) => container.id === internalId), "expected the intermediate extraction container to be excluded from the list");
+    assert.ok(
+      !containers.some((container) => container.name === internalName),
+      "expected the intermediate extraction container to be excluded by name too",
+    );
+  } finally {
+    await removeContainerQuietly(ordinaryName);
+    await removeContainerQuietly(internalName);
     await close();
   }
 });
