@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { buildersRouter } from "../../src/builders/builders-routes.js";
-import type { BuildCacheRecord } from "../../src/builders/builders-service.js";
+import type { BuildCacheRecord } from "../../src/builders/build-cache-service.js";
 import { buildApp, startApp } from "../support/fixtures.js";
 import { ALPINE_IMAGE, ensureImages } from "../support/base-images.js";
 
@@ -92,10 +92,11 @@ async function buildWithBuilder(builderName: string): Promise<void> {
 test("POST /api/builders/cache/prune reclaims the active builder's reclaimable cache and reports the space reclaimed", async () => {
   const name = fixtureName("prune");
   const { url, close } = await startApp(buildApp("/api/builders", buildersRouter));
-  await createBuilderQuietly(name);
-  await buildWithBuilder(name);
-  const originalActive = await currentActiveBuilder();
+  let originalActive: string | undefined;
   try {
+    await createBuilderQuietly(name);
+    await buildWithBuilder(name);
+    originalActive = await currentActiveBuilder();
     const ownIds = await ownCacheRecordIds(name);
     assert.ok(ownIds.size > 0, "expected the fixture build to leave at least one cache record");
 

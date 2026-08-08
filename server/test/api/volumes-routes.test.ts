@@ -22,8 +22,8 @@ async function createNamedVolume(name: string, extraArgs: string[] = []): Promis
 test("GET /api/volumes lists an unattached volume with its name, driver and mountpoint, and marks it unattached", async () => {
   const name = `vexel-test-list-${Date.now()}`;
   const { url, close } = await startApp(buildApp("/api/volumes", volumesRouter));
-  await createNamedVolume(name);
   try {
+    await createNamedVolume(name);
     const volumes = await fetchList(url);
     const found = volumes.find((volume) => volume.name === name);
     assert.ok(found, "created volume not found in the list");
@@ -40,15 +40,16 @@ test("GET /api/volumes lists an unattached volume with its name, driver and moun
 test("GET /api/volumes reports the container mounting a volume as its mountedBy entry", async () => {
   const volumeName = `vexel-test-mounted-${Date.now()}`;
   const { url, close } = await startApp(buildApp("/api/volumes", volumesRouter));
-  await createNamedVolume(volumeName);
-  const { name: containerName } = await createSleepingContainer("volume-mounted-by", ["-v", `${volumeName}:/data`]);
+  let containerName: string | undefined;
   try {
+    await createNamedVolume(volumeName);
+    containerName = (await createSleepingContainer("volume-mounted-by", ["-v", `${volumeName}:/data`])).name;
     const volumes = await fetchList(url);
     const found = volumes.find((volume) => volume.name === volumeName);
     assert.ok(found, "mounted volume not found in the list");
     assert.deepEqual(found!.mountedBy, [containerName]);
   } finally {
-    await removeContainerQuietly(containerName);
+    if (containerName) await removeContainerQuietly(containerName);
     await removeVolumeQuietly(volumeName);
     await close();
   }
@@ -58,8 +59,8 @@ test("GET /api/volumes reports the container mounting a volume as its mountedBy 
 test("GET /api/volumes/:name/inspect returns the volume's full inspect data, raw payload included", async () => {
   const name = `vexel-test-inspect-${Date.now()}`;
   const { url, close } = await startApp(buildApp("/api/volumes", volumesRouter));
-  await createNamedVolume(name, ["--label", "team=vexel"]);
   try {
+    await createNamedVolume(name, ["--label", "team=vexel"]);
     const response = await fetch(`${url}/api/volumes/${name}/inspect`);
     assert.equal(response.status, 200);
     const inspect = (await response.json()) as VolumeInspect;
@@ -137,8 +138,8 @@ test("POST /api/volumes with no name lets the daemon generate one, and it is ref
 test("DELETE /api/volumes/:name removes the volume so it no longer appears in the list", async () => {
   const name = `vexel-test-remove-${Date.now()}`;
   const { url, close } = await startApp(buildApp("/api/volumes", volumesRouter));
-  await createNamedVolume(name);
   try {
+    await createNamedVolume(name);
     const response = await fetch(`${url}/api/volumes/${name}`, { method: "DELETE" });
     assert.equal(response.status, 204);
 

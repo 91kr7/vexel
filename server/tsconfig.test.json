@@ -1,0 +1,14 @@
+{
+  // Typecheck-only configuration for the test tree. `tsconfig.json` deliberately
+  // includes `src` alone, so the production build stays free of test files; that
+  // left `test/` unchecked altogether, since `tsx` strips types without checking
+  // them. This config closes that gap without touching the build: same strictness,
+  // no emit, and the test tree added to what is checked.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["src", "test"]
+}

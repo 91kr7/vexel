@@ -6,7 +6,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { buildersRouter } from "../../src/builders/builders-routes.js";
-import type { BuildCacheRecord, BuilderSummary } from "../../src/builders/builders-service.js";
+import type { BuilderSummary } from "../../src/builders/builders-service.js";
+import type { BuildCacheRecord } from "../../src/builders/build-cache-service.js";
 import { buildApp, startApp } from "../support/fixtures.js";
 import { ALPINE_IMAGE, ensureImages } from "../support/base-images.js";
 
@@ -76,8 +77,8 @@ async function buildWithBuilder(builderName: string): Promise<void> {
 test("GET /api/builders lists a created builder with its driver, platforms and endpoint, not marked active", async () => {
   const name = fixtureName("list");
   const { url, close } = await startApp(buildApp("/api/builders", buildersRouter));
-  await createBuilderQuietly(name, ["--platform", "linux/amd64,linux/arm64"]);
   try {
+    await createBuilderQuietly(name, ["--platform", "linux/amd64,linux/arm64"]);
     const builders = await fetchBuilders(url);
     const found = builders.find((builder) => builder.name === name);
     assert.ok(found, "created builder not found in the list");
@@ -97,9 +98,10 @@ test("GET /api/builders lists a created builder with its driver, platforms and e
 test("POST /api/builders/:name/use switches the active builder, restored afterwards", async () => {
   const name = fixtureName("use");
   const { url, close } = await startApp(buildApp("/api/builders", buildersRouter));
-  await createBuilderQuietly(name);
-  const originalActive = await currentActiveBuilder();
+  let originalActive: string | undefined;
   try {
+    await createBuilderQuietly(name);
+    originalActive = await currentActiveBuilder();
     const response = await fetch(`${url}/api/builders/${name}/use`, { method: "POST" });
     assert.equal(response.status, 200);
     const used = (await response.json()) as BuilderSummary;
@@ -162,8 +164,8 @@ test("POST /api/builders with a missing driver is rejected with 400, creating no
 test("POST /api/builders with a name colliding with an existing builder responds with the daemon's own rejection message", async () => {
   const name = fixtureName("dup");
   const { url, close } = await startApp(buildApp("/api/builders", buildersRouter));
-  await createBuilderQuietly(name);
   try {
+    await createBuilderQuietly(name);
     const response = await fetch(`${url}/api/builders`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -183,8 +185,8 @@ test("POST /api/builders with a name colliding with an existing builder responds
 test("a CLI-side failure on POST /api/builders defaults to 502 per the endpoint contract", async () => {
   const name = fixtureName("dup-status");
   const { url, close } = await startApp(buildApp("/api/builders", buildersRouter));
-  await createBuilderQuietly(name);
   try {
+    await createBuilderQuietly(name);
     const response = await fetch(`${url}/api/builders`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -201,8 +203,8 @@ test("a CLI-side failure on POST /api/builders defaults to 502 per the endpoint 
 test("DELETE /api/builders/:name removes the builder so it no longer appears in the list", async () => {
   const name = fixtureName("remove");
   const { url, close } = await startApp(buildApp("/api/builders", buildersRouter));
-  await createBuilderQuietly(name);
   try {
+    await createBuilderQuietly(name);
     const response = await fetch(`${url}/api/builders/${name}`, { method: "DELETE" });
     assert.equal(response.status, 204);
 
@@ -247,9 +249,10 @@ async function ownCacheRecordIds(builderName: string): Promise<Set<string>> {
 test("GET /api/builders/cache lists a build-cache record with its id, type, size and usage state", async () => {
   const name = fixtureName("cache-list");
   const { url, close } = await startApp(buildApp("/api/builders", buildersRouter));
-  await createBuilderQuietly(name);
-  const originalActive = await currentActiveBuilder();
+  let originalActive: string | undefined;
   try {
+    await createBuilderQuietly(name);
+    originalActive = await currentActiveBuilder();
     await fetch(`${url}/api/builders/${name}/use`, { method: "POST" });
     await buildWithBuilder(name);
     const ownIds = await ownCacheRecordIds(name);

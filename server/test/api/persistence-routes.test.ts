@@ -5,6 +5,7 @@ import type { AddressInfo } from "node:net";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { OperatorPreferences } from "../../src/persistence/persistence-routes.js";
 
 function startApp(app: Express): Promise<{ url: string; close: () => Promise<void> }> {
   return new Promise((resolve) => {
@@ -50,14 +51,14 @@ test("PUT /api/persistence/preferences merges a partial patch onto the stored pr
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ lastScreenId: "containers", logFollow: false }),
     });
-    assert.equal((await first.json()).lastScreenId, "containers");
+    assert.equal(((await first.json()) as OperatorPreferences).lastScreenId, "containers");
 
     const second = await fetch(`${url}/api/persistence/preferences`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ selectedContext: "staging" }),
     });
-    const merged = await second.json();
+    const merged = (await second.json()) as OperatorPreferences;
     assert.equal(merged.selectedContext, "staging");
     assert.equal(merged.lastScreenId, "containers");
     assert.equal(merged.logFollow, false);
@@ -69,12 +70,15 @@ test("PUT /api/persistence/preferences merges a partial patch onto the stored pr
 // plan-docker_management_app/REQ-115 — preferences written before a restart are still returned after
 test("preferences written before a simulated restart are returned by a freshly mounted router afterwards", async () => {
   const before = await startApp(mountedApp(persistenceRouter));
-  await fetch(`${before.url}/api/persistence/preferences`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ lastScreenId: "volumes-networks", logTimestamps: true }),
-  });
-  await before.close();
+  try {
+    await fetch(`${before.url}/api/persistence/preferences`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lastScreenId: "volumes-networks", logTimestamps: true }),
+    });
+  } finally {
+    await before.close();
+  }
 
   const { persistenceRouter: restartedRouter } = await import(
     `../../src/persistence/persistence-routes.js?restart=${Date.now()}`
@@ -82,7 +86,7 @@ test("preferences written before a simulated restart are returned by a freshly m
   const after = await startApp(mountedApp(restartedRouter));
   try {
     const response = await fetch(`${after.url}/api/persistence/preferences`);
-    const body = await response.json();
+    const body = (await response.json()) as OperatorPreferences;
     assert.equal(body.lastScreenId, "volumes-networks");
     assert.equal(body.logTimestamps, true);
   } finally {
@@ -96,13 +100,13 @@ test("GET and POST /api/persistence/analysis-cache expose the cache size and cle
   try {
     const usage = await fetch(`${url}/api/persistence/analysis-cache`);
     assert.equal(usage.status, 200);
-    assert.equal(typeof (await usage.json()).totalSizeBytes, "number");
+    assert.equal(typeof ((await usage.json()) as { totalSizeBytes: number }).totalSizeBytes, "number");
 
     const clearResponse = await fetch(`${url}/api/persistence/analysis-cache/clear`, { method: "POST" });
     assert.equal(clearResponse.status, 204);
 
     const afterClear = await fetch(`${url}/api/persistence/analysis-cache`);
-    assert.equal((await afterClear.json()).totalSizeBytes, 0);
+    assert.equal(((await afterClear.json()) as { totalSizeBytes: number }).totalSizeBytes, 0);
   } finally {
     await close();
   }

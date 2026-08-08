@@ -2,6 +2,7 @@ import { test, mock, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import type { BuildCacheRecord } from "../../src/builders/build-cache-service.js";
 import type { ImageLayerStack, LayerMetadata } from "../../src/image-analysis/layer-metadata-service.js";
+import type { ImageBuildCacheTrace } from "../../src/image-analysis/layer-build-cache-service.js";
 
 // The service reads the layer stack through LayerMetadataService and the cache
 // inventory through BuildCacheService: both are mocked, so the association and
@@ -71,7 +72,7 @@ beforeEach(() => {
  * present exactly when `cacheRecord` is absent", and the detail is the sentence
  * shown to the operator.
  */
-function assertReasonInvariant(trace: { layers: Array<Record<string, unknown>> }): void {
+function assertReasonInvariant(trace: ImageBuildCacheTrace): void {
   for (const link of trace.layers) {
     if (link.cacheRecord !== undefined) {
       assert.equal(link.unavailableReason, undefined, "a linked layer must carry no reason");
@@ -79,7 +80,7 @@ function assertReasonInvariant(trace: { layers: Array<Record<string, unknown>> }
     } else {
       assert.ok(typeof link.unavailableReason === "string" && link.unavailableReason.length > 0, "an unlinked layer must state its reason");
       assert.ok(
-        typeof link.unavailableDetail === "string" && (link.unavailableDetail as string).trim().length > 0,
+        typeof link.unavailableDetail === "string" && link.unavailableDetail.trim().length > 0,
         "an unlinked layer must carry an operator-facing sentence",
       );
     }

@@ -150,8 +150,8 @@ test("POST /api/containers attaches the container to the requested network", asy
   const network = `${name}-net`;
   const app = buildApp();
   const { url, close } = await startApp(app);
-  await execFileAsync("docker", ["network", "create", network]);
   try {
+    await execFileAsync("docker", ["network", "create", network]);
     const { events } = await create(url, {
       image: "alpine:3.20",
       name,
@@ -200,8 +200,8 @@ test("POST /api/containers pulls a missing image first, streaming its progress, 
   const name = `vexel-test-create-pull-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
-  await execFileAsync("docker", ["rmi", "-f", HELLO_WORLD_IMAGE]).catch(() => undefined);
   try {
+    await execFileAsync("docker", ["rmi", "-f", HELLO_WORLD_IMAGE]).catch(() => undefined);
     let events: CreateEvent[] = [];
     // The image must be absent for a pull to happen at all, so the registry is
     // genuinely part of this test. A hiccup crossing it is not a broken

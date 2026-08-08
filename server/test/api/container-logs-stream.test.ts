@@ -145,8 +145,8 @@ function linesOf(events: SseEvent[]): LogLinePayload[] {
 test("GET /api/containers/:id/logs/stream delivers the container's stdout and stderr as tagged line events, then ends", async () => {
   const name = `vexel-test-logs-both-${Date.now()}`;
   const { url, close } = await startApp();
-  const id = await createLoggingContainer(name, "echo out-line; echo err-line 1>&2; sleep 300");
   try {
+    const id = await createLoggingContainer(name, "echo out-line; echo err-line 1>&2; sleep 300");
     await waitForOutput(name, "err-line");
 
     const response = await fetch(`${url}/api/containers/${id}/logs/stream?follow=false`);
@@ -181,8 +181,8 @@ test("GET /api/containers/:id/logs/stream delivers the container's stdout and st
 test("GET /api/containers/:id/logs/stream with stderr=false delivers only the stdout output", async () => {
   const name = `vexel-test-logs-stdout-${Date.now()}`;
   const { url, close } = await startApp();
-  const id = await createLoggingContainer(name, "echo out-line; echo err-line 1>&2; sleep 300");
   try {
+    const id = await createLoggingContainer(name, "echo out-line; echo err-line 1>&2; sleep 300");
     await waitForOutput(name, "err-line");
 
     const response = await fetch(`${url}/api/containers/${id}/logs/stream?follow=false&stderr=false`);
@@ -201,8 +201,8 @@ test("GET /api/containers/:id/logs/stream with stderr=false delivers only the st
 test("GET /api/containers/:id/logs/stream with timestamps=true carries the instant separately from the text", async () => {
   const name = `vexel-test-logs-ts-${Date.now()}`;
   const { url, close } = await startApp();
-  const id = await createLoggingContainer(name, "echo timestamped-line; sleep 300");
   try {
+    const id = await createLoggingContainer(name, "echo timestamped-line; sleep 300");
     await waitForOutput(name, "timestamped-line");
 
     const withTimestamps = linesOf(
@@ -227,8 +227,8 @@ test("GET /api/containers/:id/logs/stream with timestamps=true carries the insta
 test("GET /api/containers/:id/logs/stream with tail=1 delivers only the last line", async () => {
   const name = `vexel-test-logs-tail-${Date.now()}`;
   const { url, close } = await startApp();
-  const id = await createLoggingContainer(name, "echo line-one; echo line-two; echo line-three; sleep 300");
   try {
+    const id = await createLoggingContainer(name, "echo line-one; echo line-two; echo line-three; sleep 300");
     await waitForOutput(name, "line-three");
 
     const response = await fetch(`${url}/api/containers/${id}/logs/stream?follow=false&tail=1`);
@@ -250,8 +250,8 @@ test("GET /api/containers/:id/logs/stream with tail=1 delivers only the last lin
 test("GET /api/containers/:id/logs/stream with a since bound drops the output printed before it", async () => {
   const name = `vexel-test-logs-since-${Date.now()}`;
   const { url, close } = await startApp();
-  const id = await createLoggingContainer(name, "echo early-line; sleep 3; echo late-line; sleep 300");
   try {
+    const id = await createLoggingContainer(name, "echo early-line; sleep 3; echo late-line; sleep 300");
     await waitForOutput(name, "late-line", 30_000);
     const boundary = await instantBetween(name, "early-line", "late-line");
 
@@ -280,8 +280,8 @@ test("GET /api/containers/:id/logs/stream with a since bound drops the output pr
 test("GET /api/containers/:id/logs/stream accepts a relative since bound", async () => {
   const name = `vexel-test-logs-since-relative-${Date.now()}`;
   const { url, close } = await startApp();
-  const id = await createLoggingContainer(name, "echo relative-line; sleep 300");
   try {
+    const id = await createLoggingContainer(name, "echo relative-line; sleep 300");
     await waitForOutput(name, "relative-line", 30_000);
 
     const response = await fetch(`${url}/api/containers/${id}/logs/stream?follow=false&since=1h`);
@@ -317,8 +317,8 @@ test("GET /api/containers/:id/logs/stream for an unknown container reports the d
 test("a client disconnecting from a followed stream leaves the endpoint serving further requests", async () => {
   const name = `vexel-test-logs-cancel-${Date.now()}`;
   const { url, close } = await startApp();
-  const id = await createLoggingContainer(name, "echo cancel-line; sleep 300");
   try {
+    const id = await createLoggingContainer(name, "echo cancel-line; sleep 300");
     await waitForOutput(name, "cancel-line");
 
     const controller = new AbortController();

@@ -77,8 +77,8 @@ test("GET /api/containers lists a running container with its name, short id, sta
   const name = `vexel-test-list-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
-  const id = await createSleepingContainer(name, ["-p", "0:5432"]);
   try {
+    const id = await createSleepingContainer(name, ["-p", "0:5432"]);
     const containers = await fetchList(url);
     const found = containers.find((container) => container.name === name);
     assert.ok(found, "created container not found in the list");
@@ -98,8 +98,8 @@ test("POST /api/containers/:id/stop stops a running container and the list refle
   const name = `vexel-test-stop-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
-  const id = await createSleepingContainer(name);
   try {
+    const id = await createSleepingContainer(name);
     const response = await fetch(`${url}/api/containers/${id}/stop`, { method: "POST" });
     assert.equal(response.status, 204);
     const containers = await fetchList(url);
@@ -115,8 +115,8 @@ test("POST pause and unpause toggle a running container's reported state", async
   const name = `vexel-test-pause-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
-  const id = await createSleepingContainer(name);
   try {
+    const id = await createSleepingContainer(name);
     const pauseResponse = await fetch(`${url}/api/containers/${id}/pause`, { method: "POST" });
     assert.equal(pauseResponse.status, 204);
     let containers = await fetchList(url);
@@ -137,8 +137,8 @@ test("POST /api/containers/:id/kill kills a running container and the list refle
   const name = `vexel-test-kill-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
-  const id = await createSleepingContainer(name);
   try {
+    const id = await createSleepingContainer(name);
     const response = await fetch(`${url}/api/containers/${id}/kill`, { method: "POST" });
     assert.equal(response.status, 204);
     const containers = await fetchList(url);
@@ -154,8 +154,8 @@ test("POST /api/containers/:id/restart restarts a running container", async () =
   const name = `vexel-test-restart-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
-  const id = await createSleepingContainer(name);
   try {
+    const id = await createSleepingContainer(name);
     const response = await fetch(`${url}/api/containers/${id}/restart`, { method: "POST" });
     assert.equal(response.status, 204);
     const containers = await fetchList(url);
@@ -171,8 +171,8 @@ test("DELETE /api/containers/:id removes the container so it no longer appears i
   const name = `vexel-test-remove-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
-  const id = await createSleepingContainer(name);
   try {
+    const id = await createSleepingContainer(name);
     const response = await fetch(`${url}/api/containers/${id}`, { method: "DELETE" });
     assert.equal(response.status, 204);
     const containers = await fetchList(url);
@@ -191,18 +191,18 @@ test("GET /api/containers excludes an intermediate filesystem-extraction contain
   const internalName = `vexel-test-int7-internal-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
-  const ordinaryId = await createSleepingContainer(ordinaryName);
-  const { stdout } = await execFileAsync("docker", [
-    "create",
-    "--name",
-    internalName,
-    ...ownershipArgs(internalName),
-    "--label",
-    `${INTERNAL_CONTAINER_LABEL}=true`,
-    "alpine:3.20",
-  ]);
-  const internalId = stdout.trim();
   try {
+    const ordinaryId = await createSleepingContainer(ordinaryName);
+    const { stdout } = await execFileAsync("docker", [
+      "create",
+      "--name",
+      internalName,
+      ...ownershipArgs(internalName),
+      "--label",
+      `${INTERNAL_CONTAINER_LABEL}=true`,
+      "alpine:3.20",
+    ]);
+    const internalId = stdout.trim();
     const containers = await fetchList(url);
 
     assert.ok(containers.some((container) => container.id === ordinaryId), "expected the ordinary container to still be listed");
@@ -238,8 +238,8 @@ test("POST /api/containers/:id/rename renames the container", async () => {
   const newName = `${originalName}-renamed`;
   const app = buildApp();
   const { url, close } = await startApp(app);
-  const id = await createSleepingContainer(originalName);
   try {
+    const id = await createSleepingContainer(originalName);
     const response = await fetch(`${url}/api/containers/${id}/rename`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -261,8 +261,8 @@ test("POST /api/containers/:id/rename rejects a blank name with 400 and leaves t
   const name = `vexel-test-rename-blank-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
-  const id = await createSleepingContainer(name);
   try {
+    const id = await createSleepingContainer(name);
     const response = await fetch(`${url}/api/containers/${id}/rename`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -286,21 +286,21 @@ test("GET /api/containers/:id/inspect returns the full configuration of a contai
   const name = `vexel-test-inspect-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
-  const id = await createSleepingContainer(name, [
-    "-p",
-    "0:5432",
-    "-e",
-    "FOO=bar",
-    "--label",
-    "team=vexel",
-    "--restart",
-    "on-failure:3",
-    "--cpus",
-    "0.5",
-    "--memory",
-    "128m",
-  ]);
   try {
+    const id = await createSleepingContainer(name, [
+      "-p",
+      "0:5432",
+      "-e",
+      "FOO=bar",
+      "--label",
+      "team=vexel",
+      "--restart",
+      "on-failure:3",
+      "--cpus",
+      "0.5",
+      "--memory",
+      "128m",
+    ]);
     const response = await fetch(`${url}/api/containers/${id}/inspect`);
     assert.equal(response.status, 200);
     const inspect = (await response.json()) as ContainerInspect;
@@ -341,8 +341,8 @@ test("GET /api/containers/:id/inspect carries the raw payload exactly as receive
   const name = `vexel-test-inspect-raw-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
-  const id = await createSleepingContainer(name);
   try {
+    const id = await createSleepingContainer(name);
     const response = await fetch(`${url}/api/containers/${id}/inspect`);
     const inspect = (await response.json()) as ContainerInspect;
     const raw = inspect.raw as { Id: string; Name: string; Config: { Image: string } };
@@ -364,8 +364,8 @@ test("PATCH /api/containers/:id/config applies a restart-policy-only change in p
   const name = `vexel-test-config-inplace-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
-  const id = await createSleepingContainer(name);
   try {
+    const id = await createSleepingContainer(name);
     const response = await fetch(`${url}/api/containers/${id}/config`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
@@ -391,8 +391,8 @@ test("PATCH /api/containers/:id/config recreates the container for an environmen
   const volumeName = `vexel-test-config-recreate-vol-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
-  const id = await createSleepingContainer(name, ["-v", `${volumeName}:/data`]);
   try {
+    const id = await createSleepingContainer(name, ["-v", `${volumeName}:/data`]);
     const response = await fetch(`${url}/api/containers/${id}/config`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },

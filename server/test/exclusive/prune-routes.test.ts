@@ -36,8 +36,11 @@ async function fetchImages(url: string): Promise<ImageSummary[]> {
 // plan-docker_management_app/REQ-22 — stopped containers are pruned in bulk, reporting the removed count and reclaimed space.
 test("POST /api/containers/prune removes stopped containers and reports the removed count and reclaimed space", async () => {
   const { url, close } = await startApp(buildApp("/api/containers", containersRouter));
-  const { id, name } = await createSleepingContainer("prune");
+  let name: string | undefined;
   try {
+    const created = await createSleepingContainer("prune");
+    name = created.name;
+    const { id } = created;
     const stopResponse = await fetch(`${url}/api/containers/${id}/stop`, { method: "POST" });
     assert.equal(stopResponse.status, 204);
 
@@ -50,7 +53,7 @@ test("POST /api/containers/prune removes stopped containers and reports the remo
     const containers = await fetchContainers(url);
     assert.ok(!containers.some((container) => container.id === id));
   } finally {
-    await removeContainerQuietly(name);
+    if (name) await removeContainerQuietly(name);
     await close();
   }
 });
@@ -60,11 +63,11 @@ test("POST /api/images/prune removes dangling images and reports the reclaimed s
   const { url, close } = await startApp(buildApp("/api/images", imagesRouter));
   const containerName = `vexel-test-prune-src-${Date.now()}`;
   const danglingTag = `vexel-test-prune-dangling-${Date.now()}:v1`;
-  await execFileAsync("docker", ["create", "--name", containerName, "hello-world"]);
-  const { stdout: firstId } = await execFileAsync("docker", ["commit", "--change", "LABEL step=1", containerName, danglingTag]);
-  await new Promise((resolve) => setTimeout(resolve, 1100)); // ensure a different image config timestamp
-  await execFileAsync("docker", ["commit", "--change", "LABEL step=2", containerName, danglingTag]);
   try {
+    await execFileAsync("docker", ["create", "--name", containerName, "hello-world"]);
+    const { stdout: firstId } = await execFileAsync("docker", ["commit", "--change", "LABEL step=1", containerName, danglingTag]);
+    await new Promise((resolve) => setTimeout(resolve, 1100)); // ensure a different image config timestamp
+    await execFileAsync("docker", ["commit", "--change", "LABEL step=2", containerName, danglingTag]);
     const beforeImages = await fetchImages(url);
     assert.ok(
       beforeImages.some((image) => image.id === firstId.trim() && image.tags.length === 0),

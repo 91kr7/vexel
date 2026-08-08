@@ -27,8 +27,8 @@ async function fetchList(url: string): Promise<VolumeSummary[]> {
 test("POST /api/volumes/prune removes an unused named volume and reports it among the removed names", async () => {
   const name = `vexel-test-prune-${Date.now()}`;
   const { url, close } = await startApp(buildApp("/api/volumes", volumesRouter));
-  await createNamedVolume(name);
   try {
+    await createNamedVolume(name);
     const response = await fetch(`${url}/api/volumes/prune`, { method: "POST" });
     assert.equal(response.status, 200);
     const body = (await response.json()) as VolumePruneResult;

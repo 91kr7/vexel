@@ -133,7 +133,7 @@ test("getNetworkInspect reads attached container names from its own Containers m
 
 // networks-endpoints.md — an unknown id/name propagates the daemon's own rejection
 test("getNetworkInspect propagates the daemon's own rejection for an unknown id", async () => {
-  requestFailure = new DockerDaemonError("NoSuchNetwork", "network does-not-exist not found", 404);
+  requestFailure = new DockerDaemonError("DaemonRejected", "network does-not-exist not found", undefined, 404);
 
   await assert.rejects(() => getNetworkInspect("does-not-exist"), /not found/);
 });

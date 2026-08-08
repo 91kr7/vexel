@@ -348,11 +348,12 @@ test("the cached extraction is still reused by a completely fresh process afterw
 test("GET /:id/filesystem/stream merges content across layers, never starts the container, and never touches the source image", async () => {
   const app = buildApp();
   const { url, close } = await startApp(app);
-  const digestBefore = await dockerInspect("{{.Id}}", MERGE_TAG);
-  const tagsBefore = await dockerInspect("{{json .RepoTags}}", MERGE_TAG);
-  const watcher = captureInternalContainerEvents();
-  await watcher.ready();
+  let watcher: ReturnType<typeof captureInternalContainerEvents> | undefined;
   try {
+    const digestBefore = await dockerInspect("{{.Id}}", MERGE_TAG);
+    const tagsBefore = await dockerInspect("{{json .RepoTags}}", MERGE_TAG);
+    watcher = captureInternalContainerEvents();
+    await watcher.ready();
     const response = await fetch(`${url}/api/images/${encodeURIComponent(mergeImageId)}/filesystem/stream?force=true`);
     const events = await readSseUntilDone(response);
     const resultEvent = events.find((event) => event.event === "result");
@@ -378,6 +379,10 @@ test("GET /:id/filesystem/stream merges content across layers, never starts the 
     assert.equal(digestAfter, digestBefore, "the source image's digest must be unchanged");
     assert.equal(tagsAfter, tagsBefore, "the source image's tags must be unchanged");
   } finally {
+    // The `docker events` subscription is a child process this test started: stopping it here
+    // (idempotent — the assertions above already stop it on the nominal path) means a failure in
+    // between cannot leave it running.
+    await watcher?.stop();
     await close();
   }
 });

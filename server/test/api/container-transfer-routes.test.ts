@@ -53,9 +53,10 @@ async function removeImageQuietly(reference: string): Promise<void> {
 // plan-docker_management_app/REQ-43 — a container's filesystem can be exported to a tarball downloaded through the browser, and an image can be imported from that tarball under a chosen reference
 test("GET /api/containers/:id/export streams a tarball that POST /api/containers/import re-imports as a new image", async () => {
   const { url, close } = await startApp();
-  const id = await createFilesystemFixtureContainer("export-import");
   const targetReference = `vexel-test-import-${Date.now()}:v1`;
+  let id: string | undefined;
   try {
+    id = await createFilesystemFixtureContainer("export-import");
     const exportResponse = await fetch(`${url}/api/containers/${id}/export`);
     assert.equal(exportResponse.status, 200);
     assert.equal(exportResponse.headers.get("content-type"), "application/x-tar");
@@ -79,7 +80,7 @@ test("GET /api/containers/:id/export streams a tarball that POST /api/containers
     assert.ok(stdout.trim().length > 0, "the imported reference should resolve to a real image");
   } finally {
     await removeImageQuietly(targetReference);
-    await removeContainerQuietly(id);
+    if (id) await removeContainerQuietly(id);
     await close();
   }
 });
@@ -87,15 +88,16 @@ test("GET /api/containers/:id/export streams a tarball that POST /api/containers
 // container-transfer-endpoint.md — a custom ?filename= hint is honoured, sanitized the same way as the images module's own save
 test("GET /api/containers/:id/export honours a custom filename hint via the ?filename= query parameter", async () => {
   const { url, close } = await startApp();
-  const id = await createFilesystemFixtureContainer("export-filename");
+  let id: string | undefined;
   try {
+    id = await createFilesystemFixtureContainer("export-filename");
     const response = await fetch(`${url}/api/containers/${id}/export?${new URLSearchParams({ filename: "custom name.tar" }).toString()}`);
     assert.equal(response.headers.get("content-disposition"), 'attachment; filename="custom_name.tar"');
     // Drains the response so the connection actually ends: an unread body keeps the socket open and
     // server.close() below would otherwise wait forever for it (it does not force-close connections).
     await response.arrayBuffer();
   } finally {
-    await removeContainerQuietly(id);
+    if (id) await removeContainerQuietly(id);
     await close();
   }
 });

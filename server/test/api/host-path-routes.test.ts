@@ -6,6 +6,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { hostPathsRouter } from "../../src/host-fs/host-path-routes.js";
+import type { HostPathValidationResult } from "../../src/host-fs/host-path-validator.js";
 
 function startApp(app: Express): Promise<{ url: string; close: () => Promise<void> }> {
   return new Promise((resolve) => {
@@ -38,7 +39,7 @@ test("POST /api/host-paths/validate accepts an existing absolute path", async ()
       body: JSON.stringify({ path: existingDir, kind: "directory" }),
     });
     assert.equal(response.status, 200);
-    const body = await response.json();
+    const body = (await response.json()) as HostPathValidationResult;
     assert.equal(body.valid, true);
     assert.equal(body.kind, "directory");
   } finally {
@@ -56,7 +57,7 @@ test("POST /api/host-paths/validate reports a refusal as a 200 response with a r
       body: JSON.stringify({ path: "relative/path" }),
     });
     assert.equal(response.status, 200);
-    const body = await response.json();
+    const body = (await response.json()) as HostPathValidationResult;
     assert.equal(body.valid, false);
     assert.ok(typeof body.reason === "string" && body.reason.length > 0);
   } finally {

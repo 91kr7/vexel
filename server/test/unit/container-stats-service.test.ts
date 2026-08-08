@@ -237,7 +237,7 @@ test("falls back to the current time when the frame carries no usable reading ti
 test("opens the daemon's streaming stats for the container", async () => {
   await start();
 
-  const path = requestedPaths.findLast((candidate) => candidate.includes("/stats")) ?? "";
+  const path = [...requestedPaths].reverse().find((candidate) => candidate.includes("/stats")) ?? "";
   assert.match(path, /\/containers\/container-1\/stats/);
   assert.match(path, /stream=(1|true)/);
 });

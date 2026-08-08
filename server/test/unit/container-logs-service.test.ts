@@ -69,7 +69,7 @@ async function start(options: ContainerLogOptions = {}): Promise<{
       collected.ends += 1;
     },
   });
-  const logPath = requestedPaths.findLast((path) => path.includes("/logs")) ?? "";
+  const logPath = [...requestedPaths].reverse().find((path) => path.includes("/logs")) ?? "";
   return { cancel, stream: currentStream!, collected, logQuery: logPath.slice(logPath.indexOf("?") + 1) };
 }
 

@@ -6,7 +6,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { composeRouter } from "../../src/compose/compose-routes.js";
-import type { ComposeFileReadResult, ComposeFileWriteResult, ComposeProjectSummary, ComposeValidationResult } from "../../src/compose/compose-discovery-service.js";
+import type { ComposeProjectSummary } from "../../src/compose/compose-discovery-service.js";
+import type { ComposeFileReadResult, ComposeFileWriteResult, ComposeValidationResult } from "../../src/compose/compose-file-service.js";
 import { buildApp, startApp } from "../support/fixtures.js";
 import { ALPINE_IMAGE, ensureImages } from "../support/base-images.js";
 
@@ -366,8 +367,8 @@ test("POST /api/compose/projects/:name/files writes the new content back to the 
 test("POST /api/compose/projects/:name/files refuses to write outside the project's own discovered files", async () => {
   const fixture = await writeComposeFixture("write-foreign", `services:\n${serviceBlock("web", "write-foreign")}\n`);
   const { url, close } = await startApp(buildApp("/api/compose", composeRouter));
-  const foreignPath = join(fixture.dir, "not-a-project-file.yml");
   try {
+    const foreignPath = join(fixture.dir, "not-a-project-file.yml");
     await bringUp(fixture.name, [fixture.filePath]);
     await writeFile(foreignPath, "services: {}\n", "utf8");
 

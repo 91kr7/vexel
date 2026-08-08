@@ -1,7 +1,7 @@
 import { test, mock, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
-import { PassThrough } from "node:stream";
+import { PassThrough, type Readable } from "node:stream";
 import express, { type Express } from "express";
 import type { AddressInfo } from "node:net";
 
@@ -15,7 +15,7 @@ import type { AddressInfo } from "node:net";
 // depending on a real daemon's timing.
 interface RecordedStreamRequest {
   path: string;
-  body?: NodeJS.ReadableStream;
+  body?: Readable;
 }
 let streamRequests: RecordedStreamRequest[] = [];
 let currentResponse: PassThrough | undefined;
@@ -23,7 +23,7 @@ let currentResponse: PassThrough | undefined;
 mock.module(new URL("../../src/connectivity/connection-status-service.ts", import.meta.url).href, {
   namedExports: {
     getEngineClient: () => ({
-      requestStream: async (path: string, options: { body?: NodeJS.ReadableStream } = {}) => {
+      requestStream: async (path: string, options: { body?: Readable } = {}) => {
         streamRequests.push({ path, body: options.body });
         currentResponse = new PassThrough();
         return currentResponse;

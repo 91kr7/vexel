@@ -85,8 +85,8 @@ test("GET /api/images lists a local image with its tags, size and creation age",
   const tag = `vexel-test-list-${Date.now()}:v1`;
   const app = buildApp();
   const { url, close } = await startApp(app);
-  await execFileAsync("docker", ["tag", "alpine:3.20", tag]);
   try {
+    await execFileAsync("docker", ["tag", "alpine:3.20", tag]);
     const images = await fetchList(url);
     const found = images.find((image) => image.tags.includes(tag));
     assert.ok(found, "tagged image not found in the list");
@@ -111,20 +111,20 @@ test("GET /api/images/:id/inspect returns the image's full inspect data", async 
   // image the pull tests deliberately remove — the one below and the one in
   // container-create-routes, which runs in a parallel process — so its presence
   // has to be re-established immediately before it is needed.
-  await ensureImage(HELLO_WORLD_IMAGE);
-  await execFileAsync("docker", ["create", "--name", containerName, HELLO_WORLD_IMAGE]);
-  await execFileAsync("docker", [
-    "commit",
-    "--change",
-    "LABEL team=vexel",
-    "--change",
-    "EXPOSE 9999/tcp",
-    "--change",
-    "ENV FOO=bar",
-    containerName,
-    tag,
-  ]);
   try {
+    await ensureImage(HELLO_WORLD_IMAGE);
+    await execFileAsync("docker", ["create", "--name", containerName, HELLO_WORLD_IMAGE]);
+    await execFileAsync("docker", [
+      "commit",
+      "--change",
+      "LABEL team=vexel",
+      "--change",
+      "EXPOSE 9999/tcp",
+      "--change",
+      "ENV FOO=bar",
+      containerName,
+      tag,
+    ]);
     const response = await fetch(`${url}/api/images/${tag}/inspect`);
     assert.equal(response.status, 200);
     const inspect = (await response.json()) as ImageInspect;
@@ -177,12 +177,12 @@ test("GET /api/images/:id/inspect with an unknown id responds with the daemon's 
 test("GET /api/images/pull/stream streams per-layer progress and ends once the pull completes", async () => {
   const app = buildApp();
   const { url, close } = await startApp(app);
-  // The image has to be absent for this to be a pull at all, so it cannot be
-  // ensured beforehand: what this test contracts is exactly the fetch from the
-  // registry. The network it crosses is therefore part of the run, and the
-  // attempt is repeated once if it gives way — see the loop below.
-  await removeTagQuietly(HELLO_WORLD_IMAGE);
   try {
+    // The image has to be absent for this to be a pull at all, so it cannot be
+    // ensured beforehand: what this test contracts is exactly the fetch from the
+    // registry. The network it crosses is therefore part of the run, and the
+    // attempt is repeated once if it gives way — see the loop below.
+    await removeTagQuietly(HELLO_WORLD_IMAGE);
     let events: SseEvent[] = [];
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       const response = await fetch(`${url}/api/images/pull/stream?reference=${HELLO_WORLD_IMAGE}`);
@@ -228,8 +228,8 @@ test("POST /api/images/:id/tag adds a new reference, reflected in the list", asy
   const newTag = `vexel-test-tagged-${Date.now()}:v1`;
   const app = buildApp();
   const { url, close } = await startApp(app);
-  await execFileAsync("docker", ["tag", "alpine:3.20", sourceTag]);
   try {
+    await execFileAsync("docker", ["tag", "alpine:3.20", sourceTag]);
     const response = await fetch(`${url}/api/images/${sourceTag}/tag`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -269,9 +269,9 @@ test("DELETE /api/images/untag removes just that tag reference, leaving the imag
   const removedTag = `vexel-test-untag-remove-${Date.now()}:v1`;
   const app = buildApp();
   const { url, close } = await startApp(app);
-  await execFileAsync("docker", ["tag", "alpine:3.20", keptTag]);
-  await execFileAsync("docker", ["tag", "alpine:3.20", removedTag]);
   try {
+    await execFileAsync("docker", ["tag", "alpine:3.20", keptTag]);
+    await execFileAsync("docker", ["tag", "alpine:3.20", removedTag]);
     const response = await fetch(`${url}/api/images/untag?reference=${encodeURIComponent(removedTag)}`, { method: "DELETE" });
     assert.equal(response.status, 204);
 
@@ -304,8 +304,8 @@ test("DELETE /api/images/:id force-removes the image so it no longer appears in 
   const tag = `vexel-test-remove-${Date.now()}:v1`;
   const app = buildApp();
   const { url, close } = await startApp(app);
-  await execFileAsync("docker", ["tag", "alpine:3.20", tag]);
   try {
+    await execFileAsync("docker", ["tag", "alpine:3.20", tag]);
     const response = await fetch(`${url}/api/images/${tag}`, { method: "DELETE" });
     assert.equal(response.status, 204);
     const images = await fetchList(url);

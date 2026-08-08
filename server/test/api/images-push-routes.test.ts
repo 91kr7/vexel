@@ -111,9 +111,9 @@ test("GET /api/images/:id/push/stream pushes an image to a registry and ends onc
   const { url, close } = await startApp(app);
   const repository = `vexel-test-push-${Date.now()}`;
   const reference = `localhost:${TEST_REGISTRY_PORT}/${repository}:v1`;
-  await execFileAsync("docker", ["tag", "alpine:3.20", reference]);
-  const { stdout: imageId } = await execFileAsync("docker", ["inspect", reference, "--format", "{{.Id}}"]);
   try {
+    await execFileAsync("docker", ["tag", "alpine:3.20", reference]);
+    const { stdout: imageId } = await execFileAsync("docker", ["inspect", reference, "--format", "{{.Id}}"]);
     const response = await fetch(`${url}/api/images/${encodeURIComponent(imageId.trim())}/push/stream?reference=${encodeURIComponent(reference)}`);
     assert.equal(response.headers.get("content-type"), "text/event-stream");
     const events = await readSseUntilDone(response, 60_000);
@@ -138,9 +138,9 @@ test("GET /api/images/:id/push/stream reports the daemon's rejection as an error
   const app = buildApp();
   const { url, close } = await startApp(app);
   const reference = `localhost:1/nonexistent-registry-${Date.now()}:v1`;
-  await execFileAsync("docker", ["tag", "alpine:3.20", reference]);
-  const { stdout: imageId } = await execFileAsync("docker", ["inspect", reference, "--format", "{{.Id}}"]);
   try {
+    await execFileAsync("docker", ["tag", "alpine:3.20", reference]);
+    const { stdout: imageId } = await execFileAsync("docker", ["inspect", reference, "--format", "{{.Id}}"]);
     const response = await fetch(`${url}/api/images/${encodeURIComponent(imageId.trim())}/push/stream?reference=${encodeURIComponent(reference)}`);
     // An unreachable host is a dial timeout on the daemon's side (~30s), not a fast rejection.
     const events = await readSseUntilDone(response, 45_000);

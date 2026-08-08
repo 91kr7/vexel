@@ -27,8 +27,8 @@ async function fetchList(url: string): Promise<NetworkSummary[]> {
 test("POST /api/networks/prune removes an unused network and reports it among the removed names", async () => {
   const name = `vexel-test-prune-${Date.now()}`;
   const { url, close } = await startApp(buildApp("/api/networks", networksRouter));
-  await createUnusedNetwork(name);
   try {
+    await createUnusedNetwork(name);
     const response = await fetch(`${url}/api/networks/prune`, { method: "POST" });
     assert.equal(response.status, 200);
     const body = (await response.json()) as { removedNames: string[] };

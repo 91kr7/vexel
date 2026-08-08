@@ -83,7 +83,13 @@ Run from the repository root (npm workspaces):
 - Server dev (watch mode): `npm run dev:server` (equivalent to `npm run dev -w server`)
 - Build both: `npm run build` (`tsc -b && vite build` for client, `tsc -p tsconfig.json` for server)
 - Lint client: `npm run lint` (`oxlint`, low-verbosity by default)
-- Server tests: `npm run test -w server` — chains the three passes below, in this order:
+- Server tests: `npm run test -w server` — chains the four passes below, in this order:
+  - `npm run test:typecheck -w server` — typechecks the test tree (`tsc -p tsconfig.test.json`,
+    `noEmit`, same strictness as the build). `tsconfig.json` includes `src` alone so the production
+    build stays free of test files, and `tsx` strips types without checking them: without this pass
+    a test file could drift from the modules it imports — a wrong import path, a renamed export, a
+    stale response shape — and nothing would say so, since the tests still run. Runs first, before
+    any daemon work, so that kind of drift fails in seconds.
   - `npm run test:unit -w server` — pure unit tests, no daemon involved
   - `npm run test:api -w server` — REST-level tests against the real daemon, files in parallel;
     every fixture it creates carries the `vexel.test.run` ownership label
@@ -125,6 +131,12 @@ Run from the repository root (npm workspaces):
 - The rules every test follows — clean up what you create, assume nothing about the daemon's
   contents, inherit nothing from another test — are stated in `CLAUDE.md` ("Tests — non-negotiable
   rule"), alongside the reasons each of them exists.
+- In a daemon-backed test, everything that can throw belongs **inside the `try` whose `finally`
+  tears down** the HTTP server and the fixtures. Setup left between `await startApp(...)` and the
+  `try` is the trap: when it fails, the `finally` never runs, the Express server keeps listening and
+  the file never exits — a missing image surfaces as a ten-minute hang instead of a failed
+  assertion. Only provably non-throwing statements (a name built from a template literal, a `let`
+  declaration, `new AbortController()`) may sit there.
 - Server production start (after build): `npm start -w server` (`node dist/index.js`)
 
 ## Assumptions

@@ -28,8 +28,8 @@ async function fetchList(url: string): Promise<NetworkSummary[]> {
 test("GET /api/networks lists a network with its driver, scope, subnet and gateway", async () => {
   const name = `vexel-test-list-${Date.now()}`;
   const { url, close } = await startApp(buildApp("/api/networks", networksRouter));
-  await createTestNetwork(name, ["--subnet", "10.199.10.0/24", "--gateway", "10.199.10.1"]);
   try {
+    await createTestNetwork(name, ["--subnet", "10.199.10.0/24", "--gateway", "10.199.10.1"]);
     const networks = await fetchList(url);
     const found = networks.find((network) => network.name === name);
     assert.ok(found, "created network not found in the list");
@@ -47,15 +47,16 @@ test("GET /api/networks lists a network with its driver, scope, subnet and gatew
 test("GET /api/networks reports the container attached to a network by name", async () => {
   const networkName = `vexel-test-attached-${Date.now()}`;
   const { url, close } = await startApp(buildApp("/api/networks", networksRouter));
-  await createTestNetwork(networkName);
-  const { name: containerName } = await createSleepingContainer("network-attached", ["--network", networkName]);
+  let containerName: string | undefined;
   try {
+    await createTestNetwork(networkName);
+    containerName = (await createSleepingContainer("network-attached", ["--network", networkName])).name;
     const networks = await fetchList(url);
     const found = networks.find((network) => network.name === networkName);
     assert.ok(found, "attached network not found in the list");
     assert.deepEqual(found!.attachedContainers, [containerName]);
   } finally {
-    await removeContainerQuietly(containerName);
+    if (containerName) await removeContainerQuietly(containerName);
     await removeNetworkQuietly(networkName);
     await close();
   }
@@ -65,8 +66,8 @@ test("GET /api/networks reports the container attached to a network by name", as
 test("GET /api/networks/:id/inspect returns the network's full inspect data, raw payload included", async () => {
   const name = `vexel-test-inspect-${Date.now()}`;
   const { url, close } = await startApp(buildApp("/api/networks", networksRouter));
-  await createTestNetwork(name, ["--driver", "bridge", "--subnet", "10.199.11.0/24", "--label", "team=vexel"]);
   try {
+    await createTestNetwork(name, ["--driver", "bridge", "--subnet", "10.199.11.0/24", "--label", "team=vexel"]);
     const response = await fetch(`${url}/api/networks/${name}/inspect`);
     assert.equal(response.status, 200);
     const inspect = (await response.json()) as NetworkInspect;
@@ -150,8 +151,8 @@ test("POST /api/networks with a blank name responds 400 without creating a netwo
 test("DELETE /api/networks/:id removes the network so it no longer appears in the list", async () => {
   const name = `vexel-test-remove-${Date.now()}`;
   const { url, close } = await startApp(buildApp("/api/networks", networksRouter));
-  await createTestNetwork(name);
   try {
+    await createTestNetwork(name);
     const response = await fetch(`${url}/api/networks/${name}`, { method: "DELETE" });
     assert.equal(response.status, 204);
 
@@ -168,9 +169,10 @@ test("DELETE /api/networks/:id removes the network so it no longer appears in th
 test("POST /api/networks/:id/attach attaches a container, reflected in the network's attachment list", async () => {
   const networkName = `vexel-test-attach-${Date.now()}`;
   const { url, close } = await startApp(buildApp("/api/networks", networksRouter));
-  await createTestNetwork(networkName);
-  const { name: containerName } = await createSleepingContainer("attach-target");
+  let containerName: string | undefined;
   try {
+    await createTestNetwork(networkName);
+    containerName = (await createSleepingContainer("attach-target")).name;
     const response = await fetch(`${url}/api/networks/${networkName}/attach`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -184,7 +186,7 @@ test("POST /api/networks/:id/attach attaches a container, reflected in the netwo
     const found = networks.find((network) => network.name === networkName);
     assert.deepEqual(found!.attachedContainers, [containerName]);
   } finally {
-    await removeContainerQuietly(containerName);
+    if (containerName) await removeContainerQuietly(containerName);
     await removeNetworkQuietly(networkName);
     await close();
   }
@@ -194,8 +196,8 @@ test("POST /api/networks/:id/attach attaches a container, reflected in the netwo
 test("POST /api/networks/:id/attach with a blank containerId responds 400", async () => {
   const networkName = `vexel-test-attach-invalid-${Date.now()}`;
   const { url, close } = await startApp(buildApp("/api/networks", networksRouter));
-  await createTestNetwork(networkName);
   try {
+    await createTestNetwork(networkName);
     const response = await fetch(`${url}/api/networks/${networkName}/attach`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -213,9 +215,10 @@ test("POST /api/networks/:id/attach with a blank containerId responds 400", asyn
 test("POST /api/networks/:id/detach detaches a container, removing it from the network's attachment list", async () => {
   const networkName = `vexel-test-detach-${Date.now()}`;
   const { url, close } = await startApp(buildApp("/api/networks", networksRouter));
-  await createTestNetwork(networkName);
-  const { name: containerName } = await createSleepingContainer("detach-target", ["--network", networkName]);
+  let containerName: string | undefined;
   try {
+    await createTestNetwork(networkName);
+    containerName = (await createSleepingContainer("detach-target", ["--network", networkName])).name;
     const response = await fetch(`${url}/api/networks/${networkName}/detach`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -229,7 +232,7 @@ test("POST /api/networks/:id/detach detaches a container, removing it from the n
     const found = networks.find((network) => network.name === networkName);
     assert.deepEqual(found!.attachedContainers, []);
   } finally {
-    await removeContainerQuietly(containerName);
+    if (containerName) await removeContainerQuietly(containerName);
     await removeNetworkQuietly(networkName);
     await close();
   }
@@ -239,8 +242,8 @@ test("POST /api/networks/:id/detach detaches a container, removing it from the n
 test("POST /api/networks/:id/detach with a blank containerId responds 400", async () => {
   const networkName = `vexel-test-detach-invalid-${Date.now()}`;
   const { url, close } = await startApp(buildApp("/api/networks", networksRouter));
-  await createTestNetwork(networkName);
   try {
+    await createTestNetwork(networkName);
     const response = await fetch(`${url}/api/networks/${networkName}/detach`, {
       method: "POST",
       headers: { "content-type": "application/json" },

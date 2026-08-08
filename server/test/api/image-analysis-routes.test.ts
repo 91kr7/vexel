@@ -22,6 +22,9 @@ await ensureImages([ALPINE_IMAGE, REGISTRY_IMAGE]);
 
 const execFileAsync = promisify(execFile);
 
+/** A layer as the endpoint returns it: the service's metadata plus the images sharing it. */
+type SharedLayer = LayerMetadata & { sharedWith: { id: string; tags: string[] }[] };
+
 function startApp(app: Express): Promise<{ url: string; close: () => Promise<void> }> {
   return new Promise((resolve) => {
     const server = app.listen(0, () => {
@@ -205,11 +208,11 @@ test("GET /api/images/:id/layers marks an inherited layer as shared with the loc
     const registryImageId = stdout.trim();
 
     const response = await fetch(`${url}/api/images/${encodeURIComponent(RUN_TAG)}/layers`);
-    const body = (await response.json()) as ImageLayerStack;
+    // image-analysis-endpoints.md — the route answers the layer stack with each layer
+    // augmented by `sharedWith`, a field the service-level `ImageLayerStack` does not carry.
+    const body = (await response.json()) as { layers: SharedLayer[] };
 
-    const sharedLayer = body.layers.find((layer: LayerMetadata & { sharedWith: { id: string; tags: string[] }[] }) =>
-      layer.sharedWith.some((sharer) => sharer.id === registryImageId),
-    );
+    const sharedLayer = body.layers.find((layer) => layer.sharedWith.some((sharer) => sharer.id === registryImageId));
     assert.ok(sharedLayer, "expected at least one layer to be marked as shared with registry:2");
   } finally {
     await close();
@@ -236,9 +239,9 @@ test("GET /api/images/:id/layers with an unknown id responds with the daemon's o
 test("GET /api/images/:id/changesets/stream cleans up its temporary directory when the client disconnects mid-analysis", async () => {
   const app = buildApp();
   const { url, close } = await startApp(app);
-  const before_ = new Set(readdirSync(tmpdir()).filter((name) => name.startsWith("vexel-layer-analysis-")));
   const controller = new AbortController();
   try {
+    const before_ = new Set(readdirSync(tmpdir()).filter((name) => name.startsWith("vexel-layer-analysis-")));
     const responsePromise = fetch(`${url}/api/images/${encodeURIComponent(RUN_TAG)}/changesets/stream`, { signal: controller.signal }).catch(
       () => undefined,
     );

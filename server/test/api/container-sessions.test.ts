@@ -141,8 +141,8 @@ async function waitUntil(predicate: () => boolean | Promise<boolean>, timeoutMs 
 test("WS /api/containers/:id/exec — keystrokes reach the process and its output is delivered", async () => {
   const name = `vexel-test-exec-basic-${Date.now()}`;
   const { open, close } = await startApp();
-  const id = await createIdleContainer(name);
   try {
+    const id = await createIdleContainer(name);
     const session = await open(`/api/containers/${id}/exec?cmd=/bin/sh`);
 
     session.sendInput("echo hello-from-exec\n");
@@ -159,8 +159,8 @@ test("WS /api/containers/:id/exec — keystrokes reach the process and its outpu
 test("WS /api/containers/:id/exec — runs the chosen command in the chosen working directory", async () => {
   const name = `vexel-test-exec-workdir-${Date.now()}`;
   const { open, close } = await startApp();
-  const id = await createIdleContainer(name);
   try {
+    const id = await createIdleContainer(name);
     const session = await open(`/api/containers/${id}/exec?cmd=pwd&workdir=%2Ftmp`);
 
     await waitUntil(() => session.text().includes("/tmp"), 15_000, "expected pwd to report the chosen working directory");
@@ -176,8 +176,8 @@ test("WS /api/containers/:id/exec — runs the chosen command in the chosen work
 test("WS /api/containers/:id/exec — runs the chosen command as the chosen user", async () => {
   const name = `vexel-test-exec-user-${Date.now()}`;
   const { open, close } = await startApp();
-  const id = await createIdleContainer(name);
   try {
+    const id = await createIdleContainer(name);
     const session = await open(`/api/containers/${id}/exec?cmd=whoami&user=nobody`);
 
     await waitUntil(() => session.text().includes("nobody"), 15_000, "expected whoami to report the chosen user");
@@ -193,8 +193,8 @@ test("WS /api/containers/:id/exec — runs the chosen command as the chosen user
 test("WS /api/containers/:id/exec — a resize control message reflows the session's terminal size", async () => {
   const name = `vexel-test-exec-resize-${Date.now()}`;
   const { open, close } = await startApp();
-  const id = await createIdleContainer(name);
   try {
+    const id = await createIdleContainer(name);
     const session = await open(`/api/containers/${id}/exec?cmd=/bin/sh`);
     await delay(300); // lets the shell finish starting before it is resized
 
@@ -215,8 +215,8 @@ test("WS /api/containers/:id/exec — a resize control message reflows the sessi
 test("WS /api/containers/:id/exec — reports the process's exit code and then closes", async () => {
   const name = `vexel-test-exec-exit-${Date.now()}`;
   const { open, close } = await startApp();
-  const id = await createIdleContainer(name);
   try {
+    const id = await createIdleContainer(name);
     const session = await open(`/api/containers/${id}/exec?cmd=/bin/sh`);
     // Waits for the shell's own prompt so this test asserts the exit contract
     // alone, independently of when the session starts accepting input.
@@ -255,8 +255,8 @@ test("WS /api/containers/:id/exec — an unknown container reports an error cont
 test("WS /api/containers/:id/exec — closing the client's socket ends the exec'd process on the daemon", async () => {
   const name = `vexel-test-exec-cleanup-${Date.now()}`;
   const { open, close } = await startApp();
-  const id = await createIdleContainer(name);
   try {
+    const id = await createIdleContainer(name);
     const baseline = await processCount(id);
     const session = await open(`/api/containers/${id}/exec?cmd=/bin/sh`);
     await waitUntil(async () => (await processCount(id)) > baseline, 10_000, "expected the exec'd shell to appear in the container");
@@ -278,8 +278,8 @@ test("WS /api/containers/:id/exec — closing the client's socket ends the exec'
 test("WS /api/containers/:id/attach — relays the running container's own stdio", async () => {
   const name = `vexel-test-attach-basic-${Date.now()}`;
   const { open, close } = await startApp();
-  const id = await createTickingContainer(name);
   try {
+    const id = await createTickingContainer(name);
     const session = await open(`/api/containers/${id}/attach`);
 
     await waitUntil(() => /tick-\d+/.test(session.text()), 15_000, "expected the container's own output over the attach session");
@@ -295,8 +295,8 @@ test("WS /api/containers/:id/attach — relays the running container's own stdio
 test("WS /api/containers/:id/attach — detaching leaves the container running", async () => {
   const name = `vexel-test-attach-detach-${Date.now()}`;
   const { open, close } = await startApp();
-  const id = await createTickingContainer(name);
   try {
+    const id = await createTickingContainer(name);
     const session = await open(`/api/containers/${id}/attach`);
     await waitUntil(() => /tick-\d+/.test(session.text()), 15_000, "expected the container's own output before detaching");
 

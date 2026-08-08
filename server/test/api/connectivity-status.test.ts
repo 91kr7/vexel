@@ -55,8 +55,8 @@ test("GET /api/connectivity/status names the unavailable capabilities when no CL
   app.use("/api/connectivity", connectivityRouter);
   const { url, close } = await startApp(app);
   const originalPath = process.env.PATH;
-  process.env.PATH = "";
   try {
+    process.env.PATH = "";
     const response = await fetch(`${url}/api/connectivity/status`);
     const body = (await response.json()) as ConnectionStatus;
     assert.equal(body.cli.docker.available, false);
