@@ -4,8 +4,8 @@ import './data-table.css';
 
 export interface CardListRowContent {
   title: string;
-  /** Rendered in monospace, muted. */
-  subtitle?: string;
+  /** Rendered in monospace, muted; several lines stack one per string. */
+  subtitle?: string | string[];
   /** Trailing badge group. */
   badges?: ReactNode;
   /** Trailing meta values (e.g. size, age). */
@@ -48,7 +48,11 @@ export function CardList<T>({ items, itemKey, renderRow, selectedKey, onSelect, 
             >
               <div className="ui-card-list__heading">
                 <span className="ui-card-list__title">{row.title}</span>
-                {row.subtitle ? <span className="ui-card-list__subtitle">{row.subtitle}</span> : null}
+                {subtitleLines(row.subtitle).map((line, index) => (
+                  <span key={index} className="ui-card-list__subtitle">
+                    {line}
+                  </span>
+                ))}
               </div>
               <div className="ui-card-list__trailing">
                 {row.badges ? <div className="ui-card-list__badges">{row.badges}</div> : null}
@@ -61,4 +65,9 @@ export function CardList<T>({ items, itemKey, renderRow, selectedKey, onSelect, 
       })}
     </div>
   );
+}
+
+function subtitleLines(subtitle: string | string[] | undefined): string[] {
+  if (!subtitle) return [];
+  return Array.isArray(subtitle) ? subtitle : [subtitle];
 }

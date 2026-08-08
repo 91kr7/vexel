@@ -11,6 +11,7 @@ import { sweepAbandonedExtractionContainers } from "./image-analysis/filesystem-
 import { imagesRouter } from "./images/images-routes.js";
 import { reclaimOrphans } from "./persistence/analysis-cache-store.js";
 import { persistenceRouter } from "./persistence/persistence-routes.js";
+import { volumesRouter } from "./volumes/volumes-routes.js";
 
 const app = express();
 const port = process.env.PORT ?? 3000;
@@ -25,6 +26,7 @@ app.use("/api/connectivity", connectivityRouter);
 app.use("/api/containers", containersRouter);
 app.use("/api/images", imagesRouter);
 app.use("/api/images", imageAnalysisRouter);
+app.use("/api/volumes", volumesRouter);
 app.use("/api/events", eventsRouter);
 app.use("/api/persistence", persistenceRouter);
 app.use("/api/host-paths", hostPathsRouter);

@@ -17,7 +17,8 @@ inside the same card.
   emptyState? />`
   - `items: T[]`, `itemKey(item): string`.
   - `renderRow(item): { title, subtitle?, badges?, meta? }` — `title` bold; `subtitle` monospace,
-    muted; `badges` and `meta` render trailing, on the same row.
+    muted, one string or several (each rendered on its own line, in order); `badges` and `meta`
+    render trailing, on the same row.
   - `selectedKey?: string`, `onSelect?(item)` — clicking a row's header calls `onSelect`; the row
     whose key matches `selectedKey` renders in its selected state.
   - `expandedKey?: string`, `renderExpanded?(item)` — when an item's key matches `expandedKey`,
@@ -39,3 +40,4 @@ inside the same card.
 
 - plan-docker_management_app/REQ-37
 - plan-docker_management_app/REQ-41
+- plan-docker_management_app/REQ-70
