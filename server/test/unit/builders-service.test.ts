@@ -42,6 +42,7 @@ mock.module(new URL("../../src/docker/cli-runner.ts", import.meta.url).href, {
 });
 
 const { listBuilders, createBuilder, removeBuilder, useBuilder } = await import("../../src/builders/builders-service.js");
+const { DockerDaemonError } = await import("../../src/docker/errors.js");
 
 beforeEach(() => {
   calls.length = 0;
@@ -100,6 +101,35 @@ test("listBuilders rejects rather than silently misreading genuinely malformed o
   handler = (args) => (args[1] === "ls" ? { stdout: "not json at all", exitCode: 0 } : { stdout: "[]", exitCode: 0 });
 
   await assert.rejects(() => listBuilders());
+});
+
+// builders-service.md — "A non-zero exit ... rejects with a DockerDaemonError (docker-access, code
+// DaemonRejected) carrying the daemon's own message, so the REST layer maps it to 502"
+test("listBuilders rejects with a DaemonRejected DockerDaemonError when the CLI exits non-zero", async () => {
+  handler = () => ({ stdout: "", stderr: "Cannot connect to the Docker daemon", exitCode: 1 });
+
+  await assert.rejects(
+    () => listBuilders(),
+    (error: unknown) => {
+      assert.ok(error instanceof DockerDaemonError, "expected a DockerDaemonError");
+      assert.equal(error.code, "DaemonRejected");
+      assert.match(error.message, /Cannot connect to the Docker daemon/);
+      return true;
+    },
+  );
+});
+
+test("createBuilder rejects with a DaemonRejected DockerDaemonError when the CLI exits non-zero", async () => {
+  handler = (args) => (args[1] === "create" ? { stdout: "", stderr: "invalid driver", exitCode: 1 } : { stdout: "[]", exitCode: 0 });
+
+  await assert.rejects(
+    () => createBuilder({ name: "bad", driver: "nope", platforms: [] }),
+    (error: unknown) => {
+      assert.ok(error instanceof DockerDaemonError, "expected a DockerDaemonError");
+      assert.equal(error.code, "DaemonRejected");
+      return true;
+    },
+  );
 });
 
 // builders-service.md — "platforms is the union of every node's platforms; endpoint is the first

@@ -220,11 +220,23 @@ test("DELETE /api/builders/:name for an unknown name responds with the daemon's 
   }
 });
 
+/** The fixture builder's own build-cache record ids, queried directly and scoped with `--builder` — the one way to attribute a cache record to a specific builder. */
+async function ownCacheRecordIds(builderName: string): Promise<Set<string>> {
+  const { stdout } = await execFileAsync("docker", ["buildx", "du", "--builder", builderName, "--format", "json"]);
+  const lines = stdout
+    .trim()
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "");
+  return new Set(lines.map((line) => (JSON.parse(line) as { ID: string }).ID));
+}
+
 // plan-docker_management_app/REQ-91 — the build cache is listed record by record with id, type,
-// size and usage state. Read-only (no prune involved): whichever builder ends up "active" (see the
-// defect recorded against the "use" test above, the selection is not always the fixture builder
-// this test switches to), its own build cache is what this asserts the *shape* of — never its
-// totals — so the test stays honest even when that selection does not stick.
+// size and usage state. Read-only (no prune involved). The assertion is on this test's own
+// fixture: the builder it created is made active, a build is run on it, and the records that
+// build left behind — identified by their own ids, read straight from buildx — must appear in
+// the endpoint's answer, each carrying the four contracted fields. Never a total, never a count
+// of the host's cache.
 test("GET /api/builders/cache lists a build-cache record with its id, type, size and usage state", async () => {
   const name = fixtureName("cache-list");
   const { url, close } = await startApp(buildApp("/api/builders", buildersRouter));
@@ -233,15 +245,29 @@ test("GET /api/builders/cache lists a build-cache record with its id, type, size
   try {
     await fetch(`${url}/api/builders/${name}/use`, { method: "POST" });
     await buildWithBuilder(name);
+    const ownIds = await ownCacheRecordIds(name);
+    assert.ok(ownIds.size > 0, "expected the fixture build to leave at least one cache record");
 
     const records = await fetchCache(url);
-    assert.ok(records.length > 0, "expected at least one build-cache record for the currently active builder");
-    for (const record of records) {
+    const own = records.filter((record) => ownIds.has(record.id));
+    assert.ok(own.length > 0, "expected the fixture builder's own cache records in the endpoint's answer");
+    for (const record of own) {
       assert.ok(record.id.length > 0);
       assert.ok(record.type.length > 0);
       assert.ok(typeof record.sizeBytes === "number" && record.sizeBytes >= 0);
       assert.ok(["shared", "in-use", "reclaimable"].includes(record.usageState));
     }
+
+    // plan-docker_management_app/REQ-88 — a builder is listed with its cache size; now that this
+    // builder is running and has built something, its own cache size must be readable (and
+    // therefore present, per builders-service.md, which only omits it when it cannot be read).
+    const builders = await fetchBuilders(url);
+    const fixtureBuilder = builders.find((builder) => builder.name === name);
+    assert.ok(fixtureBuilder, "created builder not found in the list");
+    assert.ok(
+      typeof fixtureBuilder!.cacheBytes === "number" && fixtureBuilder!.cacheBytes > 0,
+      `expected a readable cache size for the fixture builder, got ${String(fixtureBuilder!.cacheBytes)}`,
+    );
   } finally {
     if (originalActive) await useBuilderQuietly(originalActive);
     await removeBuilderQuietly(name);

@@ -17,17 +17,13 @@ const RUN_ID = `${process.pid}-${Date.now()}`;
 // exactly like the container/image/volume/network prune tests in this same
 // folder. It lives apart and runs alone. See batch-test-isolation.md, INT-4.
 //
-// It carries one extra hazard the other prune tests do not: selecting the
-// active builder through this app is exactly the operation the "POST
-// /api/builders/:name/use switches the active builder" test (server/test/api/
-// builders-routes.test.ts) found unreliable on this host — a later CLI
-// invocation can see a *different* builder as active than the one just
-// selected. Pruning under that mismatch would reclaim the wrong builder's
-// cache, possibly the operator's own. This test therefore verifies, before
-// ever calling prune, that the record it is about to reclaim is genuinely the
-// fixture builder's own (queried directly with `--builder`, bypassing the
-// unreliable selection) — and skips the prune step rather than risk it
-// otherwise.
+// It carries one extra hazard the other prune tests do not: what gets reclaimed
+// depends on which builder is active. The test therefore creates a builder of
+// its own, makes it active through the app, and checks — before ever calling
+// prune — that every record the app is about to reclaim is genuinely that
+// builder's own (its ids read straight from `buildx du --builder <name>`). That
+// check is an assertion, not a skip: if the app's own select-active did not
+// take effect, that is a defect to surface, and no prune is issued.
 
 function fixtureName(caseName: string): string {
   return `vexel-test-builder-${caseName}-${RUN_ID}`;
@@ -86,7 +82,7 @@ async function buildWithBuilder(builderName: string): Promise<void> {
 }
 
 // plan-docker_management_app/REQ-91 — the build cache can be pruned, reporting the space reclaimed
-test("POST /api/builders/cache/prune reclaims the active builder's reclaimable cache and reports the space reclaimed", async (t) => {
+test("POST /api/builders/cache/prune reclaims the active builder's reclaimable cache and reports the space reclaimed", async () => {
   const name = fixtureName("prune");
   const { url, close } = await startApp(buildApp("/api/builders", buildersRouter));
   await createBuilderQuietly(name);
@@ -98,15 +94,11 @@ test("POST /api/builders/cache/prune reclaims the active builder's reclaimable c
 
     await fetch(`${url}/api/builders/${name}/use`, { method: "POST" });
     const beforePrune = await fetchCache(url);
-    const belongsToFixture = beforePrune.length > 0 && beforePrune.every((record) => ownIds.has(record.id));
-    if (!belongsToFixture) {
-      // The active-builder selection did not stick (see the defect recorded
-      // against the "use" test): what /api/builders/cache would reclaim is
-      // not verifiably the fixture's own cache. Skip rather than risk
-      // pruning a builder this test does not own.
-      t.skip("active-builder selection through the app is not reliably reflected by GET /api/builders/cache on this host; see reported defect");
-      return;
-    }
+    assert.ok(beforePrune.length > 0, "expected the app to see the fixture builder's cache once it is the active one");
+    assert.ok(
+      beforePrune.every((record) => ownIds.has(record.id)),
+      "the app's cache inventory holds records that are not the fixture builder's own: the select-active did not take effect, so pruning would reclaim another builder's cache",
+    );
 
     const response = await fetch(`${url}/api/builders/cache/prune`, { method: "POST" });
     assert.equal(response.status, 200);

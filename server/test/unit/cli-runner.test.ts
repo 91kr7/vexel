@@ -53,6 +53,49 @@ test("runCliCommand.cancel() interrupts the process instead of waiting for it to
   assert.ok(elapsedMs < 4000, `expected cancellation to interrupt the process well before its 5s duration, took ${elapsedMs}ms`);
 });
 
+/** What the spawned child actually sees as `DOCKER_HOST`, `<unset>` when it has none: the child's own environment is the only place the rule below is observable. */
+async function childDockerHost(endpoint: DockerEndpoint): Promise<string> {
+  const handle = runCliCommand("sh", ["-c", "printf %s \"${DOCKER_HOST-<unset>}\""], endpoint);
+  let stdout = "";
+  handle.onStdout((chunk) => {
+    stdout += chunk;
+  });
+  await handle.done;
+  return stdout.trim();
+}
+
+// docker-access/specs/cli-runner.md — "When the operator has explicitly set DOCKER_HOST ...
+// DOCKER_HOST is forced from endpoint on the child's environment, so the run targets that endpoint
+// regardless of what the server process itself inherited"
+test("runCliCommand forces DOCKER_HOST from the endpoint when the operator has set one", async () => {
+  const original = process.env.DOCKER_HOST;
+  process.env.DOCKER_HOST = "tcp://192.0.2.1:2375";
+  try {
+    const seen = await childDockerHost({ kind: "unix", socketPath: "/var/run/vexel-test.sock" });
+
+    assert.notEqual(seen, "tcp://192.0.2.1:2375");
+    assert.match(seen, /\/var\/run\/vexel-test\.sock$/);
+  } finally {
+    if (original === undefined) delete process.env.DOCKER_HOST;
+    else process.env.DOCKER_HOST = original;
+  }
+});
+
+// docker-access/specs/cli-runner.md — "Otherwise: the child inherits the server's own environment
+// unchanged, with no DOCKER_HOST override — the same environment a bare terminal invocation on the
+// same machine would have" (buildx keys its current-builder file by that context identity)
+test("runCliCommand leaves DOCKER_HOST unset when the operator has set none", async () => {
+  const original = process.env.DOCKER_HOST;
+  delete process.env.DOCKER_HOST;
+  try {
+    const seen = await childDockerHost(localEndpoint);
+
+    assert.equal(seen, "<unset>");
+  } finally {
+    if (original !== undefined) process.env.DOCKER_HOST = original;
+  }
+});
+
 // docker-access/specs/cli-runner.md — onSpawnError fires with the underlying message when the
 // binary itself cannot be spawned, instead of the process crashing on an unhandled 'error' event
 test("runCliCommand.onSpawnError fires with the underlying message when the binary is missing, without crashing", async () => {

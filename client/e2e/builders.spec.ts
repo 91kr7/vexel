@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
+import { openApp } from './support/fixtures.js';
 
 const execFileAsync = promisify(execFile);
 const RUN_ID = `${process.pid}-${Date.now()}`;
@@ -48,9 +49,10 @@ function screenContent(page: Page) {
   return page.locator('.ui-frame__content');
 }
 
+// The last active screen survives by design (REQ-115), so the screen this suite
+// needs is pinned rather than inherited from whichever spec ran before.
 test.beforeEach(async ({ page }) => {
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Builders & cache' }).click();
+  await openApp(page, 'builders-cache');
   await expect(page.getByRole('heading', { level: 1, name: 'Builders & cache' })).toBeVisible();
 });
 
@@ -149,15 +151,23 @@ test('lists a build-cache record with its type, size and usage state', async ({ 
     await writeFile(join(dir, 'Dockerfile'), 'FROM alpine:3.20\nRUN echo vexel-e2e-cache-marker > /tmp/marker\n', 'utf8');
     await execFileAsync('docker', ['buildx', 'build', '--builder', name, dir]);
 
-    await page.reload();
+    await openApp(page, 'builders-cache');
     const row = builderRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
     await row.getByRole('button', { name: 'use' }).click();
+    await expect(row.getByText('in use', { exact: true })).toBeVisible({ timeout: 15_000 });
+
+    // plan-docker_management_app/REQ-88 — now that this builder is running and has built
+    // something, its row carries its status and its own cache size.
+    await expect(row).toContainText('running', { timeout: 15_000 });
+    await expect(row).toContainText(/\d+(\.\d+)?\s*(B|kB|KB|KiB|MB|MiB|GB|GiB)/, { timeout: 15_000 });
 
     const cacheCard = screenContent(page).locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Build cache' }) });
     const cacheRows = cacheCard.locator('.ui-card-list__item');
     await expect.poll(() => cacheRows.count(), { timeout: 15_000 }).toBeGreaterThan(0);
     await expect(cacheRows.first()).toHaveText(/shared|in use|reclaimable/);
+    // REQ-91 — each record carries its own size and type alongside that usage state.
+    await expect(cacheRows.first()).toHaveText(/\d+(\.\d+)?\s*(B|kB|KB|KiB|MB|MiB|GB|GiB)/);
   } finally {
     if (originalActive) await useBuilderQuietly(originalActive);
     await removeBuilderQuietly(name);

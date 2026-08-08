@@ -27,6 +27,12 @@ function volumeRow(page: Page, name: string) {
   return page.locator('.ui-card-list__item', { hasText: name });
 }
 
+// The volumes panel only. Its actions must be scoped to it: the networks panel next
+// to it on the same screen carries a "Create" button of its own.
+function volumesPanel(page: Page) {
+  return page.locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Volumes' }) });
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: /Volumes & networks/ }).click();
@@ -71,7 +77,7 @@ test('shows the mounting container\'s name once a container mounts the volume', 
 test('creating a volume through the dialog adds it to the list', async ({ page }) => {
   const name = `vexel-e2e-create-${Date.now()}`;
   try {
-    await page.getByRole('button', { name: 'Create' }).click();
+    await volumesPanel(page).getByRole('button', { name: 'Create' }).click();
     const dialog = page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: 'Create volume' }) });
     await dialog.getByRole('textbox', { name: 'Volume name' }).fill(name);
     await dialog.getByRole('button', { name: 'Add label' }).click();

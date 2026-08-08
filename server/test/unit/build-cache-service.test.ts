@@ -36,6 +36,7 @@ mock.module(new URL("../../src/docker/cli-runner.ts", import.meta.url).href, {
 });
 
 const { listBuildCache, pruneBuildCache } = await import("../../src/builders/build-cache-service.js");
+const { DockerDaemonError } = await import("../../src/docker/errors.js");
 
 beforeEach(() => {
   handler = () => ({ stdout: "", exitCode: 0 });
@@ -99,10 +100,49 @@ test("listBuildCache parses genuine newline-delimited JSON, one record per line"
   );
 });
 
+test("listBuildCache parses a single-line JSON array", async () => {
+  handler = () => ({ stdout: JSON.stringify([record({ ID: "arr-a" }), record({ ID: "arr-b" })]), exitCode: 0 });
+
+  const records = await listBuildCache();
+
+  assert.deepEqual(
+    records.map((r) => r.id).sort(),
+    ["arr-a", "arr-b"],
+  );
+});
+
 test("listBuildCache rejects rather than silently misreading genuinely malformed output", async () => {
   handler = () => ({ stdout: "not json at all", exitCode: 0 });
 
   await assert.rejects(() => listBuildCache());
+});
+
+// build-cache-service.md — "A non-zero exit ... rejects with a DockerDaemonError (docker-access,
+// code DaemonRejected) carrying the daemon's own message, so the REST layer maps it to 502"
+test("listBuildCache rejects with a DaemonRejected DockerDaemonError when the CLI exits non-zero", async () => {
+  handler = () => ({ stdout: "", exitCode: 1 });
+
+  await assert.rejects(
+    () => listBuildCache(),
+    (error: unknown) => {
+      assert.ok(error instanceof DockerDaemonError, "expected a DockerDaemonError");
+      assert.equal(error.code, "DaemonRejected");
+      return true;
+    },
+  );
+});
+
+test("pruneBuildCache rejects with a DaemonRejected DockerDaemonError when the CLI exits non-zero", async () => {
+  handler = () => ({ stdout: "", exitCode: 1 });
+
+  await assert.rejects(
+    () => pruneBuildCache(),
+    (error: unknown) => {
+      assert.ok(error instanceof DockerDaemonError, "expected a DockerDaemonError");
+      assert.equal(error.code, "DaemonRejected");
+      return true;
+    },
+  );
 });
 
 // build-cache-service.md — "pruneBuildCache ... the reclaimed figure parsed from buildx's own
