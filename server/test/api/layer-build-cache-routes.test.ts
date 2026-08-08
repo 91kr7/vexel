@@ -10,6 +10,13 @@ import { imageAnalysisRouter } from "../../src/image-analysis/image-analysis-rou
 import type { ImageBuildCacheTrace } from "../../src/image-analysis/layer-build-cache-service.js";
 import type { ImageLayerStack } from "../../src/image-analysis/layer-metadata-service.js";
 import { ownershipArgs, removeImageQuietly, startApp } from "../support/fixtures.js";
+import { ALPINE_IMAGE, ensureImages } from "../support/base-images.js";
+
+// A pruned daemon is a starting state like any other: the base images this
+// file's fixtures are built on are ensured here, before the first test, so no
+// test has to assume a warm daemon nor depend on another file having pulled
+// them. They are shared infrastructure, not fixtures: nothing removes them.
+await ensureImages([ALPINE_IMAGE]);
 
 const execFileAsync = promisify(execFile);
 

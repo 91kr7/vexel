@@ -5,6 +5,18 @@ import { promisify } from "node:util";
 import express, { type Express } from "express";
 import type { AddressInfo } from "node:net";
 import { containersRouter } from "../../src/containers/containers-routes.js";
+import { ALPINE_IMAGE, HELLO_WORLD_IMAGE, ensureImages, isRegistryHiccup } from "../support/base-images.js";
+
+// A pruned daemon is a starting state like any other: the base image this file's
+// fixtures are built on is ensured here, before the first test, so no test has
+// to assume a warm daemon nor depend on another file having pulled it. It is
+// shared infrastructure, not a fixture: nothing removes it.
+//
+// `hello-world` is deliberately left out: the REQ-29 test below contracts that a
+// reference missing locally is pulled first, so ensuring it beforehand would
+// remove the very condition under test. That one test is made resilient to the
+// registry instead, not to the image being absent.
+await ensureImages([ALPINE_IMAGE]);
 
 const execFileAsync = promisify(execFile);
 
@@ -188,9 +200,20 @@ test("POST /api/containers pulls a missing image first, streaming its progress, 
   const name = `vexel-test-create-pull-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
-  await execFileAsync("docker", ["rmi", "-f", "hello-world:latest"]).catch(() => undefined);
+  await execFileAsync("docker", ["rmi", "-f", HELLO_WORLD_IMAGE]).catch(() => undefined);
   try {
-    const { events } = await create(url, { image: "hello-world:latest", name, start: false });
+    let events: CreateEvent[] = [];
+    // The image must be absent for a pull to happen at all, so the registry is
+    // genuinely part of this test. A hiccup crossing it is not a broken
+    // contract: retried once, a product defect fails the same way twice while a
+    // hiccup does not.
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      ({ events } = await create(url, { image: HELLO_WORLD_IMAGE, name, start: false }));
+      const terminal = terminalEvents(events)[0];
+      if (!terminal || terminal.type !== "error" || !isRegistryHiccup(terminal.message) || attempt === 2) break;
+      await removeContainerQuietly(name);
+      await execFileAsync("docker", ["rmi", "-f", HELLO_WORLD_IMAGE]).catch(() => undefined);
+    }
 
     const pullSteps = events.filter((event) => event.type === "pull-step");
     assert.ok(pullSteps.length > 0, "expected pull progress for a missing image");

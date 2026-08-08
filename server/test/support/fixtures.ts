@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import express, { type Express, type Router } from "express";
 import type { AddressInfo } from "node:net";
+import { ALPINE_IMAGE, ensureImage } from "./base-images.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -17,10 +18,11 @@ export const CASE_LABEL = "vexel.test.case";
 export const RUN_ID = `${process.pid}-${Date.now()}`;
 
 /**
- * Already-cached image whose entrypoint the fixtures override, so a container
- * starts instantly and needs no network pull nor any application init.
+ * Small image whose entrypoint the fixtures override, so a container starts
+ * instantly and needs no application init. Its presence on the daemon is not
+ * assumed: every creator below ensures it first (see `base-images.ts`).
  */
-export const BASE_IMAGE = "alpine:3.20";
+export const BASE_IMAGE = ALPINE_IMAGE;
 
 export interface RunningApp {
   url: string;
@@ -77,6 +79,10 @@ export async function createSleepingContainer(
   extraArgs: string[] = [],
 ): Promise<{ id: string; name: string }> {
   const name = fixtureName(caseName);
+  // Checked here rather than once per file: the exclusive pass prunes the host
+  // mid-run, so an image present when the file was loaded may be gone by the
+  // time this fixture is created.
+  await ensureImage(BASE_IMAGE);
   const { stdout } = await execFileAsync("docker", [
     "run",
     "-d",
@@ -102,6 +108,7 @@ export async function createScriptedContainer(
   extraArgs: string[] = [],
 ): Promise<{ id: string; name: string }> {
   const name = fixtureName(caseName);
+  await ensureImage(BASE_IMAGE);
   const { stdout } = await execFileAsync("docker", [
     "run",
     "-d",

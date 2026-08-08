@@ -13,33 +13,15 @@
  *    makes a run independent of every run before it; `playwright.config.ts`
  *    points the server at it.
  */
-import { execFile } from 'node:child_process';
 import { mkdirSync, rmSync } from 'node:fs';
-import { promisify } from 'node:util';
 import { E2E_DATA_DIR } from './fixtures.js';
-
-const execFileAsync = promisify(execFile);
-
-/**
- * Images every fixture is built on. Kept small on purpose: `alpine:3.20` stands
- * in wherever a spec only needs a container that stays up, and it declares no
- * `VOLUME`, so no anonymous volume can outlive a fixture. `registry:2` is the
- * multi-layer, registry-pulled image the layer analyses need; `hello-world` the
- * single-layer one.
- */
-const BASE_IMAGES = ['alpine:3.20', 'registry:2', 'hello-world:latest'];
-
-async function ensureImage(reference: string): Promise<void> {
-  const present = await execFileAsync('docker', ['image', 'inspect', reference])
-    .then(() => true)
-    .catch(() => false);
-  if (present) return;
-  // A registry hiccup is worth one retry: the alternative is every spec that
-  // needs the image failing for a reason that has nothing to do with the code.
-  await execFileAsync('docker', ['pull', '-q', reference]).catch(async () => {
-    await execFileAsync('docker', ['pull', '-q', reference]);
-  });
-}
+// One definition of the base images and of "make sure they are there", shared
+// with the server suite, which needs the same guarantee file by file. Kept small
+// on purpose: `alpine:3.20` stands in wherever a spec only needs a container
+// that stays up, and it declares no `VOLUME`, so no anonymous volume can outlive
+// a fixture; `registry:2` is the multi-layer, registry-pulled image the layer
+// analyses need; `hello-world` the single-layer one.
+import { ensureBaseImages } from '../../../server/test/support/base-images.js';
 
 export default async function globalSetup(): Promise<void> {
   // Playwright starts the web servers before this hook, and the server creates
@@ -48,7 +30,5 @@ export default async function globalSetup(): Promise<void> {
   // longer exists.
   rmSync(E2E_DATA_DIR, { recursive: true, force: true });
   mkdirSync(E2E_DATA_DIR, { recursive: true });
-  for (const reference of BASE_IMAGES) {
-    await ensureImage(reference);
-  }
+  await ensureBaseImages();
 }

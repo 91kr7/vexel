@@ -6,6 +6,13 @@ import express, { type Express } from "express";
 import type { AddressInfo } from "node:net";
 import { imagesRouter } from "../../src/images/images-routes.js";
 import type { ImageInspect, ImageSummary } from "../../src/images/images-service.js";
+import { ALPINE_IMAGE, HELLO_WORLD_IMAGE, REGISTRY_IMAGE, ensureImage, ensureImages, isRegistryHiccup } from "../support/base-images.js";
+
+// A pruned daemon is a starting state like any other: the base images this
+// file's fixtures are built on are ensured here, before the first test, so no
+// test has to assume a warm daemon nor depend on another file having pulled
+// them. They are shared infrastructure, not fixtures: nothing removes them.
+await ensureImages([ALPINE_IMAGE, REGISTRY_IMAGE]);
 
 const execFileAsync = promisify(execFile);
 
@@ -100,7 +107,12 @@ test("GET /api/images/:id/inspect returns the image's full inspect data", async 
   const { url, close } = await startApp(app);
   const containerName = `vexel-test-inspect-src-${Date.now()}`;
   const tag = `vexel-test-inspect-${Date.now()}:v1`;
-  await execFileAsync("docker", ["create", "--name", containerName, "hello-world"]);
+  // Ensured at the point of use, not once for the file: `hello-world` is the
+  // image the pull tests deliberately remove — the one below and the one in
+  // container-create-routes, which runs in a parallel process — so its presence
+  // has to be re-established immediately before it is needed.
+  await ensureImage(HELLO_WORLD_IMAGE);
+  await execFileAsync("docker", ["create", "--name", containerName, HELLO_WORLD_IMAGE]);
   await execFileAsync("docker", [
     "commit",
     "--change",
@@ -165,19 +177,31 @@ test("GET /api/images/:id/inspect with an unknown id responds with the daemon's 
 test("GET /api/images/pull/stream streams per-layer progress and ends once the pull completes", async () => {
   const app = buildApp();
   const { url, close } = await startApp(app);
-  await removeTagQuietly("hello-world:latest");
+  // The image has to be absent for this to be a pull at all, so it cannot be
+  // ensured beforehand: what this test contracts is exactly the fetch from the
+  // registry. The network it crosses is therefore part of the run, and the
+  // attempt is repeated once if it gives way — see the loop below.
+  await removeTagQuietly(HELLO_WORLD_IMAGE);
   try {
-    const response = await fetch(`${url}/api/images/pull/stream?reference=hello-world:latest`);
-    assert.equal(response.headers.get("content-type"), "text/event-stream");
-    const events = await readSseUntilDone(response);
+    let events: SseEvent[] = [];
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      const response = await fetch(`${url}/api/images/pull/stream?reference=${HELLO_WORLD_IMAGE}`);
+      assert.equal(response.headers.get("content-type"), "text/event-stream");
+      events = await readSseUntilDone(response);
+      const failure = events.find((event) => event.event === "error");
+      // A registry hiccup is not a broken contract: retried once, a product
+      // defect fails the same way twice while a hiccup does not.
+      if (!failure || !isRegistryHiccup(String(failure.data.message ?? "")) || attempt === 2) break;
+      await removeTagQuietly(HELLO_WORLD_IMAGE);
+    }
 
     assert.ok(events.some((event) => event.event === "step"), "expected at least one progress step");
-    assert.equal(events.at(-1)!.event, "end");
+    assert.equal(events.at(-1)!.event, "end", `unexpected last event: ${JSON.stringify(events.at(-1))}`);
 
     const images = await fetchList(url);
-    assert.ok(images.some((image) => image.tags.includes("hello-world:latest")), "pulled image should now be listed");
+    assert.ok(images.some((image) => image.tags.includes(HELLO_WORLD_IMAGE)), "pulled image should now be listed");
   } finally {
-    await removeTagQuietly("hello-world:latest");
+    await removeTagQuietly(HELLO_WORLD_IMAGE);
     await close();
   }
 });
@@ -297,11 +321,13 @@ test("GET /api/images/save streams a tarball download that POST /api/images/load
   const tag = `vexel-test-save-${Date.now()}:v1`;
   const app = buildApp();
   const { url, close } = await startApp(app);
-  // registry:2 (megabytes, not the multi-gigabyte range): a stable, moderately-sized fixture — unlike
-  // hello-world, whose tag another test in this same file removes and re-pulls, this one's tag is never
-  // touched by a concurrently-running test file, so tagging it here cannot race that removal.
-  await execFileAsync("docker", ["tag", "registry:2", tag]);
   try {
+    // registry:2 (megabytes, not the multi-gigabyte range): a stable, moderately-sized fixture — unlike
+    // hello-world, whose tag another test in this same file removes and re-pulls, this one's tag is never
+    // touched by a concurrently-running test file, so tagging it here cannot race that removal.
+    // Inside the try, so that a setup failure still closes the server: left outside it, a refusal here
+    // skips the finally and the listening socket keeps the whole run alive instead of failing it.
+    await execFileAsync("docker", ["tag", REGISTRY_IMAGE, tag]);
     const response = await fetch(`${url}/api/images/save?${new URLSearchParams({ references: tag }).toString()}`);
     assert.equal(response.status, 200);
     assert.equal(response.headers.get("content-type"), "application/x-tar");

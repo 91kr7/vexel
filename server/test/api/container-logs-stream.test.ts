@@ -6,6 +6,13 @@ import express, { type Express } from "express";
 import type { AddressInfo } from "node:net";
 import { containersRouter } from "../../src/containers/containers-routes.js";
 import { ownershipArgs } from "../support/fixtures.js";
+import { ALPINE_IMAGE, ensureImages } from "../support/base-images.js";
+
+// A pruned daemon is a starting state like any other: the base images this
+// file's fixtures are built on are ensured here, before the first test, so no
+// test has to assume a warm daemon nor depend on another file having pulled
+// them. They are shared infrastructure, not fixtures: nothing removes them.
+await ensureImages([ALPINE_IMAGE]);
 
 const execFileAsync = promisify(execFile);
 
@@ -42,8 +49,8 @@ function startApp(): Promise<{ url: string; close: () => Promise<void> }> {
   });
 }
 
-// A tiny, already-cached image whose entrypoint is overridden to `sh` so the
-// container starts instantly, prints known output and then stays alive.
+// A tiny image (ensured local above) whose entrypoint is overridden to `sh` so
+// the container starts instantly, prints known output and then stays alive.
 async function createLoggingContainer(name: string, script: string): Promise<string> {
   const { stdout } = await execFileAsync("docker", ["run", "-d", "--name", name, ...ownershipArgs(name), "--entrypoint", "sh", "alpine:3.20", "-c", script]);
   return stdout.trim();

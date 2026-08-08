@@ -11,6 +11,13 @@ import { imageAnalysisRouter } from "../../src/image-analysis/image-analysis-rou
 import type { ImageDiffEntry, ImageFilesystemDiff } from "../../src/image-analysis/image-diff-service.js";
 
 import { ownershipArgs } from "../support/fixtures.js";
+import { REGISTRY_IMAGE, ensureImages } from "../support/base-images.js";
+
+// A pruned daemon is a starting state like any other: the base images this
+// file's fixtures are built on are ensured here, before the first test, so no
+// test has to assume a warm daemon nor depend on another file having pulled
+// them. They are shared infrastructure, not fixtures: nothing removes them.
+await ensureImages([REGISTRY_IMAGE]);
 
 const execFileAsync = promisify(execFile);
 

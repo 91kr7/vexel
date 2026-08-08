@@ -92,6 +92,14 @@ Run from the repository root (npm workspaces):
   - `npm run test:sweep -w server` — removes the containers, volumes, networks and images left
     behind by a killed run; scoped to the ownership label, so it never touches an object the
     operator created. Runs automatically before the two daemon-backed passes.
+  - `npm run test:images -w server` — pulls the three base images if the daemon does not have them,
+    so a run started on a pruned daemon does not fail for a reason that says nothing about the
+    product. Runs automatically before the two daemon-backed passes, and doing the network work
+    once here is what keeps twenty parallel files from pulling the same image at the same time.
+    The guarantee does not depend on this script: each test file also ensures the images its own
+    fixtures need, so a single file run directly passes on a pruned daemon too. Base images are
+    shared infrastructure, not fixtures — they carry no ownership label and the sweep leaves them
+    alone. One definition, `server/test/support/base-images.ts`, serves the e2e suite as well.
   - Both daemon-backed passes run against their own `VEXEL_DATA_DIR` under the system temp
     directory, so the operator's `~/.vexel` preferences and analysis cache are never written to.
     That directory is **kept between runs on purpose**: the analysis cache it holds is what stops

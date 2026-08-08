@@ -7,6 +7,13 @@ import type { AddressInfo } from "node:net";
 import { WebSocket } from "ws";
 import { handleContainerSessionUpgrade } from "../../src/containers/container-sessions-routes.js";
 import { ownershipArgs } from "../support/fixtures.js";
+import { ALPINE_IMAGE, ensureImages } from "../support/base-images.js";
+
+// A pruned daemon is a starting state like any other: the base images this
+// file's fixtures are built on are ensured here, before the first test, so no
+// test has to assume a warm daemon nor depend on another file having pulled
+// them. They are shared infrastructure, not fixtures: nothing removes them.
+await ensureImages([ALPINE_IMAGE]);
 
 const execFileAsync = promisify(execFile);
 

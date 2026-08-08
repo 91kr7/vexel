@@ -7,6 +7,13 @@ import type { AddressInfo } from "node:net";
 import { containersRouter } from "../../src/containers/containers-routes.js";
 import { ownershipArgs } from "../support/fixtures.js";
 import { INTERNAL_CONTAINER_LABEL } from "../../src/image-analysis/filesystem-extraction-service.js";
+import { ALPINE_IMAGE, ensureImages } from "../support/base-images.js";
+
+// A pruned daemon is a starting state like any other: the base images this
+// file's fixtures are built on are ensured here, before the first test, so no
+// test has to assume a warm daemon nor depend on another file having pulled
+// them. They are shared infrastructure, not fixtures: nothing removes them.
+await ensureImages([ALPINE_IMAGE]);
 import type {
   ContainerConfigUpdateResult,
   ContainerInspect,
@@ -34,8 +41,8 @@ function buildApp(): Express {
   return app;
 }
 
-// A tiny, already-cached image whose entrypoint is overridden to `sleep` so
-// the container starts instantly and needs no network pull or app init.
+// A tiny image (ensured local above) whose entrypoint is overridden to `sleep`
+// so the container starts instantly and needs no network pull or app init.
 async function createSleepingContainer(name: string, extraArgs: string[] = []): Promise<string> {
   const { stdout } = await execFileAsync("docker", [
     "run",

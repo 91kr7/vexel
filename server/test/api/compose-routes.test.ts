@@ -8,13 +8,20 @@ import { promisify } from "node:util";
 import { composeRouter } from "../../src/compose/compose-routes.js";
 import type { ComposeFileReadResult, ComposeFileWriteResult, ComposeProjectSummary, ComposeValidationResult } from "../../src/compose/compose-discovery-service.js";
 import { buildApp, startApp } from "../support/fixtures.js";
+import { ALPINE_IMAGE, ensureImages } from "../support/base-images.js";
+
+// A pruned daemon is a starting state like any other: the base images this
+// file's fixtures are built on are ensured here, before the first test, so no
+// test has to assume a warm daemon nor depend on another file having pulled
+// them. They are shared infrastructure, not fixtures: nothing removes them.
+await ensureImages([ALPINE_IMAGE]);
 
 const execFileAsync = promisify(execFile);
 
 /** Identifies this test process, so fixture project names never collide across a rerun. */
 const RUN_ID = `${process.pid}-${Date.now()}`;
-/** Already-cached base image; `pull_policy: never` keeps every fixture offline. */
-const BASE_IMAGE = "alpine:3.20";
+/** Base image the fixtures declare; `pull_policy: never` keeps every fixture offline, which is only safe because it is ensured above. */
+const BASE_IMAGE = ALPINE_IMAGE;
 const OWNER_LABEL = "vexel.test.run";
 const CASE_LABEL = "vexel.test.case";
 

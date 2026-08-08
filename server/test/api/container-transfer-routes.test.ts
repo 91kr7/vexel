@@ -6,6 +6,13 @@ import express, { type Express } from "express";
 import type { AddressInfo } from "node:net";
 import { containersRouter } from "../../src/containers/containers-routes.js";
 import { ownershipArgs } from "../support/fixtures.js";
+import { REGISTRY_IMAGE, ensureImages } from "../support/base-images.js";
+
+// A pruned daemon is a starting state like any other: the base images this
+// file's fixtures are built on are ensured here, before the first test, so no
+// test has to assume a warm daemon nor depend on another file having pulled
+// them. They are shared infrastructure, not fixtures: nothing removes them.
+await ensureImages([REGISTRY_IMAGE]);
 
 const execFileAsync = promisify(execFile);
 
