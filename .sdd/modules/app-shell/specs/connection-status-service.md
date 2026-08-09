@@ -30,14 +30,18 @@ that are unavailable when a tool is missing (REQ-9, REQ-10, REQ-13, REQ-110).
   detected without a manual refresh (REQ-9).
 - A fetch failure (server unreachable) is reflected as `daemon.reachable: false` with a cause,
   never as a thrown error or an empty screen (REQ-10).
+- The status describes the daemon of the active context: on an active-context switch it is re-probed
+  at once, without waiting for the next poll (REQ-93).
 
 ## Dependencies
 
 - data-access: `fetchConnectionStatus`
+- contexts: Active-context broadcast
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-9
+- plan-docker_management_app/REQ-93
 - plan-docker_management_app/REQ-10
 - plan-docker_management_app/REQ-13
 - plan-docker_management_app/REQ-110

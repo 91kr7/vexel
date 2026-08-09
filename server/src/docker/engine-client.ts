@@ -3,6 +3,7 @@
 // with the negotiated version (mirrors the Docker CLI's own negotiation).
 import type { IncomingMessage } from "node:http";
 import type { Readable } from "node:stream";
+import { onActiveEndpointChanged, resolveActiveEndpoint } from "./endpoint.js";
 import { DockerDaemonError } from "./errors.js";
 import { hijack, requestBuffered, requestStream, type HijackedConnection } from "./http-client.js";
 import type { DockerEndpoint } from "./types.js";
@@ -72,6 +73,22 @@ export class EngineClient {
     });
   }
 }
+
+let sharedClient: EngineClient | undefined;
+
+/**
+ * The Engine API client of the active context, shared by every server module.
+ * It is discarded and rebuilt as soon as another context becomes active, so no
+ * caller ever keeps talking to the previous daemon (REQ-93).
+ */
+export function getEngineClient(): EngineClient {
+  if (!sharedClient) sharedClient = new EngineClient(resolveActiveEndpoint());
+  return sharedClient;
+}
+
+onActiveEndpointChanged(() => {
+  sharedClient = undefined;
+});
 
 function negotiateApiVersion(daemonApiVersion: string, daemonMinApiVersion: string | undefined): string {
   let negotiated = compareApiVersions(daemonApiVersion, CLIENT_MAX_API_VERSION) < 0 ? daemonApiVersion : CLIENT_MAX_API_VERSION;

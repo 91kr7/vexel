@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { subscribeToActiveContextChange } from '../../data/active-context';
 import { fetchConnectionStatus, type ConnectionStatus } from '../../data/connectivity-client';
 
 const POLL_INTERVAL_MS = 5000;
@@ -47,6 +48,10 @@ export function ConnectionStatusProvider({ children }: { children?: ReactNode })
     const interval = setInterval(refresh, POLL_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [refresh]);
+
+  // The status describes the daemon of the active context: another context is
+  // another daemon, re-probed at once instead of at the next poll (REQ-93).
+  useEffect(() => subscribeToActiveContextChange(refresh), [refresh]);
 
   const value = useMemo(() => ({ ...status, loading, retry: refresh }), [status, loading, refresh]);
 

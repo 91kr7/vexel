@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { subscribeToActiveContextChange } from './active-context';
 import { fetchVolumes, type VolumeSummary } from './volumes-client';
 import { subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
 
@@ -54,6 +55,10 @@ export function useVolumes(): UseVolumesResult {
       }),
     [refresh],
   );
+
+  // Another context means another daemon: what is held here belongs to
+  // the one left behind and is re-read at once (REQ-93).
+  useEffect(() => subscribeToActiveContextChange(refresh), [refresh]);
 
   useEffect(() => {
     const interval = window.setInterval(refresh, POLL_INTERVAL_MS);

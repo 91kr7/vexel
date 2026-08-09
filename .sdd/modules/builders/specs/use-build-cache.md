@@ -15,10 +15,17 @@ type: frontend hook
   - `prune(): Promise<BuildCachePruneResult>` — re-reads the inventory on success; a failure
     propagates to the caller.
 
+## Rules and invariants
+
+- Re-reads from scratch when another context becomes the active one: the list belonged to the
+  daemon left behind (REQ-93).
+
 ## Dependencies
 
 - builders: Builders client
+- contexts: Active-context broadcast
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-91
+- plan-docker_management_app/REQ-93

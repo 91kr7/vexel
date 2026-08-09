@@ -16,10 +16,14 @@ inside the same card.
 - `<CardList items itemKey renderRow selectedKey? onSelect? expandedKey? renderExpanded?
   emptyState? />`
   - `items: T[]`, `itemKey(item): string`.
-  - `renderRow(item): { title, subtitle?, badges?, meta?, content? }` — `title` bold; `subtitle`
-    monospace, muted, one string or several (each rendered on its own line, in order); `badges` and
-    `meta` render trailing, on the same row; `content` renders in its own row below the header, e.g.
-    a chip group with per-chip actions.
+  - `renderRow(item): { title, subtitle?, badges?, meta?, content?, selection? }` — `title` bold;
+    `subtitle` monospace, muted, one string or several (each rendered on its own line, in order);
+    `badges` and `meta` render trailing, on the same row; `content` renders in its own row below the
+    header, e.g. a chip group with per-chip actions.
+  - `selection?: { active, onUse?, activeLabel?, useLabel? }` — the active-selection row variant, for
+    a set where exactly one row is in use: every such row gains a leading dot, green on the active
+    row and muted on the others; the active row shows the `activeLabel` marker (default "active")
+    and the others an action labelled `useLabel` (default "use") that calls `onUse`.
   - `selectedKey?: string`, `onSelect?(item)` — clicking a row's header calls `onSelect`; the row
     whose key matches `selectedKey` renders in its selected state.
   - `expandedKey?: string`, `renderExpanded?(item)` — when an item's key matches `expandedKey`,
@@ -32,10 +36,13 @@ inside the same card.
   expanded content stay scoped to that one card.
 - Only the header row is clickable for `onSelect`; content rendered by `content` or `renderExpanded`
   is outside that clickable area, so its own interactive elements never also toggle selection.
+- The "use" action of the selection variant never appears on the active row, and the "active" marker
+  never appears on any other: the two are exclusive.
+- A row with no `selection` renders exactly as before — no leading dot, no marker.
 
 ## Dependencies
 
-- Surface
+- Surface, Badge, StatusDotCell
 
 ## Requirements served
 
@@ -43,3 +50,4 @@ inside the same card.
 - plan-docker_management_app/REQ-41
 - plan-docker_management_app/REQ-70
 - plan-docker_management_app/REQ-72
+- plan-docker_management_app/REQ-92

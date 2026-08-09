@@ -18,11 +18,14 @@ detects presence and version, and runs a command against the active context.
     rather than throwing.
 - `runCliCommand(command, args, endpoint): CliRunHandle`
   - Spawns `command args…` targeting the active context.
-    - When the operator has explicitly set `DOCKER_HOST` (real context switching is not built yet,
-      REQ-92/93/94 land later): `DOCKER_HOST` is forced from `endpoint` on the child's environment,
-      so the run targets that endpoint regardless of what the server process itself inherited.
+    - When the operator has explicitly set `DOCKER_HOST`: `DOCKER_HOST` is forced from `endpoint` on
+      the child's environment, so the run targets that endpoint regardless of what the server
+      process itself inherited.
     - Otherwise: the child inherits the server's own environment unchanged, with no `DOCKER_HOST`
       override — the same environment a bare terminal invocation on the same machine would have.
+      This is also how the runner follows a context switch (REQ-93): selecting a context writes it
+      to the local Docker configuration, which the spawned CLI resolves by itself, so the CLI
+      channel and the Engine API client target the same daemon without either being told twice.
       This matters beyond just dialing the right socket: a tool that keeps its own local state keyed
       by Docker context identity (e.g. buildx's current-builder file) computes that identity from
       `DOCKER_HOST`/the resolved Docker context, not from the socket path alone — forcing an
@@ -40,6 +43,11 @@ detects presence and version, and runs a command against the active context.
     on macOS; other platforms/failure kinds report other values) — a caller that cares about a spawn
     failure specifically must check `onSpawnError` itself rather than infer it from `exitCode`.
 
+## Dependencies
+
+- docker-access: Active endpoint (`isExplicitEndpoint`)
+
 ## Requirements served
 
 - plan-docker_management_app/REQ-110
+- plan-docker_management_app/REQ-93

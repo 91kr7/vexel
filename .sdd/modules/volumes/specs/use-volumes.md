@@ -18,6 +18,16 @@ event arrives.
   - `refresh()` re-reads on demand; `loaded` becomes `true` once the first read settles (success or
     failure); `error` carries the last failure's message.
 
+## Rules and invariants
+
+- Re-reads from scratch when another context becomes the active one: the list belonged to the
+  daemon left behind (REQ-93).
+
+## Dependencies
+
+- contexts: Active-context broadcast
+
 ## Requirements served
 
 - plan-docker_management_app/REQ-70
+- plan-docker_management_app/REQ-93

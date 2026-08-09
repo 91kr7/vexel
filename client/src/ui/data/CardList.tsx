@@ -1,6 +1,19 @@
 import type { ReactNode } from 'react';
 import { Surface } from '../glass/Surface';
+import { Badge } from '../controls/Badge';
+import { StatusDotCell } from './TableCells';
 import './data-table.css';
+
+export interface CardListRowSelection {
+  /** Whether this row is the one currently in use among the set. */
+  active: boolean;
+  /** Invoked when the operator asks for this row to become the active one; omitted on the active row itself. */
+  onUse?: () => void;
+  /** Label of the marker carried by the active row. */
+  activeLabel?: string;
+  /** Label of the action offered by the other rows. */
+  useLabel?: string;
+}
 
 export interface CardListRowContent {
   title: string;
@@ -12,6 +25,11 @@ export interface CardListRowContent {
   meta?: ReactNode;
   /** Extra interactive content below the row, outside the selectable header (e.g. chips with their own actions). */
   content?: ReactNode;
+  /**
+   * Marks the row as belonging to a set where exactly one is active: a leading
+   * dot, an "active" marker on that one and a "use" action on every other.
+   */
+  selection?: CardListRowSelection;
 }
 
 export interface CardListProps<T> {
@@ -48,16 +66,24 @@ export function CardList<T>({ items, itemKey, renderRow, selectedKey, onSelect, 
               onClick={onSelect ? () => onSelect(item) : undefined}
               aria-selected={onSelect ? selected : undefined}
             >
-              <div className="ui-card-list__heading">
-                <span className="ui-card-list__title">{row.title}</span>
-                {subtitleLines(row.subtitle).map((line, index) => (
-                  <span key={index} className="ui-card-list__subtitle">
-                    {line}
-                  </span>
-                ))}
+              <div className="ui-card-list__leading">
+                {row.selection ? <StatusDotCell tone={row.selection.active ? 'success' : 'neutral'} /> : null}
+                <div className="ui-card-list__heading">
+                  <span className="ui-card-list__title">{row.title}</span>
+                  {subtitleLines(row.subtitle).map((line, index) => (
+                    <span key={index} className="ui-card-list__subtitle">
+                      {line}
+                    </span>
+                  ))}
+                </div>
               </div>
               <div className="ui-card-list__trailing">
-                {row.badges ? <div className="ui-card-list__badges">{row.badges}</div> : null}
+                {row.selection || row.badges ? (
+                  <div className="ui-card-list__badges">
+                    {row.selection ? selectionControl(row.selection) : null}
+                    {row.badges}
+                  </div>
+                ) : null}
                 {row.meta ? <div className="ui-card-list__meta">{row.meta}</div> : null}
               </div>
             </div>
@@ -68,6 +94,11 @@ export function CardList<T>({ items, itemKey, renderRow, selectedKey, onSelect, 
       })}
     </div>
   );
+}
+
+function selectionControl(selection: CardListRowSelection): ReactNode {
+  if (selection.active) return <Badge tone="success">{selection.activeLabel ?? 'active'}</Badge>;
+  return <Badge onClick={selection.onUse}>{selection.useLabel ?? 'use'}</Badge>;
 }
 
 function subtitleLines(subtitle: string | string[] | undefined): string[] {

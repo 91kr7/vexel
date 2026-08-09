@@ -32,12 +32,17 @@ Shows:
   list from `useComposeProjects()` —, `VolumesNetworksScreen` for the `volumes-networks` screen
   (REQ-70, REQ-71) — fed the live volume list from `useVolumes()` —, `BuildersScreen` for the
   `builders-cache` screen (REQ-88, REQ-89, REQ-91) — self-sufficient, reading its own builder and
-  build-cache inventories —, a `PlaceholderScreen` for every screen not yet built by its own feature
-  batch.
+  build-cache inventories —, `ContextsScreen` for the `contexts` screen (REQ-92, REQ-93, REQ-94) —
+  self-sufficient, reading its own context inventory and daemon information —, a
+  `PlaceholderScreen` for every screen not yet built by its own feature batch.
 - The Containers `NavItem`'s count badge is the live container count from `useContainers()`, the
-  Images & layers `NavItem`'s count badge is the live image count from `useImages()`, and the
-  Compose `NavItem`'s count badge is the live compose project count from `useComposeProjects()`, all
+  Images & layers `NavItem`'s count badge is the live image count from `useImages()`, the
+  Compose `NavItem`'s count badge is the live compose project count from `useComposeProjects()`, and
+  the Contexts `NavItem`'s count badge is the live context count from `useContexts()`, all
   regardless of which screen is active.
+- The rail's footer names the context every screen currently follows, as `name (kind)` — an em dash
+  until the inventory has been read, or when no context is active. It follows a switch made on the
+  Contexts screen without the shell being remounted (REQ-93).
 Actions:
 - Selecting a `NavItem` sets it active, persists it as `lastScreenId` via `usePreferences()`, and
   replaces the content area with its screen, without remounting the rail, header or footer.
@@ -77,10 +82,10 @@ Navigation:
   `preferences.lastScreenId` (e.g. from another tab) never yanks the operator to a different screen
   while they are using this one (REQ-2, REQ-115). With no persisted `lastScreenId`, `defaultScreenId`
   stays active.
-- `selectedContext` and `listFilters` are carried by `OperatorPreferences` and persisted through
-  `usePreferences()`, but nothing in this batch's shell reads or writes them: no context switcher
-  or per-screen filter control exists yet (they land with the screens that own them in later
-  batches).
+- The active context is read from the Docker installation itself (`useContexts()`), never from
+  `OperatorPreferences.selectedContext`: the daemon in use is the one the local Docker configuration
+  names, so the shell and a `docker context use` typed in a terminal can never disagree.
+  `listFilters` is still carried by `OperatorPreferences` and read by nobody.
 
 ## Dependencies
 
@@ -96,6 +101,7 @@ Navigation:
 - volumes: useVolumes
 - volumes-networks: VolumesNetworksScreen
 - builders: BuildersScreen
+- contexts: useContexts, ContextsScreen
 
 ## Requirements served
 
@@ -117,6 +123,9 @@ Navigation:
 - plan-docker_management_app/REQ-88
 - plan-docker_management_app/REQ-89
 - plan-docker_management_app/REQ-91
+- plan-docker_management_app/REQ-92
+- plan-docker_management_app/REQ-93
+- plan-docker_management_app/REQ-94
 - plan-docker_management_app/REQ-68
 - plan-docker_management_app/REQ-69
 - plan-docker_management_app/REQ-110

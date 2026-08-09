@@ -21,7 +21,11 @@ function offerStream(stream: PassThrough): void {
   else pendingStreams.push(stream);
 }
 
-mock.module(new URL("../../src/connectivity/connection-status-service.ts", import.meta.url).href, {
+// The shared, active-context Engine API client now lives in the Docker access
+// layer (docker-access/specs/engine-client.md) and is what EventStreamService
+// asks for its stream; mocking anywhere else lets the service dial the real
+// daemon and wait for events that never come.
+mock.module(new URL("../../src/docker/engine-client.ts", import.meta.url).href, {
   namedExports: {
     getEngineClient: () => ({ requestStream: async () => nextRequestedStream() }),
   },

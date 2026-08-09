@@ -2,6 +2,8 @@ import express from "express";
 import { buildersRouter } from "./builders/builders-routes.js";
 import { composeRouter } from "./compose/compose-routes.js";
 import { connectivityRouter } from "./connectivity/connectivity-routes.js";
+import { contextsRouter } from "./contexts/contexts-routes.js";
+import { publishActiveEndpoint } from "./contexts/contexts-service.js";
 import { handleContainerSessionUpgrade } from "./containers/container-sessions-routes.js";
 import { containersRouter } from "./containers/containers-routes.js";
 import { startStatsSampler } from "./containers/containers-service.js";
@@ -26,6 +28,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/api/connectivity", connectivityRouter);
+app.use("/api/contexts", contextsRouter);
 app.use("/api/containers", containersRouter);
 app.use("/api/images", imagesRouter);
 app.use("/api/images", imageAnalysisRouter);
@@ -36,6 +39,10 @@ app.use("/api/builders", buildersRouter);
 app.use("/api/events", eventsRouter);
 app.use("/api/persistence", persistenceRouter);
 app.use("/api/host-paths", hostPathsRouter);
+
+// Point every area at the daemon of the active Docker context before anything
+// dials it; a failure here leaves the default endpoint in place (REQ-93).
+void publishActiveEndpoint();
 
 eventStreamService.start();
 startStatsSampler();
