@@ -19,7 +19,8 @@ export function StatusDotCell({ tone, label }: StatusDotCellProps) {
 }
 
 export interface TwoLineCellProps {
-  title: ReactNode;
+  /** Omitted for a cell that carries the secondary line alone (e.g. a sentence under another cell's value). */
+  title?: ReactNode;
   subtitle?: ReactNode;
   /**
    * An optional inline action next to the text (e.g. an edit affordance).
@@ -28,6 +29,12 @@ export interface TwoLineCellProps {
    * via Tab and to assistive technology regardless of hover state.
    */
   action?: ReactNode;
+  /**
+   * Both lines wrap instead of ellipsis-truncating — for a content-sized row
+   * (`DataTable autoRowHeight`), where text that reads as a sentence must be
+   * readable in full rather than cut at the column's width.
+   */
+  wrap?: boolean;
 }
 
 /**
@@ -35,17 +42,20 @@ export interface TwoLineCellProps {
  * an optional trailing inline action. Both lines are single-line and
  * ellipsis-truncate instead of wrapping, with the full text available as a
  * tooltip, so the cell never grows the row or loses text to the row's
- * overflow clipping.
+ * overflow clipping — unless `wrap` is set, which trades that guarantee for
+ * text shown in full.
  */
-export function TwoLineCell({ title, subtitle, action }: TwoLineCellProps) {
+export function TwoLineCell({ title, subtitle, action, wrap = false }: TwoLineCellProps) {
   const titleTooltip = typeof title === 'string' ? title : undefined;
   const subtitleTooltip = typeof subtitle === 'string' ? subtitle : undefined;
   return (
-    <span className="ui-table-two-line-cell">
+    <span className={wrap ? 'ui-table-two-line-cell ui-table-two-line-cell--wrap' : 'ui-table-two-line-cell'}>
       <span className="ui-table-two-line-cell__text">
-        <span className="ui-table-two-line-cell__title" title={titleTooltip}>
-          {title}
-        </span>
+        {title === undefined ? null : (
+          <span className="ui-table-two-line-cell__title" title={titleTooltip}>
+            {title}
+          </span>
+        )}
         {subtitle ? (
           <span className="ui-table-two-line-cell__subtitle" title={subtitleTooltip}>
             {subtitle}

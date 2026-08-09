@@ -8,8 +8,10 @@ import { DockerDaemonError } from "./errors.js";
 import { hijack, requestBuffered, requestBufferedRaw, requestStream, type HijackedConnection } from "./http-client.js";
 import type { DockerEndpoint } from "./types.js";
 
-// The highest Engine API version this client was written against.
-const CLIENT_MAX_API_VERSION = "1.43";
+// The highest Engine API version this client was written against. Exported
+// because it is also the Engine API baseline the product's coverage statement
+// refers to (REQ-106): the number is declared once, here, and read from there.
+export const CLIENT_MAX_API_VERSION = "1.43";
 
 export interface RawEngineResponse {
   /** The path the request was actually made on, version prefix included. */

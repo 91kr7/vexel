@@ -82,6 +82,12 @@ const systemOverview = {
   },
 };
 
+const coverageBaseline = {
+  declared: { engineApiVersion: '1.43', cliVersion: '24.0' },
+  daemon: { version: '24.0.7', apiVersion: '1.43' },
+  comparison: 'match',
+};
+
 // Shell mounts more than the connectivity probe this suite targets (the
 // containers list for the nav badge, preferences, analysis-cache usage); the
 // mock must route each endpoint to a response of the right shape, or those
@@ -106,6 +112,12 @@ async function renderShellWith(status: unknown) {
     }
     if (url.startsWith('/api/system/overview')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(systemOverview) });
+    }
+    // The Coverage matrix reads the declared Docker baseline (REQ-106); this suite pins that
+    // screen to prove the shell's own cards survive an unreachable daemon, so it needs an
+    // answer of the right shape here too.
+    if (url.startsWith('/api/system/baseline')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(coverageBaseline) });
     }
     return Promise.resolve({ ok: true, json: () => Promise.resolve(status) });
   });
@@ -137,6 +149,13 @@ async function renderShellWith(status: unknown) {
   return { fetchMock };
 }
 
+/** The titles of the cards on screen, as opposed to any text a screen's own content draws. */
+function cardTitles(): string[] {
+  return Array.from(document.querySelectorAll<HTMLElement>('.ui-card__title, .ui-section-header__title')).map(
+    (title) => title.textContent ?? '',
+  );
+}
+
 describe('Shell — daemon connectivity (app-shell/specs/shell.md)', () => {
   // plan-docker_management_app/REQ-13 — the negotiated Engine API version is surfaced once the daemon is reachable
   it('shows the negotiated Engine API version once the daemon reports reachable', async () => {
@@ -154,15 +173,17 @@ describe('Shell — daemon connectivity (app-shell/specs/shell.md)', () => {
     expect(screen.getAllByRole('button', { name: 'Retry' }).length).toBeGreaterThan(0);
 
     // The unreachable banner does not replace or hide the rest of the screen. The
-    // "CLI availability" card belongs to the screens no feature batch has built
-    // yet, so it is pinned on one of those rather than on the landing screen,
-    // which has been the real Dashboard since batch 25. Plugins was one of those
-    // screens until batch 28 built it; Coverage matrix is the last one still
-    // waiting for its own batch, and the raw console is next in line to lose the
-    // placeholder, so it is not the one to pin here.
+    // "CLI availability", "Daemon event stream" and "Local storage" cards are the
+    // shell's own surfaces of REQ-110, REQ-11/REQ-12 and REQ-113, and they sit
+    // above the last entry of the navigation — the Coverage matrix since batch 30
+    // built it (shell.md). The screen is pinned rather than inherited: the landing
+    // screen is the Dashboard, which carries none of them.
     await userEvent.setup().click(screen.getByRole('button', { name: /Coverage matrix/ }));
-    expect(screen.getByText('CLI availability')).toBeInTheDocument();
-    expect(screen.getByText('Daemon event stream')).toBeInTheDocument();
+    // Scoped to the cards' own titles: the coverage matrix names a "Daemon event stream"
+    // capability area, so an unscoped locator matches the screen's content as well.
+    expect(cardTitles()).toContain('CLI availability');
+    expect(cardTitles()).toContain('Daemon event stream');
+    expect(cardTitles()).toContain('Local storage');
     expect(screen.getByText(unreachableStatus.daemon.cause)).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
   });

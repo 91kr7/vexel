@@ -9,6 +9,11 @@ type: UI component
 **Purpose** → stand-in content for a screen whose real feature batch has not landed yet; also
 hosts the foundation batch's end-to-end demo of the destructive-confirmation flow (REQ-6).
 
+Since batch 30, every screen of the navigation data has its own content, so the Shell renders this
+only for an active id naming none of them. The REQ-6 demo it carries is now one destructive
+confirmation among many real ones (container removal, prunes, swarm leave, …), all of which go
+through the same `ConfirmationService`.
+
 ## Contract
 
 - `<PlaceholderScreen screenLabel />`

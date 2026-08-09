@@ -1,9 +1,25 @@
 import type { ReactNode } from 'react';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { BadgeListCell, IdentifierCell, MetaCell } from '../../src/ui';
+import { BadgeListCell, IdentifierCell, MetaCell, TwoLineCell } from '../../src/ui';
 
 afterEach(cleanup);
+
+/**
+ * The declarations of a CSS rule. jsdom loads no stylesheet, so a contract the
+ * library expresses in CSS — a line shown in full rather than ellipsis-cut — is
+ * read from the stylesheet itself, as `design-tokens-contrast.test.ts` does.
+ */
+function ruleBody(selector: string): string {
+  const css = readFileSync(join(process.cwd(), 'src/ui/data/data-table.css'), 'utf8');
+  // Anchored on the end of the previous rule, so a selector is never matched inside a longer
+  // selector list (where it would return the wrong rule's declarations).
+  const match = new RegExp(`(?:^|\\}|\\*/)\\s*${selector.replace(/[.\-]/g, '\\$&')}\\s*\\{([^}]*)\\}`).exec(css);
+  if (!match) throw new Error(`no CSS rule for ${selector}`);
+  return match[1];
+}
 
 // Contract: ui-library/specs/table-cells.md — <MetaCell children? wrap? title? unavailableReason? />
 describe('MetaCell (plan-docker_management_app/REQ-3, REQ-15)', () => {
@@ -155,5 +171,62 @@ describe('BadgeListCell (plan-docker_management_app/REQ-3, REQ-37)', () => {
 
     expect(screen.getByText('–')).toBeInTheDocument();
     expect(container.querySelectorAll('.ui-badge')).toHaveLength(0);
+  });
+});
+
+// Contract: ui-library/specs/table-cells.md — <TwoLineCell title? subtitle? action? wrap? />
+describe('TwoLineCell (plan-docker_management_app/REQ-3, REQ-105)', () => {
+  it('renders the primary line over the secondary one', () => {
+    const { container } = render(<TwoLineCell title="web-nginx" subtitle="a1b2c3d4 · running" />);
+
+    expect(container.querySelector('.ui-table-two-line-cell__title')?.textContent).toBe('web-nginx');
+    expect(container.querySelector('.ui-table-two-line-cell__subtitle')?.textContent).toBe('a1b2c3d4 · running');
+  });
+
+  // table-cells.md — "title may be omitted, for a cell carrying the secondary line alone ...; the
+  // primary line is then absent, not blank"
+  it('leaves out the primary line entirely when no title is given', () => {
+    const { container } = render(<TwoLineCell subtitle="A sentence sitting under another cell's value." />);
+
+    expect(container.querySelector('.ui-table-two-line-cell__title')).toBeNull();
+    expect(container.querySelector('.ui-table-two-line-cell__subtitle')?.textContent).toBe(
+      "A sentence sitting under another cell's value.",
+    );
+  });
+
+  // table-cells.md — the full text of a line is available as its tooltip
+  it('carries the text of each line as its own tooltip', () => {
+    render(<TwoLineCell title="web-nginx" subtitle="a1b2c3d4 · running" />);
+
+    expect(screen.getByText('web-nginx')).toHaveAttribute('title', 'web-nginx');
+    expect(screen.getByText('a1b2c3d4 · running')).toHaveAttribute('title', 'a1b2c3d4 · running');
+  });
+
+  // table-cells.md — "wrap: true — both lines wrap and are shown in full instead of
+  // ellipsis-truncating, and the subtitle drops the monospace treatment"
+  it('shows both lines in full, without the monospace subtitle, when asked to wrap', () => {
+    const { container } = render(<TwoLineCell wrap title="Image building" subtitle="Building an image from a Dockerfile." />);
+
+    const cell = container.querySelector('.ui-table-two-line-cell');
+    expect(cell?.className).toContain('ui-table-two-line-cell--wrap');
+    expect(cell?.textContent).toContain('Building an image from a Dockerfile.');
+
+    // jsdom loads no stylesheet, so the wrapping itself is read from the library's own CSS.
+    const wrappedLines = ruleBody(
+      '.ui-table-two-line-cell--wrap .ui-table-two-line-cell__title,\\s*.ui-table-two-line-cell--wrap .ui-table-two-line-cell__subtitle',
+    );
+    expect(wrappedLines).toMatch(/white-space:\s*normal/);
+    expect(wrappedLines).not.toMatch(/text-overflow:\s*ellipsis/);
+    expect(ruleBody('.ui-table-two-line-cell--wrap .ui-table-two-line-cell__subtitle')).toMatch(/font-family:\s*inherit/);
+  });
+
+  // table-cells.md — "Every cell stays on one line and never grows the row's fixed height" is still
+  // the default: the opt-in exceptions change nothing for the callers that do not ask for them
+  it('keeps truncating on one line when wrap is not asked for', () => {
+    const { container } = render(<TwoLineCell title="web-nginx" subtitle="a1b2c3d4 · running" />);
+
+    expect(container.querySelector('.ui-table-two-line-cell')?.className).not.toContain('--wrap');
+    expect(ruleBody('.ui-table-two-line-cell__title')).toMatch(/text-overflow:\s*ellipsis/);
+    expect(ruleBody('.ui-table-two-line-cell__subtitle')).toMatch(/text-overflow:\s*ellipsis/);
   });
 });

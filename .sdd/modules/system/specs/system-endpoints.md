@@ -6,8 +6,8 @@ type: REST endpoint
 
 # System endpoints
 
-**Purpose** → exposes the host overview, the reclaimable-space breakdown and the prunes over it to
-the client.
+**Purpose** → exposes the host overview, the reclaimable-space breakdown, the prunes over it and the
+declared Docker baseline to the client.
 
 ## Contract
 
@@ -18,6 +18,12 @@ the client.
     compose/swarm, build cache with its active builder, and the occupied-space breakdown.
   - a capability the host lacks (buildx, a swarm) does not fail the response: its section carries
     the reason instead.
+- `GET /api/system/baseline` → the Docker baseline the coverage statement refers to, next to the
+  connected daemon.
+  - `200` → `BaselineReport`: the declared Engine API and docker CLI baseline, the connected
+    daemon's versions (or the reason they could not be read) and the comparison between the two.
+  - an unreachable daemon is **not** an error here: the response is still `200`, with
+    `daemonUnavailableDetail` in place of `daemon` and `comparison` `unknown`.
 - `POST /api/system/prune` → prunes the categories named by the scope.
   - request: `{ scope: DiskUsageCategoryId[] }`.
   - `400` → `scope` missing, empty, not an array, or naming a category that does not exist;
@@ -39,7 +45,7 @@ the client.
 
 ## Dependencies
 
-- system: DiskUsageService, SystemOverviewService, PruneService
+- system: DiskUsageService, SystemOverviewService, PruneService, BaselineService
 
 ## Requirements served
 
@@ -47,3 +53,4 @@ the client.
 - plan-docker_management_app/REQ-96
 - plan-docker_management_app/REQ-14
 - plan-docker_management_app/REQ-16
+- plan-docker_management_app/REQ-106

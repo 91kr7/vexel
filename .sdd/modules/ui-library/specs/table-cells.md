@@ -14,10 +14,16 @@ badges with an overflow indicator, and a magnitude bar sized relative to the col
 
 - `<StatusDotCell tone label? />` — `tone`: `'success' | 'neutral' | 'warning' | 'danger'`; renders a
   colored dot, followed by `label` when given.
-- `<TwoLineCell title subtitle? action? />` — `title` on its own line, `subtitle` (e.g. short id ·
-  state) in muted monospace underneath, and an optional trailing `action` (e.g. an edit affordance)
-  hidden until the cell is hovered or a descendant gains keyboard focus — never `display: none`, so
-  it stays reachable via Tab and to assistive technology regardless of hover state.
+- `<TwoLineCell title? subtitle? action? wrap? />` — `title` on its own line, `subtitle` (e.g. short
+  id · state) in muted monospace underneath, and an optional trailing `action` (e.g. an edit
+  affordance) hidden until the cell is hovered or a descendant gains keyboard focus — never
+  `display: none`, so it stays reachable via Tab and to assistive technology regardless of hover
+  state. `title` may be omitted, for a cell carrying the secondary line alone (a sentence sitting
+  under another cell's value); the primary line is then absent, not blank.
+  `wrap: true` — both lines wrap and are shown in full instead of ellipsis-truncating, and the
+  subtitle drops the monospace treatment (reserved for machine values) since a wrapping secondary
+  line is a sentence. For a content-sized row only (`DataTable autoRowHeight`): in a fixed-height
+  row the extra lines would be clipped.
 - `<MetaCell children? wrap? title? unavailableReason? />` — muted monospace text for a
   numeric/meta value (CPU, memory, ports, uptime, …); renders `'–'` when `children` is empty —
   `undefined`, `null` and the empty string are all empty, and read identically. Single
@@ -50,7 +56,9 @@ badges with an overflow indicator, and a magnitude bar sized relative to the col
 ## Rules and invariants
 
 - Every cell stays on one line and never grows the row's fixed height: content that does not fit is
-  truncated or clipped, never wrapped.
+  truncated or clipped, never wrapped. The two opt-in exceptions — `MetaCell wrap` and
+  `TwoLineCell wrap` — are for a table that has given up fixed row heights (`DataTable
+  autoRowHeight`), and are the only way text reads in full inside a cell.
 - A cell with nothing to show is never blank: it carries the dash (or `'unavailable'`), whichever
   way its caller expressed the absence. A blank cell would read as a rendering fault rather than as
   a value the source does not have.
@@ -63,3 +71,4 @@ badges with an overflow indicator, and a magnitude bar sized relative to the col
 - plan-docker_management_app/REQ-47
 - plan-docker_management_app/REQ-48
 - plan-docker_management_app/REQ-49
+- plan-docker_management_app/REQ-105
