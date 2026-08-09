@@ -112,8 +112,16 @@ Run from the repository root (npm workspaces):
     the image-extraction tests from re-extracting gigabytes every time (the suite goes from minutes
     to well over ten without it). `npm run test:reset-data-dir -w server` empties it when a run
     from a cold cache is what is wanted.
-- Client tests: `npm run test -w client` (UI-boundary check + `vitest run`) and
-  `npm run test:e2e -w client` (Playwright). Use the workspace-scoped scripts, not `vitest`/
+- Client tests: `npm run test -w client` (test-tree typecheck + UI-boundary check + `vitest run`) and
+  `npm run test:e2e -w client` (Playwright).
+  - `npm run test:typecheck -w client` — the counterpart of the server's pass, and for the same
+    reason: `tsconfig.app.json` includes `src` alone, while vitest and Playwright both strip types
+    without checking them, so `test/` and `e2e/` were checked by nobody. `tsc -p tsconfig.test.json`,
+    `noEmit`, same strictness as the app build, covering `src`, `test/`, `e2e/` and the two test
+    configs. Runs first, before the UI-boundary check and any test, so drift between a spec and the
+    modules it imports fails in seconds. It is the only thing that checks the e2e tree at all: those
+    specs are never run by `npm run test`.
+  Use the workspace-scoped scripts, not `vitest`/
   `playwright` invoked by hand with a `--root`: `ui-conformance-check.test.ts` resolves the
   conformance script from `process.cwd()`, so running the binaries from the repository root fails 8
   tests that pass under the npm scripts.

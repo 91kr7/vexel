@@ -15,7 +15,10 @@ class FakeEventSource {
   private listeners = new Map<string, Array<(event: unknown) => void>>();
   closed = false;
 
-  constructor(public url: string) {
+  url: string;
+
+  constructor(url: string) {
+    this.url = url;
     FakeEventSource.instances.push(this);
   }
 
@@ -137,7 +140,7 @@ describe('FilesystemBrowser — cost warning, progress and cancel (plan-docker_m
     await userEvent.click(screen.getByRole('button', { name: 'Browse filesystem…' }));
 
     const dialogHeading = screen.getByRole('heading', { name: 'Confirm: nginx:1.27' });
-    const dialog = dialogHeading.closest('.ui-modal')!;
+    const dialog = dialogHeading.closest<HTMLElement>('.ui-modal')!;
     // REQ-55 — both the estimated time and the temporary disk cost are stated before starting.
     expect(within(dialog).getByText(/taking roughly \d+s/)).toBeInTheDocument();
     expect(within(dialog).getByText(/copies out about/)).toBeInTheDocument();

@@ -17,7 +17,10 @@ class FakeEventSource {
   private listeners = new Map<string, Array<(event: unknown) => void>>();
   closed = false;
 
-  constructor(public url: string) {
+  url: string;
+
+  constructor(url: string) {
+    this.url = url;
     FakeEventSource.instances.push(this);
   }
 
@@ -215,7 +218,7 @@ describe('LayerExplorer — cost warning, progress and cancel (plan-docker_manag
 
     const dialogHeading = screen.getByRole('heading', { name: `Confirm: ${image.tags[0]}` });
     expect(dialogHeading).toBeInTheDocument();
-    const dialog = dialogHeading.closest('.ui-modal')!;
+    const dialog = dialogHeading.closest<HTMLElement>('.ui-modal')!;
     expect(within(dialog).getByText(/temporary disk/)).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
@@ -282,7 +285,7 @@ describe('LayerExplorer — changeset view (plan-docker_management_app/REQ-49)',
 
     await waitFor(() => expect(screen.getByText('app/config.yml')).toBeInTheDocument());
     expect(screen.getByText('app/old.txt')).toBeInTheDocument();
-    const deletedRow = screen.getByText('app/old.txt').closest('.ui-data-table__row')!;
+    const deletedRow = screen.getByText('app/old.txt').closest<HTMLElement>('.ui-data-table__row')!;
     expect(within(deletedRow).getByText('unavailable')).toBeInTheDocument();
   });
 

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { useContainerDetail } from '../../src/data/use-container-detail';
 import type { ContainerInspect } from '../../src/data/containers-client';
@@ -11,7 +11,10 @@ class FakeEventSource {
   onmessage: ((message: { data: string }) => void) | null = null;
   closed = false;
 
-  constructor(public url: string) {
+  url: string;
+
+  constructor(url: string) {
+    this.url = url;
     FakeEventSource.instances.push(this);
   }
 
@@ -38,7 +41,9 @@ function inspectPayload(): ContainerInspect {
   return { id: 'c1', name: 'database', raw: {} } as unknown as ContainerInspect;
 }
 
-let fetchInspect: ReturnType<typeof vi.fn>;
+// Typed with the signature of the function it stands in for: an untyped
+// `vi.fn()` is not callable through `ReturnType<typeof vi.fn>`.
+let fetchInspect: Mock<(id: string) => Promise<ContainerInspect>>;
 
 vi.mock('../../src/data/containers-client', () => ({
   fetchContainerInspect: (id: string) => fetchInspect(id),
@@ -46,7 +51,7 @@ vi.mock('../../src/data/containers-client', () => ({
 
 beforeEach(() => {
   vi.stubGlobal('EventSource', FakeEventSource);
-  fetchInspect = vi.fn().mockResolvedValue(inspectPayload());
+  fetchInspect = vi.fn<(id: string) => Promise<ContainerInspect>>().mockResolvedValue(inspectPayload());
 });
 
 afterEach(() => {

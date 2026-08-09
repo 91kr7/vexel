@@ -93,13 +93,15 @@ describe('RevealableValue (ui-library/specs/revealable-value.md)', () => {
   // '"Copy" ... **Always present**, and disabled while there is no value or loading'; "No
   // affordance is ever unmounted for lack of a value ... so the row does not reflow"
   it('keeps the copy affordance, disabled and inert, while there is no value', async () => {
-    const user = userEvent.setup();
+    // The pointer-events check is switched off for the session, not per call:
+    // `click` takes the element alone, so a per-call option would be ignored.
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
     const writeText = stubClipboard();
     render(<RevealableValue ariaLabel="Worker join token" revealed={false} onRevealedChange={() => undefined} />);
 
     const copy = screen.getByRole('button', { name: 'Copy' });
     expect(copy).toBeDisabled();
-    await user.click(copy, { pointerEventsCheck: 0 });
+    await user.click(copy);
     expect(writeText).not.toHaveBeenCalled();
   });
 
@@ -128,13 +130,15 @@ describe('RevealableValue (ui-library/specs/revealable-value.md)', () => {
   });
 
   it('disables the copy while the value is being read, and copies nothing then', async () => {
-    const user = userEvent.setup();
+    // The pointer-events check is switched off for the session, not per call:
+    // `click` takes the element alone, so a per-call option would be ignored.
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
     const writeText = stubClipboard();
     render(<RevealableValue value={TOKEN} ariaLabel="Token" revealed={false} onRevealedChange={() => undefined} loading />);
 
     const copy = screen.getByRole('button', { name: 'Copy' });
     expect(copy).toBeDisabled();
-    await user.click(copy, { pointerEventsCheck: 0 });
+    await user.click(copy);
     expect(writeText).not.toHaveBeenCalled();
   });
 

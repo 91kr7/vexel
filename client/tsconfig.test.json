@@ -1,0 +1,18 @@
+{
+  // Typecheck-only configuration for the client's test trees, the counterpart of
+  // `server/tsconfig.test.json`. `tsconfig.app.json` includes `src` alone so the
+  // production build stays free of test files; vitest and Playwright both strip
+  // types without checking them, which left `test/` and `e2e/` unchecked
+  // altogether — a renamed export or a reshaped helper would only surface when a
+  // spec happened to run, and sometimes not at all. Same strictness as the app
+  // build, no emit, the test trees and their configs added to what is checked.
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.test.tsbuildinfo",
+    // `vite/client` for the app sources pulled in by the component tests, `node`
+    // for the e2e specs, which drive the daemon through `node:child_process`.
+    "types": ["vite/client", "node"],
+    "noEmit": true
+  },
+  "include": ["src", "test", "e2e", "vitest.config.ts", "playwright.config.ts"]
+}

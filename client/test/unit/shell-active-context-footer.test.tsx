@@ -17,7 +17,11 @@ import { ProgressProvider } from '../../src/shell/services/ProgressService';
 
 class FakeEventSource {
   onmessage: ((event: { data: string }) => void) | null = null;
-  constructor(public url: string) {}
+  url: string;
+
+  constructor(url: string) {
+    this.url = url;
+  }
 }
 
 const reachableStatus = {
