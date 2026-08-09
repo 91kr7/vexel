@@ -31,6 +31,7 @@ import { useComposeProjects } from '../data/use-compose-projects';
 import { useContexts } from '../data/use-contexts';
 import { ComposeScreen } from '../compose/ComposeScreen';
 import { ContextsScreen } from '../contexts/ContextsScreen';
+import { CoverageMatrixScreen } from '../coverage/CoverageMatrixScreen';
 import { DashboardScreen } from '../dashboard/DashboardScreen';
 import { BuildersScreen } from '../builders/BuildersScreen';
 import { ContainersScreen } from '../containers/ContainersScreen';
@@ -281,7 +282,13 @@ export function Shell() {
               <SystemScreen />
             ) : activeScreen.id === 'raw-console' ? (
               <RawConsoleScreen />
-            ) : (
+            ) : activeScreen.id === 'coverage-matrix' ? (
+              // The shell's own three cards keep the home they have always had:
+              // the last entry of the navigation. Batch 30 replaces the
+              // placeholder that used to sit under them, not them — CLI
+              // availability (REQ-110), the daemon event stream (REQ-11,
+              // REQ-12) and the analysis cache's size and clear action
+              // (REQ-113) have no other surface in the application.
               <>
                 <Card>
                   <SectionHeader
@@ -309,8 +316,13 @@ export function Shell() {
                     action={{ label: 'Clear', onClick: handleClearCache, disabled: !cacheUsage }}
                   />
                 </Card>
-                <PlaceholderScreen screenLabel={activeScreen.label} />
+                <CoverageMatrixScreen />
               </>
+            ) : (
+              // No screen of the navigation data is left without its own
+              // content; this is the fallback for an id that names none of
+              // them.
+              <PlaceholderScreen screenLabel={activeScreen.label} />
             )}
           </Stack>
         </Frame>

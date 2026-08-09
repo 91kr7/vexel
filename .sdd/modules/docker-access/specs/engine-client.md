@@ -45,6 +45,10 @@ TCP+TLS), negotiates the API version, and preserves the daemon's own error messa
     rejects with a `DockerDaemonError` (code `DaemonRejected`, `statusCode` set) when the daemon
     answers with a normal (non-upgraded) error response instead.
   - Sets `Content-Type: application/json` when `body` is given, same as `request`.
+- `CLIENT_MAX_API_VERSION: string`
+  - The highest Engine API version this client was written against, and the ceiling of every
+    negotiation. Exported because it is also the Engine API baseline the product's coverage
+    statement refers to (REQ-106): the number is declared once, here, and read from there.
 - `getEngineClient(): EngineClient`
   - The client of the **active context**, shared by every server area.
   - Discarded and rebuilt on the next call as soon as the active endpoint changes, so no caller can
@@ -73,3 +77,4 @@ TCP+TLS), negotiates the API version, and preserves the daemon's own error messa
 - plan-docker_management_app/REQ-34
 - plan-docker_management_app/REQ-35
 - plan-docker_management_app/REQ-101
+- plan-docker_management_app/REQ-106

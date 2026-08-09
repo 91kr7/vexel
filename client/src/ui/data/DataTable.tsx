@@ -36,6 +36,13 @@ export interface DataTableProps<T> {
   selection?: DataTableSelection<T>;
   /** Drops the column header row, for a short list whose columns need no naming. */
   hideHeader?: boolean;
+  /**
+   * Rows grow to fit their content instead of being clipped to `rowHeight`,
+   * which becomes a minimum — for a reference table whose cells carry wrapping
+   * text rather than a dense list of one-line values. Virtualisation is off in
+   * this mode: a row's height is only known once it is rendered.
+   */
+  autoRowHeight?: boolean;
 }
 
 const OVERSCAN_ROWS = 6;
@@ -63,6 +70,7 @@ export function DataTable<T>({
   renderExpanded,
   selection,
   hideHeader = false,
+  autoRowHeight = false,
 }: DataTableProps<T>) {
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -81,7 +89,7 @@ export function DataTable<T>({
   );
   const headerRowStyle: CSSProperties = { gridTemplateColumns };
 
-  const virtualized = Boolean(maxHeight);
+  const virtualized = Boolean(maxHeight) && !autoRowHeight;
   let startIndex = virtualized ? Math.max(0, Math.floor(scrollTop / rowHeight) - OVERSCAN_ROWS) : 0;
   let endIndex = virtualized
     ? Math.min(rows.length, Math.ceil((scrollTop + viewportHeight) / rowHeight) + OVERSCAN_ROWS)
@@ -139,12 +147,17 @@ export function DataTable<T>({
             {topSpacerHeight > 0 ? <div style={{ height: topSpacerHeight }} /> : null}
             {visibleRows.map((row) => {
               const key = rowKey(row);
-              const rowStyle: CSSProperties = { height: rowHeight, gridTemplateColumns };
+              const rowStyle: CSSProperties = autoRowHeight
+                ? { minHeight: rowHeight, gridTemplateColumns }
+                : { height: rowHeight, gridTemplateColumns };
               const selected = key === selectedRowKey;
+              const rowClasses = ['ui-data-table__row', autoRowHeight ? 'ui-data-table__row--auto-height' : '', selected ? 'ui-data-table__row--selected' : '']
+                .filter(Boolean)
+                .join(' ');
               return (
                 <Fragment key={key}>
                   <div
-                    className={selected ? 'ui-data-table__row ui-data-table__row--selected' : 'ui-data-table__row'}
+                    className={rowClasses}
                     style={rowStyle}
                     onClick={onRowSelect ? () => onRowSelect(row) : undefined}
                     aria-selected={onRowSelect ? selected : undefined}

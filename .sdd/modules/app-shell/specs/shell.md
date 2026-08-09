@@ -45,7 +45,9 @@ Shows:
   the `system-prune` screen (REQ-95, REQ-96, REQ-97) — self-sufficient, reading its own disk-usage
   breakdown and daemon information —, `RawConsoleScreen` for the `raw-console` screen (REQ-100,
   REQ-101, REQ-102, REQ-103, REQ-104, REQ-112, REQ-114) — self-sufficient, reading its own console
-  history —, a `PlaceholderScreen` for every screen not yet built by its own feature batch.
+  history —, and `CoverageMatrixScreen` for the `coverage-matrix` screen (REQ-105, REQ-106) —
+  self-sufficient, reading its own baseline. A `PlaceholderScreen` remains the content of an
+  active id naming no screen at all; every screen of the navigation data now has its own.
 - The Containers `NavItem`'s count badge is the live container count from `useContainers()`, the
   Images & layers `NavItem`'s count badge is the live image count from `useImages()`, the
   Compose `NavItem`'s count badge is the live compose project count from `useComposeProjects()`, and
@@ -79,8 +81,13 @@ Navigation:
   capability is unavailable, success otherwise) so connectivity is visible without blocking
   navigation to another screen (REQ-8, REQ-9).
 - The unreachable-daemon banner never replaces or hides the rest of the screen: the CLI
-  availability card, the event stream, the local-storage card and the placeholder content remain
-  visible (REQ-10).
+  availability card, the event stream, the local-storage card and the active screen's content
+  remain visible (REQ-10).
+- The "CLI availability", "Daemon event stream" and "Local storage" cards are the shell's own
+  surfaces of REQ-110, REQ-11/REQ-12 and REQ-113, and they keep the place they have always had —
+  the last entry of the navigation, now the Coverage matrix. Batch 30 replaced the placeholder that
+  used to sit under them, not them: they have no other home in the application, and the analysis
+  cache's size and clear action exist nowhere else.
 - `errors` (REQ-7), `pending` (REQ-8), `connection` (REQ-9/REQ-10/REQ-13/REQ-110) and `events`
   (REQ-11/REQ-12) come from providers supplied by the caller (`App`), so they can be
   observed/driven independently of the shell chrome; `ToastProvider` and `ConfirmationProvider`
@@ -118,6 +125,7 @@ Navigation:
 - contexts: useContexts, ContextsScreen
 - system: SystemScreen
 - raw-console: RawConsoleScreen
+- coverage: CoverageMatrixScreen
 
 ## Requirements served
 
@@ -150,3 +158,4 @@ Navigation:
 - plan-docker_management_app/REQ-110
 - plan-docker_management_app/REQ-113
 - plan-docker_management_app/REQ-115
+- plan-docker_management_app/REQ-105

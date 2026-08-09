@@ -1,6 +1,7 @@
 import { Router } from "express";
 import type { Response } from "express";
 import { DockerDaemonError } from "../docker/errors.js";
+import { getBaselineReport } from "./baseline-service.js";
 import { getDiskUsage } from "./disk-usage-service.js";
 import { getSystemOverview } from "./overview-service.js";
 import { isDiskUsageCategoryId, pruneScope } from "./prune-service.js";
@@ -20,6 +21,17 @@ systemRouter.get("/disk-usage", async (_req, res) => {
 systemRouter.get("/overview", async (_req, res) => {
   try {
     res.json(await getSystemOverview());
+  } catch (error) {
+    respondError(res, error);
+  }
+});
+
+// The Docker baseline the coverage statement refers to, next to the daemon
+// currently connected (REQ-106). An unreachable daemon is reported inside the
+// body, not as a failed request: the declared half stands on its own.
+systemRouter.get("/baseline", async (_req, res) => {
+  try {
+    res.json(await getBaselineReport());
   } catch (error) {
     respondError(res, error);
   }

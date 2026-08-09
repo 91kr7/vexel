@@ -1,8 +1,23 @@
 import { useState } from 'react';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ActionButtonGroup, DataTable, type DataTableColumn } from '../../src/ui';
+
+/**
+ * The declarations of a CSS rule. jsdom loads no stylesheet, so a contract the
+ * library expresses in CSS — a row that does not clip its content — is read
+ * from the stylesheet itself, as `design-tokens-contrast.test.ts` does.
+ */
+function ruleBody(css: string, selector: string): string {
+  // Anchored on the end of the previous rule, so a selector is never matched inside a longer
+  // selector list (where it would return the wrong rule's declarations).
+  const match = new RegExp(`(?:^|\\}|\\*/)\\s*${selector.replace(/[.\-]/g, '\\$&')}\\s*\\{([^}]*)\\}`).exec(css);
+  if (!match) throw new Error(`no CSS rule for ${selector}`);
+  return match[1];
+}
 
 afterEach(cleanup);
 
@@ -212,5 +227,61 @@ describe('DataTable — expanded row survives scrolling under virtualisation', (
 
     expect(screen.queryByText('row-199')).not.toBeInTheDocument();
     expect(screen.getAllByText(/^row-\d+$/).length).toBeLessThan(200);
+  });
+});
+
+// ui-library/specs/data-table.md — the matrix variant: `autoRowHeight` trades fixed row heights and
+// virtualisation for text shown in full (REQ-105).
+describe('DataTable — content-sized rows (autoRowHeight)', () => {
+  // data-table.md — "every row grows to fit its content instead of being clipped, rowHeight becoming
+  // a minimum rather than a fixed height"
+  it('gives every row the row height as a minimum instead of a fixed height', () => {
+    const { container } = render(
+      <DataTable columns={columns} rows={makeRows(5)} rowKey={(row) => row.id} rowHeight={64} autoRowHeight />,
+    );
+
+    const rowElements = Array.from(container.querySelectorAll<HTMLElement>('.ui-data-table__row'));
+    expect(rowElements).toHaveLength(5);
+    rowElements.forEach((row) => {
+      expect(row.style.minHeight).toBe('64px');
+      expect(row.style.height).toBe('');
+    });
+  });
+
+  // data-table.md — "Virtualisation is off in this mode ... so every row is mounted; maxHeight still
+  // caps the body and scrolls it"
+  it('mounts every row even under a maxHeight, and still caps the body', () => {
+    const { container } = render(
+      <DataTable columns={columns} rows={makeRows(200)} rowKey={(row) => row.id} maxHeight="300px" autoRowHeight />,
+    );
+
+    expect(screen.getAllByText(/^row-\d+$/)).toHaveLength(200);
+    expect(screen.getByText('row-199')).toBeInTheDocument();
+    const scrollArea = container.querySelector<HTMLElement>('.ui-scroll-area');
+    expect(scrollArea?.style.maxHeight).toBe('300px');
+  });
+
+  // data-table.md — "A row's content that exceeds its fixed rowHeight is clipped ... unless
+  // autoRowHeight is set": the row must not clip what its cells draw
+  it('does not clip the content of a content-sized row', () => {
+    const { container } = render(
+      <DataTable columns={columns} rows={makeRows(1)} rowKey={(row) => row.id} rowHeight={64} autoRowHeight />,
+    );
+    const rowClass = container.querySelector<HTMLElement>('.ui-data-table__row')?.className ?? '';
+
+    // The clipping is a property of the fixed-height row alone, so the variant is marked as its own.
+    expect(rowClass).toContain('ui-data-table__row--auto-height');
+    const css = readFileSync(join(process.cwd(), 'src/ui/data/data-table.css'), 'utf8');
+    expect(ruleBody(css, '.ui-data-table__row--auto-height')).toMatch(/overflow:\s*visible/);
+  });
+
+  // data-table.md — the fixed-height default is unchanged: it is still clipped and still virtualised
+  it('leaves the fixed-height default clipping and virtualising as before', () => {
+    const { container } = render(<DataTable columns={columns} rows={makeRows(200)} rowKey={(row) => row.id} maxHeight="300px" />);
+
+    expect(screen.getAllByText(/^row-\d+$/).length).toBeLessThan(200);
+    const row = container.querySelector<HTMLElement>('.ui-data-table__row');
+    expect(row?.style.height).toBe('56px');
+    expect(row?.className).not.toContain('auto-height');
   });
 });

@@ -1,5 +1,9 @@
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
-import { activeContextLabel } from './support/fixtures.js';
+import { activeContextLabel, ownershipArgs } from './support/fixtures.js';
+
+const execFileAsync = promisify(execFile);
 
 /**
  * Pins the persisted `lastScreenId` and reloads: the shell restores the
@@ -90,14 +94,14 @@ test('activating a nav entry switches the main area and marks it active, keeping
   await expect(page.getByText('Vexel', { exact: true })).toBeVisible();
   await expect(page.getByRole('navigation').getByText('Active context')).toBeVisible();
 
-  // Switching again replaces the content without losing the rail; a screen with
-  // no feature batch yet still shows its placeholder (shell.md, placeholder-screen.md).
-  // Plugins was that screen until batch 28 built it; Coverage matrix is the last
-  // one still waiting for its own batch, and the raw console is next in line to
-  // lose the placeholder, so it is not the one to pin here.
+  // Switching again replaces the content without losing the rail. Since batch 30
+  // every screen of the navigation data has content of its own (shell.md), so no
+  // entry shows a placeholder any more — the last one to do so, the Coverage
+  // matrix, is checked here in its built form.
   await navEntry(page, 'Coverage matrix').click();
   await expect(page.getByRole('heading', { level: 1, name: 'Coverage matrix' })).toBeVisible();
-  await expect(page.getByText(/Coverage matrix is not built yet/)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Docker capability coverage' })).toBeVisible();
+  await expect(page.getByText(/is not built yet/)).toHaveCount(0);
   await expect(navEntry(page, 'Containers')).toBeVisible();
 });
 
@@ -129,30 +133,45 @@ test('no runtime blur is computed on the shell surfaces', async ({ page }) => {
 });
 
 // plan-docker_management_app/REQ-6
-test('a destructive demo action asks for confirmation naming its target and does nothing when cancelled', async ({ page }) => {
-  // The destructive-confirmation demo lives on a screen with no feature batch
-  // yet (placeholder-screen.md), so the screen is stated rather than inherited.
-  // The Dashboard has been a real screen since batch 25 and carries no demo;
-  // Plugins stopped being a placeholder in batch 28, and the raw console loses
-  // its own in batch 29 — Coverage matrix is the one that outlives both.
-  await openOnScreen(page, 'coverage-matrix', 'Coverage matrix');
+test('a destructive action asks for confirmation naming its target and does nothing when cancelled', async ({ page }) => {
+  // The destructive-confirmation demo used to live on the last placeholder
+  // screen, which batch 30 replaced with the Coverage matrix. The flow is now
+  // exercised on a real destructive action of the product: the per-category
+  // prune of System & prune, which is always on the screen and which cancelling
+  // provably performs nothing. Nothing is ever confirmed here — the prunes act
+  // on the whole host and live in e2e/exclusive/.
+  //
+  // The category acted on is one this test made non-empty itself, so the
+  // control is enabled whatever the operator's daemon holds; the fixture is
+  // removed in the `finally`, whether the assertions passed or not.
+  const name = `vexel-e2e-shell-req6-${process.pid}-${Date.now()}`;
+  await execFileAsync('docker', ['create', '--name', name, ...ownershipArgs('shell-req6'), '--entrypoint', 'sleep', 'alpine:3.20', '300']);
+  const pruneRequests: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().includes('/api/system/prune')) pruneRequests.push(request.url());
+  });
+  try {
+    await openOnScreen(page, 'system-prune', 'System & prune');
 
-  // Scoped to the screen's own content: the rail names a "System & prune"
-  // entry, which reads like a destructive control to an unscoped locator and is
-  // merely a navigation entry.
-  const candidates = page
-    .locator('.ui-frame__content')
-    .getByRole('button', { name: /remove|delete|kill|prune|down|leave|log ?out/i });
-  const candidateCount = await candidates.count();
-  expect(
-    candidateCount,
-    'No control on the shell looks like a destructive action to exercise REQ-6 end-to-end.',
-  ).toBeGreaterThan(0);
+    const row = page.locator('.ui-storage-usage-row').filter({ hasText: 'Stopped containers' });
+    await expect(row.getByRole('button', { name: 'Prune' })).toBeEnabled({ timeout: 30_000 });
+    await row.getByRole('button', { name: 'Prune' }).click();
 
-  await candidates.first().click();
+    const dialog = page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: /^Confirm:/ }) });
+    await expect(
+      dialog.getByRole('heading', { name: /^Confirm:/ }),
+      'The destructive action did not open a confirmation dialog naming its target (REQ-6).',
+    ).toBeVisible({ timeout: 3000 });
+    await expect(dialog).toContainText('Stopped containers');
 
-  await expect(
-    page.getByRole('heading', { name: /^Confirm:/ }),
-    'Activating the destructive-looking control did not open a confirmation dialog naming its target (REQ-6).',
-  ).toBeVisible({ timeout: 3000 });
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    await expect(dialog).toBeHidden();
+
+    // "cancelling performs nothing": no prune was asked for, and the container is still there.
+    expect(pruneRequests).toEqual([]);
+    const { stdout } = await execFileAsync('docker', ['ps', '-aq', '--filter', `name=^${name}$`]);
+    expect(stdout.trim().length).toBeGreaterThan(0);
+  } finally {
+    await execFileAsync('docker', ['rm', '-fv', name]).catch(() => undefined);
+  }
 });

@@ -1,5 +1,5 @@
-// Typed client for the server's system overview, disk-usage and prune
-// endpoints (REQ-14, REQ-16, REQ-95, REQ-96).
+// Typed client for the server's system overview, disk-usage, prune and
+// coverage-baseline endpoints (REQ-14, REQ-16, REQ-95, REQ-96, REQ-106).
 export type DiskUsageCategoryId =
   | 'stopped-containers'
   | 'dangling-images'
@@ -83,6 +83,30 @@ export interface SystemOverview {
   diskUsage: DiskUsageTotals;
 }
 
+export interface BaselineDeclaration {
+  /** Highest Engine API version the application was written against. */
+  engineApiVersion: string;
+  /** Docker CLI release line shipping that Engine API version. */
+  cliVersion: string;
+}
+
+export interface ConnectedDaemonVersions {
+  version: string;
+  apiVersion: string;
+  minApiVersion?: string;
+}
+
+export type BaselineComparison = 'match' | 'daemon-newer' | 'daemon-older' | 'unknown';
+
+export interface BaselineReport {
+  declared: BaselineDeclaration;
+  /** Absent exactly when the daemon could not be read. */
+  daemon?: ConnectedDaemonVersions;
+  /** Present exactly when the daemon could not be read. */
+  daemonUnavailableDetail?: string;
+  comparison: BaselineComparison;
+}
+
 async function extractErrorMessage(response: Response): Promise<string> {
   try {
     const body = (await response.json()) as { error?: string };
@@ -108,6 +132,13 @@ export async function fetchDiskUsage(): Promise<DiskUsageBreakdown> {
   const response = await fetch('/api/system/disk-usage');
   await requireOk(response);
   return (await response.json()) as DiskUsageBreakdown;
+}
+
+/** The Docker baseline the coverage statement refers to, and the daemon connected right now (REQ-106). */
+export async function fetchCoverageBaseline(): Promise<BaselineReport> {
+  const response = await fetch('/api/system/baseline');
+  await requireOk(response);
+  return (await response.json()) as BaselineReport;
 }
 
 /** Prunes the chosen categories; a scope of one is the per-category prune. */

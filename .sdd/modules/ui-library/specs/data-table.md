@@ -13,7 +13,7 @@ stays smooth (REQ-109).
 ## Contract
 
 - `<DataTable columns rows rowKey rowHeight? maxHeight? selectedRowKey? onRowSelect? emptyState?
-  expandedRowKey? renderExpanded? selection? hideHeader? />`
+  expandedRowKey? renderExpanded? selection? hideHeader? autoRowHeight? />`
   - `columns: DataTableColumn<T>[]` — `{ id, header, width?, align?, render(row) }`; `width` is a
     `grid-template-columns` track (default `'1fr'`); `align`: `'start' | 'end'` (default `'start'`).
   - `rows: T[]`, `rowKey(row): string`.
@@ -35,6 +35,12 @@ stays smooth (REQ-109).
   - `hideHeader?: boolean` (default `false`) — drops the header row entirely, for a short list
     whose columns need no naming (e.g. an overview panel); the rows, their tracks and their
     alignment are unchanged, and the multi-select header checkbox goes with the header.
+  - `autoRowHeight?: boolean` (default `false`) — the matrix variant: every row grows to fit its
+    content instead of being clipped, `rowHeight` becoming a minimum rather than a fixed height,
+    and the cells align to the top of the row. For a reference table whose cells carry text that
+    reads as a sentence (e.g. the coverage matrix) rather than a dense list of one-line values.
+    Virtualisation is off in this mode — a row's height is not known before it is rendered — so
+    every row is mounted; `maxHeight` still caps the body and scrolls it.
 
 ## Rules and invariants
 
@@ -52,7 +58,10 @@ stays smooth (REQ-109).
   `rows`, regardless of scroll position: its component instance (and therefore its internal state,
   e.g. an in-progress edit) survives scrolling.
 - A row's content that exceeds its fixed `rowHeight` is clipped, never grows the row or spills into
-  the row below.
+  the row below — unless `autoRowHeight` is set, which is exactly the trade this variant makes:
+  rows of differing heights, and no virtualisation, in exchange for text shown in full.
+- `autoRowHeight` and virtualisation are never both in effect: with `autoRowHeight` set, `maxHeight`
+  scrolls the body but mounts every row.
 
 ## Dependencies
 
@@ -64,3 +73,4 @@ stays smooth (REQ-109).
 - plan-docker_management_app/REQ-24
 - plan-docker_management_app/REQ-109
 - plan-docker_management_app/REQ-15
+- plan-docker_management_app/REQ-105

@@ -36,6 +36,12 @@
   border-bottom: var(--border-width-hairline) solid var(--color-border-subtle);
 }
 
+.ui-data-table__row--auto-height {
+  align-items: start;
+  padding: var(--space-3) var(--space-4);
+  overflow: visible;
+}
+
 .ui-data-table__row:hover {
   background: var(--color-surface-2);
 }
@@ -135,6 +141,25 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Wrapping variant: the lines read as sentences, so they are shown in full and
+   the subtitle drops the monospace treatment reserved for machine values. */
+.ui-table-two-line-cell--wrap {
+  align-items: start;
+}
+
+.ui-table-two-line-cell--wrap .ui-table-two-line-cell__title,
+.ui-table-two-line-cell--wrap .ui-table-two-line-cell__subtitle {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.ui-table-two-line-cell--wrap .ui-table-two-line-cell__subtitle {
+  font-family: inherit;
+  line-height: var(--line-height-normal);
 }
 
 .ui-table-meta-cell {
