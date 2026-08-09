@@ -13,7 +13,11 @@ import { ProgressProvider, useProgress } from '../../src/shell/services/Progress
 
 class FakeEventSource {
   onmessage: ((event: { data: string }) => void) | null = null;
-  constructor(public url: string) {}
+  url: string;
+
+  constructor(url: string) {
+    this.url = url;
+  }
 }
 
 const reachableStatus = {

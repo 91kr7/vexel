@@ -17,7 +17,10 @@ class FakeEventSource {
   static instances: FakeEventSource[] = [];
   onmessage: ((message: { data: string }) => void) | null = null;
 
-  constructor(public url: string) {
+  url: string;
+
+  constructor(url: string) {
+    this.url = url;
     FakeEventSource.instances.push(this);
   }
 

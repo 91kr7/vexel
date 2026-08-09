@@ -58,7 +58,11 @@ const image: ImageSummary = {
 class FakeEventSource {
   onmessage: ((event: { data: string }) => void) | null = null;
 
-  constructor(public url: string) {}
+  url: string;
+
+  constructor(url: string) {
+    this.url = url;
+  }
 
   addEventListener() {
     // no event delivery is needed for this comparison

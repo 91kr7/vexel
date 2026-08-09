@@ -171,13 +171,15 @@ describe('ConsoleSurface — per-entry actions (REQ-102)', () => {
 
   // console-surface.md — "inert while busy"
   it('leaves the re-run control inert while busy', async () => {
-    const user = userEvent.setup();
+    // The pointer-events check is switched off for the session, not per call:
+    // `click` takes the element alone, so a per-call option would be ignored.
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
     const onRerun = vi.fn();
     renderSurface({ entries: [entry()], onRerun, busy: true, onCancel: vi.fn() });
 
     const rerun = screen.getByRole('button', { name: 'Re-run' });
     expect(rerun).toBeDisabled();
-    await user.click(rerun, { pointerEventsCheck: 0 });
+    await user.click(rerun);
     expect(onRerun).not.toHaveBeenCalled();
   });
 

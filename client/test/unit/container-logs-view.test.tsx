@@ -21,7 +21,10 @@ class FakeEventSource {
   private listeners = new Map<string, Array<(event: unknown) => void>>();
   closed = false;
 
-  constructor(public url: string) {
+  url: string;
+
+  constructor(url: string) {
+    this.url = url;
     FakeEventSource.instances.push(this);
   }
 

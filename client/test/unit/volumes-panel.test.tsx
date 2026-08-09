@@ -64,7 +64,11 @@ class FakeEventSource {
   onmessage: ((event: { data: string }) => void) | null = null;
   closed = false;
 
-  constructor(public url: string) {}
+  url: string;
+
+  constructor(url: string) {
+    this.url = url;
+  }
 
   addEventListener() {
     // no event delivery is needed for these tests
@@ -145,7 +149,7 @@ describe('VolumesPanel — inline inspect (plan-docker_management_app/REQ-71)', 
     await user.click(listRows()[0]!);
 
     const expanded = await screen.findByText('Mountpoint');
-    const detail = expanded.closest('.ui-card-list')!;
+    const detail = expanded.closest<HTMLElement>('.ui-card-list')!;
     expect(within(detail).getByText('Driver')).toBeInTheDocument();
     expect(within(detail).getByText('Scope')).toBeInTheDocument();
     const mountedByValues = Array.from(detail.querySelectorAll('.ui-definition-list__value')).map((node) => node.textContent);

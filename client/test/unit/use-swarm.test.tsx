@@ -54,7 +54,10 @@ class FakeEventSource {
   onmessage: ((message: { data: string }) => void) | null = null;
   closed = false;
 
-  constructor(public url: string) {
+  url: string;
+
+  constructor(url: string) {
+    this.url = url;
     FakeEventSource.instances.push(this);
   }
 

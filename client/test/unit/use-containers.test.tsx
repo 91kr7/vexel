@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { useContainers } from '../../src/data/use-containers';
 import type { ContainerSummary } from '../../src/data/containers-client';
@@ -11,7 +11,10 @@ class FakeEventSource {
   onmessage: ((message: { data: string }) => void) | null = null;
   closed = false;
 
-  constructor(public url: string) {
+  url: string;
+
+  constructor(url: string) {
+    this.url = url;
     FakeEventSource.instances.push(this);
   }
 
@@ -34,7 +37,9 @@ function daemonStream(): FakeEventSource {
   return FakeEventSource.instances[0];
 }
 
-let fetchList: ReturnType<typeof vi.fn>;
+// Typed with the signature of the function it stands in for: an untyped
+// `vi.fn()` is not callable through `ReturnType<typeof vi.fn>`.
+let fetchList: Mock<() => Promise<ContainerSummary[]>>;
 
 vi.mock('../../src/data/containers-client', () => ({
   fetchContainers: () => fetchList(),
@@ -42,7 +47,9 @@ vi.mock('../../src/data/containers-client', () => ({
 
 beforeEach(() => {
   vi.stubGlobal('EventSource', FakeEventSource);
-  fetchList = vi.fn().mockResolvedValue([{ id: 'c1', name: 'database', state: 'running' }] as unknown as ContainerSummary[]);
+  fetchList = vi
+    .fn<() => Promise<ContainerSummary[]>>()
+    .mockResolvedValue([{ id: 'c1', name: 'database', state: 'running' }] as unknown as ContainerSummary[]);
 });
 
 afterEach(() => {

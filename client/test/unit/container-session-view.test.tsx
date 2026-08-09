@@ -45,7 +45,10 @@ class FakeWebSocket {
   sent: unknown[] = [];
   private listeners = new Map<string, Array<(event: unknown) => void>>();
 
-  constructor(public url: string) {
+  url: string;
+
+  constructor(url: string) {
+    this.url = url;
     FakeWebSocket.instances.push(this);
   }
 

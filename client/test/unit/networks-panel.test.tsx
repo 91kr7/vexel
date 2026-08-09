@@ -65,7 +65,11 @@ class FakeEventSource {
   onmessage: ((event: { data: string }) => void) | null = null;
   closed = false;
 
-  constructor(public url: string) {}
+  url: string;
+
+  constructor(url: string) {
+    this.url = url;
+  }
 
   addEventListener() {
     // no event delivery is needed for these tests
@@ -203,7 +207,7 @@ describe('NetworksPanel — inline inspect (plan-docker_management_app/REQ-73)',
     await user.click(listRows()[0]!);
 
     const expanded = await screen.findByText('Driver');
-    const detail = expanded.closest('.ui-card-list')!;
+    const detail = expanded.closest<HTMLElement>('.ui-card-list')!;
     expect(within(detail).getByText('Scope')).toBeInTheDocument();
     expect(within(detail).getByText('Subnet')).toBeInTheDocument();
     expect(within(detail).getByText('Gateway')).toBeInTheDocument();

@@ -30,7 +30,11 @@ class FakeEventSource {
   onmessage: ((event: { data: string }) => void) | null = null;
   closed = false;
 
-  constructor(public url: string) {}
+  url: string;
+
+  constructor(url: string) {
+    this.url = url;
+  }
 
   addEventListener() {
     // no event delivery is needed for these tests

@@ -40,13 +40,15 @@ describe('CopyButton (ui-library/specs/copy-button.md)', () => {
   // copy-button.md — "disabled?: boolean (default false) — the affordance stays in place but is
   // inert"; "A disabled button copies nothing: no clipboard write, and no 'Copied' confirmation."
   it('writes nothing to the clipboard and shows no confirmation while disabled', async () => {
-    const user = userEvent.setup();
+    // The pointer-events check is switched off for the session, not per call:
+    // `click` takes the element alone, so a per-call option would be ignored.
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
     const writeText = stubClipboard();
     render(<CopyButton value="exact-payload-text" disabled />);
 
     const button = screen.getByRole('button', { name: 'Copy' });
     expect(button).toBeDisabled();
-    await user.click(button, { pointerEventsCheck: 0 });
+    await user.click(button);
 
     expect(writeText).not.toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: 'Copied' })).not.toBeInTheDocument();

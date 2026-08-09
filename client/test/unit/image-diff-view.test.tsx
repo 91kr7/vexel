@@ -12,7 +12,10 @@ class FakeEventSource {
   private listeners = new Map<string, Array<(event: unknown) => void>>();
   closed = false;
 
-  constructor(public url: string) {
+  url: string;
+
+  constructor(url: string) {
+    this.url = url;
     FakeEventSource.instances.push(this);
   }
 
@@ -122,7 +125,7 @@ async function pickBothImages() {
  */
 async function confirmComparison() {
   const dialogHeading = screen.getByRole('heading', { name: 'Confirm: app:v1 vs app:v2' });
-  const dialog = dialogHeading.closest('.ui-modal')!;
+  const dialog = dialogHeading.closest<HTMLElement>('.ui-modal')!;
   await userEvent.click(within(dialog).getByRole('button', { name: 'Compare' }));
 }
 
@@ -158,7 +161,7 @@ describe('ImageDiffView — cost warning, progress and cancel (plan-docker_manag
 
     const dialogHeading = screen.getByRole('heading', { name: 'Confirm: app:v1 vs app:v2' });
     expect(dialogHeading).toBeInTheDocument();
-    const dialog = dialogHeading.closest('.ui-modal')!;
+    const dialog = dialogHeading.closest<HTMLElement>('.ui-modal')!;
     expect(within(dialog).getByText(/extracts either image not already browsed/)).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));

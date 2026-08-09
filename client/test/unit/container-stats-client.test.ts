@@ -16,7 +16,9 @@ describe('fetchContainerProcesses (REQ-33)', () => {
   // container-stats-client.md — the process listing is read from the container's processes endpoint
   it('reads the listing from the container processes endpoint', async () => {
     const payload = { titles: ['PID', 'USER', 'CMD'], processes: [{ pid: 1, user: 'root', command: 'postgres' }] };
-    const fetchMock = vi.fn(() => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(payload) }));
+    // The parameter is declared so the recorded call keeps the requested URL:
+    // a zero-argument implementation types `mock.calls` as empty tuples.
+    const fetchMock = vi.fn((_input: RequestInfo | URL) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(payload) }));
     vi.stubGlobal('fetch', fetchMock);
 
     await expect(fetchContainerProcesses('container-1')).resolves.toEqual(payload);
