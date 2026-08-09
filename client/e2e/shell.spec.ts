@@ -21,7 +21,7 @@ const groups: Record<string, string[]> = {
   Workloads: ['Dashboard', 'Containers', 'Compose', 'Swarm'],
   Artifacts: ['Images & layers', 'Volumes & networks', 'Registries', 'Builders & cache'],
   Environment: ['Contexts', 'Plugins', 'System & prune'],
-  'Full coverage': ['Raw console', 'Coverage matrix'],
+  'Full coverage': ['Raw console', 'About'],
 };
 
 const allScreenLabels = Object.values(groups).flat();
@@ -46,6 +46,11 @@ test('opens on the Vexel — Docker Control shell with the thirteen entries grou
     for (const label of labels) {
       await expect(navEntry(page, label)).toBeVisible();
     }
+    // The entries keep their place inside their group, in the order the navigation
+    // data declares — the screen the application dedicates to itself being the last
+    // of "Full coverage" (plan-docker_management_app-about_license_notice/REQ-1).
+    const railGroup = page.locator(`div:has(> .ui-nav-group__label:text-is("${group}")) .ui-nav-group__items`);
+    await expect(railGroup.locator('.ui-nav-item__label')).toHaveText(labels);
   }
   expect(allScreenLabels).toHaveLength(13);
 
@@ -85,10 +90,10 @@ test('activating a nav entry switches the main area and marks it active, keeping
 
   // Switching again replaces the content without losing the rail. Since batch 30
   // every screen of the navigation data has content of its own (shell.md), so no
-  // entry shows a placeholder any more — the last one to do so, the Coverage
-  // matrix, is checked here in its built form.
-  await navEntry(page, 'Coverage matrix').click();
-  await expect(page.getByRole('heading', { level: 1, name: 'Coverage matrix' })).toBeVisible();
+  // entry shows a placeholder any more — the last one to do so, the screen now
+  // labelled "About", is checked here in its built form.
+  await navEntry(page, 'About').click();
+  await expect(page.getByRole('heading', { level: 1, name: 'About' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Docker capability coverage' })).toBeVisible();
   await expect(page.getByText(/is not built yet/)).toHaveCount(0);
   await expect(navEntry(page, 'Containers')).toBeVisible();
@@ -124,7 +129,7 @@ test('no runtime blur is computed on the shell surfaces', async ({ page }) => {
 // plan-docker_management_app/REQ-6
 test('a destructive action asks for confirmation naming its target and does nothing when cancelled', async ({ page }) => {
   // The destructive-confirmation demo used to live on the last placeholder
-  // screen, which batch 30 replaced with the Coverage matrix. The flow is now
+  // screen, which batch 30 replaced with the coverage matrix. The flow is now
   // exercised on a real destructive action of the product: the per-category
   // prune of System & prune, which is always on the screen and which cancelling
   // provably performs nothing. Nothing is ever confirmed here — the prunes act

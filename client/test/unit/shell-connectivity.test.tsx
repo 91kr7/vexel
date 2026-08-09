@@ -113,9 +113,9 @@ async function renderShellWith(status: unknown) {
     if (url.startsWith('/api/system/overview')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(systemOverview) });
     }
-    // The Coverage matrix reads the declared Docker baseline (REQ-106); this suite pins that
-    // screen to prove the shell's own cards survive an unreachable daemon, so it needs an
-    // answer of the right shape here too.
+    // The About screen's coverage matrix reads the declared Docker baseline (REQ-106); this
+    // suite pins that screen to prove the shell's own cards survive an unreachable daemon, so
+    // it needs an answer of the right shape here too.
     if (url.startsWith('/api/system/baseline')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve(coverageBaseline) });
     }
@@ -175,10 +175,10 @@ describe('Shell — daemon connectivity (app-shell/specs/shell.md)', () => {
     // The unreachable banner does not replace or hide the rest of the screen. The
     // "CLI availability", "Daemon event stream" and "Local storage" cards are the
     // shell's own surfaces of REQ-110, REQ-11/REQ-12 and REQ-113, and they sit
-    // above the last entry of the navigation — the Coverage matrix since batch 30
-    // built it (shell.md). The screen is pinned rather than inherited: the landing
+    // above the last entry of the navigation — the screen now labelled "About"
+    // (shell.md). The screen is pinned rather than inherited: the landing
     // screen is the Dashboard, which carries none of them.
-    await userEvent.setup().click(screen.getByRole('button', { name: /Coverage matrix/ }));
+    await userEvent.setup().click(screen.getByRole('button', { name: /About/ }));
     // Scoped to the cards' own titles: the coverage matrix names a "Daemon event stream"
     // capability area, so an unscoped locator matches the screen's content as well.
     expect(cardTitles()).toContain('CLI availability');

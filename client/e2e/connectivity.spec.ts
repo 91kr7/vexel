@@ -6,15 +6,16 @@ import { openApp, ownershipArgs } from './support/fixtures.js';
 const execFileAsync = promisify(execFile);
 
 // These assertions read the three cards the shell keeps for itself. Batch 30
-// replaced the placeholder that used to sit under them with the Coverage matrix,
-// so that is the screen hosting them now (app-shell/specs/shell.md). The screen
-// is pinned rather than inherited from a previous spec (REQ-115).
+// replaced the placeholder that used to sit under them with the coverage matrix,
+// so the screen hosting them is the one labelled "About" (app-shell/specs/shell.md),
+// addressed here by the internal id the rename did not touch. The screen is
+// pinned rather than inherited from a previous spec (REQ-115).
 const SCREEN_HOSTING_THE_SHELL_CARDS = 'coverage-matrix';
 
 /**
  * One of the shell's own cards, addressed by its title.
  *
- * Every assertion below is scoped to its card: the Coverage matrix sharing the
+ * Every assertion below is scoped to its card: the coverage matrix sharing the
  * screen has a row named "Daemon event stream" of its own, and states the
  * daemon's Docker version in its baseline strip, so the same words appear twice
  * on the page for reasons that have nothing to do with connectivity.
@@ -31,7 +32,7 @@ test.beforeEach(async ({ page }) => {
 
 // plan-docker_management_app/REQ-9, plan-docker_management_app/REQ-13
 test('shows the daemon reachable and the negotiated Engine API version in the header', async ({ page }) => {
-  // The requirement places both readings in the header, and the Coverage matrix
+  // The requirement places both readings in the header, and the coverage matrix
   // below states an Engine API version of its own, so the header is the subject.
   const header = page.locator('header');
   await expect(header.getByText('Live · daemon events')).toBeVisible();

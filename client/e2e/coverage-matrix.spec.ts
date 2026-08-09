@@ -5,11 +5,13 @@ import { openApp } from './support/fixtures.js';
 
 const execFileAsync = promisify(execFile);
 
-// The Coverage matrix is the product's statement about itself (REQ-105, REQ-106),
+// The coverage matrix is the product's statement about itself (REQ-105, REQ-106),
 // so this spec checks it against the product rather than against the screen: a
 // link must land on the screen it names, the capabilities the plan withdrew must
 // be declared console-only, and the baseline shown must be the one Docker itself
-// reports for the daemon behind the active context.
+// reports for the daemon behind the active context. The matrix is now the
+// coverage half of the screen the navigation labels "About", which is where the
+// last test of the file starts from.
 //
 // It creates nothing on the daemon — the screen is a read of declared data plus
 // one version reading — so there is nothing to clean up.
@@ -53,6 +55,18 @@ function baselineStrip(page: Page): Locator {
   return page.locator('.ui-state-summary-bar');
 }
 
+/**
+ * One of the shell's own cards, addressed by its title.
+ *
+ * Scoped to the card titles: the matrix sharing the screen has a row named
+ * "Daemon event stream" of its own, so the same words appear twice on the page.
+ */
+function shellCard(page: Page, title: string): Locator {
+  return page.locator('.ui-surface').filter({
+    has: page.locator('.ui-card__title, .ui-section-header__title', { hasText: title }),
+  });
+}
+
 /** The matrix row whose text carries `text` — a capability name or the command that reaches it. */
 function rowContaining(page: Page, text: string | RegExp): Locator {
   return matrix(page).locator('.ui-data-table__row').filter({ hasText: text });
@@ -61,7 +75,7 @@ function rowContaining(page: Page, text: string | RegExp): Locator {
 async function openCoverageMatrix(page: Page): Promise<void> {
   // The last active screen survives by design (REQ-115): pin it rather than inherit it.
   await openApp(page, 'coverage-matrix');
-  await expect(page.getByRole('heading', { level: 1, name: 'Coverage matrix' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'About' })).toBeVisible();
   await expect(matrix(page).locator('.ui-data-table__row').first()).toBeVisible({ timeout: 30_000 });
 }
 
@@ -185,4 +199,38 @@ test('re-reading the baseline leaves the coverage statement standing', async ({ 
 
   await expect(baselineStrip(page)).toContainText(/declared Engine API/i);
   await expect(matrix(page).locator('.ui-data-table__row')).toHaveCount(rowsBefore);
+});
+
+// plan-docker_management_app-about_license_notice/REQ-1, REQ-2, REQ-3, REQ-4, REQ-5 — the screen a
+// previous version persisted under its internal id reopens under its new label, with nothing
+// removed from it
+test('a screen persisted under its internal id reopens as "About", carrying everything it showed', async ({ page }) => {
+  // What an earlier version persisted as the last active screen is the internal id, which the
+  // rename did not touch: writing exactly that value and loading the application is that upgrade
+  // replayed. The whole file addresses the screen this way, through an `openApp` the rename left
+  // untouched — that it still works is itself the evidence for REQ-2.
+  await openApp(page, 'coverage-matrix');
+
+  // No migration step and nothing to redo: the screen is already the active one on load, and the
+  // rail already marks it.
+  await expect(page.getByRole('heading', { level: 1, name: 'About' })).toBeVisible();
+  await expect(page.locator('[aria-current="page"]')).toHaveAccessibleName(/About/);
+
+  // REQ-1 — reached from the permanent navigation as the last entry of "Full coverage".
+  const fullCoverage = page.locator('div:has(> .ui-nav-group__label:text-is("Full coverage")) .ui-nav-group__items');
+  await expect(fullCoverage.locator('.ui-nav-item__label').last()).toHaveText('About');
+  // REQ-5 — nothing offered to the operator still carries the old name.
+  await expect(page.getByRole('navigation').getByRole('button', { name: /Coverage matrix/i })).toHaveCount(0);
+
+  // REQ-4 — with the label no longer advertising it, the header's one-line description is what
+  // says the functional coverage matrix is on this screen.
+  await expect(page.locator('.ui-page-header__description')).toContainText(/coverage matrix/i);
+
+  // REQ-3 — the rename took nothing off the screen: the three shell cards are still there, and so
+  // is the matrix under a heading of its own.
+  for (const title of ['CLI availability', 'Daemon event stream', 'Local storage']) {
+    await expect(shellCard(page, title), `the "${title}" card is no longer on the screen`).toBeVisible();
+  }
+  await expect(page.getByRole('heading', { name: 'Docker capability coverage' })).toBeVisible();
+  await expect(matrix(page).locator('.ui-data-table__row').first()).toBeVisible({ timeout: 30_000 });
 });

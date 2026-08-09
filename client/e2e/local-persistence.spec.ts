@@ -116,11 +116,12 @@ test('a screen chosen before the preferences read settles is the one the applica
 // empties the cache and is disabled once there is nothing left to clear
 test('the Local storage card shows the analysis-cache size and clearing it disables the Clear action', async ({ page }) => {
   // The card is one of the three the shell keeps for itself; batch 30 replaced
-  // the placeholder that used to sit under them with the Coverage matrix, so
-  // that is the screen they are shown on now (app-shell/specs/shell.md).
+  // the placeholder that used to sit under them with the coverage matrix, so the
+  // screen they are shown on is the one labelled "About" (app-shell/specs/shell.md).
+  // It is addressed by its internal id, which the rename did not touch.
   await openApp(page, 'coverage-matrix');
 
-  // Scoped to the card: the Coverage matrix under it names screens and
+  // Scoped to the card: the coverage matrix under it names screens and
   // capabilities in its own rows, so a page-wide text locator is ambiguous here.
   const localStorageCard = page.locator('.ui-surface', { has: page.locator('.ui-card__title', { hasText: 'Local storage' }) });
   await expect(localStorageCard).toBeVisible();

@@ -6,9 +6,10 @@ type: UI component
 
 # CoverageMatrixScreen
 
-**Purpose** → the screen that states what this product covers of Docker and what it does not, area
-by area, and the Docker baseline that statement holds against next to the daemon currently
-connected.
+**Purpose** → the statement of what this product covers of Docker and what it does not, area by
+area, and the Docker baseline that statement holds against next to the daemon currently connected.
+It is the coverage half of the screen the navigation labels "About"; the shell renders it under
+that screen's own cards.
 
 ## Contract
 
@@ -60,6 +61,11 @@ Navigation:
 - Every row's coverage state and its "where it lives" cell agree by construction: a dedicated-screen
   row always leads to a screen, a console-only row always leads to the Raw console, and a
   not-applicable row leads nowhere.
+- The matrix always carries a heading of its own ("Docker capability coverage"): it shares its
+  screen with content that is not about coverage, so it is named where it sits rather than relying
+  on the screen's title to name it.
+- Every screen a row names is named as the navigation names it at that moment, so relabelling a
+  screen is one edit to the navigation data and never one here.
 
 ## Dependencies
 
@@ -72,3 +78,4 @@ Navigation:
 
 - plan-docker_management_app/REQ-105
 - plan-docker_management_app/REQ-106
+- plan-docker_management_app-about_license_notice/REQ-4

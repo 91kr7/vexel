@@ -345,12 +345,21 @@ reduced form; no number is retired.
 | REQ-104 | The console states which channel each entry runs on (local `docker` CLI process or Engine API call) and that it executes with the full privileges of the daemon and of the local user. |
 | REQ-112 | A console entry recognised as destructive (remove, prune, kill, system-wide operations, swarm leave, …) goes through the same explicit confirmation as the rest of the application before it runs, naming the command that is about to be executed. |
 
-## F29 — Coverage matrix
+## F29 — About screen
 
 | ID | Requirement |
 | --- | --- |
 | REQ-105 | A coverage screen lists the Docker capability areas and states, for each, whether it is covered by a dedicated screen or reachable only through the raw console, with a link to the covering screen when there is one. |
 | REQ-106 | The coverage screen declares the Docker Engine API and CLI baseline the stated coverage refers to, and the daemon version currently connected, so a mismatch is visible. |
+
+**Feature retitled, screen relabelled (2026-08-09).** The screen these two requirements deliver is
+the one the application dedicates to itself, and it now carries the product's identity and legal
+notice as well as the coverage statement: it is labelled "About" to the operator, so the feature is
+named for what the screen is rather than for one of the two things it holds. REQ-105 and REQ-106
+keep their numbers, their text and their meaning word for word — the coverage matrix is unchanged
+and keeps a heading of its own on the screen. What was added to it is specified by
+`plan-docker_management_app-about_license_notice`, feature F2, and the relabelling itself by its F1;
+the screen's internal id stays `coverage-matrix`, so a persisted last-active screen still resolves.
 
 ## F30 — Local persistence and host-path access (enabling)
 

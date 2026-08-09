@@ -109,7 +109,7 @@ test('logs no duplicate-key error while the feed takes events of one container i
 
     // The shell's own feed reads the same provider: leaving the screen and
     // coming back remounts the list over the events already held.
-    await navigateTo(page, 'Coverage matrix');
+    await navigateTo(page, 'About');
     await expect(page.locator('.ui-card__title', { hasText: 'Daemon event stream' })).toBeVisible();
     await navigateTo(page, 'Dashboard');
     await expect(feedLines(page, name).filter({ hasText: 'start' })).toHaveCount(2, { timeout: 15_000 });

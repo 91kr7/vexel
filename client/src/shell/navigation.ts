@@ -112,12 +112,15 @@ export const screens: ScreenDefinition[] = [
     description: 'Direct Docker API and CLI-equivalent commands',
   },
   {
+    // The id stays `coverage-matrix`: it is what the last-active-screen
+    // preference of an earlier version holds, so renaming the screen must not
+    // reach it (REQ-2).
     id: 'coverage-matrix',
-    label: 'Coverage matrix',
-    glyph: 'CV',
+    label: 'About',
+    glyph: 'AB',
     group: 'Full coverage',
-    title: 'Coverage matrix',
-    description: 'Feature coverage against the Docker CLI and API',
+    title: 'About',
+    description: 'Product identity and licence, and the functional coverage matrix against the Docker CLI and API',
   },
 ];
 

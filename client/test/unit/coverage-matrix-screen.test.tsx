@@ -4,7 +4,8 @@ import userEvent from '@testing-library/user-event';
 import type { BaselineReport } from '../../src/data/system-client';
 import type { CoverageArea, CoverageCounts } from '../../src/coverage/coverage-map';
 
-// The Coverage matrix states what the product covers of Docker and against
+// The coverage matrix — the coverage half of the About screen — states what the
+// product covers of Docker and against
 // which Docker baseline (coverage-matrix-screen.md). The coverage hook is
 // mocked so the screen can be put in each of its states, but the cross-
 // navigation service is the real one: where a row leads is part of the contract

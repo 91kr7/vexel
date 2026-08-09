@@ -85,9 +85,11 @@ Navigation:
   remain visible (REQ-10).
 - The "CLI availability", "Daemon event stream" and "Local storage" cards are the shell's own
   surfaces of REQ-110, REQ-11/REQ-12 and REQ-113, and they keep the place they have always had —
-  the last entry of the navigation, now the Coverage matrix. Batch 30 replaced the placeholder that
-  used to sit under them, not them: they have no other home in the application, and the analysis
-  cache's size and clear action exist nowhere else.
+  the last entry of the navigation, the screen now labelled "About". Batch 30 replaced the
+  placeholder that used to sit under them, not them: they have no other home in the application, and
+  the analysis cache's size and clear action exist nowhere else. Relabelling that screen took
+  nothing off it either — the three cards and the coverage matrix under them are all still there
+  (plan-docker_management_app-about_license_notice/REQ-3).
 - `errors` (REQ-7), `pending` (REQ-8), `connection` (REQ-9/REQ-10/REQ-13/REQ-110) and `events`
   (REQ-11/REQ-12) come from providers supplied by the caller (`App`), so they can be
   observed/driven independently of the shell chrome; `ToastProvider` and `ConfirmationProvider`
