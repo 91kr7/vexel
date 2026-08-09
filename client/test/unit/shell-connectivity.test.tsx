@@ -156,8 +156,9 @@ describe('Shell — daemon connectivity (app-shell/specs/shell.md)', () => {
     // The unreachable banner does not replace or hide the rest of the screen. The
     // "CLI availability" card belongs to the screens no feature batch has built
     // yet, so it is pinned on one of those rather than on the landing screen,
-    // which has been the real Dashboard since batch 25.
-    await userEvent.setup().click(screen.getByRole('button', { name: /Swarm/ }));
+    // which has been the real Dashboard since batch 25. Swarm was one of those
+    // screens until batch 27 built it, hence Plugins.
+    await userEvent.setup().click(screen.getByRole('button', { name: /Plugins/ }));
     expect(screen.getByText('CLI availability')).toBeInTheDocument();
     expect(screen.getByText('Daemon event stream')).toBeInTheDocument();
     expect(screen.getByText(unreachableStatus.daemon.cause)).toBeInTheDocument();

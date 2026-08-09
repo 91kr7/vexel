@@ -176,6 +176,26 @@
   }
 }
 
+.ui-quad-panel-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-5);
+  /* Each panel keeps its own height: a long list never stretches the one
+     beside it. */
+  align-items: start;
+  min-width: 0;
+}
+
+.ui-quad-panel-layout > * {
+  min-width: 0;
+}
+
+@media (max-width: 1024px) {
+  .ui-quad-panel-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* Tablet: the rail stays docked but narrows, matching the phone drawer's
    width so the transition between the two breakpoints reads as continuous. */
 @media (max-width: 1024px) {

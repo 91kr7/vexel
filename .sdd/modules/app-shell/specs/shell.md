@@ -36,7 +36,9 @@ Shows:
   `registries` screen (REQ-85, REQ-86, REQ-87) — self-sufficient, reading its own registry inventory
   and repository browsing —, `BuildersScreen` for the
   `builders-cache` screen (REQ-88, REQ-89, REQ-91) — self-sufficient, reading its own builder and
-  build-cache inventories —, `ContextsScreen` for the `contexts` screen (REQ-92, REQ-93, REQ-94) —
+  build-cache inventories —, `SwarmScreen` for the `swarm` screen (REQ-79–REQ-84) —
+  self-sufficient, reading its own swarm state, nodes, services, stacks, secrets and configs —,
+  `ContextsScreen` for the `contexts` screen (REQ-92, REQ-93, REQ-94) —
   self-sufficient, reading its own context inventory and daemon information —, `SystemScreen` for
   the `system-prune` screen (REQ-95, REQ-96, REQ-97) — self-sufficient, reading its own disk-usage
   breakdown and daemon information —, a `PlaceholderScreen` for every screen not yet built by its

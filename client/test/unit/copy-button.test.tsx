@@ -36,4 +36,26 @@ describe('CopyButton (ui-library/specs/copy-button.md)', () => {
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Copy raw' })).toBeInTheDocument(), { timeout: 3000 });
   }, 5000);
+
+  // copy-button.md — "disabled?: boolean (default false) — the affordance stays in place but is
+  // inert"; "A disabled button copies nothing: no clipboard write, and no 'Copied' confirmation."
+  it('writes nothing to the clipboard and shows no confirmation while disabled', async () => {
+    const user = userEvent.setup();
+    const writeText = stubClipboard();
+    render(<CopyButton value="exact-payload-text" disabled />);
+
+    const button = screen.getByRole('button', { name: 'Copy' });
+    expect(button).toBeDisabled();
+    await user.click(button, { pointerEventsCheck: 0 });
+
+    expect(writeText).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Copied' })).not.toBeInTheDocument();
+  });
+
+  // copy-button.md — the affordance is enabled unless the caller says otherwise
+  it('is enabled by default', () => {
+    render(<CopyButton value="x" />);
+
+    expect(screen.getByRole('button', { name: 'Copy' })).toBeEnabled();
+  });
 });

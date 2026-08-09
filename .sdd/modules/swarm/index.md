@@ -1,0 +1,19 @@
+# swarm — Index
+
+| Component | Type | Path | Responsibility | Spec |
+|-----------|------|------|-----------------|------|
+| SwarmStateService | backend service | `server/src/swarm/swarm-state-service.ts` | Swarm state (inactive/manager/worker, cluster id, node count, derived raft health), init/join/leave, join tokens and their rotation, and the manager scoping every other swarm reading degrades through | `specs/swarm-state-service.md` |
+| SwarmNodesService | backend service | `server/src/swarm/swarm-nodes-service.ts` | Node inventory (hostname, role, availability, status) with role/availability updates and node removal | `specs/swarm-nodes-service.md` |
+| SwarmServicesService | backend service | `server/src/swarm/swarm-services-service.ts` | Service inventory (image, mode, running/desired replicas, published ports) with create, update, inspect-with-tasks and remove | `specs/swarm-services-service.md` |
+| SwarmStacksService | backend service | `server/src/swarm/swarm-stacks-service.ts` | Stacks read from the namespace label with their services, and stack removal (services, secrets, configs, networks) — no deployment | `specs/swarm-stacks-service.md` |
+| SwarmSecretsService | backend service | `server/src/swarm/swarm-secrets-service.ts` | Secrets and configs: listing, creation, metadata-only inspection and removal, never returning a value | `specs/swarm-secrets-service.md` |
+| Swarm endpoints | REST endpoint | `server/src/swarm/swarm-routes.ts` | Exposes swarm state, tokens, nodes, services, stacks, secrets and configs; readings degrade to a stated reason off a manager, and no response ever carries a value | `specs/swarm-endpoints.md` |
+| Swarm client | frontend data client | `client/src/data/swarm-client.ts` | Typed `fetch` wrapper for the swarm endpoints; holds no token and no secret value | `specs/swarm-client.md` |
+| useSwarm | frontend hook | `client/src/data/use-swarm.ts` | Reads state, nodes, services, stacks, secrets and configs as one round and drives every swarm mutation; re-reads on swarm daemon events, the active-context broadcast and a bounded poll | `specs/use-swarm.md` |
+| useSwarmServiceDetail | frontend hook | `client/src/data/use-swarm-service-detail.ts` | Reads the opened service with its tasks, following `service` daemon events | `specs/use-swarm-service-detail.md` |
+| Swarm formatting | frontend utility | `client/src/swarm/swarm-formatting.ts` | Age, replica count, the tones a node/task state and an availability map to, and the label rows of a form as the daemon takes them | `specs/swarm-formatting.md` |
+| SwarmScreen | UI component | `client/src/swarm/SwarmScreen.tsx` | The Swarm screen: cluster state with init/join/leave and join tokens, above the four panels; states the reason when the daemon is not a manager | `specs/swarm-screen.md` |
+| SwarmNodesPanel | UI component | `client/src/swarm/SwarmNodesPanel.tsx` | The Nodes panel: hostname, role, availability and status, with role/availability changes and confirmed node removal | `specs/swarm-nodes-panel.md` |
+| SwarmServicesPanel | UI component | `client/src/swarm/SwarmServicesPanel.tsx` | The Services & tasks panel: image, mode, replicas and ports, with create/update forms, inspection with tasks and confirmed removal | `specs/swarm-services-panel.md` |
+| SwarmSecretsPanel | UI component | `client/src/swarm/SwarmSecretsPanel.tsx` | The Secrets panel: name and age, creation with a masked value, metadata-only inspection and confirmed removal | `specs/swarm-secrets-panel.md` |
+| SwarmConfigsStacksPanel | UI component | `client/src/swarm/SwarmConfigsStacksPanel.tsx` | The Configs & stacks panel: configs created/inspected/removed, and stacks listed with their services and removable — no deploy affordance | `specs/swarm-configs-stacks-panel.md` |
