@@ -765,6 +765,11 @@
   white-space: nowrap;
 }
 
+.ui-chip__meta {
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
 .ui-chip__action {
   border: none;
   background: transparent;

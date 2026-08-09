@@ -16,10 +16,12 @@ inside the same card.
 - `<CardList items itemKey renderRow selectedKey? onSelect? expandedKey? renderExpanded?
   emptyState? />`
   - `items: T[]`, `itemKey(item): string`.
-  - `renderRow(item): { title, subtitle?, badges?, meta?, content?, selection? }` — `title` bold;
+  - `renderRow(item): { title, status?, subtitle?, badges?, meta?, content?, selection? }` — `title` bold;
     `subtitle` monospace, muted, one string or several (each rendered on its own line, in order);
     `badges` and `meta` render trailing, on the same row; `content` renders in its own row below the
     header, e.g. a chip group with per-chip actions.
+  - `status?: StatusTone` — a leading state dot of that tone, for a row whose condition matters on
+    its own (e.g. a registry being authenticated) outside any active-selection set.
   - `selection?: { active, onUse?, activeLabel?, useLabel? }` — the active-selection row variant, for
     a set where exactly one row is in use: every such row gains a leading dot, green on the active
     row and muted on the others; the active row shows the `activeLabel` marker (default "active")
@@ -38,7 +40,9 @@ inside the same card.
   is outside that clickable area, so its own interactive elements never also toggle selection.
 - The "use" action of the selection variant never appears on the active row, and the "active" marker
   never appears on any other: the two are exclusive.
-- A row with no `selection` renders exactly as before — no leading dot, no marker.
+- A row with neither `selection` nor `status` has no leading dot and no marker.
+- `selection` wins over `status` when both are given: a row that belongs to an active-selection set
+  shows that set's dot, so one row never carries two different state dots.
 
 ## Dependencies
 
@@ -50,4 +54,6 @@ inside the same card.
 - plan-docker_management_app/REQ-41
 - plan-docker_management_app/REQ-70
 - plan-docker_management_app/REQ-72
+- plan-docker_management_app/REQ-85
+- plan-docker_management_app/REQ-86
 - plan-docker_management_app/REQ-92

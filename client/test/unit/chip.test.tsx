@@ -30,6 +30,33 @@ describe('Chip (ui-library/specs/chip.md)', () => {
 
     expect(onAction).toHaveBeenCalledTimes(1);
   });
+
+  // chip.md — "meta? — a secondary reading shown after the label, muted (e.g. 256MB); omitted when
+  // absent" (REQ-86: a repository's tags with the size each one weighs)
+  it('shows the meta reading after the label, muted', () => {
+    const { container } = render(<Chip label="1.27" meta="256MB" />);
+
+    const chip = container.querySelector('.ui-chip')!;
+    expect(chip).toHaveTextContent('1.27');
+    expect(chip).toHaveTextContent('256MB');
+    expect(chip.querySelector('.ui-chip__meta')).toHaveTextContent('256MB');
+  });
+
+  it('omits the meta reading when there is none', () => {
+    const { container } = render(<Chip label="1.27" />);
+
+    expect(container.querySelector('.ui-chip__meta')).toBeNull();
+  });
+
+  // chip.md — "its label, its meta reading when given, then its own inline action when given — in
+  // that order"
+  it('orders the label, the meta reading and the inline action', () => {
+    const { container } = render(<Chip label="1.27" meta="256MB" actionLabel="pull" onAction={vi.fn()} />);
+
+    const text = container.querySelector('.ui-chip')!.textContent ?? '';
+    expect(text.indexOf('1.27')).toBeLessThan(text.indexOf('256MB'));
+    expect(text.indexOf('256MB')).toBeLessThan(text.indexOf('pull'));
+  });
 });
 
 describe('ChipGroup (ui-library/specs/chip.md)', () => {
@@ -90,5 +117,21 @@ describe('ChipGroup (ui-library/specs/chip.md)', () => {
     render(<ChipGroup items={items()} emptyLabel="No attached containers" />);
 
     expect(screen.queryByText('No attached containers')).not.toBeInTheDocument();
+  });
+
+  // chip.md — "items: { key, label, meta?, actionLabel?, onAction? }[] — each rendered as a Chip",
+  // meta included: the tag chips of a repository carry the size each tag weighs (REQ-86)
+  it('renders each item\'s own meta reading', () => {
+    render(
+      <ChipGroup
+        items={[
+          { key: 'v1', label: 'v1', meta: '256MB', actionLabel: 'pull', onAction: vi.fn() },
+          { key: 'v2', label: 'v2', actionLabel: 'pull', onAction: vi.fn() },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText('256MB')).toBeInTheDocument();
+    expect(document.querySelectorAll('.ui-chip__meta')).toHaveLength(1);
   });
 });

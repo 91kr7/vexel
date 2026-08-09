@@ -35,6 +35,7 @@ export { StorageUsageRow, type StorageUsageRowProps, type StorageUsageRowAction 
 export { CheckboxGroup, type CheckboxGroupProps, type CheckboxOption } from './controls/CheckboxGroup';
 export { TextField, type TextFieldProps } from './controls/TextField';
 export { SearchField, type SearchFieldProps } from './controls/SearchField';
+export { SecretField, type SecretFieldProps } from './controls/SecretField';
 export { FilterChips, type FilterChipsProps, type FilterChipOption } from './controls/FilterChips';
 export { ActionButtonGroup, type ActionButtonGroupProps, type RowAction } from './controls/ActionButtonGroup';
 export { BulkActionBar, type BulkActionBarProps, type BulkActionBarAction } from './controls/BulkActionBar';

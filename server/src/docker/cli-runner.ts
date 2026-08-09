@@ -38,9 +38,25 @@ export async function detectCliAvailability(): Promise<CliAvailability> {
   return { docker, compose, buildx };
 }
 
+export interface CliRunOptions {
+  /**
+   * Written to the child's standard input, which is then closed. Given even as
+   * an empty string, it closes stdin — the way to hand a command a value that
+   * must not appear in `argv` (a secret on `--password-stdin`), and to stop a
+   * command that reads stdin from waiting on one that will never come.
+   */
+  stdin?: string;
+}
+
 /** Runs `command args...` against the active context; output streams as it is produced. */
-export function runCliCommand(command: string, args: string[], endpoint: DockerEndpoint): CliRunHandle {
+export function runCliCommand(command: string, args: string[], endpoint: DockerEndpoint, options: CliRunOptions = {}): CliRunHandle {
   const child = spawn(command, args, { env: cliEnv(endpoint) });
+  if (options.stdin !== undefined) {
+    // A write error here (the child exited before reading) is not the caller's
+    // concern: the exit code and stderr already say what happened.
+    child.stdin.on("error", () => undefined);
+    child.stdin.end(options.stdin);
+  }
   const stdoutListeners: Array<(chunk: string) => void> = [];
   const stderrListeners: Array<(chunk: string) => void> = [];
   const spawnErrorListeners: Array<(message: string) => void> = [];

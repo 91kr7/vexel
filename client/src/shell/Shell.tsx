@@ -35,6 +35,7 @@ import { DashboardScreen } from '../dashboard/DashboardScreen';
 import { BuildersScreen } from '../builders/BuildersScreen';
 import { ContainersScreen } from '../containers/ContainersScreen';
 import { ImagesScreen } from '../images/ImagesScreen';
+import { RegistriesScreen } from '../registries/RegistriesScreen';
 import { SystemScreen } from '../system/SystemScreen';
 import { VolumesNetworksScreen } from '../volumes-networks/VolumesNetworksScreen';
 import { NetworksPanel } from '../volumes-networks/NetworksPanel';
@@ -261,6 +262,8 @@ export function Shell() {
                   />
                 }
               />
+            ) : activeScreen.id === 'registries' ? (
+              <RegistriesScreen />
             ) : activeScreen.id === 'builders-cache' ? (
               <BuildersScreen />
             ) : activeScreen.id === 'contexts' ? (
