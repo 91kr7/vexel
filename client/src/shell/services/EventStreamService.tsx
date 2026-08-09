@@ -15,7 +15,13 @@ export function DaemonEventStreamProvider({ children }: { children?: ReactNode }
 
   useEffect(() => {
     return subscribeToDaemonEvents((event) => {
-      setEvents((previous) => [event, ...previous].slice(0, MAX_EVENTS));
+      setEvents((previous) => {
+        // The same event can arrive twice — the browser reopens the dropped
+        // stream and the server replays the catch-up backlog. Held once, it
+        // stays one row instead of a second child under an existing key.
+        if (previous.some((held) => held.id === event.id)) return previous;
+        return [event, ...previous].slice(0, MAX_EVENTS);
+      });
     });
   }, []);
 

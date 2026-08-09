@@ -15,8 +15,15 @@ emphasized), for panels like "Daemon event stream".
   - `entries: { id, timestamp, type, action, summary? }[]` — `timestamp` is display-ready text (the
     caller formats it); `type` and `action` are shown with visual emphasis; `summary` is an
     optional trailing detail (e.g. the actor name).
+  - `id` identifies the entry: the caller supplies one that is unique within `entries` and unchanged
+    across renders for the same entry.
   - `emptyLabel` — title shown via EmptyState when `entries` is empty (default `"No events yet."`).
   - `maxHeight` — scroll region height (default `"260px"`).
+
+## Rules and invariants
+
+- One line per entry, in the order given: two entries agreeing on everything but their `id` are two
+  lines, each keeping its own timestamp, type and action across a re-render.
 
 ## Dependencies
 

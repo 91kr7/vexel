@@ -18,12 +18,27 @@ events to server-side subscribers (REQ-11, REQ-12), independent of how many clie
   - `DaemonEvent`: `{ id, timestamp (ISO 8601), type, action, actor? }` — `type`/`action` come from
     the daemon's own `Type`/`Action` fields (container, image, network, volume, builder, …); `actor`
     is the object's name when the daemon reports one, else its id.
+  - `id` — the identity of the event: the daemon's nanosecond instant, its scope, its type, its
+    action and the actor's id, joined. Two events on one object within the same second therefore
+    carry different identities.
+  - `timestamp` — the daemon's own instant, to the millisecond when the daemon reports one.
 
 ## Rules and invariants
 
 - On a stream error or the daemon being unreachable, reconnects with exponential backoff (starting
   at 1s, capped at 30s), so the app recovers automatically once the daemon is back (REQ-9, REQ-11).
 - A malformed event line is skipped rather than stopping the stream.
+- **An identity is minted once, when the event arrives, and never recomputed**: the same event
+  carries the same `id` on every emission and every appearance in the backlog, so a subscriber
+  reading it twice can recognize it as one event.
+- Two events differing in instant, scope, type, action or actor have different identities. In
+  particular, a stop and a start on the same container inside one second are two identities: the
+  daemon's `time` has second resolution and cannot separate them, its nanosecond stamp can, and the
+  nanosecond digits are taken from the raw line because a double rounds the last of them away.
+- When the daemon reports no nanosecond stamp, the identity carries a monotonic arrival ordinal
+  instead. Nothing in such an event separates two identical actions on one object in one second, so
+  the component is synthesised — but on the server, once, at arrival, so it travels with the event
+  and is identical for every delivery (a counter kept by a reader would differ between them).
 - The backlog never grows past 50 entries (oldest dropped first).
 - When the active context changes, the stream of the daemon left behind is dropped and a new one is
   opened against the newly active daemon **at once**, without waiting out the pending backoff — and
