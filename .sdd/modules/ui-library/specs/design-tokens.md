@@ -16,6 +16,9 @@ token by name, never a literal value.
   - Color roles: `--color-void`, `--color-surface-{1,2,raised,sunken}`, `--color-border-{subtle,strong}`,
     `--color-highlight-{top,bottom}`, `--color-text-{primary,secondary,muted,inverse}`,
     `--color-accent{,-strong,-tint}`, `--color-{success,warning,danger,info}{,-tint,-strong}`.
+  - Categorical palette: `--color-series-{1,2,3,4}` — four colors for telling the slices of one
+    whole apart (a usage breakdown, a legend). They carry no meaning: series 4 is not "worse" than
+    series 1, it is only the fourth category.
   - Typography: `--font-family-{sans,mono}`, `--font-size-{xs,sm,md,lg,xl,2xl}`,
     `--font-weight-{regular,medium,semibold,bold}`, `--line-height-{tight,normal}`.
   - Spacing scale: `--space-1` (4px) through `--space-10` (64px).
@@ -46,6 +49,9 @@ token by name, never a literal value.
   Backdrop's corner-concentrated glows.
 - No component under `client/src/ui/` hard-codes a color, radius, spacing, shadow or z-index value
   outside this file; it references the token by name.
+- The categorical palette is kept to four entries: a breakdown that needed more would be relying on
+  two colors an eye cannot separate. Three of the four reuse the accent, success and warning roles
+  by reference, so the palette cannot drift away from the rest of the interface.
 
 ## Requirements served
 

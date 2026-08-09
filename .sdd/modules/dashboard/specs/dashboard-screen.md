@@ -1,0 +1,104 @@
+---
+module: dashboard
+component: DashboardScreen
+type: UI component
+---
+
+# DashboardScreen
+
+**Purpose** → the landing screen: a live overview of the daemon in five summary tiles, the current
+container activity, the disk usage broken down by kind, and the most recent daemon events — every
+tile and every row leading to the screen that owns what it names.
+
+## Contract
+
+```markdown
+<DashboardScreen containers containersLoaded containersError? onRefreshContainers />
+```
+
+- `containers` — the live container list, passed in by the shell rather than read a second time
+  here; `containersLoaded`, `containersError` and `onRefreshContainers` are that list's own state
+  and retry.
+
+Description:
+
+- a row of five summary tiles above two panels side by side — container activity beside disk
+  usage — with the daemon event stream across the full width underneath.
+
+Shows:
+
+- five tiles, in this order, each with a label, a value and a sub-label:
+  - `Running` → the number of running containers; sub-label `"<n> stopped / paused"`, `n` being
+    every container that is neither running nor paused plus the paused ones.
+  - `Images` → the number of images; sub-label `"<size> on disk"`.
+  - `Volumes` → the number of volumes; sub-label `"<size> on disk"`.
+  - `Stacks` → compose stacks plus swarm stacks; sub-label `"<c> compose · <s> swarm"`, or
+    `"<c> compose · no swarm"` when the daemon is not a swarm manager.
+  - `Build cache` → the build cache's size; sub-label `"buildx: <active builder>"`, or
+    `"buildx: no active builder"` when none is marked active, or `"buildx unavailable"` (with `—`
+    for the value) when buildx could not be read.
+  - before the first reading settles every tile shows `—` over `"reading…"`.
+- **Container activity** — one row per container, running first, then paused, restarting, created,
+  removing, exited, dead, and alphabetically by name within each state. Each row carries a status
+  dot coloured by state (running green, paused/restarting amber, dead red, the rest grey), the
+  container's name, its state in words, its CPU as `"<n>% cpu"` and its uptime.
+  - uptime → the daemon's own uptime text with the leading `"Up "` dropped (e.g. `"3 days"`); a
+    container that is not running has none and shows `–`.
+  - a CPU reading the daemon has not sampled shows `–`.
+  - no container on the daemon → "No container on this daemon"; before the list settles, "Reading
+    the containers…".
+- **Disk usage** — one row per category, in the order images, containers, volumes, build cache,
+  each with its absolute size and a bar as long as its share of the total; the panel's description
+  is the total. A category that could not be read reads `"unavailable"` in place of its size.
+- **Daemon event stream** — the most recent daemon events, newest first, timestamped in local time;
+  with none yet, "No daemon events yet.".
+- a failed overview reading, and a failed container reading, each show their own error banner with
+  the message verbatim and a retry.
+
+Actions:
+
+- activating any of the five tiles, or any disk-usage row → navigates (see below).
+- activating a container-activity row → navigates to the Containers screen.
+
+Navigation:
+
+- `Running` tile, `Containers` disk-usage row, any activity row → Containers.
+- `Images` tile, `Images` disk-usage row → Images & layers.
+- `Volumes` tile, `Volumes` disk-usage row → Volumes & networks.
+- `Stacks` tile → Compose.
+- `Build cache` tile, `Build cache` disk-usage row → Builders & cache.
+
+## Rules and invariants
+
+- Every tile figure and the disk-usage breakdown come from one server-side reading, so no two of
+  them can describe different moments or disagree with the screen the operator lands on.
+- The container activity is the shell's own container list, not a second reading: it is already
+  refreshed live, and a dashboard that read its own would show a different count from the tile
+  beside it.
+- The recent events are the application-wide event stream every screen shares; the dashboard adds no
+  subscription of its own and formats each entry only for display.
+- The uptime is the daemon's own text, never recomputed here: an uptime this screen calculated would
+  drift from the one the Containers screen shows.
+- Navigation goes through the shared cross-navigation service, the same channel every other
+  cross-screen reference uses; the request names the destination screen only. Naming a particular
+  object inside it was left out deliberately: of the destinations here, none reveals a named object
+  today, and a request no screen acknowledges would sit pending forever.
+- Every visual element comes from the UI library; the screen holds no markup and no style of its
+  own.
+
+## Dependencies
+
+- ui-library: DashboardLayout, MetricTile, UsageBreakdown, DataTable, StatusDotCell, MetaCell, Card,
+  SectionHeader, EventStream, EmptyState, ErrorBanner, Stack
+- dashboard: useSystemOverview
+- containers: useContainers (through the shell)
+- app-shell: DaemonEventStreamProvider (`useDaemonEventStream`), CrossNavigationProvider
+  (`useCrossNavigation`)
+
+## Requirements served
+
+- plan-docker_management_app/REQ-14
+- plan-docker_management_app/REQ-15
+- plan-docker_management_app/REQ-16
+- plan-docker_management_app/REQ-17
+- plan-docker_management_app/REQ-18

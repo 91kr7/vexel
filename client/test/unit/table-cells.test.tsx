@@ -1,8 +1,43 @@
+import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { BadgeListCell, IdentifierCell } from '../../src/ui';
+import { BadgeListCell, IdentifierCell, MetaCell } from '../../src/ui';
 
 afterEach(cleanup);
+
+// Contract: ui-library/specs/table-cells.md — <MetaCell children? wrap? title? unavailableReason? />
+describe('MetaCell (plan-docker_management_app/REQ-3, REQ-15)', () => {
+  // table-cells.md — "renders '–' when children is empty — undefined, null and the empty string are
+  // all empty, and read identically" / "A cell with nothing to show is never blank"
+  it.each<[string, ReactNode]>([
+    ['nothing', undefined],
+    ['null', null],
+    ['an empty string', ''],
+  ])('renders the dash when given %s', (_description, children) => {
+    render(<MetaCell>{children}</MetaCell>);
+
+    expect(screen.getByText('–')).toBeInTheDocument();
+  });
+
+  // table-cells.md — "When children is empty and unavailableReason is given, renders 'unavailable'
+  // instead of '–', with the reason as a tooltip"
+  it.each<[string, ReactNode]>([
+    ['nothing', undefined],
+    ['an empty string', ''],
+  ])('renders "unavailable" with its reason when given %s and a reason', (_description, children) => {
+    render(<MetaCell unavailableReason="the daemon did not report it">{children}</MetaCell>);
+
+    expect(screen.getByText('unavailable')).toBeInTheDocument();
+    expect(screen.getByText('unavailable')).toHaveAttribute('title', 'the daemon did not report it');
+  });
+
+  // table-cells.md — the value is shown as given, with the full value as a native tooltip
+  it('renders the value it is given, with the value itself as the tooltip', () => {
+    render(<MetaCell>12% cpu</MetaCell>);
+
+    expect(screen.getByText('12% cpu')).toHaveAttribute('title', '12% cpu');
+  });
+});
 
 // Contract: ui-library/specs/table-cells.md — <IdentifierCell value? maxChars? />
 describe('IdentifierCell (plan-docker_management_app/REQ-3, REQ-37)', () => {

@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { openApp } from './support/fixtures.js';
 
 // The first test of this file deliberately persists a screen; every test starts
@@ -7,9 +7,20 @@ test.beforeEach(async ({ page }) => {
   await openApp(page);
 });
 
+/**
+ * A screen's own entry in the navigation rail.
+ *
+ * Scoped to the rail on purpose: the landing screen is the Dashboard, whose
+ * tiles and disk-usage rows name the same screens, so an unscoped locator
+ * matches several controls.
+ */
+function navEntry(page: Page, label: string) {
+  return page.getByRole('navigation').getByRole('button', { name: new RegExp(label) });
+}
+
 // plan-docker_management_app/REQ-115 — the last active screen survives a reload
 test('the last active screen survives a page reload', async ({ page }) => {
-  await page.getByRole('button', { name: /Containers/ }).click();
+  await navEntry(page, 'Containers').click();
   await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
 
   await page.reload();
@@ -62,7 +73,7 @@ test('a screen chosen before the preferences read settles is the one the applica
     await expect.poll(() => readsHeld).toBeGreaterThan(0);
 
     // The choice is made while the read is still in flight.
-    await page.getByRole('button', { name: /Containers/ }).click();
+    await navEntry(page, 'Containers').click();
     await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
     expect(readsHeld, 'the preferences read must still be unanswered, or the race is not being exercised').toBeGreaterThan(0);
 
@@ -92,6 +103,10 @@ test('a screen chosen before the preferences read settles is the one the applica
 // app-shell/specs/shell.md — the shell exposes the analysis-cache size with a Clear action, which
 // empties the cache and is disabled once there is nothing left to clear
 test('the Local storage card shows the analysis-cache size and clearing it disables the Clear action', async ({ page }) => {
+  // The card belongs to the shell's frame around a screen no feature batch has
+  // built yet; the landing screen has been the real Dashboard since batch 25.
+  await openApp(page, 'swarm');
+
   await expect(page.getByText('Local storage')).toBeVisible();
   await expect(page.getByText('Analysis cache')).toBeVisible();
 

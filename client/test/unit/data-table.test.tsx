@@ -77,6 +77,41 @@ describe('DataTable', () => {
     expect(headers.map((header) => header.textContent)).toEqual(['ID', 'UPPER']);
   });
 
+  // ui-library/specs/data-table.md — "hideHeader — drops the header row entirely … the rows, their
+  // tracks and their alignment are unchanged" (REQ-15)
+  it('drops the header row while leaving the rows and their tracks unchanged', () => {
+    const multiColumns: DataTableColumn<Row>[] = [
+      { id: 'id', header: 'ID', render: (row) => row.id },
+      { id: 'upper', header: 'UPPER', width: '110px', align: 'end', render: (row) => row.id.toUpperCase() },
+    ];
+    const { container: withHeader } = render(<DataTable columns={multiColumns} rows={makeRows(2)} rowKey={(row) => row.id} />);
+    const tracksWithHeader = (withHeader.querySelector('.ui-data-table__row') as HTMLElement).style.gridTemplateColumns;
+    cleanup();
+
+    const { container } = render(<DataTable columns={multiColumns} rows={makeRows(2)} rowKey={(row) => row.id} hideHeader />);
+
+    expect(container.querySelector('.ui-data-table__header')).toBeNull();
+    expect(screen.queryByText('ID')).not.toBeInTheDocument();
+    expect(screen.queryByText('UPPER')).not.toBeInTheDocument();
+    expect(screen.getAllByText(/^row-\d+$/)).toHaveLength(2);
+    expect((container.querySelector('.ui-data-table__row') as HTMLElement).style.gridTemplateColumns).toBe(tracksWithHeader);
+  });
+
+  // ui-library/specs/data-table.md — "the multi-select header checkbox goes with the header"
+  it('drops the multi-select header checkbox along with the header, keeping the row checkboxes', () => {
+    render(
+      <DataTable
+        columns={columns}
+        rows={makeRows(2)}
+        rowKey={(row) => row.id}
+        hideHeader
+        selection={{ selectedKeys: [], onToggle: () => undefined, onToggleAll: () => undefined, allSelected: false }}
+      />,
+    );
+
+    expect(screen.getAllByRole('checkbox')).toHaveLength(2);
+  });
+
   // ui-library/specs/data-table.md — emptyState is shown instead of the body rows when rows is empty
   it('shows the empty state instead of rows when the row list is empty', () => {
     const rows = makeRows(3);

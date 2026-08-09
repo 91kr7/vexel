@@ -25,7 +25,9 @@ Shows:
   cannot be reached (REQ-10), a "CLI availability" `Card` listing docker/compose/buildx presence
   and version (REQ-110), a "Daemon event stream" `Card` with the live `EventStream` (REQ-11,
   REQ-12), a "Local storage" `Card` with a `StorageUsageRow` for the analysis cache's size and a
-  "Clear" action (REQ-113, REQ-115), then the active screen's real content: `ContainersScreen` for
+  "Clear" action (REQ-113, REQ-115), then the active screen's real content: `DashboardScreen` for
+  the `dashboard` screen (REQ-14–REQ-18) — fed the live container list from `useContainers()`, so
+  its activity panel and the rail's own count come from one reading —, `ContainersScreen` for
   the `containers` screen (REQ-19–REQ-23, REQ-109) — which also receives the live image list from
   `useImages()`, since its create/run form suggests the local images (REQ-29) —, `ImagesScreen` for the `images-layers` screen
   (REQ-37–REQ-41), `ComposeScreen` for the `compose` screen (REQ-75–REQ-78) — fed the live project
@@ -83,7 +85,7 @@ Navigation:
   already picked a `NavItem` leaves them where they are, and a later external change to
   `preferences.lastScreenId` (e.g. from another tab) never yanks the operator to a different screen
   while they are using this one (REQ-2, REQ-115). With no persisted `lastScreenId`, `defaultScreenId`
-  stays active.
+  stays active — that is the Dashboard, so a first run lands on the overview (REQ-14).
 - The active context is read from the Docker installation itself (`useContexts()`), never from
   `OperatorPreferences.selectedContext`: the daemon in use is the one the local Docker configuration
   names, so the shell and a `docker context use` typed in a terminal can never disagree.
@@ -97,6 +99,7 @@ Navigation:
 - Navigation data, PlaceholderScreen, ConfirmationService, ErrorReportingService, ProgressService,
   ConnectionStatusService, EventStreamService
 - local-persistence: usePreferences, fetchAnalysisCacheUsage, clearAnalysisCache
+- dashboard: DashboardScreen
 - containers: useContainers, ContainersScreen
 - images: useImages, ImagesScreen
 - compose: useComposeProjects, ComposeScreen
@@ -115,6 +118,7 @@ Navigation:
 - plan-docker_management_app/REQ-11
 - plan-docker_management_app/REQ-12
 - plan-docker_management_app/REQ-13
+- plan-docker_management_app/REQ-14
 - plan-docker_management_app/REQ-19
 - plan-docker_management_app/REQ-37
 - plan-docker_management_app/REQ-75

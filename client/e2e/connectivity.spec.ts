@@ -5,10 +5,13 @@ import { openApp, ownershipArgs } from './support/fixtures.js';
 
 const execFileAsync = promisify(execFile);
 
-// These assertions read the default landing screen's own cards, so the screen a
-// previous spec persisted must not decide what is on display here.
+// These assertions read the cards the shell renders around a screen no feature
+// batch has built yet — the landing screen has been the real Dashboard since
+// batch 25 — so the screen is pinned rather than inherited from a previous spec.
+const SCREEN_HOSTING_THE_SHELL_CARDS = 'swarm';
+
 test.beforeEach(async ({ page }) => {
-  await openApp(page);
+  await openApp(page, SCREEN_HOSTING_THE_SHELL_CARDS);
 });
 
 // plan-docker_management_app/REQ-9, plan-docker_management_app/REQ-13

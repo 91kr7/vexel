@@ -80,18 +80,28 @@ export interface MetaCellProps {
  */
 export function MetaCell({ children, wrap = false, title, unavailableReason }: MetaCellProps) {
   const className = wrap ? 'ui-table-meta-cell ui-table-meta-cell--wrap' : 'ui-table-meta-cell';
+  // An empty string is as absent as `undefined` here: a caller that has no
+  // value to show writes one or the other depending on how it computed it, and
+  // both must read as the same "nothing" in the column.
   const isEmpty = children === undefined || children === null || children === '';
-  if (isEmpty && unavailableReason) {
+  if (isEmpty) {
+    if (unavailableReason) {
+      return (
+        <span className={`${className} ui-table-meta-cell--unavailable`} title={unavailableReason}>
+          unavailable
+        </span>
+      );
+    }
     return (
-      <span className={`${className} ui-table-meta-cell--unavailable`} title={unavailableReason}>
-        unavailable
+      <span className={className} title={title}>
+        –
       </span>
     );
   }
   const tooltip = title ?? (typeof children === 'string' || typeof children === 'number' ? String(children) : undefined);
   return (
     <span className={className} title={tooltip}>
-      {children ?? '–'}
+      {children}
     </span>
   );
 }

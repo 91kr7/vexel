@@ -1,4 +1,27 @@
-/* Metric primitives: tile, proportional meter and time-series sparkline. */
+/* Metric primitives: tile, proportional meter, time-series sparkline and
+   categorical usage breakdown. */
+
+.ui-metric-tile__activator {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: start;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-xl);
+}
+
+.ui-metric-tile__activator:hover .ui-metric-tile__value {
+  color: var(--color-accent-strong);
+}
+
+.ui-metric-tile__activator:focus-visible {
+  outline: var(--border-width-hairline) solid var(--color-accent);
+  outline-offset: 2px;
+}
 
 .ui-metric-tile {
   display: flex;
@@ -169,4 +192,94 @@
   align-items: center;
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
+}
+
+.ui-usage-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.ui-usage-breakdown__row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.ui-usage-breakdown__row--activatable {
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  margin: calc(-1 * var(--space-1)) calc(-1 * var(--space-2));
+  border: none;
+  border-radius: var(--radius-md);
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.ui-usage-breakdown__row--activatable:hover {
+  background: var(--color-wash-1);
+}
+
+.ui-usage-breakdown__row--activatable:focus-visible {
+  outline: var(--border-width-hairline) solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.ui-usage-breakdown__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.ui-usage-breakdown__label {
+  font-size: var(--font-size-md);
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.ui-usage-breakdown__value {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.ui-usage-breakdown__track {
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-wash-2);
+  overflow: hidden;
+}
+
+.ui-usage-breakdown__fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  background: var(--color-series-1);
+}
+
+.ui-usage-breakdown__fill--series-1 {
+  background: var(--color-series-1);
+}
+
+.ui-usage-breakdown__fill--series-2 {
+  background: var(--color-series-2);
+}
+
+.ui-usage-breakdown__fill--series-3 {
+  background: var(--color-series-3);
+}
+
+.ui-usage-breakdown__fill--series-4 {
+  background: var(--color-series-4);
+}
+
+.ui-usage-breakdown__empty {
+  min-width: 0;
 }
