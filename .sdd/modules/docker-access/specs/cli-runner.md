@@ -39,8 +39,20 @@ detects presence and version, and runs a command against the active context.
       (or a later run of this very function once the operator's context resolution changes) would
       then read a different slot.
   - `CliRunHandle`: `{ cancel(), onStdout(listener), onStderr(listener), onSpawnError(listener), done: Promise<{ exitCode }> }`.
-  - `cancel()` kills the child process; `done` resolves once the process has exited, with whatever
-    exit code it reported (`null` if killed before exiting).
+  - `cancel()` ends the run and everything it spawned: the `docker` wrapper *and* the cli-plugin
+    process under it (`docker-compose`, `docker-buildx`), leaving nothing behind. This holds
+    whenever the cancel arrives — including inside the CLI's own startup, where a signal is
+    swallowed and the plugin is spawned regardless, so `cancel()` insists (repeat, then force)
+    until the run is really gone rather than signalling once. A run that ends by itself within that
+    window is left alone; nothing is signalled after the process has exited, and calling `cancel()`
+    on a finished — or already cancelled — run does nothing.
+  - A cancelled run is never confused with an operator's own work: the signal reaches the command's
+    process group alone, never the server's. The corollary is that a run sits outside the server's
+    own group, so a signal aimed at the server (a terminal's Ctrl-C) no longer reaches it either: a
+    run in flight when the server dies ends on its next write to the closed pipe, not with it.
+  - `done` resolves once the process has exited, with whatever exit code it reported — a cancelled
+    run included, which reports the code the command chose on being signalled, or `null` when it
+    was killed outright.
   - `onSpawnError(listener)` fires with the underlying message if the process itself could never be
     spawned (e.g. the binary went missing between detection and the run). `done` still resolves
     afterwards (Node reports `close` following the `error` event), but with a platform-dependent

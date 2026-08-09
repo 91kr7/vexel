@@ -13,7 +13,8 @@ log streaming to the client.
 
 - `GET /api/compose/projects` → every discovered `ComposeProjectSummary`.
 - `POST /api/compose/projects/:name/up` → NDJSON stream: `{ type: 'output', line }*`, then exactly
-  one `{ type: 'result', project }` or `{ type: 'error', message }`.
+  one `{ type: 'result', project }` or `{ type: 'error', message }`. Closing the connection cancels
+  the compose process.
 - `POST /api/compose/projects/:name/down` → same shape as `up`.
 - `POST /api/compose/projects/:name/restart` → same shape as `up`.
 - `POST /api/compose/projects/:name/services/:service/scale` — body `{ replicas: number }`
@@ -28,6 +29,23 @@ log streaming to the client.
 - Any daemon-level failure the CLI reports (e.g. the project cannot be resolved) yields `502`
   `{ error }` on the plain JSON endpoints; the streaming endpoints instead carry it in their own
   terminal `error` event, HTTP status staying `200`.
+
+## Rules and invariants
+
+- A client that disconnects mid-run leaves no compose process behind: up, down, restart and scale
+  kill the running `docker compose`, and the cli-plugin under it, as soon as the connection goes
+  away — including a disconnect during the CLI's own startup.
+- A disconnect that lands earlier still, while the project these four resolve first is still being
+  looked up, stops the command from starting at all: nothing runs on behalf of a client that has
+  already gone. The state of the stack is then whatever it was — a cancelled run is a run that
+  stopped where it stood, not one that is undone.
+- Those four are cancelled on the **response** closing, not the request. A request that carries a
+  body emits its close as soon as that body has been read, which for `scale` — the only one of the
+  four the client sends with a JSON body — is before the project lookup the run is awaited behind
+  has settled: bound to the request, the cancel was attached after the event and never fired. The
+  other three are sent without a body, so nothing reads one and their request stayed open; they are
+  bound to the response all the same, because which of them carries a body is the client's choice,
+  not a property of the contract.
 
 ## Dependencies
 
