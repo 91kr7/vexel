@@ -88,20 +88,52 @@ async function dockerInspect(format: string, reference: string): Promise<string>
   return stdout.trim();
 }
 
-async function listInternalContainerIds(): Promise<string[]> {
-  const { stdout } = await execFileAsync("docker", ["ps", "-aq", "--filter", `label=${INTERNAL_CONTAINER_LABEL}=true`]).catch(() => ({
-    stdout: "",
-  }));
-  return stdout.split("\n").filter((id) => id.length > 0);
+/**
+ * The intermediate extraction containers created from one given image — the one
+ * this file just had extracted, always.
+ *
+ * The extraction label is host-wide, and it is not this file's alone: other
+ * files of the parallel API pass carry it legitimately, both through the
+ * application (`image-filesystem-file-operations.test.ts` extracts a fixture
+ * image of its own, and its intermediate container lives for as long as that
+ * export takes) and by hand (`containers-routes.test.ts` labels a container to
+ * check the inventory hides it). Reading every container that carries the label
+ * is reading somebody else's fixture — it is what made this file fail for a
+ * container it had never created (CLAUDE.md: "Assert on the fixtures you
+ * created ... never on totals").
+ *
+ * The image is matched by its own id, exactly: `--filter ancestor=` would not
+ * do, since it also matches containers of images *descended* from the given one
+ * — and the other extraction fixtures on this host descend from `alpine:3.20`,
+ * the very image one of the cases below extracts.
+ */
+async function listInternalContainerIds(imageReference: string): Promise<string[]> {
+  const imageId = await dockerInspect("{{.Id}}", imageReference).catch(() => imageReference);
+  const { stdout } = await execFileAsync("docker", [
+    "ps",
+    "-a",
+    "--filter",
+    `label=${INTERNAL_CONTAINER_LABEL}=true`,
+    "--format",
+    "{{.ID}}",
+  ]).catch(() => ({ stdout: "" }));
+  const candidates = stdout.split("\n").filter((id) => id.length > 0);
+  const own: string[] = [];
+  for (const candidate of candidates) {
+    // A container removed between the listing and this reading is simply gone.
+    const containerImageId = await dockerInspect("{{.Image}}", candidate).catch(() => "");
+    if (containerImageId === imageId) own.push(candidate);
+  }
+  return own;
 }
 
-/** Polls until no container carries the intermediate-extraction label, or gives up. */
-async function assertNoLeftoverInternalContainer(timeoutMs = 8_000): Promise<void> {
+/** Polls until no intermediate container of `imageReference`'s extraction is left, or gives up. */
+async function assertNoLeftoverInternalContainer(imageReference: string, timeoutMs = 8_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
-  let remaining = await listInternalContainerIds();
+  let remaining = await listInternalContainerIds(imageReference);
   while (remaining.length > 0 && Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 250));
-    remaining = await listInternalContainerIds();
+    remaining = await listInternalContainerIds(imageReference);
   }
   assert.deepEqual(remaining, [], `expected no leftover intermediate extraction container, found: ${remaining.join(", ")}`);
 }
@@ -261,7 +293,7 @@ test("GET /:id/filesystem/stream extracts a distroless image's complete filesyst
       [{ path: "nested/file.txt", kind: "file", sizeBytes: SCRATCH_NESTED_CONTENT.length }],
     );
 
-    await assertNoLeftoverInternalContainer();
+    await assertNoLeftoverInternalContainer(scratchImageId);
   } finally {
     await close();
   }
@@ -285,7 +317,7 @@ test("GET /:id/filesystem/stream extracts the same complete tree for a scratch i
     const result = resultEvent!.data as unknown as FilesystemExtractionResult;
     assert.ok(result.entryCount > 0, "expected a non-empty tree");
 
-    await assertNoLeftoverInternalContainer();
+    await assertNoLeftoverInternalContainer(scratchNoCmdImageId);
   } finally {
     await close();
   }
@@ -319,7 +351,7 @@ test("GET /:id/filesystem/stream reuses the cached extraction on a second call, 
 // restart, not just in the process that computed it: a brand-new process, sharing only the same
 // on-disk data directory, reads the same cached result and creates no new container.
 test("the cached extraction is still reused by a completely fresh process afterwards", async () => {
-  const before_ = await listInternalContainerIds();
+  const before_ = await listInternalContainerIds(scratchImageId);
 
   const script = `
     import { extractImageFilesystem } from ${JSON.stringify(new URL("../../src/image-analysis/filesystem-extraction-service.ts", import.meta.url).href)};
@@ -337,7 +369,7 @@ test("the cached extraction is still reused by a completely fresh process afterw
 
   assert.equal(result.fromCache, true, "expected a fresh process to still see the cached extraction, not recompute it");
 
-  const after_ = await listInternalContainerIds();
+  const after_ = await listInternalContainerIds(scratchImageId);
   assert.deepEqual(after_.filter((id) => !before_.includes(id)), [], "a cache hit must create no new intermediate container");
 });
 
@@ -452,7 +484,7 @@ test("GET /:id/filesystem/stream removes the intermediate container even when th
     assert.ok(errorEvent, `expected the interrupted export to surface as an error event, got: ${JSON.stringify(events)}`);
     assert.ok(events.some((event) => event.event === "progress" && event.data.phase === "copying"), "expected the container to have been created and export to have started");
 
-    await assertNoLeftoverInternalContainer();
+    await assertNoLeftoverInternalContainer(BASE_IMAGE);
   } finally {
     watcher.close();
     process.env.TMPDIR = originalTmpDir;
@@ -473,7 +505,7 @@ test("GET /:id/filesystem/stream removes the intermediate container when the cli
     controller.abort();
     await responsePromise;
 
-    await assertNoLeftoverInternalContainer();
+    await assertNoLeftoverInternalContainer(scratchImageId);
   } finally {
     await close();
   }

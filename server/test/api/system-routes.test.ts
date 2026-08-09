@@ -88,8 +88,12 @@ test("GET /api/system/disk-usage counts a container of this test's own among the
     name = await createStoppedContainer("disk-usage-stopped");
 
     const response = await fetch(`${url}/api/system/disk-usage`);
-    assert.equal(response.status, 200);
-    const body = (await response.json()) as DiskUsageBreakdown;
+    // The answer's own text goes into the failure message: a reading that did
+    // not come back names the reason in its body, and reporting the status alone
+    // loses it.
+    const text = await response.text();
+    assert.equal(response.status, 200, `expected the breakdown, got ${response.status}: ${text}`);
+    const body = JSON.parse(text) as DiskUsageBreakdown;
     const stopped = body.categories.find((category) => category.id === "stopped-containers")!;
 
     assert.equal(stopped.unavailableDetail, undefined);

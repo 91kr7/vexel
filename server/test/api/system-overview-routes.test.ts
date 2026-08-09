@@ -44,8 +44,12 @@ test("GET /api/system/overview answers every section of the overview, with its f
   const { url, close } = await startApp(buildApp("/api/system", systemRouter));
   try {
     const response = await fetch(`${url}/api/system/overview`);
-    assert.equal(response.status, 200);
-    const body = (await response.json()) as SystemOverview;
+    // The answer's own text goes into the failure message: an overview that did
+    // not come back names the reason in its body, and reporting the status alone
+    // loses it.
+    const text = await response.text();
+    assert.equal(response.status, 200, `expected the overview, got ${response.status}: ${text}`);
+    const body = JSON.parse(text) as SystemOverview;
 
     // overview-service.md — "running + paused + stopped === total"
     const { containers } = body;

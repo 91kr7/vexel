@@ -405,7 +405,11 @@ test("POST /api/compose/projects/:name/files refuses with a reason when the disc
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ path: fixture.filePath, content: "services: {}\n" }),
     });
-    const body = (await response.json()) as ComposeFileWriteResult;
+    // Read as text first: a body that is not the contracted JSON is then
+    // reported as what it was, instead of as a parse error with nothing in it.
+    const text = await response.text();
+    assert.equal(response.status, 200, `expected the refusal to be reported in a 200 answer, got ${response.status}: ${text}`);
+    const body = JSON.parse(text) as ComposeFileWriteResult;
     assert.equal(body.ok, false);
     assert.ok(!body.ok);
     assert.ok(body.reason.length > 0);
