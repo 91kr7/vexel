@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
-import { ownershipArgs } from './support/fixtures.js';
+import { navEntry, openApp, ownershipArgs } from './support/fixtures.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -43,8 +43,10 @@ function formSection(page: Page, title: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/');
-  await page.getByRole('button', { name: /Containers/ }).click();
+  // Pinned, not inherited: the last active screen survives by design (REQ-115),
+  // and the Dashboard the application otherwise lands on names this screen in a
+  // cross-navigation tile of its own, which an unscoped rail click matches too.
+  await openApp(page, 'containers');
   await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
 });
 
@@ -208,7 +210,9 @@ test('cancelling the form creates no container', async ({ page }) => {
 test('running an image from its row opens the same form pre-filled with that reference', async ({ page }) => {
   const name = `vexel-e2e-image-run-${Date.now()}`;
   try {
-    await page.getByRole('button', { name: /Images & layers/ }).click();
+    // Scoped to the rail: the Dashboard's cross-navigation tiles name the same
+    // screens, so an unscoped locator matches more than the entry meant here.
+    await navEntry(page, 'Images & layers').click();
     await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible();
     await page.getByPlaceholder('Search reference or digest…').fill('alpine:3.20');
     const row = page.locator('.ui-data-table__row', { hasText: 'alpine:3.20' }).first();

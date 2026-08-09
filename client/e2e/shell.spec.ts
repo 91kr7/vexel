@@ -1,24 +1,20 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
-import { activeContextLabel, ownershipArgs } from './support/fixtures.js';
+import { activeContextLabel, navEntry, openApp, ownershipArgs } from './support/fixtures.js';
 
 const execFileAsync = promisify(execFile);
 
 /**
- * Pins the persisted `lastScreenId` and reloads: the shell restores the
- * persisted screen on load (REQ-115, app-shell/specs/shell.md), so a test that
- * depends on which screen is showing states it instead of inheriting whatever
- * a previous run left behind. The preference is a single per-operator record
- * on the server, which any other test navigating the rail also writes, so the
- * pin-and-load pair is retried as a whole rather than assumed to win the race.
+ * Opens the shell on a stated screen: the shell restores the persisted screen on
+ * load (REQ-115, app-shell/specs/shell.md), so a test that depends on which
+ * screen is showing states it instead of inheriting whatever a previous test
+ * left behind. `openApp` owns the pin-and-load sequence, including the retry
+ * that the single per-operator preference record makes necessary.
  */
 async function openOnScreen(page: Page, screenId: string, screenLabel: string): Promise<void> {
-  await expect(async () => {
-    await page.request.put('/api/persistence/preferences', { data: { lastScreenId: screenId } });
-    await page.goto('/');
-    await expect(page.getByRole('heading', { level: 1, name: screenLabel })).toBeVisible({ timeout: 5_000 });
-  }).toPass({ timeout: 30_000 });
+  await openApp(page, screenId);
+  await expect(page.getByRole('heading', { level: 1, name: screenLabel })).toBeVisible();
 }
 
 const groups: Record<string, string[]> = {
@@ -30,19 +26,12 @@ const groups: Record<string, string[]> = {
 
 const allScreenLabels = Object.values(groups).flat();
 
-/**
- * A screen's own entry in the navigation rail.
- *
- * Scoped to the rail on purpose: the landing screen is the Dashboard, whose
- * cross-navigation tiles name the same screens ("Running containers — open the
- * Containers screen"), so an unscoped locator matches several controls.
- */
-function navEntry(page: Page, label: string) {
-  return page.getByRole('navigation').getByRole('button', { name: new RegExp(label) });
-}
-
 test.beforeEach(async ({ page }) => {
-  await page.goto('/');
+  // Pinned, not inherited: the shell reopens on the last active screen by design
+  // (REQ-115), so the file states its own starting point. The tests that are
+  // deliberately screen-agnostic (the backdrop and blur ones) are unaffected by
+  // which screen that is; the ones that are not pin their own.
+  await openApp(page, 'dashboard');
 });
 
 // plan-docker_management_app/REQ-1, plan-docker_management_app/REQ-115

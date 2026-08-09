@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
-import { ownershipArgs } from './support/fixtures.js';
+import { navEntry, openApp, ownershipArgs } from './support/fixtures.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -76,8 +76,10 @@ test.afterAll(async () => {
 });
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/');
-  await page.getByRole('button', { name: /Images & layers/ }).click();
+  // Pinned, not inherited: the last active screen survives by design (REQ-115),
+  // and the Dashboard the application otherwise lands on names this screen in a
+  // cross-navigation tile of its own, which an unscoped rail click matches too.
+  await openApp(page, 'images-layers');
   await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible();
 });
 
@@ -379,11 +381,13 @@ test('the images table and the containers table present with the same header, ty
       return { header, headerCell, rowHeight: rowBox?.height, restingBackground, hoverBackground, cell, selectedBackground };
     };
 
-    await page.getByRole('button', { name: /Containers/ }).click();
+    // Scoped to the rail: the Dashboard's cross-navigation tiles name the same
+    // screens, so an unscoped locator matches more than the entry meant here.
+    await navEntry(page, 'Containers').click();
     await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
     const containersLook = await measure();
 
-    await page.getByRole('button', { name: /Images & layers/ }).click();
+    await navEntry(page, 'Images & layers').click();
     await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible();
     const imagesLook = await measure();
 

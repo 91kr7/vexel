@@ -4,7 +4,7 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { expect, test, type Download, type Page } from '@playwright/test';
-import { ownershipArgs } from './support/fixtures.js';
+import { navEntry, openApp, ownershipArgs } from './support/fixtures.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -39,8 +39,10 @@ async function tempTarPath(name: string): Promise<string> {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/');
-  await page.getByRole('button', { name: /Images & layers/ }).click();
+  // Pinned, not inherited: the last active screen survives by design (REQ-115),
+  // and the Dashboard the application otherwise lands on names this screen in a
+  // cross-navigation tile of its own, which an unscoped rail click matches too.
+  await openApp(page, 'images-layers');
   await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible();
 });
 
@@ -162,7 +164,9 @@ test('exporting a container filesystem and importing it back builds an image und
   // directory, and deleting that directory by hand races the runner's cleanup.
   let download: Download | undefined;
   try {
-    await page.getByRole('button', { name: /Containers/ }).click();
+    // Scoped to the rail: the Dashboard's cross-navigation tiles name the same
+    // screens, so an unscoped locator matches more than the entry meant here.
+    await navEntry(page, 'Containers').click();
     await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
     const row = page.locator('.ui-data-table__row', { hasText: containerName });
     await expect(row).toBeVisible({ timeout: 10_000 });
@@ -178,7 +182,7 @@ test('exporting a container filesystem and importing it back builds an image und
     tarPath = (await download.path()) ?? undefined;
     expect(tarPath).toBeTruthy();
 
-    await page.getByRole('button', { name: /Images & layers/ }).click();
+    await navEntry(page, 'Images & layers').click();
     await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible();
     await page.getByRole('button', { name: 'Import filesystem…' }).click();
     const dialog = page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: 'Import filesystem tarball' }) });

@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
-import { ownershipArgs } from '../support/fixtures.js';
+import { openApp, ownershipArgs } from '../support/fixtures.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -44,8 +44,10 @@ function screenContent(page: Page) {
 test('pruning stopped containers removes them from the list and reports the outcome', async ({ page }) => {
   const name = `vexel-e2e-prune-${Date.now()}`;
   try {
-    await page.goto('/');
-    await page.getByRole('button', { name: /Containers/ }).click();
+    // Pinned, not inherited: the last active screen survives by design
+    // (REQ-115), and the Dashboard the application otherwise lands on names
+    // this screen in a cross-navigation tile an unscoped rail click matches too.
+    await openApp(page, 'containers');
     await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
 
     await createSleepingContainer(name);
@@ -79,8 +81,10 @@ test('pruning dangling images removes them and reports the outcome', async ({ pa
   await new Promise((resolve) => setTimeout(resolve, 1100)); // ensure a different image config timestamp
   await execFileAsync('docker', ['commit', '--change', 'LABEL step=2', containerName, danglingTag]);
   try {
-    await page.goto('/');
-    await page.getByRole('button', { name: /Images & layers/ }).click();
+    // Pinned, not inherited: the last active screen survives by design
+    // (REQ-115), and the Dashboard the application otherwise lands on names
+    // this screen in a cross-navigation tile an unscoped rail click matches too.
+    await openApp(page, 'images-layers');
     await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible();
 
     const pruneButton = screenContent(page).getByRole('button', { name: 'Prune dangling' });
