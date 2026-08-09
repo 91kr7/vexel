@@ -16,8 +16,13 @@ detects presence and version, and runs a command against the active context.
     `docker compose version`, `docker buildx version` respectively.
   - A tool that is missing, or exits non-zero, or is not on `PATH`, reports `available: false`
     rather than throwing.
-- `runCliCommand(command, args, endpoint): CliRunHandle`
+- `runCliCommand(command, args, endpoint, options?): CliRunHandle`
   - Spawns `command args…` targeting the active context.
+  - `options.stdin?: string` — written to the child's standard input, which is then closed. Given
+    even as an empty string, it closes stdin: that is how a value that must not appear in `argv`
+    reaches a command (a secret on `docker login --password-stdin`, REQ-87), and how a command that
+    reads standard input is stopped from waiting on input that will never come. Omitted, the
+    child's standard input is left open and untouched, exactly as before.
     - When the operator has explicitly set `DOCKER_HOST`: `DOCKER_HOST` is forced from `endpoint` on
       the child's environment, so the run targets that endpoint regardless of what the server
       process itself inherited.
@@ -51,3 +56,4 @@ detects presence and version, and runs a command against the active context.
 
 - plan-docker_management_app/REQ-110
 - plan-docker_management_app/REQ-93
+- plan-docker_management_app/REQ-87

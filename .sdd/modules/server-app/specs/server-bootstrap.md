@@ -15,7 +15,8 @@ type: configuration
 - Mounts `connectivityRouter` at `/api/connectivity`, `contextsRouter` at `/api/contexts`,
   `eventsRouter` at `/api/events`,
   `persistenceRouter` at `/api/persistence`, `hostPathsRouter` at `/api/host-paths`,
-  `volumesRouter` at `/api/volumes`, `networksRouter` at `/api/networks`, `composeRouter` at
+  `volumesRouter` at `/api/volumes`, `networksRouter` at `/api/networks`, `registriesRouter` at
+  `/api/registries`, `composeRouter` at
   `/api/compose`, `systemRouter` at `/api/system`, and `imageAnalysisRouter` alongside
   `imagesRouter` at `/api/images`.
 - Calls `publishActiveEndpoint()` once at startup, before anything dials the daemon, so every area
@@ -41,6 +42,7 @@ type: configuration
 - image-analysis: imageAnalysisRouter, sweepAbandonedExtractionContainers
 - volumes: volumesRouter
 - networks: networksRouter
+- registries: registriesRouter
 - compose: composeRouter
 - system: systemRouter
 

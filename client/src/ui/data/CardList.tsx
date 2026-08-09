@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Surface } from '../glass/Surface';
 import { Badge } from '../controls/Badge';
+import type { StatusTone } from '../controls/StatusPill';
 import { StatusDotCell } from './TableCells';
 import './data-table.css';
 
@@ -17,6 +18,11 @@ export interface CardListRowSelection {
 
 export interface CardListRowContent {
   title: string;
+  /**
+   * Leading state dot for a row whose condition matters on its own (e.g. a
+   * registry being authenticated), outside any active-selection set.
+   */
+  status?: StatusTone;
   /** Rendered in monospace, muted; several lines stack one per string. */
   subtitle?: string | string[];
   /** Trailing badge group. */
@@ -67,7 +73,7 @@ export function CardList<T>({ items, itemKey, renderRow, selectedKey, onSelect, 
               aria-selected={onSelect ? selected : undefined}
             >
               <div className="ui-card-list__leading">
-                {row.selection ? <StatusDotCell tone={row.selection.active ? 'success' : 'neutral'} /> : null}
+                {row.selection ? <StatusDotCell tone={row.selection.active ? 'success' : 'neutral'} /> : row.status ? <StatusDotCell tone={row.status} /> : null}
                 <div className="ui-card-list__heading">
                   <span className="ui-card-list__title">{row.title}</span>
                   {subtitleLines(row.subtitle).map((line, index) => (
