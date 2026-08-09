@@ -25,16 +25,18 @@ composeRouter.post("/projects/:name/up", (req, res) => runLifecycle(req, res, ru
 composeRouter.post("/projects/:name/down", (req, res) => runLifecycle(req, res, runComposeDown));
 composeRouter.post("/projects/:name/restart", (req, res) => runLifecycle(req, res, runComposeRestart));
 
-composeRouter.post("/projects/:name/services/:service/scale", async (req, res) => {
+composeRouter.post("/projects/:name/services/:service/scale", (req, res) => {
   const body = req.body as { replicas?: unknown } | undefined;
   const replicas = typeof body?.replicas === "number" ? body.replicas : Number(body?.replicas);
   if (!Number.isFinite(replicas) || replicas < 0) {
     res.status(400).json({ error: "A non-negative 'replicas' number is required" });
     return;
   }
-  const project = await safeGetProject(req.params.name, res);
-  if (!project) return;
-  runNdjsonCommand(req, res, (handlers) => scaleComposeService(project.name, project.configFiles, req.params.service, replicas, handlers));
+  runNdjsonCommand(res, async () => {
+    const project = await safeGetProject(req.params.name, res);
+    if (!project) return undefined;
+    return (handlers) => scaleComposeService(project.name, project.configFiles, req.params.service, replicas, handlers);
+  });
 });
 
 composeRouter.get("/projects/:name/files", async (req, res) => {
@@ -95,35 +97,66 @@ function runLifecycle(
   res: Response,
   run: (name: string, configFiles: string[], handlers: ComposeCommandHandlers) => () => void,
 ): void {
-  void (async () => {
+  runNdjsonCommand(res, async () => {
     const project = await safeGetProject(String(req.params.name), res);
-    if (!project) return;
-    runNdjsonCommand(req, res, (handlers) => run(project.name, project.configFiles, handlers));
-  })();
+    if (!project) return undefined;
+    return (handlers) => run(project.name, project.configFiles, handlers);
+  });
 }
 
 /**
  * Streams a compose command's output as newline-delimited JSON, ending with
  * exactly one `result` or `error` event — `EventSource` cannot issue a POST,
  * and the output is unbounded (mirrors the container-create endpoint).
+ * `prepare` resolves the project the command needs, answering the request
+ * itself and returning `undefined` when it cannot. A client that disconnects
+ * cancels the command, whether it was already running or still being prepared.
  */
-function runNdjsonCommand(req: Request, res: Response, open: (handlers: ComposeCommandHandlers) => () => void): void {
-  res.setHeader("Content-Type", "application/x-ndjson");
-  res.setHeader("Cache-Control", "no-cache");
-  res.flushHeaders();
-
-  const cancel = open({
-    onOutput: (line) => writeNdjson(res, { type: "output", line }),
-    onResult: (project) => {
-      writeNdjson(res, { type: "result", project });
-      res.end();
-    },
-    onError: (message) => {
-      writeNdjson(res, { type: "error", message });
-      res.end();
-    },
+function runNdjsonCommand(res: Response, prepare: () => Promise<((handlers: ComposeCommandHandlers) => () => void) | undefined>): void {
+  let cancel: (() => void) | undefined;
+  let closed = false;
+  // The *response*, not the request, and before anything is awaited: a request
+  // carrying a body emits `close` as soon as that body has been read, which is
+  // before the project lookup below has even settled, so a `req`-bound listener
+  // would be attached after the event and never fire. The response closes when
+  // the client goes away — the disconnect that must cancel the command — or
+  // when this handler ended it, in which case cancelling an exited run is a
+  // no-op.
+  res.on("close", () => {
+    closed = true;
+    cancel?.();
   });
-  req.on("close", cancel);
+
+  void (async () => {
+    let open: ((handlers: ComposeCommandHandlers) => () => void) | undefined;
+    try {
+      open = await prepare();
+    } catch (error) {
+      if (!closed && !res.headersSent) respondError(res, error);
+      return;
+    }
+    // Nobody is listening any more: a command started here could no longer be
+    // cancelled by anything, so it is never started.
+    if (!open || closed) return;
+
+    res.setHeader("Content-Type", "application/x-ndjson");
+    res.setHeader("Cache-Control", "no-cache");
+    res.flushHeaders();
+
+    cancel = open({
+      onOutput: (line) => writeNdjson(res, { type: "output", line }),
+      onResult: (project) => {
+        writeNdjson(res, { type: "result", project });
+        res.end();
+      },
+      onError: (message) => {
+        writeNdjson(res, { type: "error", message });
+        res.end();
+      },
+    });
+    // The disconnect may have landed while the command was starting.
+    if (closed) cancel();
+  })();
 }
 
 async function runEventStream(req: Request, res: Response, open: () => Promise<() => void>): Promise<void> {

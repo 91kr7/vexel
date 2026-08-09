@@ -5,6 +5,7 @@ import { chmod, mkdir, mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
+import express, { type Express } from "express";
 import { composeRouter } from "../../src/compose/compose-routes.js";
 import type { ComposeProjectSummary } from "../../src/compose/compose-discovery-service.js";
 import type { ComposeFileReadResult, ComposeFileWriteResult, ComposeValidationResult } from "../../src/compose/compose-file-service.js";
@@ -107,6 +108,84 @@ async function readNdjson(response: Response): Promise<{ type: string; [key: str
 async function fetchProjects(url: string): Promise<ComposeProjectSummary[]> {
   const response = await fetch(`${url}/api/compose/projects`);
   return (await response.json()) as ComposeProjectSummary[];
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Whether a process whose command line carries this fragment is running on the
+ * host. Every fragment used below names the fixture's own project, unique to
+ * this run, so a match can only ever be a process this test started.
+ */
+async function isRunning(fragment: string): Promise<boolean> {
+  const { stdout } = await execFileAsync("ps", ["-Ao", "args="]).catch(() => ({ stdout: "" }));
+  return stdout.split("\n").some((line) => line.includes(fragment) && !line.includes("ps -Ao"));
+}
+
+/** Polls until the process matching `fragment` is (or is no longer) running, giving up after 15s. */
+async function waitForProcess(fragment: string, expected: boolean): Promise<boolean> {
+  let running = !expected;
+  for (let attempt = 0; attempt < 60 && running !== expected; attempt += 1) {
+    await delay(250);
+    running = await isRunning(fragment);
+  }
+  return running;
+}
+
+/** Last-resort teardown: a compose process the endpoint failed to cancel is this test's to kill. */
+async function killProcessQuietly(fragment: string): Promise<void> {
+  await execFileAsync("pkill", ["-f", fragment]).catch(() => undefined);
+}
+
+/**
+ * `buildApp` plus a count of the requests the router was really handed. A test
+ * that cuts the connection before the endpoint can answer needs it: without it
+ * the endpoint doing nothing would be indistinguishable from the request never
+ * having arrived.
+ */
+function buildCountingApp(basePath: string, router: typeof composeRouter): { app: Express; received: () => number } {
+  let count = 0;
+  const app = express();
+  app.use(express.json());
+  app.use(basePath, (_req, _res, next) => {
+    count += 1;
+    next();
+  });
+  app.use(basePath, router);
+  return { app, received: () => count };
+}
+
+/** How many containers the daemon holds for one service of a project. */
+async function containerCount(projectName: string, service: string): Promise<number> {
+  const { stdout } = await execFileAsync("docker", [
+    "ps",
+    "-aq",
+    "--filter",
+    `label=com.docker.compose.project=${projectName}`,
+    "--filter",
+    `label=com.docker.compose.service=${service}`,
+  ]).catch(() => ({ stdout: "" }));
+  return stdout.split("\n").filter((id) => id.length > 0).length;
+}
+
+/**
+ * Reads a still-open stream until a chunk satisfying `isUnderWay` arrives —
+ * the command's own first output, which is what says the run has really begun.
+ * The reader is left locked on purpose: the caller goes on to cut the
+ * connection, which is the point of the tests using this.
+ */
+async function waitForStreamedOutput(response: Response, isUnderWay: (chunk: string) => boolean): Promise<boolean> {
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline) {
+    const { value, done } = await reader.read();
+    if (done) return false;
+    if (isUnderWay(decoder.decode(value, { stream: true }))) return true;
+  }
+  return false;
 }
 
 // plan-docker_management_app/REQ-75 — compose projects are discovered and listed with project name,
@@ -248,6 +327,222 @@ test("POST /api/compose/projects/:name/services/:service/scale scales the servic
     const service = project.services.find((entry) => entry.name === "web");
     assert.equal(service?.replicas, 2);
   } finally {
+    await removeComposeProjectQuietly(fixture);
+    await close();
+  }
+});
+
+// compose-endpoints.md — "Closing the connection cancels the compose process", and the invariant
+// "A client that disconnects mid-run leaves no compose process behind": established by the process
+// itself disappearing, the only thing that says the cancellation really reached it.
+test("closing the connection mid-run kills the compose process the endpoint started", async () => {
+  const caseName = "cancel-on-disconnect";
+  // A grace period long enough to observe: the service's PID 1 is `sleep`, which
+  // ignores the SIGTERM a stop sends, so the daemon waits the period out and
+  // `down` is genuinely still running when the client goes away.
+  const fixture = await writeComposeFixture(
+    caseName,
+    `services:\n${serviceBlock("web", caseName, "    stop_grace_period: 600s")}\n`,
+  );
+  const runningDown = `-p ${fixture.name} down`;
+  const controller = new AbortController();
+  const { url, close } = await startApp(buildApp("/api/compose", composeRouter));
+  try {
+    await bringUp(fixture.name, [fixture.filePath]);
+
+    const response = await fetch(`${url}/api/compose/projects/${fixture.name}/down`, {
+      method: "POST",
+      signal: controller.signal,
+    });
+    assert.equal(response.status, 200);
+
+    // The run must really be under way before its death can mean anything: the
+    // stream's first `output` event is compose reporting on the stop it started.
+    const underWay = await waitForStreamedOutput(response, (chunk) => chunk.includes('"type":"output"'));
+    assert.equal(underWay, true, "the endpoint streamed no output, so no run was under way to cancel");
+    assert.equal(await isRunning(runningDown), true, "the compose process was already gone before the disconnect");
+
+    controller.abort();
+
+    assert.equal(
+      await waitForProcess(runningDown, false),
+      false,
+      "the compose process outlived the connection that started it",
+    );
+  } finally {
+    await killProcessQuietly(runningDown);
+    await removeComposeProjectQuietly(fixture);
+    await close();
+  }
+});
+
+// compose-endpoints.md — scale is "the same shape as `up`", so the same invariant binds it, and
+// "Rules and invariants": the cancellation hangs on the response closing, not the request, because a
+// POST carrying a body — which this one does, unlike up/down/restart — sees its request close before
+// the project lookup the run waits behind has settled.
+test("closing the connection mid-run kills the compose process a scale started", async () => {
+  const caseName = "scale-cancel-on-disconnect";
+  const fixture = await writeComposeFixture(
+    caseName,
+    `services:\n${serviceBlock("web", caseName, "    stop_grace_period: 600s")}\n`,
+  );
+  // Scaling to zero stops the running container, and that stop is what stays in
+  // flight long enough for a disconnect to be observed cancelling it.
+  const runningScale = `-p ${fixture.name} up -d --no-recreate --scale web=0`;
+  const controller = new AbortController();
+  const { url, close } = await startApp(buildApp("/api/compose", composeRouter));
+  try {
+    await bringUp(fixture.name, [fixture.filePath]);
+
+    const response = await fetch(`${url}/api/compose/projects/${fixture.name}/services/web/scale`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ replicas: 0 }),
+      signal: controller.signal,
+    });
+    assert.equal(response.status, 200);
+
+    const underWay = await waitForStreamedOutput(response, (chunk) => chunk.includes('"type":"output"'));
+    assert.equal(underWay, true, "the endpoint streamed no output, so no run was under way to cancel");
+    assert.equal(await isRunning(runningScale), true, "the compose process was already gone before the disconnect");
+
+    controller.abort();
+
+    assert.equal(
+      await waitForProcess(runningScale, false),
+      false,
+      "the compose process outlived the connection that started it",
+    );
+  } finally {
+    await killProcessQuietly(runningScale);
+    await removeComposeProjectQuietly(fixture);
+    await close();
+  }
+});
+
+// compose-endpoints.md — the cancellation holds "including a disconnect during the CLI's own
+// startup", where docker-access/specs/cli-runner.md says a single signal is swallowed and the
+// cli-plugin is spawned regardless. The headers reach the client once the command has been started,
+// so cutting the connection the moment they arrive lands inside exactly that window.
+test("a disconnect landing in the CLI's startup window still leaves no compose process behind", async () => {
+  const caseName = "startup-window-disconnect";
+  const fixture = await writeComposeFixture(
+    caseName,
+    `services:\n${serviceBlock("web", caseName, "    stop_grace_period: 600s")}\n`,
+  );
+  const runningDown = `-p ${fixture.name} down`;
+  const controller = new AbortController();
+  const { url, close } = await startApp(buildApp("/api/compose", composeRouter));
+  try {
+    await bringUp(fixture.name, [fixture.filePath]);
+
+    const response = await fetch(`${url}/api/compose/projects/${fixture.name}/down`, {
+      method: "POST",
+      signal: controller.signal,
+    });
+    assert.equal(response.status, 200);
+    // No wait at all: the command has just been spawned and the CLI has not yet
+    // reached the plugin it runs the work in.
+    controller.abort();
+
+    assert.equal(
+      await waitForProcess(runningDown, false),
+      false,
+      "the compose process survived a disconnect landing during the CLI's startup",
+    );
+  } finally {
+    await killProcessQuietly(runningDown);
+    await removeComposeProjectQuietly(fixture);
+    await close();
+  }
+});
+
+// compose-endpoints.md — a disconnect landing while the project is still being looked up "stops the
+// command from starting at all: nothing runs on behalf of a client that has already gone". Scaling
+// up is what makes that observable: a command that had started would have created the container.
+test("a disconnect during the project lookup starts no compose command at all", async () => {
+  const caseName = "lookup-window-disconnect";
+  const fixture = await writeComposeFixture(caseName, `services:\n${serviceBlock("web", caseName)}\n`);
+  const runningScale = `-p ${fixture.name} up -d --no-recreate --scale web=2`;
+  const controller = new AbortController();
+  const counting = buildCountingApp("/api/compose", composeRouter);
+  const { url, close } = await startApp(counting.app);
+  try {
+    await bringUp(fixture.name, [fixture.filePath]);
+    assert.equal(await containerCount(fixture.name, "web"), 1);
+
+    const streaming = fetch(`${url}/api/compose/projects/${fixture.name}/services/web/scale`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ replicas: 2 }),
+      signal: controller.signal,
+    }).catch(() => undefined);
+
+    // Short of the project lookup, which is a `docker compose ls` of its own and
+    // takes hundreds of milliseconds, so the disconnect lands while it is running.
+    await delay(50);
+    controller.abort();
+    // Headers only reach the client once the lookup has settled and the command
+    // has been started; not getting them is what places this disconnect earlier.
+    assert.equal(await streaming, undefined, "the disconnect landed after the lookup, not during it");
+
+    // Nothing may start after the client is gone, so the command must never appear at all.
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      await delay(150);
+      assert.equal(await isRunning(runningScale), false, "a compose command was started for a client that had gone");
+    }
+    assert.equal(counting.received(), 1, "the request never reached the endpoint, so nothing was proved");
+    // "a cancelled run is a run that stopped where it stood": here it never ran.
+    assert.equal(await containerCount(fixture.name, "web"), 1, "the scale took effect for a client that had gone");
+  } finally {
+    await killProcessQuietly(runningScale);
+    await removeComposeProjectQuietly(fixture);
+    await close();
+  }
+});
+
+// compose-endpoints.md — the log stream "closes when the client disconnects": the follow the stream
+// is built on must go with it, not stay behind attached to the project.
+test("disconnecting from the log stream kills the compose logs process behind it", async () => {
+  const caseName = "logs-cancel-on-disconnect";
+  // A service that keeps talking, so the stream has a line to deliver: that
+  // first line is what says the follow is really running.
+  const talkingYaml = [
+    "services:",
+    "  web:",
+    `    image: ${BASE_IMAGE}`,
+    "    pull_policy: never",
+    '    command: ["sh", "-c", "while true; do echo tick; sleep 0.5; done"]',
+    "    labels:",
+    `      - "${OWNER_LABEL}=${RUN_ID}"`,
+    `      - "${CASE_LABEL}=${caseName}"`,
+    "",
+  ].join("\n");
+  const fixture = await writeComposeFixture(caseName, talkingYaml);
+  const following = `-p ${fixture.name} logs --follow`;
+  const controller = new AbortController();
+  const { url, close } = await startApp(buildApp("/api/compose", composeRouter));
+  try {
+    await bringUp(fixture.name, [fixture.filePath]);
+
+    const response = await fetch(`${url}/api/compose/projects/${fixture.name}/logs/stream`, {
+      signal: controller.signal,
+    });
+    assert.equal(response.status, 200);
+
+    const underWay = await waitForStreamedOutput(response, (chunk) => chunk.includes("event: line"));
+    assert.equal(underWay, true, "the stream delivered no line, so no follow was under way to cancel");
+    assert.equal(await isRunning(following), true, "the log follow was already gone before the disconnect");
+
+    controller.abort();
+
+    assert.equal(
+      await waitForProcess(following, false),
+      false,
+      "the log follow outlived the client that opened it",
+    );
+  } finally {
+    await killProcessQuietly(following);
     await removeComposeProjectQuietly(fixture);
     await close();
   }

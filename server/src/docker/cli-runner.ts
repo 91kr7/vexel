@@ -48,9 +48,26 @@ export interface CliRunOptions {
   stdin?: string;
 }
 
+/**
+ * How a cancel escalates, in milliseconds after the first SIGTERM. The repeat
+ * exists because the `docker` wrapper swallows a signal that lands before it
+ * has spawned its cli-plugin child (`docker-compose`, `docker-buildx`): the
+ * plugin is then spawned regardless and the command runs to completion, so a
+ * single signal loses the cancel entirely for the few hundred milliseconds of
+ * that startup window. By the repeat the tree is up and honors the signal; the
+ * SIGKILL is the backstop for a child that honors nothing.
+ */
+const CANCEL_ESCALATION: ReadonlyArray<{ afterMs: number; signal: NodeJS.Signals }> = [
+  { afterMs: 500, signal: "SIGTERM" },
+  { afterMs: 2000, signal: "SIGKILL" },
+];
+
 /** Runs `command args...` against the active context; output streams as it is produced. */
 export function runCliCommand(command: string, args: string[], endpoint: DockerEndpoint, options: CliRunOptions = {}): CliRunHandle {
-  const child = spawn(command, args, { env: cliEnv(endpoint) });
+  // Detached so the child leads a process group of its own: a cancel signals
+  // that whole group — the `docker` wrapper *and* the cli-plugin it spawns —
+  // and the group can never be the server's own, whatever it was started from.
+  const child = spawn(command, args, { env: cliEnv(endpoint), detached: true });
   if (options.stdin !== undefined) {
     // A write error here (the child exited before reading) is not the caller's
     // concern: the exit code and stderr already say what happened.
@@ -63,15 +80,51 @@ export function runCliCommand(command: string, args: string[], endpoint: DockerE
 
   child.stdout.on("data", (chunk: Buffer) => stdoutListeners.forEach((listener) => listener(chunk.toString())));
   child.stderr.on("data", (chunk: Buffer) => stderrListeners.forEach((listener) => listener(chunk.toString())));
-  // A dedicated listener keeps Node from throwing on an unhandled 'error' event (e.g. the binary went missing mid-run).
-  child.on("error", (error) => spawnErrorListeners.forEach((listener) => listener(error.message)));
 
-  const done = new Promise<CliRunResult>((resolve) => {
-    child.once("close", (code) => resolve({ exitCode: code }));
+  // Once the process is gone its pid can be reissued to somebody else's, so a
+  // cancel arriving late sends nothing and any pending escalation is dropped.
+  let gone = false;
+  const escalations: NodeJS.Timeout[] = [];
+  const settle = () => {
+    gone = true;
+    for (const timer of escalations) clearTimeout(timer);
+  };
+
+  // A dedicated listener keeps Node from throwing on an unhandled 'error' event (e.g. the binary went missing mid-run).
+  child.on("error", (error) => {
+    settle();
+    spawnErrorListeners.forEach((listener) => listener(error.message));
   });
 
+  const done = new Promise<CliRunResult>((resolve) => {
+    child.once("close", (code) => {
+      settle();
+      resolve({ exitCode: code });
+    });
+  });
+
+  const signalGroup = (signal: NodeJS.Signals) => {
+    if (gone || child.pid === undefined) return;
+    // A negative pid addresses the child's own process group. Throwing here
+    // means the group emptied since the check above — the outcome a cancel
+    // wants, not a failure.
+    try {
+      process.kill(-child.pid, signal);
+    } catch {
+      // Already gone.
+    }
+  };
+
   return {
-    cancel: () => child.kill(),
+    cancel: () => {
+      if (gone || escalations.length > 0) return;
+      signalGroup("SIGTERM");
+      for (const step of CANCEL_ESCALATION) {
+        const timer = setTimeout(() => signalGroup(step.signal), step.afterMs);
+        timer.unref();
+        escalations.push(timer);
+      }
+    },
     onStdout: (listener) => stdoutListeners.push(listener),
     onStderr: (listener) => stderrListeners.push(listener),
     onSpawnError: (listener) => spawnErrorListeners.push(listener),
