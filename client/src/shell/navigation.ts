@@ -120,7 +120,7 @@ export const screens: ScreenDefinition[] = [
     glyph: 'AB',
     group: 'Full coverage',
     title: 'About',
-    description: 'Product identity and licence, and the functional coverage matrix against the Docker CLI and API',
+    description: 'Product identity and license, and the functional coverage matrix against the Docker CLI and API',
   },
 ];
 
