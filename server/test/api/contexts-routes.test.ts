@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 import { contextsRouter } from "../../src/contexts/contexts-routes.js";
 import type { ContextSummary } from "../../src/contexts/contexts-service.js";
 import type { DaemonInfo } from "../../src/contexts/daemon-info-service.js";
-import { defaultLocalSocket, resolveActiveEndpoint, setActiveEndpoint } from "../../src/docker/endpoint.js";
+import { defaultLocalSocket } from "../../src/docker/endpoint.js";
 import { buildApp, startApp } from "../support/fixtures.js";
 
 const execFileAsync = promisify(execFile);
@@ -16,29 +16,16 @@ const RUN_ID = `${process.pid}-${Date.now()}`;
 
 // A Docker context is host-level configuration: it carries no label, so every
 // fixture is recognised by its name alone and removed by the test that made it,
-// pass or fail. The active context is the operator's own global state — the one
-// test that switches it restores it, and switches only to a context pointing at
-// the very daemon that was already active.
+// pass or fail. No test here ever *selects* a context: `docker context use`
+// rewrites machine-wide state the whole host sees at once, which no label can
+// scope while the API files run in parallel, so the coverage of
+// `POST /api/contexts/:name/use` lives in test/exclusive/contexts-use-routes.test.ts.
 function fixtureName(caseName: string): string {
   return `vexel-test-ctx-${caseName}-${RUN_ID}`;
 }
 
 async function removeContextQuietly(name: string): Promise<void> {
   await execFileAsync("docker", ["context", "rm", "-f", name]).catch(() => undefined);
-}
-
-async function currentContextName(): Promise<string> {
-  const { stdout } = await execFileAsync("docker", ["context", "show"]);
-  return stdout.trim();
-}
-
-async function currentContextEndpoint(): Promise<string> {
-  const { stdout } = await execFileAsync("docker", ["context", "inspect", await currentContextName(), "--format", "{{.Endpoints.docker.Host}}"]);
-  return stdout.trim();
-}
-
-async function useContextQuietly(name: string): Promise<void> {
-  await execFileAsync("docker", ["context", "use", name]).catch(() => undefined);
 }
 
 async function fetchContexts(url: string): Promise<ContextSummary[]> {
@@ -299,50 +286,6 @@ test("DELETE /api/contexts/:name for an unknown context answers with Docker's ow
     const body = (await response.json()) as { error?: string };
     assert.ok(typeof body.error === "string" && body.error.length > 0);
   } finally {
-    await close();
-  }
-});
-
-// plan-docker_management_app/REQ-93 — selecting another context re-points every screen of the
-// application at the newly selected daemon: at this level, the access layer every area reads its
-// target from now names that context's endpoint, and the daemon of the active context answers.
-// The fixture context points at the very daemon that was already active, so nothing outside this
-// test can notice the switch; the operator's own active context is restored either way.
-test("POST /api/contexts/:name/use makes the context active and re-points the access layer at its daemon", async () => {
-  const name = fixtureName("use");
-  const { url, close } = await startApp(buildApp("/api/contexts", contextsRouter));
-  let originalActive: string | undefined;
-  try {
-    const sameDaemonEndpoint = await currentContextEndpoint();
-    originalActive = await currentContextName();
-    await execFileAsync("docker", ["context", "create", name, "--docker", `host=${sameDaemonEndpoint}`]);
-
-    const response = await postJson(url, `/api/contexts/${name}/use`, {});
-    assert.equal(response.status, 200);
-    const used = (await response.json()) as ContextSummary;
-    assert.equal(used.name, name);
-    assert.equal(used.active, true);
-
-    // The inventory now names it as the active one, and no other.
-    const contexts = await fetchContexts(url);
-    assert.deepEqual(
-      contexts.filter((context) => context.active).map((context) => context.name),
-      [name],
-    );
-
-    // docker-access/specs/active-endpoint.md — every area dials the endpoint of the active context.
-    const active = resolveActiveEndpoint();
-    assert.equal(active.kind, "unix");
-    assert.equal(active.kind === "unix" ? `unix://${active.socketPath}` : "", sameDaemonEndpoint);
-
-    // REQ-94 — the daemon of the (newly) active context answers.
-    const info = await fetch(`${url}/api/contexts/daemon-info`);
-    assert.equal(info.status, 200);
-  } finally {
-    if (originalActive) await useContextQuietly(originalActive);
-    await removeContextQuietly(name);
-    // The process-wide active endpoint is global state like the context itself.
-    setActiveEndpoint(undefined);
     await close();
   }
 });

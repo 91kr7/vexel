@@ -146,17 +146,33 @@ async function writeDockerConfig(config: unknown): Promise<void> {
   await writeFile(join(configDir, "config.json"), JSON.stringify(config), "utf8");
 }
 
-/** Every byte of every file under `directory`, recursively; `""` when there is no such directory. */
-async function readTree(directory: string): Promise<string> {
-  let contents = "";
+/**
+ * The path of the first file under `directory` whose bytes carry `secret`, or
+ * `undefined` when none does; `undefined` too when there is no such directory.
+ *
+ * Every file is searched on its own, as bytes. Concatenating the whole tree into
+ * one string was the trap: the data directory this is pointed at is the suite's
+ * shared analysis cache, deliberately kept between runs (`.archi`) and written
+ * to by the other files of the parallel pass, so it grows without bound — past
+ * V8's maximum string length it stopped answering the question at all and threw
+ * `RangeError: Invalid string length` instead. What this test owns is the
+ * question "is the secret in there", never the size of what somebody else put
+ * there.
+ */
+async function fileCarryingSecret(directory: string, secret: string): Promise<string | undefined> {
   const entries = await readdir(directory).catch(() => []);
   for (const entry of entries) {
     const path = join(directory, entry);
     const info = await stat(path).catch(() => undefined);
-    if (info?.isDirectory()) contents += await readTree(path);
-    else if (info?.isFile()) contents += await readFile(path, "utf8").catch(() => "");
+    if (info?.isDirectory()) {
+      const found = await fileCarryingSecret(path, secret);
+      if (found) return found;
+    } else if (info?.isFile()) {
+      const contents = await readFile(path).catch(() => Buffer.alloc(0));
+      if (contents.includes(secret)) return path;
+    }
   }
-  return contents;
+  return undefined;
 }
 
 /**
@@ -531,7 +547,8 @@ test("POST /api/registries/login logs in through the host credential store, answ
     assert.equal(listed!.authenticated, true);
     assert.equal(listed!.account, FIXTURE_USERNAME);
     if (dataDir !== "") {
-      assert.ok(!(await readTree(dataDir)).includes(FIXTURE_SECRET), "the application's own data directory must hold no credential");
+      const offender = await fileCarryingSecret(dataDir, FIXTURE_SECRET);
+      assert.equal(offender, undefined, `the application's own data directory must hold no credential, found one in ${offender}`);
     }
 
     // plan-docker_management_app/REQ-85 — and the registry can be logged out of again.
