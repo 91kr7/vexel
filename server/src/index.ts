@@ -1,3 +1,12 @@
+/*
+ * Vexel — Copyright (C) 2026 Christian Mariani
+ * SPDX-License-Identifier: AGPL-3.0-only
+ *
+ * Licensed under the GNU Affero General Public License v3, supplemented by the
+ * additional terms permitted under its section 7 — attribution, marking of modified
+ * versions and the project name. See LICENSE and LICENSE-ADDITIONAL-TERMS.md at the
+ * repository root.
+ */
 import express from "express";
 import { buildersRouter } from "./builders/builders-routes.js";
 import { composeRouter } from "./compose/compose-routes.js";

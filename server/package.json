@@ -3,6 +3,8 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "license": "AGPL-3.0-only",
+  "author": "Christian Mariani",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",

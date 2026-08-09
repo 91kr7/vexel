@@ -1,0 +1,43 @@
+Vexel — Copyright (C) 2026 Christian Mariani
+
+This product includes software developed by Christian Mariani.
+
+Vexel is free software: you can redistribute it and/or modify it under the terms of the
+GNU Affero General Public License, version 3, as published by the Free Software Foundation,
+supplemented by the additional terms permitted under section 7 of that license.
+
+    Full license text ....... LICENSE
+    Additional terms ........ LICENSE-ADDITIONAL-TERMS.md
+    SPDX identifier ......... AGPL-3.0-only
+    Source .................. https://github.com/91kr7/vexel
+
+Vexel is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
+even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+--------------------------------------------------------------------------------------------
+IF YOU REDISTRIBUTE OR FORK THIS SOFTWARE
+--------------------------------------------------------------------------------------------
+
+This file must travel with the software, and the attribution it carries must remain visible
+in the running application — see term 1 of LICENSE-ADDITIONAL-TERMS.md. If you modified
+Vexel, say so here, below this line, and leave the notice above intact:
+
+    (no modifications recorded)
+
+Because Vexel is a network-facing application, section 13 of the AGPL applies: if you let
+other people interact with your modified version over a network, you must offer those users
+the complete corresponding source of your version, under the AGPL, at no charge.
+
+"Vexel" is a project name, not a granted trademark licence. A fork must carry its own name.
+
+--------------------------------------------------------------------------------------------
+THIRD-PARTY COMPONENTS
+--------------------------------------------------------------------------------------------
+
+Vexel depends on third-party open source packages, each governed by its own license and its
+own copyright holders. Those licenses are not superseded by this one. The authoritative,
+resolved list for a given build is the dependency tree of that build:
+
+    npm ls --all --omit=dev
+    npx license-checker --production --summary
