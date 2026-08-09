@@ -12,11 +12,13 @@
 | ScrollArea | UI component | `client/src/ui/glass/ScrollArea.tsx` | Scrollable region with a styled scrollbar | `specs/scroll-area.md` |
 | CollapsibleSection | UI component | `client/src/ui/glass/CollapsibleSection.tsx` | Titled section of a detail surface that expands/collapses its content | `specs/collapsible-section.md` |
 | DetailPanel | UI component | `client/src/ui/glass/DetailPanel.tsx` | Detail surface for a selected object: header with title/subtitle, trailing actions and a close control, and a body | `specs/detail-panel.md` |
+| StateSummaryBar | UI component | `client/src/ui/glass/StateSummaryBar.tsx` | Full-width strip stating a subsystem's condition: state dot, the state in words, a monospace facts line and trailing actions | `specs/state-summary-bar.md` |
 | Frame | UI component | `client/src/ui/layout/Frame.tsx` | Application frame: rail / header / content / footer as floating glass panels over the Backdrop; owns the responsive breakpoints and the phone off-canvas rail drawer | `specs/frame.md` |
 | Stack | UI component | `client/src/ui/layout/Stack.tsx` | Vertical flex layout primitive | `specs/layout-primitives.md` |
 | Row | UI component | `client/src/ui/layout/Row.tsx` | Horizontal flex layout primitive with alignment helpers | `specs/layout-primitives.md` |
 | Grid | UI component | `client/src/ui/layout/Grid.tsx` | CSS-grid layout primitive | `specs/layout-primitives.md` |
 | DashboardLayout | UI component | `client/src/ui/layout/DashboardLayout.tsx` | Overview arrangement: a row of equal tiles above a two-column panel grid, with an optional full-width panel below | `specs/dashboard-layout.md` |
+| QuadPanelLayout | UI component | `client/src/ui/layout/QuadPanelLayout.tsx` | Four equal panels in a two-by-two grid, collapsing to one column below the tablet breakpoint | `specs/quad-panel-layout.md` |
 | Spacer | UI component | `client/src/ui/layout/Spacer.tsx` | Flexible spacer for Row/Stack siblings | `specs/layout-primitives.md` |
 | SplitPane | UI component | `client/src/ui/layout/SplitPane.tsx` | Two-pane surface — a fixed-width side next to a flexible one, divided by a hairline — for a tree/list next to its detail view | `specs/split-pane.md` |
 | NavRail, NavBrand | UI component | `client/src/ui/navigation/NavRail.tsx` | Persistent left navigation rail and its brand mark | `specs/navigation-primitives.md` |
@@ -27,7 +29,7 @@
 | StatusPill | UI component | `client/src/ui/controls/StatusPill.tsx` | Dot + label status indicator, with an optional inline action (e.g. retry) | `specs/status-pill.md` |
 | Button | UI component | `client/src/ui/controls/Button.tsx` | Button with primary/secondary/ghost/destructive variants | `specs/button.md` |
 | IconButton | UI component | `client/src/ui/controls/IconButton.tsx` | Square icon-only button with a required accessible label | `specs/icon-button.md` |
-| Badge | UI component | `client/src/ui/controls/Badge.tsx` | Small tag/count/status label, optionally clickable as a selection action | `specs/badge.md` |
+| Badge | UI component | `client/src/ui/controls/Badge.tsx` | Small tag/count/status label in five tones, in a solid or quiet variant (a secondary attribute next to a filled one), optionally clickable as a selection action | `specs/badge.md` |
 | KeyHint | UI component | `client/src/ui/controls/KeyHint.tsx` | Keyboard-shortcut hint | `specs/key-hint.md` |
 | PathInput | UI component | `client/src/ui/controls/PathInput.tsx` | Host-path text field with a validation state, refusal message and browse hint | `specs/path-input.md` |
 | StorageUsageRow | UI component | `client/src/ui/controls/StorageUsageRow.tsx` | Label/description/size row with an optional clear action, in a plain or destructive variant | `specs/storage-usage-row.md` |
@@ -40,7 +42,8 @@
 | FilePicker | UI component | `client/src/ui/controls/FilePicker.tsx` | Picks a file from the operator's own machine to upload, showing its chosen name and size | `specs/file-picker.md` |
 | ScreenToolbar | UI component | `client/src/ui/controls/ScreenToolbar.tsx` | Screen action bar: leading primary action, secondary actions, trailing destructive action, optional filters row | `specs/screen-toolbar.md` |
 | Tabs | UI component | `client/src/ui/controls/Tabs.tsx` | Single-select row of tabs switching a detail surface's active content panel | `specs/tabs.md` |
-| CopyButton | UI component | `client/src/ui/controls/CopyButton.tsx` | Copies an exact value to the clipboard, with a transient "Copied" confirmation | `specs/copy-button.md` |
+| CopyButton | UI component | `client/src/ui/controls/CopyButton.tsx` | Copies an exact value to the clipboard, with a transient "Copied" confirmation; stays mounted but inert when disabled | `specs/copy-button.md` |
+| RevealableValue | UI component | `client/src/ui/controls/RevealableValue.tsx` | A received sensitive value (e.g. a join token): masked until an explicit reveal, copyable while hidden, with a slot for the action that replaces it | `specs/revealable-value.md` |
 | NumberField | UI component | `client/src/ui/controls/NumberField.tsx` | Single-line numeric form input | `specs/number-field.md` |
 | Stepper | UI component | `client/src/ui/controls/Stepper.tsx` | Decrement / value / increment control for a small bounded integer (e.g. a service's replica count) | `specs/stepper.md` |
 | Select | UI component | `client/src/ui/controls/Select.tsx` | Single-choice dropdown | `specs/select.md` |

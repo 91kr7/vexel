@@ -26,6 +26,17 @@ const groups: Record<string, string[]> = {
 
 const allScreenLabels = Object.values(groups).flat();
 
+/**
+ * A screen's own entry in the navigation rail.
+ *
+ * Scoped to the rail on purpose: the landing screen is the Dashboard, whose
+ * cross-navigation tiles name the same screens ("Running containers — open the
+ * Containers screen"), so an unscoped locator matches several controls.
+ */
+function navEntry(page: Page, label: string) {
+  return page.getByRole('navigation').getByRole('button', { name: new RegExp(label) });
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
 });
@@ -40,7 +51,7 @@ test('opens on the Vexel — Docker Control shell with the thirteen entries grou
   for (const [group, labels] of Object.entries(groups)) {
     await expect(page.getByText(group, { exact: true })).toBeVisible();
     for (const label of labels) {
-      await expect(page.getByRole('button', { name: new RegExp(label) })).toBeVisible();
+      await expect(navEntry(page, label)).toBeVisible();
     }
   }
   expect(allScreenLabels).toHaveLength(13);
@@ -63,7 +74,7 @@ test('opens on the Vexel — Docker Control shell with the thirteen entries grou
 
 // plan-docker_management_app/REQ-2
 test('activating a nav entry switches the main area and marks it active, keeping rail/header/footer', async ({ page }) => {
-  await page.getByRole('button', { name: /Containers/ }).click();
+  await navEntry(page, 'Containers').click();
 
   // app-shell/specs/shell.md: the containers entry now shows the real
   // ContainersScreen — its own toolbar — not a placeholder.
@@ -81,10 +92,11 @@ test('activating a nav entry switches the main area and marks it active, keeping
 
   // Switching again replaces the content without losing the rail; a screen with
   // no feature batch yet still shows its placeholder (shell.md, placeholder-screen.md).
-  await page.getByRole('button', { name: /Swarm/ }).click();
-  await expect(page.getByRole('heading', { level: 1, name: 'Swarm' })).toBeVisible();
-  await expect(page.getByText(/Swarm is not built yet/)).toBeVisible();
-  await expect(page.getByRole('button', { name: /Containers/ })).toBeVisible();
+  // Swarm was that screen until batch 27 built it, hence Plugins.
+  await navEntry(page, 'Plugins').click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Plugins' })).toBeVisible();
+  await expect(page.getByText(/Plugins is not built yet/)).toBeVisible();
+  await expect(navEntry(page, 'Containers')).toBeVisible();
 });
 
 // plan-docker_management_app/REQ-3, plan-docker_management_app/REQ-107
@@ -118,9 +130,16 @@ test('no runtime blur is computed on the shell surfaces', async ({ page }) => {
 test('a destructive demo action asks for confirmation naming its target and does nothing when cancelled', async ({ page }) => {
   // The destructive-confirmation demo lives on a screen with no feature batch
   // yet (placeholder-screen.md), so the screen is stated rather than inherited.
-  await openOnScreen(page, 'dashboard', 'Dashboard');
+  // The Dashboard has been a real screen since batch 25 and carries no demo;
+  // Plugins is still a placeholder, and Swarm stopped being one in batch 27.
+  await openOnScreen(page, 'plugins', 'Plugins');
 
-  const candidates = page.getByRole('button', { name: /remove|delete|kill|prune|down|leave|log ?out/i });
+  // Scoped to the screen's own content: the rail names a "System & prune"
+  // entry, which reads like a destructive control to an unscoped locator and is
+  // merely a navigation entry.
+  const candidates = page
+    .locator('.ui-frame__content')
+    .getByRole('button', { name: /remove|delete|kill|prune|down|leave|log ?out/i });
   const candidateCount = await candidates.count();
   expect(
     candidateCount,

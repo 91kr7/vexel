@@ -5,10 +5,16 @@ import './controls.css';
 export interface CopyButtonProps {
   value: string;
   label?: string;
+  /**
+   * Keeps the affordance in place but inert — for a value that is not there
+   * yet or is still being read, where hiding the button instead would make it
+   * appear and disappear under the operator.
+   */
+  disabled?: boolean;
 }
 
 /** Copies `value` to the clipboard; briefly confirms with "Copied". */
-export function CopyButton({ value, label = 'Copy' }: CopyButtonProps) {
+export function CopyButton({ value, label = 'Copy', disabled = false }: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
 
   async function handleClick() {
@@ -18,7 +24,7 @@ export function CopyButton({ value, label = 'Copy' }: CopyButtonProps) {
   }
 
   return (
-    <Button size="sm" variant="ghost" onClick={handleClick}>
+    <Button size="sm" variant="ghost" disabled={disabled} onClick={handleClick}>
       {copied ? 'Copied' : label}
     </Button>
   );

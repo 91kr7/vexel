@@ -184,8 +184,39 @@
   color: var(--color-warning);
 }
 
+.ui-badge--tone-info {
+  background: var(--color-accent-tint);
+  color: var(--color-accent-strong);
+}
+
 .ui-badge--tone-danger {
   background: var(--color-danger-tint);
+  color: var(--color-danger-strong);
+}
+
+/* Same box, no fill: a secondary attribute sitting next to a filled badge
+   reads as a reading, not as a second pill. Padding and line box are kept so
+   the two sit on one baseline. */
+.ui-badge--quiet {
+  background: none;
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-muted);
+}
+
+.ui-badge--quiet.ui-badge--tone-info {
+  color: var(--color-accent-strong);
+}
+
+.ui-badge--quiet.ui-badge--tone-success {
+  color: var(--color-success);
+}
+
+.ui-badge--quiet.ui-badge--tone-warning {
+  color: var(--color-warning);
+}
+
+.ui-badge--quiet.ui-badge--tone-danger {
   color: var(--color-danger-strong);
 }
 
@@ -948,4 +979,43 @@
   font-family: var(--font-family-mono);
   font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
+}
+
+.ui-revealable-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: var(--border-width-hairline) solid var(--color-border-subtle);
+  background: var(--color-wash-1);
+}
+
+.ui-revealable-value__value {
+  flex: 1 1 240px;
+  min-width: 0;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+}
+
+.ui-revealable-value__text {
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.ui-revealable-value__mask {
+  color: var(--color-text-secondary);
+  letter-spacing: 0.08em;
+}
+
+.ui-revealable-value__placeholder {
+  color: var(--color-text-muted);
+}
+
+.ui-revealable-value__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: none;
 }

@@ -17,6 +17,7 @@ import { networksRouter } from "./networks/networks-routes.js";
 import { registriesRouter } from "./registries/registries-routes.js";
 import { reclaimOrphans } from "./persistence/analysis-cache-store.js";
 import { persistenceRouter } from "./persistence/persistence-routes.js";
+import { swarmRouter } from "./swarm/swarm-routes.js";
 import { systemRouter } from "./system/system-routes.js";
 import { volumesRouter } from "./volumes/volumes-routes.js";
 
@@ -39,6 +40,7 @@ app.use("/api/networks", networksRouter);
 app.use("/api/registries", registriesRouter);
 app.use("/api/compose", composeRouter);
 app.use("/api/builders", buildersRouter);
+app.use("/api/swarm", swarmRouter);
 app.use("/api/system", systemRouter);
 app.use("/api/events", eventsRouter);
 app.use("/api/persistence", persistenceRouter);
