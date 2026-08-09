@@ -9,6 +9,11 @@
 - Package manager: npm, using npm workspaces for the monorepo
 - Runtime: Node.js >= 22 (LTS)
 - Module system: ESM (`"type": "module"` on every `package.json`)
+- Serving model: **one process, one port in production**. The Express server is the only process
+  that runs: it exposes the API and, from the same origin and the same port, serves the client's
+  Vite production build (`client/dist`) plus the SPA history fallback. Vite is a build tool at that
+  point, not a runtime. The two-process flow (Vite dev server + Express) survives **for local
+  development only**, for HMR.
 
 ## Structure
 
@@ -41,8 +46,40 @@ DockerClient/
         └── index.ts              # Express app bootstrap; GET /health -> { status: "ok" }
 ```
 
-No other folders (e.g. `routes/`, `services/`, `components/`) exist yet: the internal structure of
-each package is left to emerge during development, per the "no invented structure" principle.
+The tree above is the **init-time snapshot**. Since then the internal structure of each package has
+grown as development required it (feature areas under `server/src/*`, the UI library under
+`client/src/ui/`, the test trees under `server/test/` and `client/e2e/`); it is not re-listed here,
+per the "no invented structure" principle — this file records the architecture, not an inventory.
+
+### Serving topology
+
+```
+production (one process, one port — default 3000)
+  browser ──► Express (server/dist/index.js)
+                ├── GET /health                     → liveness
+                ├── /api/*                          → API routers (unchanged)
+                ├── GET /api/events                 → SSE stream (unchanged)
+                ├── HTTP upgrade on /api/…          → WebSocket sessions (unchanged)
+                ├── static assets                   → client/dist (hashed files under /assets)
+                └── SPA history fallback            → client/dist/index.html
+
+development (two processes, two ports)
+  browser ──► Vite dev server :5173 ── HMR, index.html, sources
+                └── proxy /api (ws: true) ──► Express :3000
+```
+
+- `client/dist` is a **build artifact** consumed by the server at runtime; it is git-ignored and is
+  produced by `npm run build -w client`. Nothing is copied into the server workspace: the server
+  resolves the directory from its own module URL (`server/dist/index.js` → `../../client/dist`), so
+  the path holds whatever the working directory is, and an override env var
+  (`VEXEL_CLIENT_DIST`) lets a packaged deployment point elsewhere.
+- Serving the client is mounted **last**, after `/health` and every `/api/*` router, and the history
+  fallback answers only `GET`/`HEAD` requests that are not under `/api`. An unknown API route
+  therefore still 404s as JSON instead of being answered with `index.html`.
+- The WebSocket upgrade path is untouched: it is handled on the `server.on("upgrade")` hook of the
+  `http.Server`, which no Express middleware — static or fallback — can intercept.
+- When `client/dist` is absent (a checkout that has never been built, the dev flow where Vite owns
+  the client), the server logs it once and runs API-only. A missing build is not a fatal error.
 
 ## Dependencies
 
@@ -55,7 +92,10 @@ each package is left to emerge during development, per the "no invented structur
 - `@types/react`, `@types/react-dom`, `@types/node` — type definitions for the above.
 
 ### server (`server/package.json`)
-- `express` — server framework (assumption, see below).
+- `express` — server framework (assumption, see below). Also the **static file server and SPA host**
+  in production: `express.static` and `res.sendFile` ship with Express 5, so serving the client adds
+  **no new dependency** (no `serve-static`, no `sirv`, no reverse proxy in front).
+- `ws` — WebSocket sessions for container exec/attach, handled on the HTTP `upgrade` hook.
 - `typescript` — requested by the human.
 - `tsx` — TypeScript runner used for the `dev` script (`tsx watch src/index.ts`); avoids a manual
   build step during local development.
@@ -69,8 +109,13 @@ each package is left to emerge during development, per the "no invented structur
 - Each workspace package owns its `tsconfig.json`; no shared base config was introduced (not part
   of what the idiomatic scaffolds produced, and only two packages exist so far — avoids inventing
   structure not yet needed).
-- Server entrypoint (`server/src/index.ts`) exposes a single `GET /health` route returning
-  `{ "status": "ok" }`: operational bootstrap, not domain logic.
+- Server entrypoint (`server/src/index.ts`) exposes `GET /health` returning `{ "status": "ok" }`,
+  mounts every `/api/*` router, and — last of all — the client's static build and the SPA fallback.
+  **Mount order is load-bearing**: anything registered after the history fallback would be
+  unreachable, and anything registered before `/api` could shadow the API.
+- The client is served from the **same origin and the same port** as the API. The client therefore
+  keeps calling `/api/...` with relative URLs in both flows: through the Vite proxy in development,
+  directly in production. No base URL, no CORS configuration, no origin in the client code.
 - Client entrypoint/component (`src/main.tsx`, `src/App.tsx`) is exactly what `create-vite`
   generates for the `react-ts` template (demo counter component); no domain logic added.
 
@@ -79,9 +124,24 @@ each package is left to emerge during development, per the "no invented structur
 Run from the repository root (npm workspaces):
 
 - Install all dependencies: `npm install`
-- Client dev server: `npm run dev:client` (equivalent to `npm run dev -w client`)
-- Server dev (watch mode): `npm run dev:server` (equivalent to `npm run dev -w server`)
-- Build both: `npm run build` (`tsc -b && vite build` for client, `tsc -p tsconfig.json` for server)
+- **Run the whole application (one process, one port): `npm start`** — chains
+  `npm run build && npm run serve`, i.e. builds the client, builds the server, then runs the single
+  Express process which serves API + client on `http://localhost:3000` (override with `PORT`).
+  This is the command the human asked for: one command, one process, the complete app.
+- Serve an existing build without rebuilding: `npm run serve` (equivalent to `npm start -w server`,
+  i.e. `node dist/index.js`). Use it when only the server has to be restarted; it fails soft and
+  runs API-only if `client/dist` has never been built.
+- Local development (two processes, HMR — **development only**):
+  - `npm run dev:server` (equivalent to `npm run dev -w server`) — Express on port 3000, watch mode.
+  - `npm run dev:client` (equivalent to `npm run dev -w client`) — Vite on port 5173, proxying
+    `/api` (with `ws: true`) to port 3000, so origin-relative calls, the SSE stream and the exec
+    WebSocket behave exactly as they do in the single-process flow.
+  - Both are needed together; `npm start` needs neither.
+- Build both: `npm run build` (`tsc -b && vite build` for client, `tsc -p tsconfig.json` for server).
+  **The client builds first, on purpose**: the server process serves the output of that build.
+- Low-verbosity variants (what the agents use): prefix with `-s` to silence npm's own script echo —
+  `npm run build -s`, `npm start -s`, `npm run test -s`. `tsc` and `vite build` are already quiet on
+  success; the test scripts already pin dot reporters.
 - Lint client: `npm run lint` (`oxlint`, low-verbosity by default)
 - Server tests: `npm run test -w server` — chains the four passes below, in this order:
   - `npm run test:typecheck -w server` — typechecks the test tree (`tsc -p tsconfig.test.json`,
@@ -145,7 +205,13 @@ Run from the repository root (npm workspaces):
   the file never exits — a missing image surfaces as a ten-minute hang instead of a failed
   assertion. Only provably non-throwing statements (a name built from a template literal, a `let`
   declaration, `new AbortController()`) may sit there.
-- Server production start (after build): `npm start -w server` (`node dist/index.js`)
+- The e2e suite drives the **development flow** (`playwright.config.ts` starts both processes and
+  points `baseURL` at `http://localhost:5173`): it is the flow that gives the specs HMR-free but
+  instant rebuilds, and the application code it exercises is identical — same origin-relative API
+  calls, same SSE, same WebSocket. Testing the single-process flow is a matter of pointing the same
+  suite at port 3000 after `npm run build`, not of a different application.
+- Server production start (after build): `npm start -w server` (`node dist/index.js`) — the single
+  process, serving API **and** client. `npm run serve` from the root is the same thing.
 
 ## Assumptions
 
@@ -167,3 +233,38 @@ Everything below was not specified and was assumed, with rationale:
 - **Root package name `docker-client`** — kebab-case derived from the working directory name
   `DockerClient`, per npm's own naming convention; used only as the private workspace root name, not
   as a signal about the application's domain (no domain logic exists yet).
+
+### Single-process serving (2026-08-10)
+
+The human decided: one npm process serves the whole application; Express serves `client/dist` plus
+the SPA history fallback; one command at the root builds and serves it on one port; the two-process
+Vite flow stays for local development; API surface, WebSocket upgrade and SSE stream unchanged.
+Everything below was not specified and was assumed, with rationale:
+
+- **Same port and same `PORT` variable as today (default 3000)** — "one port" means the API's, since
+  the API is what already has clients (the e2e suite, `GET /health` probes). Introducing a new port
+  or a new variable would break them for no gain.
+- **Static assets served straight out of `client/dist`, nothing copied into the server workspace** —
+  the human named `client/dist` as the source. A copy step would add a build stage, a second copy of
+  every asset and a way for the two to disagree. If a self-contained artifact is ever needed
+  (a container image, a published server package), the `VEXEL_CLIENT_DIST` override is the seam that
+  makes it a packaging concern rather than an architectural one.
+- **The directory is resolved from the server's module URL, not from `process.cwd()`** — the server
+  is launched from the repository root (`npm run serve`) and from its own workspace
+  (`npm start -w server`); only a module-relative path is the same in both.
+- **A missing `client/dist` is not fatal: the server logs it once and runs API-only** — that is
+  exactly the state of the development flow, where Vite owns the client, and of a fresh checkout.
+  Crashing there would make `npm run dev:server` depend on a client build it does not use.
+- **Root `start` = `build` + `serve`, with `serve` kept separate** — the human asked for a single
+  command that builds *and* serves, which `npm start` now is. A build-free `npm run serve` remains
+  because restarting the process is the frequent operation and rebuilding the client each time would
+  cost seconds for nothing.
+- **No new dependency, no reverse proxy** — `express.static` and `res.sendFile` are part of
+  Express 5. Adding nginx or `serve-static` in front would reintroduce the second process the human
+  is removing.
+- **The history fallback is restricted to `GET`/`HEAD` outside `/api`** — an unknown API route must
+  keep failing as a JSON 404; answering it with `index.html` turns a client bug into a silent
+  "renders the app" that no test can catch.
+- **The e2e suite keeps targeting the dev flow on port 5173** — the constraint was to keep the dev
+  flow available, and the suite is dev tooling. Repointing it is a test-strategy decision, not an
+  architectural one, and can be made later without touching this architecture.

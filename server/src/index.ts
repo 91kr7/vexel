@@ -9,6 +9,7 @@
  */
 import express from "express";
 import { buildersRouter } from "./builders/builders-routes.js";
+import { mountClientApp } from "./client-serving.js";
 import { composeRouter } from "./compose/compose-routes.js";
 import { connectivityRouter } from "./connectivity/connectivity-routes.js";
 import { consoleRouter } from "./console/console-routes.js";
@@ -58,6 +59,20 @@ app.use("/api/console", consoleRouter);
 app.use("/api/events", eventsRouter);
 app.use("/api/persistence", persistenceRouter);
 app.use("/api/host-paths", hostPathsRouter);
+
+// Mount order below is load-bearing. An address under /api that no router above
+// claimed fails here as the API's own JSON error, so a mistyped or removed call
+// cannot be answered with the interface and look like a success
+// (plan-docker_management_app-single_process_serving/REQ-4).
+app.use("/api", (_req, res) => {
+  res.status(404).json({ error: "No such API route." });
+});
+
+// The interface comes last of all, after /health and every /api route: nothing
+// registered after its history fallback would still be reachable for a page
+// request, and nothing registered before /api could shadow the API
+// (plan-docker_management_app-single_process_serving/REQ-1).
+mountClientApp(app);
 
 // Point every area at the daemon of the active Docker context before anything
 // dials it; a failure here leaves the default endpoint in place (REQ-93).

@@ -19,6 +19,17 @@ type: configuration
   `/api/registries`, `composeRouter` at
   `/api/compose`, `systemRouter` at `/api/system`, `consoleRouter` at `/api/console`, and
   `imageAnalysisRouter` alongside `imagesRouter` at `/api/images`.
+- After every `/api/*` router and before the interface, answers any remaining address under `/api`
+  with `404` and a JSON body `{ error: <text> }`, so a mistyped, misspelled or removed call fails as
+  an API error a program can detect and is never answered with the interface.
+- **Last of all, and before listening**, mounts the client serving (`mountClientApp`), so that an
+  ordinary page request outside `/api` is answered with the built interface rather than a server
+  "not found", while `/health` and every `/api` address keep answering exactly as before.
+  - `VEXEL_CLIENT_DIST` points the interface at another directory at run time.
+  - no built interface present → the server starts anyway and serves its whole API, with the reason
+    and the remedy reported once.
+- Handles the HTTP `upgrade` hook on the `http.Server` itself, outside the middleware chain, so the
+  interactive container sessions are unaffected by anything mounted on the app.
 - Calls `publishActiveEndpoint()` once at startup, before anything dials the daemon, so every area
   talks to the daemon of the active Docker context rather than to the platform-default socket; its
   failure (no `docker` CLI, unreadable configuration) is not fatal and leaves the default in place
@@ -30,10 +41,24 @@ type: configuration
 - Calls `sweepAbandonedExtractionContainers()` once at startup (its failure, e.g. an unreachable
   daemon, is not fatal to boot) so any intermediate filesystem-extraction container left behind by
   an interrupted run is removed before any client can observe the container list (REQ-54, REQ-57).
-- Listens on `process.env.PORT`, defaulting to `3000`.
+- Listens on `process.env.PORT`, defaulting to `3000`, once — one process, one port, serving the
+  interface and the API together at that one address.
+
+## Rules and invariants
+
+- **Mount order is load-bearing**: `/health` and every `/api/*` router first, then the API's
+  `404`, then the client serving, then `listen`. A new router goes before the API `404`; anything
+  registered after the client serving would be unreachable for a page request, and anything
+  registered before `/api` could shadow the API.
+- The interface and the API share one origin and one port; there is no arrangement in which one is
+  exposed without the other, and the process introduces no authentication, authorisation or
+  transport-security layer of its own.
+- A missing built interface never stops the process from starting.
 
 ## Dependencies
 
+- server-app: mountClientApp (client serving)
+- containers: handleContainerSessionUpgrade
 - connectivity: connectivityRouter
 - contexts: contextsRouter, publishActiveEndpoint
 - events: eventsRouter, eventStreamService
@@ -60,3 +85,8 @@ type: configuration
 - plan-docker_management_app/REQ-113
 - plan-docker_management_app/REQ-115
 - plan-docker_management_app/REQ-116
+- plan-docker_management_app-single_process_serving/REQ-1
+- plan-docker_management_app-single_process_serving/REQ-4
+- plan-docker_management_app-single_process_serving/REQ-6
+- plan-docker_management_app-single_process_serving/REQ-7
+- plan-docker_management_app-single_process_serving/REQ-12

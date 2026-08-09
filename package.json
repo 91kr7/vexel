@@ -13,7 +13,10 @@
     "client",
     "server"
   ],
+  "//start": "The single command that builds and serves the whole application on one port: the client build must run first, since the server process serves its output from client/dist.",
   "scripts": {
+    "start": "npm run build && npm run serve",
+    "serve": "npm start -w server",
     "dev:client": "npm run dev -w client",
     "dev:server": "npm run dev -w server",
     "build": "npm run build -w client && npm run build -w server",
