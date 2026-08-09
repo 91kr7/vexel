@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { activeContextLabel } from './support/fixtures.js';
 
 /**
  * Pins the persisted `lastScreenId` and reloads: the shell restores the
@@ -52,9 +53,12 @@ test('opens on the Vexel — Docker Control shell with the thirteen entries grou
   await expect(header.getByRole('button', { name: /Search/ })).toBeVisible();
   await expect(header.getByRole('button', { name: 'Console' })).toBeVisible();
 
+  // The footer names the context Docker itself reports as active, as `name (kind)`
+  // (REQ-93, app-shell/specs/shell.md) — whichever context that is on this machine.
   const rail = page.getByRole('navigation');
-  await expect(rail.getByText('Active context')).toBeVisible();
-  await expect(rail.getByText('default (local)')).toBeVisible();
+  const footer = rail.locator('.ui-footer-status');
+  await expect(footer.getByText('Active context')).toBeVisible();
+  await expect(footer.locator('.ui-footer-status__value')).toHaveText(await activeContextLabel(), { timeout: 20_000 });
 });
 
 // plan-docker_management_app/REQ-2

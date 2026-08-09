@@ -49,6 +49,39 @@ export async function openApp(page: Page, screenId: string | null = null): Promi
 }
 
 /**
+ * The endpoint kind of a context, derived from its endpoint URL exactly as
+ * `contexts/specs/contexts-service.md` states: `ssh` for `ssh://`, `tcp` for
+ * `tcp://`/`http://`/`https://`, `local` for anything else.
+ */
+function contextKind(endpoint: string): string {
+  if (endpoint.startsWith('ssh://')) return 'ssh';
+  if (/^(tcp|http|https):\/\//.test(endpoint)) return 'tcp';
+  return 'local';
+}
+
+/**
+ * How the shell's footer names the context currently in use, `name (kind)`
+ * (app-shell/specs/shell.md).
+ *
+ * The active context is the operator's own Docker configuration, not something a
+ * test may assume: on one machine it is `default`, on another `desktop-linux` or
+ * a remote one. The expected label is therefore asked of Docker itself — the same
+ * source the application reads — instead of being written into the assertion.
+ */
+export async function activeContextLabel(): Promise<string> {
+  const { stdout: shown } = await execFileAsync('docker', ['context', 'show']);
+  const name = shown.trim();
+  const { stdout: host } = await execFileAsync('docker', [
+    'context',
+    'inspect',
+    name,
+    '--format',
+    '{{.Endpoints.docker.Host}}',
+  ]);
+  return `${name} (${contextKind(host.trim())})`;
+}
+
+/**
  * The anonymous volumes currently on the daemon. Docker creates one per
  * container for every `VOLUME` an image declares, labels it as anonymous and
  * carries no label of ours, so it cannot be recognised by ownership.
