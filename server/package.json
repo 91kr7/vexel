@@ -1,6 +1,7 @@
 {
   "name": "server",
   "private": true,
+  "//version": "Deliberately left at 0.0.0 and never bumped: this package is private and never published, and the running version of the product is declared once, by the repository root package.json. One place to bump means two version strings in this repository can never disagree about which build is running.",
   "version": "0.0.0",
   "type": "module",
   "license": "AGPL-3.0-only",

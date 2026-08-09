@@ -3,7 +3,7 @@
 | Module | Responsibility | Index |
 |--------|----------------|-------|
 | ui-library | The internal, domain-agnostic UI library (`client/src/ui/`): design tokens, the glass material, layout, navigation, control, cross-reference, metric and feedback primitives — the only place allowed raw DOM tags and CSS. | `ui-library/index.md` |
-| app-shell | The application shell that composes the UI library: navigation data, the "Vexel — Docker Control" shell, and the application-wide confirmation/error/progress/connection/event/cross-navigation services. | `app-shell/index.md` |
+| app-shell | The application shell that composes the UI library: navigation data, the "Vexel — Docker Control" shell, the identity and legal notice the About screen carries with the build-time version constant behind it, and the application-wide confirmation/error/progress/connection/event/cross-navigation services. | `app-shell/index.md` |
 | dashboard | The Dashboard screen and the host overview behind it: the summary tiles, the live container activity, the disk-usage breakdown, the recent daemon events, and the navigation from each of them to the screen owning the object. | `dashboard/index.md` |
 | docker-access | Server-side Docker access layer: the Engine API client (unix/TCP+TLS/ssh, version negotiation, typed errors) and the local `docker`/`compose`/`buildx` CLI runner — shared by every future domain area that talks to Docker. | `docker-access/index.md` |
 | connectivity | Daemon reachability, negotiated API version and CLI/plugin availability: server status service and endpoint, and the client's typed status reader. | `connectivity/index.md` |

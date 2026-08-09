@@ -43,6 +43,7 @@ import { SwarmScreen } from '../swarm/SwarmScreen';
 import { SystemScreen } from '../system/SystemScreen';
 import { VolumesNetworksScreen } from '../volumes-networks/VolumesNetworksScreen';
 import { NetworksPanel } from '../volumes-networks/NetworksPanel';
+import { AboutNotice } from './AboutNotice';
 import { defaultScreenId, navGroupOrder, screens } from './navigation';
 import { PlaceholderScreen } from './screens/PlaceholderScreen';
 import { ConfirmationProvider } from './services/ConfirmationService';
@@ -290,6 +291,7 @@ export function Shell() {
               // REQ-12) and the analysis cache's size and clear action
               // (REQ-113) have no other surface in the application.
               <>
+                <AboutNotice />
                 <Card>
                   <SectionHeader
                     title="CLI availability"

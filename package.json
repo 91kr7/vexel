@@ -1,7 +1,8 @@
 {
   "name": "docker-client",
   "private": true,
-  "version": "0.0.0",
+  "//version": "The product's single source of truth for the running version: the client reads it at build time (client/app-version.ts) and displays it in the About notice. The client and server workspaces stay at 0.0.0 on purpose — see their own note.",
+  "version": "0.1.0",
   "type": "module",
   "license": "AGPL-3.0-only",
   "author": "Christian Mariani",

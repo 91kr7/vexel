@@ -22,7 +22,10 @@ Description:
 Shows:
 - The active screen's title and description in the header; in the content area: any active
   `ErrorBanner`s (REQ-7), an unreachable-daemon `ErrorBanner` with cause and retry when the daemon
-  cannot be reached (REQ-10), a "CLI availability" `Card` listing docker/compose/buildx presence
+  cannot be reached (REQ-10), the `AboutNotice` as the **first** card of the About screen
+  (`coverage-matrix`), above everything else that screen carries
+  (plan-docker_management_app-about_license_notice/REQ-6,
+  plan-docker_management_app-about_license_notice/REQ-7), a "CLI availability" `Card` listing docker/compose/buildx presence
   and version (REQ-110), a "Daemon event stream" `Card` with the live `EventStream` (REQ-11,
   REQ-12), a "Local storage" `Card` with a `StorageUsageRow` for the analysis cache's size and a
   "Clear" action (REQ-113, REQ-115), then the active screen's real content: `DashboardScreen` for
@@ -90,6 +93,12 @@ Navigation:
   the analysis cache's size and clear action exist nowhere else. Relabelling that screen took
   nothing off it either — the three cards and the coverage matrix under them are all still there
   (plan-docker_management_app-about_license_notice/REQ-3).
+- The About screen's content is `AboutNotice` first, then those three cards, then the coverage
+  matrix. The notice going on top adds a card and reorders nothing: reaching the About entry of the
+  permanent navigation is the single step that shows it, and no dialog, acknowledgement or first-run
+  gate stands between the operator and their work
+  (plan-docker_management_app-about_license_notice/REQ-6,
+  plan-docker_management_app-about_license_notice/REQ-7).
 - `errors` (REQ-7), `pending` (REQ-8), `connection` (REQ-9/REQ-10/REQ-13/REQ-110) and `events`
   (REQ-11/REQ-12) come from providers supplied by the caller (`App`), so they can be
   observed/driven independently of the shell chrome; `ToastProvider` and `ConfirmationProvider`
@@ -114,7 +123,7 @@ Navigation:
 - ui-library: Frame, NavRail, NavBrand, NavGroup, NavItem, FooterStatus, PageHeader, StatusPill,
   Badge, Button, KeyHint, Row, Stack, Card, SectionHeader, ErrorBanner, EventStream,
   StorageUsageRow, ToastProvider
-- Navigation data, PlaceholderScreen, ConfirmationService, ErrorReportingService, ProgressService,
+- Navigation data, AboutNotice, PlaceholderScreen, ConfirmationService, ErrorReportingService, ProgressService,
   ConnectionStatusService, EventStreamService
 - local-persistence: usePreferences, fetchAnalysisCacheUsage, clearAnalysisCache
 - dashboard: DashboardScreen
@@ -161,3 +170,5 @@ Navigation:
 - plan-docker_management_app/REQ-113
 - plan-docker_management_app/REQ-115
 - plan-docker_management_app/REQ-105
+- plan-docker_management_app-about_license_notice/REQ-6
+- plan-docker_management_app-about_license_notice/REQ-7

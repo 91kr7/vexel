@@ -1043,3 +1043,28 @@
   gap: var(--space-1);
   flex: none;
 }
+
+.ui-external-link {
+  /* Same luminance as --color-text-secondary, so the documented body/secondary
+     contrast over the Backdrop holds for a link too. */
+  color: var(--color-accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+
+.ui-external-link:hover {
+  color: var(--color-accent);
+}
+
+.ui-external-link:focus-visible {
+  outline: var(--border-width-hairline) solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.ui-external-link__glyph {
+  margin-left: var(--space-1);
+  font-size: var(--font-size-xs);
+  text-decoration: none;
+}
