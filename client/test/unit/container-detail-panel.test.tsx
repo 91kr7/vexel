@@ -165,8 +165,8 @@ describe('ContainerDetailPanel — Config tab (REQ-24, REQ-25)', () => {
     const { onContainerReplaced } = renderPanel();
     await user.click(await screen.findByRole('button', { name: 'Edit configuration' }));
 
-    await user.clear(screen.getByRole('textbox', { name: 'Value 1' }));
-    await user.type(screen.getByRole('textbox', { name: 'Value 1' }), 'baz');
+    await user.clear(screen.getByRole('textbox', { name: 'Environment Value 1' }));
+    await user.type(screen.getByRole('textbox', { name: 'Environment Value 1' }), 'baz');
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
 
     const dialogHeading = await screen.findByRole('heading', { name: 'Confirm: web-nginx' });
@@ -186,8 +186,8 @@ describe('ContainerDetailPanel — Config tab (REQ-24, REQ-25)', () => {
     const { onContainerReplaced } = renderPanel();
     await user.click(await screen.findByRole('button', { name: 'Edit configuration' }));
 
-    await user.clear(screen.getByRole('textbox', { name: 'Value 1' }));
-    await user.type(screen.getByRole('textbox', { name: 'Value 1' }), 'baz');
+    await user.clear(screen.getByRole('textbox', { name: 'Environment Value 1' }));
+    await user.type(screen.getByRole('textbox', { name: 'Environment Value 1' }), 'baz');
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
 
     const dialogHeading = await screen.findByRole('heading', { name: 'Confirm: web-nginx' });

@@ -54,6 +54,9 @@ Actions:
   - every mount needs a source and an absolute container path;
   - every environment variable needs a name, without `=`; every label needs a key;
   - a CPU or memory limit, when given, must be greater than zero.
+- The sheet's two key/value editors name their rows apart — the "Environment" ones and the "Labels"
+  ones — so no two fields of the sheet share an accessible name and a screen reader says which of
+  the two a row belongs to.
 - A daemon refusal leaves the sheet open with every entered value untouched (REQ-28): only the
   banner appears, nothing is cleared and nothing is re-defaulted.
 - The form is reset to its initial values only when it opens, never in reaction to a refusal.

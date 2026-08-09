@@ -325,7 +325,7 @@ export function ContainerCreateForm({
 
       <FormSection title="Environment">
         <FormField label="Variables" error={shown('env')}>
-          <KeyValueEditor pairs={values.env} onChange={(env) => patch({ env })} addLabel="Add variable" />
+          <KeyValueEditor pairs={values.env} onChange={(env) => patch({ env })} name="Environment" addLabel="Add variable" />
         </FormField>
       </FormSection>
 
@@ -429,7 +429,7 @@ export function ContainerCreateForm({
 
       <FormSection title="Labels">
         <FormField label="Labels" error={shown('labels')}>
-          <KeyValueEditor pairs={values.labels} onChange={(labels) => patch({ labels })} keyPlaceholder="key" addLabel="Add label" />
+          <KeyValueEditor pairs={values.labels} onChange={(labels) => patch({ labels })} name="Labels" keyPlaceholder="key" addLabel="Add label" />
         </FormField>
       </FormSection>
 

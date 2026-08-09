@@ -49,6 +49,9 @@ Actions:
 - Labels are offered on creation only, as a key/value editor: an update preserves the labels the
   service already carries, so the field would have nothing to add there. A row with an empty key is
   dropped rather than sent.
+- The environment editor and the labels editor name their rows apart, so the create dialog holds no
+  two fields with the same accessible name; each keeps its own add action ("Add variable" by
+  default, "Add label" for the labels).
 - Creating and updating never take a file: this panel composes a service from arguments (departure
   Three withdrew stack deployment, and no compose file is read anywhere on this screen).
 
