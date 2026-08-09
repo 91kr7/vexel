@@ -13,7 +13,7 @@
     "client",
     "server"
   ],
-  "//start": "The single command that builds and serves the whole application on one port: the client build must run first, since the server process serves its output from client/dist.",
+  "//start": "The single command that builds and serves the whole application on one port. The order and the && are load-bearing, not tidiness: build runs the client before the server because the server process serves the client's output from client/dist, and a failed link stops the chain, so a broken build never leaves the previous build running as if the command had worked. serve runs the built server and rebuilds nothing, so a restart costs no build time. dev:client and dev:server are the separate two-process development flow and are no part of this chain.",
   "scripts": {
     "start": "npm run build && npm run serve",
     "serve": "npm start -w server",

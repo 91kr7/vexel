@@ -16,17 +16,27 @@ manages whichever daemon your CLI is pointed at, local or remote.
 
 ```bash
 npm install
-npm run dev:server
-npm run dev:client
+npm start
 ```
+
+`npm start` builds the interface, builds the server, then runs the single process that serves
+both the interface and the API on <http://localhost:3000> (set `PORT` to move it). There is
+nothing else to start.
 
 Other workspace scripts, all run from the repository root:
 
-| Command             | What it does                                  |
-| ------------------- | --------------------------------------------- |
-| `npm run build`     | Builds client and server                       |
-| `npm run lint`      | Lints the client                               |
-| `npm run test`      | Runs the server and client suites              |
+| Command             | What it does                                                     |
+| ------------------- | ---------------------------------------------------------------- |
+| `npm run serve`     | Runs an already-built application, without rebuilding it          |
+| `npm run build`     | Builds client and server                                          |
+| `npm run lint`      | Lints the client                                                  |
+| `npm run test`      | Runs the server and client suites                                 |
+
+### Developing
+
+For working on Vexel itself there is a second arrangement — two processes with hot reload,
+`npm run dev:server` (Express on 3000) and `npm run dev:client` (Vite on 5173, proxying `/api`).
+It is for manual development only; it is not how the product is run.
 
 The tests exercise a **real Docker daemon**. They create and destroy their own labelled
 fixtures and never assert on daemon-wide totals, but they are not a sandbox — read the testing

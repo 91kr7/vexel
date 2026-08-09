@@ -148,9 +148,45 @@ cannot orphan one), `registry:2` (the multi-layer registry-pulled image the laye
 happens to be lying around: the suite used `postgres:16` this way and paid 663 MB for a process that
 only had to sleep.
 
+## Running it — two arrangements, and which belongs to whom
+
+There are two ways to bring this application up, and they are not interchangeable. One is how the
+product runs; the other is a convenience for editing it. Everything is run from the repository root
+(npm workspaces).
+
+### Running the product — the operator's arrangement
+
+**One process, one port.**
+
+- `npm start` — builds the client, builds the server, then runs the single Express process that
+  serves the interface **and** the API on `http://localhost:3000`. Nothing else to start, no
+  ordering to know: that one line is the whole instruction set.
+- `npm run serve` — runs an application that is already built, without rebuilding it. This is the
+  command for restarting the process; it costs no build time.
+- The client is built before the server **because the server serves the client's output**
+  (`client/dist`). A failed build stops the command and serves nothing — it never falls back to the
+  previous build.
+- `PORT` moves that single port. `VEXEL_CLIENT_DIST` points the process at a build elsewhere on
+  disk, without rebuilding the server.
+- A server started with no built interface is not an error: it serves the API only and says so once,
+  in one line naming the cause and what to run.
+
+### Developing — the developer's arrangement
+
+**Two processes with hot reload, for manual development only. This is not how the product is run.**
+
+- `npm run dev:server` — Express on port 3000, watch mode.
+- `npm run dev:client` — Vite on port 5173, proxying `/api` (with `ws: true`) to port 3000, so
+  origin-relative calls, the event stream and the interactive-session upgrades behave exactly as they
+  do in the single-process form.
+- Both are needed together, and neither arrangement needs a step of the other: development needs no
+  `client/dist`, and `npm start` needs no Vite server.
+
+Other root scripts: `npm run build` (both workspaces, client first), `npm run lint`, `npm run test`.
+
 ## Conventions
 
 - Source code, identifiers, comments: **English only**.
 - Package/folder naming: kebab-case.
-- Run everything from the repository root (npm workspaces): `npm run dev:client`,
-  `npm run dev:server`, `npm run build`, `npm run lint`, `npm run test`.
+- Run everything from the repository root (npm workspaces) — see "Running it" above for the two
+  arrangements and their commands.
