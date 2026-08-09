@@ -76,6 +76,12 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   low-level error leaks to callers).
 - A recreate always preserves the container's name, mounts and network attachments; it restarts the
   new container only if the original was running when the recreate began.
+- Neither removal path — `removeContainer`, nor the removal inside a recreate — takes the
+  container's volumes with it, anonymous ones included: `removeContainer` is the operator's own "rm"
+  on their own container and behaves as `docker rm` does, and a recreate deliberately keeps the
+  replaced container's volumes so that editing a setting never destroys data. A volume is only
+  removed along with its container where the container was the application's own, created and never
+  handed to the operator (the intermediate extraction container).
 
 ## Dependencies
 

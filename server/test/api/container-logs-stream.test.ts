@@ -232,9 +232,14 @@ test("GET /api/containers/:id/logs/stream with tail=1 delivers only the last lin
     await waitForOutput(name, "line-three");
 
     const response = await fetch(`${url}/api/containers/${id}/logs/stream?follow=false&tail=1`);
-    const lines = linesOf(await readEvents(response, { until: ["end", "error"] }));
+    // Every event the stream carried goes into the failure message: a delivery
+    // that came back with nothing in it says why in the events it did send
+    // (an `error`, or an `end` reached before any line), and counting the lines
+    // alone loses that.
+    const events = await readEvents(response, { until: ["end", "error"] });
+    const lines = linesOf(events);
 
-    assert.equal(lines.length, 1);
+    assert.equal(lines.length, 1, `expected the last line alone, got the events: ${JSON.stringify(events)}`);
     assert.ok(lines[0]!.text.includes("line-three"));
   } finally {
     await removeContainerQuietly(name);

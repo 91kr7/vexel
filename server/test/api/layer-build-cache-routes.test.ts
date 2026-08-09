@@ -58,28 +58,6 @@ async function cacheRecordIdsCarryingMarker(): Promise<string[]> {
   return ids;
 }
 
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/**
- * Waits for a moment when the host's build cache is readable and still holds
- * this run's own records.
- *
- * `buildx du` answers for whichever builder is currently active, and another
- * file of the parallel API pass switches that builder for a few seconds
- * (builders-routes.test.ts, REQ-88). During that window the cache is another
- * builder's — transiently unreadable, or simply not the one this fixture built
- * into. The contract under test is unaffected: its precondition is just not met
- * yet.
- */
-async function whenOwnCacheRecordsAreVisible(): Promise<string[]> {
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    const ids = await cacheRecordIdsCarryingMarker();
-    if (ids.length > 0) return ids;
-    await delay(500);
-  }
-  return [];
-}
-
 before(async () => {
   const contextDir = await mkdtemp(join(tmpdir(), "vexel-trace-fixture-"));
   try {
@@ -93,18 +71,13 @@ before(async () => {
 
 after(async () => {
   await removeImageQuietly(BUILT_TAG);
-  // The build cache is host-wide and survives the image: each record this run
-  // created is removed by its own id, so nothing of the operator's is touched.
-  // `buildx prune` acts on whichever builder is active, so the removal is
-  // verified and retried — another file of the parallel pass may hold the active
-  // builder at this instant (see whenOwnCacheRecordsAreVisible).
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    const remaining = await cacheRecordIdsCarryingMarker();
-    if (remaining.length === 0) break;
-    for (const id of remaining) {
-      await execFileAsync("docker", ["buildx", "prune", "--force", "--all", "--filter", `id=${id}`]).catch(() => undefined);
-    }
-    await delay(500);
+  // The build cache is host-wide and survives the image: every record this run
+  // was ever seen to own is removed by its own id, so nothing of the operator's
+  // is touched — and a record that has since stopped being listed is removed
+  // all the same, from the id remembered when it was.
+  for (const id of await cacheRecordIdsCarryingMarker()) ownedCacheRecordIds.add(id);
+  for (const id of ownedCacheRecordIds) {
+    await execFileAsync("docker", ["buildx", "prune", "--force", "--all", "--filter", `id=${id}`]).catch(() => undefined);
   }
 });
 
@@ -115,21 +88,12 @@ after(async () => {
 test("GET /api/images/:id/layers/build-cache reaches the build step and the cache record behind a locally built layer", async () => {
   const { url, close } = await startApp(buildApp());
   try {
-    let ownCacheRecordIds: string[] = [];
-    let builtLayer: ImageBuildCacheTrace["layers"][number] | undefined;
-    // A cache that cannot be read at all carries its own reason and is not the
-    // state under test; see whenOwnCacheRecordsAreVisible for why it may
-    // transiently be unreadable in the parallel API pass.
-    for (let attempt = 0; attempt < 30; attempt += 1) {
-      ownCacheRecordIds = await whenOwnCacheRecordsAreVisible();
-      const response = await fetch(`${url}/api/images/${encodeURIComponent(BUILT_TAG)}/layers/build-cache`);
-      assert.equal(response.status, 200);
-      const trace = (await response.json()) as ImageBuildCacheTrace;
-      builtLayer = trace.layers.find((link) => (link.command ?? "").includes(BUILD_MARKER));
-      assert.ok(builtLayer, `expected a layer for the fixture's own RUN step, got: ${JSON.stringify(trace.layers.map((link) => link.command))}`);
-      if (builtLayer!.unavailableReason !== "BuildCacheUnreadable") break;
-      await delay(500);
-    }
+    const ownCacheRecordIds = await cacheRecordIdsCarryingMarker();
+    const response = await fetch(`${url}/api/images/${encodeURIComponent(BUILT_TAG)}/layers/build-cache`);
+    assert.equal(response.status, 200);
+    const trace = (await response.json()) as ImageBuildCacheTrace;
+    const builtLayer = trace.layers.find((link) => (link.command ?? "").includes(BUILD_MARKER));
+    assert.ok(builtLayer, `expected a layer for the fixture's own RUN step, got: ${JSON.stringify(trace.layers.map((link) => link.command))}`);
 
     assert.ok(ownCacheRecordIds.length > 0, "expected the fixture build to leave at least one identifiable build-cache record");
     assert.equal(builtLayer!.unavailableReason, undefined, `expected an association, got the reason: ${builtLayer!.unavailableDetail}`);
@@ -176,17 +140,9 @@ test("GET /api/images/:id/layers/build-cache answers with one entry per layer of
 test("GET /api/images/:id/layers/build-cache states the reason for every layer of a registry-pulled image", async () => {
   const { url, close } = await startApp(buildApp());
   try {
-    // A cache that cannot be read at all is its own reason (BuildCacheUnreadable),
-    // and not the one under test here; see whenOwnCacheRecordsAreVisible for why
-    // it may transiently be unreadable in the parallel API pass.
-    let trace = { layers: [] } as unknown as ImageBuildCacheTrace;
-    for (let attempt = 0; attempt < 30; attempt += 1) {
-      const response = await fetch(`${url}/api/images/registry%3A2/layers/build-cache`);
-      assert.equal(response.status, 200);
-      trace = (await response.json()) as ImageBuildCacheTrace;
-      if (!trace.layers.some((link) => link.unavailableReason === "BuildCacheUnreadable")) break;
-      await delay(500);
-    }
+    const response = await fetch(`${url}/api/images/registry%3A2/layers/build-cache`);
+    assert.equal(response.status, 200);
+    const trace = (await response.json()) as ImageBuildCacheTrace;
 
     assert.ok(trace.layers.length > 0, "expected the registry-pulled image's layer stack");
     for (const link of trace.layers) {

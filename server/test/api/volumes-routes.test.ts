@@ -10,7 +10,12 @@ const execFileAsync = promisify(execFile);
 
 async function fetchList(url: string): Promise<VolumeSummary[]> {
   const response = await fetch(`${url}/api/volumes`);
-  return (await response.json()) as VolumeSummary[];
+  // The answer's own text goes into the failure message: a listing that did not
+  // come back names the reason in its body, and letting the caller run into
+  // "find is not a function" on an error object loses both the status and it.
+  const text = await response.text();
+  assert.equal(response.status, 200, `expected the volume listing, got ${response.status}: ${text}`);
+  return JSON.parse(text) as VolumeSummary[];
 }
 
 async function createNamedVolume(name: string, extraArgs: string[] = []): Promise<void> {
@@ -62,8 +67,12 @@ test("GET /api/volumes/:name/inspect returns the volume's full inspect data, raw
   try {
     await createNamedVolume(name, ["--label", "team=vexel"]);
     const response = await fetch(`${url}/api/volumes/${name}/inspect`);
-    assert.equal(response.status, 200);
-    const inspect = (await response.json()) as VolumeInspect;
+    // The answer's own text goes into the failure message: a reading that did
+    // not come back names the reason in its body, and reporting the status alone
+    // loses it.
+    const text = await response.text();
+    assert.equal(response.status, 200, `expected the inspect data, got ${response.status}: ${text}`);
+    const inspect = JSON.parse(text) as VolumeInspect;
 
     assert.equal(inspect.name, name);
     assert.equal(inspect.driver, "local");

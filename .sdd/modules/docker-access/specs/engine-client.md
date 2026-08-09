@@ -19,7 +19,8 @@ TCP+TLS), negotiates the API version, and preserves the daemon's own error messa
     and this client's maximum supported version, raised to the daemon's `MinAPIVersion` when that
     floor is higher.
   - Rejects with a `DockerDaemonError` (code `DaemonUnreachable`) when the endpoint cannot be
-    reached, or `UnsupportedApiVersion` when the daemon reports no API version.
+    reached, or `UnsupportedApiVersion` when the daemon reports no API version or answers `/version`
+    with a body that is not valid JSON (an endpoint that is not a Docker daemon).
 - `request(path, { method?, body? }): Promise<{ statusCode, body }>`
   - Prefixes `path` with `/v{negotiated apiVersion}`; rejects with a `DockerDaemonError` (code
     `DaemonRejected`, `statusCode` set) carrying the daemon's own `message` field verbatim when the
@@ -62,6 +63,17 @@ TCP+TLS), negotiates the API version, and preserves the daemon's own error messa
   `ssh … docker system dial-stdio` tunnel) — no transport-specific branching in callers.
 - A `DockerDaemonError`'s `message` is always the daemon's own message when the daemon responded
   with one; otherwise a description of the low-level connection failure.
+- **Every failure of a request leaves this layer as a `DockerDaemonError`** — never as a raw stream,
+  socket or parse error. That includes a connection dropped *while the response body was being
+  read*, which reaches the caller as `DaemonUnreachable` with no `statusCode`, exactly like a
+  connection that was never established: the callers map it as a fault of the link to the daemon
+  (`502`) instead of one of the application's own (`500`).
+- A failure the daemon itself reports is relayed as it came: the daemon's own status code and its
+  own message, verbatim, with no rewriting. A `500` the daemon answers with (e.g. a transient
+  "rw layer snapshot not found for container …" while it enumerates containers another process is
+  removing) is therefore relayed as that daemon `500` and its text. This layer never retries a
+  request on the caller's behalf: a retry would hide from the operator that their daemon answered
+  this, and turn one operation into two.
 
 ## Dependencies
 

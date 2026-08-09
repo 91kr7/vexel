@@ -154,6 +154,23 @@ async function withApp<T>(run: (app: RunningApp) => Promise<T>): Promise<T> {
   }
 }
 
+/**
+ * Asserts the status and, when it is not the expected one, says what the
+ * endpoint actually answered.
+ *
+ * These endpoints answer `409` for several unrelated reasons — the entry's own
+ * kind, the archive no longer being in the analysis cache, the entry not being
+ * locatable in it — and every one of them carries its own sentence in the body.
+ * The status on its own cannot tell them apart, which is exactly what a failure
+ * seen once in a parallel pass needs to say. The body is read only on failure,
+ * so a passing test leaves the response untouched for the caller to parse.
+ */
+async function assertStatus(response: Response, expected: number): Promise<void> {
+  if (response.status === expected) return;
+  const text = await response.text().catch(() => "<the body could not be read>");
+  assert.fail(`expected ${expected}, got ${response.status}: ${text}`);
+}
+
 async function ensureExtracted(): Promise<void> {
   await withApp(async ({ url }) => {
     const response = await fetch(`${url}/api/images/${encodeURIComponent(fixtureImageId)}/filesystem/stream?force=true`);
@@ -179,7 +196,7 @@ test("GET .../filesystem/metadata reports a file entry's size, permissions, owne
   await ensureExtracted();
   await withApp(async ({ url }) => {
     const response = await fetch(`${url}/api/images/${encodeURIComponent(fixtureImageId)}/filesystem/metadata?path=data/hello.txt`);
-    assert.equal(response.status, 200);
+    await assertStatus(response, 200);
     const body = (await response.json()) as { metadata: Record<string, unknown> };
     assert.equal(body.metadata.path, "data/hello.txt");
     assert.equal(body.metadata.kind, "file");
@@ -198,7 +215,7 @@ test("GET .../filesystem/metadata reports an absolute symlink's target as tree-r
   await ensureExtracted();
   await withApp(async ({ url }) => {
     const response = await fetch(`${url}/api/images/${encodeURIComponent(fixtureImageId)}/filesystem/metadata?path=data/link-absolute`);
-    assert.equal(response.status, 200);
+    await assertStatus(response, 200);
     const body = (await response.json()) as { metadata: Record<string, unknown> };
     assert.equal(body.metadata.kind, "symlink");
     assert.equal(body.metadata.linkTarget, "etc/passwd");
@@ -211,7 +228,7 @@ test("GET .../filesystem/metadata answers 404 for an entry that was refused at e
   await ensureExtracted();
   await withApp(async ({ url }) => {
     const response = await fetch(`${url}/api/images/${encodeURIComponent(fixtureImageId)}/filesystem/metadata?path=data/nested/link-escape`);
-    assert.equal(response.status, 404);
+    await assertStatus(response, 404);
   });
 });
 
@@ -221,7 +238,7 @@ test("GET .../filesystem/content previews a text file as text, and can be forced
   await ensureExtracted();
   await withApp(async ({ url }) => {
     const auto = await fetch(`${url}/api/images/${encodeURIComponent(fixtureImageId)}/filesystem/content?path=data/hello.txt`);
-    assert.equal(auto.status, 200);
+    await assertStatus(auto, 200);
     const autoBody = (await auto.json()) as { result: Record<string, unknown> };
     assert.equal(autoBody.result.mode, "text");
     assert.equal(autoBody.result.autoMode, "text");
@@ -230,6 +247,7 @@ test("GET .../filesystem/content previews a text file as text, and can be forced
     assert.equal(autoBody.result.totalSizeBytes, 11);
 
     const forcedHex = await fetch(`${url}/api/images/${encodeURIComponent(fixtureImageId)}/filesystem/content?path=data/hello.txt&mode=hex`);
+    await assertStatus(forcedHex, 200);
     const forcedHexBody = (await forcedHex.json()) as { result: Record<string, unknown> };
     assert.equal(forcedHexBody.result.mode, "hex");
     assert.equal(forcedHexBody.result.autoMode, "text", "expected the auto-detected mode to still be reported, so the override can be surfaced as a divergence");
@@ -244,12 +262,14 @@ test("GET .../filesystem/content auto-detects a NUL-carrying file as hex, overri
   await ensureExtracted();
   await withApp(async ({ url }) => {
     const auto = await fetch(`${url}/api/images/${encodeURIComponent(fixtureImageId)}/filesystem/content?path=data/small-binary.bin`);
+    await assertStatus(auto, 200);
     const autoBody = (await auto.json()) as { result: Record<string, unknown> };
     assert.equal(autoBody.result.mode, "hex");
     assert.equal(autoBody.result.autoMode, "hex");
     assert.equal(autoBody.result.totalSizeBytes, 13);
 
     const forcedText = await fetch(`${url}/api/images/${encodeURIComponent(fixtureImageId)}/filesystem/content?path=data/small-binary.bin&mode=text`);
+    await assertStatus(forcedText, 200);
     const forcedTextBody = (await forcedText.json()) as { result: Record<string, unknown> };
     assert.equal(forcedTextBody.result.mode, "text");
     assert.equal(forcedTextBody.result.autoMode, "hex");
@@ -262,6 +282,7 @@ test("GET .../filesystem/content truncates an oversized file (text and binary) a
   await ensureExtracted();
   await withApp(async ({ url }) => {
     const text = await fetch(`${url}/api/images/${encodeURIComponent(fixtureImageId)}/filesystem/content?path=data/big-text.txt`);
+    await assertStatus(text, 200);
     const textBody = (await text.json()) as { result: Record<string, unknown> };
     assert.equal(textBody.result.mode, "text");
     assert.equal(textBody.result.truncated, true);
@@ -269,6 +290,7 @@ test("GET .../filesystem/content truncates an oversized file (text and binary) a
     assert.ok((textBody.result.content as string).length < 300_000, "expected less than the full file to have been read");
 
     const binary = await fetch(`${url}/api/images/${encodeURIComponent(fixtureImageId)}/filesystem/content?path=data/big-binary.bin`);
+    await assertStatus(binary, 200);
     const binaryBody = (await binary.json()) as { result: Record<string, unknown> };
     assert.equal(binaryBody.result.mode, "hex");
     assert.equal(binaryBody.result.truncated, true);
@@ -281,10 +303,10 @@ test("GET .../filesystem/content refuses a directory and a symlink, each with 40
   await ensureExtracted();
   await withApp(async ({ url }) => {
     const directory = await fetch(`${url}/api/images/${encodeURIComponent(fixtureImageId)}/filesystem/content?path=data`);
-    assert.equal(directory.status, 409);
+    await assertStatus(directory, 409);
 
     const symlink = await fetch(`${url}/api/images/${encodeURIComponent(fixtureImageId)}/filesystem/content?path=data/link-absolute`);
-    assert.equal(symlink.status, 409);
+    await assertStatus(symlink, 409);
   });
 });
 
@@ -295,7 +317,7 @@ test("reading the path an absolute symlink resolves to serves the tree's own con
   await ensureExtracted();
   await withApp(async ({ url }) => {
     const response = await fetch(`${url}/api/images/${encodeURIComponent(fixtureImageId)}/filesystem/content?path=etc/passwd`);
-    assert.equal(response.status, 200);
+    await assertStatus(response, 200);
     const body = (await response.json()) as { result: Record<string, unknown> };
     assert.equal(body.result.mode, "text");
     assert.equal(body.result.content, containerOwnPasswdContent);
@@ -337,7 +359,7 @@ test("GET .../filesystem/search finds an entry by a name fragment, case-insensit
   await ensureExtracted();
   await withApp(async ({ url }) => {
     const response = await fetch(`${url}/api/images/${encodeURIComponent(fixtureImageId)}/filesystem/search?query=HELLO`);
-    assert.equal(response.status, 200);
+    await assertStatus(response, 200);
     const body = (await response.json()) as { matches: { path: string; name: string; kind: string; parentPath: string }[]; truncated: boolean };
     const match = body.matches.find((entry) => entry.path === "data/hello.txt");
     assert.ok(match, `expected a case-insensitive match for "HELLO", got: ${JSON.stringify(body.matches)}`);
@@ -352,7 +374,7 @@ test("GET .../filesystem/search caps its results at 200 and reports the true cou
   await ensureExtracted();
   await withApp(async ({ url }) => {
     const response = await fetch(`${url}/api/images/${encodeURIComponent(fixtureImageId)}/filesystem/search?query=match-target`);
-    assert.equal(response.status, 200);
+    await assertStatus(response, 200);
     const body = (await response.json()) as { matches: unknown[]; totalMatches: number; truncated: boolean };
     assert.equal(body.matches.length, 200);
     assert.equal(body.totalMatches, 250);
@@ -375,7 +397,7 @@ test("GET .../filesystem/download streams a single file as a browser download", 
   await ensureExtracted();
   await withApp(async ({ url }) => {
     const response = await fetch(`${url}/api/images/${encodeURIComponent(fixtureImageId)}/filesystem/download?path=data/hello.txt`);
-    assert.equal(response.status, 200);
+    await assertStatus(response, 200);
     assert.match(response.headers.get("content-disposition") ?? "", /attachment/);
     const body = await response.text();
     assert.equal(body, "hello world");
@@ -387,7 +409,7 @@ test("GET .../filesystem/download refuses a directory", async () => {
   await ensureExtracted();
   await withApp(async ({ url }) => {
     const response = await fetch(`${url}/api/images/${encodeURIComponent(fixtureImageId)}/filesystem/download?path=data`);
-    assert.equal(response.status, 409);
+    await assertStatus(response, 409);
   });
 });
 
@@ -397,7 +419,7 @@ test("GET .../filesystem/subtree-summary reports the subtree's contents, excludi
   await ensureExtracted();
   await withApp(async ({ url }) => {
     const response = await fetch(`${url}/api/images/${encodeURIComponent(fixtureImageId)}/filesystem/subtree-summary?path=data`);
-    assert.equal(response.status, 200);
+    await assertStatus(response, 200);
     const body = (await response.json()) as { summary: { fileCount: number; directoryCount: number; symlinkCount: number; totalBytes: number; refusals: unknown[] } };
     assert.equal(body.summary.fileCount, 4);
     assert.equal(body.summary.directoryCount, 2); // "data" itself plus "data/nested"
@@ -413,7 +435,7 @@ test("GET .../filesystem/subtree-download produces a USTAR archive whose entry n
   await ensureExtracted();
   await withApp(async ({ url }) => {
     const response = await fetch(`${url}/api/images/${encodeURIComponent(fixtureImageId)}/filesystem/subtree-download?path=data`);
-    assert.equal(response.status, 200);
+    await assertStatus(response, 200);
     assert.match(response.headers.get("content-disposition") ?? "", /attachment/);
     const buffer = Buffer.from(await response.arrayBuffer());
     const entries = parseUstarEntries(buffer);
@@ -449,7 +471,7 @@ test("extracting a whole-filesystem archive with the real tar binary resolves ev
   await ensureExtracted();
   await withApp(async ({ url }) => {
     const response = await fetch(`${url}/api/images/${encodeURIComponent(fixtureImageId)}/filesystem/subtree-download?path=`);
-    assert.equal(response.status, 200);
+    await assertStatus(response, 200);
     const buffer = Buffer.from(await response.arrayBuffer());
 
     const workDir = await mkdtemp(join(tmpdir(), "vexel-fs-ops-archive-whole-"));
@@ -501,7 +523,7 @@ test("extracting a subtree archive resolves an in-scope symlink correctly; a sym
   await ensureExtracted();
   await withApp(async ({ url }) => {
     const response = await fetch(`${url}/api/images/${encodeURIComponent(fixtureImageId)}/filesystem/subtree-download?path=data`);
-    assert.equal(response.status, 200);
+    await assertStatus(response, 200);
     const buffer = Buffer.from(await response.arrayBuffer());
 
     const workDir = await mkdtemp(join(tmpdir(), "vexel-fs-ops-archive-subtree-"));

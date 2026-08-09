@@ -44,14 +44,52 @@ async function containerExists(name: string): Promise<boolean> {
   return stdout.trim().length > 0;
 }
 
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * The breakdown, re-read until the daemon's own accounting has caught up with a
+ * container created a moment earlier.
+ *
+ * The reading is built on `/system/df`, and the daemon answers a call that
+ * arrives while another one is being computed with that other call's result —
+ * a snapshot that can predate the fixture. On an idle host the computation is
+ * too short for that to be observable; during the parallel API pass it is not
+ * (measured: 2 readings out of 40 missed a container created before the request
+ * was issued). The delay belongs to the daemon's accounting, not to REQ-95, so
+ * it is waited out rather than asserted upon — while a non-200 is never
+ * retried and still fails immediately, carrying the body the endpoint sent.
+ */
+async function breakdownAccountingFor(url: string, name: string): Promise<DiskUsageBreakdown> {
+  let body: DiskUsageBreakdown | undefined;
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const response = await fetch(`${url}/api/system/disk-usage`);
+    // The answer's own text goes into the failure message: a reading that did
+    // not come back names the reason in its body, and reporting the status alone
+    // loses it.
+    const text = await response.text();
+    assert.equal(response.status, 200, `expected the breakdown, got ${response.status}: ${text}`);
+    body = JSON.parse(text) as DiskUsageBreakdown;
+    const stopped = body.categories.find((category) => category.id === "stopped-containers")!;
+    // Past twenty the names are capped, so the fixture cannot be required among
+    // them and there is nothing left to wait for.
+    if (stopped.itemCount > 20 || stopped.items.includes(name)) break;
+    await delay(300);
+  }
+  return body!;
+}
+
 // plan-docker_management_app/REQ-95 — reclaimable disk space is broken down by the five categories,
 // each with its size and what it contains
 test("GET /api/system/disk-usage answers the five categories, once each, in the canonical order", async () => {
   const { url, close } = await startApp(buildApp("/api/system", systemRouter));
   try {
     const response = await fetch(`${url}/api/system/disk-usage`);
-    assert.equal(response.status, 200);
-    const body = (await response.json()) as DiskUsageBreakdown;
+    // The answer's own text goes into the failure message: a reading that did
+    // not come back names the reason in its body, and reporting the status alone
+    // loses it.
+    const text = await response.text();
+    assert.equal(response.status, 200, `expected the breakdown, got ${response.status}: ${text}`);
+    const body = JSON.parse(text) as DiskUsageBreakdown;
 
     assert.deepEqual(
       body.categories.map((category) => category.id),
@@ -87,13 +125,7 @@ test("GET /api/system/disk-usage counts a container of this test's own among the
   try {
     name = await createStoppedContainer("disk-usage-stopped");
 
-    const response = await fetch(`${url}/api/system/disk-usage`);
-    // The answer's own text goes into the failure message: a reading that did
-    // not come back names the reason in its body, and reporting the status alone
-    // loses it.
-    const text = await response.text();
-    assert.equal(response.status, 200, `expected the breakdown, got ${response.status}: ${text}`);
-    const body = JSON.parse(text) as DiskUsageBreakdown;
+    const body = await breakdownAccountingFor(url, name);
     const stopped = body.categories.find((category) => category.id === "stopped-containers")!;
 
     assert.equal(stopped.unavailableDetail, undefined);
