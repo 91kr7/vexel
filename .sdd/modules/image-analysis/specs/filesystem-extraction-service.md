@@ -59,6 +59,13 @@ analysis cache across restarts when the image content is unchanged (REQ-113).
 - The intermediate container is created (`POST /containers/create`, never `/start`) and force-removed
   in a `finally` block covering the whole run: it is removed on success, on any error, and on
   cancellation, with no code path that skips it (REQ-54).
+- That removal takes the container's **anonymous volumes with it**. The daemon attaches one to every
+  `VOLUME` the image declares, and a removal that leaves them behind orphans one volume per
+  extraction of such an image (`registry:2` and anything derived from it, for instance) on the
+  operator's own host — carrying no label, so nothing can identify it afterwards. Nothing of the
+  operator's is at stake: these volumes are created by, and only ever belong to, a container this
+  service made and never started. The same holds for the startup sweep of containers left by an
+  interrupted run.
 - A prior result for the image's content digest (looked up in the analysis cache under a key
   distinct from the changeset cache's, since both artifact kinds are computed for the same image id
   but the cache holds one artifact per key) short-circuits straight to `onEnd` with `fromCache:

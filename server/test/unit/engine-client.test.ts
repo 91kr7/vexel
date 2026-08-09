@@ -246,6 +246,61 @@ test("requestRaw() rejects with DaemonUnreachable when the endpoint cannot be re
   );
 });
 
+// docker-access/specs/engine-client.md — "Every failure of a request leaves this layer as a
+// DockerDaemonError — never as a raw stream, socket or parse error. That includes a connection
+// dropped while the response body was being read, which reaches the caller as DaemonUnreachable
+// with no statusCode": that absent status is what makes the routes answer 502 rather than 500.
+test("request() reports a connection dropped mid-body as DaemonUnreachable, with no status code", async () => {
+  const daemon = await startDaemonStub((req, res) => {
+    if (req.url === "/version") {
+      jsonResponse(res, 200, { ApiVersion: "1.41", Version: "24.0.0" });
+      return;
+    }
+    // Announces a body far longer than what it sends, then drops the connection:
+    // the read fails after the response has already been accepted.
+    res.writeHead(200, { "content-type": "application/json", "content-length": "512" });
+    res.write('{"LayersSize":1234,"Containers":[');
+    setTimeout(() => res.socket?.destroy(), 20);
+  });
+  try {
+    const client = new EngineClient({ kind: "unix", socketPath: daemon.socketPath });
+    await assert.rejects(
+      () => client.request("/system/df"),
+      (error: unknown) => {
+        assert.ok(error instanceof DockerDaemonError, `expected a DockerDaemonError, got ${String(error)}`);
+        assert.equal(error.code, "DaemonUnreachable");
+        assert.equal(error.statusCode, undefined);
+        return true;
+      },
+    );
+  } finally {
+    await daemon.close();
+  }
+});
+
+// docker-access/specs/engine-client.md — UnsupportedApiVersion when the daemon "answers /version
+// with a body that is not valid JSON (an endpoint that is not a Docker daemon)". Every request
+// negotiates through /version, so no caller can be handed a raw parse error.
+test("getVersion, and any request behind it, reject with UnsupportedApiVersion when /version answers with something that is not JSON", async () => {
+  const daemon = await startDaemonStub((_req, res) => {
+    res.writeHead(200, { "content-type": "text/html" });
+    res.end("<html><body>not a docker daemon</body></html>");
+  });
+  try {
+    const client = new EngineClient({ kind: "unix", socketPath: daemon.socketPath });
+    const isUnsupported = (error: unknown): true => {
+      assert.ok(error instanceof DockerDaemonError, `expected a DockerDaemonError, got ${String(error)}`);
+      assert.equal(error.code, "UnsupportedApiVersion");
+      return true;
+    };
+
+    await assert.rejects(() => client.getVersion(), isUnsupported);
+    await assert.rejects(() => client.request("/system/df"), isUnsupported);
+  } finally {
+    await daemon.close();
+  }
+});
+
 // docker-access/specs/engine-client.md — requestStream() applies the same version prefix and error mapping as request()
 test("requestStream() targets the negotiated API version and returns the raw streamed response on success", async () => {
   const daemon = await startDaemonStub((req, res) => {

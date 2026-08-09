@@ -2,7 +2,7 @@
 // namespace inside a per-user application-data directory (REQ-113, REQ-114,
 // REQ-115). Writes are serialized per namespace and land via a
 // temp-file-then-rename sequence so concurrent/interrupted writes stay safe.
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -41,12 +41,81 @@ export function readNamespace<T>(namespace: StoreNamespace, fallback: T): T {
 }
 
 export function writeNamespace<T>(namespace: StoreNamespace, data: T): Promise<void> {
-  const queued = (writeQueues.get(namespace) ?? Promise.resolve()).then(
-    () => writeAtomic(namespace, data),
-    () => writeAtomic(namespace, data),
+  return enqueue(namespace, () => writeAtomic(namespace, data));
+}
+
+/**
+ * Read, change and write back a namespace as one indivisible step: the caller's
+ * `mutate` sees the file as it is at that moment and nothing else can read it
+ * again until the result has landed, so two concurrent updates can no longer
+ * each write over the other's change. `mutate` must be synchronous — the guard
+ * is never held across an await.
+ */
+export function updateNamespace<T>(namespace: StoreNamespace, fallback: T, mutate: (current: T) => T): Promise<T> {
+  return enqueue(namespace, async () => {
+    const release = await acquireNamespaceLock(namespace);
+    try {
+      const updated = mutate(readNamespace(namespace, fallback));
+      writeAtomic(namespace, updated);
+      return updated;
+    } finally {
+      release();
+    }
+  });
+}
+
+function enqueue<T>(namespace: StoreNamespace, task: () => T | Promise<T>): Promise<T> {
+  const queued = (writeQueues.get(namespace) ?? Promise.resolve()).then(task, task);
+  writeQueues.set(
+    namespace,
+    queued.then(
+      () => undefined,
+      () => undefined,
+    ),
   );
-  writeQueues.set(namespace, queued);
   return queued;
+}
+
+const LOCK_POLL_MS = 15;
+const LOCK_WAIT_TIMEOUT_MS = 5_000;
+const LOCK_STALE_MS = 15_000;
+
+/**
+ * Advisory guard against another *process* on the same data directory: `wx`
+ * fails when the file already exists, so exactly one holder gets it. A lock
+ * older than `LOCK_STALE_MS` belonged to a process that died before releasing
+ * it and is broken; a lock that cannot be taken at all (contention past the
+ * timeout, or a data directory that refuses the file) degrades to the
+ * in-process queue rather than failing the caller's operation.
+ */
+async function acquireNamespaceLock(namespace: StoreNamespace): Promise<() => void> {
+  const lockFile = `${filePathFor(namespace)}.lock`;
+  const giveUpAt = Date.now() + LOCK_WAIT_TIMEOUT_MS;
+  for (;;) {
+    try {
+      closeSync(openSync(lockFile, "wx"));
+      return () => rmSync(lockFile, { force: true });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") return () => undefined;
+      if (lockAgeMs(lockFile) > LOCK_STALE_MS) {
+        rmSync(lockFile, { force: true });
+        continue;
+      }
+      if (Date.now() >= giveUpAt) return () => undefined;
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, LOCK_POLL_MS);
+      });
+    }
+  }
+}
+
+function lockAgeMs(lockFile: string): number {
+  try {
+    return Date.now() - statSync(lockFile).mtimeMs;
+  } catch {
+    // Released between the failed open and this check: not stale, retry.
+    return 0;
+  }
 }
 
 function writeAtomic<T>(namespace: StoreNamespace, data: T): void {

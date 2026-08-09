@@ -33,7 +33,7 @@ export class EngineClient {
   /** Queries `/version` and negotiates the API version to use for subsequent requests. */
   async getVersion(): Promise<EngineVersion> {
     const response = await requestBuffered(this.endpoint, { path: "/version" });
-    const payload = JSON.parse(response.body) as { ApiVersion?: string; Version?: string; MinAPIVersion?: string };
+    const payload = parseVersionPayload(response.body);
     if (!payload.ApiVersion) {
       throw new DockerDaemonError("UnsupportedApiVersion", "Daemon did not report an Engine API version");
     }
@@ -122,6 +122,23 @@ export function getEngineClient(): EngineClient {
 onActiveEndpointChanged(() => {
   sharedClient = undefined;
 });
+
+interface VersionPayload {
+  ApiVersion?: string;
+  Version?: string;
+  MinAPIVersion?: string;
+}
+
+// Every request negotiates through /version, so an endpoint that answers it with
+// something other than JSON would otherwise surface as a parse failure of ours
+// rather than as the typed daemon error the callers already handle.
+function parseVersionPayload(body: string): VersionPayload {
+  try {
+    return JSON.parse(body) as VersionPayload;
+  } catch {
+    throw new DockerDaemonError("UnsupportedApiVersion", "Daemon answered /version with a body that is not valid JSON");
+  }
+}
 
 function negotiateApiVersion(daemonApiVersion: string, daemonMinApiVersion: string | undefined): string {
   let negotiated = compareApiVersions(daemonApiVersion, CLIENT_MAX_API_VERSION) < 0 ? daemonApiVersion : CLIENT_MAX_API_VERSION;

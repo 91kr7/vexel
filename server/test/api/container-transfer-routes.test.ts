@@ -50,6 +50,37 @@ async function removeImageQuietly(reference: string): Promise<void> {
   await execFileAsync("docker", ["rmi", "-f", reference]).catch(() => undefined);
 }
 
+async function untaggedImageIds(): Promise<string[]> {
+  const { stdout } = await execFileAsync("docker", ["images", "-q", "--filter", "dangling=true"]).catch(() => ({ stdout: "" }));
+  return stdout.split("\n").filter((id) => id.length > 0);
+}
+
+/**
+ * Runs `request` and removes the untagged image the daemon is left holding
+ * because of it.
+ *
+ * Importing is the one operation in this file that can put an image on the host
+ * without a name on it: a body that unpacks becomes an image with no tag when
+ * no `targetReference` was asked for, and a body that does not unpack still
+ * leaves behind the record the daemon had already started (it names it in its
+ * own refusal — `moby-dangling@sha256:…`). Such an image carries no tag and no
+ * label, so nothing can identify it afterwards and no sweep will ever find it:
+ * it accumulated on this machine at two images per suite run. It is identified
+ * here the only way one can be — by not having existed a moment earlier, around
+ * a single request — and nothing else in the suite creates an untagged image,
+ * every build being tagged as it is made.
+ */
+async function removingTheUntaggedImageItLeaves<T>(request: () => Promise<T>): Promise<T> {
+  const before = new Set(await untaggedImageIds());
+  try {
+    return await request();
+  } finally {
+    for (const id of await untaggedImageIds()) {
+      if (!before.has(id)) await removeImageQuietly(id);
+    }
+  }
+}
+
 // plan-docker_management_app/REQ-43 — a container's filesystem can be exported to a tarball downloaded through the browser, and an image can be imported from that tarball under a chosen reference
 test("GET /api/containers/:id/export streams a tarball that POST /api/containers/import re-imports as a new image", async () => {
   const { url, close } = await startApp();
@@ -106,11 +137,13 @@ test("GET /api/containers/:id/export honours a custom filename hint via the ?fil
 test("POST /api/containers/import with a malformed tarball responds with the daemon's own rejection message", async () => {
   const { url, close } = await startApp();
   try {
-    const response = await fetch(`${url}/api/containers/import`, {
-      method: "POST",
-      headers: { "content-type": "application/x-tar" },
-      body: Buffer.from("not a tar file"),
-    });
+    const response = await removingTheUntaggedImageItLeaves(() =>
+      fetch(`${url}/api/containers/import`, {
+        method: "POST",
+        headers: { "content-type": "application/x-tar" },
+        body: Buffer.from("not a tar file"),
+      }),
+    );
     assert.notEqual(response.status, 200);
     const body = (await response.json()) as { error?: string };
     assert.ok(typeof body.error === "string" && body.error.length > 0);
@@ -123,11 +156,16 @@ test("POST /api/containers/import with a malformed tarball responds with the dae
 test("POST /api/containers/import is never shadowed by the :id/inspect route", async () => {
   const { url, close } = await startApp();
   try {
-    const response = await fetch(`${url}/api/containers/import`, {
-      method: "POST",
-      headers: { "content-type": "application/x-tar" },
-      body: Buffer.alloc(0),
-    });
+    // An empty body is a tarball the daemon unpacks quite happily, into an image
+    // with nothing in it and no reference asked for: this request succeeds and
+    // leaves that image behind unless it is taken back.
+    const response = await removingTheUntaggedImageItLeaves(() =>
+      fetch(`${url}/api/containers/import`, {
+        method: "POST",
+        headers: { "content-type": "application/x-tar" },
+        body: Buffer.alloc(0),
+      }),
+    );
     // A request read as an unknown container id ("import") looked up for
     // inspection would 404/502 with a "no such container" message instead of
     // ever reaching the import handler's own tarball-parsing failure.

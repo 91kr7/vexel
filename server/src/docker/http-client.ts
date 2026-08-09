@@ -142,7 +142,17 @@ export function hijack(endpoint: DockerEndpoint, options: DockerRequestOptions):
 
 async function readAll(response: http.IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
-  for await (const chunk of response) chunks.push(chunk as Buffer);
+  try {
+    for await (const chunk of response) chunks.push(chunk as Buffer);
+  } catch (error) {
+    // A connection dropped while the body was in flight is a failure of the
+    // link to the daemon, not of ours: it must reach the caller as the typed
+    // error every other transport failure does, or it is reported as a fault
+    // of the application. This is also the only place that reports it — the
+    // request's own "error" listener can no longer reject once the response
+    // has resolved.
+    throw new DockerDaemonError("DaemonUnreachable", describeReadError(error as NodeJS.ErrnoException), error);
+  }
   return Buffer.concat(chunks).toString("utf8");
 }
 
@@ -153,6 +163,11 @@ function extractDaemonMessage(body: string): string | undefined {
   } catch {
     return body.trim() || undefined;
   }
+}
+
+function describeReadError(error: NodeJS.ErrnoException): string {
+  if (error.code === "ECONNRESET") return "The Docker endpoint closed the connection while the response was being read";
+  return `Reading the Docker endpoint's response failed: ${error.message}`;
 }
 
 function describeConnectionError(error: NodeJS.ErrnoException): string {

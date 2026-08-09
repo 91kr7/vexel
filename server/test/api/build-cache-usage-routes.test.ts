@@ -50,28 +50,6 @@ async function ownCacheRecords(): Promise<RawCacheRecord[]> {
   return records;
 }
 
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/**
- * Waits for a moment when the host's build cache is readable and still holds
- * this run's own records.
- *
- * `buildx du` answers for whichever builder is currently active, and another
- * file of the parallel API pass switches that builder for a few seconds
- * (builders-routes.test.ts, REQ-88). During that window the cache is another
- * builder's — transiently unreadable, or simply not the one this fixture built
- * into. The contract under test is unaffected: its precondition is just not met
- * yet.
- */
-async function whenOwnCacheRecordsAreVisible(): Promise<RawCacheRecord[]> {
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    const records = await ownCacheRecords();
-    if (records.length > 0) return records;
-    await delay(500);
-  }
-  return [];
-}
-
 before(async () => {
   const contextDir = await mkdtemp(join(tmpdir(), "vexel-usage-fixture-"));
   try {
@@ -87,18 +65,13 @@ before(async () => {
 
 after(async () => {
   await removeImageQuietly(BUILT_TAG);
-  // The build cache is host-wide and survives the image: each record this run
-  // created is removed by its own id, so nothing of the operator's is touched.
-  // `buildx prune` acts on whichever builder is active, so the removal is
-  // verified and retried — another file of the parallel pass may hold the active
-  // builder at this instant (see whenOwnCacheRecordsAreVisible).
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    const remaining = await ownCacheRecords();
-    if (remaining.length === 0) break;
-    for (const raw of remaining) {
-      await execFileAsync("docker", ["buildx", "prune", "--force", "--all", "--filter", `id=${raw.ID}`]).catch(() => undefined);
-    }
-    await delay(500);
+  // The build cache is host-wide and survives the image: every record this run
+  // was ever seen to own is removed by its own id, so nothing of the operator's
+  // is touched — and a record that has since stopped being listed is removed
+  // all the same, from the id remembered when it was.
+  for (const raw of await ownCacheRecords()) ownedCacheRecordIds.add(raw.ID);
+  for (const id of ownedCacheRecordIds) {
+    await execFileAsync("docker", ["buildx", "prune", "--force", "--all", "--filter", `id=${id}`]).catch(() => undefined);
   }
 });
 
@@ -107,25 +80,12 @@ after(async () => {
 test("GET /api/builders/cache/:id/usage names the image and layer the record relates to", async () => {
   const { url, close } = await startApp(buildApp("/api/builders", buildersRouter));
   try {
-    let ownLayerRecordId = "";
-    let response: Response | undefined;
-    // A cache inventory that cannot be read at all answers 502 and is not the
-    // state under test; see whenOwnCacheRecordsAreVisible for why it may
-    // transiently be unreadable in the parallel API pass.
-    for (let attempt = 0; attempt < 30; attempt += 1) {
-      ownLayerRecordId = (await whenOwnCacheRecordsAreVisible()).find((raw) => raw.Type === "regular")?.ID ?? "";
-      if (ownLayerRecordId === "") {
-        await delay(500);
-        continue;
-      }
-      response = await fetch(`${url}/api/builders/cache/${encodeURIComponent(ownLayerRecordId)}/usage`);
-      if (response.status !== 502) break;
-      await delay(500);
-    }
-
+    const ownLayerRecordId = (await ownCacheRecords()).find((raw) => raw.Type === "regular")?.ID ?? "";
     assert.ok(ownLayerRecordId !== "", "expected the fixture build to leave a regular build-cache record of its own");
-    assert.equal(response!.status, 200);
-    const usage = (await response!.json()) as BuildCacheUsage;
+
+    const response = await fetch(`${url}/api/builders/cache/${encodeURIComponent(ownLayerRecordId)}/usage`);
+    assert.equal(response.status, 200);
+    const usage = (await response.json()) as BuildCacheUsage;
 
     assert.equal(usage.record.id, ownLayerRecordId);
     assert.equal(usage.unavailableReason, undefined, `expected an association, got the reason: ${usage.unavailableDetail}`);
@@ -144,7 +104,7 @@ test("GET /api/builders/cache/:id/usage names the image and layer the record rel
 // layer answers with NonLayerCacheRecord, naming the type, instead of an empty
 // list and no explanation.
 test("GET /api/builders/cache/:id/usage states NonLayerCacheRecord for a record holding build input", async (t) => {
-  const records = await whenOwnCacheRecordsAreVisible();
+  const records = await ownCacheRecords();
   const nonLayer = records.find((raw) => raw.Type !== "regular");
   if (!nonLayer) {
     // This run's own build left no non-layer record carrying its marker, and a
@@ -172,14 +132,7 @@ test("GET /api/builders/cache/:id/usage states NonLayerCacheRecord for a record 
 test("GET /api/builders/cache/:id/usage answers 404 for an id no build-cache record carries", async () => {
   const { url, close } = await startApp(buildApp("/api/builders", buildersRouter));
   try {
-    // Naming an unknown id apart from a cache that cannot be read at all is the
-    // point here, so the assertion waits for a readable cache (see
-    // whenOwnCacheRecordsAreVisible for why it may transiently not be one).
-    let response = await fetch(`${url}/api/builders/cache/does-not-exist-${Date.now()}/usage`);
-    for (let attempt = 0; attempt < 30 && response.status === 502; attempt += 1) {
-      await delay(500);
-      response = await fetch(`${url}/api/builders/cache/does-not-exist-${Date.now()}/usage`);
-    }
+    const response = await fetch(`${url}/api/builders/cache/does-not-exist-${Date.now()}/usage`);
 
     assert.equal(response.status, 404);
   } finally {

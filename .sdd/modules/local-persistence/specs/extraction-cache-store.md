@@ -28,12 +28,21 @@ image they were computed from, so the same content is never recomputed (REQ-113)
 
 - A lookup for a digest never returns a stale artifact: insert always overwrites both the file and
   the index entry for that digest.
+- An entry recorded by `insert` is found by a later `lookup`, whatever else was being inserted,
+  invalidated or cleared at the same time: every change to the index (insert, invalidate, clear) is
+  a single indivisible read-modify-write, so one caller's entry can never be written over by another
+  caller that had already read the index. This holds for concurrent callers in the same process and
+  for two processes sharing one data directory (the exact cross-process guarantee, and its limits,
+  are `LocalStore`'s `updateNamespace`).
+- `clear` empties the index before deleting the artifact files, so a run interrupted in between
+  leaves orphaned files — reclaimed at the next startup — never index entries pointing at files that
+  are gone.
 - `totalSizeBytes()` only counts artifacts currently indexed; an orphaned file (not yet reclaimed)
   is not counted.
 
 ## Dependencies
 
-- LocalStore (cacheDir, readNamespace/writeNamespace on the analysis-cache-index namespace)
+- LocalStore (cacheDir, readNamespace/updateNamespace on the analysis-cache-index namespace)
 
 ## Requirements served
 

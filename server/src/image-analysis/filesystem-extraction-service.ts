@@ -228,9 +228,12 @@ async function createIntermediateContainer(imageId: string): Promise<string> {
   return created.Id;
 }
 
+// `v=true` is what makes the removal complete: the daemon attaches an anonymous
+// volume to every `VOLUME` the image declares, and without it that volume
+// outlives this container — one orphan per extraction of such an image (REQ-54).
 async function removeIntermediateContainer(id: string): Promise<void> {
   await getEngineClient()
-    .request(`/containers/${id}?force=true`, { method: "DELETE" })
+    .request(`/containers/${id}?force=true&v=true`, { method: "DELETE" })
     .catch(() => undefined);
 }
 

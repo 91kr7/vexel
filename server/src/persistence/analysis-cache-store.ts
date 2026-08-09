@@ -2,7 +2,7 @@
 // content digest (REQ-113): never recompute the same content twice.
 import { copyFileSync, existsSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { cacheDir, readNamespace, writeNamespace } from "./local-store.js";
+import { cacheDir, readNamespace, updateNamespace } from "./local-store.js";
 
 export interface AnalysisCacheEntry {
   digest: string;
@@ -17,8 +17,11 @@ function readIndex(): CacheIndex {
   return readNamespace<CacheIndex>("analysis-cache-index", {});
 }
 
-function writeIndex(index: CacheIndex): Promise<void> {
-  return writeNamespace("analysis-cache-index", index);
+// Every change to the index goes through here: read, change and write back are
+// one indivisible step, so a concurrent insert cannot be written over by an
+// insert that had already read the index before it.
+function updateIndex(mutate: (index: CacheIndex) => CacheIndex): Promise<CacheIndex> {
+  return updateNamespace<CacheIndex>("analysis-cache-index", {}, mutate);
 }
 
 export function lookup(digest: string): AnalysisCacheEntry | undefined {
@@ -37,19 +40,22 @@ export async function insert(digest: string, sourcePath: string): Promise<Analys
     sizeBytes: statSync(destination).size,
     createdAt: new Date().toISOString(),
   };
-  const index = readIndex();
-  index[digest] = entry;
-  await writeIndex(index);
+  await updateIndex((index) => {
+    index[digest] = entry;
+    return index;
+  });
   return entry;
 }
 
 export async function invalidate(digest: string): Promise<void> {
-  const index = readIndex();
-  const entry = index[digest];
-  if (!entry) return;
-  delete index[digest];
-  await writeIndex(index);
-  const file = join(cacheDir(), entry.fileName);
+  let removed: AnalysisCacheEntry | undefined;
+  await updateIndex((index) => {
+    removed = index[digest];
+    delete index[digest];
+    return index;
+  });
+  if (!removed) return;
+  const file = join(cacheDir(), removed.fileName);
   if (existsSync(file)) rmSync(file);
 }
 
@@ -58,12 +64,15 @@ export function totalSizeBytes(): number {
 }
 
 export async function clear(): Promise<void> {
-  const index = readIndex();
-  for (const entry of Object.values(index)) {
+  let removed: AnalysisCacheEntry[] = [];
+  await updateIndex((index) => {
+    removed = Object.values(index);
+    return {};
+  });
+  for (const entry of removed) {
     const file = join(cacheDir(), entry.fileName);
     if (existsSync(file)) rmSync(file);
   }
-  await writeIndex({});
 }
 
 export function reclaimOrphans(): void {

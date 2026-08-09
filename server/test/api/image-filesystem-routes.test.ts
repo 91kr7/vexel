@@ -127,6 +127,19 @@ async function listInternalContainerIds(imageReference: string): Promise<string[
   return own;
 }
 
+/** The volumes attached to a container, anonymous ones included — the daemon names them and nothing else does. */
+async function volumeNamesOf(containerId: string): Promise<string[]> {
+  const names = await dockerInspect('{{range .Mounts}}{{if eq .Type "volume"}}{{.Name}} {{end}}{{end}}', containerId).catch(() => "");
+  return names.split(/\s+/).filter((name) => name.length > 0);
+}
+
+async function volumeExists(name: string): Promise<boolean> {
+  return await execFileAsync("docker", ["volume", "inspect", name]).then(
+    () => true,
+    () => false,
+  );
+}
+
 /** Polls until no intermediate container of `imageReference`'s extraction is left, or gives up. */
 async function assertNoLeftoverInternalContainer(imageReference: string, timeoutMs = 8_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
@@ -295,6 +308,70 @@ test("GET /:id/filesystem/stream extracts a distroless image's complete filesyst
 
     await assertNoLeftoverInternalContainer(scratchImageId);
   } finally {
+    await close();
+  }
+});
+
+// plan-docker_management_app/REQ-54 — the intermediate container's removal "takes the container's
+// anonymous volumes with it" (filesystem-extraction-service.md): the daemon attaches one to every
+// `VOLUME` the image declares, and a removal that leaves it behind orphans one volume per
+// extraction on the operator's own host, carrying no label, so nothing can identify it afterwards.
+//
+// The fixture is the registry:2-derived one this file already builds: `registry:2` declares
+// `/var/lib/registry` and everything built from it inherits the declaration, so it is both the
+// real-world case and an export long enough for the short-lived container to be caught while it
+// still exists.
+test("extracting an image that declares a VOLUME leaves no anonymous volume behind", async (t) => {
+  assert.notEqual(
+    await dockerInspect("{{.Config.Volumes}}", MERGE_TAG),
+    "map[]",
+    "this check needs a fixture that declares a VOLUME: without one the daemon attaches no anonymous volume to begin with",
+  );
+
+  const attached = new Set<string>();
+  let watching = true;
+  let watcher: Promise<void> = Promise.resolve();
+  const { url, close } = await startApp(buildApp());
+
+  try {
+    // The volume's name can only be read off the intermediate container, which
+    // exists for as long as the export does, so it is collected while the
+    // extraction runs. The listing is filtered by this fixture's own image, so
+    // a container another file's extraction has in flight is never mistaken for
+    // this one's.
+    watcher = (async () => {
+      while (watching) {
+        for (const containerId of await listInternalContainerIds(MERGE_TAG)) {
+          for (const name of await volumeNamesOf(containerId)) attached.add(name);
+        }
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+    })();
+
+    const response = await fetch(`${url}/api/images/${encodeURIComponent(mergeImageId)}/filesystem/stream?force=true`);
+    const events = await readSseUntilDone(response);
+    assert.ok(events.find((event) => event.event === "result"), `expected the extraction to succeed, got: ${JSON.stringify(events)}`);
+
+    watching = false;
+    await watcher;
+    await assertNoLeftoverInternalContainer(MERGE_TAG);
+
+    if (attached.size === 0) {
+      // The container came and went between two readings: there is no volume
+      // name to check, and asserting on nothing would pass for the wrong reason.
+      t.skip("the intermediate container's own volume was never observed");
+      return;
+    }
+    for (const name of attached) {
+      assert.equal(await volumeExists(name), false, `the intermediate container's anonymous volume ${name} outlived the container`);
+    }
+  } finally {
+    watching = false;
+    await watcher.catch(() => undefined);
+    // An orphan proves the defect; it must not also pile up on the host. This
+    // test made the container that made it, so removing it is this test's own
+    // business either way.
+    for (const name of attached) await execFileAsync("docker", ["volume", "rm", "-f", name]).catch(() => undefined);
     await close();
   }
 });
