@@ -9,7 +9,15 @@ eventsRouter.get("/stream", (req, res) => {
   res.setHeader("Connection", "keep-alive");
   res.flushHeaders();
 
-  for (const event of eventStreamService.getBacklog()) writeEvent(res, event);
+  // A browser that reconnects replays its last identity, so the catch-up
+  // resumes just after the event it already has instead of handing the whole
+  // backlog over a second time. An unknown identity (the backlog rolled past
+  // it, or a context switch emptied it) falls back to the whole backlog:
+  // re-delivering an event the client can recognize beats losing one.
+  const backlog = eventStreamService.getBacklog();
+  const lastDelivered = req.headers["last-event-id"];
+  const resumeFrom = typeof lastDelivered === "string" ? backlog.findIndex((event) => event.id === lastDelivered) : -1;
+  for (const event of backlog.slice(resumeFrom + 1)) writeEvent(res, event);
 
   const onEvent = (event: DaemonEvent) => writeEvent(res, event);
   eventStreamService.on("event", onEvent);
@@ -20,5 +28,5 @@ eventsRouter.get("/stream", (req, res) => {
 });
 
 function writeEvent(res: Response, event: DaemonEvent): void {
-  res.write(`data: ${JSON.stringify(event)}\n\n`);
+  res.write(`id: ${event.id}\ndata: ${JSON.stringify(event)}\n\n`);
 }

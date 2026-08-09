@@ -15,6 +15,8 @@ export interface DaemonEvent {
 }
 
 const BACKLOG_LIMIT = 50;
+/** How far `JSON.parse` can move a nanosecond stamp of this magnitude. */
+const NANO_ROUNDING_MARGIN = 1024;
 const INITIAL_BACKOFF_MS = 1000;
 const MAX_BACKOFF_MS = 30000;
 
@@ -25,6 +27,7 @@ class EventStreamService extends EventEmitter {
   private currentStream?: IncomingMessage;
   private wake?: () => void;
   private reconnectRequested = false;
+  private nextArrivalOrdinal = 0;
 
   start(): void {
     if (this.started) return;
@@ -122,11 +125,14 @@ class EventStreamService extends EventEmitter {
         time?: number;
         Type?: string;
         Action?: string;
+        scope?: string;
+        timeNano?: number;
         Actor?: { ID?: string; Attributes?: Record<string, string> };
       };
+      const timeNano = readTimeNano(line, raw.timeNano);
       const event: DaemonEvent = {
-        id: `${raw.time ?? Date.now()}-${raw.Actor?.ID ?? Math.random().toString(36).slice(2)}`,
-        timestamp: new Date((raw.time ?? Date.now() / 1000) * 1000).toISOString(),
+        id: this.buildEventId(raw, timeNano),
+        timestamp: this.buildTimestamp(raw.time, timeNano),
         type: raw.Type ?? "unknown",
         action: raw.Action ?? "unknown",
         actor: raw.Actor?.Attributes?.name ?? raw.Actor?.ID,
@@ -138,6 +144,46 @@ class EventStreamService extends EventEmitter {
       // malformed line from the daemon stream: skip it rather than crash the loop
     }
   }
+
+  /**
+   * The identity of an event, minted once here and carried unchanged through
+   * the backlog, so every delivery of the same event bears the same id while
+   * two distinct events never share one. `time` alone cannot do it: it has
+   * second resolution, and a stop/start pair on one container lands inside a
+   * single second routinely.
+   */
+  private buildEventId(
+    raw: { time?: number; Type?: string; Action?: string; scope?: string; Actor?: { ID?: string } },
+    timeNano: string | undefined,
+  ): string {
+    // Without a nanosecond stamp the daemon offers nothing that separates two
+    // identical actions on one object in one second, so an arrival ordinal is
+    // synthesised — server-side and once, so it survives re-delivery.
+    const instant = timeNano ?? `${raw.time ?? Math.floor(Date.now() / 1000)}#${(this.nextArrivalOrdinal += 1)}`;
+    const parts = [instant, raw.scope ?? "local", raw.Type ?? "unknown", raw.Action ?? "unknown", raw.Actor?.ID ?? ""];
+    // An `exec_create` action carries the command line: a newline inside it
+    // would split the identity across two lines of the SSE frame.
+    return parts.join("-").replace(/[\r\n]+/g, " ");
+  }
+
+  private buildTimestamp(timeSeconds: number | undefined, timeNano: string | undefined): string {
+    if (timeNano) return new Date(Number(timeNano) / 1e6).toISOString();
+    return new Date((timeSeconds ?? Date.now() / 1000) * 1000).toISOString();
+  }
+}
+
+/**
+ * The daemon's nanosecond stamp, as digits. `timeNano` is larger than a double
+ * can hold exactly, so `JSON.parse` rounds its last digits away and the raw
+ * line is read for them — but the first `"timeNano"` on the line could belong
+ * to an actor attribute of that name, so the parsed value is what decides
+ * whether those digits are the daemon's own stamp.
+ */
+function readTimeNano(line: string, parsed: number | undefined): string | undefined {
+  if (typeof parsed !== "number") return undefined;
+  const digits = /"timeNano"\s*:\s*(\d+)/.exec(line)?.[1];
+  const trustworthy = digits !== undefined && Math.abs(Number(digits) - parsed) <= NANO_ROUNDING_MARGIN;
+  return trustworthy ? digits : String(Math.round(parsed));
 }
 
 export const eventStreamService = new EventStreamService();
