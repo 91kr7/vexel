@@ -93,7 +93,7 @@ export const screens: ScreenDefinition[] = [
     glyph: 'PL',
     group: 'Environment',
     title: 'Plugins',
-    description: 'Installed daemon plugins',
+    description: 'CLI and daemon plugins with their status',
   },
   {
     id: 'system-prune',

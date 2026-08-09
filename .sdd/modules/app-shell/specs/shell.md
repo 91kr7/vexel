@@ -39,7 +39,9 @@ Shows:
   build-cache inventories —, `SwarmScreen` for the `swarm` screen (REQ-79–REQ-84) —
   self-sufficient, reading its own swarm state, nodes, services, stacks, secrets and configs —,
   `ContextsScreen` for the `contexts` screen (REQ-92, REQ-93, REQ-94) —
-  self-sufficient, reading its own context inventory and daemon information —, `SystemScreen` for
+  self-sufficient, reading its own context inventory and daemon information —, `PluginsScreen` for
+  the `plugins` screen (REQ-98, REQ-99, REQ-111) — self-sufficient, reading its own CLI and daemon
+  plugin inventories —, `SystemScreen` for
   the `system-prune` screen (REQ-95, REQ-96, REQ-97) — self-sufficient, reading its own disk-usage
   breakdown and daemon information —, a `PlaceholderScreen` for every screen not yet built by its
   own feature batch.

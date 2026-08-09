@@ -92,10 +92,12 @@ test('activating a nav entry switches the main area and marks it active, keeping
 
   // Switching again replaces the content without losing the rail; a screen with
   // no feature batch yet still shows its placeholder (shell.md, placeholder-screen.md).
-  // Swarm was that screen until batch 27 built it, hence Plugins.
-  await navEntry(page, 'Plugins').click();
-  await expect(page.getByRole('heading', { level: 1, name: 'Plugins' })).toBeVisible();
-  await expect(page.getByText(/Plugins is not built yet/)).toBeVisible();
+  // Plugins was that screen until batch 28 built it; Coverage matrix is the last
+  // one still waiting for its own batch, and the raw console is next in line to
+  // lose the placeholder, so it is not the one to pin here.
+  await navEntry(page, 'Coverage matrix').click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Coverage matrix' })).toBeVisible();
+  await expect(page.getByText(/Coverage matrix is not built yet/)).toBeVisible();
   await expect(navEntry(page, 'Containers')).toBeVisible();
 });
 
@@ -131,8 +133,9 @@ test('a destructive demo action asks for confirmation naming its target and does
   // The destructive-confirmation demo lives on a screen with no feature batch
   // yet (placeholder-screen.md), so the screen is stated rather than inherited.
   // The Dashboard has been a real screen since batch 25 and carries no demo;
-  // Plugins is still a placeholder, and Swarm stopped being one in batch 27.
-  await openOnScreen(page, 'plugins', 'Plugins');
+  // Plugins stopped being a placeholder in batch 28, and the raw console loses
+  // its own in batch 29 — Coverage matrix is the one that outlives both.
+  await openOnScreen(page, 'coverage-matrix', 'Coverage matrix');
 
   // Scoped to the screen's own content: the rail names a "System & prune"
   // entry, which reads like a destructive control to an unscoped locator and is

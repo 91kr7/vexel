@@ -35,6 +35,7 @@ import { DashboardScreen } from '../dashboard/DashboardScreen';
 import { BuildersScreen } from '../builders/BuildersScreen';
 import { ContainersScreen } from '../containers/ContainersScreen';
 import { ImagesScreen } from '../images/ImagesScreen';
+import { PluginsScreen } from '../plugins/PluginsScreen';
 import { RegistriesScreen } from '../registries/RegistriesScreen';
 import { SwarmScreen } from '../swarm/SwarmScreen';
 import { SystemScreen } from '../system/SystemScreen';
@@ -271,6 +272,8 @@ export function Shell() {
               <SwarmScreen />
             ) : activeScreen.id === 'contexts' ? (
               <ContextsScreen />
+            ) : activeScreen.id === 'plugins' ? (
+              <PluginsScreen />
             ) : activeScreen.id === 'system-prune' ? (
               <SystemScreen />
             ) : (

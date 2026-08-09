@@ -6,6 +6,7 @@ import {
   ConfirmationProvider,
   useConfirmation,
   type ConfirmationRequest,
+  type PrivilegeConfirmationRequest,
   type ScopeConfirmationRequest,
 } from '../../src/shell/services/ConfirmationService';
 
@@ -299,5 +300,150 @@ describe('useConfirmation().confirmScope (app-shell/specs/confirmation-service.m
     expect(screen.getByRole('heading', { name: 'Confirm: Stopped containers' })).toBeInTheDocument();
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Confirm' })).toBeEnabled();
+  });
+});
+
+const askedFor = [
+  { name: 'network', description: 'permissions to access a network', values: ['host'] },
+  { name: 'mount', description: 'host path to mount', values: ['/var/lib/docker/plugins'] },
+  { name: 'capabilities', description: 'list of additional capabilities required', values: ['CAP_SYS_ADMIN'] },
+];
+
+/** Reports what confirmPrivileges answered, so the caller's side of the contract is observable. */
+function GrantingAction({ request }: { request: PrivilegeConfirmationRequest }) {
+  const { confirmPrivileges } = useConfirmation();
+  const [answer, setAnswer] = useState<string>('pending');
+
+  const handleClick = async () => {
+    setAnswer((await confirmPrivileges(request)) ? 'granted' : 'not granted');
+  };
+
+  return (
+    <div>
+      <button onClick={handleClick}>Review privileges</button>
+      <span>{answer}</span>
+    </div>
+  );
+}
+
+function renderGrantingAction(overrides: Partial<PrivilegeConfirmationRequest> = {}) {
+  render(
+    <ConfirmationProvider>
+      <GrantingAction
+        request={{
+          targetName: 'vieux/sshfs:latest',
+          consequence: 'Installing it lets it run on this host with everything listed below.',
+          confirmLabel: 'Grant and install',
+          destructive: false,
+          privileges: askedFor,
+          ...overrides,
+        }}
+      />
+    </ConfirmationProvider>,
+  );
+}
+
+describe('useConfirmation().confirmPrivileges (app-shell/specs/confirmation-service.md)', () => {
+  // confirmation-service.md — "showing what the target asks to be allowed to do before it can be
+  // granted (REQ-99)"; plan-docker_management_app/REQ-99
+  it('names the target and shows every privilege it asks for, with its value', async () => {
+    const user = userEvent.setup();
+    renderGrantingAction();
+
+    await user.click(screen.getByRole('button', { name: 'Review privileges' }));
+
+    expect(screen.getByRole('heading', { name: 'Confirm: vieux/sshfs:latest' })).toBeInTheDocument();
+    for (const privilege of askedFor) {
+      expect(screen.getByText(privilege.name)).toBeInTheDocument();
+      expect(screen.getByText(privilege.values.join(', '))).toBeInTheDocument();
+    }
+  });
+
+  // confirmation-service.md — "confirmPrivileges resolves true only on an explicit confirmation"
+  it('resolves true only once the human grants explicitly', async () => {
+    const user = userEvent.setup();
+    renderGrantingAction();
+
+    await user.click(screen.getByRole('button', { name: 'Review privileges' }));
+    expect(screen.getByText('pending')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Grant and install' }));
+
+    expect(await screen.findByText('granted')).toBeInTheDocument();
+  });
+
+  // confirmation-service.md — "false on cancel; false means nothing is granted and the caller must
+  // perform no action"
+  it('resolves false when the human cancels, granting nothing', async () => {
+    const user = userEvent.setup();
+    renderGrantingAction();
+
+    await user.click(screen.getByRole('button', { name: 'Review privileges' }));
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(await screen.findByText('not granted')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Confirm: vieux/sshfs:latest' })).not.toBeInTheDocument();
+  });
+
+  // confirmation-service.md — "noPrivilegesLabel" is said in place of the list when the action asks
+  // for nothing; the grant is still explicit.
+  it('says the action asks for nothing when it asks for nothing, and still asks for a grant', async () => {
+    const user = userEvent.setup();
+    renderGrantingAction({ privileges: [], noPrivilegesLabel: 'This plugin asks for no special privileges.' });
+
+    await user.click(screen.getByRole('button', { name: 'Review privileges' }));
+
+    expect(screen.getByText('This plugin asks for no special privileges.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Grant and install' }));
+    expect(await screen.findByText('granted')).toBeInTheDocument();
+  });
+
+  // confirmation-service.md — "A grant is not a destruction: the caller decides the button's tone
+  // through destructive, as with any other request."
+  it('takes the tone the caller asks for rather than assuming a destruction', async () => {
+    const user = userEvent.setup();
+    renderGrantingAction();
+
+    await user.click(screen.getByRole('button', { name: 'Review privileges' }));
+
+    const grant = screen.getByRole('button', { name: 'Grant and install' });
+    expect(grant.className).not.toContain('destructive');
+  });
+
+  // confirmation-service.md — "Only one confirmation request is shown at a time, whichever of the
+  // three kinds it is", and the previous kind leaves nothing behind.
+  it('replaces a pending privilege request, and leaves no privilege behind on the next plain one', async () => {
+    const user = userEvent.setup();
+
+    function ThreeKinds() {
+      const { confirm, confirmPrivileges } = useConfirmation();
+      return (
+        <div>
+          <button
+            onClick={() =>
+              confirmPrivileges({ targetName: 'vieux/sshfs:latest', consequence: 'It runs with these.', privileges: askedFor })
+            }
+          >
+            Grant…
+          </button>
+          <button onClick={() => confirm({ targetName: 'vieux/sshfs:latest', consequence: 'Removes it.' })}>Remove</button>
+        </div>
+      );
+    }
+
+    render(
+      <ConfirmationProvider>
+        <ThreeKinds />
+      </ConfirmationProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Grant…' }));
+    expect(screen.getByText('network')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Remove' }));
+
+    expect(screen.getByRole('heading', { name: 'Confirm: vieux/sshfs:latest' })).toBeInTheDocument();
+    expect(screen.queryByText('network')).not.toBeInTheDocument();
+    expect(screen.queryByText('CAP_SYS_ADMIN')).not.toBeInTheDocument();
   });
 });

@@ -1,0 +1,11 @@
+# plugins — Index
+
+| Component | Type | Path | Responsibility | Spec |
+|-----------|------|------|-----------------|------|
+| CliPluginsService | backend service | `server/src/plugins/cli-plugins-service.ts` | CLI plugin inventory of the local Docker installation (name, version, availability), degrading to a stated reason when the installation exposes none | `specs/cli-plugins-service.md` |
+| DaemonPluginsService | backend service | `server/src/plugins/daemon-plugins-service.ts` | Daemon plugin inventory over the Engine API (name, interface in words, enabled/disabled) plus the full inspect of one, degrading to a stated reason when the daemon exposes no managed plugins | `specs/daemon-plugins-service.md` |
+| PluginManagementService | backend service | `server/src/plugins/plugin-management-service.ts` | The privileges a reference asks for, the install that refuses to run unless exactly those are granted, and enable/disable/remove — none of them forced | `specs/plugin-management-service.md` |
+| Plugins endpoints | REST endpoint | `server/src/plugins/plugins-routes.ts` | Exposes both inventories in one reading, the privilege reading, the granted install, and enable/disable/inspect/remove | `specs/plugins-endpoints.md` |
+| Plugins client | frontend data client | `client/src/data/plugins-client.ts` | Typed `fetch` wrapper for the plugin endpoints | `specs/plugins-client.md` |
+| usePlugins | frontend hook | `client/src/data/use-plugins.ts` | Reads both inventories as one round on a bounded poll and on every `plugin` daemon event, and drives install/enable/disable/inspect/remove | `specs/use-plugins.md` |
+| PluginsScreen | UI component | `client/src/plugins/PluginsScreen.tsx` | The Plugins screen: CLI plugins with version and availability, daemon plugins with their interface and state, install after an explicit privilege grant, enable/disable switch, inline inspect, and removal confirmed as destructive | `specs/plugins-screen.md` |

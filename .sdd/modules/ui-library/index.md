@@ -47,7 +47,7 @@
 | NumberField | UI component | `client/src/ui/controls/NumberField.tsx` | Single-line numeric form input | `specs/number-field.md` |
 | Stepper | UI component | `client/src/ui/controls/Stepper.tsx` | Decrement / value / increment control for a small bounded integer (e.g. a service's replica count) | `specs/stepper.md` |
 | Select | UI component | `client/src/ui/controls/Select.tsx` | Single-choice dropdown | `specs/select.md` |
-| Toggle | UI component | `client/src/ui/controls/Toggle.tsx` | Boolean on/off switch | `specs/toggle.md` |
+| Toggle | UI component | `client/src/ui/controls/Toggle.tsx` | Boolean on/off switch, with a busy state for a change that has to travel before it is true | `specs/toggle.md` |
 | FieldMessage | UI component | `client/src/ui/controls/FieldMessage.tsx` | Field-level helper or validation message | `specs/field-message.md` |
 | EndpointField | UI component | `client/src/ui/controls/EndpointField.tsx` | Endpoint form group: the endpoint kind and the single host value that kind needs, or the fixed host it uses | `specs/endpoint-field.md` |
 | KeyValueEditor | UI component | `client/src/ui/controls/KeyValueEditor.tsx` | Repeatable key/value row editor (e.g. environment variables) | `specs/key-value-editor.md` |
@@ -70,6 +70,7 @@
 | DiffTreeView | UI component | `client/src/ui/data/DiffTreeView.tsx` | Diff variant of TreeView: added/removed/changed node status, directory roll-up counts and a status filter row | `specs/diff-tree-view.md` |
 | StatusDotCell, TwoLineCell, MetaCell, IdentifierCell, BadgeListCell, ProportionBarCell | UI component | `client/src/ui/data/TableCells.tsx` | Reusable DataTable cell contents: status dot, title/subtitle pair, muted monospace value (with an "unavailable" state), truncated identifier, badge list with overflow indicator, magnitude-proportional bar | `specs/table-cells.md` |
 | DefinitionList | UI component | `client/src/ui/data/DefinitionList.tsx` | Label → value rows with an optional copy affordance | `specs/definition-list.md` |
+| PrivilegeList | UI component | `client/src/ui/data/PrivilegeList.tsx` | The permissions an operation asks for, one row each with its value and what it allows — the surface a grant is decided on | `specs/privilege-list.md` |
 | CodeViewer | UI component | `client/src/ui/data/CodeViewer.tsx` | Read-only monospace code/JSON block with a copy affordance | `specs/code-viewer.md` |
 | CodeEditor | UI component | `client/src/ui/data/CodeEditor.tsx` | Editable monospace code surface with a line-number gutter, dirty state and a validation status-line slot | `specs/code-editor.md` |
 | TextViewer, HexDumpViewer | UI component | `client/src/ui/data/ContentViewer.tsx` | Read-only monospace text preview with line numbers, and a hex-dump preview, each with a truncation notice for an oversized file and an optional shared-scroll hookup | `specs/content-viewer.md` |

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CheckboxGroup, ConfirmDialog, type CheckboxOption } from '../../ui';
+import { CheckboxGroup, ConfirmDialog, PrivilegeList, type CheckboxOption, type PrivilegeItem } from '../../ui';
 
 export interface ConfirmationRequest {
   targetName: string;
@@ -16,9 +16,17 @@ export interface ScopeConfirmationRequest extends ConfirmationRequest {
   scopeLabel?: string;
 }
 
+export interface PrivilegeConfirmationRequest extends ConfirmationRequest {
+  /** What the action asks to be allowed to do; shown in full before it can be granted. */
+  privileges: PrivilegeItem[];
+  /** Said in place of the list when the action asks for nothing. */
+  noPrivilegesLabel?: string;
+}
+
 interface ConfirmationContextValue {
   confirm: (request: ConfirmationRequest) => Promise<boolean>;
   confirmScope: (request: ScopeConfirmationRequest) => Promise<string[] | undefined>;
+  confirmPrivileges: (request: PrivilegeConfirmationRequest) => Promise<boolean>;
 }
 
 const ConfirmationContext = createContext<ConfirmationContextValue | null>(null);
@@ -26,11 +34,12 @@ const ConfirmationContext = createContext<ConfirmationContextValue | null>(null)
 /**
  * Application-wide destructive-confirmation service (REQ-6): feature code
  * calls `confirm()` — or `confirmScope()` when the human also chooses what the
- * action applies to (REQ-96) — and awaits the decision instead of building its
- * own dialog. Cancelling performs no action.
+ * action applies to (REQ-96), or `confirmPrivileges()` when what is being
+ * decided is what the target is allowed to do (REQ-99) — and awaits the
+ * decision instead of building its own dialog. Cancelling performs no action.
  */
 export function ConfirmationProvider({ children }: { children?: ReactNode }) {
-  const [request, setRequest] = useState<ConfirmationRequest | ScopeConfirmationRequest | null>(null);
+  const [request, setRequest] = useState<ConfirmationRequest | ScopeConfirmationRequest | PrivilegeConfirmationRequest | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const resolver = useRef<((confirmed: boolean, scope: string[]) => void) | null>(null);
 
@@ -50,6 +59,14 @@ export function ConfirmationProvider({ children }: { children?: ReactNode }) {
     });
   }, []);
 
+  const confirmPrivileges = useCallback((next: PrivilegeConfirmationRequest) => {
+    return new Promise<boolean>((resolve) => {
+      resolver.current = (confirmed) => resolve(confirmed);
+      setSelectedIds([]);
+      setRequest(next);
+    });
+  }, []);
+
   const settle = useCallback(
     (confirmed: boolean, scope: string[]) => {
       resolver.current?.(confirmed, scope);
@@ -59,8 +76,9 @@ export function ConfirmationProvider({ children }: { children?: ReactNode }) {
     [],
   );
 
-  const value = useMemo(() => ({ confirm, confirmScope }), [confirm, confirmScope]);
+  const value = useMemo(() => ({ confirm, confirmScope, confirmPrivileges }), [confirm, confirmScope, confirmPrivileges]);
   const scopeRequest = request !== null && 'options' in request ? request : null;
+  const privilegeRequest = request !== null && 'privileges' in request ? request : null;
 
   return (
     <ConfirmationContext.Provider value={value}>
@@ -82,6 +100,9 @@ export function ConfirmationProvider({ children }: { children?: ReactNode }) {
             selectedIds={selectedIds}
             onChange={setSelectedIds}
           />
+        ) : null}
+        {privilegeRequest ? (
+          <PrivilegeList items={privilegeRequest.privileges} emptyLabel={privilegeRequest.noPrivilegesLabel} />
         ) : null}
       </ConfirmDialog>
     </ConfirmationContext.Provider>
