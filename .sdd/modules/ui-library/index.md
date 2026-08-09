@@ -16,6 +16,7 @@
 | Stack | UI component | `client/src/ui/layout/Stack.tsx` | Vertical flex layout primitive | `specs/layout-primitives.md` |
 | Row | UI component | `client/src/ui/layout/Row.tsx` | Horizontal flex layout primitive with alignment helpers | `specs/layout-primitives.md` |
 | Grid | UI component | `client/src/ui/layout/Grid.tsx` | CSS-grid layout primitive | `specs/layout-primitives.md` |
+| DashboardLayout | UI component | `client/src/ui/layout/DashboardLayout.tsx` | Overview arrangement: a row of equal tiles above a two-column panel grid, with an optional full-width panel below | `specs/dashboard-layout.md` |
 | Spacer | UI component | `client/src/ui/layout/Spacer.tsx` | Flexible spacer for Row/Stack siblings | `specs/layout-primitives.md` |
 | SplitPane | UI component | `client/src/ui/layout/SplitPane.tsx` | Two-pane surface — a fixed-width side next to a flexible one, divided by a hairline — for a tree/list next to its detail view | `specs/split-pane.md` |
 | NavRail, NavBrand | UI component | `client/src/ui/navigation/NavRail.tsx` | Persistent left navigation rail and its brand mark | `specs/navigation-primitives.md` |
@@ -70,9 +71,10 @@
 | TextViewer, HexDumpViewer | UI component | `client/src/ui/data/ContentViewer.tsx` | Read-only monospace text preview with line numbers, and a hex-dump preview, each with a truncation notice for an oversized file and an optional shared-scroll hookup | `specs/content-viewer.md` |
 | SideBySideViewer | UI component | `client/src/ui/data/SideBySideViewer.tsx` | Pairs two content viewers under per-side headers with a shared scroll position | `specs/side-by-side-viewer.md` |
 | LogStream | UI component | `client/src/ui/data/LogStream.tsx` | Virtualised monospace log surface: follow/jump-to-live, timestamps, stdout/stderr tagging, match highlighting, copy/download | `specs/log-stream.md` |
-| MetricTile | UI component | `client/src/ui/metrics/MetricTile.tsx` | Metric reading: label, prominent value, sub-label and a slot for a meter/sparkline | `specs/metric-primitives.md` |
+| MetricTile | UI component | `client/src/ui/metrics/MetricTile.tsx` | Metric reading: label, prominent value, sub-label, a slot for a meter/sparkline, and optional own-panel and activatable variants | `specs/metric-primitives.md` |
 | Meter | UI component | `client/src/ui/metrics/Meter.tsx` | Proportional bar for a used/limit pair, with its reading | `specs/metric-primitives.md` |
 | Sparkline | UI component | `client/src/ui/metrics/Sparkline.tsx` | Compact line over a bounded window of recent samples, redrawn only on new samples | `specs/metric-primitives.md` |
+| UsageBreakdown | UI component | `client/src/ui/metrics/UsageBreakdown.tsx` | One whole split across named categories: per row a label, its absolute reading and a categorically coloured bar for its share, each row optionally activatable | `specs/usage-breakdown.md` |
 | Modal | UI component | `client/src/ui/feedback/Modal.tsx` | Centered glass dialog over a dimmed overlay | `specs/modal.md` |
 | ConfirmDialog | UI component | `client/src/ui/feedback/ConfirmDialog.tsx` | Destructive-confirmation dialog naming the target and the consequence, with an optional slot for the decision the action needs (e.g. its scope) | `specs/confirm-dialog.md` |
 | ToastProvider, useToast | UI component | `client/src/ui/feedback/Toast.tsx` | Transient toast notification stack and its provider/hook | `specs/toast.md` |

@@ -34,6 +34,8 @@ export interface DataTableProps<T> {
   renderExpanded?: (row: T) => ReactNode;
   /** Adds a leading multi-select checkbox column, independent of `onRowSelect`'s single-row selection. */
   selection?: DataTableSelection<T>;
+  /** Drops the column header row, for a short list whose columns need no naming. */
+  hideHeader?: boolean;
 }
 
 const OVERSCAN_ROWS = 6;
@@ -60,6 +62,7 @@ export function DataTable<T>({
   expandedRowKey,
   renderExpanded,
   selection,
+  hideHeader = false,
 }: DataTableProps<T>) {
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -105,27 +108,29 @@ export function DataTable<T>({
 
   return (
     <div className="ui-data-table">
-      <div className="ui-data-table__header" style={headerRowStyle}>
-        {selection ? (
-          <span className="ui-data-table__header-cell ui-data-table__select-cell">
-            <input
-              type="checkbox"
-              aria-label="Select all"
-              checked={Boolean(selection.allSelected)}
-              onChange={() => selection.onToggleAll?.()}
-              disabled={!selection.onToggleAll}
-            />
-          </span>
-        ) : null}
-        {columns.map((column) => (
-          <span
-            key={column.id}
-            className={column.align === 'end' ? 'ui-data-table__header-cell ui-data-table__header-cell--end' : 'ui-data-table__header-cell'}
-          >
-            {column.header}
-          </span>
-        ))}
-      </div>
+      {hideHeader ? null : (
+        <div className="ui-data-table__header" style={headerRowStyle}>
+          {selection ? (
+            <span className="ui-data-table__header-cell ui-data-table__select-cell">
+              <input
+                type="checkbox"
+                aria-label="Select all"
+                checked={Boolean(selection.allSelected)}
+                onChange={() => selection.onToggleAll?.()}
+                disabled={!selection.onToggleAll}
+              />
+            </span>
+          ) : null}
+          {columns.map((column) => (
+            <span
+              key={column.id}
+              className={column.align === 'end' ? 'ui-data-table__header-cell ui-data-table__header-cell--end' : 'ui-data-table__header-cell'}
+            >
+              {column.header}
+            </span>
+          ))}
+        </div>
+      )}
       {rows.length === 0 ? (
         <div className="ui-data-table__empty">{emptyState}</div>
       ) : (

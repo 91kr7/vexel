@@ -52,6 +52,26 @@ function contextsFor(activeName: string) {
   ];
 }
 
+// The Dashboard is the default landing screen (app-shell/specs/shell.md) and it
+// reads the host overview: without an answer of the right shape here the shell
+// renders the connectivity payload as if it were an overview and throws.
+const systemOverview = {
+  containers: { total: 0, running: 0, paused: 0, stopped: 0 },
+  images: { count: 0, sizeBytes: 0 },
+  volumes: { count: 0, sizeBytes: 0 },
+  stacks: { compose: 0, swarm: 0, total: 0 },
+  buildCache: { sizeBytes: 0 },
+  diskUsage: {
+    categories: [
+      { id: 'images', sizeBytes: 0, itemCount: 0 },
+      { id: 'containers', sizeBytes: 0, itemCount: 0 },
+      { id: 'volumes', sizeBytes: 0, itemCount: 0 },
+      { id: 'build-cache', sizeBytes: 0, itemCount: 0 },
+    ],
+    totalBytes: 0,
+  },
+};
+
 let activeContextName = 'first';
 
 function requestUrl(input: RequestInfo | URL): string {
@@ -86,6 +106,9 @@ beforeEach(() => {
       }
       if (url.startsWith('/api/persistence/analysis-cache')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ totalSizeBytes: 0 }) });
+      }
+      if (url.startsWith('/api/system/overview')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(systemOverview) });
       }
       return Promise.resolve({ ok: true, json: () => Promise.resolve(reachableStatus) });
     }),

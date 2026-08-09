@@ -2,6 +2,7 @@ import { Router } from "express";
 import type { Response } from "express";
 import { DockerDaemonError } from "../docker/errors.js";
 import { getDiskUsage } from "./disk-usage-service.js";
+import { getSystemOverview } from "./overview-service.js";
 import { isDiskUsageCategoryId, pruneScope } from "./prune-service.js";
 
 export const systemRouter = Router();
@@ -9,6 +10,16 @@ export const systemRouter = Router();
 systemRouter.get("/disk-usage", async (_req, res) => {
   try {
     res.json(await getDiskUsage());
+  } catch (error) {
+    respondError(res, error);
+  }
+});
+
+// The dashboard's single reading of the host (REQ-14, REQ-16): one request
+// rather than one per area, so its tiles cannot disagree with each other.
+systemRouter.get("/overview", async (_req, res) => {
+  try {
+    res.json(await getSystemOverview());
   } catch (error) {
     respondError(res, error);
   }

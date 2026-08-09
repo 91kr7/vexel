@@ -1,10 +1,14 @@
-// Reclaimable disk space, broken down by the five categories a prune can act
-// on (REQ-95). The four daemon-side categories come from a single /system/df
-// reading plus the network listing; the build cache is read through the
-// build-cache service, the one channel that already knows it.
+// Disk space as the daemon accounts for it, in two readings that share one
+// /system/df call each: what a prune could reclaim, broken down by the five
+// categories a prune can act on (REQ-95), and what is occupied in total,
+// broken down by images, containers, volumes and build cache (REQ-16). The
+// daemon-side numbers come from /system/df plus the network listing; the build
+// cache is read through the build-cache service, the one channel that already
+// knows it.
 import { getEngineClient } from "../connectivity/connection-status-service.js";
 import { listBuildCache } from "../builders/build-cache-service.js";
 import { listNetworks } from "../networks/networks-service.js";
+import { INTERNAL_CONTAINER_LABEL } from "../image-analysis/filesystem-extraction-service.js";
 
 export type DiskUsageCategoryId =
   | "stopped-containers"
@@ -39,6 +43,28 @@ export interface DiskUsageBreakdown {
   totalReclaimableBytes: number;
 }
 
+/** The kinds of object that occupy disk on a Docker host, as `docker system df` accounts for them. */
+export type DiskUsageTotalCategoryId = "images" | "containers" | "volumes" | "build-cache";
+
+/** The order the occupied-space categories are reported in. */
+export const DISK_USAGE_TOTAL_CATEGORY_IDS: DiskUsageTotalCategoryId[] = ["images", "containers", "volumes", "build-cache"];
+
+export interface DiskUsageTotalCategory {
+  id: DiskUsageTotalCategoryId;
+  /** Bytes this category occupies on disk, reclaimable or not. */
+  sizeBytes: number;
+  /** Objects counted in this category. */
+  itemCount: number;
+  /** Present exactly when this category could not be read; its size and count are then 0. */
+  unavailableDetail?: string;
+}
+
+export interface DiskUsageTotals {
+  categories: DiskUsageTotalCategory[];
+  /** Sum of every category's occupied size; a category that could not be read contributes 0. */
+  totalBytes: number;
+}
+
 /** Enough names to tell the operator what a category holds without turning the reading into a listing. */
 const MAX_ITEMS_PER_CATEGORY = 20;
 
@@ -53,6 +79,7 @@ interface RawDiskUsageContainer {
   Names?: string[];
   State?: string;
   SizeRw?: number;
+  Labels?: Record<string, string> | null;
 }
 
 interface RawDiskUsageImage {
@@ -72,6 +99,8 @@ interface RawDiskUsage {
   Containers?: RawDiskUsageContainer[] | null;
   Images?: RawDiskUsageImage[] | null;
   Volumes?: RawDiskUsageVolume[] | null;
+  /** Total bytes every image layer on the host occupies, shared layers counted once. */
+  LayersSize?: number;
 }
 
 /**
@@ -98,6 +127,61 @@ export async function getDiskUsage(): Promise<DiskUsageBreakdown> {
     categories,
     totalReclaimableBytes: categories.reduce((total, category) => total + category.sizeBytes, 0),
   };
+}
+
+/**
+ * Space occupied per kind of object, whether or not a prune could reclaim it
+ * (REQ-16). Same shape of resilience as the reclaimable breakdown: the build
+ * cache, which is read through another channel, reports its reason in place of
+ * a size rather than failing the whole reading.
+ */
+export async function getDiskUsageTotals(): Promise<DiskUsageTotals> {
+  const [diskUsage, buildCache] = await Promise.all([readDiskUsage(), readTotalBuildCache()]);
+  const containers = ownContainers(diskUsage);
+
+  const categories: DiskUsageTotalCategory[] = [
+    {
+      id: "images",
+      // The daemon's own total for the image store: layers shared between two
+      // images are counted once, so this is smaller than the sum of the images'
+      // individual sizes.
+      sizeBytes: positive(diskUsage.LayersSize),
+      itemCount: (diskUsage.Images ?? []).length,
+    },
+    {
+      id: "containers",
+      // A container occupies only its writable layer; the image it runs is
+      // already counted in the image category.
+      sizeBytes: containers.reduce((total, container) => total + positive(container.SizeRw), 0),
+      itemCount: containers.length,
+    },
+    {
+      id: "volumes",
+      sizeBytes: (diskUsage.Volumes ?? []).reduce((total, volume) => total + positive(volume.UsageData?.Size), 0),
+      itemCount: (diskUsage.Volumes ?? []).length,
+    },
+    buildCache,
+  ];
+
+  return { categories, totalBytes: categories.reduce((total, category) => total + category.sizeBytes, 0) };
+}
+
+/** Intermediate filesystem-extraction containers are internal plumbing (REQ-54): they are nobody's disk usage but ours. */
+function ownContainers(diskUsage: RawDiskUsage): RawDiskUsageContainer[] {
+  return (diskUsage.Containers ?? []).filter((container) => container.Labels?.[INTERNAL_CONTAINER_LABEL] !== "true");
+}
+
+async function readTotalBuildCache(): Promise<DiskUsageTotalCategory> {
+  try {
+    const records = await listBuildCache();
+    return {
+      id: "build-cache",
+      sizeBytes: records.reduce((total, record) => total + positive(record.sizeBytes), 0),
+      itemCount: records.length,
+    };
+  } catch (error) {
+    return { id: "build-cache", sizeBytes: 0, itemCount: 0, unavailableDetail: (error as Error).message };
+  }
 }
 
 async function readDiskUsage(): Promise<RawDiskUsage> {

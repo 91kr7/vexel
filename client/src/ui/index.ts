@@ -15,6 +15,7 @@ export { Frame, type FrameProps } from './layout/Frame';
 export { Stack, type StackProps } from './layout/Stack';
 export { Row, type RowProps } from './layout/Row';
 export { Grid, type GridProps } from './layout/Grid';
+export { DashboardLayout, type DashboardLayoutProps } from './layout/DashboardLayout';
 export { Spacer } from './layout/Spacer';
 export { SplitPane, type SplitPaneProps } from './layout/SplitPane';
 
@@ -96,6 +97,7 @@ export { SideBySideViewer, type SideBySideViewerProps, type SideBySideSide } fro
 export { MetricTile, type MetricTileProps, type MetricTone } from './metrics/MetricTile';
 export { Meter, type MeterProps } from './metrics/Meter';
 export { Sparkline, type SparklineProps } from './metrics/Sparkline';
+export { UsageBreakdown, type UsageBreakdownProps, type UsageBreakdownItem } from './metrics/UsageBreakdown';
 
 export { Modal, type ModalProps, type ModalSize } from './feedback/Modal';
 export { ConfirmDialog, type ConfirmDialogProps } from './feedback/ConfirmDialog';

@@ -1,6 +1,6 @@
 import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Shell } from '../../src/shell/Shell';
 import { ConnectionStatusProvider } from '../../src/shell/services/ConnectionStatusService';
@@ -32,6 +32,26 @@ function requestUrl(input: RequestInfo | URL): string {
   return typeof input === 'string' ? input : input.toString();
 }
 
+// The Dashboard is the default landing screen (app-shell/specs/shell.md), and it
+// reads the host overview: without an answer of the right shape here the shell
+// renders the connectivity payload as if it were an overview and throws.
+const systemOverview = {
+  containers: { total: 0, running: 0, paused: 0, stopped: 0 },
+  images: { count: 0, sizeBytes: 0 },
+  volumes: { count: 0, sizeBytes: 0 },
+  stacks: { compose: 0, swarm: 0, total: 0 },
+  buildCache: { sizeBytes: 0 },
+  diskUsage: {
+    categories: [
+      { id: 'images', sizeBytes: 0, itemCount: 0 },
+      { id: 'containers', sizeBytes: 0, itemCount: 0 },
+      { id: 'volumes', sizeBytes: 0, itemCount: 0 },
+      { id: 'build-cache', sizeBytes: 0, itemCount: 0 },
+    ],
+    totalBytes: 0,
+  },
+};
+
 beforeEach(() => {
   // Shell mounts more than the connectivity probe (the containers list for
   // the nav badge, preferences, analysis-cache usage); route each endpoint
@@ -56,6 +76,9 @@ beforeEach(() => {
       if (url.startsWith('/api/contexts')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
       }
+      if (url.startsWith('/api/system/overview')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve(systemOverview) });
+      }
       return Promise.resolve({ ok: true, json: () => Promise.resolve(reachableStatus) });
     }),
   );
@@ -66,6 +89,11 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
 });
+
+/** The navigation rail, so a screen name is looked up there and not among the active screen's own controls. */
+function navRail(): HTMLElement {
+  return document.querySelector<HTMLElement>('.ui-nav-rail')!;
+}
 
 interface ShellApi {
   reportError: ReturnType<typeof useErrorReporter>['reportError'];
@@ -119,7 +147,9 @@ describe('Shell', () => {
     const user = userEvent.setup();
     await renderShell();
 
-    await user.click(screen.getByRole('button', { name: /Containers/ }));
+    // Scoped to the rail: the Dashboard's own tiles and disk-usage rows name the
+    // Containers screen too, so an unscoped locator matches several controls.
+    await user.click(within(navRail()).getByRole('button', { name: /Containers/ }));
 
     expect(screen.getByRole('heading', { level: 1, name: 'Containers' })).toBeInTheDocument();
     expect(screen.getByText('Vexel')).toBeInTheDocument();
@@ -141,7 +171,9 @@ describe('Shell', () => {
     expect(screen.getByText('Failed to remove container')).toBeInTheDocument();
     expect(screen.getByText('Error: cannot remove a running container')).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument();
-    expect(screen.getByText(/Dashboard is not built yet/)).toBeInTheDocument();
+    // The landing screen's own content is still on display beside the banner: the
+    // Dashboard is a real screen since batch 25 (app-shell/specs/shell.md, REQ-14).
+    expect(screen.getByRole('heading', { level: 2, name: 'Container activity' })).toBeInTheDocument();
   });
 
   // app-shell/specs/shell.md — the header status pill reflects the pending-operation count (REQ-8)

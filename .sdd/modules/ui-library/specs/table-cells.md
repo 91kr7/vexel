@@ -19,7 +19,8 @@ badges with an overflow indicator, and a magnitude bar sized relative to the col
   hidden until the cell is hovered or a descendant gains keyboard focus — never `display: none`, so
   it stays reachable via Tab and to assistive technology regardless of hover state.
 - `<MetaCell children? wrap? title? unavailableReason? />` — muted monospace text for a
-  numeric/meta value (CPU, memory, ports, uptime, …); renders `'–'` when `children` is empty. Single
+  numeric/meta value (CPU, memory, ports, uptime, …); renders `'–'` when `children` is empty —
+  `undefined`, `null` and the empty string are all empty, and read identically. Single
   line by default: overflowing text ellipsis-truncates instead of wrapping or growing the row, with
   the full value available as a native tooltip (`title`, defaulting to the text content itself when
   `children` is a string or number). `wrap: true` instead wraps long unbroken values (e.g. a
@@ -50,6 +51,9 @@ badges with an overflow indicator, and a magnitude bar sized relative to the col
 
 - Every cell stays on one line and never grows the row's fixed height: content that does not fit is
   truncated or clipped, never wrapped.
+- A cell with nothing to show is never blank: it carries the dash (or `'unavailable'`), whichever
+  way its caller expressed the absence. A blank cell would read as a rendering fault rather than as
+  a value the source does not have.
 
 ## Requirements served
 

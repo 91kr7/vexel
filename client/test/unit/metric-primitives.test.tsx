@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { Meter, MetricTile, Sparkline } from '../../src/ui';
 
 afterEach(() => {
@@ -44,6 +45,51 @@ describe('MetricTile (REQ-32)', () => {
     });
 
     expect(new Set(rendered).size).toBe(rendered.length);
+  });
+
+  // metric-primitives.md — "surface (default false) — draws the reading on its own glass panel, for
+  // a tile standing alone rather than inside a panel that already provides one" (REQ-14)
+  it('draws the reading on its own glass panel only when asked to', () => {
+    const { container: bare } = render(<MetricTile label="Running" value="4" />);
+    expect(bare.querySelector('.ui-surface')).toBeNull();
+    cleanup();
+
+    const { container: panelled } = render(<MetricTile surface label="Running" value="4" />);
+    expect(panelled.querySelector('.ui-surface')).not.toBeNull();
+    expect(screen.getByText('4')).toBeInTheDocument();
+  });
+
+  // metric-primitives.md — "onActivate?() — makes the whole tile a single activatable control: a
+  // pointer click and a keyboard activation (it is reachable by Tab, and Enter/Space activate it)
+  // both call it once" / "ariaLabel — the activatable tile's accessible name" (REQ-18)
+  it('makes an activatable tile one control, reachable by Tab and activated once per activation', async () => {
+    const onActivate = vi.fn();
+    const user = userEvent.setup();
+    render(<MetricTile label="Running" value="4" onActivate={onActivate} ariaLabel="Running containers — open the Containers screen" />);
+
+    const tile = screen.getByRole('button', { name: 'Running containers — open the Containers screen' });
+    await user.tab();
+    expect(tile).toHaveFocus();
+    await user.keyboard('{Enter}');
+    expect(onActivate).toHaveBeenCalledTimes(1);
+    await user.keyboard(' ');
+    expect(onActivate).toHaveBeenCalledTimes(2);
+
+    await user.click(tile);
+    expect(onActivate).toHaveBeenCalledTimes(3);
+  });
+
+  // metric-primitives.md — "Without it the tile is inert text and takes no focus." / "ariaLabel …
+  // ignored when onActivate is absent"
+  it('leaves a tile without onActivate inert, unfocusable and unnamed', async () => {
+    const user = userEvent.setup();
+    render(<MetricTile label="Running" value="4" ariaLabel="never used" />);
+
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('never used')).not.toBeInTheDocument();
+
+    await user.tab();
+    expect(document.body).toHaveFocus();
   });
 });
 

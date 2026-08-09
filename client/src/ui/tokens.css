@@ -46,6 +46,16 @@
   --color-info: #4f8ff7;
   --color-neutral-tint: rgba(255, 255, 255, 0.08);
 
+  /* Categorical palette — for telling the slices of one whole apart (a usage
+     breakdown, a legend). These carry no meaning of their own: unlike the
+     success/warning/danger roles above, series 4 is not "worse" than series 1,
+     it is only the fourth category. Kept to four so a breakdown never has to
+     rely on two colors an eye cannot separate. */
+  --color-series-1: var(--color-accent);
+  --color-series-2: var(--color-success);
+  --color-series-3: #a78bfa;
+  --color-series-4: var(--color-warning);
+
   /* Typography */
   --font-family-sans: -apple-system, 'Segoe UI', Roboto, Inter, sans-serif;
   --font-family-mono: ui-monospace, 'SF Mono', Consolas, monospace;

@@ -31,6 +31,7 @@ import { useComposeProjects } from '../data/use-compose-projects';
 import { useContexts } from '../data/use-contexts';
 import { ComposeScreen } from '../compose/ComposeScreen';
 import { ContextsScreen } from '../contexts/ContextsScreen';
+import { DashboardScreen } from '../dashboard/DashboardScreen';
 import { BuildersScreen } from '../builders/BuildersScreen';
 import { ContainersScreen } from '../containers/ContainersScreen';
 import { ImagesScreen } from '../images/ImagesScreen';
@@ -228,7 +229,14 @@ export function Shell() {
                 onRetry={connection.retry}
               />
             ) : null}
-            {activeScreen.id === 'containers' ? (
+            {activeScreen.id === 'dashboard' ? (
+              <DashboardScreen
+                containers={containers.containers}
+                containersLoaded={containers.loaded}
+                containersError={containers.error}
+                onRefreshContainers={containers.refresh}
+              />
+            ) : activeScreen.id === 'containers' ? (
               <ContainersScreen
                 containers={containers.containers}
                 loaded={containers.loaded}

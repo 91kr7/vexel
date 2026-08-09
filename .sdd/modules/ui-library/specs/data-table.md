@@ -13,7 +13,7 @@ stays smooth (REQ-109).
 ## Contract
 
 - `<DataTable columns rows rowKey rowHeight? maxHeight? selectedRowKey? onRowSelect? emptyState?
-  expandedRowKey? renderExpanded? selection? />`
+  expandedRowKey? renderExpanded? selection? hideHeader? />`
   - `columns: DataTableColumn<T>[]` — `{ id, header, width?, align?, render(row) }`; `width` is a
     `grid-template-columns` track (default `'1fr'`); `align`: `'start' | 'end'` (default `'start'`).
   - `rows: T[]`, `rowKey(row): string`.
@@ -32,6 +32,9 @@ stays smooth (REQ-109).
     leading checkbox column, independent of `onRowSelect`'s single-row selection: a row's checkbox
     calls `onToggle` and reflects membership in `selectedKeys`; the header checkbox calls
     `onToggleAll` (omit to disable it) and reflects `allSelected`.
+  - `hideHeader?: boolean` (default `false`) — drops the header row entirely, for a short list
+    whose columns need no naming (e.g. an overview panel); the rows, their tracks and their
+    alignment are unchanged, and the multi-select header checkbox goes with the header.
 
 ## Rules and invariants
 
@@ -40,7 +43,7 @@ stays smooth (REQ-109).
 - A row's height never changes with scroll position: virtualisation swaps which rows are mounted,
   not their layout, so scrolling never recomputes the glass material (REQ-109).
 - Every column in `columns` renders in the header and in every row, in the same order and using the
-  same `width`/`align`.
+  same `width`/`align`; with `hideHeader` the rows keep exactly those tracks.
 - Virtualisation only accounts for the fixed `rowHeight` of each row when reserving scroll-window
   space; an expanded row's extra height is not reserved (spacer heights stay an approximation).
   Acceptable for the moderate list sizes this table serves; a future batch revisits it if a screen
@@ -60,3 +63,4 @@ stays smooth (REQ-109).
 - plan-docker_management_app/REQ-19
 - plan-docker_management_app/REQ-24
 - plan-docker_management_app/REQ-109
+- plan-docker_management_app/REQ-15

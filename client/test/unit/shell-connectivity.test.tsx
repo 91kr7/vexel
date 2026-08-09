@@ -62,6 +62,26 @@ function requestUrl(input: RequestInfo | URL): string {
   return typeof input === 'string' ? input : input.toString();
 }
 
+// The Dashboard is the default landing screen (app-shell/specs/shell.md) and it
+// reads the host overview: without an answer of the right shape here the shell
+// renders the connectivity payload as if it were an overview and throws.
+const systemOverview = {
+  containers: { total: 0, running: 0, paused: 0, stopped: 0 },
+  images: { count: 0, sizeBytes: 0 },
+  volumes: { count: 0, sizeBytes: 0 },
+  stacks: { compose: 0, swarm: 0, total: 0 },
+  buildCache: { sizeBytes: 0 },
+  diskUsage: {
+    categories: [
+      { id: 'images', sizeBytes: 0, itemCount: 0 },
+      { id: 'containers', sizeBytes: 0, itemCount: 0 },
+      { id: 'volumes', sizeBytes: 0, itemCount: 0 },
+      { id: 'build-cache', sizeBytes: 0, itemCount: 0 },
+    ],
+    totalBytes: 0,
+  },
+};
+
 // Shell mounts more than the connectivity probe this suite targets (the
 // containers list for the nav badge, preferences, analysis-cache usage); the
 // mock must route each endpoint to a response of the right shape, or those
@@ -83,6 +103,9 @@ async function renderShellWith(status: unknown) {
     // the connectivity payload as if it were a list and throws.
     if (url.startsWith('/api/contexts')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    }
+    if (url.startsWith('/api/system/overview')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(systemOverview) });
     }
     return Promise.resolve({ ok: true, json: () => Promise.resolve(status) });
   });
@@ -130,9 +153,14 @@ describe('Shell — daemon connectivity (app-shell/specs/shell.md)', () => {
     await waitFor(() => expect(screen.getByText(unreachableStatus.daemon.cause)).toBeInTheDocument());
     expect(screen.getAllByRole('button', { name: 'Retry' }).length).toBeGreaterThan(0);
 
-    // The unreachable banner does not replace or hide the rest of the screen.
+    // The unreachable banner does not replace or hide the rest of the screen. The
+    // "CLI availability" card belongs to the screens no feature batch has built
+    // yet, so it is pinned on one of those rather than on the landing screen,
+    // which has been the real Dashboard since batch 25.
+    await userEvent.setup().click(screen.getByRole('button', { name: /Swarm/ }));
     expect(screen.getByText('CLI availability')).toBeInTheDocument();
     expect(screen.getByText('Daemon event stream')).toBeInTheDocument();
+    expect(screen.getByText(unreachableStatus.daemon.cause)).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
   });
 
