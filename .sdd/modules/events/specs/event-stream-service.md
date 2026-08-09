@@ -25,12 +25,18 @@ events to server-side subscribers (REQ-11, REQ-12), independent of how many clie
   at 1s, capped at 30s), so the app recovers automatically once the daemon is back (REQ-9, REQ-11).
 - A malformed event line is skipped rather than stopping the stream.
 - The backlog never grows past 50 entries (oldest dropped first).
+- When the active context changes, the stream of the daemon left behind is dropped and a new one is
+  opened against the newly active daemon **at once**, without waiting out the pending backoff — and
+  without entering the backoff the dropped stream would otherwise have started, whether the switch
+  lands while a stream is live or while one is being waited for (REQ-93). The backlog is emptied at
+  the same time: those events describe another daemon's objects.
 
 ## Dependencies
 
-- docker-access: EngineClient (via `connectivity`'s `getEngineClient()`)
+- docker-access: EngineClient (the shared, active-context client), Active endpoint
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-11
 - plan-docker_management_app/REQ-12
+- plan-docker_management_app/REQ-93

@@ -18,8 +18,18 @@ negotiate, and which local CLI/plugins are available" (REQ-9, REQ-10, REQ-13, RE
     cannot be reached; `apiVersion`/`engineVersion` are only set when reachable.
   - `unavailableCapabilities` names, in plain language, what becomes unavailable for each missing
     CLI tool/plugin (e.g. compose projects, multi-platform builds, the raw console CLI channel).
-- `getEngineClient(): EngineClient` — the shared EngineClient instance for the active context, reused
-  by the events area so both probe and stream the same endpoint.
+- `getEngineClient(): EngineClient` — re-export of the Docker access layer's shared client, kept here
+  for the areas that already read it from this service. The instance follows the active context, so
+  the probe always describes the daemon every other area is talking to (REQ-93).
+
+## Rules and invariants
+
+- The status is read fresh on every call — never memoized — so it describes the currently active
+  context and not the one selected when the process started.
+
+## Dependencies
+
+- docker-access: EngineClient (shared client), CLI runner
 
 ## Requirements served
 

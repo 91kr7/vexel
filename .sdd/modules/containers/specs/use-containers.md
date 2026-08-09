@@ -26,11 +26,14 @@ managing polling or event subscriptions itself.
   action: these fire on every terminal resize or exec lifecycle step of an open exec/attach session
   (REQ-34, REQ-35) without changing anything the container list displays, so refetching on them
   would starve the UI with an unbounded refresh loop.
+- Re-reads from scratch when another context becomes the active one: the list belonged to the
+  daemon left behind (REQ-93).
 
 ## Dependencies
 
 - Containers client (fetchContainers)
 - events: subscribeToDaemonEvents
+- contexts: Active-context broadcast
 
 ## Requirements served
 
@@ -38,3 +41,4 @@ managing polling or event subscriptions itself.
 - plan-docker_management_app/REQ-20
 - plan-docker_management_app/REQ-21
 - plan-docker_management_app/REQ-22
+- plan-docker_management_app/REQ-93

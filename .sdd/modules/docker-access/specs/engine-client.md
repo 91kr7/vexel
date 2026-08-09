@@ -37,6 +37,12 @@ TCP+TLS), negotiates the API version, and preserves the daemon's own error messa
     rejects with a `DockerDaemonError` (code `DaemonRejected`, `statusCode` set) when the daemon
     answers with a normal (non-upgraded) error response instead.
   - Sets `Content-Type: application/json` when `body` is given, same as `request`.
+- `getEngineClient(): EngineClient`
+  - The client of the **active context**, shared by every server area.
+  - Discarded and rebuilt on the next call as soon as the active endpoint changes, so no caller can
+    keep talking to the daemon left behind (REQ-93); a caller that held the previous instance keeps
+    talking to the previous daemon, which is why every area calls this on each use rather than
+    caching it.
 
 ## Rules and invariants
 
@@ -47,11 +53,13 @@ TCP+TLS), negotiates the API version, and preserves the daemon's own error messa
 
 ## Dependencies
 
-- None (only Node built-ins: `http`, `net`, `tls`, `child_process`).
+- docker-access: Active endpoint (for the shared client only)
+- Node built-ins: `http`, `net`, `tls`, `child_process`
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-9
+- plan-docker_management_app/REQ-93
 - plan-docker_management_app/REQ-10
 - plan-docker_management_app/REQ-13
 - plan-docker_management_app/REQ-34

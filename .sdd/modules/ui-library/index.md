@@ -43,6 +43,7 @@
 | Select | UI component | `client/src/ui/controls/Select.tsx` | Single-choice dropdown | `specs/select.md` |
 | Toggle | UI component | `client/src/ui/controls/Toggle.tsx` | Boolean on/off switch | `specs/toggle.md` |
 | FieldMessage | UI component | `client/src/ui/controls/FieldMessage.tsx` | Field-level helper or validation message | `specs/field-message.md` |
+| EndpointField | UI component | `client/src/ui/controls/EndpointField.tsx` | Endpoint form group: the endpoint kind and the single host value that kind needs, or the fixed host it uses | `specs/endpoint-field.md` |
 | KeyValueEditor | UI component | `client/src/ui/controls/KeyValueEditor.tsx` | Repeatable key/value row editor (e.g. environment variables) | `specs/key-value-editor.md` |
 | RepeatableRowList | UI component | `client/src/ui/controls/RepeatableRowList.tsx` | Generic repeatable list of custom-rendered rows with add/remove (e.g. ports, mounts) | `specs/repeatable-row-list.md` |
 | FormFooter | UI component | `client/src/ui/controls/FormFooter.tsx` | Save/cancel form footer with a dirty indicator | `specs/form-footer.md` |
@@ -57,7 +58,7 @@
 | TimeRangeField | UI component | `client/src/ui/controls/TimeRangeField.tsx` | Since/until pair of inputs bounding a stream in time | `specs/time-range-field.md` |
 | StreamSearchField | UI component | `client/src/ui/controls/StreamSearchField.tsx` | In-surface stream search box with match count and next/previous | `specs/stream-search-field.md` |
 | DataTable | UI component | `client/src/ui/data/DataTable.tsx` | Dense, column-defined table with hover/selected row states, virtualised scrolling, and an optional per-row expansion slot | `specs/data-table.md` |
-| CardList | UI component | `client/src/ui/data/CardList.tsx` | Full-width card rows (title, monospace subtitle, trailing badge group and meta values), selectable, with an optional expanded content slot inside the same card | `specs/card-list.md` |
+| CardList | UI component | `client/src/ui/data/CardList.tsx` | Full-width card rows (title, monospace subtitle, trailing badge group and meta values), selectable, with an optional expanded content slot inside the same card and an active-selection row variant (active marker plus a "use" action) | `specs/card-list.md` |
 | GroupedRowsPanel | UI component | `client/src/ui/data/GroupedRowsPanel.tsx` | One card per group with a header (status, title, subtitle, actions) over its indented child rows (status, title, muted subtitle, trailing control) | `specs/grouped-rows-panel.md` |
 | TreeView | UI component | `client/src/ui/data/TreeView.tsx` | Virtualised, expandable/collapsible tree with entry-type glyphs, single selection, keyboard navigation, a lazily loaded subtree contract and an optional per-node status accent | `specs/tree-view.md` |
 | DiffTreeView | UI component | `client/src/ui/data/DiffTreeView.tsx` | Diff variant of TreeView: added/removed/changed node status, directory roll-up counts and a status filter row | `specs/diff-tree-view.md` |

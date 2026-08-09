@@ -28,7 +28,9 @@ import { useImages } from '../data/use-images';
 import { useVolumes } from '../data/use-volumes';
 import { useNetworks } from '../data/use-networks';
 import { useComposeProjects } from '../data/use-compose-projects';
+import { useContexts } from '../data/use-contexts';
 import { ComposeScreen } from '../compose/ComposeScreen';
+import { ContextsScreen } from '../contexts/ContextsScreen';
 import { BuildersScreen } from '../builders/BuildersScreen';
 import { ContainersScreen } from '../containers/ContainersScreen';
 import { ImagesScreen } from '../images/ImagesScreen';
@@ -86,6 +88,7 @@ export function Shell() {
   const volumes = useVolumes();
   const networks = useNetworks();
   const compose = useComposeProjects();
+  const contexts = useContexts();
   const [cacheUsage, setCacheUsage] = useState<number | undefined>(undefined);
   // Set as soon as the restore has had its chance — either because it ran, or
   // because the operator picked a screen first. Guards both against a second
@@ -135,6 +138,10 @@ export function Shell() {
 
   const activeScreen = screens.find((screen) => screen.id === activeId) ?? screens[0];
 
+  // The context every screen currently follows, named in the footer (REQ-93);
+  // it changes as soon as the operator switches from the Contexts screen.
+  const activeContextLabel = contexts.active ? `${contexts.active.name} (${contexts.active.kind})` : '—';
+
   const statusTone: StatusTone = pending.length > 0 ? 'warning' : connectionTone(connection.daemon.reachable, connection.unavailableCapabilities);
   const statusLabel = pending.length > 0
     ? `${pending.length} pending`
@@ -157,7 +164,7 @@ export function Shell() {
           rail={
             <NavRail
               brand={<NavBrand name="Vexel" tagline="Docker control" />}
-              footer={<FooterStatus label="Active context" value="default (local)" />}
+              footer={<FooterStatus label="Active context" value={activeContextLabel} />}
             >
               {navGroupOrder.map((group) => (
                 <NavGroup key={group} label={group}>
@@ -176,7 +183,9 @@ export function Shell() {
                               ? images.images.length
                               : screen.id === 'compose'
                                 ? compose.projects.length
-                                : undefined
+                                : screen.id === 'contexts'
+                                  ? contexts.contexts.length
+                                  : undefined
                         }
                         onSelect={() => selectScreen(screen.id)}
                       />
@@ -245,6 +254,8 @@ export function Shell() {
               />
             ) : activeScreen.id === 'builders-cache' ? (
               <BuildersScreen />
+            ) : activeScreen.id === 'contexts' ? (
+              <ContextsScreen />
             ) : (
               <>
                 <Card>

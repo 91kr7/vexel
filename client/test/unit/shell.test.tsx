@@ -50,6 +50,12 @@ beforeEach(() => {
       if (url.startsWith('/api/persistence/analysis-cache')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ totalSizeBytes: 0 }) });
       }
+      // The rail's context count and its active-context footer read the context
+      // inventory (REQ-92, REQ-93); without its own answer here the Shell renders
+      // the connectivity payload as if it were a list and throws.
+      if (url.startsWith('/api/contexts')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      }
       return Promise.resolve({ ok: true, json: () => Promise.resolve(reachableStatus) });
     }),
   );

@@ -293,6 +293,13 @@
   background: var(--color-accent-tint);
 }
 
+.ui-card-list__leading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
 .ui-card-list__heading {
   display: flex;
   flex-direction: column;

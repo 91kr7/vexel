@@ -1,11 +1,13 @@
 // Aggregates daemon reachability, negotiated Engine API version and local CLI
 // availability into a single status the client polls (REQ-9, REQ-10, REQ-13,
-// REQ-110). Exposes the shared EngineClient instance so other server modules
-// (e.g. the events area) reuse the same endpoint resolution.
+// REQ-110). The shared EngineClient it probes with is the Docker access layer's
+// own, which follows the active context (REQ-93); it stays re-exported here for
+// the modules that already read it from this service.
 import { detectCliAvailability, type CliAvailability } from "../docker/cli-runner.js";
-import { EngineClient } from "../docker/engine-client.js";
-import { resolveActiveEndpoint } from "../docker/endpoint.js";
+import { getEngineClient } from "../docker/engine-client.js";
 import { DockerDaemonError } from "../docker/errors.js";
+
+export { getEngineClient };
 
 export interface ConnectionStatus {
   daemon: { reachable: boolean; cause?: string };
@@ -13,12 +15,6 @@ export interface ConnectionStatus {
   engineVersion?: string;
   cli: CliAvailability;
   unavailableCapabilities: string[];
-}
-
-const engineClient = new EngineClient(resolveActiveEndpoint());
-
-export function getEngineClient(): EngineClient {
-  return engineClient;
 }
 
 export async function getConnectionStatus(): Promise<ConnectionStatus> {
@@ -34,7 +30,7 @@ export async function getConnectionStatus(): Promise<ConnectionStatus> {
 
 async function probeDaemon() {
   try {
-    const version = await engineClient.getVersion();
+    const version = await getEngineClient().getVersion();
     return { reachability: { reachable: true }, version };
   } catch (error) {
     const message = error instanceof DockerDaemonError ? error.message : (error as Error).message;

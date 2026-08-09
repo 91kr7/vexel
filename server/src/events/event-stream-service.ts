@@ -3,7 +3,8 @@
 // in-memory backlog for subscribers that connect late (REQ-11, REQ-12).
 import { EventEmitter } from "node:events";
 import type { IncomingMessage } from "node:http";
-import { getEngineClient } from "../connectivity/connection-status-service.js";
+import { getEngineClient } from "../docker/engine-client.js";
+import { onActiveEndpointChanged } from "../docker/endpoint.js";
 
 export interface DaemonEvent {
   id: string;
@@ -21,10 +22,14 @@ class EventStreamService extends EventEmitter {
   private backlog: DaemonEvent[] = [];
   private backoffMs = INITIAL_BACKOFF_MS;
   private started = false;
+  private currentStream?: IncomingMessage;
+  private wake?: () => void;
+  private reconnectRequested = false;
 
   start(): void {
     if (this.started) return;
     this.started = true;
+    onActiveEndpointChanged(() => this.restart());
     void this.connectLoop();
   }
 
@@ -32,18 +37,64 @@ class EventStreamService extends EventEmitter {
     return [...this.backlog];
   }
 
+  /**
+   * Drops the stream of the daemon left behind and reconnects at once against
+   * the newly active context (REQ-93). The backlog goes with it: those events
+   * describe another daemon's objects.
+   */
+  private restart(): void {
+    this.backlog = [];
+    this.backoffMs = INITIAL_BACKOFF_MS;
+    // Flagged, not just woken: the switch can land while a stream is live, and
+    // the loop must then skip the backoff it is about to enter, not only the
+    // one it is already waiting out.
+    this.reconnectRequested = true;
+    this.currentStream?.destroy();
+    this.wake?.();
+  }
+
   private async connectLoop(): Promise<void> {
     for (;;) {
       try {
         const stream = await getEngineClient().requestStream("/events");
+        this.currentStream = stream;
+        // A switch that landed while this request was in flight opened it on
+        // the daemon left behind: drop it before it republishes an event.
+        if (this.reconnectRequested) stream.destroy();
         this.backoffMs = INITIAL_BACKOFF_MS;
         await this.consume(stream);
       } catch {
         // daemon unreachable or the stream broke; retried below with backoff
+      } finally {
+        this.currentStream = undefined;
       }
-      await delay(this.backoffMs);
+      if (this.takeReconnectRequest()) continue;
+      await this.pause(this.backoffMs);
+      if (this.takeReconnectRequest()) continue;
       this.backoffMs = Math.min(this.backoffMs * 2, MAX_BACKOFF_MS);
     }
+  }
+
+  /** Whether a context switch is asking for an immediate reconnect; clears the request. */
+  private takeReconnectRequest(): boolean {
+    if (!this.reconnectRequested) return false;
+    this.reconnectRequested = false;
+    return true;
+  }
+
+  /** Waits out the backoff, unless a context switch asks for an immediate reconnect. */
+  private pause(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        this.wake = undefined;
+        resolve();
+      }, ms);
+      this.wake = () => {
+        clearTimeout(timer);
+        this.wake = undefined;
+        resolve();
+      };
+    });
   }
 
   private consume(stream: IncomingMessage): Promise<void> {
@@ -87,10 +138,6 @@ class EventStreamService extends EventEmitter {
       // malformed line from the daemon stream: skip it rather than crash the loop
     }
   }
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export const eventStreamService = new EventStreamService();

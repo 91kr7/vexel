@@ -24,14 +24,18 @@ managing polling or event subscriptions itself.
 - Unlike `useContainers`, no action is excluded from triggering a refresh: a pull/push's per-layer
   progress arrives over its own transfer stream, not through daemon events, so there is no
   equivalent of the container list's resize/exec-lifecycle noise to filter out here.
+- Re-reads from scratch when another context becomes the active one: the list belonged to the
+  daemon left behind (REQ-93).
 
 ## Dependencies
 
 - Images client (fetchImages)
 - events: subscribeToDaemonEvents
+- contexts: Active-context broadcast
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-37
 - plan-docker_management_app/REQ-38
 - plan-docker_management_app/REQ-39
+- plan-docker_management_app/REQ-93
