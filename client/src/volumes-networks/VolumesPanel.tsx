@@ -235,10 +235,10 @@ export function VolumesPanel({ volumes, loaded, error, onRefresh }: VolumesPanel
             <Combobox ariaLabel="Driver" value={driver} onChange={setDriver} options={DRIVER_SUGGESTIONS} />
           </FormField>
           <FormField label="Driver options">
-            <KeyValueEditor pairs={driverOpts} onChange={setDriverOpts} addLabel="Add option" />
+            <KeyValueEditor pairs={driverOpts} onChange={setDriverOpts} name="Driver options" addLabel="Add option" />
           </FormField>
           <FormField label="Labels">
-            <KeyValueEditor pairs={labels} onChange={setLabels} keyPlaceholder="key" addLabel="Add label" />
+            <KeyValueEditor pairs={labels} onChange={setLabels} name="Labels" keyPlaceholder="key" addLabel="Add label" />
           </FormField>
         </Stack>
       </FormDialog>

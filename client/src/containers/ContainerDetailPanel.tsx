@@ -270,7 +270,7 @@ export function ContainerDetailPanel({ container, onClose, onContainerReplaced }
           </Row>
 
           <SectionHeader title="Environment variables" />
-          <KeyValueEditor pairs={form.env} onChange={(env) => setForm({ ...form, env })} />
+          <KeyValueEditor pairs={form.env} onChange={(env) => setForm({ ...form, env })} name="Environment" />
 
           <SectionHeader title="Port mappings" />
           <RepeatableRowList

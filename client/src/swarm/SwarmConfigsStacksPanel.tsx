@@ -246,7 +246,7 @@ export function SwarmConfigsStacksPanel({
             <CodeEditor ariaLabel="Config content" value={content} onChange={setContent} maxHeight="240px" />
           </FormField>
           <FormField label="Labels" hint="Set at creation; they are what lets a caller find this config again later.">
-            <KeyValueEditor pairs={labels} onChange={setLabels} addLabel="Add label" />
+            <KeyValueEditor pairs={labels} onChange={setLabels} name="Labels" addLabel="Add label" />
           </FormField>
         </Stack>
       </FormDialog>

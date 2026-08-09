@@ -282,6 +282,26 @@ describe('NetworksPanel — create (plan-docker_management_app/REQ-73)', () => {
     expect(screen.getByRole('combobox', { name: 'Driver' })).toHaveValue('bridge');
   });
 
+  // networks-panel.md — the option rows and the label rows carry distinct accessible names
+  it('announces the option rows apart from the label rows', async () => {
+    const user = userEvent.setup();
+    renderPanel([]);
+
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+    const dialog = within(document.querySelector<HTMLElement>('.ui-modal')!);
+    await user.click(dialog.getByRole('button', { name: 'Add option' }));
+    await user.click(dialog.getByRole('button', { name: 'Add label' }));
+
+    for (const name of ['Options Key 1', 'Options Value 1', 'Labels Key 1', 'Labels Value 1']) {
+      expect(dialog.getAllByRole('textbox', { name })).toHaveLength(1);
+    }
+    for (const name of ['Key 1', 'Value 1']) {
+      expect(dialog.queryAllByRole('textbox', { name })).toHaveLength(0);
+    }
+    expect(dialog.getAllByRole('button', { name: 'Remove pair 1 from Options' })).toHaveLength(1);
+    expect(dialog.getAllByRole('button', { name: 'Remove pair 1 from Labels' })).toHaveLength(1);
+  });
+
   it('creates a network with the given name, subnet, gateway, IP range and labels, then closes the dialog and re-reads the list', async () => {
     const user = userEvent.setup();
     const { onRefresh } = renderPanel([]);
@@ -293,12 +313,9 @@ describe('NetworksPanel — create (plan-docker_management_app/REQ-73)', () => {
     await user.type(within(dialog).getByRole('textbox', { name: 'Gateway' }), '172.20.0.1');
     await user.type(within(dialog).getByRole('textbox', { name: 'IP range' }), '172.20.0.128/25');
 
-    const labelsField = Array.from(dialog.querySelectorAll<HTMLElement>('.ui-form-field')).find(
-      (field) => field.querySelector('.ui-form-field__label')?.textContent === 'Labels',
-    )!;
-    await user.click(within(labelsField).getByRole('button', { name: 'Add label' }));
-    await user.type(within(labelsField).getByRole('textbox', { name: 'Key 1' }), 'team');
-    await user.type(within(labelsField).getByRole('textbox', { name: 'Value 1' }), 'vexel');
+    await user.click(within(dialog).getByRole('button', { name: 'Add label' }));
+    await user.type(within(dialog).getByRole('textbox', { name: 'Labels Key 1' }), 'team');
+    await user.type(within(dialog).getByRole('textbox', { name: 'Labels Value 1' }), 'vexel');
 
     await user.click(within(dialog).getByRole('button', { name: 'Create' }));
 

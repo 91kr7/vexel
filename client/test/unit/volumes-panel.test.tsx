@@ -225,13 +225,25 @@ describe('VolumesPanel — create (plan-docker_management_app/REQ-71)', () => {
     expect(screen.getByRole('combobox', { name: 'Driver' })).toHaveValue('local');
   });
 
-  // Driver options and labels are two independent KeyValueEditor instances, each
-  // numbering its own rows from 1: scoped by their own FormField to disambiguate.
-  function formField(dialog: HTMLElement, label: string): HTMLElement {
-    return Array.from(dialog.querySelectorAll<HTMLElement>('.ui-form-field')).find(
-      (field) => field.querySelector('.ui-form-field__label')?.textContent === label,
-    )!;
-  }
+  // volumes-panel.md — the driver-options rows and the label rows carry distinct accessible names
+  it('announces the driver-option rows apart from the label rows', async () => {
+    const user = userEvent.setup();
+    renderPanel([]);
+
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+    const dialog = within(document.querySelector<HTMLElement>('.ui-modal')!);
+    await user.click(dialog.getByRole('button', { name: 'Add option' }));
+    await user.click(dialog.getByRole('button', { name: 'Add label' }));
+
+    for (const name of ['Driver options Key 1', 'Driver options Value 1', 'Labels Key 1', 'Labels Value 1']) {
+      expect(dialog.getAllByRole('textbox', { name })).toHaveLength(1);
+    }
+    for (const name of ['Key 1', 'Value 1']) {
+      expect(dialog.queryAllByRole('textbox', { name })).toHaveLength(0);
+    }
+    expect(dialog.getAllByRole('button', { name: 'Remove pair 1 from Driver options' })).toHaveLength(1);
+    expect(dialog.getAllByRole('button', { name: 'Remove pair 1 from Labels' })).toHaveLength(1);
+  });
 
   it('creates a volume with the given name, driver options and labels, then closes the dialog and re-reads the list', async () => {
     const user = userEvent.setup();
@@ -241,15 +253,13 @@ describe('VolumesPanel — create (plan-docker_management_app/REQ-71)', () => {
     const dialog = document.querySelector<HTMLElement>('.ui-modal')!;
     await user.type(within(dialog).getByRole('textbox', { name: 'Volume name' }), 'pgdata');
 
-    const driverOptions = formField(dialog, 'Driver options');
-    await user.click(within(driverOptions).getByRole('button', { name: 'Add option' }));
-    await user.type(within(driverOptions).getByRole('textbox', { name: 'Key 1' }), 'type');
-    await user.type(within(driverOptions).getByRole('textbox', { name: 'Value 1' }), 'tmpfs');
+    await user.click(within(dialog).getByRole('button', { name: 'Add option' }));
+    await user.type(within(dialog).getByRole('textbox', { name: 'Driver options Key 1' }), 'type');
+    await user.type(within(dialog).getByRole('textbox', { name: 'Driver options Value 1' }), 'tmpfs');
 
-    const labels = formField(dialog, 'Labels');
-    await user.click(within(labels).getByRole('button', { name: 'Add label' }));
-    await user.type(within(labels).getByRole('textbox', { name: 'Key 1' }), 'team');
-    await user.type(within(labels).getByRole('textbox', { name: 'Value 1' }), 'vexel');
+    await user.click(within(dialog).getByRole('button', { name: 'Add label' }));
+    await user.type(within(dialog).getByRole('textbox', { name: 'Labels Key 1' }), 'team');
+    await user.type(within(dialog).getByRole('textbox', { name: 'Labels Value 1' }), 'vexel');
 
     await user.click(within(dialog).getByRole('button', { name: 'Create' }));
 

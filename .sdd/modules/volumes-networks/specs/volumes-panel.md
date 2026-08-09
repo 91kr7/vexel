@@ -39,6 +39,8 @@ Actions:
 
 - "Prune" is disabled when there is no volume to prune.
 - Only one volume's inspect surface is expanded at a time.
+- In the create dialog the driver-options rows and the label rows carry distinct accessible names,
+  so no two of its fields are announced alike.
 
 ## Dependencies
 

@@ -316,11 +316,11 @@ export function SwarmServicesPanel({ services, loaded, canManage, onCreate, onUp
             </FormField>
           )}
           <FormField label="Environment">
-            <KeyValueEditor pairs={form.env} onChange={(env) => setForm({ ...form, env })} />
+            <KeyValueEditor pairs={form.env} onChange={(env) => setForm({ ...form, env })} name="Environment" />
           </FormField>
           {editing ? null : (
             <FormField label="Labels" hint="Set at creation; they are what lets a caller find this service again later.">
-              <KeyValueEditor pairs={form.labels} onChange={(labels) => setForm({ ...form, labels })} addLabel="Add label" />
+              <KeyValueEditor pairs={form.labels} onChange={(labels) => setForm({ ...form, labels })} name="Labels" addLabel="Add label" />
             </FormField>
           )}
           <FormField label="Published ports" hint="Published port : container port, e.g. 8080 : 80.">

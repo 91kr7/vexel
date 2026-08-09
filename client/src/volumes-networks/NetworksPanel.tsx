@@ -300,10 +300,10 @@ export function NetworksPanel({ networks, loaded, error, onRefresh }: NetworksPa
             <TextField ariaLabel="IP range" placeholder="172.20.0.128/25" value={ipRange} onChange={setIpRange} />
           </FormField>
           <FormField label="Options">
-            <KeyValueEditor pairs={options} onChange={setOptions} addLabel="Add option" />
+            <KeyValueEditor pairs={options} onChange={setOptions} name="Options" addLabel="Add option" />
           </FormField>
           <FormField label="Labels">
-            <KeyValueEditor pairs={labels} onChange={setLabels} keyPlaceholder="key" addLabel="Add label" />
+            <KeyValueEditor pairs={labels} onChange={setLabels} name="Labels" keyPlaceholder="key" addLabel="Add label" />
           </FormField>
         </Stack>
       </FormDialog>

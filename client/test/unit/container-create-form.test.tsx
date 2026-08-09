@@ -59,14 +59,6 @@ function renderForm(
 
 const createdResult = { id: 'container-1', name: 'web', started: true, imagePulled: false, warnings: [] };
 
-/**
- * Scopes a query to one form section: the environment and the labels sections
- * both hold key/value rows, whose control labels only differ by section.
- */
-function section(title: string) {
-  return within(screen.getByRole('heading', { name: title }).closest('section') as HTMLElement);
-}
-
 function submittedSpec(): ContainerCreateSpec {
   return createContainer.mock.calls.at(-1)![0] as ContainerCreateSpec;
 }
@@ -141,8 +133,8 @@ describe('ContainerCreateForm — configuration coverage (plan-docker_management
     await user.type(screen.getByRole('textbox', { name: 'Command' }), 'nginx -g daemon');
 
     await user.click(screen.getByRole('button', { name: 'Add variable' }));
-    await user.type(section('Environment').getByRole('textbox', { name: 'Key 1' }), 'MODE');
-    await user.type(section('Environment').getByRole('textbox', { name: 'Value 1' }), 'production');
+    await user.type(screen.getByRole('textbox', { name: 'Environment Key 1' }), 'MODE');
+    await user.type(screen.getByRole('textbox', { name: 'Environment Value 1' }), 'production');
 
     await user.click(screen.getByRole('button', { name: 'Add port mapping' }));
     await user.type(screen.getByRole('textbox', { name: 'Container port 1' }), '80');
@@ -159,7 +151,7 @@ describe('ContainerCreateForm — configuration coverage (plan-docker_management
     await user.type(screen.getByRole('spinbutton', { name: 'Memory limit in megabytes' }), '512');
 
     await user.click(screen.getByRole('button', { name: 'Add label' }));
-    await user.type(section('Labels').getByRole('textbox', { name: 'Key 1' }), 'team');
+    await user.type(screen.getByRole('textbox', { name: 'Labels Key 1' }), 'team');
 
     await user.click(screen.getByRole('checkbox', { name: 'Run privileged' }));
     await user.type(screen.getByRole('textbox', { name: 'Capability to add' }), 'NET_ADMIN{Enter}');
@@ -412,7 +404,7 @@ describe('ContainerCreateForm — local validation (plan-docker_management_app/R
 
     await user.type(screen.getByRole('combobox', { name: 'Image reference' }), 'nginx:1.27');
     await user.click(screen.getByRole('button', { name: 'Add variable' }));
-    await user.type(section('Environment').getByRole('textbox', { name: 'Key 1' }), 'MODE=production');
+    await user.type(screen.getByRole('textbox', { name: 'Environment Key 1' }), 'MODE=production');
     await user.click(screen.getByRole('button', { name: 'Create and start' }));
 
     expect(createContainer).not.toHaveBeenCalled();
@@ -442,8 +434,8 @@ describe('ContainerCreateForm — daemon refusal (plan-docker_management_app/REQ
     await user.type(screen.getByRole('textbox', { name: 'Container name' }), 'web-frontend');
     await user.type(screen.getByRole('textbox', { name: 'Command' }), 'nginx -g daemon');
     await user.click(screen.getByRole('button', { name: 'Add variable' }));
-    await user.type(section('Environment').getByRole('textbox', { name: 'Key 1' }), 'MODE');
-    await user.type(section('Environment').getByRole('textbox', { name: 'Value 1' }), 'production');
+    await user.type(screen.getByRole('textbox', { name: 'Environment Key 1' }), 'MODE');
+    await user.type(screen.getByRole('textbox', { name: 'Environment Value 1' }), 'production');
     await user.click(screen.getByRole('button', { name: 'Add port mapping' }));
     await user.type(screen.getByRole('textbox', { name: 'Container port 1' }), '80');
     await user.type(screen.getByRole('textbox', { name: 'Network name' }), 'front{Enter}');
@@ -472,8 +464,8 @@ describe('ContainerCreateForm — daemon refusal (plan-docker_management_app/REQ
     expect(screen.getByRole('combobox', { name: 'Image reference' })).toHaveValue('nginx:1.27');
     expect(screen.getByRole('textbox', { name: 'Container name' })).toHaveValue('web-frontend');
     expect(screen.getByRole('textbox', { name: 'Command' })).toHaveValue('nginx -g daemon');
-    expect(section('Environment').getByRole('textbox', { name: 'Key 1' })).toHaveValue('MODE');
-    expect(section('Environment').getByRole('textbox', { name: 'Value 1' })).toHaveValue('production');
+    expect(screen.getByRole('textbox', { name: 'Environment Key 1' })).toHaveValue('MODE');
+    expect(screen.getByRole('textbox', { name: 'Environment Value 1' })).toHaveValue('production');
     expect(screen.getByRole('textbox', { name: 'Container port 1' })).toHaveValue('80');
     expect(screen.getByText('front')).toBeInTheDocument();
     // Nothing was created, and the sheet was not dismissed.
@@ -562,5 +554,60 @@ describe('ContainerCreateForm — opening (containers/specs/container-create-for
     await user.click(screen.getByRole('combobox', { name: 'Image reference' }));
 
     expect(within(screen.getByRole('listbox')).getByText(/Loading/i)).toBeInTheDocument();
+  });
+});
+
+describe('ContainerCreateForm — the two key/value editors are told apart (containers/specs/container-create-form.md)', () => {
+  async function addOneVariableAndOneLabel(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(screen.getByRole('button', { name: 'Add variable' }));
+    await user.click(screen.getByRole('button', { name: 'Add label' }));
+  }
+
+  // container-create-form.md — no two fields of the sheet share an accessible name
+  it('announces the environment rows and the label rows under names of their own', async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    await addOneVariableAndOneLabel(user);
+
+    // Each name resolves to exactly one field of the whole sheet: what a screen
+    // reader announces is enough to tell an environment row from a label row.
+    for (const name of ['Environment Key 1', 'Environment Value 1', 'Labels Key 1', 'Labels Value 1']) {
+      expect(screen.getAllByRole('textbox', { name })).toHaveLength(1);
+    }
+    for (const name of ['Key 1', 'Value 1']) {
+      expect(screen.queryAllByRole('textbox', { name })).toHaveLength(0);
+    }
+  });
+
+  // container-create-form.md — the two remove actions are distinguishable too, empty rows included
+  it('announces the two remove actions under names of their own', async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    await addOneVariableAndOneLabel(user);
+
+    expect(screen.getAllByRole('button', { name: 'Remove pair 1 from Environment' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Remove pair 1 from Labels' })).toHaveLength(1);
+    expect(screen.queryAllByRole('button', { name: 'Remove pair 1' })).toHaveLength(0);
+  });
+
+  // container-create-form.md — a row filled in through its announced name lands in the right group of the configuration
+  it('submits a row typed through its announced name into that row\'s own group', async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    await user.type(screen.getByRole('combobox', { name: 'Image reference' }), 'nginx:1.27');
+    await addOneVariableAndOneLabel(user);
+    await user.type(screen.getByRole('textbox', { name: 'Environment Key 1' }), 'MODE');
+    await user.type(screen.getByRole('textbox', { name: 'Environment Value 1' }), 'production');
+    await user.type(screen.getByRole('textbox', { name: 'Labels Key 1' }), 'team');
+    await user.type(screen.getByRole('textbox', { name: 'Labels Value 1' }), 'vexel');
+    await user.click(screen.getByRole('button', { name: 'Create and start' }));
+
+    await waitFor(() => expect(createContainer).toHaveBeenCalled());
+    const spec = submittedSpec();
+    expect(spec.env).toEqual(['MODE=production']);
+    expect(spec.labels).toEqual({ team: 'vexel' });
   });
 });

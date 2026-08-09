@@ -50,19 +50,11 @@ function confirmation(): HTMLElement {
   return document.querySelector('.ui-modal') as HTMLElement;
 }
 
-/**
- * The label editor of a dialog: the one key/value editor whose add action reads
- * "Add label" (a create form may hold another for the environment).
- */
-function labelsEditor(scope: HTMLElement): HTMLElement {
-  return within(scope).getByRole('button', { name: 'Add label' }).closest('.ui-key-value-editor') as HTMLElement;
-}
-
 /** Adds one label row to the dialog's label editor and fills it in. */
 async function addLabelRow(user: ReturnType<typeof userEvent.setup>, scope: HTMLElement, row: number, key: string, value: string) {
-  await user.click(within(labelsEditor(scope)).getByRole('button', { name: 'Add label' }));
-  if (key !== '') await user.type(within(labelsEditor(scope)).getByLabelText(`Key ${row}`), key);
-  if (value !== '') await user.type(within(labelsEditor(scope)).getByLabelText(`Value ${row}`), value);
+  await user.click(within(scope).getByRole('button', { name: 'Add label' }));
+  if (key !== '') await user.type(within(scope).getByLabelText(`Labels Key ${row}`), key);
+  if (value !== '') await user.type(within(scope).getByLabelText(`Labels Value ${row}`), value);
 }
 
 /** A row of a card list, found by the name it leads with. */
@@ -359,6 +351,27 @@ describe('SwarmServicesPanel (swarm/specs/swarm-services-panel.md)', () => {
     expect(Object.keys(onCreate.mock.calls[0]![0].labels)).toEqual(['vexel.test.run']);
   });
 
+  // swarm-services-panel.md — "The environment editor and the labels editor name their rows apart, so
+  // the create dialog holds no two fields with the same accessible name; each keeps its own add action"
+  it('announces the environment rows apart from the label rows in the create dialog', async () => {
+    const user = userEvent.setup();
+    renderPanel(<SwarmServicesPanel services={listing<SwarmService>([])} loaded canManage onCreate={noop} onUpdate={noop} onRemove={async () => undefined} />);
+
+    await user.click(screen.getByRole('button', { name: 'Create service' }));
+    const dialog = within(document.querySelector('.ui-modal') as HTMLElement);
+    await user.click(dialog.getByRole('button', { name: 'Add variable' }));
+    await user.click(dialog.getByRole('button', { name: 'Add label' }));
+
+    for (const name of ['Environment Key 1', 'Environment Value 1', 'Labels Key 1', 'Labels Value 1']) {
+      expect(dialog.getAllByRole('textbox', { name })).toHaveLength(1);
+    }
+    for (const name of ['Key 1', 'Value 1']) {
+      expect(dialog.queryAllByRole('textbox', { name })).toHaveLength(0);
+    }
+    expect(dialog.getAllByRole('button', { name: 'Remove pair 1 from Environment' })).toHaveLength(1);
+    expect(dialog.getAllByRole('button', { name: 'Remove pair 1 from Labels' })).toHaveLength(1);
+  });
+
   // swarm-services-panel.md — "Labels are offered on creation only ... an update preserves the labels
   // the service already carries, so the field would have nothing to add there."
   it('offers the label editor when creating a service and not when updating one', async () => {
@@ -515,7 +528,7 @@ describe('SwarmSecretsPanel (swarm/specs/swarm-secrets-panel.md)', () => {
 
     await user.click(screen.getByRole('button', { name: 'New secret' }));
     const reopened = document.querySelector('.ui-modal') as HTMLElement;
-    expect(within(labelsEditor(reopened)).queryByLabelText('Key 1')).toBeNull();
+    expect(within(reopened).queryByLabelText('Labels Key 1')).toBeNull();
     expect(reopened.textContent).not.toContain('left-behind');
   });
 

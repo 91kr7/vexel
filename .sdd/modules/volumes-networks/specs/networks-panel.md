@@ -46,6 +46,8 @@ Actions:
 
 - "Prune" is disabled when there is no network to prune.
 - Only one network's inspect surface is expanded at a time.
+- In the create dialog the option rows and the label rows carry distinct accessible names, so no two
+  of its fields are announced alike.
 - Attach and detach are not routed through the confirmation service: neither is destructive to data.
 
 ## Dependencies

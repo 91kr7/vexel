@@ -162,7 +162,7 @@ export function SwarmSecretsPanel({ secrets, loaded, canManage, onCreate, onRemo
             <SecretField ariaLabel="Secret value" value={value} onChange={setValue} onSubmit={submitCreate} />
           </FormField>
           <FormField label="Labels" hint="Set at creation; they are what lets a caller find this secret again later.">
-            <KeyValueEditor pairs={labels} onChange={setLabels} addLabel="Add label" />
+            <KeyValueEditor pairs={labels} onChange={setLabels} name="Labels" addLabel="Add label" />
           </FormField>
         </Stack>
       </FormDialog>

@@ -35,11 +35,9 @@ function formSheet(page: Page) {
   return page.locator('.ui-form-sheet');
 }
 
-// One titled group of fields inside the sheet. Scoping to it is required for the
-// key/value groups: "Environment" and "Labels" are two editors of the same kind in
-// the same sheet, and their rows are named "Key 1"/"Value 1" in both.
-function formSection(page: Page, title: string) {
-  return formSheet(page).locator('.ui-form-section', { has: page.getByRole('heading', { level: 3, name: title }) });
+/** A key/value row of the sheet, addressed by the name it is announced under. */
+function editorField(page: Page, name: string) {
+  return page.getByRole('textbox', { name, exact: true });
 }
 
 test.beforeEach(async ({ page }) => {
@@ -60,9 +58,9 @@ test('running a container from the toolbar creates it with its configuration and
     await page.getByRole('textbox', { name: 'Entrypoint' }).fill('sleep');
     await page.getByRole('textbox', { name: 'Command' }).fill('300');
     await page.getByRole('button', { name: 'Add variable' }).click();
-    const environment = formSection(page, 'Environment');
-    await environment.getByRole('textbox', { name: 'Key 1' }).fill('VEXEL_E2E');
-    await environment.getByRole('textbox', { name: 'Value 1' }).fill('on');
+    // No section scoping needed: the row says which editor it belongs to.
+    await editorField(page, 'Environment Key 1').fill('VEXEL_E2E');
+    await editorField(page, 'Environment Value 1').fill('on');
     await page.getByRole('button', { name: 'Add port mapping' }).click();
     await page.getByRole('textbox', { name: 'Container port 1' }).fill('5432');
 
@@ -190,6 +188,35 @@ test('refuses to submit without an image reference', async ({ page }) => {
 
   await expect(page.getByText(/image reference is required/i)).toBeVisible();
   await expect(imageField(page)).toBeVisible();
+});
+
+// containers/specs/container-create-form.md — the sheet's two key/value editors name their rows
+// apart, so a screen reader says whether a row is an environment variable or a label
+test('announces the environment rows apart from the label rows on the create/run sheet', async ({ page }) => {
+  await page.getByRole('button', { name: 'Run container…' }).click();
+  await page.getByRole('button', { name: 'Add variable' }).click();
+  await page.getByRole('button', { name: 'Add label' }).click();
+
+  // Each announced name resolves to one field of the sheet and one only.
+  for (const name of ['Environment Key 1', 'Environment Value 1', 'Labels Key 1', 'Labels Value 1']) {
+    await expect(editorField(page, name)).toHaveCount(1);
+  }
+  // Nothing is left announced as a bare "Key 1" / "Value 1".
+  for (const name of ['Key 1', 'Value 1']) {
+    await expect(editorField(page, name)).toHaveCount(0);
+  }
+  // The remove actions of the two editors are told apart the same way, even
+  // while both rows are still empty.
+  await expect(page.getByRole('button', { name: 'Remove pair 1 from Environment', exact: true })).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Remove pair 1 from Labels', exact: true })).toHaveCount(1);
+
+  // A row filled in through its announced name is the row that was meant.
+  await editorField(page, 'Labels Key 1').fill('team');
+  await expect(editorField(page, 'Environment Key 1')).toHaveValue('');
+  await expect(page.getByRole('button', { name: 'Remove team from Labels', exact: true })).toHaveCount(1);
+
+  await formSheet(page).getByRole('button', { name: 'Cancel' }).click();
+  await expect(imageField(page)).toHaveCount(0);
 });
 
 // plan-docker_management_app/REQ-27 — cancelling the form creates nothing
