@@ -16,7 +16,8 @@ type: configuration
   `eventsRouter` at `/api/events`,
   `persistenceRouter` at `/api/persistence`, `hostPathsRouter` at `/api/host-paths`,
   `volumesRouter` at `/api/volumes`, `networksRouter` at `/api/networks`, `composeRouter` at
-  `/api/compose`, and `imageAnalysisRouter` alongside `imagesRouter` at `/api/images`.
+  `/api/compose`, `systemRouter` at `/api/system`, and `imageAnalysisRouter` alongside
+  `imagesRouter` at `/api/images`.
 - Calls `publishActiveEndpoint()` once at startup, before anything dials the daemon, so every area
   talks to the daemon of the active Docker context rather than to the platform-default socket; its
   failure (no `docker` CLI, unreadable configuration) is not fatal and leaves the default in place
@@ -41,6 +42,7 @@ type: configuration
 - volumes: volumesRouter
 - networks: networksRouter
 - compose: composeRouter
+- system: systemRouter
 
 ## Requirements served
 
@@ -50,6 +52,8 @@ type: configuration
 - plan-docker_management_app/REQ-57
 - plan-docker_management_app/REQ-70
 - plan-docker_management_app/REQ-93
+- plan-docker_management_app/REQ-95
+- plan-docker_management_app/REQ-96
 - plan-docker_management_app/REQ-71
 - plan-docker_management_app/REQ-113
 - plan-docker_management_app/REQ-115

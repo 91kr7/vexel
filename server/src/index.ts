@@ -16,6 +16,7 @@ import { imagesRouter } from "./images/images-routes.js";
 import { networksRouter } from "./networks/networks-routes.js";
 import { reclaimOrphans } from "./persistence/analysis-cache-store.js";
 import { persistenceRouter } from "./persistence/persistence-routes.js";
+import { systemRouter } from "./system/system-routes.js";
 import { volumesRouter } from "./volumes/volumes-routes.js";
 
 const app = express();
@@ -36,6 +37,7 @@ app.use("/api/volumes", volumesRouter);
 app.use("/api/networks", networksRouter);
 app.use("/api/compose", composeRouter);
 app.use("/api/builders", buildersRouter);
+app.use("/api/system", systemRouter);
 app.use("/api/events", eventsRouter);
 app.use("/api/persistence", persistenceRouter);
 app.use("/api/host-paths", hostPathsRouter);
