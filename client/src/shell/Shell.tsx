@@ -36,6 +36,7 @@ import { BuildersScreen } from '../builders/BuildersScreen';
 import { ContainersScreen } from '../containers/ContainersScreen';
 import { ImagesScreen } from '../images/ImagesScreen';
 import { PluginsScreen } from '../plugins/PluginsScreen';
+import { RawConsoleScreen } from '../console/RawConsoleScreen';
 import { RegistriesScreen } from '../registries/RegistriesScreen';
 import { SwarmScreen } from '../swarm/SwarmScreen';
 import { SystemScreen } from '../system/SystemScreen';
@@ -215,7 +216,9 @@ export function Shell() {
                   <Button variant="ghost">
                     <KeyHint keys="⌘K" /> Search
                   </Button>
-                  <Button variant="secondary">Console</Button>
+                  <Button variant="secondary" onClick={() => selectScreen('raw-console')}>
+                    Console
+                  </Button>
                 </Row>
               }
             />
@@ -276,6 +279,8 @@ export function Shell() {
               <PluginsScreen />
             ) : activeScreen.id === 'system-prune' ? (
               <SystemScreen />
+            ) : activeScreen.id === 'raw-console' ? (
+              <RawConsoleScreen />
             ) : (
               <>
                 <Card>

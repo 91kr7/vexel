@@ -24,6 +24,14 @@ TCP+TLS), negotiates the API version, and preserves the daemon's own error messa
   - Prefixes `path` with `/v{negotiated apiVersion}`; rejects with a `DockerDaemonError` (code
     `DaemonRejected`, `statusCode` set) carrying the daemon's own `message` field verbatim when the
     response status is >= 400.
+- `requestRaw(path, { method?, body? }): Promise<{ path, statusCode, body, contentType? }>`
+  - The daemon's answer as it came: no error is raised for a status >= 400 and the body is returned
+    unaltered — for the caller that has to show the status and body themselves (the raw console,
+    REQ-101).
+  - A `path` that already carries a version prefix (`/v1.43/…`) is sent as typed; any other is
+    prefixed with the negotiated version. The `path` returned is the one actually dialed.
+  - Still rejects with a `DockerDaemonError` (code `DaemonUnreachable`) when the endpoint cannot be
+    reached at all: there is no status to report in that case.
 - `requestStream(path, { method?, headers?, body? }): Promise<IncomingMessage>`
   - Same version-prefixing and error mapping as `request`, but returns the raw streamed response
     (used for `/events`, logs, stats, image pull/push progress, tarball save/load/export/import, …).
@@ -64,3 +72,4 @@ TCP+TLS), negotiates the API version, and preserves the daemon's own error messa
 - plan-docker_management_app/REQ-13
 - plan-docker_management_app/REQ-34
 - plan-docker_management_app/REQ-35
+- plan-docker_management_app/REQ-101

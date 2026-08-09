@@ -17,8 +17,8 @@ type: configuration
   `persistenceRouter` at `/api/persistence`, `hostPathsRouter` at `/api/host-paths`,
   `volumesRouter` at `/api/volumes`, `networksRouter` at `/api/networks`, `registriesRouter` at
   `/api/registries`, `composeRouter` at
-  `/api/compose`, `systemRouter` at `/api/system`, and `imageAnalysisRouter` alongside
-  `imagesRouter` at `/api/images`.
+  `/api/compose`, `systemRouter` at `/api/system`, `consoleRouter` at `/api/console`, and
+  `imageAnalysisRouter` alongside `imagesRouter` at `/api/images`.
 - Calls `publishActiveEndpoint()` once at startup, before anything dials the daemon, so every area
   talks to the daemon of the active Docker context rather than to the platform-default socket; its
   failure (no `docker` CLI, unreadable configuration) is not fatal and leaves the default in place

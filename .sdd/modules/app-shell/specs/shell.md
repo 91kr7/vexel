@@ -43,8 +43,9 @@ Shows:
   the `plugins` screen (REQ-98, REQ-99, REQ-111) — self-sufficient, reading its own CLI and daemon
   plugin inventories —, `SystemScreen` for
   the `system-prune` screen (REQ-95, REQ-96, REQ-97) — self-sufficient, reading its own disk-usage
-  breakdown and daemon information —, a `PlaceholderScreen` for every screen not yet built by its
-  own feature batch.
+  breakdown and daemon information —, `RawConsoleScreen` for the `raw-console` screen (REQ-100,
+  REQ-101, REQ-102, REQ-103, REQ-104, REQ-112, REQ-114) — self-sufficient, reading its own console
+  history —, a `PlaceholderScreen` for every screen not yet built by its own feature batch.
 - The Containers `NavItem`'s count badge is the live container count from `useContainers()`, the
   Images & layers `NavItem`'s count badge is the live image count from `useImages()`, the
   Compose `NavItem`'s count badge is the live compose project count from `useComposeProjects()`, and
@@ -64,6 +65,8 @@ Actions:
   `useConnectionStatus().retry()` to re-probe the daemon immediately (REQ-10).
 - The "Local storage" card's "Clear" action calls `clearAnalysisCache()` then refreshes the shown
   size; it is disabled while the cache is empty or its size has not loaded yet.
+- The header's "Console" button makes the `raw-console` screen active, by the same path as
+  selecting its `NavItem` — so it is persisted as `lastScreenId` too (REQ-100).
 Navigation:
 - No URL routing in this batch: the active screen is local component state, defaulting to
   `defaultScreenId` until preferences restore it (see below).
@@ -114,6 +117,7 @@ Navigation:
 - builders: BuildersScreen
 - contexts: useContexts, ContextsScreen
 - system: SystemScreen
+- raw-console: RawConsoleScreen
 
 ## Requirements served
 
@@ -140,6 +144,7 @@ Navigation:
 - plan-docker_management_app/REQ-93
 - plan-docker_management_app/REQ-94
 - plan-docker_management_app/REQ-95
+- plan-docker_management_app/REQ-100
 - plan-docker_management_app/REQ-68
 - plan-docker_management_app/REQ-69
 - plan-docker_management_app/REQ-110

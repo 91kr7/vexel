@@ -59,18 +59,28 @@ function send(endpoint: DockerEndpoint, options: DockerRequestOptions): Promise<
   });
 }
 
-export async function requestBuffered(endpoint: DockerEndpoint, options: DockerRequestOptions): Promise<BufferedResponse> {
+/**
+ * The daemon's answer as it came, an error status included: for the caller that
+ * has to show the status and body themselves (the raw console, REQ-101) rather
+ * than have a rejection raised in their place.
+ */
+export async function requestBufferedRaw(endpoint: DockerEndpoint, options: DockerRequestOptions): Promise<BufferedResponse> {
   const response = await send(endpoint, options);
   const body = await readAll(response);
-  if ((response.statusCode ?? 0) >= 400) {
+  return { statusCode: response.statusCode ?? 0, headers: response.headers, body };
+}
+
+export async function requestBuffered(endpoint: DockerEndpoint, options: DockerRequestOptions): Promise<BufferedResponse> {
+  const response = await requestBufferedRaw(endpoint, options);
+  if (response.statusCode >= 400) {
     throw new DockerDaemonError(
       "DaemonRejected",
-      extractDaemonMessage(body) ?? `Daemon returned HTTP ${response.statusCode}`,
+      extractDaemonMessage(response.body) ?? `Daemon returned HTTP ${response.statusCode}`,
       undefined,
       response.statusCode,
     );
   }
-  return { statusCode: response.statusCode ?? 0, headers: response.headers, body };
+  return response;
 }
 
 export async function requestStream(endpoint: DockerEndpoint, options: DockerRequestOptions): Promise<http.IncomingMessage> {

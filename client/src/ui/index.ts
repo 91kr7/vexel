@@ -131,3 +131,5 @@ export {
   SessionSurface,
   type SessionSurfaceProps,
 } from './terminal/SessionChrome';
+
+export { ConsoleSurface, type ConsoleSurfaceProps, type ConsoleEntry, type ConsoleEntryLine } from './console/ConsoleSurface';
