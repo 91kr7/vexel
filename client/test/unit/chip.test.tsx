@@ -59,6 +59,50 @@ describe('Chip (ui-library/specs/chip.md)', () => {
   });
 });
 
+describe('Chip — clickable as a whole (ui-library/specs/chip.md, REQ-103)', () => {
+  // chip.md — "onSelect? — makes the whole chip the click target, for a chip that is itself a
+  // starting point"; "a chip carrying onSelect → clicking anywhere on it calls onSelect"
+  it('calls onSelect when the chip itself is clicked', async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    render(<Chip label="docker manifest inspect" onSelect={onSelect} />);
+
+    await user.click(screen.getByRole('button', { name: 'docker manifest inspect' }));
+
+    expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls onSelect from a click on the chip\'s meta reading, not only on its label', async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    const { container } = render(<Chip label="docker sbom" meta="CLI" onSelect={onSelect} />);
+
+    await user.click(container.querySelector('.ui-chip__meta')!);
+
+    expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
+  // chip.md — "A chip with onSelect carries no inline action."
+  it('shows no inline action on a chip that carries onSelect', async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    const onAction = vi.fn();
+    render(<Chip label="docker scout cves" actionLabel="detach" onAction={onAction} onSelect={onSelect} />);
+
+    expect(screen.queryByRole('button', { name: 'detach' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'docker scout cves' }));
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(onAction).not.toHaveBeenCalled();
+  });
+
+  it('leaves a chip without onSelect unclickable as a whole', () => {
+    render(<Chip label="app-1" />);
+
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
+  });
+});
+
 describe('ChipGroup (ui-library/specs/chip.md)', () => {
   function items(): ChipGroupItem[] {
     return [
@@ -117,6 +161,20 @@ describe('ChipGroup (ui-library/specs/chip.md)', () => {
     render(<ChipGroup items={items()} emptyLabel="No attached containers" />);
 
     expect(screen.queryByText('No attached containers')).not.toBeInTheDocument();
+  });
+
+  // chip.md — "items: { key, label, meta?, actionLabel?, onAction?, onSelect? }[]": a group of
+  // chips that are themselves starting points, each calling its own onSelect (REQ-103)
+  it('calls only the clicked chip\'s own onSelect', async () => {
+    const user = userEvent.setup();
+    const first = { key: 'a', label: 'docker manifest inspect', onSelect: vi.fn() };
+    const second = { key: 'b', label: 'docker trust inspect', onSelect: vi.fn() };
+
+    render(<ChipGroup items={[first, second]} />);
+    await user.click(screen.getByRole('button', { name: 'docker trust inspect' }));
+
+    expect(second.onSelect).toHaveBeenCalledTimes(1);
+    expect(first.onSelect).not.toHaveBeenCalled();
   });
 
   // chip.md — "items: { key, label, meta?, actionLabel?, onAction? }[] — each rendered as a Chip",

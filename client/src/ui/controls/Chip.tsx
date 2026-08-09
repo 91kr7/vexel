@@ -7,14 +7,34 @@ export interface ChipProps {
   /** Label of the inline secondary action (e.g. "detach"); omitted when the chip carries no action. */
   actionLabel?: string;
   onAction?: () => void;
+  /**
+   * Makes the whole chip the click target — for a chip that is itself a
+   * starting point (e.g. a suggestion put into an input), rather than a label
+   * carrying a secondary action.
+   */
+  onSelect?: () => void;
 }
 
-/** A short label chip with an optional muted meta reading and an optional inline secondary action. */
-export function Chip({ label, meta, actionLabel, onAction }: ChipProps) {
-  return (
-    <span className="ui-chip">
+/** A short label chip with an optional muted meta reading, an optional inline secondary action, and optionally clickable as a whole. */
+export function Chip({ label, meta, actionLabel, onAction, onSelect }: ChipProps) {
+  const content = (
+    <>
       <span className="ui-chip__label">{label}</span>
       {meta ? <span className="ui-chip__meta">{meta}</span> : null}
+    </>
+  );
+
+  if (onSelect) {
+    return (
+      <button type="button" className="ui-chip ui-chip--clickable" onClick={onSelect}>
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <span className="ui-chip">
+      {content}
       {onAction && actionLabel ? (
         <button type="button" className="ui-chip__action" onClick={onAction}>
           {actionLabel}
@@ -30,6 +50,7 @@ export interface ChipGroupItem {
   meta?: string;
   actionLabel?: string;
   onAction?: () => void;
+  onSelect?: () => void;
 }
 
 export interface ChipGroupProps {
@@ -46,7 +67,14 @@ export function ChipGroup({ items, addLabel, onAdd, emptyLabel }: ChipGroupProps
     <span className="ui-chip-group">
       {items.length === 0 && emptyLabel ? <span className="ui-chip-group__empty">{emptyLabel}</span> : null}
       {items.map((item) => (
-        <Chip key={item.key} label={item.label} meta={item.meta} actionLabel={item.actionLabel} onAction={item.onAction} />
+        <Chip
+          key={item.key}
+          label={item.label}
+          meta={item.meta}
+          actionLabel={item.actionLabel}
+          onAction={item.onAction}
+          onSelect={item.onSelect}
+        />
       ))}
       {onAdd && addLabel ? (
         <button type="button" className="ui-chip-group__add" onClick={onAdd}>

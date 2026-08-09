@@ -810,6 +810,16 @@
   white-space: nowrap;
 }
 
+.ui-chip--clickable {
+  cursor: pointer;
+  text-align: left;
+}
+
+.ui-chip--clickable:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent-strong);
+}
+
 .ui-chip__meta {
   color: var(--color-text-muted);
   white-space: nowrap;

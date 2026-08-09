@@ -5,11 +5,19 @@ import type { IncomingMessage } from "node:http";
 import type { Readable } from "node:stream";
 import { onActiveEndpointChanged, resolveActiveEndpoint } from "./endpoint.js";
 import { DockerDaemonError } from "./errors.js";
-import { hijack, requestBuffered, requestStream, type HijackedConnection } from "./http-client.js";
+import { hijack, requestBuffered, requestBufferedRaw, requestStream, type HijackedConnection } from "./http-client.js";
 import type { DockerEndpoint } from "./types.js";
 
 // The highest Engine API version this client was written against.
 const CLIENT_MAX_API_VERSION = "1.43";
+
+export interface RawEngineResponse {
+  /** The path the request was actually made on, version prefix included. */
+  path: string;
+  statusCode: number;
+  body: string;
+  contentType?: string;
+}
 
 export interface EngineVersion {
   apiVersion: string;
@@ -44,6 +52,29 @@ export class EngineClient {
       body: options.body,
     });
     return { statusCode: response.statusCode, body: response.body };
+  }
+
+  /**
+   * Issues an arbitrary request and hands back what the daemon answered — the
+   * status and the body as they came, an error status included, plus the path
+   * actually dialed (REQ-101). A path that already carries a version prefix is
+   * sent as typed; any other is prefixed with the negotiated one.
+   */
+  async requestRaw(path: string, options: { method?: string; body?: string } = {}): Promise<RawEngineResponse> {
+    const versioned = /^\/v\d+(\.\d+)?\//.test(path);
+    const effectivePath = versioned ? path : `/v${(await this.getVersion()).apiVersion}${path}`;
+    const response = await requestBufferedRaw(this.endpoint, {
+      method: options.method,
+      path: effectivePath,
+      headers: options.body ? { "content-type": "application/json" } : undefined,
+      body: options.body,
+    });
+    return {
+      path: effectivePath,
+      statusCode: response.statusCode,
+      body: response.body,
+      ...(typeof response.headers["content-type"] === "string" ? { contentType: response.headers["content-type"] } : {}),
+    };
   }
 
   async requestStream(

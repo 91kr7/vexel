@@ -57,7 +57,7 @@
 | FormSection | UI component | `client/src/ui/controls/FormSection.tsx` | One titled group of fields inside a long, sectioned form | `specs/form-section.md` |
 | Combobox | UI component | `client/src/ui/controls/Combobox.tsx` | Text input suggesting known (possibly asynchronously loaded) options while accepting any free text | `specs/combobox.md` |
 | ChipInput | UI component | `client/src/ui/controls/ChipInput.tsx` | Free-form list of short values, each entered value becoming a removable chip | `specs/chip-input.md` |
-| Chip, ChipGroup | UI component | `client/src/ui/controls/Chip.tsx` | Label chip with an optional muted meta reading and an optional inline secondary action, and a row of such chips with an optional trailing "add" affordance | `specs/chip.md` |
+| Chip, ChipGroup | UI component | `client/src/ui/controls/Chip.tsx` | Label chip with an optional muted meta reading and an optional inline secondary action, optionally clickable as a whole (a suggestion that is itself a starting point), and a row of such chips with an optional trailing "add" affordance | `specs/chip.md` |
 | CrossReference, CrossReferenceList | UI component | `client/src/ui/controls/CrossReference.tsx` | Reference leading to another object, with an "unavailable, because…" variant carrying the reason in its place, and a wrapping row of such references | `specs/cross-reference.md` |
 | SegmentedControl | UI component | `client/src/ui/controls/SegmentedControl.tsx` | Row of joined segments selecting one or several options, never emptied | `specs/segmented-control.md` |
 | TailSizeSelector | UI component | `client/src/ui/controls/TailSizeSelector.tsx` | Picks how many trailing lines of a stream to load, or all of them | `specs/tail-size-selector.md` |
@@ -96,5 +96,6 @@
 | EventStream | UI component | `client/src/ui/feedback/EventStream.tsx` | Monospace, timestamped daemon event list with type/action emphasis | `specs/event-stream.md` |
 | Terminal | UI component | `client/src/ui/terminal/Terminal.tsx` | Interactive terminal surface wrapping the xterm.js emulator (documented `CLAUDE.md` escape hatch); typed write/focus/dispose handle and input/resize callbacks | `specs/terminal.md` |
 | SessionHeader, SessionEndedOverlay, SessionSurface | UI component | `client/src/ui/terminal/SessionChrome.tsx` | Session header with connection state and disconnect/detach action, session-ended overlay, and the surface that positions one over the other | `specs/session-chrome.md` |
+| ConsoleSurface | UI component | `client/src/ui/console/ConsoleSurface.tsx` | Command-console transcript: entries with their command, output, status, copy and re-run, over a prompt line with history recall and cancellation | `specs/console-surface.md` |
 | triggerDownload | UI utility | `client/src/ui/utils/trigger-download.ts` | Triggers a native browser download of a URL via a transient, invisible anchor, so the app never reads or buffers the response body | `specs/trigger-download.md` |
 | UI library entry point | module entry | `client/src/ui/index.ts` | Re-exports every UI-library component; the only import path feature code uses | `specs/library-entry-point.md` |
