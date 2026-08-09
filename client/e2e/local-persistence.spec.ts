@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { openApp } from './support/fixtures.js';
+import { navEntry, openApp } from './support/fixtures.js';
 
 // The first test of this file deliberately persists a screen; every test starts
 // from the default one anyway, so neither inherits the other's leftover.
@@ -8,20 +8,32 @@ test.beforeEach(async ({ page }) => {
 });
 
 /**
- * A screen's own entry in the navigation rail.
+ * Resolves once the application has persisted `screenId` — that is, once the
+ * server has answered the write it makes on a screen change.
  *
- * Scoped to the rail on purpose: the landing screen is the Dashboard, whose
- * tiles and disk-usage rows name the same screens, so an unscoped locator
- * matches several controls.
+ * The write is fired and not awaited by the application, and
+ * `local-persistence/specs/use-preferences.md` allows it to be *deferred* while
+ * the initial preferences read is still in flight. Reloading without waiting for
+ * it therefore asks the application to have persisted a choice it was still
+ * entitled to be holding, which is not what REQ-115 promises: "survives a
+ * reload" is about the reload, not about racing the write.
  */
-function navEntry(page: Page, label: string) {
-  return page.getByRole('navigation').getByRole('button', { name: new RegExp(label) });
+function persistedScreen(page: Page, screenId: string): Promise<unknown> {
+  return page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PUT' &&
+      response.url().includes('/api/persistence/preferences') &&
+      (response.request().postData() ?? '').includes(screenId),
+  );
 }
 
 // plan-docker_management_app/REQ-115 — the last active screen survives a reload
 test('the last active screen survives a page reload', async ({ page }) => {
+  const persisted = persistedScreen(page, 'containers');
+
   await navEntry(page, 'Containers').click();
   await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
+  await persisted;
 
   await page.reload();
 
@@ -103,15 +115,18 @@ test('a screen chosen before the preferences read settles is the one the applica
 // app-shell/specs/shell.md — the shell exposes the analysis-cache size with a Clear action, which
 // empties the cache and is disabled once there is nothing left to clear
 test('the Local storage card shows the analysis-cache size and clearing it disables the Clear action', async ({ page }) => {
-  // The card belongs to the shell's frame around a screen no feature batch has
-  // built yet; the landing screen has been the real Dashboard since batch 25.
-  await openApp(page, 'swarm');
+  // The card is one of the three the shell keeps for itself; batch 30 replaced
+  // the placeholder that used to sit under them with the Coverage matrix, so
+  // that is the screen they are shown on now (app-shell/specs/shell.md).
+  await openApp(page, 'coverage-matrix');
 
-  await expect(page.getByText('Local storage')).toBeVisible();
-  await expect(page.getByText('Analysis cache')).toBeVisible();
+  // Scoped to the card: the Coverage matrix under it names screens and
+  // capabilities in its own rows, so a page-wide text locator is ambiguous here.
+  const localStorageCard = page.locator('.ui-surface', { has: page.locator('.ui-card__title', { hasText: 'Local storage' }) });
+  await expect(localStorageCard).toBeVisible();
+  await expect(localStorageCard.getByText('Analysis cache')).toBeVisible();
 
   // The card's own action: "Clear" is a label the rest of the shell can repeat.
-  const localStorageCard = page.locator('.ui-surface', { has: page.locator('.ui-card__title', { hasText: 'Local storage' }) });
   const clearButton = localStorageCard.getByRole('button', { name: 'Clear' });
   await expect(clearButton).toBeVisible();
 

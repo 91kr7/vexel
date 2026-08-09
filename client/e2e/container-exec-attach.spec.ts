@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
-import { ownershipArgs } from './support/fixtures.js';
+import { openApp, ownershipArgs } from './support/fixtures.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -68,8 +68,10 @@ async function typeIntoTerminal(detail: ReturnType<typeof containerRow>, page: P
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/');
-  await page.getByRole('button', { name: /Containers/ }).click();
+  // Pinned, not inherited: the last active screen survives by design (REQ-115),
+  // and the Dashboard the application otherwise lands on names this screen in a
+  // cross-navigation tile of its own, which an unscoped rail click matches too.
+  await openApp(page, 'containers');
   await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
 });
 
@@ -261,8 +263,11 @@ test.describe('Session terminal sizing (REQ-34, REQ-35)', () => {
     const name = `vexel-e2e-term-resize-exec-${Date.now()}`;
     try {
       await installResizeFrameCounter(page);
-      await page.goto('/');
-      await page.getByRole('button', { name: /Containers/ }).click();
+      // The counter is installed first, so the load it applies to is this one;
+      // the screen is pinned rather than reached through a rail click the
+      // Dashboard's cross-navigation tiles make ambiguous (REQ-115).
+      await openApp(page, 'containers');
+      await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
       await createIdleContainer(name);
       const detail = await openTab(page, name, 'Exec');
       await detail.getByRole('button', { name: 'Launch session' }).click();
@@ -284,8 +289,11 @@ test.describe('Session terminal sizing (REQ-34, REQ-35)', () => {
     const name = `vexel-e2e-term-resize-attach-${Date.now()}`;
     try {
       await installResizeFrameCounter(page);
-      await page.goto('/');
-      await page.getByRole('button', { name: /Containers/ }).click();
+      // The counter is installed first, so the load it applies to is this one;
+      // the screen is pinned rather than reached through a rail click the
+      // Dashboard's cross-navigation tiles make ambiguous (REQ-115).
+      await openApp(page, 'containers');
+      await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
       await createTickingContainer(name);
       const detail = await openTab(page, name, 'Attach');
       await detail.getByRole('button', { name: 'Attach' }).click();

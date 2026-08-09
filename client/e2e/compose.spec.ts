@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
-import { CASE_LABEL, OWNER_LABEL, RUN_ID } from './support/fixtures.js';
+import { CASE_LABEL, OWNER_LABEL, RUN_ID, openApp } from './support/fixtures.js';
 
 const execFileAsync = promisify(execFile);
 const BASE_IMAGE = 'alpine:3.20';
@@ -109,8 +109,10 @@ async function selectProject(page: Page, name: string): Promise<void> {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.goto('/');
-  await page.getByRole('button', { name: /Compose/ }).click();
+  // Pinned, not inherited: the last active screen survives by design (REQ-115),
+  // and the Dashboard the application otherwise lands on names this screen in a
+  // cross-navigation tile of its own, which an unscoped rail click matches too.
+  await openApp(page, 'compose');
   await expect(page.getByRole('heading', { level: 1, name: 'Compose' })).toBeVisible();
 });
 

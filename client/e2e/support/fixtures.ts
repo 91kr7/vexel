@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import type { Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 const execFileAsync = promisify(execFile);
 
@@ -42,10 +42,39 @@ export function ownershipArgs(caseName: string): string[] {
  * — inside the same file as much as across files. Pinning the preference first
  * makes the starting state the spec's own. `null` selects the default landing
  * screen.
+ *
+ * Two details are what make the pin actually hold:
+ *
+ * - **The page is left before the pin is written.** Every screen switch the
+ *   application makes persists itself, and that write is fired and not awaited
+ *   by the browser. A page still showing the application can therefore have a
+ *   `lastScreenId` of its own in flight, which would land on top of the pin.
+ *   Navigating away first means there is no such writer left.
+ * - **The pin is read back after the load, and the whole sequence is retried if
+ *   it did not survive.** A write already on the wire when the page was left can
+ *   still reach the server; the read-back is what tells a pin that held from one
+ *   that was overtaken, instead of leaving the spec to fail later on a locator
+ *   that says nothing about why.
  */
 export async function openApp(page: Page, screenId: string | null = null): Promise<void> {
-  await page.request.put('/api/persistence/preferences', { data: { lastScreenId: screenId } });
-  await page.goto('/');
+  await expect(async () => {
+    await page.goto('about:blank');
+    await page.request.put('/api/persistence/preferences', { data: { lastScreenId: screenId } });
+    await page.goto('/');
+    const stored = (await (await page.request.get('/api/persistence/preferences')).json()) as { lastScreenId?: string | null };
+    expect(stored.lastScreenId ?? null, 'a screen the application persisted overtook the pinned one').toBe(screenId);
+  }).toPass({ timeout: 30_000 });
+}
+
+/**
+ * A screen's own entry in the navigation rail.
+ *
+ * Scoped to the rail on purpose: the landing screen is the Dashboard, whose
+ * cross-navigation tiles name the same screens ("Running containers — open the
+ * Containers screen"), so an unscoped locator matches several controls.
+ */
+export function navEntry(page: Page, label: string): Locator {
+  return page.getByRole('navigation').getByRole('button', { name: new RegExp(label) });
 }
 
 /**
