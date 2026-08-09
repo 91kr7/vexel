@@ -529,6 +529,20 @@
   color: var(--color-text-primary);
 }
 
+.ui-toggle--busy {
+  cursor: progress;
+}
+
+.ui-toggle--disabled {
+  cursor: not-allowed;
+}
+
+.ui-toggle--busy .ui-toggle__track,
+.ui-toggle--disabled .ui-toggle__track,
+.ui-toggle--disabled .ui-toggle__label {
+  opacity: 0.55;
+}
+
 .ui-key-value-editor,
 .ui-repeatable-row-list {
   display: flex;

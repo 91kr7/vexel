@@ -1,4 +1,5 @@
 import { mock } from "node:test";
+import { Readable } from "node:stream";
 
 /**
  * A stand-in for the shared EngineClient, for unit tests whose subject is what
@@ -87,6 +88,28 @@ export function installEngineMock(): EngineHarness {
           const value = await route.respond(call);
           if (typeof value === "string") return { statusCode: 200, body: value };
           return { statusCode: 200, body: JSON.stringify(value ?? {}) };
+        },
+        // The streaming half of the same client, for the Engine calls that
+        // answer with a progress stream (an image or plugin pull). The route
+        // returns the whole stream as one string; the responder may still throw
+        // to stand in for a daemon that refuses the call outright.
+        requestStream: async (path: string, options: { method?: string; body?: string } = {}) => {
+          const method = (options.method ?? "GET").toUpperCase();
+          const [pathname, queryString] = path.split("?");
+          const call: EngineCall = {
+            method,
+            path,
+            pathname: pathname ?? path,
+            query: new URLSearchParams(queryString ?? ""),
+            body: options.body,
+            json: options.body === undefined ? undefined : (JSON.parse(options.body) as unknown),
+          };
+          calls.push(call);
+          const matching = routes.filter((candidate) => candidate.method === method && candidate.pattern.test(call.pathname));
+          const route = matching[matching.length - 1];
+          if (!route) throw new Error(`no engine route in this test answers ${method} ${path}`);
+          const value = await route.respond(call);
+          return Readable.from([typeof value === "string" ? value : JSON.stringify(value ?? {})]);
         },
       }),
     },
