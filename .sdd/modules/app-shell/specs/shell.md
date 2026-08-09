@@ -33,8 +33,10 @@ Shows:
   (REQ-70, REQ-71) — fed the live volume list from `useVolumes()` —, `BuildersScreen` for the
   `builders-cache` screen (REQ-88, REQ-89, REQ-91) — self-sufficient, reading its own builder and
   build-cache inventories —, `ContextsScreen` for the `contexts` screen (REQ-92, REQ-93, REQ-94) —
-  self-sufficient, reading its own context inventory and daemon information —, a
-  `PlaceholderScreen` for every screen not yet built by its own feature batch.
+  self-sufficient, reading its own context inventory and daemon information —, `SystemScreen` for
+  the `system-prune` screen (REQ-95, REQ-96, REQ-97) — self-sufficient, reading its own disk-usage
+  breakdown and daemon information —, a `PlaceholderScreen` for every screen not yet built by its
+  own feature batch.
 - The Containers `NavItem`'s count badge is the live container count from `useContainers()`, the
   Images & layers `NavItem`'s count badge is the live image count from `useImages()`, the
   Compose `NavItem`'s count badge is the live compose project count from `useComposeProjects()`, and
@@ -102,6 +104,7 @@ Navigation:
 - volumes-networks: VolumesNetworksScreen
 - builders: BuildersScreen
 - contexts: useContexts, ContextsScreen
+- system: SystemScreen
 
 ## Requirements served
 
@@ -126,6 +129,7 @@ Navigation:
 - plan-docker_management_app/REQ-92
 - plan-docker_management_app/REQ-93
 - plan-docker_management_app/REQ-94
+- plan-docker_management_app/REQ-95
 - plan-docker_management_app/REQ-68
 - plan-docker_management_app/REQ-69
 - plan-docker_management_app/REQ-110

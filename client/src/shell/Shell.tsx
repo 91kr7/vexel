@@ -34,6 +34,7 @@ import { ContextsScreen } from '../contexts/ContextsScreen';
 import { BuildersScreen } from '../builders/BuildersScreen';
 import { ContainersScreen } from '../containers/ContainersScreen';
 import { ImagesScreen } from '../images/ImagesScreen';
+import { SystemScreen } from '../system/SystemScreen';
 import { VolumesNetworksScreen } from '../volumes-networks/VolumesNetworksScreen';
 import { NetworksPanel } from '../volumes-networks/NetworksPanel';
 import { defaultScreenId, navGroupOrder, screens } from './navigation';
@@ -256,6 +257,8 @@ export function Shell() {
               <BuildersScreen />
             ) : activeScreen.id === 'contexts' ? (
               <ContextsScreen />
+            ) : activeScreen.id === 'system-prune' ? (
+              <SystemScreen />
             ) : (
               <>
                 <Card>

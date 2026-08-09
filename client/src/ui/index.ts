@@ -31,6 +31,7 @@ export { Badge, type BadgeProps, type BadgeTone } from './controls/Badge';
 export { KeyHint, type KeyHintProps } from './controls/KeyHint';
 export { PathInput, type PathInputProps, type PathInputValidationState } from './controls/PathInput';
 export { StorageUsageRow, type StorageUsageRowProps, type StorageUsageRowAction } from './controls/StorageUsageRow';
+export { CheckboxGroup, type CheckboxGroupProps, type CheckboxOption } from './controls/CheckboxGroup';
 export { TextField, type TextFieldProps } from './controls/TextField';
 export { SearchField, type SearchFieldProps } from './controls/SearchField';
 export { FilterChips, type FilterChipsProps, type FilterChipOption } from './controls/FilterChips';
@@ -101,6 +102,7 @@ export { ConfirmDialog, type ConfirmDialogProps } from './feedback/ConfirmDialog
 export { ToastProvider, useToast, type ToastInput, type ToastTone } from './feedback/Toast';
 export { ErrorBanner, type ErrorBannerProps } from './feedback/ErrorBanner';
 export { Callout, type CalloutProps, type CalloutTone } from './feedback/Callout';
+export { ResultSummary, type ResultSummaryProps, type ResultSummaryItem, type ResultSummaryTone } from './feedback/ResultSummary';
 export { ProgressBar, type ProgressBarProps } from './feedback/ProgressBar';
 export { Spinner, type SpinnerProps } from './feedback/Spinner';
 export { EmptyState, type EmptyStateProps } from './feedback/EmptyState';

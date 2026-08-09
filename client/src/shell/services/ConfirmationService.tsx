@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ConfirmDialog } from '../../ui';
+import { CheckboxGroup, ConfirmDialog, type CheckboxOption } from '../../ui';
 
 export interface ConfirmationRequest {
   targetName: string;
@@ -8,35 +8,59 @@ export interface ConfirmationRequest {
   destructive?: boolean;
 }
 
+export interface ScopeConfirmationRequest extends ConfirmationRequest {
+  /** The parts of the action the human chooses from; the confirmation carries the chosen ones back. */
+  options: CheckboxOption[];
+  /** Selected when the dialog opens; every option when omitted. */
+  initialSelectedIds?: string[];
+  scopeLabel?: string;
+}
+
 interface ConfirmationContextValue {
   confirm: (request: ConfirmationRequest) => Promise<boolean>;
+  confirmScope: (request: ScopeConfirmationRequest) => Promise<string[] | undefined>;
 }
 
 const ConfirmationContext = createContext<ConfirmationContextValue | null>(null);
 
 /**
  * Application-wide destructive-confirmation service (REQ-6): feature code
- * calls `confirm()` and awaits the human's decision instead of building its
- * own dialog. Cancelling resolves `false` and performs no action.
+ * calls `confirm()` — or `confirmScope()` when the human also chooses what the
+ * action applies to (REQ-96) — and awaits the decision instead of building its
+ * own dialog. Cancelling performs no action.
  */
 export function ConfirmationProvider({ children }: { children?: ReactNode }) {
-  const [request, setRequest] = useState<ConfirmationRequest | null>(null);
-  const resolver = useRef<((confirmed: boolean) => void) | null>(null);
+  const [request, setRequest] = useState<ConfirmationRequest | ScopeConfirmationRequest | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const resolver = useRef<((confirmed: boolean, scope: string[]) => void) | null>(null);
 
   const confirm = useCallback((next: ConfirmationRequest) => {
     return new Promise<boolean>((resolve) => {
-      resolver.current = resolve;
+      resolver.current = (confirmed) => resolve(confirmed);
+      setSelectedIds([]);
       setRequest(next);
     });
   }, []);
 
-  const settle = useCallback((confirmed: boolean) => {
-    resolver.current?.(confirmed);
-    resolver.current = null;
-    setRequest(null);
+  const confirmScope = useCallback((next: ScopeConfirmationRequest) => {
+    return new Promise<string[] | undefined>((resolve) => {
+      resolver.current = (confirmed, scope) => resolve(confirmed ? scope : undefined);
+      setSelectedIds(next.initialSelectedIds ?? next.options.map((option) => option.id));
+      setRequest(next);
+    });
   }, []);
 
-  const value = useMemo(() => ({ confirm }), [confirm]);
+  const settle = useCallback(
+    (confirmed: boolean, scope: string[]) => {
+      resolver.current?.(confirmed, scope);
+      resolver.current = null;
+      setRequest(null);
+    },
+    [],
+  );
+
+  const value = useMemo(() => ({ confirm, confirmScope }), [confirm, confirmScope]);
+  const scopeRequest = request !== null && 'options' in request ? request : null;
 
   return (
     <ConfirmationContext.Provider value={value}>
@@ -47,9 +71,19 @@ export function ConfirmationProvider({ children }: { children?: ReactNode }) {
         consequence={request?.consequence ?? ''}
         confirmLabel={request?.confirmLabel}
         destructive={request?.destructive ?? true}
-        onConfirm={() => settle(true)}
-        onCancel={() => settle(false)}
-      />
+        confirmDisabled={scopeRequest !== null && selectedIds.length === 0}
+        onConfirm={() => settle(true, selectedIds)}
+        onCancel={() => settle(false, [])}
+      >
+        {scopeRequest ? (
+          <CheckboxGroup
+            ariaLabel={scopeRequest.scopeLabel ?? 'Scope'}
+            options={scopeRequest.options}
+            selectedIds={selectedIds}
+            onChange={setSelectedIds}
+          />
+        ) : null}
+      </ConfirmDialog>
     </ConfirmationContext.Provider>
   );
 }

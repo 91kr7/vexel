@@ -5,6 +5,8 @@ export interface StorageUsageRowAction {
   label: string;
   onClick: () => void;
   disabled?: boolean;
+  /** Renders the action in the destructive variant, for a row whose action removes what it counts. */
+  destructive?: boolean;
 }
 
 export interface StorageUsageRowProps {
@@ -14,7 +16,7 @@ export interface StorageUsageRowProps {
   action?: StorageUsageRowAction;
 }
 
-/** One "label / description / size / clear action" row of a storage-usage listing (REQ-113, REQ-115). */
+/** One "label / description / size / clear-or-prune action" row of a storage-usage listing (REQ-95, REQ-113, REQ-115). */
 export function StorageUsageRow({ label, description, sizeLabel, action }: StorageUsageRowProps) {
   return (
     <div className="ui-storage-usage-row">
@@ -24,7 +26,7 @@ export function StorageUsageRow({ label, description, sizeLabel, action }: Stora
       </div>
       <span className="ui-storage-usage-row__size">{sizeLabel}</span>
       {action ? (
-        <Button variant="secondary" onClick={action.onClick} disabled={action.disabled}>
+        <Button variant={action.destructive ? 'destructive' : 'secondary'} onClick={action.onClick} disabled={action.disabled}>
           {action.label}
         </Button>
       ) : null}

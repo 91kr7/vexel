@@ -6,6 +6,7 @@ import {
   ConfirmationProvider,
   useConfirmation,
   type ConfirmationRequest,
+  type ScopeConfirmationRequest,
 } from '../../src/shell/services/ConfirmationService';
 
 afterEach(cleanup);
@@ -110,5 +111,193 @@ describe('ConfirmationProvider / useConfirmation', () => {
 
     expect(screen.queryByRole('heading', { name: 'Confirm: first-target' })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Confirm: second-target' })).toBeInTheDocument();
+  });
+});
+
+const scopeOptions = [
+  { id: 'stopped-containers', label: 'Stopped containers', description: '2 containers not running', note: '12.0MB' },
+  { id: 'unused-volumes', label: 'Unused volumes', description: '3 volumes unattached', note: '1.0MB' },
+  { id: 'build-cache', label: 'Build cache', description: 'buildx is not installed', note: '—', disabled: true },
+];
+
+/** Reports the answer confirmScope gave back, so the caller's side of the contract is observable. */
+function ScopedAction({ request }: { request: ScopeConfirmationRequest }) {
+  const { confirmScope } = useConfirmation();
+  const [answer, setAnswer] = useState<string>('pending');
+
+  const handleClick = async () => {
+    const scope = await confirmScope(request);
+    setAnswer(scope === undefined ? 'cancelled' : `scope: ${scope.join(',')}`);
+  };
+
+  return (
+    <div>
+      <button onClick={handleClick}>System prune…</button>
+      <span>{answer}</span>
+    </div>
+  );
+}
+
+function renderScopedAction(overrides: Partial<ScopeConfirmationRequest> = {}) {
+  render(
+    <ConfirmationProvider>
+      <ScopedAction
+        request={{
+          targetName: 'System prune',
+          consequence: 'Every category selected below is pruned.',
+          confirmLabel: 'Prune selected',
+          scopeLabel: 'Prune scope',
+          options: scopeOptions,
+          ...overrides,
+        }}
+      />
+    </ConfirmationProvider>,
+  );
+}
+
+describe('useConfirmation().confirmScope (app-shell/specs/confirmation-service.md)', () => {
+  // confirmation-service.md — "Options are selected as initialSelectedIds says, or all of them when
+  // it is omitted."
+  it('selects every option when no initial selection is given', async () => {
+    const user = userEvent.setup();
+    renderScopedAction();
+
+    await user.click(screen.getByRole('button', { name: 'System prune…' }));
+
+    for (const option of scopeOptions) {
+      expect(screen.getByRole('checkbox', { name: option.label })).toBeChecked();
+    }
+  });
+
+  // confirmation-service.md — "Options are selected as initialSelectedIds says"
+  it('selects exactly the options the caller named', async () => {
+    const user = userEvent.setup();
+    renderScopedAction({ initialSelectedIds: ['unused-volumes'] });
+
+    await user.click(screen.getByRole('button', { name: 'System prune…' }));
+
+    expect(screen.getByRole('checkbox', { name: 'Unused volumes' })).toBeChecked();
+    expect(screen.getByRole('checkbox', { name: 'Stopped containers' })).not.toBeChecked();
+  });
+
+  // confirmation-service.md — "confirmScope resolves the chosen ids when the human confirms"
+  it('resolves the chosen ids when the human confirms', async () => {
+    const user = userEvent.setup();
+    renderScopedAction({ initialSelectedIds: ['stopped-containers', 'unused-volumes'] });
+
+    await user.click(screen.getByRole('button', { name: 'System prune…' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Stopped containers' }));
+    await user.click(screen.getByRole('button', { name: 'Prune selected' }));
+
+    expect(await screen.findByText('scope: unused-volumes')).toBeInTheDocument();
+  });
+
+  // confirmation-service.md — "and undefined when they cancel; undefined means the caller must
+  // perform no action"
+  it('resolves undefined when the human cancels', async () => {
+    const user = userEvent.setup();
+    renderScopedAction();
+
+    await user.click(screen.getByRole('button', { name: 'System prune…' }));
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(await screen.findByText('cancelled')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Confirm: System prune' })).not.toBeInTheDocument();
+  });
+
+  // confirmation-service.md — "A scope confirmation cannot be confirmed with nothing selected"
+  it('cannot be confirmed once every option has been unselected', async () => {
+    const user = userEvent.setup();
+    renderScopedAction({ initialSelectedIds: ['stopped-containers'] });
+
+    await user.click(screen.getByRole('button', { name: 'System prune…' }));
+    expect(screen.getByRole('button', { name: 'Prune selected' })).toBeEnabled();
+
+    await user.click(screen.getByRole('checkbox', { name: 'Stopped containers' }));
+
+    expect(screen.getByRole('button', { name: 'Prune selected' })).toBeDisabled();
+  });
+
+  // confirmation-service.md — the request's options carry their own `disabled`, and a disabled one
+  // cannot be chosen
+  it('leaves a disabled option unselectable', async () => {
+    const user = userEvent.setup();
+    renderScopedAction({ initialSelectedIds: [] });
+
+    await user.click(screen.getByRole('button', { name: 'System prune…' }));
+
+    expect(screen.getByRole('checkbox', { name: 'Build cache' })).toBeDisabled();
+  });
+
+  // confirmation-service.md — "Only one confirmation request is shown at a time, whichever of the
+  // two kinds it is"
+  it('replaces a pending plain confirmation with the scope one', async () => {
+    const user = userEvent.setup();
+
+    function BothKinds() {
+      const { confirm, confirmScope } = useConfirmation();
+      return (
+        <div>
+          <button onClick={() => confirm({ targetName: 'Stopped containers', consequence: 'Removes them.' })}>Row prune</button>
+          <button
+            onClick={() =>
+              confirmScope({ targetName: 'System prune', consequence: 'Removes the selected ones.', options: scopeOptions })
+            }
+          >
+            System prune…
+          </button>
+        </div>
+      );
+    }
+
+    render(
+      <ConfirmationProvider>
+        <BothKinds />
+      </ConfirmationProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Row prune' }));
+    expect(screen.queryByRole('group')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'System prune…' }));
+
+    expect(screen.queryByRole('heading', { name: 'Confirm: Stopped containers' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Confirm: System prune' })).toBeInTheDocument();
+    expect(screen.getAllByRole('checkbox')).toHaveLength(scopeOptions.length);
+  });
+
+  // confirmation-service.md — "The selection lives in the service, not in the caller": a plain
+  // confirmation that follows a scope one shows no leftover scope.
+  it('shows no scope on a plain confirmation opened after a scope one', async () => {
+    const user = userEvent.setup();
+
+    function BothKinds() {
+      const { confirm, confirmScope } = useConfirmation();
+      return (
+        <div>
+          <button
+            onClick={() =>
+              confirmScope({ targetName: 'System prune', consequence: 'Removes the selected ones.', options: scopeOptions })
+            }
+          >
+            System prune…
+          </button>
+          <button onClick={() => confirm({ targetName: 'Stopped containers', consequence: 'Removes them.' })}>Row prune</button>
+        </div>
+      );
+    }
+
+    render(
+      <ConfirmationProvider>
+        <BothKinds />
+      </ConfirmationProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'System prune…' }));
+    await user.click(screen.getByRole('button', { name: 'Row prune' }));
+
+    expect(screen.getByRole('heading', { name: 'Confirm: Stopped containers' })).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Confirm' })).toBeEnabled();
   });
 });

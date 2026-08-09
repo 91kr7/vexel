@@ -29,7 +29,8 @@
 | Badge | UI component | `client/src/ui/controls/Badge.tsx` | Small tag/count/status label, optionally clickable as a selection action | `specs/badge.md` |
 | KeyHint | UI component | `client/src/ui/controls/KeyHint.tsx` | Keyboard-shortcut hint | `specs/key-hint.md` |
 | PathInput | UI component | `client/src/ui/controls/PathInput.tsx` | Host-path text field with a validation state, refusal message and browse hint | `specs/path-input.md` |
-| StorageUsageRow | UI component | `client/src/ui/controls/StorageUsageRow.tsx` | Label/description/size row with an optional clear action | `specs/storage-usage-row.md` |
+| StorageUsageRow | UI component | `client/src/ui/controls/StorageUsageRow.tsx` | Label/description/size row with an optional clear action, in a plain or destructive variant | `specs/storage-usage-row.md` |
+| CheckboxGroup | UI component | `client/src/ui/controls/CheckboxGroup.tsx` | Multi-select list of labelled options with an optional description and trailing note, emptiable — the shape of a scope selection | `specs/checkbox-group.md` |
 | TextField, SearchField | UI component | `client/src/ui/controls/TextField.tsx`, `client/src/ui/controls/SearchField.tsx` | Single-line text input, and its full-width search/filter variant | `specs/search-field.md` |
 | FilterChips | UI component | `client/src/ui/controls/FilterChips.tsx` | Single-select row of filter chips | `specs/filter-chips.md` |
 | ActionButtonGroup | UI component | `client/src/ui/controls/ActionButtonGroup.tsx` | Inline group of dense row-action buttons, with a destructive variant | `specs/action-button-group.md` |
@@ -73,10 +74,11 @@
 | Meter | UI component | `client/src/ui/metrics/Meter.tsx` | Proportional bar for a used/limit pair, with its reading | `specs/metric-primitives.md` |
 | Sparkline | UI component | `client/src/ui/metrics/Sparkline.tsx` | Compact line over a bounded window of recent samples, redrawn only on new samples | `specs/metric-primitives.md` |
 | Modal | UI component | `client/src/ui/feedback/Modal.tsx` | Centered glass dialog over a dimmed overlay | `specs/modal.md` |
-| ConfirmDialog | UI component | `client/src/ui/feedback/ConfirmDialog.tsx` | Destructive-confirmation dialog naming the target and the consequence | `specs/confirm-dialog.md` |
+| ConfirmDialog | UI component | `client/src/ui/feedback/ConfirmDialog.tsx` | Destructive-confirmation dialog naming the target and the consequence, with an optional slot for the decision the action needs (e.g. its scope) | `specs/confirm-dialog.md` |
 | ToastProvider, useToast | UI component | `client/src/ui/feedback/Toast.tsx` | Transient toast notification stack and its provider/hook | `specs/toast.md` |
 | ErrorBanner | UI component | `client/src/ui/feedback/ErrorBanner.tsx` | Inline failure banner showing the upstream error message verbatim, with an optional retry action | `specs/error-banner.md` |
 | Callout | UI component | `client/src/ui/feedback/Callout.tsx` | Persistent, non-dismissible explanatory banner (e.g. a heuristic-signal disclaimer) | `specs/callout.md` |
+| ResultSummary | UI component | `client/src/ui/feedback/ResultSummary.tsx` | Block reporting what an action just did: a headline figure over one line per part of the work, failed parts marked | `specs/result-summary.md` |
 | ProgressBar | UI component | `client/src/ui/feedback/ProgressBar.tsx` | Determinate or indeterminate progress indicator | `specs/progress-bar.md` |
 | StepProgressList | UI component | `client/src/ui/feedback/StepProgressList.tsx` | One row per unit of work (e.g. an image layer transfer), each with its own progress and terminal state | `specs/step-progress-list.md` |
 | TransferProgressDialog | UI component | `client/src/ui/feedback/TransferProgressDialog.tsx` | Dialog for a long-running byte transfer: byte progress bar, cancel while active, close once ended | `specs/transfer-progress-dialog.md` |
