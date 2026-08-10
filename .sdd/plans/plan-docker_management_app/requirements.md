@@ -23,12 +23,27 @@ Visual reference: `.sdd/analysis/ui-mock/` constrains look, layout and interacti
 | REQ-4 | Text and interactive controls placed on glass surfaces remain legible: body text, secondary text and control labels meet a documented minimum contrast ratio against their backdrop on every screen. |
 | REQ-5 | No feature code emits raw DOM tags or carries CSS: every visual element comes from the internal UI library, and an automated check run by the project's lint/test command fails when feature code violates this (documented, commented escape-hatch exceptions excluded). |
 | REQ-107 | The application's backdrop is a static, already-blurred image asset: nothing on the backdrop is animated (no animated gradient or mesh, no moving blob, no looping video, no canvas animation loop, no CSS animation/transition on the backdrop, no scroll parallax). |
-| REQ-108 | No runtime blur is computed by the browser on panels, surfaces, the shell, modals or drawers: `backdrop-filter` and `filter: blur()` are absent from those surfaces, and the same automated check as REQ-5 fails when they appear, the only tolerated case being a small, short-lived, non-repeated element carrying an on-the-spot justification. |
+| REQ-108 | No runtime blur is computed by the browser on the main view: `backdrop-filter` and `filter: blur()` are absent from the shell frame, the header, the docked navigation rail, cards, panels, section surfaces, tables, detail panels, split panes, the backdrop layer and the log / console / terminal regions. A runtime blur is permitted only on the overlay surfaces of a named allow-list, bounded by one single blur token whose documented value is the maximum any surface may use; the same automated check as REQ-5 fails on any blur outside that list and on any allow-listed one not valued with that token, the only other tolerated case being an element carrying an on-the-spot justification. |
 | REQ-109 | Scrolling a dense screen (long container/image list, log stream, layer tree) with panels, drawers and modals open stays visually smooth on a normal developer machine, with no frame collapse attributable to the glass material. |
 | REQ-117 | The shell adapts to the viewport instead of requiring a desktop-width window: the navigation rail stays docked (narrowing) down to tablet width, and below the phone breakpoint it becomes an off-canvas drawer opened by a menu control in the header and closed by selecting an entry, tapping the dimmed scrim behind it or pressing Escape; at every width the header's title, description and actions stay inside the header without overflowing it, and no region of the shell is cut off or unreachable. |
 | REQ-6 | Any destructive action (remove, kill, prune, down, leave swarm, log out, …) is visually marked as destructive and is executed only after an explicit confirmation that names the target and states the consequence; cancelling performs nothing. |
 | REQ-7 | When an operation fails, the application shows the failure together with the daemon's own error message, and the screen stays usable (no blank or broken state). |
 | REQ-8 | An operation that is not instantaneous shows a pending/progress indication and never blocks navigation to other screens while it runs. |
+
+**REQ-108 narrowed (human decision, 2026-08-11).** It read as a blanket prohibition of runtime blur
+on "panels, surfaces, the shell, modals or drawers", with a measured exception. It is now an
+allow-list: the main view still computes no blur, and the overlay surfaces named by
+`plan-liquid_glass_overlays` may, bounded by one token. The id is kept and stays citable; the
+allow-list itself lives in `CLAUDE.md` ("Performance — background and blur") and in the automated
+check, not here.
+
+**A risk taken against REQ-109, knowingly.** Two of the allow-listed overlay surfaces — the
+session-ended overlay over a terminal and the log stream's floating jump-to-live control — sit
+inside the scrolled content flow, which is the very case REQ-109 exists to protect. The trade-off
+was put to the human owner in full and reaffirmed; the reasoning, the mitigation (a single instance
+of each, one bounded radius, nothing else in the content flow permitted to blur) and the order in
+which they are withdrawn if scrolling regresses are recorded in
+`.sdd/plans/plan-liquid_glass_overlays/requirements.md` ("Departures and accepted risks").
 
 ## F2 — Daemon connectivity and live state
 

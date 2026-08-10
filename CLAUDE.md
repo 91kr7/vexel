@@ -45,28 +45,75 @@ demands a specific host element). When that happens:
 
 ### Performance — background and blur
 
-The liquid-glass look must never be paid for at runtime. Two hard rules:
+The liquid-glass look must never be paid for at runtime **by the main view**. Two hard rules, and
+then a named allow-list — which is exactly as wide as the list below, and no wider.
 
 - **The background is static. Never animated.** No animated gradients or meshes, no moving blobs,
   no looping video, no `<canvas>` animation loop, no CSS `animation`/`transition` driving anything
   on the backdrop, no parallax on scroll.
-- **The blur is baked into the asset, not computed by the browser.** The background ships
-  **already blurred** as a static image. `backdrop-filter: blur(...)` and `filter: blur(...)` are
-  forbidden on panels, surfaces, the shell, modals and drawers — anything large or numerous.
+- **The background's blur is baked into the asset, not computed by the browser.** The background
+  ships **already blurred** as a static image. The backdrop layer itself computes no filter of any
+  kind, ever.
 
-Why: `backdrop-filter` forces the compositor to re-render everything behind the element, on every
-frame, for every glass surface. With a shell plus stacked panels, drawers and modals — this app's
-entire layout — it collapses to single-digit FPS on scroll and resize. A pre-blurred asset costs
-nothing to draw.
+Why the main view pays nothing: `backdrop-filter` forces the compositor to re-render everything
+behind the element, on every frame, for every glass surface carrying it. With a shell plus stacked
+panels, cards, tables and detail panels — this app's entire layout — it collapses to single-digit
+FPS on scroll and resize. So the main view's glass material is built from **translucency over the
+pre-blurred background**: alpha layers, subtle borders, inner highlights and gradient overlays, all
+as tokens in the library. If a panel needs to look more blurred, that is a change to the asset or to
+the alpha, never a `blur()`.
 
-The glass material is therefore built from **translucency over the pre-blurred background**: alpha
-layers, subtle borders, inner highlights and gradient overlays — all as tokens in the library. If a
-surface needs to look more blurred, that is a change to the asset or to the alpha, never a new
-`blur()`.
+**`backdrop-filter` / `filter: blur(...)` are therefore forbidden everywhere except on the surfaces
+of this allow-list**, which are overlay surfaces — drawn above what they cover, present only while
+an interaction or a state lasts:
 
-The narrow exception: a `blur()` on a small, short-lived, non-repeated element may be acceptable if
-measured and justified on the spot, under the escape-hatch rules above. Large surfaces are never
-that case.
+| Surface | Selector |
+|---------|----------|
+| the suggestion / choice popup of `Combobox` | `.ui-combobox__list` |
+| the off-canvas navigation drawer at the phone breakpoint — its sizing wrapper and the card that actually paints, **inside the `max-width: 720px` block only** | `.ui-frame__rail`, `.ui-nav-rail` |
+| the scrim that drawer slides in over | `.ui-frame__scrim` |
+| the session-ended overlay over an interactive terminal | `.ui-session-ended-overlay` |
+| the log stream's floating jump-to-live control | `.ui-log-stream__jump` |
+
+Above the phone breakpoint the rail is docked: it is main view, and it blurs nothing. The dialog
+scrim (`.ui-modal-overlay`) is deliberately **not** on the list and never will be: the application
+behind an open dialog stays sharp and merely dimmed, and — the general trap — an element carrying
+`backdrop-filter` becomes the backdrop root of its descendants, so blurring a surface *and*
+something it is nested inside makes the inner one resample an already-blurred layer, paying twice
+for one effect. Never blur two nested surfaces.
+
+Why that is affordable: there is **one instance of each** of these, none of them repeats across a
+screen or scales with the number of objects listed, and any surface whose count is not naturally one
+must be capped before it may join the list (the toast stack, when it does, is capped at three for
+exactly this reason). The radius is one bounded value for all of them. And the large, numerous,
+scrolled surfaces — the shell, the header, cards, panels, tables, detail panels, split panes, and
+the log / console / terminal surfaces themselves — still pay nothing at all.
+
+The guard rails that keep it that narrow:
+
+- **One value.** The only legal blur value in the codebase is the `--blur-overlay` token (20px),
+  declared once with the library's other design tokens (`client/src/ui/tokens.css`) and documented
+  there as the **maximum** any surface may use. A blur length written on the spot is a violation
+  even on an allow-listed surface.
+- **The automated check enforces both halves.** `client/scripts/check-ui-conformance.mjs` — run by
+  `npm run lint` and `npm run test` in the client workspace — fails on any `backdrop-filter` /
+  `filter: blur(...)` whose rule does not target an allow-listed selector, and on any allow-listed
+  one not valued `var(--blur-overlay)`. Its `blurAllowedOverlaySelectors` constant and the list
+  above are one list written in two places: change them together.
+- **The only way out is still a comment.** A `ui-blur-exception:` comment on the declaration or the
+  line above it exempts it, for a case genuinely outside the list — measured and justified on the
+  spot, under the escape-hatch rules above. Adding a surface to the allow-list is a decision about
+  the product; sprinkling exception comments is how a rule becomes a formality.
+
+**Two of the allow-listed surfaces sit inside the scrolled content flow**, which is the case the
+whole rule exists to prevent, and they are accepted deliberately: the **session-ended overlay** over
+a terminal (a single instance, over a single session view, and the session behind it has ended — it
+is not a surface a screenful of objects can multiply) and the log stream's **jump-to-live control**
+(a single instance, small, and bounded to a detail view). They are the most expensive members of the
+list — the jump-to-live control sits
+over a continuously repainted view — and they are **the first thing to withdraw if scrolling ever
+regresses on a real machine**, starting with the jump-to-live control: it is the cheapest to remove
+and the one with the least visual return.
 
 ### How the library grows
 
