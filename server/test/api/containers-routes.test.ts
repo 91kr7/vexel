@@ -69,6 +69,28 @@ async function fetchList(url: string): Promise<ContainerSummary[]> {
   return (await response.json()) as ContainerSummary[];
 }
 
+/**
+ * Waits for the list to report a container in the given state.
+ *
+ * The daemon acknowledges a lifecycle command once it has *accepted* it — `kill`
+ * answers when the signal has been delivered, not when the process has gone — so
+ * the state that follows arrives a moment later. REQ-20 promises the row
+ * reflects the resulting state, not that it does so within one round trip:
+ * reading the list once turns that promise into a race, and it lost one, finding
+ * `running` on a container it had just killed.
+ */
+async function expectListedState(url: string, id: string, expected: ContainerSummary["state"]): Promise<void> {
+  const deadline = Date.now() + 15_000;
+  let seen: string | undefined;
+  for (;;) {
+    seen = (await fetchList(url)).find((container) => container.id === id)?.state;
+    if (seen === expected) return;
+    if (Date.now() > deadline) break;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  assert.equal(seen, expected, `the list still reports ${String(seen)} rather than ${expected}`);
+}
+
 // plan-docker_management_app/REQ-19 — the list carries name, short id, state, image, published ports and uptime
 test("GET /api/containers lists a running container with its name, short id, state, image, published ports and status", async () => {
   const name = `vexel-test-list-${Date.now()}`;
@@ -99,8 +121,7 @@ test("POST /api/containers/:id/stop stops a running container and the list refle
     const id = await createSleepingContainer(name);
     const response = await fetch(`${url}/api/containers/${id}/stop`, { method: "POST" });
     assert.equal(response.status, 204);
-    const containers = await fetchList(url);
-    assert.equal(containers.find((container) => container.id === id)?.state, "exited");
+    await expectListedState(url, id, "exited");
   } finally {
     await removeContainerQuietly(name);
     await close();
@@ -116,13 +137,11 @@ test("POST pause and unpause toggle a running container's reported state", async
     const id = await createSleepingContainer(name);
     const pauseResponse = await fetch(`${url}/api/containers/${id}/pause`, { method: "POST" });
     assert.equal(pauseResponse.status, 204);
-    let containers = await fetchList(url);
-    assert.equal(containers.find((container) => container.id === id)?.state, "paused");
+    await expectListedState(url, id, "paused");
 
     const unpauseResponse = await fetch(`${url}/api/containers/${id}/unpause`, { method: "POST" });
     assert.equal(unpauseResponse.status, 204);
-    containers = await fetchList(url);
-    assert.equal(containers.find((container) => container.id === id)?.state, "running");
+    await expectListedState(url, id, "running");
   } finally {
     await removeContainerQuietly(name);
     await close();
@@ -138,8 +157,7 @@ test("POST /api/containers/:id/kill kills a running container and the list refle
     const id = await createSleepingContainer(name);
     const response = await fetch(`${url}/api/containers/${id}/kill`, { method: "POST" });
     assert.equal(response.status, 204);
-    const containers = await fetchList(url);
-    assert.equal(containers.find((container) => container.id === id)?.state, "exited");
+    await expectListedState(url, id, "exited");
   } finally {
     await removeContainerQuietly(name);
     await close();
@@ -155,8 +173,7 @@ test("POST /api/containers/:id/restart restarts a running container", async () =
     const id = await createSleepingContainer(name);
     const response = await fetch(`${url}/api/containers/${id}/restart`, { method: "POST" });
     assert.equal(response.status, 204);
-    const containers = await fetchList(url);
-    assert.equal(containers.find((container) => container.id === id)?.state, "running");
+    await expectListedState(url, id, "running");
   } finally {
     await removeContainerQuietly(name);
     await close();

@@ -1,7 +1,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdirSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -21,6 +21,19 @@ import { execFileAsync } from "../support/docker-cli.js";
 // test has to assume a warm daemon nor depend on another file having pulled
 // them. They are shared infrastructure, not fixtures: nothing removes them.
 await ensureImages([ALPINE_IMAGE, REGISTRY_IMAGE]);
+
+/**
+ * Where this file's own build contexts go, read once, here.
+ *
+ * Deliberately not `tmpdir()` at the point of use: one test in this file
+ * redirects `TMPDIR` at the process, because that is the only way to take the
+ * export's destination away from the service. A fixture path resolved while that
+ * redirection is in force lands inside a sandbox that belongs to another test
+ * and is removed with it — which is the "inherit nothing from another test" rule
+ * broken by a global, and it failed a build here with `path … not found`.
+ * Reading it before any test runs makes every fixture path this file's own.
+ */
+const FIXTURE_TMPDIR = tmpdir();
 
 function startApp(app: Express): Promise<{ url: string; close: () => Promise<void> }> {
   return new Promise((resolve) => {
@@ -200,10 +213,18 @@ function captureInternalContainerEvents(): { ready: () => Promise<void>; stop: (
   };
 }
 
-async function buildImage(tag: string, dockerfile: string): Promise<void> {
-  const contextDir = await mkdtemp(join(tmpdir(), "vexel-fs-fixture-"));
-  await writeFile(join(contextDir, "Dockerfile"), dockerfile);
-  await execFileAsync("docker", ["build", ...ownershipArgs(tag), "-t", tag, contextDir]);
+/** Builds a fixture image from a one-file context, and takes the context away again — a build context is the caller's to destroy. */
+async function buildImage(tag: string, dockerfile: string, extraFiles: Record<string, string> = {}): Promise<void> {
+  const contextDir = await mkdtemp(join(FIXTURE_TMPDIR, "vexel-fs-fixture-"));
+  try {
+    for (const [name, content] of Object.entries(extraFiles)) {
+      await writeFile(join(contextDir, name), content);
+    }
+    await writeFile(join(contextDir, "Dockerfile"), dockerfile);
+    await execFileAsync("docker", ["build", ...ownershipArgs(tag), "-t", tag, contextDir]);
+  } finally {
+    await rm(contextDir, { recursive: true, force: true });
+  }
 }
 
 async function removeImageQuietly(tag: string): Promise<void> {
@@ -427,6 +448,18 @@ test("GET /:id/filesystem/stream reuses the cached extraction on a second call, 
 // restart, not just in the process that computed it: a brand-new process, sharing only the same
 // on-disk data directory, reads the same cached result and creates no new container.
 test("the cached extraction is still reused by a completely fresh process afterwards", async () => {
+  // The entry is this test's own doing, not the previous test's leftover: every
+  // test starts with the cache empty (support/fresh-data-dir.ts), and what
+  // is contracted here is that an entry survives the *process*, which needs an
+  // entry this test can point at.
+  const seeding = buildApp();
+  const seedingApp = await startApp(seeding);
+  try {
+    await readSseUntilDone(await fetch(`${seedingApp.url}/api/images/${encodeURIComponent(scratchImageId)}/filesystem/stream`));
+  } finally {
+    await seedingApp.close();
+  }
+
   const before_ = await listInternalContainerIds(scratchImageId);
 
   const script = `
@@ -502,8 +535,14 @@ test("the changeset cache and the filesystem cache for the same image do not evi
   const app = buildApp();
   const { url, close } = await startApp(app);
   try {
-    // MERGE_TAG's filesystem was already cached by the previous test; the changeset cache for it
-    // has never been touched, so this is genuinely its first (uncached) analysis.
+    // Both entries are put there by this test. Neither is inherited: every test starts with the
+    // cache empty (support/fresh-data-dir.ts), and what is contracted here is how two
+    // entries for the same image behave towards each other — so this test has to own both.
+    const seedFilesystem = await fetch(`${url}/api/images/${encodeURIComponent(mergeImageId)}/filesystem/stream`);
+    await readSseUntilDone(seedFilesystem);
+
+    // The changeset cache for it has not been touched, so this is genuinely its first (uncached)
+    // analysis.
     const firstChangesets = await fetch(`${url}/api/images/${encodeURIComponent(mergeImageId)}/changesets/stream`);
     const firstChangesetEvents = await readSseUntilDone(firstChangesets);
     assert.ok(firstChangesetEvents.some((event) => event.event === "progress"), "expected the first changeset analysis to be uncached");
@@ -537,7 +576,7 @@ test("the changeset cache and the filesystem cache for the same image do not evi
 // call (not once at import), so redirecting it to a directory this test controls lets the export's
 // own destination be taken away from under it.
 //
-// Two details are what make that sabotage land every time rather than most of the time.
+// Three details are what make that sabotage land every time rather than most of the time.
 //
 // - **`export.tar` is pre-created as a directory, not made unwritable.** Stripping the write
 //   permission off the work directory does fail the write — but only if it lands before the file is
@@ -549,18 +588,24 @@ test("the changeset cache and the filesystem cache for the same image do not evi
 //   work directory and then awaits the container-creation round trip to the daemon before it opens
 //   `export.tar`; a timer in this same process is therefore guaranteed a turn in between, whereas a
 //   filesystem watch is delivered whenever the platform gets round to it.
+// - **It sabotages once and then stops.** A timer left running goes on putting `export.tar` back
+//   *while the service is removing the work directory around it*, and the service's own recursive
+//   removal then fails with ENOTEMPTY — an unhandled rejection again, and a far-reaching one: the
+//   runner abandons a test that throws one, so this test's cleanup runs late, restoring `TMPDIR`
+//   and removing this sandbox only after the next tests have already started using them. One
+//   extraction means one work directory, so one sabotage is all there is to do.
 test("GET /:id/filesystem/stream removes the intermediate container even when the export is interrupted mid-run", async () => {
   const originalTmpDir = process.env.TMPDIR;
-  const sandboxDir = await mkdtemp(join(tmpdir(), "vexel-fs-sabotage-"));
+  const sandboxDir = await mkdtemp(join(FIXTURE_TMPDIR, "vexel-fs-sabotage-"));
   process.env.TMPDIR = sandboxDir;
+  let workDir = "";
   const sabotage = setInterval(() => {
     for (const entry of readdirSync(sandboxDir)) {
       if (!entry.startsWith("vexel-fs-extraction-")) continue;
-      try {
-        mkdirSync(join(sandboxDir, entry, "export.tar"));
-      } catch {
-        // Already there — this interval fires more than once per work directory.
-      }
+      workDir = join(sandboxDir, entry);
+      mkdirSync(join(workDir, "export.tar"));
+      clearInterval(sabotage);
+      return;
     }
   }, 1);
   const app = buildApp();
@@ -578,6 +623,13 @@ test("GET /:id/filesystem/stream removes the intermediate container even when th
     clearInterval(sabotage);
     process.env.TMPDIR = originalTmpDir;
     await close();
+    // The service's own cleanup of the work directory runs just after the error
+    // reaches the response, so it is still in flight here. Waited out rather
+    // than raced: two recursive removals crossing inside the same tree is how
+    // one of them ends up rmdir-ing a directory the other has just refilled.
+    for (let attempt = 0; workDir !== "" && existsSync(workDir) && attempt < 200; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
     // The sandbox is this test's own: it goes with it, whether the test passed
     // or failed.
     await rm(sandboxDir, { recursive: true, force: true });
@@ -630,15 +682,9 @@ test("the cache is invalidated by a content change (new image id) and reused for
   const contentTag = `vexel-test-fs-content-${process.pid}-${Date.now()}:1`;
   const retag = `vexel-test-fs-retag-${process.pid}-${Date.now()}:1`;
   try {
-    // A scratch image's COPY source must exist in the build context, so this fixture is built by
-    // hand rather than through the `buildImage` helper (which only writes a Dockerfile).
-    const contextDirV1 = await mkdtemp(join(tmpdir(), "vexel-fs-fixture-"));
-    await writeFile(join(contextDirV1, "v1.txt"), "content-version-1");
-    await writeFile(
-      join(contextDirV1, "Dockerfile"),
-      ["FROM scratch", "COPY v1.txt /v1.txt", 'ENTRYPOINT ["/none"]', ""].join("\n"),
-    );
-    await execFileAsync("docker", ["build", ...ownershipArgs(contentTag), "-t", contentTag, contextDirV1]);
+    await buildImage(contentTag, ["FROM scratch", "COPY v1.txt /v1.txt", 'ENTRYPOINT ["/none"]', ""].join("\n"), {
+      "v1.txt": "content-version-1",
+    });
     const idV1 = await dockerInspect("{{.Id}}", contentTag);
 
     const firstResponse = await fetch(`${url}/api/images/${encodeURIComponent(idV1)}/filesystem/stream`);
@@ -664,13 +710,9 @@ test("the cache is invalidated by a content change (new image id) and reused for
 
     // Rebuilding the same tag with genuinely different content produces a new image id: the cache
     // must not serve v1's stale tree for it.
-    const contextDirV2 = await mkdtemp(join(tmpdir(), "vexel-fs-fixture-"));
-    await writeFile(join(contextDirV2, "v2.txt"), "content-version-2, entirely different");
-    await writeFile(
-      join(contextDirV2, "Dockerfile"),
-      ["FROM scratch", "COPY v2.txt /v2.txt", 'ENTRYPOINT ["/none"]', ""].join("\n"),
-    );
-    await execFileAsync("docker", ["build", ...ownershipArgs(contentTag), "-t", contentTag, contextDirV2]);
+    await buildImage(contentTag, ["FROM scratch", "COPY v2.txt /v2.txt", 'ENTRYPOINT ["/none"]', ""].join("\n"), {
+      "v2.txt": "content-version-2, entirely different",
+    });
     const idV2 = await dockerInspect("{{.Id}}", contentTag);
     assert.notEqual(idV2, idV1, "rebuilding with different content must produce a different image id");
 
@@ -695,10 +737,21 @@ test("the analysis-cache total size reflects a stored filesystem extraction arti
   const app = buildApp();
   const { url, close } = await startApp(app);
   try {
+    // Measured against what this test itself stores, not against a total it
+    // inherited: every test starts with the cache empty, and a reading that only
+    // means something because earlier tests happened to run first is a reading
+    // about them, not about the endpoint.
+    const before = (await (await fetch(`${url}/api/persistence/analysis-cache`)).json()) as { totalSizeBytes: number };
+
+    await readSseUntilDone(await fetch(`${url}/api/images/${encodeURIComponent(scratchImageId)}/filesystem/stream`));
+
     const usage = await fetch(`${url}/api/persistence/analysis-cache`);
     assert.equal(usage.status, 200);
     const body = (await usage.json()) as { totalSizeBytes: number };
-    assert.ok(body.totalSizeBytes > 0, "expected the already-cached extractions from earlier tests to contribute to the reported size");
+    assert.ok(
+      body.totalSizeBytes > before.totalSizeBytes,
+      `expected the stored extraction artifact to grow the reported size (was ${before.totalSizeBytes}, now ${body.totalSizeBytes})`,
+    );
   } finally {
     await close();
   }

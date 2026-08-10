@@ -1,3 +1,4 @@
+import { mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, type Locator, type Page } from '@playwright/test';
@@ -5,11 +6,28 @@ import { execFileAsync } from '../../../server/test/support/docker-cli.js';
 
 /**
  * Where the server under test keeps its preferences and analysis cache during an
- * e2e run — never the operator's own `~/.vexel`. `global-setup.ts` wipes it
- * before the run and `playwright.config.ts` hands it to the server process, so a
- * spec can neither inherit the last run's state nor disturb the real one.
+ * e2e run — never the operator's own `~/.vexel`. `playwright.config.ts` hands it
+ * to the server process, so a spec can neither inherit another run's state nor
+ * disturb the real one.
  */
 export const E2E_DATA_DIR = join(tmpdir(), 'vexel-e2e-data');
+
+/**
+ * Empties the run's data directory, putting the directory itself back.
+ *
+ * Emptying is not enough on its own: the server resolves and creates this
+ * directory once, when it is imported, so removing it without recreating it
+ * leaves every later write landing on a path that no longer exists.
+ *
+ * Called by `global-setup.ts`, so a run inherits nothing from the one before it
+ * — the preferences included, which no per-test hook covers. The analysis cache
+ * needs nothing from it: `support/test.ts` empties that before every single
+ * test, so it never holds more than the running test put there.
+ */
+export function emptyDataDir(): void {
+  rmSync(E2E_DATA_DIR, { recursive: true, force: true });
+  mkdirSync(E2E_DATA_DIR, { recursive: true });
+}
 
 /** Label every e2e fixture carries, so a run can recognise — and only ever remove — its own objects. */
 export const OWNER_LABEL = 'vexel.test.run';

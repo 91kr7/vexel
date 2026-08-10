@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from '../support/test.js';
 import { openApp, ownershipArgs } from '../support/fixtures.js';
 import { execFileAsync } from '../../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, TINY_IMAGE, ensureImage } from '../../../server/test/support/base-images.js';

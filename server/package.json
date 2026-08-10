@@ -11,7 +11,7 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
-    "//test": "Ends on a sweep, not just starts with one: the daemon-backed passes leave the run's shared registry container up on purpose, so that every file after the first reuses it instead of restarting one. Nothing else is meant to outlive the pass, so the last thing a whole pass does is put the machine back as it found it.",
+    "//test": "Ends on a sweep, not just starts with one: the daemon-backed passes leave the run's shared registry container up on purpose, so that every file after the first reuses it instead of restarting one. Nothing else is meant to outlive the pass, so the last thing a whole pass does is put the machine back as it found it. The data directory needs nothing here: every test starts from an empty one (test/support/fresh-data-dir.ts), so it never holds more than the running test put there.",
     "test": "npm run test:typecheck && npm run test:unit && npm run test:api && npm run test:exclusive && npm run test:sweep",
     "test:typecheck": "tsc -p tsconfig.test.json",
     "test:unit": "node --experimental-test-module-mocks --import tsx --test-reporter=dot --test-concurrency=1 --test \"test/unit/**/*.test.ts\"",
@@ -21,8 +21,8 @@
     "test:registry": "tsx test/support/prepare-registry.ts",
     "test:reset-data-dir": "D=\"${TMPDIR:-/tmp}/vexel-server-test-data\" && rm -rf \"$D\" && mkdir -p \"$D\"",
     "//test:api": "One file at a time (--test-concurrency=1), like the exclusive pass and the e2e suite: every file drives the same daemon, so files in parallel turn contention into failures that say nothing about the product, and a file that stalls stalls behind a wall of unrelated output.",
-    "test:api": "npm run test:sweep && npm run test:images && npm run test:registry && VEXEL_DATA_DIR=\"${TMPDIR:-/tmp}/vexel-server-test-data\" node --experimental-test-module-mocks --import tsx --test-reporter=dot --test-concurrency=1 --test \"test/api/**/*.test.ts\"",
-    "test:exclusive": "npm run test:sweep && npm run test:images && npm run test:registry && VEXEL_DATA_DIR=\"${TMPDIR:-/tmp}/vexel-server-test-data\" node --experimental-test-module-mocks --import tsx --test-reporter=dot --test-concurrency=1 --test \"test/exclusive/**/*.test.ts\""
+    "test:api": "npm run test:sweep && npm run test:images && npm run test:registry && VEXEL_DATA_DIR=\"${TMPDIR:-/tmp}/vexel-server-test-data\" node --experimental-test-module-mocks --import tsx --import ./test/support/fresh-data-dir.ts --test-reporter=dot --test-concurrency=1 --test \"test/api/**/*.test.ts\"",
+    "test:exclusive": "npm run test:sweep && npm run test:images && npm run test:registry && VEXEL_DATA_DIR=\"${TMPDIR:-/tmp}/vexel-server-test-data\" node --experimental-test-module-mocks --import tsx --import ./test/support/fresh-data-dir.ts --test-reporter=dot --test-concurrency=1 --test \"test/exclusive/**/*.test.ts\""
   },
   "dependencies": {
     "express": "^5.2.1",

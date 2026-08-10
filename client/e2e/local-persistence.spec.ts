@@ -1,5 +1,7 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './support/test.js';
 import { navEntry, openApp } from './support/fixtures.js';
+import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 
 // The first test of this file deliberately persists a screen; every test starts
 // from the default one anyway, so neither inherits the other's leftover.
@@ -125,6 +127,33 @@ test('a screen chosen before the preferences read settles is the one the applica
   await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
 });
 
+/** The analysis cache's reported total, from the same endpoint the card reads. */
+async function analysisCacheTotal(page: Page): Promise<number> {
+  const response = await page.request.get('/api/persistence/analysis-cache');
+  return ((await response.json()) as { totalSizeBytes: number }).totalSizeBytes;
+}
+
+/**
+ * Puts an entry of this spec's own into the analysis cache, and answers the
+ * total once it is there.
+ *
+ * Extracting a filesystem is what writes to that cache, and the suite's own
+ * single-layer image makes it a matter of milliseconds. Done rather than assumed
+ * so that "there is something to clear" is this spec's doing: the cache is
+ * shared by the whole run, and a spec that merely clears whatever it happens to
+ * find is asserting on somebody else's state.
+ */
+async function seedAnalysisCache(page: Page): Promise<number> {
+  await ensureImage(TINY_IMAGE);
+  const { stdout } = await execFileAsync('docker', ['image', 'inspect', TINY_IMAGE, '--format', '{{.Id}}']);
+  const response = await page.request.get(`/api/images/${encodeURIComponent(stdout.trim())}/filesystem/stream?force=true`, {
+    timeout: 60_000,
+  });
+  expect(response.ok(), 'expected the filesystem extraction that seeds the cache to be accepted').toBe(true);
+  await response.body();
+  return await analysisCacheTotal(page);
+}
+
 // app-shell/specs/shell.md — the shell exposes the analysis-cache size with a Clear action, which
 // empties the cache and is disabled once there is nothing left to clear
 test('the Local storage card shows the analysis-cache size and clearing it disables the Clear action', async ({ page }) => {
@@ -132,6 +161,11 @@ test('the Local storage card shows the analysis-cache size and clearing it disab
   // the placeholder that used to sit under them with the coverage matrix, so the
   // screen they are shown on is the one labelled "About" (app-shell/specs/shell.md).
   // It is addressed by its internal id, which the rename did not touch.
+  // Seeded before the screen is opened, so the card renders a size that this
+  // spec put there.
+  const seededTotal = await seedAnalysisCache(page);
+  expect(seededTotal, 'expected the extraction to leave something in the analysis cache').toBeGreaterThan(0);
+
   await openApp(page, 'coverage-matrix');
 
   // Scoped to the card: the coverage matrix under it names screens and
@@ -142,13 +176,32 @@ test('the Local storage card shows the analysis-cache size and clearing it disab
 
   // The card's own action: "Clear" is a label the rest of the shell can repeat.
   const clearButton = localStorageCard.getByRole('button', { name: 'Clear' });
-  await expect(clearButton).toBeVisible();
+  // There is something to clear, and this spec is why: the action offers itself.
+  await expect(clearButton).toBeEnabled();
 
-  // The empty state is established here rather than assumed: any spec that
-  // analysed an image earlier in the run leaves entries in this same cache.
-  if (await clearButton.isEnabled()) {
-    await clearButton.click();
-  }
+  await clearButton.click();
 
-  await expect(clearButton).toBeDisabled();
+  // "Clear empties the cache": what this spec put in is gone, shown as the total
+  // falling below what it had seeded. Not "the total is zero" — the cache is
+  // shared by the whole run, and an analysis another spec started can still be
+  // finishing and legitimately write an entry of its own a moment later. That is
+  // precisely how asserting on the daemon-wide total failed here.
+  await expect
+    .poll(async () => analysisCacheTotal(page), { timeout: 15_000, message: 'expected clearing to drop what this spec had cached' })
+    .toBeLessThan(seededTotal);
+
+  // "Disabled once there is nothing left to clear": the state of the action has
+  // to agree with the size being reported at that same moment — disabled when
+  // the cache is empty, offered again when something has since been written to
+  // it. That agreement is the contract; the emptiness is not this spec's to own.
+  await expect
+    .poll(
+      async () => {
+        const total = await analysisCacheTotal(page);
+        const disabled = await clearButton.isDisabled();
+        return total === 0 ? disabled : !disabled;
+      },
+      { timeout: 15_000, message: "expected the Clear action's state to agree with the size the card reports" },
+    )
+    .toBe(true);
 });

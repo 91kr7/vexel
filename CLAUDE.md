@@ -131,9 +131,42 @@ objects behind, and reading state somebody else created.
 - **Never inherit state from another test**, and that includes the application's own: the last
   active screen and the analysis cache survive by design (REQ-113, REQ-115), so a spec that needs a
   particular screen pins it (`openApp`) rather than trusting whichever one the previous spec left.
-  Every suite points the server at its own `VEXEL_DATA_DIR` instead of the operator's `~/.vexel`:
-  the e2e one is emptied per run, the server one is kept between runs so the analysis cache stays
-  warm (empty it with `npm run test:reset-data-dir -w server` when a cold start is the point).
+  Every suite points the server at its own `VEXEL_DATA_DIR` instead of the operator's `~/.vexel`.
+- **Every test starts from a clean application state** — as surely as it starts with a fresh browser.
+  `VEXEL_DATA_DIR` holds the preferences, the console history, the analysis cache and its index, and
+  all of it outlives the test that wrote it. That is the widest shared state the suite has, and
+  leaving any of it standing breaks the rule above twice over: a test **inherits what another
+  wrote** — `persistence-routes.test.ts` asked for the default preferences and was handed a
+  `selectedContext` no test of its own had set — and a test **stops running the code it exists to
+  drive**, because the analysis cache is keyed by content digest, never evicts (REQ-113), and a hit
+  skips the extraction outright. A test that has quietly stopped testing anything is worse than a
+  slow one, and it is invisible: it passes.
+
+  The whole directory, not one namespace of it. Cleared *before* each test and never during: a test
+  that writes state and then relies on it is contracting exactly that
+  (`filesystem-browser.spec.ts`, "reuses the cached extraction the next time the image is browsed")
+  and owns it for its own duration. It lives where no new file can forget it —
+  `client/e2e/support/test.ts` (an automatic Playwright fixture, which is why specs import `test`
+  from there and not from `@playwright/test`) and `server/test/support/fresh-data-dir.ts`
+  (preloaded with `--import` by the daemon-backed passes).
+
+  Two mechanisms, because the two halves are not equivalent. The analysis cache is emptied through
+  the store's own `clear()` — or, in e2e, through `POST /api/persistence/analysis-cache/clear`,
+  since one server process serves the whole run and holds an in-process write queue: it is asked,
+  not undercut. The remaining namespaces have no such API, and removing their files is a state the
+  store reads correctly by design, re-reading each one per call and falling back to the defaults.
+  The **directory itself** is never removed: `local-store.ts` resolves it once, at import.
+
+  **This reverses an earlier decision, so here is what it costs**, to save anyone reinstating it
+  from the old argument. The data directory used to be kept warm between runs, said to be worth
+  "minutes against well over ten". Measured: `npm run test` 7m23s before against 7m26s after; the
+  full e2e suite 13m21s–14m12s before against 13m30s and 14m07s after — inside the run-to-run spread,
+  not minutes. The saving was already gone; the growth was not, the directory having reached **3.2 GB
+  across 1936 artefacts** because every run builds fixture images with content of their own and
+  nothing evicts. It now never holds more than the running test put there.
+
+  This does **not** excuse a test from the rule above: state written by other work finishing
+  *during the same test's window* is still shared, and no assertion may require it to be empty.
 - **Every spec must pass on its own.** Running one file is what development actually looks like. A
   fixed order is legitimate for sharing expensive setup — `client/e2e/support/global-setup.ts`
   prepares the base images once — but never for passing state from one test to the next.

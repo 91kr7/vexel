@@ -24,23 +24,21 @@
  * port (see `playwright.config.ts`). There is no dev server and no second
  * process to account for.
  */
-import { mkdirSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { E2E_DATA_DIR } from './fixtures.js';
+import { emptyDataDir } from './fixtures.js';
 import { execFileAsync } from '../../../server/test/support/docker-cli.js';
 
 /** The workspace root, from which the workspace-scoped npm scripts are run. */
 const REPOSITORY_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
 export default async function globalSetup(): Promise<void> {
-  // Playwright starts the web server before this hook, and the server creates
-  // its data directory on import: emptying it is therefore not enough — the
-  // directory itself has to be put back, or every write lands on a path that no
-  // longer exists. As true of the built server as it was of the dev one; it
-  // resolves the directory once, at import.
-  rmSync(E2E_DATA_DIR, { recursive: true, force: true });
-  mkdirSync(E2E_DATA_DIR, { recursive: true });
+  // Playwright starts the web server before this hook, so the directory is
+  // already in use by the time it is emptied — see `emptyDataDir`, which is why
+  // it puts the directory itself back. This covers what no per-test hook does:
+  // the persisted preferences. The analysis cache is emptied before every single
+  // test instead (`support/test.ts`).
+  emptyDataDir();
 
   for (const script of ['test:images', 'test:registry']) {
     // Ten minutes, not the default thirty seconds: on a machine that holds none
