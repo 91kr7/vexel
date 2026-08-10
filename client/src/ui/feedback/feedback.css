@@ -1,8 +1,21 @@
+/*
+ * The dialog scrim stays a plain dim, and that is a decision, not an oversight:
+ * the application behind an open dialog is meant to stay sharp outside the
+ * dialog's own footprint. The blur belongs to the dialog surface above it
+ * (plan-liquid_glass_overlays/REQ-2). It also has to stay that way: an element
+ * carrying `backdrop-filter` becomes the backdrop root of its descendants, so a
+ * blurred scrim would leave the dialog nested inside it resampling an
+ * already-blurred, already-dimmed layer — two blurs paid for one effect, and a
+ * worse-looking one. The `none` below says so to the next reader and to the
+ * conformance check.
+ */
 .ui-modal-overlay {
   position: fixed;
   inset: 0;
   z-index: var(--z-overlay);
   background: rgba(2, 3, 6, 0.6);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
   display: grid;
   place-items: center;
   padding: var(--space-6);

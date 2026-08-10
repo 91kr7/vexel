@@ -27,6 +27,26 @@
   --color-text-wash-strong: rgba(255, 255, 255, 0.62);
   --color-text-wash-muted: rgba(255, 255, 255, 0.5);
 
+  /* Overlay glass — the material of the surfaces drawn above what they cover
+     and present only while an interaction or a state lasts (dialogs, toasts,
+     the choice popup, the phone navigation drawer). Only those surfaces may
+     carry it; see the allow-list in CLAUDE.md.
+     `--blur-overlay` is the single blur value of the whole codebase and the
+     MAXIMUM any surface may use: a surface may reference it, never a length of
+     its own and never a larger one. */
+  --blur-overlay: 20px;
+  --overlay-glass-saturation: 140%;
+  /* A blurred surface is separated from what it covers by the blur, so it can
+     afford a lower alpha than the main view's glass and still hide it. The two
+     fallbacks below are what it degrades to when the blur is not there to do
+     that work: `-dense` where the browser supports no backdrop blur, `-opaque`
+     where the operator asked for reduced transparency. Both are the same hue
+     as `--color-surface-raised` composited over `--color-void`, so the surface
+     keeps its colour and the documented text contrast either way. */
+  --color-surface-overlay: rgba(46, 54, 76, 0.44);
+  --color-surface-overlay-dense: rgba(29, 35, 52, 0.94);
+  --color-surface-overlay-opaque: #1d2334;
+
   --color-text-primary: #eef0f5;
   --color-text-secondary: #a4abbd;
   --color-text-muted: #767f95;

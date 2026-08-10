@@ -143,19 +143,20 @@ describe('FormSheet (ui-library/specs/form-sheet.md)', () => {
     expect(screen.getByRole('button', { name: 'Create and start' })).toBeEnabled();
   });
 
-  // form-sheet.md — the glass surface never uses backdrop-filter or filter: blur()
-  it('uses neither backdrop-filter nor filter: blur() on its surfaces', () => {
+  // form-sheet.md — the sheet's own surface carries the overlay glass material, while the dimmed
+  // overlay it sits on stays a plain dim (plan-liquid_glass_overlays/REQ-1, REQ-2). jsdom applies
+  // no stylesheet, so the carrier is verified by the class the material is defined under.
+  it('carries the overlay glass material on its surface and not on the dimmed overlay', () => {
     const { container } = render(
       <FormSheet open title="Run a container" commitActions={commits()} onCancel={vi.fn()}>
         <p>body</p>
       </FormSheet>,
     );
 
-    for (const node of Array.from(container.querySelectorAll('*'))) {
-      const style = getComputedStyle(node);
-      expect(style.backdropFilter === '' || style.backdropFilter === 'none').toBe(true);
-      expect(style.filter === '' || style.filter === 'none').toBe(true);
-    }
+    const surface = container.querySelector('.ui-surface') as HTMLElement;
+    const overlay = container.querySelector('.ui-modal-overlay') as HTMLElement;
+    expect(surface.classList.contains('ui-overlay-glass')).toBe(true);
+    expect(overlay.classList.contains('ui-overlay-glass')).toBe(false);
   });
 });
 

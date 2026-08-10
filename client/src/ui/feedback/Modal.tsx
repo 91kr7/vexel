@@ -14,14 +14,14 @@ export interface ModalProps {
   size?: ModalSize;
 }
 
-/** Centered glass dialog over a dimmed overlay; closes on overlay click. */
+/** Centered overlay-glass dialog over a dimmed overlay; closes on overlay click. */
 export function Modal({ open, title, children, actions, onClose, size = 'default' }: ModalProps) {
   if (!open) return null;
   const modalClass = size === 'large' ? 'ui-modal ui-modal--size-large' : 'ui-modal';
   return (
     <div className="ui-modal-overlay" onClick={onClose}>
       <div onClick={(event) => event.stopPropagation()}>
-        <Surface elevation="raised">
+        <Surface elevation="raised" material="overlay">
           <div className={modalClass}>
             <h2 className="ui-modal__title">{title}</h2>
             <div className="ui-modal__body">{children}</div>

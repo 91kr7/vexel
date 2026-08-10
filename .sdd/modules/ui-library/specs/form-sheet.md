@@ -32,13 +32,24 @@ Actions:
 - While `busy`, every commit action and cancel is disabled and the overlay no longer cancels, so an
   in-flight operation cannot be dismissed as if it never started.
 - The footer and the banner never scroll out of view, whatever the body's height.
-- The surface never uses `backdrop-filter` or `filter: blur()`.
+- The sheet's surface carries the overlay glass material: what is behind it shows through blurred
+  and unreadable, degrading through the fallbacks stated in `overlay-glass.md`. This narrows the
+  earlier "the surface never uses `backdrop-filter` or `filter: blur()`", which this plan
+  supersedes.
+- The header, the banner, the scrolling body and the footer's own washed strip all sit **on** that
+  one blurred surface, not behind it: they keep reading as one sheet, never as a second box drawn
+  over the first.
+- The dimmed overlay the sheet sits on stays a plain dim and declares no blur, for the reason given
+  in `modal.md`.
 
 ## Dependencies
 
-- Surface, Button
+- Surface, Button, Overlay glass material
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-27
 - plan-docker_management_app/REQ-28
+- plan-liquid_glass_overlays/REQ-1
+- plan-liquid_glass_overlays/REQ-2
+- plan-liquid_glass_overlays/REQ-15

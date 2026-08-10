@@ -1,6 +1,23 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { Surface } from '../glass/Surface';
 import './feedback.css';
+
+/**
+ * How many toasts are on screen at once. Each one carries the blurred overlay
+ * glass material, so this is also the bound on how many blurred surfaces the
+ * compositor can ever be asked for at the same time
+ * (plan-liquid_glass_overlays/REQ-10).
+ */
+const maxVisibleToasts = 3;
 
 export type ToastTone = 'neutral' | 'success' | 'danger';
 
@@ -29,6 +46,7 @@ function createToastId(): string {
 /** Provides `useToast()` and renders the toast stack, bottom-right. */
 export function ToastProvider({ children }: { children?: ReactNode }) {
   const [toasts, setToasts] = useState<ToastEntry[]>([]);
+  const timers = useRef(new Map<string, number>());
 
   const dismiss = useCallback((id: string) => {
     setToasts((current) => current.filter((toast) => toast.id !== id));
@@ -37,11 +55,25 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
   const push = useCallback(
     (toast: ToastInput) => {
       const id = createToastId();
-      setToasts((current) => [...current, { id, ...toast }]);
-      window.setTimeout(() => dismiss(id), toast.durationMs ?? 5000);
+      // The oldest gives way once a fourth arrives; ids are unique, so the
+      // timeout of a toast dropped this way can only ever look for an entry
+      // that is gone, never dismiss the toast that took its place.
+      setToasts((current) => [...current, { id, ...toast }].slice(-maxVisibleToasts));
+      timers.current.set(id, window.setTimeout(() => dismiss(id), toast.durationMs ?? 5000));
     },
     [dismiss],
   );
+
+  // A toast that left the stack before its time — dropped by the cap, or
+  // dismissed — has a timeout still pending: it is cleared here rather than
+  // left to fire against a toast that no longer exists.
+  useEffect(() => {
+    for (const [id, timer] of [...timers.current]) {
+      if (toasts.some((toast) => toast.id === id)) continue;
+      window.clearTimeout(timer);
+      timers.current.delete(id);
+    }
+  }, [toasts]);
 
   const value = useMemo(() => ({ push }), [push]);
 
@@ -50,7 +82,7 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
       {children}
       <div className="ui-toast-viewport">
         {toasts.map((toast) => (
-          <Surface key={toast.id} elevation="raised" padding="md">
+          <Surface key={toast.id} elevation="raised" padding="md" material="overlay">
             <div className="ui-toast">
               <p className="ui-toast__title">{toast.title}</p>
               {toast.message ? <p className="ui-toast__message">{toast.message}</p> : null}

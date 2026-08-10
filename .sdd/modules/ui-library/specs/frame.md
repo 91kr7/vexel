@@ -56,13 +56,28 @@ footer regions so feature code never writes a layout wrapper element itself.
   without Frame knowing about routing). Between `720px` and `1024px` the rail stays docked but
   narrows (`260px` → `220px`). This transient open/close transition is ordinary UI chrome, not the
   Backdrop layer — the CLAUDE.md animation ban targets the static background image, not a drawer.
+- That scrim carries the overlay glass material **at the phone breakpoint only**: while the drawer
+  is open the content behind the scrim is blurred as well as dimmed. It stays a dim rather than a
+  glass panel — it bears no text, so it keeps its own fill and only adds the blur; under reduced
+  transparency it drops the blur and the dim is all that remains. Above the breakpoint the scrim is
+  not displayed at all and the shell blurs nothing.
+- The scrim and the drawer card (`.ui-nav-rail`, see `navigation-primitives.md`) are **siblings**,
+  not nested: neither sits inside the other's backdrop root, so both may blur and they simply
+  compose while the drawer is open. Accepted deliberately. This is the opposite of the dialog
+  scrim, which stays a plain dim precisely because the dialog *is* nested inside it (`modal.md`).
+- The scrim's `opacity` fade creates a backdrop root for its own descendants, of which it has none,
+  and leaves its own backdrop alone.
+- The rail's sizing wrapper carries no material of any kind, blurred or not: it is a plain box, and
+  a blurred rectangle behind the card's rounded corners is exactly what it would produce.
 
 ## Dependencies
 
-- Backdrop
+- Backdrop, Overlay glass material
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-1
 - plan-docker_management_app/REQ-2
 - plan-docker_management_app/REQ-117
+- plan-liquid_glass_overlays/REQ-5
+- plan-liquid_glass_overlays/REQ-7

@@ -17,6 +17,7 @@ const blurExceptionMarker = 'ui-blur-exception:';
 // The surfaces allowed to compute a runtime blur. This is the single place the
 // list lives in code; CLAUDE.md states the same list in prose.
 const blurAllowedOverlaySelectors = new Set([
+  '.ui-overlay-glass',
   '.ui-combobox__list',
   '.ui-frame__rail',
   '.ui-nav-rail',

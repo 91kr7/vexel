@@ -69,6 +69,7 @@ an interaction or a state lasts:
 
 | Surface | Selector |
 |---------|----------|
+| the overlay glass material itself — the class a `Surface` carries when it is asked for `material="overlay"`, which is how the dialog surfaces (`Modal` and everything built on it, `FormSheet`) and the toasts get it | `.ui-overlay-glass` |
 | the suggestion / choice popup of `Combobox` | `.ui-combobox__list` |
 | the off-canvas navigation drawer at the phone breakpoint — its sizing wrapper and the card that actually paints, **inside the `max-width: 720px` block only** | `.ui-frame__rail`, `.ui-nav-rail` |
 | the scrim that drawer slides in over | `.ui-frame__scrim` |
@@ -84,8 +85,8 @@ for one effect. Never blur two nested surfaces.
 
 Why that is affordable: there is **one instance of each** of these, none of them repeats across a
 screen or scales with the number of objects listed, and any surface whose count is not naturally one
-must be capped before it may join the list (the toast stack, when it does, is capped at three for
-exactly this reason). The radius is one bounded value for all of them. And the large, numerous,
+must be capped before it may join the list (the toast stack, the one member whose count is not
+naturally one, is capped at three for exactly this reason). The radius is one bounded value for all of them. And the large, numerous,
 scrolled surfaces — the shell, the header, cards, panels, tables, detail panels, split panes, and
 the log / console / terminal surfaces themselves — still pay nothing at all.
 

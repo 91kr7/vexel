@@ -3,7 +3,13 @@
 
 export { Backdrop } from './background/Backdrop';
 
-export { Surface, type SurfaceElevation, type SurfacePadding, type SurfaceProps } from './glass/Surface';
+export {
+  Surface,
+  type SurfaceElevation,
+  type SurfaceMaterial,
+  type SurfacePadding,
+  type SurfaceProps,
+} from './glass/Surface';
 export { Card, type CardProps } from './glass/Card';
 export { SectionHeader, type SectionHeaderProps } from './glass/SectionHeader';
 export { Divider, type DividerProps } from './glass/Divider';

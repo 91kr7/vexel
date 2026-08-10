@@ -30,9 +30,22 @@ the footer status block showing the active Docker context.
 - `NavRail` renders as a self-contained glass panel (translucency, hairline border, elevation
   shadow, top highlight, `--radius-xl` corners on all sides) rather than a flush strip with a single
   edge border — revised 2026-08-06 alongside Frame's floating shell layout.
+- `NavRail` is the surface that actually paints the rail, so it is where the material lives — its
+  sizing wrapper (owned by Frame) carries none.
+- **Below the phone breakpoint only**, where the rail has become the off-canvas drawer (`frame.md`),
+  `NavRail` carries the overlay glass material: the content behind the open drawer shows through it
+  blurred, degrading through the fallbacks stated in `overlay-glass.md`. Above that breakpoint the
+  rail is docked — it is main view, it keeps the material above and computes no blur at all
+  (plan-liquid_glass_overlays/REQ-7).
+
+## Dependencies
+
+- Overlay glass material (at the phone breakpoint)
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-1
 - plan-docker_management_app/REQ-2
 - plan-docker_management_app/REQ-117
+- plan-liquid_glass_overlays/REQ-5
+- plan-liquid_glass_overlays/REQ-7

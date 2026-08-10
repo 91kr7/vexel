@@ -33,9 +33,10 @@ surfaces, only with the bounded blur token).
   value other than `none`, or a `filter` whose value carries `blur(` or the blur token
 - such a declaration is accepted only when **both** hold, otherwise it is a violation naming the
   selector of the rule that carries it:
-  - the rule targets an allow-listed overlay surface — `.ui-combobox__list`, `.ui-frame__rail`,
-    `.ui-nav-rail`, `.ui-frame__scrim`, `.ui-session-ended-overlay`, `.ui-log-stream__jump` —
-    otherwise → `runtime blur on "<selector>", which is not an allow-listed overlay surface`
+  - the rule targets an allow-listed overlay surface — `.ui-overlay-glass`, `.ui-combobox__list`,
+    `.ui-frame__rail`, `.ui-nav-rail`, `.ui-frame__scrim`, `.ui-session-ended-overlay`,
+    `.ui-log-stream__jump` — otherwise →
+    `runtime blur on "<selector>", which is not an allow-listed overlay surface`
   - its value is bound to the token: it references `var(--blur-overlay)`, and every `blur()` it
     contains has exactly `var(--blur-overlay)` as its argument — otherwise →
     `runtime blur on "<selector>" must be valued var(--blur-overlay), not a blur length of its own`

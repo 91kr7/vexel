@@ -20,14 +20,28 @@ type: UI component
 
 ## Rules and invariants
 
-- The dialog surface is a `raised` Surface: translucency and a shadow, never `backdrop-filter` or
-  `filter: blur(...)` (REQ-108), even though it visually sits above other panels.
+- The dialog surface is a `raised` Surface carrying the overlay glass material
+  (`material="overlay"`): what is behind the dialog shows through it blurred and unreadable, at
+  both sizes — `'large'`'s own scroll changes what the dialog contains, never what it samples.
+  Narrows the earlier "never `backdrop-filter` or `filter: blur(...)`"
+  (`plan-docker_management_app/REQ-108`), which this plan supersedes; the fallbacks the material
+  degrades through are in `overlay-glass.md`.
+- The dimmed scrim behind the dialog stays a **plain dim** and declares no blur: the application
+  behind an open dialog is still sharp outside the dialog's own footprint. This is deliberate and
+  load-bearing — an element carrying a backdrop blur becomes the backdrop root of its descendants,
+  so a blurred scrim would leave the dialog nested inside it resampling an already-blurred,
+  already-dimmed layer, paying twice for one effect.
+- Everything built on Modal — `ConfirmDialog`, `FormDialog`, `TransferProgressDialog` — carries the
+  material by construction, none of them declaring it itself.
 
 ## Dependencies
 
-- Surface
+- Surface, Overlay glass material
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-6
 - plan-docker_management_app/REQ-108
+- plan-liquid_glass_overlays/REQ-1
+- plan-liquid_glass_overlays/REQ-2
+- plan-liquid_glass_overlays/REQ-15

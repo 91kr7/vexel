@@ -32,6 +32,10 @@ token by name, never a literal value.
     `frame.md`).
   - Elevation: `--shadow-{1,2,3}`.
   - Z-index: `--z-{backdrop,shell,content,overlay,modal,toast}`.
+  - Overlay glass: `--blur-overlay` (20px) and `--overlay-glass-saturation` (140%), plus the three
+    fills the material degrades between — `--color-surface-overlay` (blurred),
+    `--color-surface-overlay-dense` (no backdrop blur available),
+    `--color-surface-overlay-opaque` (reduced transparency). See `overlay-glass.md`.
 
 ## Rules and invariants
 
@@ -49,6 +53,11 @@ token by name, never a literal value.
   Backdrop's corner-concentrated glows.
 - No component under `client/src/ui/` hard-codes a color, radius, spacing, shadow or z-index value
   outside this file; it references the token by name.
+- `--blur-overlay` (20px) is the **only** blur value in the codebase and is documented as the
+  **maximum** any surface may use: no component declares a blur length of its own, and none asks
+  for a larger radius. The three overlay fills are the same hue as `--color-surface-raised`
+  composited over `--color-void`, so a surface degrading to one of them keeps its colour and the
+  text contrast guaranteed above.
 - The categorical palette is kept to four entries: a breakdown that needed more would be relying on
   two colors an eye cannot separate. Three of the four reuse the accent, success and warning roles
   by reference, so the palette cannot drift away from the rest of the interface.
@@ -57,3 +66,4 @@ token by name, never a literal value.
 
 - plan-docker_management_app/REQ-3
 - plan-docker_management_app/REQ-4
+- plan-liquid_glass_overlays/REQ-6

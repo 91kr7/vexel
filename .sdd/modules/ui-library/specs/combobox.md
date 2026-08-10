@@ -35,11 +35,18 @@ Actions:
 - A value that matches no option is never rejected nor rewritten: free text is a legitimate value.
 - Choosing a suggestion commits before focus is lost, so a click on a suggestion never ends up
   discarded by the blur that follows it.
+- The open suggestion list carries the overlay glass material: the rows and controls it covers are
+  rendered blurred and are not legible through it, degrading through the fallbacks stated in
+  `overlay-glass.md`. It is the application's only styled popup — a `Select`'s dropdown is drawn by
+  the browser and can carry no material.
+- The row under the pointer or the keyboard stays as plainly distinguishable over that material as
+  it was over the former opaque list.
 
 ## Dependencies
 
-- FieldMessage
+- FieldMessage, Overlay glass material
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-29
+- plan-liquid_glass_overlays/REQ-4

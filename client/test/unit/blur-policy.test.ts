@@ -10,6 +10,7 @@ import { join } from 'node:path';
 const repositoryRoot = join(process.cwd(), '..');
 
 const allowListedOverlaySelectors = [
+  '.ui-overlay-glass',
   '.ui-combobox__list',
   '.ui-frame__rail',
   '.ui-nav-rail',

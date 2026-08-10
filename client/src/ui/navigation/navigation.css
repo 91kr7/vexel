@@ -162,3 +162,31 @@
 .ui-footer-status__dot--offline {
   background: var(--color-text-muted);
 }
+
+/*
+ * Below the phone breakpoint the rail leaves the flow and becomes the
+ * off-canvas drawer (Frame does the moving, in layout.css). This card is the
+ * surface that actually paints, so the overlay glass material goes here and not
+ * on `.ui-frame__rail`, its bare sizing wrapper — a blurred rectangle behind
+ * these rounded corners is exactly what the wrapper would give
+ * (plan-liquid_glass_overlays/REQ-5). Above the breakpoint the rail is docked:
+ * it is main view, it keeps the material declared at the top of this file, and
+ * it blurs nothing (plan-liquid_glass_overlays/REQ-7). Every value comes from
+ * the tokens ../glass/overlay-glass.css establishes; a class cannot be scoped
+ * to a media query, which is the only reason the declarations are written here.
+ */
+@media (max-width: 720px) {
+  .ui-nav-rail {
+    background-color: var(--overlay-glass-background);
+    border-color: var(--color-border-strong);
+    -webkit-backdrop-filter: blur(var(--blur-overlay)) saturate(var(--overlay-glass-saturation));
+    backdrop-filter: blur(var(--blur-overlay)) saturate(var(--overlay-glass-saturation));
+  }
+}
+
+@media (max-width: 720px) and (prefers-reduced-transparency: reduce) {
+  .ui-nav-rail {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}

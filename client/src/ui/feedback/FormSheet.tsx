@@ -46,7 +46,7 @@ export function FormSheet({
   return (
     <div className="ui-modal-overlay" onClick={busy ? undefined : onCancel}>
       <div className="ui-form-sheet__positioner" onClick={(event) => event.stopPropagation()}>
-        <Surface elevation="raised">
+        <Surface elevation="raised" material="overlay">
           <div className="ui-form-sheet">
             <div className="ui-form-sheet__header">
               <h2 className="ui-form-sheet__title">{title}</h2>

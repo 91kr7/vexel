@@ -85,4 +85,33 @@ describe('design tokens — legibility (ui-library/specs/design-tokens.md)', () 
       expect(contrastRatio(textSecondary, surface)).toBeGreaterThanOrEqual(3);
     });
   }
+
+  // The overlay glass material degrades between three fills, and all three keep the contrast the
+  // tokens document above (ui-library/specs/overlay-glass.md).
+  for (const overlayToken of ['color-surface-overlay', 'color-surface-overlay-dense', 'color-surface-overlay-opaque']) {
+    const surface = compositeOverBackground(parseColor(readToken(overlayToken)), backdrop);
+
+    // plan-liquid_glass_overlays/REQ-11, REQ-13
+    it(`text-primary on ${overlayToken} clears the 4.5:1 body-text contrast ratio`, () => {
+      expect(contrastRatio(textPrimary, surface)).toBeGreaterThanOrEqual(4.5);
+    });
+
+    // plan-liquid_glass_overlays/REQ-11, REQ-13
+    it(`text-secondary on ${overlayToken} clears the 3:1 secondary-text contrast ratio`, () => {
+      expect(contrastRatio(textSecondary, surface)).toBeGreaterThanOrEqual(3);
+    });
+  }
+
+  // plan-liquid_glass_overlays/REQ-11 — without the blur to hide it, the covered content must be
+  // kept unreadable by the fill alone, so the fallback fill is more opaque than the blurred one
+  it('makes the no-backdrop-blur fill more opaque than the blurred fill', () => {
+    expect(parseColor(readToken('color-surface-overlay-dense')).a).toBeGreaterThan(
+      parseColor(readToken('color-surface-overlay')).a,
+    );
+  });
+
+  // plan-liquid_glass_overlays/REQ-13 — reduced transparency presents a fully opaque surface
+  it('makes the reduced-transparency fill fully opaque', () => {
+    expect(parseColor(readToken('color-surface-overlay-opaque')).a).toBe(1);
+  });
 });
