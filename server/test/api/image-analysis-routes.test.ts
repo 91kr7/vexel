@@ -1,7 +1,5 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import express, { type Express } from "express";
@@ -13,14 +11,13 @@ import type { LayerSignals } from "../../src/image-analysis/layer-signals-servic
 
 import { ownershipArgs } from "../support/fixtures.js";
 import { ALPINE_IMAGE, REGISTRY_IMAGE, ensureImages } from "../support/base-images.js";
+import { execFileAsync } from "../support/docker-cli.js";
 
 // A pruned daemon is a starting state like any other: the base images this
 // file's fixtures are built on are ensured here, before the first test, so no
 // test has to assume a warm daemon nor depend on another file having pulled
 // them. They are shared infrastructure, not fixtures: nothing removes them.
 await ensureImages([ALPINE_IMAGE, REGISTRY_IMAGE]);
-
-const execFileAsync = promisify(execFile);
 
 /** A layer as the endpoint returns it: the service's metadata plus the images sharing it. */
 type SharedLayer = LayerMetadata & { sharedWith: { id: string; tags: string[] }[] };
@@ -87,9 +84,10 @@ async function readSseUntilDone(response: Response, timeoutMs = 90_000): Promise
 // Reused across the ordering (REQ-47), shared-layer (REQ-50) and whiteout (REQ-49) tests below so
 // the (~seconds-long) build only runs once for the whole file.
 const RUN_TAG = `vexel-test-layers-${process.pid}-${Date.now()}:1`;
-// A single-file image built `FROM scratch` (no network pull needed, unlike `hello-world`, which
-// this sandbox cannot always reach): its one layer adds exactly one file of known, controlled
-// content, so the expected changeset is exhaustively known rather than inspected by hand.
+// A single-file image built `FROM scratch` — nothing to fetch, and its one layer adds exactly one
+// file of known, controlled content, so the expected changeset is exhaustively known rather than
+// inspected by hand. The same shape `base-images.ts` builds the suite's own single-layer image
+// with; kept local here because this file needs a second one, with content of its own.
 const TINY_TAG = `vexel-test-tiny-${process.pid}-${Date.now()}:1`;
 const TINY_FILE_CONTENT = "vexel single-file fixture\n";
 let contextDir = "";

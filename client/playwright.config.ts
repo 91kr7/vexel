@@ -1,9 +1,22 @@
 import { defineConfig, devices } from '@playwright/test';
 import { E2E_DATA_DIR } from './e2e/support/fixtures';
 
-// Playwright setup for the client's e2e suite. Since batch-daemon-connectivity
-// wires the shell to the real server API (connectivity status, live events),
-// both the client dev server and the server workspace must be running.
+/**
+ * The e2e suite drives the **delivered form of the product**: one Express
+ * process serving the built interface and the API from the same origin and the
+ * same port. No Vite dev server is started, and nothing listens on 5173 during a
+ * run — the form the operator runs is the form that is verified.
+ * REQ ids below belong to plan-docker_management_app-single_process_serving.
+ */
+
+/**
+ * The suite's own port, deliberately not the developer's 3000 (REQ-19): a
+ * developer with `npm run dev:server` up neither disturbs a run nor is disturbed
+ * by it.
+ */
+const E2E_PORT = 3100;
+const E2E_ORIGIN = `http://localhost:${E2E_PORT}`;
+
 export default defineConfig({
   testDir: './e2e',
   // One worker on purpose. Every spec drives the same Docker daemon, so running
@@ -16,12 +29,15 @@ export default defineConfig({
   workers: 1,
   fullyParallel: false,
   reporter: 'dot',
-  // Pulls the shared base images and wipes the run's data directory, so no spec
-  // pays for a cold pull inside its own timeout and no run inherits the state of
-  // the one before it.
+  // Prepares the shared base images and the run's own registry, and wipes the
+  // run's data directory, so no spec pays for that work inside its own timeout
+  // and no run inherits the state of the one before it.
   globalSetup: './e2e/support/global-setup.ts',
+  // Stops the registry the setup started: no spec may, since every later one
+  // still needs it.
+  globalTeardown: './e2e/support/global-teardown.ts',
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: E2E_ORIGIN,
     trace: 'retain-on-failure',
   },
   projects: [
@@ -43,23 +59,27 @@ export default defineConfig({
       dependencies: ['chromium'],
     },
   ],
-  webServer: [
-    {
-      command: 'npm run dev -- --port 5173 --strictPort',
-      url: 'http://localhost:5173',
-      reuseExistingServer: !process.env.CI,
-      timeout: 30_000,
-    },
-    {
-      command: 'npm run dev -w server',
-      cwd: '..',
-      url: 'http://localhost:3000/health',
-      // A server already running for development keeps its own data directory,
-      // so the run would silently inherit the operator's preferences and cache.
-      // Stop it before running the suite when that isolation matters.
-      reuseExistingServer: !process.env.CI,
-      timeout: 30_000,
-      env: { VEXEL_DATA_DIR: E2E_DATA_DIR },
-    },
-  ],
+  webServer: {
+    // The operator's own command, run as the operator runs it: build the client,
+    // build the server, then serve both from the one process. The build belongs
+    // here and cannot move into `globalSetup` — Playwright starts the web server
+    // *before* that hook, so a build placed there would run against whatever
+    // `client/dist` already held.
+    command: 'npm start -s',
+    cwd: '..',
+    // The server's own liveness address, on the suite's port: the entry document
+    // is served by the same process, so one readiness probe covers both.
+    url: `${E2E_ORIGIN}/health`,
+    // A full client *and* server build, from cold, before the process even
+    // starts listening — not the 30s a dev server needed.
+    timeout: 300_000,
+    // Never reuse a running process (REQ-19, REQ-21). A reused one would serve
+    // whatever build it happens to hold, under the operator's own data
+    // directory, and both failures are silent.
+    reuseExistingServer: false,
+    // `tsc` reports its diagnostics on stdout: ignoring it would turn a failed
+    // build into a five-minute timeout with no stated reason.
+    stdout: 'pipe',
+    env: { PORT: String(E2E_PORT), VEXEL_DATA_DIR: E2E_DATA_DIR },
+  },
 });

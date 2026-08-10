@@ -1,12 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { buildersRouter } from "../../src/builders/builders-routes.js";
 import type { BuilderSummary } from "../../src/builders/builders-service.js";
 import { buildApp, startApp } from "../support/fixtures.js";
+import { execFileAsync } from "../support/docker-cli.js";
 
-const execFileAsync = promisify(execFile);
 const RUN_ID = `${process.pid}-${Date.now()}`;
 
 // Nothing here builds an image or reads the build cache, so no base image is

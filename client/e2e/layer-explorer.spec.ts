@@ -1,12 +1,14 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
 import { openApp, ownershipArgs } from './support/fixtures.js';
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { TINY_IMAGE, TINY_IMAGE_FILE, ensureImage } from '../../server/test/support/base-images.js';
 
 async function createStandaloneImage(tag: string, containerName: string): Promise<void> {
-  await execFileAsync('docker', ['create', '--name', containerName, ...ownershipArgs(containerName), 'hello-world']);
+  // Ensured at the point of use, not once for the run: the exclusive project
+  // prunes the host, so an image present at global setup may be gone by now.
+  // Locally built, so putting it back costs a second and no network.
+  await ensureImage(TINY_IMAGE);
+  await execFileAsync('docker', ['create', '--name', containerName, ...ownershipArgs(containerName), TINY_IMAGE]);
   await execFileAsync('docker', ['commit', containerName, tag]);
 }
 
@@ -131,7 +133,7 @@ test('warns about cost before analyzing, and cancelling closes the progress dial
 });
 
 // plan-docker_management_app/REQ-49 — selecting a layer, once analysed, shows the paths that layer
-// alone added: a single-file image's one layer adds exactly one file (`hello`). layer-explorer.md —
+// alone added: the suite's single-file image's one layer adds exactly one file. layer-explorer.md —
 // Close is only an acknowledgement once the analysis finished: the computed changeset stays and is
 // what layer selection keeps browsing afterwards, dialog dismissed or not.
 test('keeps the changeset browsable after closing the dialog, and layer selection still works', async ({ page }) => {
@@ -164,11 +166,11 @@ test('keeps the changeset browsable after closing the dialog, and layer selectio
     // "not analyzed yet" prompt sent back by Close.
     await expect(progressHeading).toHaveCount(0);
     await expect(modal.getByText('Changesets not analyzed yet')).toHaveCount(0);
-    await expect(modal.locator('.ui-data-table__expanded')).toContainText('hello');
+    await expect(modal.locator('.ui-data-table__expanded')).toContainText(TINY_IMAGE_FILE);
 
-    // Selecting layers still works after the dialog is dismissed: hello-world's committed image
-    // has empty layers alongside its one real one, so a different row's changeset is legitimately
-    // empty — the point is it renders the "no changes" state, not "not analyzed yet" again.
+    // Selecting layers still works after the dialog is dismissed: the committed image has empty
+    // layers alongside its one real one, so a different row's changeset is legitimately empty —
+    // the point is it renders the "no changes" state, not "not analyzed yet" again.
     const layerCount = await layerRows.count();
     if (layerCount > 1) {
       await selectRow(layerRows.nth(1));

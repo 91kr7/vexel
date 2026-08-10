@@ -1,21 +1,13 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import express, { type Express, type Router } from "express";
 import type { AddressInfo } from "node:net";
 import { ALPINE_IMAGE, ensureImage } from "./base-images.js";
+import { execFileAsync } from "./docker-cli.js";
+import { OWNER_LABEL, RUN_ID, ownershipArgs } from "./ownership.js";
 
-const execFileAsync = promisify(execFile);
-
-/** Label every fixture carries, so a run can recognise — and only ever remove — its own objects. */
-export const OWNER_LABEL = "vexel.test.run";
-/** Label naming the test case a fixture belongs to, for diagnosing leftovers. */
-export const CASE_LABEL = "vexel.test.case";
-
-/**
- * Identifies this test process. Node runs test files in separate processes, so
- * the pid alone is not unique across a rerun; the timestamp disambiguates.
- */
-export const RUN_ID = `${process.pid}-${Date.now()}`;
+// The ownership labels live one module down, where `base-images.ts` can reach
+// them too, and are re-exported here so every existing caller keeps its single
+// import of "the fixtures module".
+export { CASE_LABEL, OWNER_LABEL, RUN_ID, ownershipArgs } from "./ownership.js";
 
 /**
  * Small image whose entrypoint the fixtures override, so a container starts
@@ -59,15 +51,6 @@ export function buildApp(basePath: string, router: Router): Express {
 /** A fixture name carrying the case it belongs to and the run that owns it. */
 export function fixtureName(caseName: string): string {
   return `vexel-test-${caseName}-${RUN_ID}`;
-}
-
-/**
- * `docker run` arguments stamping a fixture as belonging to this run and to the
- * given case. Spread into any `docker run`/`docker create` a test performs, so
- * the sweep can recognise it later.
- */
-export function ownershipArgs(caseName: string): string[] {
-  return ["--label", `${OWNER_LABEL}=${RUN_ID}`, "--label", `${CASE_LABEL}=${caseName}`];
 }
 
 /**

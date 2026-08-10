@@ -1,10 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { swarmRouter } from "../../src/swarm/swarm-routes.js";
 import type { SwarmListing, SwarmState, SwarmTokensReading } from "../../src/swarm/swarm-state-service.js";
 import { buildApp, startApp } from "../support/fixtures.js";
+import { execFileAsync } from "../support/docker-cli.js";
 
 // The swarm endpoints against the operator's own daemon (REQ-79 to REQ-84).
 //
@@ -15,7 +14,6 @@ import { buildApp, startApp } from "../support/fixtures.js";
 // reason. What the daemon actually is, is asked of Docker rather than assumed:
 // on a manager the same file asserts the manager side of the same contract.
 // Everything that needs a cluster lives in `test/exclusive/`.
-const execFileAsync = promisify(execFile);
 
 const { stdout: swarmInfo } = await execFileAsync("docker", [
   "info",

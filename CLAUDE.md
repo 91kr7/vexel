@@ -135,18 +135,66 @@ objects behind, and reading state somebody else created.
   the e2e one is emptied per run, the server one is kept between runs so the analysis cache stays
   warm (empty it with `npm run test:reset-data-dir -w server` when a cold start is the point).
 - **Every spec must pass on its own.** Running one file is what development actually looks like. A
-  fixed order is legitimate for sharing expensive setup — `client/e2e/support/global-setup.ts` pulls
-  the base images once — but never for passing state from one test to the next.
+  fixed order is legitimate for sharing expensive setup — `client/e2e/support/global-setup.ts`
+  prepares the base images once — but never for passing state from one test to the next.
 - Destructive-by-nature tests (`prune` acts on the whole host) cannot be scoped, so they live apart:
   `server/test/exclusive/` and `client/e2e/exclusive/`, scheduled after everything else.
 
+### No test reaches Docker Hub
+
+**A run gets its images from a registry of its own, started before the first test.** A registry
+exposed on the internet occasionally does not answer, and when it does not, the failure lands on
+whichever assertion happened to need an image — saying nothing whatever about the product. That is
+not hypothetical here: `filesystem-browser`, `layer-build-cache`, `images` and `container-create-run`
+have each been lost to `production.cloudfront.docker.com … EOF` while pulling a base image, and each
+of them passed on its own minutes later.
+
+So the network work is a **preliminary step with a command of its own**, never something a test
+arranges for itself:
+
+- `npm run test:images -w server` puts on the daemon what has to be there. The only step of a run
+  allowed to reach Docker Hub, and only for what is genuinely not there yet.
+- `npm run test:registry -w server` brings up the run's own `registry:2` — one container per
+  machine, under a fixed name, carrying the ownership labels — and seeds it with every image the
+  tests pull (`docker tag` + `docker push` from the daemon's own copy, no network at all), builds
+  the single-layer image and publishes the copy of it the "missing locally" tests fetch.
+- Both are chained, in that order, by `test:api` and `test:exclusive`, and
+  `client/e2e/support/global-setup.ts` runs **those same two commands** rather than a second
+  implementation of them. By the time the first test file loads, everything is in place.
+- One definition behind them, `server/test/support/base-images.ts`, serving both test trees.
+  `ensureImage`/`ensureImages` is how a test file asks for the same guarantee, and every step is
+  idempotent — an already-prepared registry is the normal case, not an error — so **running one spec
+  file, or one server test file, on its own gets the same arrangement** rather than a second one.
+- The registry is stopped when a whole pass ends (`globalTeardown` for Playwright, a closing
+  `test:sweep` for the server). A run killed before that leaves it labelled, so
+  `npm run test:sweep -w server` removes it — along with anything the daemon pulled out of it.
+
+Where each image comes from:
+
+- **`alpine:3.20`** — a container that simply stays up; it declares no `VOLUME`, so it cannot orphan
+  one. Mirrored into the run's registry at the preliminary step, from the daemon's own copy when it
+  has one (`docker tag` + `docker push`, no network at all). Whenever it goes missing mid-run — the
+  exclusive passes prune the host — it is restored from there.
+- **`vexel-test-tiny:1`** — the single-layer image a fixture is made from whenever all it needs is
+  something a container can instantly be created out of. **Built** by the suite, `FROM scratch`, with
+  one file of known content and a `CMD` (without one, `docker create` refuses it). Nothing is fetched
+  at all. It replaced `hello-world`, which had to be pulled and, after a system prune, often failed
+  to be.
+- **`registry:2`** — the multi-layer, registry-pulled image the layer analyses need, and **the one
+  irreducible exception**: it is the image the run's own registry is started from, so it cannot come
+  out of it. It must be on the daemon, pulled from Docker Hub if it is not.
+- **`moby/buildkit:buildx-stable-1`** — not a fixture image but one the toolchain needs, and the
+  worst offender of the three: `docker buildx` contacts a registry on *every* bootstrap of a
+  `docker-container` builder, even when the daemon already holds the image. So a builder fixture is
+  created pointing at the mirrored copy (`--driver-opt image=…`, `--driver-opt network=host`), and
+  a `FROM` line inside such a build names the mirrored `alpine` — BuildKit in a container has an
+  image store of its own and resolves every `FROM` against a registry.
+
 ### Fixtures stay small
 
-Base images are `alpine:3.20` (a container that simply stays up — it declares no `VOLUME`, so it
-cannot orphan one), `registry:2` (the multi-layer registry-pulled image the layer analyses need) and
-`hello-world` (single layer). Roughly 50 MB in total. Do not reach for a heavier image because it
-happens to be lying around: the suite used `postgres:16` this way and paid 663 MB for a process that
-only had to sleep.
+Roughly 35 MB in total, and that rule stands: do not reach for a heavier image because it happens to
+be lying around. The suite used `postgres:16` this way and paid 663 MB for a process that only had
+to sleep.
 
 ## Running it — two arrangements, and which belongs to whom
 
@@ -181,6 +229,9 @@ product runs; the other is a convenience for editing it. Everything is run from 
   do in the single-process form.
 - Both are needed together, and neither arrangement needs a step of the other: development needs no
   `client/dist`, and `npm start` needs no Vite server.
+- **No automated check drives this arrangement.** The e2e suite builds the product and runs against
+  the single process that serves it, on its own port — so what is verified is what ships. This flow
+  is for manual work with hot reload, and keeping it working is a human's judgement.
 
 Other root scripts: `npm run build` (both workspaces, client first), `npm run lint`, `npm run test`.
 

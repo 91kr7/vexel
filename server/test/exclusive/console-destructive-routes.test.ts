@@ -1,13 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { promisify } from "node:util";
 import { buildApp, createSleepingContainer, removeContainerQuietly, startApp } from "../support/fixtures.js";
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from "../support/docker-cli.js";
 
 // The one place a destructive console entry is actually executed. The console
 // runs whatever the operator types with the server's own privileges, so the

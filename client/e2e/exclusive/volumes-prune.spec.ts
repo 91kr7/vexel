@@ -1,9 +1,6 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
 import { openApp, ownershipArgs } from '../support/fixtures.js';
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from '../../../server/test/support/docker-cli.js';
 
 // Pruning exercises the daemon's own prune (`filters={"all":["true"]}`,
 // volumes-service.md), which acts on every unused volume on the host, named

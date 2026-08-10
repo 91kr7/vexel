@@ -1,20 +1,25 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import express, { type Express } from "express";
 import type { AddressInfo } from "node:net";
 import { imagesRouter } from "../../src/images/images-routes.js";
 import type { ImageInspect, ImageSummary } from "../../src/images/images-service.js";
-import { ALPINE_IMAGE, HELLO_WORLD_IMAGE, REGISTRY_IMAGE, ensureImage, ensureImages, isRegistryHiccup } from "../support/base-images.js";
+import {
+  ALPINE_IMAGE,
+  REGISTRY_IMAGE,
+  TINY_IMAGE,
+  TINY_IMAGE_COMMAND,
+  ensureImage,
+  ensureImages,
+  ensurePullableImage,
+} from "../support/base-images.js";
+import { execFileAsync } from "../support/docker-cli.js";
 
 // A pruned daemon is a starting state like any other: the base images this
 // file's fixtures are built on are ensured here, before the first test, so no
 // test has to assume a warm daemon nor depend on another file having pulled
 // them. They are shared infrastructure, not fixtures: nothing removes them.
 await ensureImages([ALPINE_IMAGE, REGISTRY_IMAGE]);
-
-const execFileAsync = promisify(execFile);
 
 function startApp(app: Express): Promise<{ url: string; close: () => Promise<void> }> {
   return new Promise((resolve) => {
@@ -107,13 +112,13 @@ test("GET /api/images/:id/inspect returns the image's full inspect data", async 
   const { url, close } = await startApp(app);
   const containerName = `vexel-test-inspect-src-${Date.now()}`;
   const tag = `vexel-test-inspect-${Date.now()}:v1`;
-  // Ensured at the point of use, not once for the file: `hello-world` is the
-  // image the pull tests deliberately remove — the one below and the one in
-  // container-create-routes, which runs in a parallel process — so its presence
-  // has to be re-established immediately before it is needed.
+  // Ensured at the point of use, not once for the file: the exclusive pass
+  // prunes the host, so an image present when this file was loaded may be gone
+  // by the time the fixture is created. Locally built, so re-establishing it
+  // costs a second and no network.
   try {
-    await ensureImage(HELLO_WORLD_IMAGE);
-    await execFileAsync("docker", ["create", "--name", containerName, HELLO_WORLD_IMAGE]);
+    await ensureImage(TINY_IMAGE);
+    await execFileAsync("docker", ["create", "--name", containerName, TINY_IMAGE]);
     await execFileAsync("docker", [
       "commit",
       "--change",
@@ -131,7 +136,7 @@ test("GET /api/images/:id/inspect returns the image's full inspect data", async 
 
     assert.ok(inspect.tags.includes(tag));
     assert.deepEqual(inspect.entrypoint, []);
-    assert.deepEqual(inspect.command, ["/hello"]);
+    assert.deepEqual(inspect.command, [TINY_IMAGE_COMMAND]);
     assert.ok(inspect.env.includes("FOO=bar"));
     assert.equal(inspect.labels.team, "vexel");
     assert.ok(inspect.exposedPorts.includes("9999/tcp"));
@@ -177,31 +182,26 @@ test("GET /api/images/:id/inspect with an unknown id responds with the daemon's 
 test("GET /api/images/pull/stream streams per-layer progress and ends once the pull completes", async () => {
   const app = buildApp();
   const { url, close } = await startApp(app);
+  // The suite's own registry, on this machine: a real pull, of an image nothing
+  // here holds, over a network that cannot give way. The public registry is
+  // deliberately out of the path — its hiccups failed this test for reasons that
+  // said nothing about the product.
+  const reference = await ensurePullableImage();
   try {
-    // The image has to be absent for this to be a pull at all, so it cannot be
-    // ensured beforehand: what this test contracts is exactly the fetch from the
-    // registry. The network it crosses is therefore part of the run, and the
-    // attempt is repeated once if it gives way — see the loop below.
-    await removeTagQuietly(HELLO_WORLD_IMAGE);
-    let events: SseEvent[] = [];
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
-      const response = await fetch(`${url}/api/images/pull/stream?reference=${HELLO_WORLD_IMAGE}`);
-      assert.equal(response.headers.get("content-type"), "text/event-stream");
-      events = await readSseUntilDone(response);
-      const failure = events.find((event) => event.event === "error");
-      // A registry hiccup is not a broken contract: retried once, a product
-      // defect fails the same way twice while a hiccup does not.
-      if (!failure || !isRegistryHiccup(String(failure.data.message ?? "")) || attempt === 2) break;
-      await removeTagQuietly(HELLO_WORLD_IMAGE);
-    }
+    // The image has to be absent for this to be a pull at all, so it is removed
+    // rather than ensured: what this test contracts is exactly the fetch.
+    await removeTagQuietly(reference);
+    const response = await fetch(`${url}/api/images/pull/stream?reference=${encodeURIComponent(reference)}`);
+    assert.equal(response.headers.get("content-type"), "text/event-stream");
+    const events = await readSseUntilDone(response);
 
     assert.ok(events.some((event) => event.event === "step"), "expected at least one progress step");
     assert.equal(events.at(-1)!.event, "end", `unexpected last event: ${JSON.stringify(events.at(-1))}`);
 
     const images = await fetchList(url);
-    assert.ok(images.some((image) => image.tags.includes(HELLO_WORLD_IMAGE)), "pulled image should now be listed");
+    assert.ok(images.some((image) => image.tags.includes(reference)), "pulled image should now be listed");
   } finally {
-    await removeTagQuietly(HELLO_WORLD_IMAGE);
+    await removeTagQuietly(reference);
     await close();
   }
 });
@@ -322,9 +322,8 @@ test("GET /api/images/save streams a tarball download that POST /api/images/load
   const app = buildApp();
   const { url, close } = await startApp(app);
   try {
-    // registry:2 (megabytes, not the multi-gigabyte range): a stable, moderately-sized fixture — unlike
-    // hello-world, whose tag another test in this same file removes and re-pulls, this one's tag is never
-    // touched by a concurrently-running test file, so tagging it here cannot race that removal.
+    // registry:2 (megabytes, not the multi-gigabyte range): a stable, moderately-sized fixture whose
+    // tag no other test removes, so tagging it here cannot race a concurrent removal.
     // Inside the try, so that a setup failure still closes the server: left outside it, a refusal here
     // skips the finally and the listening socket keeps the whole run alive instead of failing it.
     await execFileAsync("docker", ["tag", REGISTRY_IMAGE, tag]);

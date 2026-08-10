@@ -1,9 +1,6 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
 import { activeContextLabel, navEntry, openApp, ownershipArgs } from './support/fixtures.js';
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 /**
  * Opens the shell on a stated screen: the shell restores the persisted screen on

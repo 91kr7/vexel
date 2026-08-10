@@ -158,14 +158,27 @@ Run from the repository root (npm workspaces):
   - `npm run test:sweep -w server` — removes the containers, volumes, networks and images left
     behind by a killed run; scoped to the ownership label, so it never touches an object the
     operator created. Runs automatically before the two daemon-backed passes.
-  - `npm run test:images -w server` — pulls the three base images if the daemon does not have them,
-    so a run started on a pruned daemon does not fail for a reason that says nothing about the
-    product. Runs automatically before the two daemon-backed passes, and doing the network work
-    once here is what keeps twenty parallel files from pulling the same image at the same time.
-    The guarantee does not depend on this script: each test file also ensures the images its own
-    fixtures need, so a single file run directly passes on a pruned daemon too. Base images are
-    shared infrastructure, not fixtures — they carry no ownership label and the sweep leaves them
-    alone. One definition, `server/test/support/base-images.ts`, serves the e2e suite as well.
+  - `npm run test:images -w server` — the first of the two preliminary steps of a daemon-backed
+    pass: puts on the daemon what has to be on the daemon. The only step of a run allowed to reach
+    Docker Hub, and only for what is genuinely not there yet. Runs automatically before the two
+    daemon-backed passes.
+  - `npm run test:registry -w server` — the second, and the reason no test ever reaches Docker Hub:
+    it brings up the run's own throwaway `registry:2` and seeds it with every image the tests pull.
+    A registry exposed on the internet occasionally does not answer, and this suite has lost whole
+    specs to exactly that; a refusal at a preliminary step stops a run before it starts, which says
+    what it is, while the same refusal inside a test says nothing about the product. `alpine:3.20`
+    and `moby/buildkit:buildx-stable-1` are seeded from the daemon's own copy (a tag and a push, no
+    network at all) and restored from there whenever a prune removes them; `vexel-test-tiny:1`, the
+    single-layer image, is built `FROM scratch` and fetched from nowhere, and a copy of it is
+    published for the tests that contract "a reference missing locally is fetched first";
+    `registry:2` is the one irreducible exception, since it is what the registry itself is run from,
+    so it comes from Hub if the daemon does not hold it. The container is named once per machine and
+    carries the ownership label, so `test:sweep` removes it — and with it anything the daemon pulled
+    out of it — after a killed run. Every step is idempotent: an already-prepared registry is the
+    normal case, so a single test file run directly gets the same arrangement rather than a second
+    one. The two pulled images are shared infrastructure — no ownership label, and the sweep leaves
+    them alone. One definition, `server/test/support/base-images.ts`, and the e2e suite runs these
+    two commands themselves from its global setup rather than reimplementing them.
   - Both daemon-backed passes run against their own `VEXEL_DATA_DIR` under the system temp
     directory, so the operator's `~/.vexel` preferences and analysis cache are never written to.
     That directory is **kept between runs on purpose**: the analysis cache it holds is what stops
@@ -191,11 +204,14 @@ Run from the repository root (npm workspaces):
   run in their own project, after the rest.
 - The e2e run isolates itself from the machine it runs on, in two ways set up by
   `client/e2e/support/global-setup.ts` and `playwright.config.ts`: the server under test is pointed
-  at a throwaway `VEXEL_DATA_DIR` (emptied before each run, so the operator's own `~/.vexel`
-  preferences and analysis cache are neither read nor written), and the three small base images the
-  fixtures build on — `alpine:3.20`, `registry:2`, `hello-world` — are pulled once up front, so no
-  spec spends its own time budget on a cold network pull. **A dev server already running is reused
-  and keeps its own data directory**: stop it before running the suite when that isolation matters.
+  at a throwaway `VEXEL_DATA_DIR` (emptied and recreated before each run, so the operator's own
+  `~/.vexel` preferences and analysis cache are neither read nor written), and the run's own
+  registry is brought up by running `npm run test:images -w server` and `npm run test:registry -w
+  server` — the server passes' own two commands, not a second implementation of them — so no spec
+  spends its own time budget reaching Docker Hub.
+  `client/e2e/support/global-teardown.ts` stops that registry when the run ends. **No running process is ever
+  reused** (`reuseExistingServer: false`): a reused one would serve whatever build it happens to
+  hold, under whatever data directory it was started with, and both failures are silent.
 - The rules every test follows — clean up what you create, assume nothing about the daemon's
   contents, inherit nothing from another test — are stated in `CLAUDE.md` ("Tests — non-negotiable
   rule"), alongside the reasons each of them exists.
@@ -205,11 +221,15 @@ Run from the repository root (npm workspaces):
   the file never exits — a missing image surfaces as a ten-minute hang instead of a failed
   assertion. Only provably non-throwing statements (a name built from a template literal, a `let`
   declaration, `new AbortController()`) may sit there.
-- The e2e suite drives the **development flow** (`playwright.config.ts` starts both processes and
-  points `baseURL` at `http://localhost:5173`): it is the flow that gives the specs HMR-free but
-  instant rebuilds, and the application code it exercises is identical — same origin-relative API
-  calls, same SSE, same WebSocket. Testing the single-process flow is a matter of pointing the same
-  suite at port 3000 after `npm run build`, not of a different application.
+- The e2e suite drives the **delivered single-process form**, and only that one: its single
+  `webServer` entry runs the root `npm start` (build the client, build the server, serve both), and
+  `baseURL` points at that one origin. No Vite dev server is started and nothing listens on 5173
+  during a run. The port is **3100**, set through `PORT`, so a developer's `npm run dev:server` on
+  3000 and a run stay out of each other's way; the readiness probe is the server's own `/health`,
+  with a timeout sized for a full cold build rather than for a dev server's start-up. The cost is
+  accepted and deliberate: every e2e run pays a client build, in the suite's start-up rather than in
+  the developer's habits. The development flow is consequently **not covered by any automated
+  check** — it survives for manual work with hot reload, and its acceptance is a human one.
 - Server production start (after build): `npm start -w server` (`node dist/index.js`) — the single
   process, serving API **and** client. `npm run serve` from the root is the same thing.
 
@@ -265,6 +285,10 @@ Everything below was not specified and was assumed, with rationale:
 - **The history fallback is restricted to `GET`/`HEAD` outside `/api`** — an unknown API route must
   keep failing as a JSON 404; answering it with `index.html` turns a client bug into a silent
   "renders the app" that no test can catch.
-- **The e2e suite keeps targeting the dev flow on port 5173** — the constraint was to keep the dev
-  flow available, and the suite is dev tooling. Repointing it is a test-strategy decision, not an
-  architectural one, and can be made later without touching this architecture.
+- **The e2e suite targets the delivered single-process form, not the dev flow** — decided by the
+  human: removing one of the two servers means everything runs on the one that remains, the tests
+  included. One delivered form, verified once, and it is the one that ships. The suite was moved
+  rather than duplicated (no second project running the same specs twice, no suite left behind on
+  5173), on its own port **3100** with no reuse of a running process, so a developer's server on
+  3000 is neither disturbed nor consulted. Accepted consequence: the dev flow is the arrangement now
+  left to manual verification.

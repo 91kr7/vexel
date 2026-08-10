@@ -1,12 +1,10 @@
-import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
 import { CASE_LABEL, OWNER_LABEL, RUN_ID, openApp } from './support/fixtures.js';
+import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
-const execFileAsync = promisify(execFile);
 const BASE_IMAGE = 'alpine:3.20';
 
 function projectName(caseName: string): string {

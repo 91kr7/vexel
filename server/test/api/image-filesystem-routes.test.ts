@@ -1,8 +1,8 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { execFile, spawn } from "node:child_process";
-import { promisify } from "node:util";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { mkdirSync, readdirSync } from "node:fs";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import express, { type Express } from "express";
@@ -14,14 +14,13 @@ import type { FilesystemExtractionResult } from "../../src/image-analysis/filesy
 import type { ImageChangesets } from "../../src/image-analysis/changeset-service.js";
 import { BASE_IMAGE, ownershipArgs } from "../support/fixtures.js";
 import { ALPINE_IMAGE, REGISTRY_IMAGE, ensureImages } from "../support/base-images.js";
+import { execFileAsync } from "../support/docker-cli.js";
 
 // A pruned daemon is a starting state like any other: the base images this
 // file's fixtures are built on are ensured here, before the first test, so no
 // test has to assume a warm daemon nor depend on another file having pulled
 // them. They are shared infrastructure, not fixtures: nothing removes them.
 await ensureImages([ALPINE_IMAGE, REGISTRY_IMAGE]);
-
-const execFileAsync = promisify(execFile);
 
 function startApp(app: Express): Promise<{ url: string; close: () => Promise<void> }> {
   return new Promise((resolve) => {
@@ -535,22 +534,35 @@ test("the changeset cache and the filesystem cache for the same image do not evi
 // only own-process, still-unmocked way to force a genuine failure once the container already
 // exists is to sabotage the per-run temporary directory the export is about to be written to: the
 // service resolves it under `os.tmpdir()` at run time, which reads `process.env.TMPDIR` on every
-// call (not once at import), so redirecting it to a directory this test controls, and stripping its
-// write permission the instant the service creates its per-run subdirectory there (well before the
-// container-creation round trip to the daemon even returns), reliably fails the write with EACCES.
+// call (not once at import), so redirecting it to a directory this test controls lets the export's
+// own destination be taken away from under it.
+//
+// Two details are what make that sabotage land every time rather than most of the time.
+//
+// - **`export.tar` is pre-created as a directory, not made unwritable.** Stripping the write
+//   permission off the work directory does fail the write — but only if it lands before the file is
+//   created, and when it does not, it is the *service's own cleanup* that then fails, unable to
+//   unlink a file it legitimately wrote (an EACCES surfacing as an unhandled rejection, which is
+//   how this test failed intermittently). A directory in the file's place fails `createWriteStream`
+//   with EISDIR and leaves the work directory perfectly removable either way.
+// - **The sabotage is polled from the event loop, not from `fs.watch`.** The service creates the
+//   work directory and then awaits the container-creation round trip to the daemon before it opens
+//   `export.tar`; a timer in this same process is therefore guaranteed a turn in between, whereas a
+//   filesystem watch is delivered whenever the platform gets round to it.
 test("GET /:id/filesystem/stream removes the intermediate container even when the export is interrupted mid-run", async () => {
   const originalTmpDir = process.env.TMPDIR;
   const sandboxDir = await mkdtemp(join(tmpdir(), "vexel-fs-sabotage-"));
   process.env.TMPDIR = sandboxDir;
-  const { watch } = await import("node:fs");
-  const watcher = watch(sandboxDir, (_eventType, filename) => {
-    if (filename && filename.toString().startsWith("vexel-fs-extraction-")) {
-      // Removes write access so the export's own `createWriteStream` fails once it tries to
-      // create `export.tar` inside; read+execute are kept so the service's own recursive cleanup
-      // can still list (and then remove) the now-empty directory afterwards.
-      import("node:fs").then(({ chmodSync }) => chmodSync(join(sandboxDir, filename.toString()), 0o500)).catch(() => undefined);
+  const sabotage = setInterval(() => {
+    for (const entry of readdirSync(sandboxDir)) {
+      if (!entry.startsWith("vexel-fs-extraction-")) continue;
+      try {
+        mkdirSync(join(sandboxDir, entry, "export.tar"));
+      } catch {
+        // Already there — this interval fires more than once per work directory.
+      }
     }
-  });
+  }, 1);
   const app = buildApp();
   const { url, close } = await startApp(app);
   try {
@@ -563,9 +575,12 @@ test("GET /:id/filesystem/stream removes the intermediate container even when th
 
     await assertNoLeftoverInternalContainer(BASE_IMAGE);
   } finally {
-    watcher.close();
+    clearInterval(sabotage);
     process.env.TMPDIR = originalTmpDir;
     await close();
+    // The sandbox is this test's own: it goes with it, whether the test passed
+    // or failed.
+    await rm(sandboxDir, { recursive: true, force: true });
   }
 });
 

@@ -1,22 +1,19 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { promisify } from "node:util";
 import { buildersRouter } from "../../src/builders/builders-routes.js";
 import type { BuildCacheUsage } from "../../src/builders/build-cache-usage-service.js";
 import { buildApp, ownershipArgs, removeImageQuietly, startApp } from "../support/fixtures.js";
 import { ALPINE_IMAGE, ensureImages } from "../support/base-images.js";
+import { execFileAsync } from "../support/docker-cli.js";
 
 // A pruned daemon is a starting state like any other: the base images this
 // file's fixtures are built on are ensured here, before the first test, so no
 // test has to assume a warm daemon nor depend on another file having pulled
 // them. They are shared infrastructure, not fixtures: nothing removes them.
 await ensureImages([ALPINE_IMAGE]);
-
-const execFileAsync = promisify(execFile);
 
 // The reverse direction needs a build-cache record that genuinely stands for a
 // layer of a local image, so this file builds one: a single RUN step carrying a

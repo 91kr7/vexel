@@ -1,10 +1,7 @@
-import { execFile } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 import { expect, type Locator, type Page } from '@playwright/test';
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from '../../../server/test/support/docker-cli.js';
 
 /**
  * Where the server under test keeps its preferences and analysis cache during an

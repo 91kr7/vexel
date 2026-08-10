@@ -1,7 +1,5 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { systemRouter } from "../../src/system/system-routes.js";
 import type { SystemOverview } from "../../src/system/overview-service.js";
 import {
@@ -13,8 +11,7 @@ import {
   removeVolumeQuietly,
   startApp,
 } from "../support/fixtures.js";
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from "../support/docker-cli.js";
 
 // The dashboard's overview endpoint, against the real daemon
 // (system-endpoints.md, overview-service.md).

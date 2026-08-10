@@ -1,24 +1,22 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import express, { type Express } from "express";
 import type { AddressInfo } from "node:net";
 import { containersRouter } from "../../src/containers/containers-routes.js";
-import { ALPINE_IMAGE, HELLO_WORLD_IMAGE, ensureImages, isRegistryHiccup } from "../support/base-images.js";
+import { ALPINE_IMAGE, ensureImages, ensurePullableImage } from "../support/base-images.js";
+import { execFileAsync } from "../support/docker-cli.js";
 
 // A pruned daemon is a starting state like any other: the base image this file's
 // fixtures are built on is ensured here, before the first test, so no test has
 // to assume a warm daemon nor depend on another file having pulled it. It is
 // shared infrastructure, not a fixture: nothing removes it.
 //
-// `hello-world` is deliberately left out: the REQ-29 test below contracts that a
-// reference missing locally is pulled first, so ensuring it beforehand would
-// remove the very condition under test. That one test is made resilient to the
-// registry instead, not to the image being absent.
+// The image the REQ-29 test below needs is the opposite case — it contracts that
+// a reference missing locally is pulled first, so it must not be held here at
+// all. It is published in the suite's own registry instead and pulled from
+// there, which keeps the "missing" condition genuine without putting a public
+// registry in the path of an assertion.
 await ensureImages([ALPINE_IMAGE]);
-
-const execFileAsync = promisify(execFile);
 
 function startApp(app: Express): Promise<{ url: string; close: () => Promise<void> }> {
   return new Promise((resolve) => {
@@ -200,20 +198,12 @@ test("POST /api/containers pulls a missing image first, streaming its progress, 
   const name = `vexel-test-create-pull-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
+  // Published in the suite's own registry on this machine, and held nowhere
+  // locally: a genuine pull, over a network that cannot give way.
+  const reference = await ensurePullableImage();
   try {
-    await execFileAsync("docker", ["rmi", "-f", HELLO_WORLD_IMAGE]).catch(() => undefined);
-    let events: CreateEvent[] = [];
-    // The image must be absent for a pull to happen at all, so the registry is
-    // genuinely part of this test. A hiccup crossing it is not a broken
-    // contract: retried once, a product defect fails the same way twice while a
-    // hiccup does not.
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
-      ({ events } = await create(url, { image: HELLO_WORLD_IMAGE, name, start: false }));
-      const terminal = terminalEvents(events)[0];
-      if (!terminal || terminal.type !== "error" || !isRegistryHiccup(terminal.message) || attempt === 2) break;
-      await removeContainerQuietly(name);
-      await execFileAsync("docker", ["rmi", "-f", HELLO_WORLD_IMAGE]).catch(() => undefined);
-    }
+    await execFileAsync("docker", ["rmi", "-f", reference]).catch(() => undefined);
+    const { events } = await create(url, { image: reference, name, start: false });
 
     const pullSteps = events.filter((event) => event.type === "pull-step");
     assert.ok(pullSteps.length > 0, "expected pull progress for a missing image");
@@ -226,9 +216,12 @@ test("POST /api/containers pulls a missing image first, streaming its progress, 
     assert.equal(terminal.length, 1);
     assert.equal(terminal[0]!.type, "created", `unexpected refusal: ${JSON.stringify(terminal[0])}`);
     assert.equal((terminal[0] as Extract<CreateEvent, { type: "created" }>).result.imagePulled, true);
-    assert.equal(await inspect(name, "{{.Config.Image}}"), "hello-world:latest");
+    assert.equal(await inspect(name, "{{.Config.Image}}"), reference);
   } finally {
     await removeContainerQuietly(name);
+    // The pull was the point, not the image: the daemon is left holding no more
+    // than it did before, so the next run's "missing locally" is genuine too.
+    await execFileAsync("docker", ["rmi", "-f", reference]).catch(() => undefined);
     await close();
   }
 });

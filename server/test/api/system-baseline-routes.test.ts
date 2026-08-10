@@ -1,14 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { systemRouter } from "../../src/system/system-routes.js";
 import type { BaselineReport } from "../../src/system/baseline-service.js";
 import { CLIENT_MAX_API_VERSION } from "../../src/docker/engine-client.js";
 import { parseEndpointUrl, setActiveEndpoint } from "../../src/docker/endpoint.js";
 import { buildApp, startApp } from "../support/fixtures.js";
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from "../support/docker-cli.js";
 
 // The baseline endpoint against the operator's own daemon (REQ-106,
 // system-endpoints.md). It creates nothing and removes nothing: the reading is

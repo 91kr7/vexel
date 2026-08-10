@@ -1,12 +1,14 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
 import { openApp, ownershipArgs } from './support/fixtures.js';
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { TINY_IMAGE, TINY_IMAGE_FILE, ensureImage } from '../../server/test/support/base-images.js';
 
 async function createStandaloneImage(tag: string, containerName: string): Promise<void> {
-  await execFileAsync('docker', ['create', '--name', containerName, ...ownershipArgs(containerName), 'hello-world']);
+  // Ensured at the point of use, not once for the run: the exclusive project
+  // prunes the host, so an image present at global setup may be gone by now.
+  // Locally built, so putting it back costs a second and no network.
+  await ensureImage(TINY_IMAGE);
+  await execFileAsync('docker', ['create', '--name', containerName, ...ownershipArgs(containerName), TINY_IMAGE]);
   await execFileAsync('docker', ['commit', containerName, tag]);
 }
 
@@ -72,7 +74,7 @@ test('browses the complete filesystem of an image without running it, lazily exp
 
     await expect(modal.getByText('Freshly extracted')).toBeVisible();
     const treeRow = (name: string) => modal.locator('.ui-tree-view__row', { hasText: name });
-    await expect(treeRow('hello')).toBeVisible();
+    await expect(treeRow(TINY_IMAGE_FILE)).toBeVisible();
     await expect(treeRow('etc')).toBeVisible();
 
     // Expanding "etc" the first time triggers its lazy child read.
@@ -80,8 +82,8 @@ test('browses the complete filesystem of an image without running it, lazily exp
     await expect(treeRow('hostname')).toBeVisible();
 
     // Selecting a file shows its path/type/size in the right-hand pane.
-    await treeRow('hello').click();
-    await expect(modal.getByText('/hello')).toBeVisible();
+    await treeRow(TINY_IMAGE_FILE).click();
+    await expect(modal.getByText(`/${TINY_IMAGE_FILE}`)).toBeVisible();
     await expect(modal.getByText('file', { exact: true })).toBeVisible();
   } finally {
     await removeStandaloneImage(tag, containerName);

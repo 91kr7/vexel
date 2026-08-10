@@ -1,9 +1,6 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { openApp } from './support/fixtures.js';
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 // The coverage matrix is the product's statement about itself (REQ-105, REQ-106),
 // so this spec checks it against the product rather than against the screen: a

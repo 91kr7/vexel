@@ -24,6 +24,22 @@ function notice(page: Page): Locator {
   return page.locator('.ui-surface').filter({ hasText: ATTRIBUTION }).first();
 }
 
+/**
+ * The application's own write of the screen just chosen. REQ-8 promises the notice
+ * comes back after a reload, not that it survives a reload racing the write:
+ * `usePreferences` is entitled to defer a choice made while the initial preferences
+ * read is still in flight, so reloading without awaiting the PUT destroys the page
+ * before the deferred write can flush. Same reasoning as REQ-115's own spec.
+ */
+function persistedScreen(page: Page, screenId: string): Promise<unknown> {
+  return page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PUT' &&
+      response.url().includes('/api/persistence/preferences') &&
+      (response.request().postData() ?? '').includes(screenId),
+  );
+}
+
 /** One of the shell's own cards, addressed by its title. */
 function shellCard(page: Page, title: string): Locator {
   return page.locator('.ui-surface').filter({
@@ -125,6 +141,7 @@ test('the notice is one click away from any screen and blocks no work', async ({
   await expect(notice(page), 'the notice interrupts a screen it does not belong to').toHaveCount(0);
 
   // One step from the permanent navigation.
+  const persisted = persistedScreen(page, ABOUT_SCREEN_ID);
   await page.getByRole('navigation').getByRole('button', { name: /About/ }).click();
   await expect(notice(page)).toBeVisible();
   await expect(page.getByRole('dialog'), 'reaching the notice opened a dialog to click through').toHaveCount(0);
@@ -133,6 +150,7 @@ test('the notice is one click away from any screen and blocks no work', async ({
   // and it comes back unchanged after a reload.
   await expect(notice(page).getByRole('button')).toHaveCount(0);
   const before = await notice(page).innerText();
+  await persisted;
   await page.reload();
   await expect(notice(page)).toBeVisible();
   expect(await notice(page).innerText()).toBe(before);

@@ -2,12 +2,9 @@ import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import express from "express";
 import type { AddressInfo } from "node:net";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { eventsRouter } from "../../src/events/events-routes.js";
 import { eventStreamService } from "../../src/events/event-stream-service.js";
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from "../support/docker-cli.js";
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

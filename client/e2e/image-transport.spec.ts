@@ -1,16 +1,26 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { expect, test, type Download, type Page } from '@playwright/test';
 import { navEntry, openApp, ownershipArgs } from './support/fixtures.js';
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 
 // Every test in this file drives a real save/load or export/import round
 // trip against the daemon, so it runs one at a time.
 test.describe.configure({ mode: 'serial' });
+
+/**
+ * Creates (but never starts) a container from the suite's own single-file image.
+ *
+ * Ensured at the point of use, not once for the run: the exclusive project
+ * prunes the host, so an image present at global setup may be gone by now.
+ * Locally built, so putting it back costs a second and no network.
+ */
+async function createFromTinyImage(containerName: string): Promise<void> {
+  await ensureImage(TINY_IMAGE);
+  await execFileAsync('docker', ['create', '--name', containerName, ...ownershipArgs(containerName), TINY_IMAGE]);
+}
 
 async function removeTagQuietly(tag: string): Promise<void> {
   await execFileAsync('docker', ['rmi', '-f', tag]).catch(() => undefined);
@@ -22,7 +32,7 @@ async function removeContainerQuietly(name: string): Promise<void> {
 
 /** A standalone single-tag image (its own id, unrelated to any other locally tagged image). */
 async function createStandaloneImage(tag: string, containerName: string): Promise<void> {
-  await execFileAsync('docker', ['create', '--name', containerName, ...ownershipArgs(containerName), 'hello-world']);
+  await createFromTinyImage(containerName);
   await execFileAsync('docker', ['commit', containerName, tag]);
 }
 
@@ -157,7 +167,7 @@ test('loading a tarball from the operator\'s machine uploads it with progress an
 test('exporting a container filesystem and importing it back builds an image under the chosen reference', async ({ page }) => {
   const containerName = `vexel-e2e-transport-export-${Date.now()}`;
   const targetReference = `vexel-e2e-transport-imported-${Date.now()}:v1`;
-  await execFileAsync('docker', ['create', '--name', containerName, ...ownershipArgs(containerName), 'hello-world']);
+  await createFromTinyImage(containerName);
   let tarPath: string | undefined;
   // Kept out of the try so the finally can hand the file back to Playwright,
   // which owns it: a downloaded file lives inside the runner's own artifact

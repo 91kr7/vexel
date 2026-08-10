@@ -1,24 +1,21 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { promisify } from "node:util";
 import express, { type Express } from "express";
 import { composeRouter } from "../../src/compose/compose-routes.js";
 import type { ComposeProjectSummary } from "../../src/compose/compose-discovery-service.js";
 import type { ComposeFileReadResult, ComposeFileWriteResult, ComposeValidationResult } from "../../src/compose/compose-file-service.js";
 import { buildApp, startApp } from "../support/fixtures.js";
 import { ALPINE_IMAGE, ensureImages } from "../support/base-images.js";
+import { execFileAsync } from "../support/docker-cli.js";
 
 // A pruned daemon is a starting state like any other: the base images this
 // file's fixtures are built on are ensured here, before the first test, so no
 // test has to assume a warm daemon nor depend on another file having pulled
 // them. They are shared infrastructure, not fixtures: nothing removes them.
 await ensureImages([ALPINE_IMAGE]);
-
-const execFileAsync = promisify(execFile);
 
 /** Identifies this test process, so fixture project names never collide across a rerun. */
 const RUN_ID = `${process.pid}-${Date.now()}`;

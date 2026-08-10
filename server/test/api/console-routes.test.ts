@@ -1,14 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { promisify } from "node:util";
 import { ALPINE_IMAGE, ensureImage } from "../support/base-images.js";
 import { buildApp, fixtureName, OWNER_LABEL, CASE_LABEL, RUN_ID, removeContainerQuietly, startApp } from "../support/fixtures.js";
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from "../support/docker-cli.js";
 
 // The console writes its history to the local store, so this suite points the
 // store at a directory of its own: the operator's `~/.vexel` is never the place

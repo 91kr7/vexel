@@ -1,7 +1,5 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { networksRouter } from "../../src/networks/networks-routes.js";
 import type { NetworkInspect, NetworkSummary } from "../../src/networks/networks-service.js";
 import {
@@ -12,8 +10,7 @@ import {
   removeNetworkQuietly,
   startApp,
 } from "../support/fixtures.js";
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from "../support/docker-cli.js";
 
 async function createTestNetwork(name: string, extraArgs: string[] = []): Promise<void> {
   await execFileAsync("docker", ["network", "create", ...ownershipArgs(name), ...extraArgs, name]);

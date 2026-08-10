@@ -1,13 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { systemRouter } from "../../src/system/system-routes.js";
 import type { PruneRunResult } from "../../src/system/prune-service.js";
 import { BASE_IMAGE, buildApp, fixtureName, ownershipArgs, removeContainerQuietly, removeNetworkQuietly, removeVolumeQuietly, startApp } from "../support/fixtures.js";
 import { ensureImage } from "../support/base-images.js";
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from "../support/docker-cli.js";
 
 // The scoped prune reaches every stopped container / unused volume / unused
 // network on the host, whoever created them: no labelling can scope the

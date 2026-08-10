@@ -1,9 +1,6 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { openApp, ownershipArgs } from './support/fixtures.js';
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 // These assertions read the three cards the shell keeps for itself. Batch 30
 // replaced the placeholder that used to sit under them with the coverage matrix,

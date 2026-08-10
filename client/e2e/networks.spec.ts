@@ -1,9 +1,6 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
 import { openApp, ownershipArgs } from './support/fixtures.js';
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 async function createTestNetwork(name: string, extraArgs: string[] = []): Promise<void> {
   await execFileAsync('docker', ['network', 'create', ...ownershipArgs(name), ...extraArgs, name]);

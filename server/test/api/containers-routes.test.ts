@@ -1,7 +1,5 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import express, { type Express } from "express";
 import type { AddressInfo } from "node:net";
 import { containersRouter } from "../../src/containers/containers-routes.js";
@@ -19,8 +17,7 @@ import type {
   ContainerInspect,
   ContainerSummary,
 } from "../../src/containers/containers-service.js";
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from "../support/docker-cli.js";
 
 function startApp(app: Express): Promise<{ url: string; close: () => Promise<void> }> {
   return new Promise((resolve) => {
@@ -278,7 +275,6 @@ test("POST /api/containers/:id/rename rejects a blank name with 400 and leaves t
     await close();
   }
 });
-
 
 // plan-docker_management_app/REQ-24 — the detail view's inspect data carries identity, image, restart
 // policy, resource limits, environment, ports, labels, networks and state

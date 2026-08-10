@@ -1,9 +1,7 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { activeContextLabel, openApp } from './support/fixtures.js';
+import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
-const execFileAsync = promisify(execFile);
 const RUN_ID = `${process.pid}-${Date.now()}`;
 
 // The raw console (F28) runs whatever is typed with the server's own privileges, so every command
@@ -63,6 +61,26 @@ async function openConsole(page: Page): Promise<void> {
   await openApp(page, 'raw-console');
   await historyRead;
   await expect(screenContent(page).getByRole('heading', { name: 'Raw command & API console' })).toBeVisible();
+}
+
+/**
+ * The application's own write of a history entry.
+ *
+ * REQ-114 promises the history comes back after a restart, not that it survives a reload racing
+ * the write: the entry is persisted by a write the console fires and does not await, so reloading
+ * without awaiting it destroys the page while the write is still queued. The queue is the
+ * browser's, not the server's — the daemon event stream holds one connection for ever, and six
+ * requests in flight are the HTTP/1.1 per-origin limit, so this one waits its turn behind whatever
+ * the screen is loading, seconds at a time when the daemon is busy. Cause established in
+ * plan-docker_management_app-single_process_serving.
+ */
+function persistedHistoryEntry(page: Page, command: string): Promise<unknown> {
+  return page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      response.url().includes('/api/console/history') &&
+      (response.request().postData() ?? '').includes(command),
+  );
 }
 
 test.beforeEach(async ({ page }) => {
@@ -269,8 +287,11 @@ test('recalls, re-runs and copies a previous entry with its output', async ({ pa
 // plan-docker_management_app/REQ-114 — the command history survives an application restart
 test('keeps the history across a reload of the application', async ({ page }) => {
   const command = `docker ps --filter label=${marker('persisted')}`;
+  const persisted = persistedHistoryEntry(page, command);
   await submit(page, command);
   await expect(entryFor(page, command)).toContainText('exit 0', { timeout: 20_000 });
+  // The write the reload below must not overtake — see `persistedHistoryEntry`.
+  await persisted;
 
   await openConsole(page);
 

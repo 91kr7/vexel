@@ -1,9 +1,7 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { openApp, ownershipArgs } from './support/fixtures.js';
+import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
-const execFileAsync = promisify(execFile);
 const RUN_ID = `${process.pid}-${Date.now()}`;
 
 // The identity of an event, as the operator sees it (batch-event-feed-keys):

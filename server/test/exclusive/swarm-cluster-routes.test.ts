@@ -1,11 +1,9 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import { createServer } from "node:net";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { promisify } from "node:util";
 import { swarmRouter } from "../../src/swarm/swarm-routes.js";
 import type { SwarmNode } from "../../src/swarm/swarm-nodes-service.js";
 import type { SwarmDataItem } from "../../src/swarm/swarm-secrets-service.js";
@@ -14,6 +12,7 @@ import type { StackRemovalResult, SwarmStack } from "../../src/swarm/swarm-stack
 import type { SwarmListing, SwarmState, SwarmTokensReading } from "../../src/swarm/swarm-state-service.js";
 import { ALPINE_IMAGE, ensureImages } from "../support/base-images.js";
 import { CASE_LABEL, OWNER_LABEL, RUN_ID, buildApp, ownershipArgs, startApp } from "../support/fixtures.js";
+import { execFileAsync } from "../support/docker-cli.js";
 
 // The half of the swarm contract that only a manager can answer: nodes with
 // their role and availability, services with their tasks, stacks, secrets and
@@ -31,7 +30,6 @@ import { CASE_LABEL, OWNER_LABEL, RUN_ID, buildApp, ownershipArgs, startApp } fr
 //
 // It lives in `exclusive/` because a swarm is a property of the whole daemon:
 // no label can scope it away from another test running at the same time.
-const execFileAsync = promisify(execFile);
 
 await ensureImages([ALPINE_IMAGE]);
 

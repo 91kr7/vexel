@@ -67,7 +67,9 @@ test('a screen chosen before the preferences read settles is the one the applica
     }
   });
 
-  // StrictMode mounts the hook twice in dev, so every initial read is held, not just the first.
+  // Every initial read is held, not just the first: how many the view issues on
+  // its way to one answer is not promised anywhere, and holding all of them is
+  // what makes "the read is still unanswered" true whatever the number.
   await page.route('**/api/persistence/preferences', async (route) => {
     if (route.request().method() !== 'GET') {
       await route.fallback();
@@ -89,20 +91,31 @@ test('a screen chosen before the preferences read settles is the one the applica
     await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
     expect(readsHeld, 'the preferences read must still be unanswered, or the race is not being exercised').toBeGreaterThan(0);
 
+    // The flush the release is about to trigger, awaited rather than polled for.
+    // Registered here, after the click, so a write issued *before* the read
+    // settled — the deferral this test exists to pin — still fails the test.
+    const flushed = persistedScreen(page, 'containers');
+
     releaseRead();
 
     // The read's response must not roll the operator's choice back...
     await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
-    // ...and the deferred update must reach the store, not be dropped. Read back
-    // from the server rather than from the wire, so the reload below cannot
-    // overtake a write that was merely issued.
-    await expect
-      .poll(
-        async () => ((await (await page.request.get('/api/persistence/preferences')).json()) as { lastScreenId?: string }).lastScreenId,
-        { timeout: 5_000 },
-      )
-      .toBe('containers');
+    // ...and the deferred update must reach the store, not be dropped.
+    //
+    // Awaited, never given a deadline: the write travels on the page's own
+    // connections, and the read-back below travels on `page.request`'s. With the
+    // daemon event stream holding a connection for ever, six requests in flight
+    // are the browser's HTTP/1.1 per-origin limit, so this write waits its turn
+    // behind whatever the screen is already loading — seconds, when the daemon
+    // has just been made busy by another spec. A budget on the read-back would
+    // therefore measure how fast that queue drains, not what was persisted; the
+    // requirement promises the write is not dropped, not that it is prompt.
+    // Cause established in plan-docker_management_app-single_process_serving.
+    await flushed;
     expect(persistedScreens.some((body) => body.includes('containers'))).toBe(true);
+    // Now a plain reading of what the server holds, no longer a race with the write.
+    const stored = (await (await page.request.get('/api/persistence/preferences')).json()) as { lastScreenId?: string };
+    expect(stored.lastScreenId).toBe('containers');
   } finally {
     await page.unroute('**/api/persistence/preferences');
   }

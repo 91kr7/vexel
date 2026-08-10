@@ -1,20 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import express, { type Express } from "express";
 import type { AddressInfo } from "node:net";
 import { containersRouter } from "../../src/containers/containers-routes.js";
 import { ownershipArgs } from "../support/fixtures.js";
 import { REGISTRY_IMAGE, ensureImages } from "../support/base-images.js";
+import { execFileAsync } from "../support/docker-cli.js";
 
 // A pruned daemon is a starting state like any other: the base images this
 // file's fixtures are built on are ensured here, before the first test, so no
 // test has to assume a warm daemon nor depend on another file having pulled
 // them. They are shared infrastructure, not fixtures: nothing removes them.
 await ensureImages([REGISTRY_IMAGE]);
-
-const execFileAsync = promisify(execFile);
 
 function startApp(): Promise<{ url: string; close: () => Promise<void> }> {
   const app: Express = express();
@@ -32,10 +29,8 @@ function startApp(): Promise<{ url: string; close: () => Promise<void> }> {
 }
 
 // registry:2 (megabytes, not the multi-gigabyte range): `docker export` works on a
-// created-but-never-started container just as well as a running one. hello-world would be smaller
-// still, but its tag is removed and re-pulled by another test elsewhere in this suite's parallel
-// run, so tagging/creating from it here could race that removal; registry:2's tag is never touched
-// by a concurrently-running test file.
+// created-but-never-started container just as well as a running one, and this fixture wants a
+// filesystem with something in it — the suite's single-file image holds one file and nothing else.
 async function createFilesystemFixtureContainer(caseName: string): Promise<string> {
   const name = `vexel-test-${caseName}-${Date.now()}`;
   const { stdout } = await execFileAsync("docker", ["create", "--name", name, ...ownershipArgs(caseName), "registry:2"]);

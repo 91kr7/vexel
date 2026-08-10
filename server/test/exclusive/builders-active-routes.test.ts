@@ -1,15 +1,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { promisify } from "node:util";
 import { buildersRouter } from "../../src/builders/builders-routes.js";
 import type { BuilderSummary } from "../../src/builders/builders-service.js";
 import type { BuildCacheRecord } from "../../src/builders/build-cache-service.js";
 import { buildApp, startApp } from "../support/fixtures.js";
-import { ALPINE_IMAGE, ensureImages } from "../support/base-images.js";
+import { ALPINE_IMAGE, ensureImages, localBuilderDriverArgs, mirroredImage } from "../support/base-images.js";
+import { execFileAsync } from "../support/docker-cli.js";
 
 // A pruned daemon is a starting state like any other: the base images this
 // file's fixtures are built on are ensured here, before the first test, so no
@@ -17,7 +16,6 @@ import { ALPINE_IMAGE, ensureImages } from "../support/base-images.js";
 // them. They are shared infrastructure, not fixtures: nothing removes them.
 await ensureImages([ALPINE_IMAGE]);
 
-const execFileAsync = promisify(execFile);
 const RUN_ID = `${process.pid}-${Date.now()}`;
 
 // `docker buildx use` (builders-service.md, "sets `name` as the builder
@@ -47,7 +45,9 @@ async function fetchCache(url: string): Promise<BuildCacheRecord[]> {
 }
 
 async function createBuilderQuietly(name: string): Promise<void> {
-  await execFileAsync("docker", ["buildx", "create", "--name", name, "--driver", "docker-container"]);
+  // Booted from the run's own registry, on the host network: buildx contacts a
+  // registry on every bootstrap, whatever the daemon already holds.
+  await execFileAsync("docker", ["buildx", "create", "--name", name, "--driver", "docker-container", ...(await localBuilderDriverArgs())]);
 }
 
 async function removeBuilderQuietly(name: string): Promise<void> {
@@ -77,7 +77,9 @@ async function useBuilderQuietly(name: string): Promise<void> {
 async function buildWithBuilder(builderName: string): Promise<void> {
   const dir = await mkdtemp(join(tmpdir(), "vexel-test-builder-"));
   try {
-    await writeFile(join(dir, "Dockerfile"), "FROM alpine:3.20\nRUN echo vexel-test-marker > /tmp/marker\n", "utf8");
+    // BuildKit inside a container has an image store of its own and resolves
+    // every `FROM` against a registry: the run's own, never Docker Hub.
+    await writeFile(join(dir, "Dockerfile"), `FROM ${await mirroredImage(ALPINE_IMAGE)}\nRUN echo vexel-test-marker > /tmp/marker\n`, "utf8");
     await execFileAsync("docker", ["buildx", "build", "--builder", builderName, dir]);
   } finally {
     await rm(dir, { recursive: true, force: true });

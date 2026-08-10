@@ -1,7 +1,5 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { mkdtemp, readFile as readFileFs, writeFile } from "node:fs/promises";
 import { readFileSync, readlinkSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -12,14 +10,13 @@ import { buildApp, startApp, type RunningApp } from "../support/fixtures.js";
 
 import { ownershipArgs } from "../support/fixtures.js";
 import { ALPINE_IMAGE, ensureImages } from "../support/base-images.js";
+import { execFileAsync } from "../support/docker-cli.js";
 
 // A pruned daemon is a starting state like any other: the base images this
 // file's fixtures are built on are ensured here, before the first test, so no
 // test has to assume a warm daemon nor depend on another file having pulled
 // them. They are shared infrastructure, not fixtures: nothing removes them.
 await ensureImages([ALPINE_IMAGE]);
-
-const execFileAsync = promisify(execFile);
 
 interface SseEvent {
   event: string;

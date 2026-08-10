@@ -1,13 +1,10 @@
 import { test, mock, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import { createReadStream } from "node:fs";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { promisify } from "node:util";
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from "../support/docker-cli.js";
 
 // Isolated from the real ~/.vexel cache, like analysis-cache-store.test.ts: local-store.ts resolves
 // its data directory once at import time.

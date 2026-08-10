@@ -1,9 +1,7 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
 import { openApp, ownershipArgs } from '../support/fixtures.js';
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from '../../../server/test/support/docker-cli.js';
+import { ALPINE_IMAGE, TINY_IMAGE, ensureImage } from '../../../server/test/support/base-images.js';
 
 // The two prune actions exercise the daemon's real prune, which acts on every
 // stopped container / every dangling image on the host — not only on the
@@ -14,8 +12,12 @@ const execFileAsync = promisify(execFile);
 test.describe.configure({ mode: 'serial' });
 
 async function createSleepingContainer(name: string): Promise<void> {
+  // Ensured at the point of use: this project prunes the host, so an image that
+  // was there when the run started may be gone by the time the next spec needs
+  // it. Restored from the run's own registry, never from Docker Hub.
+  await ensureImage(ALPINE_IMAGE);
   await execFileAsync('docker', [
-    'run', '-d', '--name', name, ...ownershipArgs(name), '--entrypoint', 'sleep', 'alpine:3.20', '300',
+    'run', '-d', '--name', name, ...ownershipArgs(name), '--entrypoint', 'sleep', ALPINE_IMAGE, '300',
   ]);
 }
 
@@ -76,7 +78,9 @@ test('pruning stopped containers removes them from the list and reports the outc
 test('pruning dangling images removes them and reports the outcome', async ({ page }) => {
   const containerName = `vexel-e2e-prune-src-${Date.now()}`;
   const danglingTag = `vexel-e2e-prune-dangling-${Date.now()}:v1`;
-  await execFileAsync('docker', ['create', '--name', containerName, ...ownershipArgs(containerName), 'hello-world']);
+  // Same reason as above: this project's own earlier test prunes the host.
+  await ensureImage(TINY_IMAGE);
+  await execFileAsync('docker', ['create', '--name', containerName, ...ownershipArgs(containerName), TINY_IMAGE]);
   const { stdout: firstId } = await execFileAsync('docker', ['commit', '--change', 'LABEL step=1', containerName, danglingTag]);
   await new Promise((resolve) => setTimeout(resolve, 1100)); // ensure a different image config timestamp
   await execFileAsync('docker', ['commit', '--change', 'LABEL step=2', containerName, danglingTag]);

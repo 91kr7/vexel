@@ -1,12 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { volumesRouter } from "../../src/volumes/volumes-routes.js";
 import type { VolumePruneResult, VolumeSummary } from "../../src/volumes/volumes-service.js";
 import { buildApp, ownershipArgs, removeVolumeQuietly, startApp } from "../support/fixtures.js";
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from "../support/docker-cli.js";
 
 // Volume prune exercises the daemon's own prune semantics (`filters={"all":
 // ["true"]}`, volumes-service.md), which act on every unused volume on the

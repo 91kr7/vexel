@@ -1,12 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { networksRouter } from "../../src/networks/networks-routes.js";
 import type { NetworkSummary } from "../../src/networks/networks-service.js";
 import { buildApp, ownershipArgs, removeNetworkQuietly, startApp } from "../support/fixtures.js";
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from "../support/docker-cli.js";
 
 // Network prune exercises the daemon's own prune semantics (`POST
 // /networks/prune`, networks-service.md), which act on every network not

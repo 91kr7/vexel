@@ -1,13 +1,11 @@
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { contextsRouter } from "../../src/contexts/contexts-routes.js";
 import type { ContextSummary } from "../../src/contexts/contexts-service.js";
 import { resolveActiveEndpoint, setActiveEndpoint } from "../../src/docker/endpoint.js";
 import { buildApp, startApp } from "../support/fixtures.js";
+import { execFileAsync } from "../support/docker-cli.js";
 
-const execFileAsync = promisify(execFile);
 const RUN_ID = `${process.pid}-${Date.now()}`;
 const FIXTURE_PREFIX = "vexel-test-ctx-use-";
 

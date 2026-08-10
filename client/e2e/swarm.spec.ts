@@ -1,7 +1,6 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
 import { openApp } from './support/fixtures.js';
+import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 // The Swarm screen in a real browser, against the operator's own daemon
 // (REQ-79 to REQ-84).
@@ -14,7 +13,6 @@ import { openApp } from './support/fixtures.js';
 // list, instead of showing four empty panels or an error. What needs a cluster
 // is driven in `e2e/exclusive/swarm-cluster.spec.ts`, which puts the daemon
 // back the way it found it.
-const execFileAsync = promisify(execFile);
 
 const { stdout: swarmInfo } = await execFileAsync('docker', ['info', '--format', '{{.Swarm.LocalNodeState}} {{.Swarm.ControlAvailable}}']);
 const [LOCAL_NODE_STATE = 'inactive'] = swarmInfo.trim().split(' ');

@@ -1,21 +1,32 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
 import { navEntry, openApp, ownershipArgs } from './support/fixtures.js';
+import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { ensurePullableImage } from '../../server/test/support/base-images.js';
 
-const execFileAsync = promisify(execFile);
-
-// The tests that need an image to be missing locally share `hello-world`, a
-// registry-facing resource, so this file runs serially rather than in
-// Playwright's default fully-parallel mode.
+// The tests that need an image to be missing locally share one reference — the
+// run's own pullable fixture — and each of them removes it, so this file runs
+// serially rather than in Playwright's default fully-parallel mode.
 test.describe.configure({ mode: 'serial' });
+
+/**
+ * The reference the tests below make the product fetch: published in the run's
+ * own registry by the global setup, held nowhere on the daemon. A real pull,
+ * over a network that cannot give way — the public registry it used to cross
+ * failed often enough to lose this file to `EOF` errors.
+ */
+let pullableReference = '';
+
+test.beforeAll(async () => {
+  pullableReference = await ensurePullableImage();
+});
 
 async function removeContainerQuietly(name: string): Promise<void> {
   await execFileAsync('docker', ['rm', '-fv', name]).catch(() => undefined);
 }
 
-async function removeHelloWorldImage(): Promise<void> {
-  await execFileAsync('docker', ['rmi', '-f', 'hello-world:latest']).catch(() => undefined);
+/** Puts the daemon back to not holding it, which is the condition these tests are about. */
+async function removePullableImage(): Promise<void> {
+  await execFileAsync('docker', ['rmi', '-f', pullableReference]).catch(() => undefined);
 }
 
 function containerRow(page: Page, name: string) {
@@ -112,10 +123,10 @@ test('creating from a reference missing locally pulls the image first and then c
   test.setTimeout(120_000);
   const name = `vexel-e2e-pull-create-${Date.now()}`;
   try {
-    await removeHelloWorldImage();
+    await removePullableImage();
 
     await page.getByRole('button', { name: 'Create from image…' }).click();
-    await imageField(page).fill('hello-world:latest');
+    await imageField(page).fill(pullableReference);
     await page.getByRole('textbox', { name: 'Container name' }).fill(name);
     await page.getByRole('button', { name: 'Create only' }).click();
 
@@ -124,10 +135,13 @@ test('creating from a reference missing locally pulls the image first and then c
     await expect(containerRow(page, name)).toBeVisible({ timeout: 15_000 });
 
     // The image the container was created from is now held locally: it was pulled.
-    const { stdout } = await execFileAsync('docker', ['images', '-q', 'hello-world:latest']);
+    const { stdout } = await execFileAsync('docker', ['images', '-q', pullableReference]);
     expect(stdout.trim().length).toBeGreaterThan(0);
   } finally {
     await removeContainerQuietly(name);
+    // The pull was the point, not the image: the daemon is left holding no more
+    // than it did before, so the next run's "missing locally" is genuine too.
+    await removePullableImage();
   }
 });
 
@@ -139,10 +153,10 @@ test('shows the pull progress and, on a daemon refusal, its own message with eve
   const takenName = `vexel-e2e-taken-${Date.now()}`;
   try {
     await execFileAsync('docker', ['create', '--name', takenName, ...ownershipArgs(takenName), '--entrypoint', 'sleep', 'alpine:3.20', '300']);
-    await removeHelloWorldImage();
+    await removePullableImage();
 
     await page.getByRole('button', { name: 'Run container…' }).click();
-    await imageField(page).fill('hello-world:latest');
+    await imageField(page).fill(pullableReference);
     await page.getByRole('textbox', { name: 'Container name' }).fill(takenName);
     await page.getByRole('textbox', { name: 'Command' }).fill('echo hello');
     await page.getByRole('button', { name: 'Create and start' }).click();
@@ -157,12 +171,13 @@ test('shows the pull progress and, on a daemon refusal, its own message with eve
     await expect(banner).toContainText(/already in use/i);
 
     // Every entered value is still there, ready to be corrected.
-    await expect(imageField(page)).toHaveValue('hello-world:latest');
+    await expect(imageField(page)).toHaveValue(pullableReference);
     await expect(page.getByRole('textbox', { name: 'Container name' })).toHaveValue(takenName);
     await expect(page.getByRole('textbox', { name: 'Command' })).toHaveValue('echo hello');
     await expect(page.getByRole('button', { name: 'Create and start' })).toBeEnabled();
   } finally {
     await removeContainerQuietly(takenName);
+    await removePullableImage();
   }
 });
 

@@ -1,13 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { systemRouter } from "../../src/system/system-routes.js";
 import type { DiskUsageBreakdown } from "../../src/system/disk-usage-service.js";
 import { BASE_IMAGE, buildApp, fixtureName, ownershipArgs, removeContainerQuietly, startApp } from "../support/fixtures.js";
 import { ensureImage } from "../support/base-images.js";
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from "../support/docker-cli.js";
 
 // Everything the system area can be established on without touching the host
 // lives here: the shape and canonical order of the breakdown, the reading being

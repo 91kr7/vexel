@@ -1,7 +1,6 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
 import { CASE_LABEL, OWNER_LABEL, RUN_ID, openApp } from '../support/fixtures.js';
+import { execFileAsync } from '../../../server/test/support/docker-cli.js';
 
 // The Swarm screen driven against a real cluster (REQ-79 to REQ-84): the state
 // bar of an active swarm, the nodes panel, the join-token dialog and a secret
@@ -16,7 +15,6 @@ import { CASE_LABEL, OWNER_LABEL, RUN_ID, openApp } from '../support/fixtures.js
 // mode leaves behind, when that network was not already there. On a daemon
 // already in a swarm — the operator's own cluster — every test here skips: this
 // file will not read, rotate or remove anything of theirs.
-const execFileAsync = promisify(execFile);
 
 const SECRET_NAME = `vexel-e2e-secret-${RUN_ID}`;
 const SECRET_VALUE = 'e2e-secret-value-never-displayed-back';

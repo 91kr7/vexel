@@ -13,16 +13,13 @@
  * `enable` on the real daemon is exactly the refusal REQ-111 says must be
  * surfaced verbatim.
  */
-import { execFile } from "node:child_process";
 import { createServer } from "node:net";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { promisify } from "node:util";
 import { REGISTRY_IMAGE, ensureImage } from "./base-images.js";
 import { ownershipArgs } from "./fixtures.js";
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from "./docker-cli.js";
 
 /** What the fixture plugin's `config.json` asks the host for, and therefore what the daemon reports. */
 export interface FixturePrivilege {

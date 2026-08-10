@@ -7,11 +7,9 @@
  * nothing at all. Containers go first, so the volumes, networks and images they
  * hold are free by the time their turn comes.
  */
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { OWNER_LABEL } from "./fixtures.js";
-
-const execFileAsync = promisify(execFile);
+import { stopSharedRegistry } from "./base-images.js";
+import { execFileAsync } from "./docker-cli.js";
 
 async function listOwned(args: string[]): Promise<string[]> {
   const { stdout } = await execFileAsync("docker", [...args, "-q", "--filter", `label=${OWNER_LABEL}`]).catch(() => ({
@@ -30,6 +28,11 @@ async function sweep(kind: string, listArgs: string[], removeArgs: string[]): Pr
   }
   console.log(`swept ${ids.length} leftover test ${kind}(s)`);
 }
+
+// First, because it is the only thing that can still name what the daemon
+// pulled out of the run's registry: once the container is gone, the port it was
+// published on is gone with it.
+await stopSharedRegistry();
 
 // `-v` so a container's anonymous volumes go with it: Docker attaches one per
 // `VOLUME` an image declares, and it carries no label of ours, so nothing else

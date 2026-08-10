@@ -1,9 +1,6 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
 import { openApp, ownershipArgs } from './support/fixtures.js';
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 interface TrackedStream {
   url: string;
@@ -122,11 +119,22 @@ test.describe('Container stats and processes (REQ-32, REQ-33)', () => {
     try {
       await createBusyContainer(name);
       const detail = await openTab(page, name, 'Stats');
-      await expect(detail.getByText(/Waiting for the first sample/i)).toHaveCount(0, { timeout: 20_000 });
-      // At least one subscription is live while the tab is open. The exact count
-      // is not part of the contract: React remounts effects in development, so
-      // several may have been constructed and all but one already discarded.
-      expect((await statsStreams(page)).length).toBeGreaterThan(0);
+      // Setup, not the contract: there has to be a subscription before leaving
+      // the tab can be shown to close it. **Waited for, never sampled.** Reading
+      // the count once asserts on whichever instant the read lands in — and the
+      // instant before the tab's effect has run is a legitimate one, so the
+      // assertion fails for a reason that has nothing to do with REQ-32. (An
+      // absence check on "Waiting for the first sample" stood here and did not
+      // establish this either: text that has not been rendered yet is absent
+      // too.) The exact count is deliberately not asserted: how many
+      // subscriptions the view constructs on its way to one is not promised
+      // anywhere.
+      await expect
+        .poll(async () => (await statsStreams(page)).length, {
+          timeout: 20_000,
+          message: 'expected the Stats tab to open a live stats subscription',
+        })
+        .toBeGreaterThan(0);
 
       await detail.getByRole('tab', { name: 'Config' }).click();
 

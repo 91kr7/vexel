@@ -1,12 +1,11 @@
-import { execFile } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
 import { openApp } from '../support/fixtures.js';
+import { execFileAsync } from '../../../server/test/support/docker-cli.js';
+import { ALPINE_IMAGE, localBuilderDriverArgs, mirroredImage } from '../../../server/test/support/base-images.js';
 
-const execFileAsync = promisify(execFile);
 const RUN_ID = `${process.pid}-${Date.now()}`;
 
 // Pruning the build cache (build-cache-service.md) reclaims whichever builder
@@ -27,7 +26,10 @@ function fixtureName(caseName: string): string {
 }
 
 async function createBuilderQuietly(name: string): Promise<void> {
-  await execFileAsync('docker', ['buildx', 'create', '--name', name, '--driver', 'docker-container']);
+  // Booted from the run's own registry, on the host network: buildx contacts a
+  // registry on every bootstrap, whatever the daemon already holds, and a public
+  // one giving way here would fail an assertion about pruning.
+  await execFileAsync('docker', ['buildx', 'create', '--name', name, '--driver', 'docker-container', ...(await localBuilderDriverArgs())]);
 }
 
 async function removeBuilderQuietly(name: string): Promise<void> {
@@ -81,7 +83,9 @@ test('pruning the build cache reclaims space and reports it, after confirmation'
   const dir = await mkdtemp(join(tmpdir(), 'vexel-e2e-builder-prune-'));
   const originalActive = await currentActiveBuilder();
   try {
-    await writeFile(join(dir, 'Dockerfile'), 'FROM alpine:3.20\nRUN echo vexel-e2e-prune-marker > /tmp/marker\n', 'utf8');
+    // BuildKit inside a container has an image store of its own and resolves
+    // every `FROM` against a registry: the run's own, never Docker Hub.
+    await writeFile(join(dir, 'Dockerfile'), `FROM ${await mirroredImage(ALPINE_IMAGE)}\nRUN echo vexel-e2e-prune-marker > /tmp/marker\n`, 'utf8');
     await execFileAsync('docker', ['buildx', 'build', '--builder', name, dir]);
     const ownIds = await ownCacheRecordIds(name);
     expect(ownIds.size).toBeGreaterThan(0);

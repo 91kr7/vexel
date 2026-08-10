@@ -1,24 +1,21 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { promisify } from "node:util";
 import express, { type Express } from "express";
 import { imageAnalysisRouter } from "../../src/image-analysis/image-analysis-routes.js";
 import type { ImageBuildCacheTrace } from "../../src/image-analysis/layer-build-cache-service.js";
 import type { ImageLayerStack } from "../../src/image-analysis/layer-metadata-service.js";
 import { ownershipArgs, removeImageQuietly, startApp } from "../support/fixtures.js";
 import { ALPINE_IMAGE, ensureImages } from "../support/base-images.js";
+import { execFileAsync } from "../support/docker-cli.js";
 
 // A pruned daemon is a starting state like any other: the base images this
 // file's fixtures are built on are ensured here, before the first test, so no
 // test has to assume a warm daemon nor depend on another file having pulled
 // them. They are shared infrastructure, not fixtures: nothing removes them.
 await ensureImages([ALPINE_IMAGE]);
-
-const execFileAsync = promisify(execFile);
 
 function buildApp(): Express {
   const app = express();

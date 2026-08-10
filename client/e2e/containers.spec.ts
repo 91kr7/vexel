@@ -1,9 +1,6 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
 import { anonymousVolumes, openApp, ownershipArgs, removeAnonymousVolumesSince } from './support/fixtures.js';
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 // A tiny, already-cached image whose entrypoint is overridden to `sleep` so the
 // container starts instantly and needs no network pull or app init.
@@ -116,7 +113,6 @@ test('renaming a container replaces the name cell and the new name is reflected 
     await removeContainerQuietly(name);
   }
 });
-
 
 // plan-docker_management_app/REQ-23 — the container list can be text-searched by name
 test('searching narrows the list to containers whose name matches the search text', async ({ page }) => {

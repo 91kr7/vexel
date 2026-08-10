@@ -1,23 +1,21 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { execFile } from "node:child_process";
 import { createServer } from "node:net";
 import { mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { promisify } from "node:util";
 import { registriesRouter } from "../../src/registries/registries-routes.js";
 import type { RegistrySummary } from "../../src/registries/registries-service.js";
 import type { RepositorySummary, TagSummary } from "../../src/registries/registry-catalog-service.js";
 import { ALPINE_IMAGE, REGISTRY_IMAGE, ensureImages } from "../support/base-images.js";
 import { buildApp, ownershipArgs, startApp } from "../support/fixtures.js";
+import { execFileAsync } from "../support/docker-cli.js";
 
 // A pruned daemon is a starting state like any other: the base images these
 // fixtures are built on are ensured before anything else, with the operator's
 // own Docker configuration still in place (a pull may legitimately need it).
 await ensureImages([ALPINE_IMAGE, REGISTRY_IMAGE]);
 
-const execFileAsync = promisify(execFile);
 const RUN_ID = `${process.pid}-${Date.now()}`;
 
 // REQ-87 is what this file is mostly about, so nothing here may reach the

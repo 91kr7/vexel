@@ -1,12 +1,10 @@
-import { execFile } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
 import { openApp } from './support/fixtures.js';
+import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
-const execFileAsync = promisify(execFile);
 const RUN_ID = `${process.pid}-${Date.now()}`;
 
 // A Docker context is host-level configuration and carries no label, so every

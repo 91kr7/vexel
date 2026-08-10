@@ -1,9 +1,7 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { expect, test, type Page } from '@playwright/test';
 import { navEntry, openApp, ownershipArgs } from './support/fixtures.js';
-
-const execFileAsync = promisify(execFile);
+import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { PULLABLE_REPOSITORY, TINY_IMAGE, ensureImage, ensurePullableImage } from '../../server/test/support/base-images.js';
 
 // Every test in this file exercises the daemon's real pull/tag/push/remove
 // operations one at a time (a shared registry-facing resource), so they run
@@ -20,8 +18,20 @@ async function removeTagQuietly(tag: string): Promise<void> {
 
 /** A standalone single-tag image (its own id, unrelated to any other locally tagged image). */
 async function createStandaloneImage(tag: string, containerName: string): Promise<void> {
-  await execFileAsync('docker', ['create', '--name', containerName, ...ownershipArgs(containerName), 'hello-world']);
+  await createFromTinyImage(containerName);
   await execFileAsync('docker', ['commit', containerName, tag]);
+}
+
+/**
+ * Creates (but never starts) a container from the suite's own single-file image.
+ *
+ * Ensured at the point of use, not once for the run: the exclusive project
+ * prunes the host, so an image present at global setup may be gone by now.
+ * Locally built, so putting it back costs a second and no network.
+ */
+async function createFromTinyImage(containerName: string): Promise<void> {
+  await ensureImage(TINY_IMAGE);
+  await execFileAsync('docker', ['create', '--name', containerName, ...ownershipArgs(containerName), TINY_IMAGE]);
 }
 
 async function removeStandaloneImage(tag: string, containerName: string): Promise<void> {
@@ -248,7 +258,7 @@ test('untagging a single-tag image drops its reference straight away', async ({ 
 test('marks a dangling image with a dangling badge and disables its untag and push actions', async ({ page }) => {
   const containerName = `vexel-e2e-dangling-src-${Date.now()}`;
   const tag = `vexel-e2e-dangling-${Date.now()}:v1`;
-  await execFileAsync('docker', ['create', '--name', containerName, ...ownershipArgs(containerName), 'hello-world']);
+  await createFromTinyImage(containerName);
   const { stdout: firstId } = await execFileAsync('docker', ['commit', '--change', 'LABEL step=1', containerName, tag]);
   await new Promise((resolve) => setTimeout(resolve, 1100));
   await execFileAsync('docker', ['commit', '--change', 'LABEL step=2', containerName, tag]);
@@ -300,12 +310,11 @@ test('removing an image asks for confirmation, does nothing on cancel and remove
   }
 });
 
-
 // plan-docker_management_app/REQ-40 — an image's inspect data (config, env, labels, exposed ports, digest, history) is viewable
 test('selecting an image expands its detail panel with structured inspect data and the raw payload', async ({ page }) => {
   const containerName = `vexel-e2e-inspect-src-${Date.now()}`;
   const tag = `vexel-e2e-inspect-${Date.now()}:v1`;
-  await execFileAsync('docker', ['create', '--name', containerName, ...ownershipArgs(containerName), 'hello-world']);
+  await createFromTinyImage(containerName);
   await execFileAsync('docker', ['commit', '--change', 'LABEL team=vexel', '--change', 'EXPOSE 9999/tcp', containerName, tag]);
   try {
     await page.reload();
@@ -435,18 +444,28 @@ test('pulling an image by reference shows per-layer progress and the image appea
   // A real registry pull runs here, so the default per-test budget is not the
   // measure of anything this test is about.
   test.setTimeout(120_000);
-  await execFileAsync('docker', ['rmi', '-f', 'hello-world:latest']).catch(() => undefined);
+  // The suite's own registry, on this machine: what is contracted is that the
+  // product fetches a reference it does not hold, and a public registry giving
+  // way says nothing about that. Removed locally first, so the pull is real.
+  const reference = await ensurePullableImage();
+  await execFileAsync('docker', ['rmi', '-f', reference]).catch(() => undefined);
 
-  await page.getByRole('button', { name: 'Pull image…' }).click();
-  const dialogHeading = page.getByRole('heading', { name: 'Pull image' });
-  await expect(dialogHeading).toBeVisible();
-  const dialog = page.locator('.ui-modal').filter({ has: dialogHeading });
-  await dialog.getByRole('textbox', { name: 'Image reference' }).fill('hello-world:latest');
-  await dialog.getByRole('button', { name: 'Pull', exact: true }).click();
+  try {
+    await page.getByRole('button', { name: 'Pull image…' }).click();
+    const dialogHeading = page.getByRole('heading', { name: 'Pull image' });
+    await expect(dialogHeading).toBeVisible();
+    const dialog = page.locator('.ui-modal').filter({ has: dialogHeading });
+    await dialog.getByRole('textbox', { name: 'Image reference' }).fill(reference);
+    await dialog.getByRole('button', { name: 'Pull', exact: true }).click();
 
-  await expect(page.getByText(/Pending|In progress|Done/).first()).toBeVisible({ timeout: 15_000 });
-  // images-screen.md: the pull dialog closes on its own once the transfer ends, and the list re-reads.
-  await expect(dialogHeading).toHaveCount(0, { timeout: 30_000 });
-  await searchField(page).fill('hello-world');
-  await expect(imageRow(page, 'hello-world:latest')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(/Pending|In progress|Done/).first()).toBeVisible({ timeout: 15_000 });
+    // images-screen.md: the pull dialog closes on its own once the transfer ends, and the list re-reads.
+    await expect(dialogHeading).toHaveCount(0, { timeout: 30_000 });
+    await searchField(page).fill(PULLABLE_REPOSITORY);
+    await expect(imageRow(page, reference)).toBeVisible({ timeout: 10_000 });
+  } finally {
+    // The pull was the point, not the image: the daemon is left holding no more
+    // than it did before, so the next run's "missing locally" is genuine too.
+    await removeTagQuietly(reference);
+  }
 });
