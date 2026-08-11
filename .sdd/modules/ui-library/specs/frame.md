@@ -56,18 +56,13 @@ footer regions so feature code never writes a layout wrapper element itself.
   without Frame knowing about routing). Between `720px` and `1024px` the rail stays docked but
   narrows (`260px` → `220px`). This transient open/close transition is ordinary UI chrome, not the
   Backdrop layer — the CLAUDE.md animation ban targets the static background image, not a drawer.
-- That scrim carries the overlay glass material **at the phone breakpoint only**: while the drawer
-  is open the content behind the scrim is blurred as well as dimmed. It stays a dim rather than a
-  glass panel — it bears no text, so it keeps its own fill and only adds the blur; under reduced
-  transparency it drops the blur and the dim is all that remains. Above the breakpoint the scrim is
-  not displayed at all and the shell blurs nothing.
-- The scrim and the drawer card (`.ui-nav-rail`, see `navigation-primitives.md`) are **siblings**,
-  not nested: both blur, and they simply compose while the drawer is open. Accepted deliberately.
-  The dialog scrim, by contrast, stays a plain dim by decision about how the application should
-  look behind an open dialog (`modal.md`).
-- The scrim's blur resolves once its `opacity` fade has settled: an element at less than full
-  opacity is a backdrop root, so the layer carrying the blur has nothing to sample mid-fade. The
-  drawer's own material is unaffected, being a sibling rather than a child of the scrim.
+- That scrim is a **plain dim and declares no blur**, and says so explicitly rather than by
+  omission. It spans the whole viewport, so blurring it would not blur a panel — it would blur the
+  entire main view, background asset included, which is the cost the blur policy exists to refuse.
+  Behind an open drawer the application stays sharp and merely dimmed, exactly as it does behind an
+  open dialog (`modal.md`). Above the breakpoint the scrim is not displayed at all.
+- The surface that blurs is the drawer card (`.ui-nav-rail`, see `navigation-primitives.md`), and it
+  alone: the content it covers is out of focus through it, the rest of the screen is not.
 - The rail's sizing wrapper carries no material of any kind, blurred or not: it is a plain box, and
   a blurred rectangle behind the card's rounded corners is exactly what it would produce.
 

@@ -10,13 +10,15 @@ status: validated
 Scope note: "overlay surface" means, in this application, a surface drawn above what it covers and
 present only while an interaction or a state lasts — the dialog surfaces (`Modal` and everything
 built on it: `ConfirmDialog`, `FormDialog`, `TransferProgressDialog`, plus `FormSheet`), the toast
-stack, the suggestion popup of `Combobox`, the off-canvas navigation drawer at the phone breakpoint
-with its scrim, the session-ended overlay over an interactive terminal, and the log stream's
+stack, the suggestion popup of `Combobox`, the off-canvas navigation drawer at the phone breakpoint,
+the session-ended overlay over an interactive terminal, and the log stream's
 floating jump-to-live control. "Main view" means everything else on screen: the shell frame, the
 header, the docked navigation rail, cards, panels, section surfaces, tables, detail panels, split
 panes, and the log / console / terminal surfaces themselves.
 
-The dialog scrim is deliberately **not** an overlay surface for this purpose (REQ-2).
+**Neither scrim is an overlay surface for this purpose** — not the dialog's (REQ-2) and not the
+drawer's (REQ-5). A scrim spans the whole viewport, so blurring one blurs the entire main view,
+background asset included, rather than a panel.
 
 ## Feature 1 — Real liquid glass on overlay surfaces
 
@@ -26,7 +28,7 @@ The dialog scrim is deliberately **not** an overlay surface for this purpose (RE
 | REQ-2 | The dimmed scrim behind a dialog stays a plain dim: the application behind an open dialog is still sharp outside the dialog's own footprint, and the scrim declares no backdrop blur — so the dialog surface above it is not nested inside a blurred layer whose result its own blur would merely resample. |
 | REQ-3 | A toast notification renders a blurred image of whatever it covers, with the same glass treatment as the dialog surfaces. |
 | REQ-4 | A suggestion / choice popup opened over the content (the `Combobox` list) renders a blurred image of the content it covers, so the text underneath it is not legible through it. |
-| REQ-5 | The off-canvas navigation drawer at the phone breakpoint, and the scrim it slides in over, both render a blurred image of the content behind them. |
+| REQ-5 | The off-canvas navigation drawer at the phone breakpoint renders a blurred image of the content behind it. The scrim it slides in over does not: it stays a plain dim, and declares no backdrop blur, so the main view behind an open drawer — background asset included — is dimmed but sharp. |
 | REQ-6 | The blur strength of every blurred surface comes from one single named design token, with one documented value (20px) declared as the maximum any surface may use; no component declares a blur length of its own. |
 | REQ-16 | The session-ended overlay drawn over an interactive terminal renders a blurred image of the terminal session behind it. |
 | REQ-17 | The log stream's floating jump-to-live control renders a blurred image of the log lines it sits over. |

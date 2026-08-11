@@ -72,13 +72,16 @@ an interaction or a state lasts:
 | the overlay glass material itself — the class a `Surface` carries when it is asked for `material="overlay"`, which is how the dialog surfaces (`Modal` and everything built on it, `FormSheet`) and the toasts get it | `.ui-overlay-glass` |
 | the suggestion / choice popup of `Combobox` | `.ui-combobox__list` |
 | the off-canvas navigation drawer at the phone breakpoint — its sizing wrapper and the card that actually paints, **inside the `max-width: 720px` block only** | `.ui-frame__rail`, `.ui-nav-rail` |
-| the scrim that drawer slides in over | `.ui-frame__scrim` |
 | the session-ended overlay over an interactive terminal | `.ui-session-ended-overlay` |
 | the log stream's floating jump-to-live control | `.ui-log-stream__jump` |
 
-Above the phone breakpoint the rail is docked: it is main view, and it blurs nothing. The dialog
-scrim (`.ui-modal-overlay`) is deliberately **not** on the list and never will be: the application
-behind an open dialog stays sharp and merely dimmed.
+Above the phone breakpoint the rail is docked: it is main view, and it blurs nothing. **Neither
+scrim is on the list, and neither ever will be** — not the dialog's (`.ui-modal-overlay`) nor the
+drawer's (`.ui-frame__scrim`). A scrim covers the entire viewport, so blurring one does not blur a
+panel: it blurs the whole main view, background asset included, which is the exact cost this rule
+exists to refuse. Behind an open dialog or an open drawer the application stays sharp and merely
+dimmed; the surface that blurs is the dialog, or the drawer card. The drawer's scrim was briefly
+on this list and was withdrawn on sight, for that reason.
 
 **The blur is declared on the surface's own `::before` layer, never on the surface element itself**,
 and that is not a stylistic preference. An element carrying `backdrop-filter` becomes the backdrop

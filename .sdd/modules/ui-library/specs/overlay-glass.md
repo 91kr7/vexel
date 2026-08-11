@@ -17,8 +17,8 @@ The main view's material is untouched by it and computes no blur.
     surfaces and the toasts get it;
   - a surface that is plain CSS rather than a `Surface`, which declares the material on its own
     rule from the same tokens: the `Combobox` popup, and — at the phone breakpoint only — the
-    navigation drawer card and its scrim. A class cannot be scoped to a media query, which is the
-    only reason those three are written out; no value of the material is defined twice.
+    navigation drawer card. A class cannot be scoped to a media query, which is the only reason
+    those two are written out; no value of the material is defined twice.
 - What a carrying surface presents:
   - what is behind it is rendered blurred, at `--blur-overlay`, so its edges and text are not
     legible through the surface;
@@ -63,12 +63,10 @@ The main view's material is untouched by it and computes no blur.
   the property holds by construction rather than by anyone remembering it, and the conformance
   check accepts the pseudo-element form of an allow-listed selector precisely so it can stay that
   way (`ui-conformance-check.md`).
-- The dialog scrim is still deliberately **not** a carrier (see `modal.md`) — that is a decision
-  about how the application should look behind an open dialog, not a technical workaround, and it
-  stands unchanged. The drawer and its scrim are siblings and both carry the material.
-- One consequence specific to the drawer scrim: it fades with `opacity`, and an element whose
-  opacity is below 1 *is* a backdrop root, so the scrim's blur resolves only once its fade has
-  settled at 1. The drawer's own material is unaffected, being a sibling rather than a child.
+- **No scrim is a carrier** — neither the dialog's (see `modal.md`) nor the drawer's (see
+  `frame.md`). A scrim spans the whole viewport, so a blur on one is not a blur on a panel: it is a
+  blur of the entire main view, background asset included. Behind an open dialog or drawer the
+  application stays sharp and merely dimmed; the carrier is the dialog surface, or the drawer card.
 - The fill is selected once, centrally, and every carrier names the same variable: a surface never
   states its own fallback for either degradation.
 - The translucent fill's alpha (44%) is within the range the token contrast verification already
