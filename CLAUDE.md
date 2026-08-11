@@ -78,10 +78,18 @@ an interaction or a state lasts:
 
 Above the phone breakpoint the rail is docked: it is main view, and it blurs nothing. The dialog
 scrim (`.ui-modal-overlay`) is deliberately **not** on the list and never will be: the application
-behind an open dialog stays sharp and merely dimmed, and — the general trap — an element carrying
-`backdrop-filter` becomes the backdrop root of its descendants, so blurring a surface *and*
-something it is nested inside makes the inner one resample an already-blurred layer, paying twice
-for one effect. Never blur two nested surfaces.
+behind an open dialog stays sharp and merely dimmed.
+
+**The blur is declared on the surface's own `::before` layer, never on the surface element itself**,
+and that is not a stylistic preference. An element carrying `backdrop-filter` becomes the backdrop
+root of everything inside it, and in Chromium a `backdrop-filter` nested inside such a root renders
+**nothing at all** — the inner surface simply stops blurring. That was shipped once and caught by
+the human: the `Combobox` popup opened inside a form dialog showed the labels underneath it sharp
+and readable, because the dialog surface above it carried the blur. A pseudo layer is a sibling of
+the surface's content rather than an ancestor of it, so no allow-listed surface is ever a backdrop
+root, nesting is harmless, and both surfaces blur at once. Keep it that way when adding a surface to
+the list; the conformance check accepts `.selector::before` as the surface itself, and still rejects
+a real descendant of it.
 
 Why that is affordable: there is **one instance of each** of these, none of them repeats across a
 screen or scales with the number of objects listed, and any surface whose count is not naturally one

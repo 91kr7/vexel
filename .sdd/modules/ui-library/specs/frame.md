@@ -62,11 +62,12 @@ footer regions so feature code never writes a layout wrapper element itself.
   transparency it drops the blur and the dim is all that remains. Above the breakpoint the scrim is
   not displayed at all and the shell blurs nothing.
 - The scrim and the drawer card (`.ui-nav-rail`, see `navigation-primitives.md`) are **siblings**,
-  not nested: neither sits inside the other's backdrop root, so both may blur and they simply
-  compose while the drawer is open. Accepted deliberately. This is the opposite of the dialog
-  scrim, which stays a plain dim precisely because the dialog *is* nested inside it (`modal.md`).
-- The scrim's `opacity` fade creates a backdrop root for its own descendants, of which it has none,
-  and leaves its own backdrop alone.
+  not nested: both blur, and they simply compose while the drawer is open. Accepted deliberately.
+  The dialog scrim, by contrast, stays a plain dim by decision about how the application should
+  look behind an open dialog (`modal.md`).
+- The scrim's blur resolves once its `opacity` fade has settled: an element at less than full
+  opacity is a backdrop root, so the layer carrying the blur has nothing to sample mid-fade. The
+  drawer's own material is unaffected, being a sibling rather than a child of the scrim.
 - The rail's sizing wrapper carries no material of any kind, blurred or not: it is a plain box, and
   a blurred rectangle behind the card's rounded corners is exactly what it would produce.
 

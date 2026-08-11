@@ -27,10 +27,10 @@ type: UI component
   (`plan-docker_management_app/REQ-108`), which this plan supersedes; the fallbacks the material
   degrades through are in `overlay-glass.md`.
 - The dimmed scrim behind the dialog stays a **plain dim** and declares no blur: the application
-  behind an open dialog is still sharp outside the dialog's own footprint. This is deliberate and
-  load-bearing — an element carrying a backdrop blur becomes the backdrop root of its descendants,
-  so a blurred scrim would leave the dialog nested inside it resampling an already-blurred,
-  already-dimmed layer, paying twice for one effect.
+  behind an open dialog is still sharp outside the dialog's own footprint. Deliberate, and the
+  cheaper half of the same decision — the scrim covers the whole viewport, so blurring it would put
+  the most expensive surface in the application underneath the dialog's own, two blurs for one
+  effect.
 - Everything built on Modal — `ConfirmDialog`, `FormDialog`, `TransferProgressDialog` — carries the
   material by construction, none of them declaring it itself.
 

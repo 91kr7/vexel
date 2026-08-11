@@ -14,6 +14,25 @@
  * declare the material on their own rule. They take every value from the tokens
  * this file and `tokens.css` define, and each carries a comment pointing back
  * here: no value of the material is written twice.
+ *
+ * THE BLUR IS PAINTED ON A `::before` LAYER, NEVER ON THE SURFACE ITSELF, and
+ * that is load-bearing rather than a matter of taste. An element carrying
+ * `backdrop-filter` becomes the backdrop root of everything inside it, and in
+ * Chromium a `backdrop-filter` nested inside such a root produces **no effect
+ * at all** — not a blur of the enclosing surface's content, nothing. That is
+ * not hypothetical: the first cut of this material put the blur on the element,
+ * and the `Combobox` popup opened inside a form dialog — the create-container
+ * form's image picker — showed the labels underneath it perfectly sharp and
+ * legible, because the dialog surface above it was the backdrop root
+ * (plan-liquid_glass_overlays/REQ-4). A pseudo layer is a sibling of the
+ * surface's content, not an ancestor, so no carrier is ever a backdrop root and
+ * an overlay nested in another overlay blurs correctly — both of them do, at
+ * once. Every carrier therefore paints its blur this way, so the property holds
+ * by construction and no future nesting can bring the defect back. Do not fold
+ * the declaration back onto the element.
+ *
+ * `z-index: -1` puts the layer behind the surface's own translucent fill, which
+ * is what makes it visible through it.
  */
 :root {
   /* The material's background, switched here rather than overridden surface by
@@ -31,8 +50,8 @@
 }
 
 /* Reduced transparency: the same surface, at the same geometry, fully opaque
-   (plan-liquid_glass_overlays/REQ-13). Each surface drops its own blur next to
-   where it declares it. */
+   (plan-liquid_glass_overlays/REQ-13). Each surface drops the blur on its own
+   layer, next to where it declares it. */
 @media (prefers-reduced-transparency: reduce) {
   :root {
     --overlay-glass-background: var(--color-surface-overlay-opaque);
@@ -40,14 +59,24 @@
 }
 
 .ui-overlay-glass {
+  position: relative;
   background-color: var(--overlay-glass-background);
   border-color: var(--color-border-strong);
+}
+
+.ui-overlay-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
   -webkit-backdrop-filter: blur(var(--blur-overlay)) saturate(var(--overlay-glass-saturation));
   backdrop-filter: blur(var(--blur-overlay)) saturate(var(--overlay-glass-saturation));
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .ui-overlay-glass {
+  .ui-overlay-glass::before {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }

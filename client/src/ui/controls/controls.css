@@ -702,7 +702,10 @@
    is written out here rather than applied as a class only because its every
    value comes from the tokens that file establishes — nothing of it is defined
    twice. It replaces the former opaque `--color-void` fill, which the blur
-   would have been invisible behind. */
+   would have been invisible behind. As everywhere else, the blur is painted on
+   the `::before` layer and never on the element: this popup is the surface the
+   nesting defect was found on — opened inside a form dialog, its own blur was
+   inert because the dialog surface carried one. */
 .ui-combobox__list {
   position: absolute;
   top: 100%;
@@ -710,23 +713,43 @@
   right: 0;
   z-index: var(--z-modal);
   margin-top: var(--space-1);
-  max-height: 240px;
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
   border-radius: var(--radius-md);
   border: var(--border-width-hairline) solid var(--color-border-strong);
   background-color: var(--overlay-glass-background);
+  box-shadow: var(--shadow-2);
+  /* The options scroll in their own box below, not in this one. The blur is
+     painted by an absolutely positioned layer, and an abs-positioned child of a
+     scroll container scrolls with its content: the moment the list was scrolled
+     the layer would slide out of view and take the blur with it. This box only
+     ever holds that layer and the scroller, so it never scrolls, and its
+     `overflow: hidden` is what keeps the rows clipped to the rounded corners
+     now that it is not the scrolling box itself. */
+  overflow: hidden;
+}
+
+.ui-combobox__list::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
   -webkit-backdrop-filter: blur(var(--blur-overlay)) saturate(var(--overlay-glass-saturation));
   backdrop-filter: blur(var(--blur-overlay)) saturate(var(--overlay-glass-saturation));
-  box-shadow: var(--shadow-2);
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .ui-combobox__list {
+  .ui-combobox__list::before {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
+}
+
+.ui-combobox__list-options {
+  display: flex;
+  flex-direction: column;
+  max-height: 240px;
+  overflow: auto;
 }
 
 .ui-combobox__note {

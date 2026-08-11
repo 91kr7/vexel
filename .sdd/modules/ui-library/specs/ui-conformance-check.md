@@ -40,6 +40,9 @@ surfaces, only with the bounded blur token).
   - its value is bound to the token: it references `var(--blur-overlay)`, and every `blur()` it
     contains has exactly `var(--blur-overlay)` as its argument — otherwise →
     `runtime blur on "<selector>" must be valued var(--blur-overlay), not a blur length of its own`
+- a pseudo-element on an allow-listed selector (`.ui-overlay-glass::before`) is the surface itself,
+  not a descendant of it, and is accepted: the material declares its blur on exactly that layer, so
+  that no overlay surface becomes a backdrop root (`overlay-glass.md`)
 - an allow-listed selector needs **no** exception comment: the allow-list is the rule, not a
   tolerated breach of it
 - a `ui-blur-exception:` comment on the declaration's own line or on the line above it exempts that
@@ -54,7 +57,8 @@ surfaces, only with the bounded blur token).
   an allow-listed surface is reported, never waved through. This covers a declaration outside any
   rule, one inside an at-rule prelude, one under a selector list of which a single member is not
   allow-listed, and one whose rightmost compound selector is not the allow-listed element itself
-  (a descendant of an allow-listed surface is not allow-listed).
+  (a descendant of an allow-listed surface is not allow-listed — `.ui-nav-rail .row::before` is
+  reported, `.ui-nav-rail::before` is not).
 - A class name that merely contains an allow-listed one as a substring (`.ui-nav-rail__brand`
   against `.ui-nav-rail`) is not allow-listed.
 - `backdrop-filter: none` and `filter: none` are not runtime blurs: switching the material off — as

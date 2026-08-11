@@ -174,18 +174,33 @@
  * it blurs nothing (plan-liquid_glass_overlays/REQ-7). Every value comes from
  * the tokens ../glass/overlay-glass.css establishes; a class cannot be scoped
  * to a media query, which is the only reason the declarations are written here.
+ * The blur goes on the `::before` layer, as it does for every carrier, so this
+ * card never becomes a backdrop root — see the reasoning in that file.
  */
 @media (max-width: 720px) {
   .ui-nav-rail {
+    /* Positioned only so the blur layer below has this card as its containing
+       block; no offsets, so nothing moves. Above the breakpoint the docked rail
+       stays static, as it has always been. */
+    position: relative;
     background-color: var(--overlay-glass-background);
     border-color: var(--color-border-strong);
+  }
+
+  .ui-nav-rail::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
     -webkit-backdrop-filter: blur(var(--blur-overlay)) saturate(var(--overlay-glass-saturation));
     backdrop-filter: blur(var(--blur-overlay)) saturate(var(--overlay-glass-saturation));
   }
 }
 
 @media (max-width: 720px) and (prefers-reduced-transparency: reduce) {
-  .ui-nav-rail {
+  .ui-nav-rail::before {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }

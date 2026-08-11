@@ -27,7 +27,13 @@ The main view's material is untouched by it and computes no blur.
     content behind it is what gives the surface its depth, and a light wash on top only greyed it
     out;
   - the geometry, padding, radius and shadow of the surface it is applied to — the material changes
-    the fill and the blur, nothing else.
+    the fill and the blur, nothing else. The blur covers the whole surface, corners included, and
+    stays put while the surface's content scrolls.
+- The blur is painted on a layer of the surface's own (`::before`), never by the surface element
+  itself, and the layer sits behind the translucent fill. Observable consequence, which is the
+  reason it exists: **a carrying surface nested inside another carrying surface blurs correctly,
+  and so does the one it is nested in** — an open `Combobox` popup inside a form dialog blurs the
+  form rows under it while the dialog goes on blurring the application behind it.
 - Two guarded degradations, both at the same geometry and both keeping the documented text
   contrast:
   - the browser supports no backdrop blur → the fill goes near-opaque
@@ -47,10 +53,22 @@ The main view's material is untouched by it and computes no blur.
   ask for it is unchanged, and so is every main-view panel built on one.
 - The blur is declared with its `-webkit-` counterpart, prefixed first and standard last, so it
   takes effect on WebKit-based browsers as well as on Chromium and Firefox.
-- Two carrying surfaces are never nested inside one another: an element carrying a backdrop blur
-  becomes the backdrop root of its descendants, so a nested pair would resample an already-blurred
-  layer and pay twice for one effect. The dialog scrim is therefore deliberately not a carrier
-  (see `modal.md`); the drawer and its scrim are siblings, so both are.
+- **No carrying surface is ever a backdrop root**, and that is what makes nesting safe. An element
+  that declares a backdrop blur becomes the backdrop root of everything inside it, and a backdrop
+  blur nested inside such a root renders *nothing at all* in Chromium — the inner surface silently
+  stops blurring. This was shipped once and found by the human: the `Combobox` popup opened inside
+  the create-container form dialog showed the labels beneath it sharp and readable. Declaring the
+  blur on the surface's own pseudo layer — a sibling of its content rather than an ancestor of it —
+  removes the root, so every carrier blurs whatever its nesting. Every carrier does it this way, so
+  the property holds by construction rather than by anyone remembering it, and the conformance
+  check accepts the pseudo-element form of an allow-listed selector precisely so it can stay that
+  way (`ui-conformance-check.md`).
+- The dialog scrim is still deliberately **not** a carrier (see `modal.md`) — that is a decision
+  about how the application should look behind an open dialog, not a technical workaround, and it
+  stands unchanged. The drawer and its scrim are siblings and both carry the material.
+- One consequence specific to the drawer scrim: it fades with `opacity`, and an element whose
+  opacity is below 1 *is* a backdrop root, so the scrim's blur resolves only once its fade has
+  settled at 1. The drawer's own material is unaffected, being a sibling rather than a child.
 - The fill is selected once, centrally, and every carrier names the same variable: a surface never
   states its own fallback for either degradation.
 - The translucent fill's alpha (44%) is within the range the token contrast verification already

@@ -229,27 +229,39 @@
   }
 
   /* The drawer's scrim blurs what it covers, and so does the drawer card
-     (`.ui-nav-rail`, in navigation.css). The two are siblings, not nested:
-     neither sits inside the other's backdrop root, so both may carry the
-     material and they simply compose while the drawer is open — accepted
-     (plan-liquid_glass_overlays/REQ-5). This is the opposite of the dialog
-     scrim, which stays a plain dim precisely because the dialog *is* nested
-     inside it. The `opacity` fade below creates a backdrop root for this
-     element's own descendants, of which it has none, and leaves its own
-     backdrop alone. The scrim bears no text and stays a dim rather than a glass
-     panel, so it keeps its own fill; under reduced transparency it drops the
-     blur and that dim is all that is left. */
+     (`.ui-nav-rail`, in navigation.css). The two are siblings, and they simply
+     compose while the drawer is open — accepted
+     (plan-liquid_glass_overlays/REQ-5). The dialog scrim, by contrast, stays a
+     plain dim: a decision about how the application should look behind an open
+     dialog, not a technical one (see feedback.css). This scrim bears no text
+     and stays a dim rather than a glass panel, so it keeps its own fill; under
+     reduced transparency it drops the blur and that dim is all that is left. */
   .ui-frame__scrim {
     display: block;
     position: fixed;
     inset: 0;
     z-index: calc(var(--z-overlay) - 1);
     background: rgba(0, 0, 0, 0.5);
-    -webkit-backdrop-filter: blur(var(--blur-overlay)) saturate(var(--overlay-glass-saturation));
-    backdrop-filter: blur(var(--blur-overlay)) saturate(var(--overlay-glass-saturation));
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.3s ease;
+  }
+
+  /* The blur sits on this layer rather than on the scrim itself, as it does for
+     every carrier of the material, so no overlay is ever the backdrop root of
+     another (see ../glass/overlay-glass.css). One consequence is specific to
+     this surface: while the `opacity` above is mid-transition the scrim *is* a
+     backdrop root — opacity below 1 makes one — so the blur resolves only once
+     the fade has settled at 1. The drawer's own material is unaffected: it is a
+     sibling of this element, not a child of it. */
+  .ui-frame__scrim::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    -webkit-backdrop-filter: blur(var(--blur-overlay)) saturate(var(--overlay-glass-saturation));
+    backdrop-filter: blur(var(--blur-overlay)) saturate(var(--overlay-glass-saturation));
   }
 
   .ui-frame__scrim[data-open='true'] {
@@ -259,7 +271,7 @@
 }
 
 @media (max-width: 720px) and (prefers-reduced-transparency: reduce) {
-  .ui-frame__scrim {
+  .ui-frame__scrim::before {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }

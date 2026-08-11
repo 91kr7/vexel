@@ -138,7 +138,15 @@ function ruleTargetsAllowedOverlay(prelude) {
   return selectors.every((selector) => {
     const compounds = selector.split(/[\s>+~]+/).filter(Boolean);
     const target = compounds[compounds.length - 1] ?? '';
-    const classes = [...target.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)].map((match) => `.${match[1]}`);
+    // The material paints its blur on the surface's own `::before` layer, never
+    // on the element (a carrier that blurs itself becomes a backdrop root and
+    // kills the blur of any overlay nested inside it). A pseudo-element is that
+    // surface's own layer, not a step down into its content, so it is stripped
+    // before the class is read: `.ui-nav-rail::before` is the rail. What sits
+    // to the left of a combinator is untouched by this, so a real descendant —
+    // `.ui-nav-rail .row::before` — still reports.
+    const element = target.split('::')[0];
+    const classes = [...element.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)].map((match) => `.${match[1]}`);
     return classes.some((className) => blurAllowedOverlaySelectors.has(className));
   });
 }

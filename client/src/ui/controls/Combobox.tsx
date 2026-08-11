@@ -78,26 +78,33 @@ export function Combobox({
         }}
       />
       {open ? (
-        <div className="ui-combobox__list" id={listId} role="listbox">
-          {loading && visible.length === 0 ? <p className="ui-combobox__note">{loadingLabel}</p> : null}
-          {!loading && visible.length === 0 ? <p className="ui-combobox__note">{emptyLabel}</p> : null}
-          {visible.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              role="option"
-              aria-selected={option.value === value}
-              className="ui-combobox__option"
-              // Committing on mousedown, before the input's blur closes the list.
-              onMouseDown={(event) => {
-                event.preventDefault();
-                select(option.value);
-              }}
-            >
-              <span className="ui-combobox__option-label">{option.label}</span>
-              {option.hint ? <span className="ui-combobox__option-hint">{option.hint}</span> : null}
-            </button>
-          ))}
+        // The popup surface and the box the options scroll in are two elements
+        // on purpose: the surface paints the blurred glass material and must not
+        // scroll, or the layer carrying the blur would scroll away with the rows
+        // (see controls.css). The listbox role and id stay on the box that
+        // actually holds the options.
+        <div className="ui-combobox__list">
+          <div className="ui-combobox__list-options" id={listId} role="listbox">
+            {loading && visible.length === 0 ? <p className="ui-combobox__note">{loadingLabel}</p> : null}
+            {!loading && visible.length === 0 ? <p className="ui-combobox__note">{emptyLabel}</p> : null}
+            {visible.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                role="option"
+                aria-selected={option.value === value}
+                className="ui-combobox__option"
+                // Committing on mousedown, before the input's blur closes the list.
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  select(option.value);
+                }}
+              >
+                <span className="ui-combobox__option-label">{option.label}</span>
+                {option.hint ? <span className="ui-combobox__option-hint">{option.hint}</span> : null}
+              </button>
+            ))}
+          </div>
         </div>
       ) : null}
       {error ? <FieldMessage tone="danger">{error}</FieldMessage> : null}

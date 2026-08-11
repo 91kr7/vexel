@@ -39,6 +39,13 @@ Actions:
   rendered blurred and are not legible through it, degrading through the fallbacks stated in
   `overlay-glass.md`. It is the application's only styled popup — a `Select`'s dropdown is drawn by
   the browser and can carry no material.
+- That holds wherever the popup is opened, including inside a dialog or a form sheet — which is
+  where most of them are opened, and where the blur is worth most: the form's own labels under the
+  list are unreadable through it.
+- The suggestions scroll inside the popup, not with it: the popup surface itself never scrolls, so
+  the blurred material covers the whole list at every scroll position. The listbox is the box
+  holding the options, so the options remain its direct children and the input's `aria-controls`
+  points at it.
 - The row under the pointer or the keyboard stays as plainly distinguishable over that material as
   it was over the former opaque list.
 
