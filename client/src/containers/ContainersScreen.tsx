@@ -14,9 +14,11 @@ import {
   Stack,
   StatusDotCell,
   TextField,
+  triggerDownload,
   TwoLineCell,
   useToast,
   type DataTableColumn,
+  type MenuEntry,
   type RowAction,
   type StatusTone,
 } from '../ui';
@@ -34,6 +36,7 @@ import {
   type ContainerState,
   type ContainerSummary,
 } from '../data/containers-client';
+import { exportContainerUrl } from '../data/container-transfer-client';
 import type { ImageSummary } from '../data/images-client';
 import { ContainerCreateForm } from './ContainerCreateForm';
 import { ContainerDetailPanel } from './ContainerDetailPanel';
@@ -59,6 +62,22 @@ const STATE_FILTER_OPTIONS = [
 ];
 
 const STOPPED_STATES: ContainerState[] = ['created', 'exited', 'dead'];
+
+/**
+ * Why a control of a row is unavailable. Every disabled control carries one, so
+ * a greyed button or a greyed menu entry reads as "not now, because…" rather
+ * than as broken.
+ */
+const NOT_RUNNING_REASON = 'This container is not running.';
+const RESTARTING_REASON = 'This container is restarting.';
+const ALREADY_PAUSED_REASON = 'This container is already paused.';
+const NOT_KILLABLE_REASON = 'Only a running, paused or restarting container can be killed.';
+const BUSY_REASON = 'Another action on this container is still running.';
+
+/** The states in which the daemon accepts a kill — today's legality, unchanged. */
+function isKillable(state: ContainerState): boolean {
+  return state === 'running' || state === 'paused' || state === 'restarting';
+}
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes}B`;
@@ -108,13 +127,15 @@ function matchesStateFilter(container: ContainerSummary, filter: string): boolea
 
 /**
  * Containers screen (REQ-19–23, REQ-24–26, REQ-109): toolbar with search/state
- * filters and a bulk "Prune stopped" action, a dense virtualised table with
- * per-row lifecycle actions restricted to what the container's state allows
- * (state transitions only, at most 5, always on one line) and a hover-revealed
- * rename affordance on the name cell. Selecting a row (outside its action
- * buttons) opens its detail panel inline below it; exec/attach live there as
- * panel tabs. Destructive actions (kill, remove, prune) go through the
- * shell's confirmation service.
+ * filters and a bulk "Prune stopped" action, and a dense virtualised table whose
+ * every row ends in the same four controls — three fixed lifecycle slots
+ * (run/halt, pause, restart), each present in every state and disabled with its
+ * reason where the state does not allow it, and one overflow control opening the
+ * row's secondary actions (rename, export filesystem, kill, remove). Selecting a
+ * row (outside that action area) opens its detail panel inline below it;
+ * exec/attach live there as panel tabs. Destructive actions (kill, remove,
+ * prune) go through the shell's confirmation service, the menu being a step in
+ * front of that confirmation rather than a substitute for it.
  */
 export function ContainersScreen({ containers, loaded, error, onRefresh, images = [], imagesLoaded = true }: ContainersScreenProps) {
   const { confirm } = useConfirmation();
@@ -208,43 +229,90 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
     }
   }
 
+  /** Downloads the container's current filesystem straight to the operator's own machine: the browser owns the transfer, so the app only announces it. */
+  function startExport(container: ContainerSummary) {
+    const filename = `${container.name}.tar`;
+    triggerDownload(exportContainerUrl(container.id, filename));
+    push({ title: 'Download started', message: filename, tone: 'success' });
+  }
+
   /**
-   * State-transition actions only, at most 5, always fitting on one line
-   * (rename lives on the name cell instead; exec/attach live as panel tabs,
-   * reachable once the row is selected).
+   * The row's three lifecycle slots: fixed in number, order and position on
+   * every row and in every state — the state-appropriate run/halt action, then
+   * pause, then restart. An action the container's state does not allow keeps
+   * its slot, disabled and stating why, so a position means the same action on
+   * every row. The legality is exactly the one the row offered before: nothing
+   * became legal here that the product did not already allow.
    */
   function lifecycleActionsFor(container: ContainerSummary): RowAction[] {
-    const disabled = busyIds.has(container.id);
-    const make = (id: string, task: () => Promise<void>, destructive = false): RowAction => ({
+    const busy = busyIds.has(container.id);
+    const make = (id: string, label: string, task: () => Promise<void>, unavailable?: string): RowAction => ({
       id,
-      label: id,
-      disabled,
-      destructive,
-      onClick: () => runAction(container, id, task, destructive),
+      label,
+      disabled: busy || unavailable !== undefined,
+      disabledReason: busy ? BUSY_REASON : unavailable,
+      // The operation's own name, not the button's label, is what the
+      // confirmation, the progress line and the failure message read — they are
+      // the ones this change leaves untouched.
+      onClick: () => runAction(container, id, task),
     });
 
-    switch (container.state) {
-      case 'running':
-        return [
-          make('stop', () => stopContainer(container.id)),
-          make('pause', () => pauseContainer(container.id)),
-          make('restart', () => restartContainer(container.id)),
-          make('kill', () => killContainer(container.id), true),
-          make('rm', () => removeContainer(container.id), true),
-        ];
-      case 'paused':
-        return [
-          make('start', () => startContainer(container.id)),
-          make('unpause', () => unpauseContainer(container.id)),
-          make('restart', () => restartContainer(container.id)),
-          make('kill', () => killContainer(container.id), true),
-          make('rm', () => removeContainer(container.id), true),
-        ];
-      case 'restarting':
-        return [make('kill', () => killContainer(container.id), true), make('rm', () => removeContainer(container.id), true)];
-      default:
-        return [make('start', () => startContainer(container.id)), make('rm', () => removeContainer(container.id), true)];
-    }
+    const state = container.state;
+    const running = state === 'running';
+    const paused = state === 'paused';
+    const restarting = state === 'restarting';
+    const stateReason = restarting ? RESTARTING_REASON : NOT_RUNNING_REASON;
+
+    const runHalt = restarting
+      ? make('stop', 'Stop', () => stopContainer(container.id), RESTARTING_REASON)
+      : running
+        ? make('stop', 'Stop', () => stopContainer(container.id))
+        : paused
+          ? make('unpause', 'Resume', () => unpauseContainer(container.id))
+          : make('start', 'Start', () => startContainer(container.id));
+
+    return [
+      runHalt,
+      make('pause', 'Pause', () => pauseContainer(container.id), running ? undefined : paused ? ALREADY_PAUSED_REASON : stateReason),
+      make('restart', 'Restart', () => restartContainer(container.id), running || paused ? undefined : stateReason),
+    ];
+  }
+
+  /**
+   * The secondary actions of a row, behind its overflow control: the same four
+   * entries in the same order whatever the state, an inapplicable one disabled
+   * with its reason. `Kill` and `Remove` are destructive and set apart from the
+   * two above them. The handlers are bound to this container, so a list that
+   * re-sorts or re-reads under an open menu can never redirect an entry at
+   * another one.
+   */
+  function overflowEntriesFor(container: ContainerSummary): MenuEntry[] {
+    const busy = busyIds.has(container.id);
+    const reason = (unavailable?: string) => (busy ? BUSY_REASON : unavailable);
+    const killReason = reason(isKillable(container.state) ? undefined : NOT_KILLABLE_REASON);
+    return [
+      { id: 'rename', label: 'Rename…', disabled: busy, disabledReason: reason(), onSelect: () => startRename(container) },
+      { id: 'export', label: 'Export filesystem…', disabled: busy, disabledReason: reason(), onSelect: () => startExport(container) },
+      {
+        id: 'kill',
+        label: 'Kill',
+        hint: 'SIGKILL',
+        destructive: true,
+        separated: true,
+        disabled: killReason !== undefined,
+        disabledReason: killReason,
+        onSelect: () => runAction(container, 'kill', () => killContainer(container.id), true),
+      },
+      {
+        id: 'rm',
+        label: 'Remove',
+        hint: 'rm',
+        destructive: true,
+        disabled: busy,
+        disabledReason: reason(),
+        onSelect: () => runAction(container, 'rm', () => removeContainer(container.id), true),
+      },
+    ];
   }
 
   function toggleSelection(container: ContainerSummary) {
@@ -271,19 +339,9 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
         </Row>
       );
     }
-    return (
-      <TwoLineCell
-        title={container.name}
-        subtitle={`${container.shortId} · ${container.state}`}
-        action={
-          <Row onClick={(event) => event.stopPropagation()}>
-            <IconButton size="sm" label={`Rename ${container.name}`} onClick={() => startRename(container)}>
-              ✎
-            </IconButton>
-          </Row>
-        }
-      />
-    );
+    // No action on the name cell: renaming is started from the row's overflow
+    // menu, which is the row's only action-bearing area.
+    return <TwoLineCell title={container.name} subtitle={`${container.shortId} · ${container.state}`} />;
   }
 
   const columns: DataTableColumn<ContainerSummary>[] = [
@@ -304,7 +362,12 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
       id: 'lifecycle',
       header: 'LIFECYCLE',
       width: 'var(--data-table-action-column-width)',
-      render: (container) => <ActionButtonGroup actions={lifecycleActionsFor(container)} />,
+      render: (container) => (
+        <ActionButtonGroup
+          actions={lifecycleActionsFor(container)}
+          overflow={{ label: `More actions for ${container.name}`, entries: overflowEntriesFor(container) }}
+        />
+      ),
     },
   ];
 

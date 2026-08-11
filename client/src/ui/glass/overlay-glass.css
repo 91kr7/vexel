@@ -2,13 +2,17 @@
  * The overlay glass material — the one definition of a runtime blur in this
  * application. It belongs to the surfaces drawn above what they cover and
  * present only while an interaction or a state lasts: the dialog surfaces, the
- * toasts, the choice popup and the phone navigation drawer with its scrim. The
- * main view never carries it, and the base `.ui-surface` material it is layered
- * on stays exactly as it was. See CLAUDE.md, "Performance — background and
- * blur", for the allow-list and why it is affordable.
+ * toasts, the overflow menu's popup, the choice popup and the phone navigation
+ * drawer with its scrim. The main view never carries it, and the base
+ * `.ui-surface` material it is layered on stays exactly as it was. See
+ * CLAUDE.md, "Performance — background and blur", for the allow-list and why it
+ * is affordable.
  *
  * `.ui-overlay-glass` is the class form, opted into through Surface's
- * `material="overlay"`. Three surfaces are plain CSS rather than a Surface —
+ * `material="overlay"` — the dialog surfaces, the toasts and the menu popup all
+ * ask for it that way, and the menu is legal on it because at most one menu is
+ * open at a time, so it costs one surface and not one per row. Three surfaces
+ * are plain CSS rather than a Surface —
  * `.ui-combobox__list`, and `.ui-nav-rail` / `.ui-frame__scrim` at the phone
  * breakpoint only — and a class cannot be scoped to a media query, so those
  * declare the material on their own rule. They take every value from the tokens

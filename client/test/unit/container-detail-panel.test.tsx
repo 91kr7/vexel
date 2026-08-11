@@ -411,31 +411,25 @@ describe('ContainerDetailPanel — Exec/Attach tabs (REQ-34, REQ-35, REQ-36)', (
   });
 });
 
-// container-detail-panel.md — "Export filesystem…" immediately triggers a browser download of the
-// container's current filesystem, named "<container name>.tar", with no dialog opened first (REQ-43).
-describe('ContainerDetailPanel — export filesystem (plan-docker_management_app/REQ-43)', () => {
-  it('downloads the container filesystem as <name>.tar with no dialog opened first, and reports a toast', async () => {
-    const user = userEvent.setup();
-    const downloadedHrefs: string[] = [];
-    const clickSpy = vi
-      .spyOn(HTMLAnchorElement.prototype, 'click')
-      .mockImplementation(function (this: HTMLAnchorElement) {
-        downloadedHrefs.push(this.href);
-      });
+// container-detail-panel.md — "Export filesystem…" was this panel's only header action and is
+// started from the row's overflow menu now; the slot is deliberately left empty rather than filled
+// with a replacement (REQ-19). The download behaviour itself is asserted where the action lives now,
+// in containers-screen.test.tsx.
+describe('ContainerDetailPanel — no filesystem export any more (REQ-19)', () => {
+  it('offers no "Export filesystem…" action', async () => {
+    renderPanel();
 
-    try {
-      renderPanel();
-
-      await user.click(await screen.findByRole('button', { name: 'Export filesystem…' }));
-
-      expect(downloadedHrefs).toHaveLength(1);
-      expect(downloadedHrefs[0]).toContain('/api/containers/container-1/export');
-      expect(downloadedHrefs[0]).toContain('filename=web-nginx.tar');
-      expect(document.querySelector('.ui-modal')).toBeNull();
-      expect(screen.getByText('Download started')).toBeInTheDocument();
-      expect(screen.getByText('web-nginx.tar')).toBeInTheDocument();
-    } finally {
-      clickSpy.mockRestore();
-    }
+    // Awaited on the panel's own content, so the absence is asserted on a
+    // rendered panel rather than on one that has not drawn its header yet.
+    expect(await screen.findByRole('tab', { name: 'Config' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Export filesystem…' })).not.toBeInTheDocument();
   });
+
+  it('puts nothing in the place the export left', async () => {
+    renderPanel();
+    expect(await screen.findByRole('tab', { name: 'Config' })).toBeInTheDocument();
+
+    expect(document.querySelector('.ui-detail-panel__actions')).toBeNull();
+  });
+
 });
