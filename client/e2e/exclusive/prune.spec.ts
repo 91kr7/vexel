@@ -55,7 +55,7 @@ test('pruning stopped containers removes them from the list and reports the outc
     await createSleepingContainer(name);
     const row = containerRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
-    await row.getByRole('button', { name: 'stop', exact: true }).click();
+    await row.getByRole('button', { name: 'Stop', exact: true }).click();
     await expect(row).toContainText('exited', { timeout: 10_000 });
 
     const pruneButton = screenContent(page).getByRole('button', { name: 'Prune stopped' });

@@ -56,11 +56,27 @@ export function Menu({ label, entries, glyph = '…' }: MenuProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  // The focused entry, readable by the key listener without re-registering it on
+  // every move.
+  const activeIndexRef = useRef(0);
   const popupId = useId();
 
   const close = useCallback((returnFocus: boolean) => {
     setOpen(false);
     if (returnFocus) triggerRef.current?.focus();
+  }, []);
+
+  const focusEntry = useCallback((index: number) => {
+    activeIndexRef.current = index;
+    setActiveIndex(index);
+    itemRefs.current[index]?.focus();
+  }, []);
+
+  /** Opens at the trigger's box; the layout effect below refines it before the browser paints. */
+  const openMenu = useCallback(() => {
+    const box = triggerRef.current?.getBoundingClientRect();
+    if (box) setPosition({ top: box.bottom, left: box.left });
+    setOpen(true);
   }, []);
 
   // At most one menu open in the whole interface (the cap that lets the popup
@@ -75,12 +91,14 @@ export function Menu({ label, entries, glyph = '…' }: MenuProps) {
     };
   }, [open]);
 
-  // Opening moves focus into the menu, onto its first entry.
+  // Opening moves focus into the menu, onto its first entry. The popup is
+  // committed already laid out and visible, never hidden while it is measured:
+  // an element a browser considers invisible cannot take focus, and a `focus()`
+  // on one is a silent no-op that leaves the whole keyboard model unreachable.
   useEffect(() => {
     if (!open) return;
-    setActiveIndex(0);
-    itemRefs.current[0]?.focus();
-  }, [open]);
+    focusEntry(0);
+  }, [open, focusEntry]);
 
   // Positioned against the trigger's box after every render, not only on open:
   // the list under it keeps updating from live data while the menu is open, and
@@ -133,49 +151,63 @@ export function Menu({ label, entries, glyph = '…' }: MenuProps) {
       // The trigger's own click toggles the menu; closing here as well would
       // reopen it on the click that follows.
       if (triggerRef.current?.contains(target)) return;
+      // Focusing the trigger from inside a `mousedown` listener is undone a
+      // moment later by that same `mousedown`'s own default action, which moves
+      // focus to whatever was clicked (or to nothing). Refusing the default is
+      // what makes the focus return hold; the click itself still happens, so
+      // whatever was clicked still does what it does.
+      event.preventDefault();
       close(true);
     };
     document.addEventListener('mousedown', dismissOnOutsideClick);
     return () => document.removeEventListener('mousedown', dismissOnOutsideClick);
   }, [open, close]);
 
-  function moveFocus(nextIndex: number) {
-    setActiveIndex(nextIndex);
-    itemRefs.current[nextIndex]?.focus();
-  }
-
-  function handlePopupKeyDown(event: React.KeyboardEvent) {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      close(true);
-      return;
-    }
-    if (event.key === 'Tab') {
-      // Not prevented: focus is put back on the trigger, so the browser moves on
-      // from there as it would have if the menu had never opened.
-      close(true);
-      return;
-    }
-    if (entries.length === 0) return;
-    if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      moveFocus((activeIndex + 1) % entries.length);
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      moveFocus((activeIndex - 1 + entries.length) % entries.length);
-    } else if (event.key === 'Home') {
-      event.preventDefault();
-      moveFocus(0);
-    } else if (event.key === 'End') {
-      event.preventDefault();
-      moveFocus(entries.length - 1);
-    }
-  }
+  // The keyboard model is bound to the document while the menu is open, not to
+  // the popup: a key never reaches a listener on an element that does not hold
+  // the focus, and an open menu can lose it — to a surface re-rendering
+  // underneath it, or by simply never having taken it. Bound here, `Escape`
+  // closes wherever focus is, and an arrow key takes the focus back into the
+  // menu rather than needing it there first.
+  useEffect(() => {
+    if (!open) return;
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        close(true);
+        return;
+      }
+      if (event.key === 'Tab') {
+        // Not prevented: focus is put back on the trigger, so the browser moves
+        // on from there as it would have if the menu had never opened.
+        close(true);
+        return;
+      }
+      const count = entries.length;
+      if (count === 0) return;
+      const current = activeIndexRef.current;
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        focusEntry((current + 1) % count);
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        focusEntry((current - 1 + count) % count);
+      } else if (event.key === 'Home') {
+        event.preventDefault();
+        focusEntry(0);
+      } else if (event.key === 'End') {
+        event.preventDefault();
+        focusEntry(count - 1);
+      }
+    };
+    document.addEventListener('keydown', handleKey, true);
+    return () => document.removeEventListener('keydown', handleKey, true);
+  }, [open, close, entries.length, focusEntry]);
 
   function handleTriggerKeyDown(event: React.KeyboardEvent) {
     if (open || (event.key !== 'ArrowDown' && event.key !== 'ArrowUp')) return;
     event.preventDefault();
-    setOpen(true);
+    openMenu();
   }
 
   function activate(entry: MenuEntry) {
@@ -189,10 +221,11 @@ export function Menu({ label, entries, glyph = '…' }: MenuProps) {
       ref={popupRef}
       className={`ui-menu__popup ui-menu__popup--${placement}`}
       // Computed geometry, not a design value: where the trigger happens to be.
-      // Hidden for the single frame between mounting and measuring it.
-      style={{ top: position?.top ?? 0, left: position?.left ?? 0, visibility: position ? undefined : 'hidden' }}
+      // It is placed at the trigger from the very first commit and never hidden
+      // while it is measured — the refinement below runs before the browser
+      // paints, and a hidden popup could not take the focus opening it gives it.
+      style={{ top: position?.top ?? 0, left: position?.left ?? 0 }}
       onClick={(event) => event.stopPropagation()}
-      onKeyDown={handlePopupKeyDown}
     >
       <Surface elevation="raised" material="overlay">
         <div className="ui-menu__list" id={popupId} role="menu" aria-label={label}>
@@ -254,7 +287,8 @@ export function Menu({ label, entries, glyph = '…' }: MenuProps) {
         // A menu opened from a table row must not also select the row.
         onClick={(event) => {
           event.stopPropagation();
-          setOpen((current) => !current);
+          if (open) close(false);
+          else openMenu();
         }}
         onKeyDown={handleTriggerKeyDown}
       >

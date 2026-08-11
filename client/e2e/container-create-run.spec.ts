@@ -111,7 +111,9 @@ test('creating from an image without starting it leaves the container stopped in
     const row = containerRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
     await expect(row).toContainText('created');
-    await expect(row.getByRole('button', { name: 'start' })).toBeVisible();
+    // The first of the row's three fixed lifecycle slots, carrying the
+    // state-appropriate run/halt action for a container that is not running.
+    await expect(row.getByRole('button', { name: 'Start', exact: true })).toBeVisible();
   } finally {
     await removeContainerQuietly(name);
   }

@@ -16,6 +16,20 @@ function containerRow(page: Page, name: string) {
   return page.locator('.ui-data-table__row', { hasText: name });
 }
 
+/** The row's overflow control: the fourth and last of its action area, on every row in every state. */
+function overflowTrigger(page: Page, name: string) {
+  return containerRow(page, name).getByRole('button', { name: `More actions for ${name}`, exact: true });
+}
+
+function menuEntry(page: Page, label: string) {
+  return page.getByRole('menuitem', { name: label, exact: true });
+}
+
+async function openOverflow(page: Page, name: string) {
+  await overflowTrigger(page, name).click();
+  await expect(page.getByRole('menu', { name: `More actions for ${name}`, exact: true })).toBeVisible();
+}
+
 test.beforeEach(async ({ page }) => {
   // Pinned, not inherited: the last active screen survives by design (REQ-115),
   // and the Dashboard the application otherwise lands on names this screen in a
@@ -48,15 +62,261 @@ test('stopping a running container updates its row to the stopped state and its 
     const row = containerRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
 
-    // Exact match: the name cell's rename action is labelled with the container's
-    // own name, which contains the action word in these fixtures.
-    await row.getByRole('button', { name: 'stop', exact: true }).click();
+    // Exact match: the overflow control is labelled with the container's own
+    // name, which contains the action word in these fixtures.
+    await row.getByRole('button', { name: 'Stop', exact: true }).click();
 
     await expect(row).toContainText('exited', { timeout: 10_000 });
-    await expect(row.getByRole('button', { name: 'start', exact: true })).toBeVisible();
-    await expect(row.getByRole('button', { name: 'stop', exact: true })).toHaveCount(0);
+    // The first slot now carries the state-appropriate run/halt action: the same
+    // position, a different action (REQ-2, REQ-3).
+    await expect(row.getByRole('button', { name: 'Start', exact: true })).toBeVisible();
+    await expect(row.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0);
   } finally {
     await removeContainerQuietly(name);
+  }
+});
+
+// plan-docker_management_app-container_row_actions/REQ-1, REQ-2, REQ-3, REQ-4, REQ-5 — the action area is exactly four
+// controls, the three lifecycle slots fixed in number, order and position, the inapplicable ones present and disabled
+// with the reason they are unavailable, and the overflow control always last
+test('every row ends with the same four controls, the inapplicable ones disabled and saying why', async ({ page }) => {
+  const name = `vexel-e2e-slots-${Date.now()}`;
+  try {
+    await createSleepingContainer(name);
+    const row = containerRow(page, name);
+    await expect(row).toBeVisible({ timeout: 15_000 });
+
+    const controls = row.locator('.ui-action-button-group button');
+    await expect(controls).toHaveCount(4);
+    await expect(controls.nth(0)).toHaveText('Stop');
+    await expect(controls.nth(1)).toHaveText('Pause');
+    await expect(controls.nth(2)).toHaveText('Restart');
+    await expect(controls.nth(3)).toHaveAttribute('aria-haspopup', 'menu');
+    // The row's only action-bearing area: no pencil on the name cell, nothing else.
+    await expect(row.getByRole('button')).toHaveCount(4);
+
+    await row.getByRole('button', { name: 'Stop', exact: true }).click();
+    await expect(row).toContainText('exited', { timeout: 10_000 });
+
+    await expect(controls).toHaveCount(4);
+    await expect(controls.nth(0)).toHaveText('Start');
+    await expect(controls.nth(1)).toHaveText('Pause');
+    await expect(controls.nth(1)).toBeDisabled();
+    await expect(controls.nth(2)).toHaveText('Restart');
+    await expect(controls.nth(2)).toBeDisabled();
+    await expect(controls.nth(3)).toHaveAttribute('aria-haspopup', 'menu');
+    // Why it is unavailable is discoverable, not left to be read as "broken".
+    await expect(row.locator('.ui-button-with-description').first()).toHaveAttribute('title', /\S/);
+  } finally {
+    await removeContainerQuietly(name);
+  }
+});
+
+// plan-docker_management_app-container_row_actions/REQ-6, REQ-7, REQ-8 — the menu lists exactly four entries, in order,
+// with Kill and Remove set apart in the destructive tone and carrying their technical hints
+test('the row menu lists exactly Rename…, Export filesystem…, Kill and Remove, in that order', async ({ page }) => {
+  const name = `vexel-e2e-menu-${Date.now()}`;
+  try {
+    await createSleepingContainer(name);
+    await expect(containerRow(page, name)).toBeVisible({ timeout: 15_000 });
+
+    await openOverflow(page, name);
+
+    const entries = page.getByRole('menuitem');
+    await expect(entries).toHaveCount(4);
+    await expect(entries.nth(0)).toHaveText('Rename…');
+    await expect(entries.nth(1)).toHaveText('Export filesystem…');
+    await expect(entries.nth(2)).toContainText('Kill');
+    await expect(entries.nth(2)).toContainText('SIGKILL');
+    await expect(entries.nth(3)).toContainText('Remove');
+    await expect(entries.nth(3)).toContainText('rm');
+    // The screenshot's `Duplicate config` is not a capability of this product.
+    await expect(page.getByRole('menuitem', { name: /duplicate/i })).toHaveCount(0);
+    // Set apart as a group from the two above them, and in the destructive tone.
+    await expect(page.getByRole('menu').locator('[role="separator"]')).toHaveCount(1);
+    await expect(entries.nth(2)).toHaveClass(/destructive/);
+    await expect(entries.nth(3)).toHaveClass(/destructive/);
+  } finally {
+    await removeContainerQuietly(name);
+  }
+});
+
+// plan-docker_management_app-container_row_actions/REQ-13 — the menu closes on any dismissal, and focus returns to the
+// control that opened it
+test('the row menu closes on Escape, on an outside click and on choosing an entry, with focus back on its control', async ({ page }) => {
+  const name = `vexel-e2e-dismiss-${Date.now()}`;
+  try {
+    await createSleepingContainer(name);
+    await expect(containerRow(page, name)).toBeVisible({ timeout: 15_000 });
+    const trigger = overflowTrigger(page, name);
+    const menu = page.getByRole('menu', { name: `More actions for ${name}`, exact: true });
+
+    await openOverflow(page, name);
+    await page.keyboard.press('Escape');
+    await expect(menu).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+
+    await openOverflow(page, name);
+    await page.getByRole('heading', { level: 1, name: 'Containers' }).click();
+    await expect(menu).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+
+    await openOverflow(page, name);
+    await menuEntry(page, 'Rename…').click();
+    await expect(menu).toHaveCount(0);
+    await expect(page.getByRole('textbox', { name: `New name for ${name}` })).toBeVisible();
+  } finally {
+    await removeContainerQuietly(name);
+  }
+});
+
+// plan-docker_management_app/REQ-24, plan-docker_management_app-container_row_actions/REQ-13 — dismissing the menu by
+// clicking outside it does not swallow that click: selecting a row still opens its detail panel
+test('an outside click that lands on a row closes the menu and still selects that row', async ({ page }) => {
+  const name = `vexel-e2e-outside-${Date.now()}`;
+  try {
+    await createSleepingContainer(name);
+    const row = containerRow(page, name);
+    await expect(row).toBeVisible({ timeout: 15_000 });
+
+    await openOverflow(page, name);
+    await row.getByText(name, { exact: true }).click();
+
+    await expect(page.getByRole('menu')).toHaveCount(0);
+    await expect(page.locator('.ui-data-table__expanded')).toBeVisible();
+  } finally {
+    await removeContainerQuietly(name);
+  }
+});
+
+// plan-docker_management_app-container_row_actions/REQ-12 — the menu is fully operable without a pointer: the trigger is
+// reachable and activatable from the keyboard, opening moves focus into the menu, the arrows move between entries, an
+// entry can be activated and Escape closes it
+test('the row menu is reachable, walked and activated from the keyboard alone', async ({ page }) => {
+  const name = `vexel-e2e-keyboard-${Date.now()}`;
+  try {
+    await createSleepingContainer(name);
+    const row = containerRow(page, name);
+    await expect(row).toBeVisible({ timeout: 15_000 });
+
+    // Tab from the control before it: the overflow control is one stop in tab order, not a trap.
+    // Retried as a whole, because the list keeps re-reading from daemon events while the fixture
+    // settles and a re-render between the focus and the key drops the focus on the floor.
+    await expect(async () => {
+      await row.getByRole('button', { name: 'Restart', exact: true }).press('Tab');
+      await expect(overflowTrigger(page, name)).toBeFocused({ timeout: 1_000 });
+    }).toPass({ timeout: 15_000 });
+
+    await page.keyboard.press('Enter');
+    await expect(menuEntry(page, 'Rename…')).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(menuEntry(page, 'Export filesystem…')).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(menuEntry(page, 'Rename…')).toBeFocused();
+
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('menu')).toHaveCount(0);
+    await expect(overflowTrigger(page, name)).toBeFocused();
+
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('textbox', { name: `New name for ${name}` })).toBeVisible();
+  } finally {
+    await removeContainerQuietly(name);
+  }
+});
+
+// plan-docker_management_app-container_row_actions/REQ-14 — at most one menu is open at a time, and an open one is
+// unambiguously attached to the row it belongs to
+test('opening a second row menu closes the first', async ({ page }) => {
+  const first = `vexel-e2e-onemenu-a-${Date.now()}`;
+  const second = `vexel-e2e-onemenu-b-${Date.now()}`;
+  try {
+    await createSleepingContainer(first);
+    await createSleepingContainer(second);
+    await expect(containerRow(page, first)).toBeVisible({ timeout: 15_000 });
+    await expect(containerRow(page, second)).toBeVisible({ timeout: 15_000 });
+
+    await openOverflow(page, first);
+    await overflowTrigger(page, second).click();
+
+    await expect(page.getByRole('menu')).toHaveCount(1);
+    await expect(page.getByRole('menu')).toHaveAccessibleName(`More actions for ${second}`);
+    await expect(overflowTrigger(page, first)).toHaveAttribute('aria-expanded', 'false');
+  } finally {
+    await removeContainerQuietly(first);
+    await removeContainerQuietly(second);
+  }
+});
+
+// plan-docker_management_app-container_row_actions/REQ-15 — an open menu is displayed in full wherever its control sits,
+// including on the last rows of a list long enough to scroll, and is never clipped by the table or any scroll container
+test('a menu opened on the last visible row of a scrolling list is shown in full', async ({ page }) => {
+  const stem = `vexel-e2e-clip-${Date.now()}`;
+  const names = [`${stem}-1`, `${stem}-2`, `${stem}-3`, `${stem}-4`];
+  try {
+    for (const name of names) await createSleepingContainer(name);
+    // A short viewport, so the table has to scroll and the last row sits against
+    // the bottom edge — the case the popup has to flip above its trigger for.
+    await page.setViewportSize({ width: 1280, height: 520 });
+    await page.getByPlaceholder('Search name, image or state…').fill(stem);
+    const last = containerRow(page, names[names.length - 1]);
+    await expect(last).toBeVisible({ timeout: 15_000 });
+    await last.scrollIntoViewIfNeeded();
+
+    await openOverflow(page, names[names.length - 1]);
+
+    // Every entry of it, not merely the popup's first pixels.
+    for (const label of ['Rename…', 'Export filesystem…', 'Kill', 'Remove']) {
+      await expect(menuEntry(page, label)).toBeInViewport({ ratio: 1 });
+    }
+  } finally {
+    for (const name of names) await removeContainerQuietly(name);
+  }
+});
+
+// plan-docker_management_app-container_row_actions/REQ-1 — a click on the row's action area never also selects the row
+test('clicking the overflow control does not open the row detail panel', async ({ page }) => {
+  const name = `vexel-e2e-nodetail-${Date.now()}`;
+  try {
+    await createSleepingContainer(name);
+    await expect(containerRow(page, name)).toBeVisible({ timeout: 15_000 });
+
+    await openOverflow(page, name);
+
+    await expect(page.locator('.ui-data-table__expanded')).toHaveCount(0);
+  } finally {
+    await removeContainerQuietly(name);
+  }
+});
+
+// plan-docker_management_app-container_row_actions/REQ-16, REQ-24 — the list keeps updating from daemon events while a
+// menu is open, and the open menu stays bound to the container it was opened for: an entry chosen never applies to
+// another one
+test('the list keeps updating while a menu is open and the menu stays bound to its own container', async ({ page }) => {
+  const stem = `vexel-e2e-live-${Date.now()}`;
+  const owner = `${stem}-owner`;
+  const other = `${stem}-other`;
+  try {
+    await createSleepingContainer(owner);
+    await createSleepingContainer(other);
+    await page.getByPlaceholder('Search name, image or state…').fill(stem);
+    await expect(containerRow(page, owner)).toBeVisible({ timeout: 15_000 });
+    await expect(containerRow(page, other)).toBeVisible({ timeout: 15_000 });
+
+    await openOverflow(page, owner);
+
+    // Stopped from outside the application, exactly as the daemon's own events reach it.
+    await execFileAsync('docker', ['stop', '-t', '0', other]);
+    await expect(containerRow(page, other)).toContainText('exited', { timeout: 15_000 });
+
+    // The menu is still the one opened for its own container, and acts on it.
+    await expect(page.getByRole('menu')).toHaveAccessibleName(`More actions for ${owner}`);
+    await menuEntry(page, 'Rename…').click();
+    await expect(page.getByRole('textbox', { name: `New name for ${owner}` })).toBeVisible();
+  } finally {
+    await removeContainerQuietly(owner);
+    await removeContainerQuietly(other);
   }
 });
 
@@ -68,17 +328,19 @@ test('killing a container asks for confirmation naming it, does nothing on cance
     const row = containerRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
 
-    // Exact match: the name cell's rename action is labelled with the container's
-    // own name, which contains the action word in these fixtures.
-    await row.getByRole('button', { name: 'kill', exact: true }).click();
+    // Kill is reached from the row's overflow menu now; the confirmation in
+    // front of it is unchanged — the menu is a step before it, not instead of
+    // it (REQ-22).
+    await openOverflow(page, name);
+    await menuEntry(page, 'Kill').click();
     const confirmHeading = page.getByRole('heading', { name: `Confirm: ${name}` });
     await expect(confirmHeading).toBeVisible();
-    // The dialog's own actions: the row behind it carries a "kill" of its own.
     const confirmDialog = page.locator('.ui-modal').filter({ has: confirmHeading });
     await confirmDialog.getByRole('button', { name: 'Cancel' }).click();
     await expect(row).toContainText('running');
 
-    await row.getByRole('button', { name: 'kill', exact: true }).click();
+    await openOverflow(page, name);
+    await menuEntry(page, 'Kill').click();
     await expect(confirmHeading).toBeVisible();
     await confirmDialog.getByRole('button', { name: 'kill', exact: true }).click();
 
@@ -97,9 +359,10 @@ test('renaming a container replaces the name cell and the new name is reflected 
     const row = containerRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
 
-    // Rename is an icon action on the name cell, revealed on row hover.
-    await row.hover();
-    await row.getByRole('button', { name: `Rename ${name}` }).click();
+    // Rename is started from the row's overflow menu now; the inline editor it
+    // opens is the one the pencil opened (REQ-18).
+    await openOverflow(page, name);
+    await menuEntry(page, 'Rename…').click();
     // The name cell is replaced by the input while renaming, so it stops matching the
     // row locator's text filter; query the field by its accessible name at the page level.
     const field = page.getByRole('textbox', { name: `New name for ${name}` });

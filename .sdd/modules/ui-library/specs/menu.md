@@ -41,12 +41,15 @@ Actions:
 - Activating the trigger (pointer, `Enter`, `Space`, `ArrowDown`/`ArrowUp`) opens the menu and moves
   focus onto its first entry.
 - `ArrowDown` / `ArrowUp` move between entries and wrap around; `Home` / `End` jump to the first and
-  last. Disabled entries are reached like any other, so their reason can be read.
+  last. Disabled entries are reached like any other, so their reason can be read. These keys, and
+  `Escape`, act on the open menu wherever the focus happens to be — an arrow key takes the focus
+  back into the menu rather than needing it there already.
 - Activating an entry runs its `onSelect`; a disabled entry's is never run, by pointer or by
   keyboard.
 - Choosing an entry, `Escape`, `Tab` and a click outside the popup all close it and return focus to
   the trigger. After `Tab` the focus then moves on from the trigger, as if the menu had never
-  opened.
+  opened. A click outside does whatever it would have done — it is never swallowed — but it does not
+  take the focus: the dismissal keeps it, and hands it back to the trigger.
 - Opening the trigger's own control while the menu is open closes it.
 
 ## Rules and invariants
@@ -59,6 +62,10 @@ Actions:
   trigger and positioned against the trigger's box, flipping above it when there is no room below
   and staying inside the viewport horizontally. A table, a panel or a scroll container between the
   trigger and the edge of the viewport cannot cut it.
+- **The popup is drawn at its place from the first frame and is never presented as invisible.** It
+  is positioned against the trigger before it is shown and refined before the browser paints — an
+  element a browser treats as invisible cannot take focus, so a popup hidden while it is measured
+  would silently refuse the focus opening it gives it, and with it the entire keyboard model.
 - **An open menu never floats free of its trigger.** While it is open it follows the trigger's box
   as the surface under it re-renders; a scroll anywhere between the trigger and the viewport, or a
   resize, closes it; and it is gone with its trigger when the trigger is unmounted (a virtualised

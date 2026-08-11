@@ -300,11 +300,14 @@ describe('ContainersScreen remains the reference layout (plan-docker_management_
     expect(headers).toEqual(['', 'NAME', 'IMAGE', 'CPU', 'MEMORY', 'PORTS', 'UPTIME', 'LIFECYCLE']);
   });
 
+  // Same check, at the entry points the row's actions now have: three fixed
+  // lifecycle slots and, last, the overflow control that holds the rest
+  // (plan-docker_management_app-container_row_actions/REQ-1, REQ-2, REQ-5).
   it('still shows its lifecycle actions on the row', () => {
     const containersRoot = renderContainers();
 
     const row = containersRoot.querySelector<HTMLElement>('.ui-data-table__row')!;
     const labels = Array.from(row.querySelectorAll('.ui-action-button-group button')).map((button) => button.textContent?.trim());
-    expect(labels).toEqual(['stop', 'pause', 'restart', 'kill', 'rm']);
+    expect(labels).toEqual(['Stop', 'Pause', 'Restart', '…']);
   });
 });

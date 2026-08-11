@@ -180,15 +180,16 @@ test('exporting a container filesystem and importing it back builds an image und
     await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
     const row = page.locator('.ui-data-table__row', { hasText: containerName });
     await expect(row).toBeVisible({ timeout: 10_000 });
-    await row.getByText(containerName, { exact: true }).click();
-    const detail = page.locator('.ui-data-table__expanded');
-    await expect(detail).toBeVisible();
+    // Started from the row's overflow menu: the detail panel no longer offers
+    // the export, so the row is not selected on the way (REQ-19).
+    await row.getByRole('button', { name: `More actions for ${containerName}`, exact: true }).click();
 
     const downloadPromise = page.waitForEvent('download');
-    await detail.getByRole('button', { name: 'Export filesystem…' }).click();
+    await page.getByRole('menuitem', { name: 'Export filesystem…', exact: true }).click();
     download = await downloadPromise;
     expect(download.suggestedFilename()).toBe(`${containerName}.tar`);
-    await expect(detail.locator('.ui-modal')).toHaveCount(0);
+    await expect(page.locator('.ui-modal')).toHaveCount(0);
+    await expect(page.locator('.ui-data-table__expanded')).toHaveCount(0);
     tarPath = (await download.path()) ?? undefined;
     expect(tarPath).toBeTruthy();
 
