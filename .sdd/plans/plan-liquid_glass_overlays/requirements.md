@@ -11,8 +11,7 @@ Scope note: "overlay surface" means, in this application, a surface drawn above 
 present only while an interaction or a state lasts — the dialog surfaces (`Modal` and everything
 built on it: `ConfirmDialog`, `FormDialog`, `TransferProgressDialog`, plus `FormSheet`), the toast
 stack, the suggestion popup of `Combobox`, the off-canvas navigation drawer at the phone breakpoint,
-the session-ended overlay over an interactive terminal, and the log stream's
-floating jump-to-live control. "Main view" means everything else on screen: the shell frame, the
+and the log stream's floating jump-to-live control. "Main view" means everything else on screen: the shell frame, the
 header, the docked navigation rail, cards, panels, section surfaces, tables, detail panels, split
 panes, and the log / console / terminal surfaces themselves.
 
@@ -30,7 +29,7 @@ background asset included, rather than a panel.
 | REQ-4 | A suggestion / choice popup opened over the content (the `Combobox` list) renders a blurred image of the content it covers, so the text underneath it is not legible through it. |
 | REQ-5 | The off-canvas navigation drawer at the phone breakpoint renders a blurred image of the content behind it. The scrim it slides in over does not: it stays a plain dim, and declares no backdrop blur, so the main view behind an open drawer — background asset included — is dimmed but sharp. |
 | REQ-6 | The blur strength of every blurred surface comes from one single named design token, with one documented value (20px) declared as the maximum any surface may use; no component declares a blur length of its own. |
-| REQ-16 | The session-ended overlay drawn over an interactive terminal renders a blurred image of the terminal session behind it. |
+| REQ-16 | The session-ended overlay drawn over an interactive terminal stays a plain dim and declares no backdrop blur: it is `inset: 0` over the whole terminal region, so a blur on it would read as the terminal having gone out of focus rather than as a card of glass over the session — the objection that keeps both scrims off the list, one scale down. Withdrawn on sight by the human after being implemented and seen. |
 | REQ-17 | The log stream's floating jump-to-live control renders a blurred image of the log lines it sits over. |
 
 ## Feature 2 — The main view keeps a material the browser never blurs
@@ -54,26 +53,28 @@ background asset included, rather than a panel.
 
 | ID | Requirement |
 |----|-------------|
-| REQ-14 | `CLAUDE.md` states the rule the code now follows and describes it as it actually is: not "never inside the content flow", but a **named allow-list** of the surfaces permitted to blur, the prohibition standing everywhere else; with the performance rationale that makes the exception affordable (few surfaces at a time, one instance each, small or short-lived, bounded in number), the guard rails that keep it narrow (one bounded radius token, allow-list only, the automated check of REQ-8), and — written next to them — the two allow-listed surfaces that do live inside the scrolled content flow, named, with the reason they are accepted. |
-| REQ-15 | No component specification, no in-code comment and no requirement of the existing plan still asserts that a now-blurred surface is never blurred: every such statement — including the comment stating the session-ended overlay is "never blurred" — is updated to the narrowed rule, so nothing in the repository's documents or code comments contradicts the shipped code. |
+| REQ-14 | `CLAUDE.md` states the rule the code now follows and describes it as it actually is: not "never inside the content flow", but a **named allow-list** of the surfaces permitted to blur, the prohibition standing everywhere else; with the performance rationale that makes the exception affordable (few surfaces at a time, one instance each, small or short-lived, bounded in number), the guard rails that keep it narrow (one bounded radius token, allow-list only, the automated check of REQ-8), and — written next to them — the allow-listed surface that does live inside the scrolled content flow, named, with the reason it is accepted. |
+| REQ-15 | No component specification, no in-code comment and no requirement of the existing plan still asserts that a now-blurred surface is never blurred: every such statement — including the comment stating the session-ended overlay is "never blurred", which now states why it is a dim by decision — is updated to the narrowed rule, so nothing in the repository's documents or code comments contradicts the shipped code. |
 
 ## Departures and accepted risks
 
 Recorded here so they are discoverable later and are not mistaken for an oversight.
 
-- **Two blurred surfaces live inside the scrolled content flow — REQ-16 and REQ-17 — which is the
-  very case the performance rule was written to prevent.** The human was told the trade-off in full,
-  including that the log stream's jump-to-live control (REQ-17) is the most expensive of the set — a
-  blurred surface sitting over a continuously scrolling, continuously repainted view, so its
-  backdrop is resampled on every frame of a scroll — and that the session-ended overlay (REQ-16)
-  covers a full 420px terminal surface and stays for as long as the session view is open, i.e. it is
-  neither small nor short-lived. They reaffirmed the decision afterwards. It is therefore theirs, and
-  it is implemented.
+- **One blurred surface lives inside the scrolled content flow — REQ-17 — which is the very case
+  the performance rule was written to prevent.** The human was told the trade-off in full, including
+  that the log stream's jump-to-live control is the most expensive surface of the whole set: it sits
+  over a continuously scrolling, continuously repainted view, so its backdrop is resampled on every
+  frame of a scroll. They reaffirmed the decision afterwards. It is therefore theirs, and it is
+  implemented; it is also the first surface to withdraw if scrolling ever regresses.
+- **REQ-16 was the second, and is no longer a departure at all.** The session-ended overlay was
+  implemented blurred, looked at, and withdrawn by the human on sight: covering a full 420px
+  terminal surface and staying for as long as the session view is open, it was neither small nor
+  short-lived, and the blur read as the panel going out of focus. It is a plain dim, so the risk it
+  carried is gone rather than accepted.
 - **Named consequence: `plan-docker_management_app/REQ-109`** ("scrolling a dense screen … stays
   visually smooth … no frame collapse attributable to the glass material") **and the
   `scroll-area.md` invariant "scrolling never drives a recomputed blur" are both put at risk by
-  REQ-17, and to a lesser degree by REQ-16.** The mitigation is confinement, not measurement: one
-  instance of each, both small in count, the radius bounded by the single token of REQ-6, and
+  REQ-17.** The mitigation is confinement, not measurement: a single instance, the radius bounded by the single token of REQ-6, and
   nothing else in the content flow permitted to blur (REQ-8). If scroll smoothness regresses on a
   real machine, REQ-17 is the first thing to withdraw — it is the cheapest to remove and the one
   with the least visual return.

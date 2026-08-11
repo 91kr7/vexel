@@ -72,7 +72,6 @@ an interaction or a state lasts:
 | the overlay glass material itself — the class a `Surface` carries when it is asked for `material="overlay"`, which is how the dialog surfaces (`Modal` and everything built on it, `FormSheet`) and the toasts get it | `.ui-overlay-glass` |
 | the suggestion / choice popup of `Combobox` | `.ui-combobox__list` |
 | the off-canvas navigation drawer at the phone breakpoint — its sizing wrapper and the card that actually paints, **inside the `max-width: 720px` block only** | `.ui-frame__rail`, `.ui-nav-rail` |
-| the session-ended overlay over an interactive terminal | `.ui-session-ended-overlay` |
 | the log stream's floating jump-to-live control | `.ui-log-stream__jump` |
 
 Above the phone breakpoint the rail is docked: it is main view, and it blurs nothing. **Neither
@@ -117,15 +116,19 @@ The guard rails that keep it that narrow:
   spot, under the escape-hatch rules above. Adding a surface to the allow-list is a decision about
   the product; sprinkling exception comments is how a rule becomes a formality.
 
-**Two of the allow-listed surfaces sit inside the scrolled content flow**, which is the case the
-whole rule exists to prevent, and they are accepted deliberately: the **session-ended overlay** over
-a terminal (a single instance, over a single session view, and the session behind it has ended — it
-is not a surface a screenful of objects can multiply) and the log stream's **jump-to-live control**
-(a single instance, small, and bounded to a detail view). They are the most expensive members of the
-list — the jump-to-live control sits
-over a continuously repainted view — and they are **the first thing to withdraw if scrolling ever
-regresses on a real machine**, starting with the jump-to-live control: it is the cheapest to remove
-and the one with the least visual return.
+**One allow-listed surface sits inside the scrolled content flow**, which is the case the whole rule
+exists to prevent, and it is accepted deliberately: the log stream's **jump-to-live control** — a
+single instance, small, and bounded to a detail view. It is the most expensive member of the list,
+sitting over a continuously repainted view, and it is **the first thing to withdraw if scrolling
+ever regresses on a real machine**: it is the cheapest to remove and the one with the least visual
+return.
+
+The **session-ended overlay** over a terminal was the second, and was withdrawn on sight — the same
+objection as the scrims, one scale down. It is `inset: 0` over the whole terminal region, so a blur
+on it did not read as a card of glass over the session but as the session having gone out of focus;
+and a terminal's own backdrop, small monospace glyphs on a near-uniform dark field, smears at 20px
+into a flat rectangle in which no glass is legible. It is a plain dim, and declares
+`backdrop-filter: none` so that the absence reads as the decision it is.
 
 ### How the library grows
 

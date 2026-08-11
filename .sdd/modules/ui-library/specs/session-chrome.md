@@ -17,7 +17,7 @@ Description:
 - `SessionHeader` — a title, a connection-state pill and an optional trailing disconnect/detach
   button, in a row above the terminal.
 - `SessionEndedOverlay` — a centered message (and optional action) over the terminal once the
-  session has ended, presenting the terminal behind it blurred.
+  session has ended, presenting the terminal behind it dimmed.
 - `SessionSurface` — wraps a `Terminal` (or its launch-form placeholder) in a fixed-height region and
   positions an optional `SessionEndedOverlay` over it.
 
@@ -34,21 +34,18 @@ Props:
 
 ## Rules and invariants
 
-- `SessionEndedOverlay` carries the overlay glass material (see `overlay-glass.md`): the ended
-  session is rendered **blurred** underneath it, not merely washed out, and the material's fill,
-  its no-backdrop-blur fallback and its reduced-transparency variant come with it
-  (plan-liquid_glass_overlays/REQ-16). It covers the whole session surface, at that surface's own
-  geometry and radius, and its message and action stay sharp and legible over the blur.
-- There is **one** of these overlays per session view, and only while a view whose session has
-  ended stays open. It is one of the two blurred surfaces that live inside the scrolled content
-  flow — a knowingly accepted risk against `plan-docker_management_app/REQ-109`, recorded in
-  `plan-liquid_glass_overlays/requirements.md`, and the batch that is withdrawn first if scrolling
-  regresses.
-- What the overlay blurs is a sibling inside its own region rather than the page behind an overlay
-  layer, so the overlay is a stacking context of its own: without one, the material's blur layer
-  would be painted underneath the terminal and would blur what is behind the session instead of the
-  session. It is a stacking context and not a backdrop root, so the material's nesting invariant is
-  untouched.
+- `SessionEndedOverlay` does **not** carry the overlay glass material and declares no runtime blur:
+  it is a plain dim over the ended session, and it states the absence explicitly rather than by
+  omission (plan-liquid_glass_overlays/REQ-16). It covers the whole session surface, at that
+  surface's own geometry and radius, and its message and action stay legible over it.
+- The reason it is a dim, so that nobody restores the blur believing it an oversight: the overlay is
+  `inset: 0` over the entire terminal region, so a blur on it reads as the terminal having gone out
+  of focus rather than as a card of glass floating over the session — the objection that keeps both
+  scrims off the allow-list (`overlay-glass.md`), one scale down. A terminal is also the worst
+  backdrop for it: small monospace glyphs on a near-uniform dark field smear at 20px into a flat
+  rectangle in which no glass is legible. The blur was implemented, seen and withdrawn.
+- The overlay is a stacking context of its own (`z-index`), so it paints above the terminal it
+  covers and below nothing else in the region.
 - `SessionSurface`'s height is a fixed value, never derived from its content: hosting a `Terminal`
   inside an unbounded, content-driven height would grow every time the terminal's fit adds rows,
   which its resize observer would then see as a resize and fit again, without ever settling.

@@ -37,12 +37,12 @@ allow-list: the main view still computes no blur, and the overlay surfaces named
 allow-list itself lives in `CLAUDE.md` ("Performance — background and blur") and in the automated
 check, not here.
 
-**A risk taken against REQ-109, knowingly.** Two of the allow-listed overlay surfaces — the
-session-ended overlay over a terminal and the log stream's floating jump-to-live control — sit
-inside the scrolled content flow, which is the very case REQ-109 exists to protect. The trade-off
-was put to the human owner in full and reaffirmed; the reasoning, the mitigation (a single instance
-of each, one bounded radius, nothing else in the content flow permitted to blur) and the order in
-which they are withdrawn if scrolling regresses are recorded in
+**A risk taken against REQ-109, knowingly.** One allow-listed overlay surface — the log stream's
+floating jump-to-live control — sits inside the scrolled content flow, which is the very case
+REQ-109 exists to protect. The trade-off was put to the human owner in full and reaffirmed; the
+reasoning, the mitigation (a single instance, one bounded radius, nothing else in the content flow
+permitted to blur) and the fact that it is the first surface withdrawn if scrolling regresses are
+recorded in
 `.sdd/plans/plan-liquid_glass_overlays/requirements.md` ("Departures and accepted risks").
 
 ## F2 — Daemon connectivity and live state
@@ -407,10 +407,9 @@ consumes it.
   tokens and materials in the UI library, never per screen. **The main view is still never a
   runtime blur** — that half of the assumption stands, and REQ-108 enforces it. The overlay layer
   is the narrowed exception (human decision, 2026-08-11): the surfaces on the allow-list of
-  `CLAUDE.md` carry a second material that *is* a runtime blur, bounded by one token, and two of
-  them — the session-ended overlay and the log stream's jump-to-live control — sit inside the
-  scrolled content flow, at the risk against REQ-109 recorded above. See
-  `plan-liquid_glass_overlays`.
+  `CLAUDE.md` carry a second material that *is* a runtime blur, bounded by one token, and one of
+  them — the log stream's jump-to-live control — sits inside the scrolled content flow, at the risk
+  against REQ-109 recorded above. See `plan-liquid_glass_overlays`.
 - Two access channels to Docker: the Engine API is the primary channel for all features, the local
   `docker` / `docker compose` / `docker buildx` CLI is used for the raw console and for what the
   API does not cover cleanly. The CLI is therefore a declared prerequisite (REQ-110).

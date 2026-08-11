@@ -21,7 +21,6 @@ const blurAllowedOverlaySelectors = new Set([
   '.ui-combobox__list',
   '.ui-frame__rail',
   '.ui-nav-rail',
-  '.ui-session-ended-overlay',
   '.ui-log-stream__jump',
 ]);
 const blurTokenReference = /var\(\s*--blur-overlay\s*\)/;

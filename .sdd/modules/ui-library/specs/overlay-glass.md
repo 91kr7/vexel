@@ -15,9 +15,8 @@ The main view's material is untouched by it and computes no blur.
 - Named `.ui-overlay-glass`. A surface carries it in one of three ways:
   - a `Surface` asked for `material="overlay"` (see `surface.md`) — this is how the dialog
     surfaces and the toasts get it;
-  - a surface that is not a `Surface` but carries the class itself: the session-ended overlay over
-    a terminal and the log stream's jump-to-live control (see `session-chrome.md`,
-    `log-stream.md`), which add their own geometry and nothing of the material;
+  - a surface that is not a `Surface` but carries the class itself: the log stream's jump-to-live
+    control (see `log-stream.md`), which adds its own geometry and nothing of the material;
   - a surface that is plain CSS rather than a `Surface`, which declares the material on its own
     rule from the same tokens: the `Combobox` popup, and — at the phone breakpoint only — the
     navigation drawer card. A class cannot be scoped to a media query, which is the only reason

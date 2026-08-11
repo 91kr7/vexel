@@ -22,37 +22,22 @@
 }
 
 /*
- * Drawn over the terminal once the session has ended, carrying the overlay
- * glass material (`ui-overlay-glass`, ../glass/overlay-glass.css), so the
- * finished session shows through it blurred rather than merely washed out
- * (plan-liquid_glass_overlays/REQ-16). The fill, the blur, its `-webkit-`
- * counterpart, the no-backdrop-blur fallback and the reduced-transparency
- * variant all come from that one material; nothing of it is restated here.
+ * Drawn over the terminal once the session has ended, and deliberately **not**
+ * a carrier of the overlay glass material: it is a plain dim
+ * (plan-liquid_glass_overlays/REQ-16). It is `inset: 0` over the whole terminal
+ * region, so a blur on it would not read as a card of glass floating over the
+ * session — it would read as the terminal itself having gone out of focus,
+ * which is the same objection that took the drawer's scrim off the allow-list,
+ * confined to a panel instead of the whole screen. A terminal's backdrop makes
+ * it worse: small monospace glyphs on a near-uniform dark field smear at 20px
+ * into a flat rectangle, so the glass would not even be legible as glass. The
+ * blur was implemented here, seen, and withdrawn.
  *
- * This is one of the two allow-listed surfaces that sit *inside* the scrolled
- * content flow — the case the performance rule otherwise exists to prevent —
- * and it is accepted knowingly: there is one instance of it per session view,
- * it appears only once a session has ended, and it covers a region of fixed
- * height that no screenful of objects can multiply. It is withdrawn, with the
- * log stream's jump-to-live control, if scrolling ever regresses on a real
- * machine. See CLAUDE.md, "Performance — background and blur".
- *
- * `z-index` is load-bearing here, unlike on the overlays that float above the
- * whole page: what this surface has to blur is its own sibling — the terminal —
- * inside the same stacking context. A positioned element with `z-index: auto`
- * does not establish one, so the material's blur layer (`z-index: -1`) would be
- * hoisted out to the nearest ancestor that does and painted *underneath* that
- * sibling, blurring whatever is behind the session instead of the session
- * itself. With a stacking context of its own the layer paints above the
- * terminal and below this overlay's own message, which is the effect asked for.
- * A stacking context is not a backdrop root, so the invariant of the material
- * holds: this surface still blurs what is behind it, and so would any overlay
- * nested inside it.
- *
- * The selector is compound so that `position: absolute` beats the material's
- * own `position: relative` whatever order the two stylesheets end up in.
+ * `backdrop-filter: none` is declared rather than merely omitted, so the
+ * absence reads as the decision it is, and this surface is off the conformance
+ * check's allow-list like any main-view surface.
  */
-.ui-session-ended-overlay.ui-overlay-glass {
+.ui-session-ended-overlay {
   position: absolute;
   inset: 0;
   z-index: 1;
@@ -62,6 +47,9 @@
   justify-content: center;
   gap: var(--space-3);
   border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 .ui-session-ended-overlay__message {
