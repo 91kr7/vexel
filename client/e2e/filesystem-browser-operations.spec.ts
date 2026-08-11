@@ -126,8 +126,14 @@ test('previews a text file, overrides it to hex, and states the truncation of an
   await expect(modal.getByText('hello world')).toBeVisible();
 
   await modal.getByRole('button', { name: 'Hex' }).click();
-  await expect(modal.getByText('hello world')).toHaveCount(0);
   await expect(modal.getByText(/68 65 6c 6c 6f/i)).toBeVisible();
+  // Not "the words 'hello world' are gone from the dialog": a hex dump ends
+  // each row with its own printable-ASCII column (content-viewer.md, "offset,
+  // hex bytes, ASCII column per line"), so `|hello world|` is *expected* on
+  // screen in hex mode — asserting its absence asserted against the contract.
+  // What the override changes is the rendering, so the rendering is what is
+  // checked: the line-numbered text view is no longer mounted.
+  await expect(modal.locator('.ui-content-viewer__text')).toHaveCount(0);
 
   await treeRow(modal, 'big.txt').click();
   await expect(modal.getByText(/Truncated/)).toBeVisible();
