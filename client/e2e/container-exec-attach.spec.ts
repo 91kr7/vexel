@@ -61,7 +61,30 @@ async function typeIntoTerminal(detail: ReturnType<typeof containerRow>, page: P
   await expect
     .poll(async () => terminalText(detail), { timeout: 15_000, message: 'expected the shell prompt to be drawn before typing' })
     .toMatch(/[$#]\s*$/);
-  await page.keyboard.type(text);
+  // The prompt being drawn is still not safe: busybox ash follows it with an
+  // ESC[6n cursor-position query, and xterm's automatic ESC[…R reply travels
+  // the same stdin as our keystrokes. If the shell's first read lands after
+  // both, it takes them as one batch into its 16-byte keycode buffer, matches
+  // nothing, and discards the lot — the reply plus the first ~10 characters
+  // typed. So the command is typed without its newline, its echo is polled for
+  // (which is itself the proof the keystrokes reached the process), and only
+  // then is Enter pressed; a swallowed head is cleared with Ctrl+U (busybox
+  // lineedit: kill the line) and retyped, safely, since the poisoned reply
+  // bytes cannot survive the first attempt.
+  const command = text.replace(/\n$/, '');
+  for (let attempt = 0; ; attempt++) {
+    await page.keyboard.type(command);
+    try {
+      await expect
+        .poll(async () => terminalText(detail), { timeout: 3_000, message: 'expected every typed keystroke to be echoed before submitting' })
+        .toContain(command);
+      break;
+    } catch (error) {
+      if (attempt >= 2) throw error;
+      await page.keyboard.press('Control+U');
+    }
+  }
+  await page.keyboard.press('Enter');
 }
 
 test.beforeEach(async ({ page }) => {
