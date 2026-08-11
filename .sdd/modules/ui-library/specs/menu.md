@@ -54,6 +54,12 @@ Actions:
 
 ## Rules and invariants
 
+- **An open menu is a claimant of `Escape`, not a listener of its own** (`escape-arbitration.md`):
+  while it is open it holds the innermost claim, so a menu opened over a dismissible surface takes
+  the key and closes alone — the surface underneath stays as it was and is dismissed by the *next*
+  `Escape`, never by the same one. The claim does not depend on where the focus sits, which is what
+  keeps the reason the handling was never bound to the popup: an open menu can lose the focus and
+  must still close.
 - **At most one menu is open in the whole interface**: opening one closes any other, without
   disturbing the focus the new one takes. This is what makes the popup's overlay material legal —
   the count of surfaces carrying it is one, whatever the number of triggers on screen
@@ -85,6 +91,7 @@ Actions:
 
 ## Dependencies
 
+- Escape arbitration
 - Surface (`material="overlay"`)
 - Design tokens (`--menu-min-width`, `--menu-max-height`, `--z-modal`, the spacing, radius and text
   roles)
@@ -104,3 +111,4 @@ Actions:
 - plan-docker_management_app-container_row_actions/REQ-17
 - plan-docker_management_app-container_row_actions/REQ-25
 - plan-docker_management_app-container_row_actions/REQ-26
+- plan-docker_management_app-container_detail_close/REQ-7

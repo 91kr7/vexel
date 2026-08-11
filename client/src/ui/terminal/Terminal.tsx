@@ -7,6 +7,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal as XTermTerminal } from '@xterm/xterm';
+import { useKeystrokeRegion } from '../controls/escape-arbitration';
 import '@xterm/xterm/css/xterm.css';
 import './terminal.css';
 
@@ -32,6 +33,14 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(function Termi
   const onResizeRef = useRef(onResize);
   onInputRef.current = onInput;
   onResizeRef.current = onResize;
+
+  // Every keystroke typed in here belongs to the session, `Escape` included: the
+  // host is declared a region owning its own keys, so no dismissible surface
+  // around it is ever resolved by a key the session was meant to receive. The
+  // guarantee is the library's own and is not delegated to the emulator calling
+  // `preventDefault()` — a session that quietly stops receiving one key still
+  // looks like a working session.
+  useKeystrokeRegion(hostRef);
 
   useEffect(() => {
     const host = hostRef.current;

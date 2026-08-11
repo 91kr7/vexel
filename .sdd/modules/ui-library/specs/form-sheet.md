@@ -41,14 +41,19 @@ Actions:
   over the first.
 - The dimmed overlay the sheet sits on stays a plain dim and declares no blur, for the reason given
   in `modal.md`.
+- `Escape` does not cancel the sheet — unchanged — and, while it is open, dismisses nothing on the
+  screen behind it either: the open sheet holds the innermost claim on the key and does nothing with
+  it, exactly as `modal.md` describes.
 
 ## Dependencies
 
 - Surface, Button, Overlay glass material
+- Escape arbitration
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-27
+- plan-docker_management_app-container_detail_close/REQ-9
 - plan-docker_management_app/REQ-28
 - plan-liquid_glass_overlays/REQ-1
 - plan-liquid_glass_overlays/REQ-2

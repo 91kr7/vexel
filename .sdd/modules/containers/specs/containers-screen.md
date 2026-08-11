@@ -69,7 +69,8 @@ Actions:
 - The search field matches name, image or state (case-insensitive substring); state chips narrow to
   running / stopped (`created`, `exited`, `dead`) / paused (`paused`, `restarting`) / all.
 - Selecting a row (anywhere outside its action buttons) opens a `ContainerDetailPanel` inline below
-  it (REQ-24); selecting the same row again, or its close control, closes it. A selected container
+  it (REQ-24); selecting the same row again closes it — the row is the panel's only pointer route,
+  the panel offering no close control of its own — and so does `Escape`. A selected container
   that is removed from the daemon closes its detail panel; one merely filtered out of view stays
   selected (its panel reappears if the filter changes back). After a configuration change recreates
   the container, the panel stays open on the new container's id. A running container's `exec`/
@@ -139,3 +140,8 @@ Actions:
 - plan-docker_management_app-container_row_actions/REQ-22
 - plan-docker_management_app-container_row_actions/REQ-24
 - plan-docker_management_app-container_row_actions/REQ-25
+- plan-docker_management_app-container_detail_close/REQ-3
+- plan-docker_management_app-container_detail_close/REQ-4
+- plan-docker_management_app-container_detail_close/REQ-12
+- plan-docker_management_app-container_detail_close/REQ-15
+- plan-docker_management_app-container_detail_close/REQ-16

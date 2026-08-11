@@ -37,6 +37,13 @@ Shows:
 
 - No feature code touches the emulator directly: everything it needs is the typed `ref` and the two
   callbacks above.
+- **Every keystroke typed into the terminal belongs to the session, `Escape` included.** The host is
+  declared a region owning its own keystrokes (`escape-arbitration.md`), so no dismissible surface
+  around it — a detail panel hosting the session, for instance — is ever resolved by a key the
+  session was meant to receive: the key reaches the session and the surface stays as it is. The
+  guarantee is the library's own and is **not** delegated to the emulator calling `preventDefault()`:
+  the failure it prevents is silent, a session that has quietly stopped receiving one key still
+  looking exactly like a working session.
 - The terminal's character grid is refit to its host's size continuously (via a resize observer), so
   `onResize` also reflects layout changes, not only an initial mount. Because the host is only ever
   given a fixed-height container (`SessionSurface`), a fit settles instead of feeding back into
@@ -51,8 +58,10 @@ Shows:
 ## Dependencies
 
 - xterm.js (`@xterm/xterm`, `@xterm/addon-fit`) — third-party, wrapped per the escape hatch above.
+- Escape arbitration (as a region owning its keystrokes)
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-34
 - plan-docker_management_app/REQ-35
+- plan-docker_management_app-container_detail_close/REQ-8

@@ -16,7 +16,8 @@ exec and attach interactive sessions. Rename and the filesystem export both live
 
 - `<ContainerDetailPanel container onClose onContainerReplaced />`
   - `container: ContainerSummary` — the selected row.
-  - `onClose: () => void` — called when the panel's close control is used.
+  - `onClose: () => void` — called when the panel is dismissed: by `Escape`, or by the screen when
+    the owning row is selected again.
   - `onContainerReplaced: (newId: string) => void` — called after a recreate, since the original
     container id no longer exists.
 
@@ -25,9 +26,19 @@ Description:
   expands below) holding a `Tabs` row (Logs, Stats, Config, Processes, Inspect, and — only when the
   container is running — Exec, Attach) and the active tab's content. Config is the tab selected when
   the panel opens.
-- **No header actions.** "Export filesystem…" was this panel's only one and is started from the
-  row's overflow menu now; the slot is deliberately left empty rather than filled with a
-  replacement.
+- **No header actions and no close control.** The panel asks the shared `DetailPanel` for the
+  presentation whose opening gesture also closes it (`dismissal="opening-gesture"`), so the header
+  area is empty and stays empty: "Export filesystem…" was this panel's only action and is started
+  from the row's overflow menu now, the `✕` is gone, and neither is replaced — no collapse link, no
+  chevron, no rendered keyboard hint, and no space kept where the glyph used to sit.
+Actions (dismissal):
+- `Escape` closes the panel, from wherever the focus sits inside it, and the point of interaction is
+  left on the containers list.
+- The owning row closes it too, by being selected again (`containers-screen.md`).
+- An `Escape` typed into a live Exec or Attach session goes to the session: the panel stays open and
+  the session stays live.
+- With a row's overflow menu open over the screen, `Escape` closes the menu only; the next one closes
+  the panel. With a dialog or confirmation open, `Escape` leaves both it and the panel as they were.
 Shows (Logs tab):
 - The container's `ContainerLogsView`; the inspect data is neither needed nor awaited for it.
 Shows (Stats tab):
@@ -107,3 +118,8 @@ Actions:
 - plan-docker_management_app/REQ-36
 - plan-docker_management_app-container_row_actions/REQ-19
 - plan-docker_management_app-container_row_actions/REQ-21
+- plan-docker_management_app-container_detail_close/REQ-1
+- plan-docker_management_app-container_detail_close/REQ-2
+- plan-docker_management_app-container_detail_close/REQ-5
+- plan-docker_management_app-container_detail_close/REQ-14
+- plan-docker_management_app-container_detail_close/REQ-17

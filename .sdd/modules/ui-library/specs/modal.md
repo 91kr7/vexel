@@ -33,14 +33,20 @@ type: UI component
   effect.
 - Everything built on Modal — `ConfirmDialog`, `FormDialog`, `TransferProgressDialog` — carries the
   material by construction, none of them declaring it itself.
+- **`Escape` closes no dialog** — unchanged — **and, while a dialog is open, dismisses nothing behind
+  it either.** An open dialog holds the innermost claim on the key (`escape-arbitration.md`) and does
+  nothing with it, so a dismissible surface on the screen the dialog covers is not dismissed out from
+  under it. Closing the dialog withdraws the claim and the key goes back to whatever claims it.
 
 ## Dependencies
 
 - Surface, Overlay glass material
+- Escape arbitration
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-6
+- plan-docker_management_app-container_detail_close/REQ-9
 - plan-docker_management_app/REQ-108
 - plan-liquid_glass_overlays/REQ-1
 - plan-liquid_glass_overlays/REQ-2

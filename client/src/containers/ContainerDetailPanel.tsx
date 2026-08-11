@@ -402,10 +402,12 @@ export function ContainerDetailPanel({ container, onClose, onContainerReplaced }
   }
 
   return (
-    // No header actions on purpose: "Export filesystem…" was this panel's only
-    // one and it is started from the row's overflow menu now. The slot is left
-    // empty rather than filled with a replacement.
-    <DetailPanel onClose={onClose}>
+    // The header area is deliberately empty, and stays empty: "Export
+    // filesystem…" was this panel's only action and it is started from the row's
+    // overflow menu now, and the close control leaves with `dismissal` — the row
+    // that opened the panel closes it, and `Escape` closes it from the keyboard.
+    // Neither is replaced by anything.
+    <DetailPanel dismissal="opening-gesture" onClose={onClose}>
       <Stack gap="var(--space-4)">
         <Tabs
           tabs={[

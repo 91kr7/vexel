@@ -42,8 +42,21 @@ stays smooth (REQ-109).
     Virtualisation is off in this mode — a row's height is not known before it is rendered — so
     every row is mounted; `maxHeight` still caps the body and scrolls it.
 
+Description:
+
+- The list region declares itself the **dismissal focus target** of everything inside it (the
+  attribute described in `escape-arbitration.md`): when a surface expanded in the table is dismissed
+  by `Escape` rather than by a control of its own, the point of interaction lands on the list rather
+  than on the removed content or on the document.
+
 ## Rules and invariants
 
+- The list region is **programmatically focusable only**: it takes focus when a dismissal hands it
+  focus, and it adds **no stop to the tab order** — `Tab` walks the screen exactly as it did before
+  it became a target. Its focus is shown for the keyboard alone, so a pointer-driven dismissal draws
+  no ring that could be read as the list being selected.
+- Rows themselves are **not keyboard-operable**: a row carries no tab stop, no role, no key handling
+  and does not announce an expanded state. A recorded limitation, deliberately left as it is.
 - Only the checkbox control's own click is swallowed before it reaches `onRowSelect`; the rest of
   its column cell behaves like any other cell and still selects/expands the row.
 - A row's height never changes with scroll position: virtualisation swaps which rows are mounted,
@@ -66,9 +79,11 @@ stays smooth (REQ-109).
 ## Dependencies
 
 - ScrollArea
+- Escape arbitration (the dismissal focus target attribute)
 
 ## Requirements served
 
+- plan-docker_management_app-container_detail_close/REQ-11
 - plan-docker_management_app/REQ-19
 - plan-docker_management_app/REQ-24
 - plan-docker_management_app/REQ-109

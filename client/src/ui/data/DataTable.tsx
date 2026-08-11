@@ -1,4 +1,5 @@
 import { Fragment, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type UIEvent } from 'react';
+import { DISMISSAL_FOCUS_TARGET_ATTRIBUTE } from '../controls/escape-arbitration';
 import { ScrollArea } from '../glass/ScrollArea';
 import './data-table.css';
 
@@ -115,7 +116,12 @@ export function DataTable<T>({
   const bottomSpacerHeight = virtualized ? (rows.length - endIndex) * rowHeight : 0;
 
   return (
-    <div className="ui-data-table">
+    // The list region is where the point of interaction returns when a surface
+    // expanded inside it is dismissed by the key rather than by a control of its
+    // own. `tabIndex={-1}` and nothing more: it takes focus when it is handed
+    // it, and adds no stop of its own to the tab order, which walks the screen
+    // exactly as it did before.
+    <div className="ui-data-table" tabIndex={-1} {...{ [DISMISSAL_FOCUS_TARGET_ATTRIBUTE]: '' }}>
       {hideHeader ? null : (
         <div className="ui-data-table__header" style={headerRowStyle}>
           {selection ? (

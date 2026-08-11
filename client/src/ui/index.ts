@@ -15,7 +15,7 @@ export { SectionHeader, type SectionHeaderProps } from './glass/SectionHeader';
 export { Divider, type DividerProps } from './glass/Divider';
 export { ScrollArea, type ScrollAreaProps } from './glass/ScrollArea';
 export { CollapsibleSection, type CollapsibleSectionProps } from './glass/CollapsibleSection';
-export { DetailPanel, type DetailPanelProps } from './glass/DetailPanel';
+export { DetailPanel, type DetailPanelProps, type DetailPanelDismissal } from './glass/DetailPanel';
 export { StateSummaryBar, type StateSummaryBarProps } from './glass/StateSummaryBar';
 
 export { Frame, type FrameProps } from './layout/Frame';

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Button } from '../controls/Button';
+import { useEscapeClaim } from '../controls/escape-arbitration';
 import { Surface } from '../glass/Surface';
 import './feedback.css';
 
@@ -42,6 +43,11 @@ export function FormSheet({
   onCancel,
   children,
 }: FormSheetProps) {
+  // Same as `Modal`: the open sheet claims `Escape` and does nothing with it, so
+  // the key neither closes the sheet (unchanged) nor reaches a dismissible
+  // surface on the screen it covers.
+  useEscapeClaim(open, () => {});
+
   if (!open) return null;
   return (
     <div className="ui-modal-overlay" onClick={busy ? undefined : onCancel}>

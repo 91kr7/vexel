@@ -20,6 +20,13 @@
   padding-right: 40px;
 }
 
+/* The reserve above is the close control's own space; without the control there
+   is nothing to keep clear of, and leaving it would read as a gap where the
+   glyph used to sit. */
+.ui-detail-panel--no-close .ui-detail-panel__header {
+  padding-right: 0;
+}
+
 .ui-detail-panel__heading {
   flex: 1 1 auto;
   min-width: 0;
