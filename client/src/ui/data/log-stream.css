@@ -1,5 +1,8 @@
-/* Log stream surface — sunken, dense monospace lines. No blur and no animation:
-   this region repaints on every incoming line. */
+/* Log stream surface — sunken, dense monospace lines. The region, its lines,
+   their match highlighting and their scroller declare no blur and no animation:
+   this region repaints on every incoming line and on every scrolled frame. The
+   one blurred thing here is the floating jump-to-live control at the bottom of
+   this file, and the reasons it is an exception are stated there. */
 .ui-log-stream {
   display: flex;
   flex-direction: column;
@@ -70,8 +73,46 @@
   border-radius: var(--radius-sm);
 }
 
-.ui-log-stream__jump {
+/*
+ * The floating jump-to-live control, and the only surface of this file allowed
+ * to blur: it carries the overlay glass material (`ui-overlay-glass`,
+ * ../glass/overlay-glass.css), so the log lines it sits over are blurred under
+ * it (plan-liquid_glass_overlays/REQ-17). The fill, the blur, its `-webkit-`
+ * counterpart and both degradations come from that one material; nothing of it
+ * is restated here.
+ *
+ * This is **the most expensive surface on the allow-list**. It is small and
+ * there is exactly one of it per log stream, but it sits inside the scrolled
+ * content flow over a view that repaints on every arriving line and on every
+ * scrolled frame, so its backdrop is resampled continuously — which is the very
+ * cost the performance rule exists to prevent. It is accepted knowingly and it
+ * is **the first thing to withdraw if scrolling regresses on a real machine**:
+ * the cheapest to remove and the one with the least visual return. See
+ * CLAUDE.md, "Performance — background and blur".
+ *
+ * The padding is what makes the material visible at all: this control frames an
+ * opaque primary button, so without a border of its own the blur would sit
+ * entirely behind that button and show nothing.
+ *
+ * `z-index` is load-bearing, unlike on the overlays that float above the whole
+ * page: what this surface blurs is its own sibling — the scrolled lines —
+ * inside the same stacking context. A positioned element with `z-index: auto`
+ * does not establish one, so the material's blur layer (`z-index: -1`) would be
+ * hoisted out to the nearest ancestor that does and painted underneath those
+ * lines, blurring what is behind the log surface instead of the log itself.
+ * A stacking context is not a backdrop root, so the material's invariant holds.
+ *
+ * The selector is compound so that `position: absolute` beats the material's
+ * own `position: relative` whatever order the two stylesheets end up in.
+ */
+.ui-log-stream__jump.ui-overlay-glass {
   position: absolute;
   right: var(--space-4);
   bottom: var(--space-3);
+  z-index: 1;
+  display: flex;
+  padding: var(--space-1);
+  border-radius: var(--radius-lg);
+  border-style: solid;
+  border-width: var(--border-width-hairline);
 }

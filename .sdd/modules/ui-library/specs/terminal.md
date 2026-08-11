@@ -41,7 +41,11 @@ Shows:
   `onResize` also reflects layout changes, not only an initial mount. Because the host is only ever
   given a fixed-height container (`SessionSurface`), a fit settles instead of feeding back into
   another resize.
-- No `backdrop-filter`/`filter: blur()` is applied; the host is translucent, not blurred.
+- The host itself computes no `backdrop-filter`/`filter: blur()`: it is translucent, and it stays
+  main view, sharp, for as long as the session runs (plan-liquid_glass_overlays/REQ-7). The
+  `SessionEndedOverlay` drawn above it once the session has ended does blur what is under it,
+  including this host (see `session-chrome.md`); that is the overlay's material, never this
+  component's.
 
 ## Dependencies
 

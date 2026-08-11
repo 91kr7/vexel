@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Button } from '../controls/Button';
 import { StatusPill, type StatusTone } from '../controls/StatusPill';
+import '../glass/overlay-glass.css';
 import './session-chrome.css';
 
 export type SessionConnectionState = 'connecting' | 'open' | 'closed' | 'error';
@@ -47,10 +48,10 @@ export interface SessionEndedOverlayProps {
   action?: ReactNode;
 }
 
-/** Dims an ended session's terminal and states why, with an optional action (e.g. "Close"). */
+/** Blurs an ended session's terminal and states why, with an optional action (e.g. "Close"). */
 export function SessionEndedOverlay({ message, action }: SessionEndedOverlayProps) {
   return (
-    <div className="ui-session-ended-overlay">
+    <div className="ui-session-ended-overlay ui-overlay-glass">
       <p className="ui-session-ended-overlay__message">{message}</p>
       {action}
     </div>
@@ -60,7 +61,7 @@ export function SessionEndedOverlay({ message, action }: SessionEndedOverlayProp
 export interface SessionSurfaceProps {
   /** The Terminal (or its placeholder while a launch form is shown). */
   children: ReactNode;
-  /** A SessionEndedOverlay, shown dimmed over the terminal once the session ends. */
+  /** A SessionEndedOverlay, shown over the terminal — which it blurs — once the session ends. */
   overlay?: ReactNode;
 }
 

@@ -15,7 +15,8 @@ per-line stream tagging, match highlighting, and copy/download of the displayed 
 Description:
 
 - a dark, sunken monospace region with an actions row above it (copy, optional download) and, when
-  follow is off, a floating "Jump to live" control over the bottom of the region.
+  follow is off, a floating "Jump to live" control over the bottom of the region, through whose
+  frame the lines it sits over show blurred.
 
 Props:
 
@@ -57,13 +58,30 @@ Actions:
 - Scrolling away from the bottom by hand calls `onFollowChange(false)`; scrolling back to the
   bottom by hand calls `onFollowChange(true)`.
 - A change of `activeMatchLineId` scrolls that line into view without changing `follow`.
-- No animation and no blur is applied to the region (large, frequently repainted surface).
+- No animation and no blur is applied to **the region**, its lines, their match highlighting or
+  their scroller (large, frequently repainted surface).
+- The floating "Jump to live" control is the one exception, and the only blurred thing here: it
+  carries the overlay glass material (see `overlay-glass.md`), so the lines under it are rendered
+  blurred, and it takes that material's fill, border, no-backdrop-blur fallback and
+  reduced-transparency variant with it (plan-liquid_glass_overlays/REQ-17). Its own label stays
+  sharp.
+- There is **one** such control per log stream, and only while `follow` is false. It is the most
+  expensive surface allowed to blur in the application — small, but sitting over a view that
+  repaints on every arriving line and every scrolled frame — a knowingly accepted risk against
+  `plan-docker_management_app/REQ-109` (recorded in `plan-liquid_glass_overlays/requirements.md`)
+  and **the first thing withdrawn if scrolling regresses on a real machine**.
+- What the control blurs is a sibling inside the region rather than the page behind an overlay
+  layer, so the control is a stacking context of its own: without one, the material's blur layer
+  would be painted underneath the lines and would blur what is behind the log region instead of the
+  lines. It is a stacking context and not a backdrop root, so the material's nesting invariant is
+  untouched.
 
 ## Dependencies
 
-- ScrollArea, CopyButton, Button, EmptyState
+- ScrollArea, CopyButton, Button, EmptyState, Overlay glass material
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-30
 - plan-docker_management_app/REQ-31
+- plan-liquid_glass_overlays/REQ-17

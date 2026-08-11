@@ -18,8 +18,8 @@ Description:
 - before a session is active: for `kind="exec"`, a shell picker (bash/sh/custom command), user and
   working-directory fields, and a launch action; for `kind="attach"`, only an attach action.
 - once active: a session header (title, connection state, detach/close action) above a terminal;
-  once the session ends, a dimmed overlay states why, with a "Close" action returning to the
-  pre-session state.
+  once the session ends, an overlay over the blurred terminal states why, with a "Close" action
+  returning to the pre-session state.
 - when the container is not running, an empty state explains that exec/attach need a running
   container, instead of the form/terminal.
 

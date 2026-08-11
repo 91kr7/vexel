@@ -12,9 +12,12 @@ The main view's material is untouched by it and computes no blur.
 
 ## Contract
 
-- Named `.ui-overlay-glass`. A surface carries it in one of two ways:
+- Named `.ui-overlay-glass`. A surface carries it in one of three ways:
   - a `Surface` asked for `material="overlay"` (see `surface.md`) — this is how the dialog
     surfaces and the toasts get it;
+  - a surface that is not a `Surface` but carries the class itself: the session-ended overlay over
+    a terminal and the log stream's jump-to-live control (see `session-chrome.md`,
+    `log-stream.md`), which add their own geometry and nothing of the material;
   - a surface that is plain CSS rather than a `Surface`, which declares the material on its own
     rule from the same tokens: the `Combobox` popup, and — at the phone breakpoint only — the
     navigation drawer card. A class cannot be scoped to a media query, which is the only reason
@@ -30,7 +33,7 @@ The main view's material is untouched by it and computes no blur.
     the fill and the blur, nothing else. The blur covers the whole surface, corners included, and
     stays put while the surface's content scrolls.
 - The blur is painted on a layer of the surface's own (`::before`), never by the surface element
-  itself, and the layer sits behind the translucent fill. Observable consequence, which is the
+  itself, and the layer sits behind the surface's content. Observable consequence, which is the
   reason it exists: **a carrying surface nested inside another carrying surface blurs correctly,
   and so does the one it is nested in** — an open `Combobox` popup inside a form dialog blurs the
   form rows under it while the dialog goes on blurring the application behind it.
@@ -63,6 +66,12 @@ The main view's material is untouched by it and computes no blur.
   the property holds by construction rather than by anyone remembering it, and the conformance
   check accepts the pseudo-element form of an allow-listed selector precisely so it can stay that
   way (`ui-conformance-check.md`).
+- A carrier blurs everything painted behind it up to the nearest backdrop root. When what it has to
+  blur is a **sibling inside its own region** — rather than the page beneath an overlay layer — the
+  carrier is a stacking context of its own, without which the blur layer is painted underneath that
+  sibling and blurs the wrong thing. The two carriers inside the scrolled content flow are exactly
+  that case (see `session-chrome.md`, `log-stream.md`). A stacking context is not a backdrop root,
+  so this costs the invariant above nothing.
 - **No scrim is a carrier** — neither the dialog's (see `modal.md`) nor the drawer's (see
   `frame.md`). A scrim spans the whole viewport, so a blur on one is not a blur on a panel: it is a
   blur of the entire main view, background asset included. Behind an open dialog or drawer the

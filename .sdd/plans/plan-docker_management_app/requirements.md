@@ -404,7 +404,13 @@ consumes it.
 - One active Docker context at a time: every screen shows the state of the active context only
   (as the mockups' permanent "active context" footer implies).
 - "Liquid glass" = translucency over a static, pre-blurred background asset, defined as design
-  tokens and materials in the UI library, never per screen and never as a runtime blur.
+  tokens and materials in the UI library, never per screen. **The main view is still never a
+  runtime blur** — that half of the assumption stands, and REQ-108 enforces it. The overlay layer
+  is the narrowed exception (human decision, 2026-08-11): the surfaces on the allow-list of
+  `CLAUDE.md` carry a second material that *is* a runtime blur, bounded by one token, and two of
+  them — the session-ended overlay and the log stream's jump-to-live control — sit inside the
+  scrolled content flow, at the risk against REQ-109 recorded above. See
+  `plan-liquid_glass_overlays`.
 - Two access channels to Docker: the Engine API is the primary channel for all features, the local
   `docker` / `docker compose` / `docker buildx` CLI is used for the raw console and for what the
   API does not cover cleanly. The CLI is therefore a declared prerequisite (REQ-110).

@@ -1,7 +1,9 @@
 /* Host element owned by the xterm.js emulator (see Terminal.tsx for the
    escape-hatch rationale). Fills its parent's definite height (ui-session-
    surface) — the emulator fits its own character grid to that fixed space via
-   ResizeObserver, no runtime blur or animation. */
+   ResizeObserver, and computes no runtime blur and no animation of its own. The
+   session-ended overlay drawn over it does blur it, which is that overlay's
+   doing and not this host's (see ./session-chrome.css). */
 .ui-terminal-host {
   flex: 1 1 auto;
   min-height: 0;

@@ -3,6 +3,7 @@ import { Button } from '../controls/Button';
 import { CopyButton } from '../controls/CopyButton';
 import { EmptyState } from '../feedback/EmptyState';
 import { ScrollArea } from '../glass/ScrollArea';
+import '../glass/overlay-glass.css';
 import './log-stream.css';
 
 export interface LogStreamLine {
@@ -145,7 +146,7 @@ export function LogStream({
             </div>
           </ScrollArea>
           {follow ? null : (
-            <div className="ui-log-stream__jump">
+            <div className="ui-log-stream__jump ui-overlay-glass">
               <Button size="sm" variant="primary" onClick={() => onFollowChange?.(true)}>
                 Jump to live
               </Button>
