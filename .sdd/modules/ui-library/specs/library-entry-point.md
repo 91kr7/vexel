@@ -18,7 +18,10 @@ by its own file path from outside the library.
 
 - Feature code never imports a path under `client/src/ui/*` other than `client/src/ui/index.ts`
   (REQ-5).
+- A component is exported from here before any feature code composes it — including `Menu` and its
+  `MenuEntry` type, which the containers row reaches through this path alone.
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-5
+- plan-docker_management_app-container_row_actions/REQ-17

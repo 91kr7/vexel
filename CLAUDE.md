@@ -69,7 +69,7 @@ an interaction or a state lasts:
 
 | Surface | Selector |
 |---------|----------|
-| the overlay glass material itself — the class a `Surface` carries when it is asked for `material="overlay"`, which is how the dialog surfaces (`Modal` and everything built on it, `FormSheet`) and the toasts get it | `.ui-overlay-glass` |
+| the overlay glass material itself — the class a `Surface` carries when it is asked for `material="overlay"`, which is how the dialog surfaces (`Modal` and everything built on it, `FormSheet`), the toasts and the popup of the overflow menu (`Menu`) get it. The menu's popup is admitted under the criterion below and not beside it: **at most one menu is open in the whole interface at a time**, enforced by the component itself, so its count is one however many triggers a list holds — and the per-row `…` trigger blurs nothing whatever, which is the half of the rule that protects a long scrolled list | `.ui-overlay-glass` |
 | the suggestion / choice popup of `Combobox` | `.ui-combobox__list` |
 | the off-canvas navigation drawer at the phone breakpoint — its sizing wrapper and the card that actually paints, **inside the `max-width: 720px` block only** | `.ui-frame__rail`, `.ui-nav-rail` |
 | the log stream's floating jump-to-live control | `.ui-log-stream__jump` |

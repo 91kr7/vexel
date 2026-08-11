@@ -14,7 +14,7 @@ The main view's material is untouched by it and computes no blur.
 
 - Named `.ui-overlay-glass`. A surface carries it in one of three ways:
   - a `Surface` asked for `material="overlay"` (see `surface.md`) — this is how the dialog
-    surfaces and the toasts get it;
+    surfaces, the toasts and the overflow menu's popup (see `menu.md`) get it;
   - a surface that is not a `Surface` but carries the class itself: the log stream's jump-to-live
     control (see `log-stream.md`), which adds its own geometry and nothing of the material;
   - a surface that is plain CSS rather than a `Surface`, which declares the material on its own
@@ -51,6 +51,11 @@ The main view's material is untouched by it and computes no blur.
 - Only an allow-listed overlay surface may carry it; the allow-list is stated in `CLAUDE.md` and
   enforced by the UI conformance check (`ui-conformance-check.md`). `.ui-overlay-glass` is itself
   an allow-listed selector.
+- A surface whose count is not naturally one is capped before it may ask for the material. The
+  overflow menu's popup is the case that made this explicit: its trigger sits once per row of a
+  list of any length, and the popup is admitted only because at most one menu is open in the whole
+  interface at a time (`menu.md`), so what carries the material is one surface, never one per row.
+  The triggers themselves carry no overlay material and compute no filter of any kind.
 - The material never lands on `.ui-surface` or on any of its elevations: a `Surface` that does not
   ask for it is unchanged, and so is every main-view panel built on one.
 - The blur is declared with its `-webkit-` counterpart, prefixed first and standard last, so it
@@ -94,3 +99,5 @@ The main view's material is untouched by it and computes no blur.
 - plan-liquid_glass_overlays/REQ-11
 - plan-liquid_glass_overlays/REQ-12
 - plan-liquid_glass_overlays/REQ-13
+- plan-docker_management_app-container_row_actions/REQ-25
+- plan-docker_management_app-container_row_actions/REQ-26

@@ -5,7 +5,7 @@
 | Design tokens | configuration | `client/src/ui/tokens.css` | Color, typography, spacing, radii, border, elevation and z-index custom properties; single source of truth for every visual value | `specs/design-tokens.md` |
 | Foundation stylesheet | configuration | `client/src/ui/foundation.css` | The library's single style entry point: imports tokens, applies the base reset | `specs/foundation-stylesheet.md` |
 | Backdrop | UI component | `client/src/ui/background/Backdrop.tsx` | Fixed, full-viewport layer rendering the static pre-blurred background asset | `specs/backdrop.md` |
-| Overlay glass material | configuration | `client/src/ui/glass/overlay-glass.css` | The one runtime-blurred glass material, opted into by the overlay surfaces (dialogs, toasts, the choice popup, the phone drawer, the log stream's jump-to-live control) with its no-support and reduced-transparency fallbacks | `specs/overlay-glass.md` |
+| Overlay glass material | configuration | `client/src/ui/glass/overlay-glass.css` | The one runtime-blurred glass material, opted into by the overlay surfaces (dialogs, toasts, the overflow menu popup, the choice popup, the phone drawer, the log stream's jump-to-live control) with its no-support and reduced-transparency fallbacks | `specs/overlay-glass.md` |
 | Surface | UI component | `client/src/ui/glass/Surface.tsx` | Base glass panel with elevation variants, built from translucency and borders; `material="overlay"` opts into the blurred overlay material | `specs/surface.md` |
 | Card | UI component | `client/src/ui/glass/Card.tsx` | Padded glass Surface with an optional eyebrow title | `specs/card.md` |
 | SectionHeader | UI component | `client/src/ui/glass/SectionHeader.tsx` | Title, one-line description and a trailing actions slot for a content section | `specs/section-header.md` |
@@ -28,7 +28,7 @@
 | FooterStatus | UI component | `client/src/ui/navigation/FooterStatus.tsx` | Footer status block (e.g. active Docker context) | `specs/navigation-primitives.md` |
 | PageHeader | UI component | `client/src/ui/controls/PageHeader.tsx` | Screen header: title, description, trailing actions | `specs/page-header.md` |
 | StatusPill | UI component | `client/src/ui/controls/StatusPill.tsx` | Dot + label status indicator, with an optional inline action (e.g. retry) | `specs/status-pill.md` |
-| Button | UI component | `client/src/ui/controls/Button.tsx` | Button with primary/secondary/ghost/destructive variants | `specs/button.md` |
+| Button | UI component | `client/src/ui/controls/Button.tsx` | Button with primary/secondary/ghost/destructive variants, optionally stating why it is in the state it is in | `specs/button.md` |
 | IconButton | UI component | `client/src/ui/controls/IconButton.tsx` | Square icon-only button with a required accessible label | `specs/icon-button.md` |
 | Badge | UI component | `client/src/ui/controls/Badge.tsx` | Small tag/count/status label in five tones, in a solid or quiet variant (a secondary attribute next to a filled one), optionally clickable as a selection action | `specs/badge.md` |
 | KeyHint | UI component | `client/src/ui/controls/KeyHint.tsx` | Keyboard-shortcut hint | `specs/key-hint.md` |
@@ -39,7 +39,8 @@
 | TextField, SearchField | UI component | `client/src/ui/controls/TextField.tsx`, `client/src/ui/controls/SearchField.tsx` | Single-line text input, and its full-width search/filter variant | `specs/search-field.md` |
 | SecretField | UI component | `client/src/ui/controls/SecretField.tsx` | Masked single-line input for a secret typed once, with no reveal control and no autofill | `specs/secret-field.md` |
 | FilterChips | UI component | `client/src/ui/controls/FilterChips.tsx` | Single-select row of filter chips | `specs/filter-chips.md` |
-| ActionButtonGroup | UI component | `client/src/ui/controls/ActionButtonGroup.tsx` | Inline group of dense row-action buttons, with a destructive variant | `specs/action-button-group.md` |
+| ActionButtonGroup | UI component | `client/src/ui/controls/ActionButtonGroup.tsx` | Inline group of dense row-action buttons, with a destructive variant, a reason on a disabled action and an optional trailing overflow menu | `specs/action-button-group.md` |
+| Menu | UI component | `client/src/ui/controls/Menu.tsx` | Overflow menu: a trigger announcing it opens a menu, and a popup of labelled entries (secondary hints, destructive tone, group separation, disabled with its reason) rendered outside every scroll ancestor so it is never clipped, one open at a time | `specs/menu.md` |
 | BulkActionBar | UI component | `client/src/ui/controls/BulkActionBar.tsx` | Bar shown above a list once rows are multi-selected: selection count, bulk actions, clear | `specs/bulk-action-bar.md` |
 | FilePicker | UI component | `client/src/ui/controls/FilePicker.tsx` | Picks a file from the operator's own machine to upload, showing its chosen name and size | `specs/file-picker.md` |
 | ScreenToolbar | UI component | `client/src/ui/controls/ScreenToolbar.tsx` | Screen action bar: leading primary action, secondary actions, trailing destructive action, optional filters row | `specs/screen-toolbar.md` |

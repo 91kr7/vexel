@@ -403,6 +403,145 @@
   min-width: 0;
 }
 
+/* The tooltip carrier of a disabled action's reason. A disabled control
+   dispatches no pointer event of its own, so the `title` has to sit on an
+   element around it for the pointer to ever find it; the same text is also the
+   control's accessible description, for the pointer that never hovers. */
+.ui-button-with-description {
+  display: inline-flex;
+}
+
+.ui-button-with-description__text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+/* Overflow menu. The trigger costs the row it sits in nothing — no overlay
+   material, no filter of any kind; there is one of it per row. The popup is the
+   surface that carries the overlay glass, and there is exactly one of those open
+   in the whole interface at a time (see CLAUDE.md's allow-list, and Menu.tsx for
+   the cap). It is rendered on <body> and placed against the trigger's box by
+   Menu.tsx, which is why its position is `fixed` and its offsets are written by
+   the component: no table, panel or scroll container is between it and the
+   viewport to clip it. */
+.ui-menu {
+  display: inline-flex;
+}
+
+.ui-menu__trigger {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  border: var(--border-width-hairline) solid var(--color-border-subtle);
+  background: var(--color-surface-2);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-tight);
+  cursor: pointer;
+}
+
+.ui-menu__trigger[aria-expanded='true'] {
+  background: var(--color-wash-3);
+  border-color: var(--color-border-strong);
+}
+
+.ui-menu__popup {
+  position: fixed;
+  z-index: var(--z-modal);
+  min-width: var(--menu-min-width);
+}
+
+/* The gap between the trigger and the popup, on whichever side it opened. */
+.ui-menu__popup--below {
+  transform: translateY(var(--space-1));
+}
+
+.ui-menu__popup--above {
+  transform: translateY(calc(-1 * var(--space-1)));
+}
+
+/* The entries scroll here, inside the surface, never in the surface itself: the
+   overlay material paints its blur on an absolutely positioned layer, and that
+   layer would scroll away with the content if the surface were the scrolling
+   box (the same reason the Combobox popup is built in two elements). */
+.ui-menu__list {
+  display: flex;
+  flex-direction: column;
+  max-height: var(--menu-max-height);
+  overflow: auto;
+  padding: var(--space-2);
+}
+
+.ui-menu__separator {
+  height: var(--border-width-hairline);
+  margin: var(--space-1) 0;
+  background: var(--color-border-strong);
+}
+
+.ui-menu__item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-5);
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.ui-menu__item:hover,
+.ui-menu__item:focus-visible {
+  background: var(--color-wash-3);
+}
+
+/* A disabled entry is dimmed by dropping to the secondary text role rather than
+   by a transparency: it stays over the same verified contrast as any other
+   secondary text on glass, which the entry's reason line needs to be read at
+   all. A destructive entry keeps its tone while disabled — an operator must be
+   able to tell the dangerous pair apart in every state, and the reason line
+   below the label already says it cannot be run. */
+.ui-menu__item[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+
+.ui-menu__item[aria-disabled='true']:hover {
+  background: transparent;
+}
+
+.ui-menu__item[aria-disabled='true'] .ui-menu__item-label {
+  color: var(--color-text-secondary);
+}
+
+.ui-menu__item-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+}
+
+.ui-menu__item-hint {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.ui-menu__item-reason {
+  grid-column: 1 / -1;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.ui-menu__item--destructive .ui-menu__item-label,
+.ui-menu__item--destructive[aria-disabled='true'] .ui-menu__item-label {
+  color: var(--color-danger-strong);
+}
+
 .ui-screen-toolbar {
   display: flex;
   flex-direction: column;
