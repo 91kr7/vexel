@@ -280,8 +280,15 @@ test('switching the active context marks the row, confirms with a toast and rena
 
     await row.getByText('use', { exact: true }).click();
 
+    // The toast is asserted first because it is the one of the two that expires:
+    // it is pushed the instant the POST answers and lives five seconds, while
+    // the row's `active` marker only arrives with the re-read the switch
+    // announces — a fresh `docker context ls` plus an inspect per context,
+    // seconds of it under load, which is why that marker gets a 20s budget at
+    // all. Waiting for the marker first therefore spends the toast's whole life
+    // before looking for it. The marker is state and waits; the toast does not.
+    await expect(page.getByText('Active context switched')).toBeVisible({ timeout: 20_000 });
     await expect(row.getByText('active', { exact: true })).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText('Active context switched')).toBeVisible();
     await expect(page.getByRole('navigation')).toContainText(`${name} (${kind})`, { timeout: footerBudget });
     // The previously active context is no longer the one in use.
     await expect(contextRow(page, originalActive).getByText('use', { exact: true })).toBeVisible();
@@ -291,7 +298,17 @@ test('switching the active context marks the row, confirms with a toast and rena
     await expect(daemonPanel(page)).toContainText(version.trim(), { timeout: 20_000 });
 
     // Switching back through the application restores the operator's own context.
+    // The switch is daemon-bound — some six CLI spawns, seconds of them under
+    // load — so the footer's tight budget runs from the POST's response, the
+    // instant the switch is announced to every cached view, and not from the
+    // click. The row's `active` marker cannot serve as that anchor: an
+    // in-flight read of either hook instance can deliver it before the
+    // announcement, leaving the other instance still on the older payload.
+    const switchedBack = page.waitForResponse(
+      (response) => response.request().method() === 'POST' && new URL(response.url()).pathname === `/api/contexts/${originalActive}/use`,
+    );
     await contextRow(page, originalActive).getByText('use', { exact: true }).click();
+    await switchedBack;
     await expect(page.getByRole('navigation')).toContainText(originalActive, { timeout: footerBudget });
   } finally {
     await useContextQuietly(originalActive);
