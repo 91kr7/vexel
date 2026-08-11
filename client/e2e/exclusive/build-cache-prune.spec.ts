@@ -78,6 +78,14 @@ function screenContent(page: Page) {
 // plan-docker_management_app/REQ-91 — the build cache can be pruned, reporting the space reclaimed,
 // after confirmation
 test('pruning the build cache reclaims space and reports it, after confirmation', async ({ page }) => {
+  // A real `buildx` build runs here, and the three waits below are each allowed
+  // 15s on their own — more than the default per-test budget of 30s can hold
+  // together with it. Measured on a warm machine: ~8s of Docker work, ~7s for
+  // the builder row to appear, ~8s for the "in use" badge, ~5s for the prune
+  // round trip. That left no margin at all, and this test failed with the prune
+  // already done and its toast already on screen, killed a tenth of a second
+  // after the product had finished.
+  test.setTimeout(60_000);
   const name = fixtureName('prune');
   await createBuilderQuietly(name);
   const dir = await mkdtemp(join(tmpdir(), 'vexel-e2e-builder-prune-'));
