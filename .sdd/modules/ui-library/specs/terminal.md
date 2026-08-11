@@ -42,10 +42,11 @@ Shows:
   given a fixed-height container (`SessionSurface`), a fit settles instead of feeding back into
   another resize.
 - The host itself computes no `backdrop-filter`/`filter: blur()`: it is translucent, and it stays
-  main view, sharp, for as long as the session runs (plan-liquid_glass_overlays/REQ-7). The
-  `SessionEndedOverlay` drawn above it once the session has ended does blur what is under it,
-  including this host (see `session-chrome.md`); that is the overlay's material, never this
-  component's.
+  main view, sharp, for as long as the session runs (plan-liquid_glass_overlays/REQ-7). Nor does
+  anything drawn above it blur it: the `SessionEndedOverlay` shown once the session has ended is a
+  plain dim by decision, and declares as much (see `session-chrome.md`,
+  plan-liquid_glass_overlays/REQ-16). The terminal is never blurred, before or after the session
+  ends.
 
 ## Dependencies
 

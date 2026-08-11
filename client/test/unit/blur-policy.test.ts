@@ -14,10 +14,15 @@ const allowListedOverlaySelectors = [
   '.ui-combobox__list',
   '.ui-frame__rail',
   '.ui-nav-rail',
-  '.ui-frame__scrim',
-  '.ui-session-ended-overlay',
   '.ui-log-stream__jump',
 ];
+
+// The two surfaces the human withdrew on sight after seeing them blurred: a
+// scrim spans the whole viewport, so blurring it blurs the main view rather
+// than a panel (plan-liquid_glass_overlays/REQ-5), and the session-ended
+// overlay is inset: 0 over a whole terminal region, one scale down from the
+// same objection (plan-liquid_glass_overlays/REQ-16).
+const withdrawnFromTheAllowList = ['.ui-frame__scrim', '.ui-session-ended-overlay'];
 
 const claudeMd = readFileSync(join(repositoryRoot, 'CLAUDE.md'), 'utf8');
 const checkScript = readFileSync(join(process.cwd(), 'scripts', 'check-ui-conformance.mjs'), 'utf8');
@@ -30,6 +35,21 @@ function blurSection(): string {
   return next < 0 ? claudeMd.slice(start) : claudeMd.slice(start, next);
 }
 
+/**
+ * The selectors of the allow-list table CLAUDE.md states, read from the table
+ * itself rather than from the surrounding prose: the prose also names the
+ * surfaces kept off the list, and a plain substring search would count those as
+ * members.
+ */
+function documentedSelectors(): string[] {
+  const section = blurSection();
+  const header = section.indexOf('| Surface | Selector |');
+  if (header < 0) throw new Error('CLAUDE.md states no allow-list table of blurred surfaces');
+  const table = section.slice(header).split('\n');
+  const rows = table.slice(2, table.findIndex((line, index) => index >= 2 && !line.startsWith('|')));
+  return rows.flatMap((row) => [...row.split('|').at(-2)!.matchAll(/`([^`]+)`/g)].map((match) => match[1]));
+}
+
 /** The selectors of the checker's allow-list constant. */
 function constantSelectors(): string[] {
   const declaration = /blurAllowedOverlaySelectors\s*=\s*new Set\(\[([\s\S]*?)\]\)/.exec(checkScript);
@@ -37,10 +57,16 @@ function constantSelectors(): string[] {
   return [...declaration[1].matchAll(/['"`]([^'"`]+)['"`]/g)].map((match) => match[1]);
 }
 
-/** Every stylesheet shipped under client/src/, path and content. */
+/**
+ * Every stylesheet shipped under client/src/, path and content. The conformance
+ * check's fixture directory is skipped: that suite writes deliberately illegal
+ * stylesheets there while it runs, and this scan must not depend on whether it
+ * is mid-run (CLAUDE.md, "Tests" — a test depends on nothing another test did).
+ */
 function stylesheets(directory = join(process.cwd(), 'src')): { path: string; css: string }[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
+    if (entry.name === '__conformance-fixture__') return [];
     if (entry.isDirectory()) return stylesheets(path);
     return entry.name.endsWith('.css') ? [{ path, css: readFileSync(path, 'utf8') }] : [];
   });
@@ -66,9 +92,16 @@ describe('application backdrop', () => {
 });
 
 describe('blur policy documentation', () => {
-  // plan-liquid_glass_overlays/REQ-14
+  // plan-liquid_glass_overlays/REQ-14 — the section states the list itself, by surface
   it.each(allowListedOverlaySelectors)('names %s as an allow-listed surface in CLAUDE.md', (selector) => {
-    expect(blurSection()).toContain(selector);
+    expect(documentedSelectors()).toContain(selector);
+  });
+
+  // plan-liquid_glass_overlays/REQ-14, REQ-15 — "exactly as wide as the list, and no wider": a
+  // surface withdrawn from the list must not still read as a member of it
+  it.each(withdrawnFromTheAllowList)('does not present %s as an allow-listed surface', (selector) => {
+    expect(documentedSelectors()).not.toContain(selector);
+    expect(constantSelectors()).not.toContain(selector);
   });
 
   // plan-liquid_glass_overlays/REQ-14 — the guard rails that keep the allow-list narrow
@@ -81,17 +114,39 @@ describe('blur policy documentation', () => {
     expect(section).toContain('ui-blur-exception:');
   });
 
-  // plan-liquid_glass_overlays/REQ-14 — the two content-flow overlays are named with their reason
-  it('names the two allow-listed surfaces that live inside the scrolled content flow', () => {
+  // plan-liquid_glass_overlays/REQ-14 — the one allow-listed surface that lives inside the
+  // scrolled content flow is named next to the rule, with the reason it is accepted
+  it('names the allow-listed surface that lives inside the scrolled content flow', () => {
     const section = blurSection();
 
-    expect(section).toContain('.ui-session-ended-overlay');
-    expect(section).toContain('.ui-log-stream__jump');
     expect(section).toMatch(/content flow/);
+    expect(section).toMatch(/jump-to-live/);
+    expect(section).toMatch(/withdraw/);
   });
 
-  // plan-liquid_glass_overlays/REQ-8, REQ-14 — one list, written in two places
+  // plan-liquid_glass_overlays/REQ-15 — no component specification still contradicts the shipped
+  // code about a surface's material. The session-ended overlay is the one the plan corrected
+  // twice: it was implemented blurred, then withdrawn to a plain dim (REQ-16), and every spec that
+  // speaks of it has to say the same thing session-chrome.md does.
+  it('has no ui-library specification claiming the session-ended overlay blurs', () => {
+    const specs = join(repositoryRoot, '.sdd', 'modules', 'ui-library', 'specs');
+    const claiming = readdirSync(specs)
+      .filter((name) => name.endsWith('.md'))
+      .flatMap((name) =>
+        readFileSync(join(specs, name), 'utf8')
+          .split(/\n\s*\n/)
+          .filter((paragraph) => /session-ended overlay|SessionEndedOverlay/i.test(paragraph))
+          .filter((paragraph) => /does blur|is blurred|carries the overlay glass material/i.test(paragraph))
+          .map((paragraph) => `${name}: ${paragraph.trim()}`),
+      );
+
+    expect(claiming).toEqual([]);
+  });
+
+  // plan-liquid_glass_overlays/REQ-8, REQ-14 — one list, written in two places: the checker's
+  // constant, the prose a human reads, and the component specification they both answer to
   it('keeps the checker constant and the documented allow-list identical', () => {
     expect(constantSelectors().slice().sort()).toEqual(allowListedOverlaySelectors.slice().sort());
+    expect(documentedSelectors().slice().sort()).toEqual(allowListedOverlaySelectors.slice().sort());
   });
 });

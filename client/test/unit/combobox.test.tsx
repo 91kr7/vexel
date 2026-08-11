@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { useState } from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -130,5 +132,35 @@ describe('Combobox (ui-library/specs/combobox.md)', () => {
     render(<Harness error="An image reference is required." />);
 
     expect(screen.getByText('An image reference is required.')).toBeInTheDocument();
+  });
+
+  // combobox.md — the popup surface and the box the options scroll in are two elements, so the
+  // material's blur layer cannot scroll away with the rows; the listbox is the box that holds the
+  // options, and the input's aria-controls points at it (plan-liquid_glass_overlays/REQ-4)
+  it('points aria-controls at the box that holds the options, inside the popup surface', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<Harness />);
+
+    await user.click(input());
+
+    const surface = container.querySelector('.ui-combobox__list') as HTMLElement;
+    const listbox = document.getElementById(input().getAttribute('aria-controls') as string) as HTMLElement;
+    expect(listbox).not.toBeNull();
+    expect(listbox.getAttribute('role')).toBe('listbox');
+    expect(listbox).not.toBe(surface);
+    expect(surface.contains(listbox)).toBe(true);
+    for (const option of screen.getAllByRole('option')) expect(option.parentElement).toBe(listbox);
+  });
+
+  // combobox.md — the suggestions scroll inside the popup, not with it: the surface carrying the
+  // material never scrolls, so the blur covers the whole list at every scroll position
+  it('scrolls the options in their own box while the popup surface stays put', () => {
+    const css = readFileSync(join(process.cwd(), 'src/ui/controls/controls.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const rules = new Map(
+      [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((rule) => [rule[1].trim(), rule[2]] as const),
+    );
+
+    expect(rules.get('.ui-combobox__list')).not.toMatch(/overflow[^:]*:\s*(auto|scroll)/);
+    expect(rules.get('.ui-combobox__list-options')).toMatch(/overflow[^:]*:\s*(auto|scroll)/);
   });
 });

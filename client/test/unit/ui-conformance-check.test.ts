@@ -12,11 +12,10 @@ const fixtureDir = join(clientRoot, 'src', '__conformance-fixture__');
 
 /** The overlay surfaces the blur policy allows, per the component specification. */
 const allowListedOverlaySelectors = [
+  '.ui-overlay-glass',
   '.ui-combobox__list',
   '.ui-frame__rail',
   '.ui-nav-rail',
-  '.ui-frame__scrim',
-  '.ui-session-ended-overlay',
   '.ui-log-stream__jump',
 ];
 
@@ -134,7 +133,7 @@ describe('UI conformance check — blur policy', () => {
   it('accepts companion filter functions beside a token-valued blur', () => {
     writeFixture(
       'blur-companion.css',
-      '.ui-frame__scrim {\n  backdrop-filter: blur(var(--blur-overlay)) saturate(140%);\n}\n',
+      '.ui-overlay-glass {\n  backdrop-filter: blur(var(--blur-overlay)) saturate(140%);\n}\n',
     );
 
     const result = runCheck();
@@ -170,13 +169,40 @@ describe('UI conformance check — blur policy', () => {
 
   // plan-liquid_glass_overlays/REQ-8
   it('fails when the token carries a blur length as its fallback', () => {
-    writeFixture('blur-fallback.css', '.ui-frame__scrim {\n  backdrop-filter: var(--blur-overlay, 20px);\n}\n');
+    writeFixture('blur-fallback.css', '.ui-nav-rail {\n  backdrop-filter: var(--blur-overlay, 20px);\n}\n');
 
     const result = runCheck();
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toMatch(/runtime blur on "\.ui-frame__scrim" must be valued var\(--blur-overlay\)/);
+    expect(result.stderr).toMatch(/runtime blur on "\.ui-nav-rail" must be valued var\(--blur-overlay\)/);
   });
+
+  // plan-liquid_glass_overlays/REQ-8 — the material declares its blur on the surface's own pseudo
+  // layer so that no carrier becomes a backdrop root, which the check has to let through
+  it.each(allowListedOverlaySelectors)('accepts a token-valued blur on the %s::before layer', (selector) => {
+    writeFixture('blur-pseudo.css', `${selector}::before {\n  backdrop-filter: blur(var(--blur-overlay));\n}\n`);
+
+    const result = runCheck();
+
+    expect(result.stderr).not.toMatch(/runtime blur/);
+    expect(result.status).toBe(0);
+  });
+
+  // plan-liquid_glass_overlays/REQ-5, REQ-16 — the two surfaces withdrawn from the allow-list are
+  // guarded like any main-view surface: a blur on either is a violation again
+  it.each(['.ui-frame__scrim', '.ui-session-ended-overlay'])(
+    'fails on a runtime blur on %s, withdrawn from the allow-list',
+    (selector) => {
+      writeFixture('blur-withdrawn.css', `${selector} {\n  backdrop-filter: blur(var(--blur-overlay));\n}\n`);
+
+      const result = runCheck();
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toMatch(
+        new RegExp(`runtime blur on "\\${selector}", which is not an allow-listed overlay surface`),
+      );
+    },
+  );
 
   // plan-liquid_glass_overlays/REQ-8
   it('fails on a filter: blur() with a length of its own on an allow-listed surface', () => {

@@ -66,11 +66,27 @@ machine, this batch is what gets withdrawn, and nothing else has to move.
   nothing measures the scroll cost — that judgement is the human's, on a real browser, and it is the
   acceptance below.
 
+## Outcome — INT-1 was implemented, seen, and withdrawn
+
+The intervention table above records what was planned; this records what shipped, so the two are
+never mistaken for each other. **INT-1 was carried out and then reversed on the human's sight.**
+Blurred, the session-ended overlay did not read as a card of glass over the session: being
+`inset: 0` over the whole terminal region, it read as the terminal having gone out of focus — the
+objection that had already taken both scrims off the allow-list, one scale down. A terminal is also
+the worst backdrop for the effect: small monospace glyphs on a near-uniform dark field smear at 20px
+into a flat rectangle in which no glass is legible.
+
+The overlay is therefore a plain dim declaring `backdrop-filter: none`, `.ui-session-ended-overlay`
+is off the allow-list, and REQ-16 in `requirements.md` states the decision rather than the original
+intent. INT-2 (the jump-to-live control) stands as planned and is now the only blurred surface
+inside the scrolled content flow — so the risk this batch carried against
+`plan-docker_management_app/REQ-109` is halved, and what remains is documented there.
+
 ## Human acceptance
 
 Open a container's exec/attach session and end it: the "session ended" overlay shows the terminal
-behind it blurred, not merely washed out. Open a container's logs, let lines arrive, scroll up until
+behind it dimmed and still sharp. Open a container's logs, let lines arrive, scroll up until
 the jump-to-live control appears: it shows the log lines under it blurred — and scrolling that log,
 with a detail panel open on a dense screen, still feels smooth on your machine. Search the
-repository for a statement that either surface is never blurred: there is none left, in a document
+repository for a statement contradicting either surface: there is none left, in a document
 or in a comment.

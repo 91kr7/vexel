@@ -23,6 +23,17 @@ function stubClipboard(): ReturnType<typeof vi.fn> {
   return writeText;
 }
 
+/**
+ * The style rules of the log stream's own stylesheet, selector and declarations,
+ * comments stripped. Resolved from the client workspace root (vitest's working
+ * directory), not import.meta.url: the jsdom environment does not preserve a
+ * file: scheme.
+ */
+function regionRules(): { selector: string; declarations: string }[] {
+  const css = readFileSync(join(process.cwd(), 'src/ui/data/log-stream.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  return [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map((rule) => ({ selector: rule[1].trim(), declarations: rule[2] }));
+}
+
 /** jsdom performs no layout, so the scroll geometry the component reads is defined by hand. */
 function setGeometry(element: HTMLElement, geometry: { scrollHeight: number; clientHeight: number; scrollTop: number }) {
   Object.defineProperty(element, 'scrollHeight', { value: geometry.scrollHeight, configurable: true });
@@ -184,17 +195,39 @@ describe('LogStream (REQ-30, REQ-31)', () => {
     expect(onFollowChange).toHaveBeenLastCalledWith(true);
   });
 
-  // log-stream.md — no animation and no blur on this large, frequently repainted surface
-  it('declares neither an animation nor a blur on the log surface', () => {
-    // Resolved from the client workspace root (vitest's working directory), not
-    // import.meta.url: the jsdom environment does not preserve a file: scheme.
-    const css = readFileSync(join(process.cwd(), 'src/ui/data/log-stream.css'), 'utf8');
-    const declarations = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  // log-stream.md — no animation and no blur on **the region**, its lines, their match
+  // highlighting or their scroller: a large, frequently repainted surface. The floating control is
+  // the one exception, so a blanket assertion here would either forbid it or stop guarding the
+  // region (plan-liquid_glass_overlays/REQ-7, REQ-17).
+  it('declares neither an animation nor a blur on the log region itself', () => {
+    for (const rule of regionRules().filter((rule) => !rule.selector.includes('__jump'))) {
+      expect(rule.declarations).not.toMatch(/animation\s*:/);
+      expect(rule.declarations).not.toMatch(/transition\s*:/);
+      expect(rule.declarations).not.toMatch(/backdrop-filter\s*:/);
+      expect(rule.declarations).not.toMatch(/filter\s*:\s*blur\(/);
+    }
+  });
 
-    expect(declarations).not.toMatch(/animation\s*:/);
-    expect(declarations).not.toMatch(/transition\s*:/);
-    expect(declarations).not.toMatch(/backdrop-filter\s*:/);
-    expect(declarations).not.toMatch(/filter\s*:\s*blur\(/);
+  // log-stream.md — the jump-to-live control is the one blurred thing here, and it takes the
+  // material rather than restating any of it (plan-liquid_glass_overlays/REQ-17)
+  it('gives the jump-to-live control the overlay glass material, declaring none of it here', () => {
+    const jumpRules = regionRules().filter((rule) => rule.selector.includes('__jump'));
+
+    expect(jumpRules.length).toBeGreaterThan(0);
+    for (const rule of jumpRules) {
+      expect(rule.selector).toContain('.ui-overlay-glass');
+      expect(rule.declarations).not.toMatch(/blur\(/);
+    }
+  });
+
+  // log-stream.md — and the control the stylesheet describes is the one the component renders
+  // while follow is off (plan-liquid_glass_overlays/REQ-17)
+  it('renders the jump-to-live control carrying the material', () => {
+    const { container } = render(<LogStream lines={lines(3)} follow={false} onFollowChange={vi.fn()} />);
+
+    const jump = container.querySelector('.ui-log-stream__jump') as HTMLElement;
+    expect(jump.classList.contains('ui-overlay-glass')).toBe(true);
+    expect(jump.querySelector('button')?.textContent).toBe('Jump to live');
   });
 
   // log-stream.md — a change of activeMatchLineId brings that line into view without changing follow
