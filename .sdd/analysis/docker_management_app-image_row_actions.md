@@ -3,7 +3,17 @@ request_slug: docker_management_app-image_row_actions
 date: 2026-08-12
 type: evolution
 reference: .sdd/analysis/docker_management_app.md
+superseded_in_part_by: .sdd/analysis/docker_management_app-image_row_actions-panel_actions_to_menu.md
 ---
+
+> **⚠ Partially superseded.** This file recorded, in four places, that the image detail panel's four
+> action buttons — `Explore layers…`, `Efficiency & signals…`, `Browse filesystem…`,
+> `Compare with…` — stay where they are. **The human overrode that after seeing the delivered
+> result**, and those four now move into the image row's overflow menu, leaving the panel's action
+> bar empty. See
+> [`docker_management_app-image_row_actions-panel_actions_to_menu.md`](./docker_management_app-image_row_actions-panel_actions_to_menu.md).
+> Everything else in this file stands, and the superseded passages are kept as written — they are
+> the record of what was decided at the time and why, not an error to erase.
 
 ## Request
 
@@ -101,6 +111,9 @@ Two merged predecessors bear directly on this change, and both deliberately excl
   `Efficiency & signals…`, `Browse filesystem…` and `Compare with…` are untouched. This is where the
   two panels visibly diverge, and it is intended: change-1 emptied the container panel's action area,
   whereas this panel loses only its close control and keeps a populated action bar.
+  **⚠ Superseded.** The human overrode this after seeing the delivered result: the four move into the
+  row's overflow menu and this panel's action bar is emptied too, so the two panels no longer diverge.
+  See `docker_management_app-image_row_actions-panel_actions_to_menu.md`.
 - **Nothing else changes.** No operation changes what it does, no confirmation is relaxed, no new
   Docker capability appears, no data or API behaviour is affected, and the reference analysis's scope,
   constraints and risks stand untouched.
@@ -237,6 +250,9 @@ control — and neither depends on the other to be correct.
   `Browse filesystem…` and `Compare with…` stay exactly where they are, in the same order, with the
   same behaviour, including `Compare with…` being unavailable when there are not two images to
   compare. This half removes a control; it does not reorganise the action bar.
+  **⚠ Superseded**, including the `Compare with…` clause: the four move into the row's overflow menu,
+  and `Compare with…` started from a row takes that row's image as the left-hand side. See
+  `docker_management_app-image_row_actions-panel_actions_to_menu.md`.
 - **Selecting the already-selected image row closes the panel**, and selecting a different row
   re-points the open panel at that image. This behaviour exists and is unchanged; what changes is its
   standing — it becomes the only pointer-driven route out, so it must be covered by the product's
@@ -348,6 +364,9 @@ control — and neither depends on the other to be correct.
   named here. The visible consequence is that the two panels now differ — change-1 emptied the
   container panel's action area, whereas this panel keeps a populated one and loses only its close
   control — and that is intended.
+  **⚠ Superseded.** "Nothing is named here" was true of the request as written; the human named them
+  afterwards, on seeing the result. The four move, and the divergence this passage accepted is gone.
+  See `docker_management_app-image_row_actions-panel_actions_to_menu.md`.
 - **The `✕` removal belongs to this change, and it is the application of a decision already taken.**
   change-2 established the rule and built the variant; the images panel is opened by a reversible row
   toggle, so it qualifies with no fresh judgement. change-2 deferred it for exactly one stated
@@ -553,6 +572,11 @@ the list while its panel is open resolved, and the visible bond between an open 
 required; and updating the product's automated verification so that every one of the six operations
 stays demonstrably reachable through its new entry point and the panel stays demonstrably dismissable
 by row and by `Escape`, rather than losing the checks whose controls disappeared.
+
+**⚠ The first out-of-scope clause below is superseded — a future request did extend it.** The image
+detail panel's four action buttons move into the row's overflow menu; see
+[`docker_management_app-image_row_actions-panel_actions_to_menu.md`](./docker_management_app-image_row_actions-panel_actions_to_menu.md).
+The rest of this Scope section stands.
 
 **Out of scope** (unless a future request extends it): the image detail panel's four action buttons —
 `Explore layers…`, `Efficiency & signals…`, `Browse filesystem…` and `Compare with…` — which are
