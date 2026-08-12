@@ -29,19 +29,12 @@ const meaningfulOrderings = [
   { file: "swarm/swarm-services-service.ts", reason: "task history, newest first", only: /timestamp/ },
 ];
 
-// The services that ordered by name before the shared rule existed and adopt it
-// in batch 5 of plan-docker_management_app-list_ordering. Temporary by
-// construction: an entry that no longer carries an ordering of its own is itself
-// reported, so the list empties as the adoption lands and cannot outlive it.
-const awaitingAdoption = [
-  "swarm/swarm-services-service.ts",
-  "swarm/swarm-stacks-service.ts",
-  "swarm/swarm-nodes-service.ts",
-  "swarm/swarm-secrets-service.ts",
-  "plugins/daemon-plugins-service.ts",
-  "plugins/cli-plugins-service.ts",
-  "registries/registries-service.ts",
-];
+// The services that ordered by name before the shared rule existed held a
+// temporary place here while they adopted it. All seven have, so the list is
+// empty and stays empty: a new ordering written in a service is a violation,
+// not a pending adoption.
+/** @type {string[]} */
+const awaitingAdoption = [];
 
 /** @type {string[]} */
 const violations = [];

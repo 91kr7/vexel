@@ -2,7 +2,7 @@
 
 | Component | Type | Path | Responsibility | Spec |
 |-----------|------|------|-----------------|------|
-| ComposeDiscoveryService | backend service | `server/src/compose/compose-discovery-service.ts` | Discovers compose projects (name, discovered config file path(s), overall and per-service state) through `docker compose ls`/`ps` | `specs/compose-discovery-service.md` |
+| ComposeDiscoveryService | backend service | `server/src/compose/compose-discovery-service.ts` | Discovers compose projects in name order, each with its services in name order (name, discovered config file path(s), overall and per-service state), through `docker compose ls`/`ps` | `specs/compose-discovery-service.md` |
 | ComposeLifecycleService | backend service | `server/src/compose/compose-lifecycle-service.ts` | Stack up/down/restart and per-service scaling through `docker compose`, streaming output and resolving with the resulting state | `specs/compose-lifecycle-service.md` |
 | ComposeFileService | backend service | `server/src/compose/compose-file-service.ts` | Compose file read, validated write-back (host-path validation) and on-demand validation via `docker compose config` | `specs/compose-file-service.md` |
 | ComposeLogsService | backend service | `server/src/compose/compose-logs-service.ts` | Aggregated log streaming for every service of a project through `docker compose logs --follow`, cancellable | `specs/compose-logs-service.md` |

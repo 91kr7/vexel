@@ -8,6 +8,7 @@
 // and only metadata.
 import { getEngineClient } from "../connectivity/connection-status-service.js";
 import { DockerDaemonError } from "../docker/errors.js";
+import { byNameThenIdentity } from "../list-order/list-order.js";
 import { STACK_NAMESPACE_LABEL } from "./swarm-services-service.js";
 import { managerScoped, requireManager, type SwarmListing } from "./swarm-state-service.js";
 
@@ -62,7 +63,7 @@ export function listSwarmData(kind: SwarmDataKind): Promise<SwarmListing<SwarmDa
   return managerScoped(async () => {
     const response = await getEngineClient().request(collectionOf(kind));
     const raw = JSON.parse(response.body) as RawSwarmData[];
-    return raw.map((entry) => toItem(kind, entry)).sort((left, right) => left.name.localeCompare(right.name));
+    return raw.map((entry) => toItem(kind, entry)).sort(byNameThenIdentity({ name: (item) => item.name, identity: (item) => item.id }));
   });
 }
 

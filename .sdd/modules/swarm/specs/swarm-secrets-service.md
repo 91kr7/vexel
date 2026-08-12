@@ -18,7 +18,9 @@ both, over the daemon's corresponding collection.
 - `listSwarmData(kind) → SwarmListing<SwarmDataItem>`
   - `SwarmDataItem` = `{ kind, id, name, createdAt, updatedAt?, version, labels, stack? }`.
   - `stack` → the stack the object belongs to, when it carries the namespace label.
-  - ordered by name.
+  - **Ordered by name** under the list-order rule (`compareNames`), with the item's **id** as the
+    final comparison, so two secrets (or two configs) whose names differ only in case or in leading
+    zeros never tie; the same objects produce the same sequence on every read.
   - off a manager: no items and the stated reason.
 - `getSwarmDataMetadata(kind, id) → SwarmDataItem`
   - the same metadata as the listing, for one object; **never any data**.
@@ -50,7 +52,10 @@ both, over the daemon's corresponding collection.
 
 - swarm: SwarmStateService (manager scoping), SwarmServicesService (the namespace label)
 - docker-access: EngineClient (active context)
+- list-order: List order (`byNameThenIdentity`)
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-84
+- plan-docker_management_app-list_ordering/REQ-23
+- plan-docker_management_app-list_ordering/REQ-25

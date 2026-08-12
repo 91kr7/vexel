@@ -15,9 +15,16 @@ their removal (REQ-83, reduced form). **It does not deploy stacks**: deployment 
 - `listStacks() → SwarmListing<SwarmStack>`
   - `SwarmStack` = `{ name, serviceCount, services[], secretCount, configCount, networkCount }`.
   - `services` → each `{ id, name, image, mode, replicasRunning?, replicasDesired? }`, the service's
-    own name as the daemon holds it (namespace included), ordered by name.
+    own name as the daemon holds it (namespace included), **ordered by service name** under the
+    list-order rule (`compareNames`) with the service **id** as the final comparison. A service
+    stays nested inside its stack: the nesting is what the panel is, and no service is ever lifted
+    out of it.
   - a stack exists as soon as one object carries its namespace, even with no service left.
-  - ordered by stack name.
+  - **Ordered by stack name** under the same rule. A stack carries no identifier other than its
+    name, so the final comparison is **that same name compared exactly**, which separates two stacks
+    whose names differ only in case or in leading zeros (`app-1` from `app-01`).
+  - The same stacks produce the **same sequence on every read**, whatever order the daemon listed
+    the underlying services in.
   - off a manager: no items and the stated reason.
 - `removeStack(name) → { removedServices[], removedSecrets[], removedConfigs[], removedNetworks[] }`
   - effect: every service, secret, config and network belonging to that stack is gone; nothing
@@ -41,7 +48,11 @@ their removal (REQ-83, reduced form). **It does not deploy stacks**: deployment 
 
 - swarm: SwarmStateService (manager scoping), SwarmServicesService (the namespace label)
 - docker-access: EngineClient (active context)
+- list-order: List order (`byNameThenIdentity`)
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-83
+- plan-docker_management_app-list_ordering/REQ-23
+- plan-docker_management_app-list_ordering/REQ-24
+- plan-docker_management_app-list_ordering/REQ-25

@@ -16,11 +16,17 @@ pulled by.
   - `RepositorySummary`: `{ name, description?, pullCount? }`; `name` is the repository path inside
     the registry (`library/nginx`, `myorg/api`).
   - Docker Hub → searched on the term; it has no catalog to list, so an **empty term yields an
-    empty list**, not an error. `pullCount` and `description` are reported there.
+    empty list**, not an error. `pullCount` and `description` are reported there. **The result keeps
+    the order Docker Hub returned it in** — that order is a relevance ranking for the term the
+    operator typed, so a search for `nginx` still answers with `nginx` first, and it is deliberately
+    not alphabetised.
   - Any other registry → its catalog is listed and filtered on the term (case-insensitive
-    substring); an empty term lists the catalog as it comes. No pull count is reported: no
-    Distribution registry publishes one.
-  - At most `limit` repositories are returned.
+    substring); an empty term lists the whole catalog. No pull count is reported: no Distribution
+    registry publishes one. Such a catalog carries no ranking of its own, so it is **ordered by
+    repository name** under the list-order rule (`compareNames`), with that name compared exactly as
+    the final comparison.
+  - At most `limit` repositories are returned; the ordering is applied **before** that cut, so which
+    repositories the limit keeps does not depend on the order the registry answered in either.
 - `listRepositoryTags(registry, repository, limit): Promise<TagSummary[]>`
   - `TagSummary`: `{ name, sizeBytes?, updatedAt?, pullReference }`.
   - Docker Hub → the tags of the repository with the size and last-update time it publishes; an
@@ -29,8 +35,12 @@ pulled by.
     plus every layer. A multi-platform index is measured on its first manifest.
   - A tag whose manifest cannot be read keeps its place in the list **with no size**, rather than
     failing the whole listing.
+  - **Ordered by tag name** under the list-order rule (`compareNames`), for every registry, Docker
+    Hub included: `1.25` before `1.26` before `latest`. A tag carries no identifier other than its
+    name, so the final comparison is **that same name compared exactly**.
   - Rejects on an empty repository.
-  - At most `limit` tags are returned.
+  - At most `limit` tags are returned; where that cut is made locally, the ordering is applied
+    before it, so which tags the limit keeps does not depend on the order the registry answered in.
 - `pullReferenceFor(host, repository, tag): string`
   - Docker Hub → `repository:tag`, with no host prefix and with the `library/` prefix of an official
     image dropped (`nginx:1.27`).
@@ -67,8 +77,13 @@ pulled by.
 
 - registries: RegistriesService (host normalization, the registry summary being browsed)
 - images: image transfer service (the pull the `pullReference` is handed to, through its endpoint)
+- list-order: List order (`byNameThenIdentity`)
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-86
 - plan-docker_management_app/REQ-87
+- plan-docker_management_app-list_ordering/REQ-39
+- plan-docker_management_app-list_ordering/REQ-40
+- plan-docker_management_app-list_ordering/REQ-41
+- plan-docker_management_app-list_ordering/REQ-43

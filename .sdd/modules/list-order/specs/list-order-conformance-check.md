@@ -28,8 +28,8 @@ exactly how seven services came to sort and six not to.
   text`
 - a `localeCompare` call → `a` \``localeCompare`\` `name comparison`
 - an `Intl.Collator` of its own → `a collator of its own`
-- a file on the awaiting-adoption list below that no longer carries an ordering of its own → a
-  violation asking for its entry to be removed
+- a file on the awaiting-adoption list below — **now empty** — that no longer carries an ordering of
+  its own → a violation asking for its entry to be removed
 
 ### What is accepted
 
@@ -52,10 +52,11 @@ exactly how seven services came to sort and six not to.
 - The check fails **closed**: an inline comparator is reported whatever it compares, because what a
   comparator sorts by cannot be judged without the types the check does not have, and a name
   comparison is what an inline comparator most often turns out to be.
-- A second, **temporary** list names the services that ordered by name before the shared rule existed
-  and adopt it in batch 5 of `plan-docker_management_app-list_ordering`. It is self-expiring: an
-  entry whose file no longer carries an ordering of its own is itself reported, so the list empties
-  as the adoption lands and cannot outlive it.
+- A second, **temporary** list held the services that ordered by name before the shared rule existed,
+  while they adopted it. It was self-expiring — an entry whose file no longer carries an ordering of
+  its own is itself reported — and **all seven have adopted the rule, so it is empty**: every
+  ordering written in a service is now a violation, none of them a pending adoption. The mechanism
+  stays, and an entry added to it still cannot outlive its adoption.
 - It reads text and needs no parser: comments and the contents of string, template and
   regular-expression literals take no part, so a comparison merely named in a comment is not
   reported, and the line a violation is reported on is the line it is written on.
