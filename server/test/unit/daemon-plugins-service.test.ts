@@ -118,6 +118,45 @@ test("listDaemonPlugins orders the items by name", async () => {
   );
 });
 
+// daemon-plugins-service.md — "ordered by plugin name under the list-order rule (compareNames)":
+// digit runs read as numbers, case not splitting the list into two alphabets (REQ-23).
+test("listDaemonPlugins reads digit runs in a plugin name as numbers, and keeps case together", async () => {
+  engine.on("GET", "/plugins", () => [
+    rawPlugin({ Id: "p1", Name: "driver-10:latest" }),
+    rawPlugin({ Id: "p2", Name: "DRIVER-3:latest" }),
+    rawPlugin({ Id: "p3", Name: "driver-2:latest" }),
+  ]);
+
+  const { items } = await listDaemonPlugins();
+
+  assert.deepEqual(
+    items.map((plugin) => plugin.name),
+    ["driver-2:latest", "DRIVER-3:latest", "driver-10:latest"],
+  );
+});
+
+// daemon-plugins-service.md — "with the plugin's id as the final comparison, so two plugins whose
+// names differ only in case or in leading zeros never tie; the same plugins produce the same
+// sequence on every read" (REQ-25, REQ-6).
+test("listDaemonPlugins produces one sequence for tying plugin names, in either input order", async () => {
+  const daemonOrder = [
+    rawPlugin({ Id: "pl-b", Name: "Sshfs:latest" }),
+    rawPlugin({ Id: "pl-a", Name: "sshfs:latest" }),
+    rawPlugin({ Id: "pl-d", Name: "loki-1:latest" }),
+    rawPlugin({ Id: "pl-c", Name: "loki-01:latest" }),
+  ];
+  const expected = ["pl-c", "pl-d", "pl-a", "pl-b"];
+
+  engine.on("GET", "/plugins", () => daemonOrder);
+  const asListed = (await listDaemonPlugins()).items.map((plugin) => plugin.id);
+
+  engine.on("GET", "/plugins", () => [...daemonOrder].reverse());
+  const reversed = (await listDaemonPlugins()).items.map((plugin) => plugin.id);
+
+  assert.deepEqual(asListed, expected);
+  assert.deepEqual(reversed, expected, "the same plugins must come out the same way in either input order");
+});
+
 // daemon-plugins-service.md — "A daemon that exposes the plugin API and has no plugin answers with
 // an empty listing and **no** reason: 'none installed' and 'cannot be read' are never told apart by
 // an empty list alone."

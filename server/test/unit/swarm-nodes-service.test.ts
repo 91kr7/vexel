@@ -131,6 +131,50 @@ test("listNodes orders managers first, then by hostname", async () => {
   assert.deepEqual(hostnames, ["manager-a", "manager-b", "alpha", "zeta"]);
 });
 
+// swarm-nodes-service.md — "within a role, ordered by hostname under the list-order rule
+// (compareNames)": digit runs read as numbers, case does not split the list into two alphabets
+// (REQ-23).
+test("listNodes reads digit runs in a hostname as numbers, and keeps case together", async () => {
+  engine.on("GET", "/nodes", () => [
+    rawNode({ ID: "w1", hostname: "worker-10", role: "worker" }),
+    rawNode({ ID: "w2", hostname: "WORKER-3", role: "worker" }),
+    rawNode({ ID: "w3", hostname: "worker-2", role: "worker" }),
+  ]);
+
+  assert.deepEqual(
+    (await listNodes()).items.map((node) => node.hostname),
+    ["worker-2", "WORKER-3", "worker-10"],
+  );
+});
+
+// swarm-nodes-service.md — "Managers come before workers, that grouping being compared before
+// anything else", "with the node id as the final comparison — so two nodes whose hostnames differ
+// only in case never tie", and "the cluster reads the same way twice running whatever order the
+// daemon listed the nodes in" (REQ-24, REQ-25, REQ-6).
+//
+// The manager's hostname sorts last of all, so a grouping that had been flattened would show; the
+// two worker pairs tie on hostname, so only the node id separates them.
+test("listNodes keeps managers first and produces one sequence for tying hostnames, in either input order", async () => {
+  const daemonOrder = [
+    rawNode({ ID: "n-2", hostname: "node-A", role: "worker" }),
+    rawNode({ ID: "n-1", hostname: "node-a", role: "worker" }),
+    rawNode({ ID: "n-4", hostname: "node-b-1", role: "worker" }),
+    rawNode({ ID: "n-3", hostname: "node-b-01", role: "worker" }),
+    rawNode({ ID: "m-1", hostname: "zzz-manager", role: "manager", manager: { Leader: true, Reachability: "reachable" } }),
+  ];
+  const expected = ["m-1", "n-1", "n-2", "n-3", "n-4"];
+
+  engine.on("GET", "/nodes", () => daemonOrder);
+  const asListed = (await listNodes()).items.map((node) => node.id);
+
+  engine.on("GET", "/nodes", () => [...daemonOrder].reverse());
+  const reversed = (await listNodes()).items.map((node) => node.id);
+
+  assert.equal(asListed[0], "m-1", "a manager comes before every worker, whatever its hostname");
+  assert.deepEqual(asListed, expected);
+  assert.deepEqual(reversed, expected, "the same nodes must come out the same way in either input order");
+});
+
 // swarm-nodes-service.md — "off a manager: no items and the stated reason"
 test("listNodes degrades to a stated reason off a manager", async () => {
   engine.on("GET", "/info", () => inactiveInfo());

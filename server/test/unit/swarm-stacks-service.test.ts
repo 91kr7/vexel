@@ -166,6 +166,66 @@ test("listStacks ignores objects carrying no namespace, and orders the stacks by
   assert.ok(!everyService.includes("standalone-api"), "a service with no namespace belongs to no stack");
 });
 
+// swarm-stacks-service.md — stacks and their nested services are "ordered by name under the
+// list-order rule (compareNames)": digit runs read as numbers, case does not split the list (REQ-23).
+test("listStacks reads digit runs in a stack and in a service name as numbers", async () => {
+  engine.on(
+    "GET",
+    "/services",
+    collection(
+      [
+        { ID: "s1", name: "app-10_web-10", stack: "app-10" },
+        { ID: "s2", name: "app-2_web-10", stack: "app-2" },
+        { ID: "s3", name: "app-2_web-2", stack: "app-2" },
+        { ID: "s4", name: "APP-3_web", stack: "APP-3" },
+      ],
+      specObject,
+    ),
+  );
+
+  const listing = await listStacks();
+
+  assert.deepEqual(
+    listing.items.map((stack) => stack.name),
+    ["app-2", "APP-3", "app-10"],
+  );
+  assert.deepEqual(
+    listing.items[0]!.services.map((service) => service.name),
+    ["app-2_web-2", "app-2_web-10"],
+  );
+});
+
+// swarm-stacks-service.md — a stack's final comparison is "that same name compared exactly", a
+// nested service's is the service id, and "the same stacks produce the same sequence on every read,
+// whatever order the daemon listed the underlying services in" (REQ-24, REQ-25, REQ-6).
+//
+// Both the stack names and the service names below tie under the name comparison, so only the final
+// comparison separates them; the nesting must survive it.
+test("listStacks produces one sequence for tying stack and service names, whatever order the daemon listed them in", async () => {
+  const daemonOrder = [
+    { ID: "s-y", name: "app-01_web-1", stack: "app-01" },
+    { ID: "s-x", name: "app-01_web-01", stack: "app-01" },
+    { ID: "s-w", name: "App-1_api", stack: "App-1" },
+  ];
+  const read = async () => {
+    const listing = await listStacks();
+    return listing.items.map((stack) => ({ stack: stack.name, services: stack.services.map((service) => service.id) }));
+  };
+  const expected = [
+    { stack: "App-1", services: ["s-w"] },
+    { stack: "app-01", services: ["s-x", "s-y"] },
+  ];
+
+  engine.on("GET", "/services", collection(daemonOrder, specObject));
+  const asListed = await read();
+
+  engine.on("GET", "/services", collection([...daemonOrder].reverse(), specObject));
+  const reversed = await read();
+
+  assert.deepEqual(asListed, expected);
+  assert.deepEqual(reversed, expected, "the same stacks must come out the same way in either input order");
+});
+
 // swarm-stacks-service.md — "off a manager: no items and the stated reason"
 test("listStacks degrades to a stated reason off a manager", async () => {
   engine.on("GET", "/info", () => inactiveInfo());

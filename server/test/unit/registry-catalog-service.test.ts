@@ -117,13 +117,14 @@ test("searchRepositories filters another registry's catalog on the term, case-in
 
   const repositories = await searchRepositories(registry(), "api", 25);
 
+  // Ordered by repository name, the term being a filter and never a ranking (REQ-39).
   assert.deepEqual(
     repositories.map((repository) => repository.name),
-    ["team/API-gateway", "other/api"],
+    ["other/api", "team/API-gateway"],
   );
 });
 
-// registry-catalog-service.md — "an empty term lists the catalog as it comes"
+// registry-catalog-service.md — "an empty term lists the whole catalog"
 test("searchRepositories lists another registry's whole catalog for an empty term", async () => {
   respond = () => ({ body: { repositories: ["team/api", "team/worker"] } });
 
@@ -152,6 +153,69 @@ test("searchRepositories returns at most the requested number of repositories", 
   const repositories = await searchRepositories(registry(), "a/", 2);
 
   assert.equal(repositories.length, 2);
+});
+
+// registry-catalog-service.md — "Such a catalog carries no ranking of its own, so it is ordered by
+// repository name under the list-order rule (compareNames)": digit runs read as numbers, case not
+// splitting the catalog into two alphabets (REQ-39).
+test("searchRepositories reads digit runs in a repository name as numbers, and keeps case together", async () => {
+  respond = () => ({ body: { repositories: ["team/api-10", "team/API-3", "team/api-2"] } });
+
+  const repositories = await searchRepositories(registry(), "", 25);
+
+  assert.deepEqual(
+    repositories.map((repository) => repository.name),
+    ["team/api-2", "team/API-3", "team/api-10"],
+  );
+});
+
+// registry-catalog-service.md — "with that name compared exactly as the final comparison", and the
+// catalog is listed "in whatever order it arrives", so the same catalog must come out one way
+// whichever way round the registry answered (REQ-39, REQ-43, REQ-6).
+test("searchRepositories produces one sequence for tying repository names, in either answer order", async () => {
+  const catalog = ["team/Api", "team/api", "team/worker-1", "team/worker-01"];
+  const expected = ["team/Api", "team/api", "team/worker-01", "team/worker-1"];
+
+  respond = () => ({ body: { repositories: catalog } });
+  const asAnswered = (await searchRepositories(registry(), "", 25)).map((repository) => repository.name);
+
+  respond = () => ({ body: { repositories: [...catalog].reverse() } });
+  const theOtherWayRound = (await searchRepositories(registry(), "", 25)).map((repository) => repository.name);
+
+  assert.deepEqual(asAnswered, expected);
+  assert.deepEqual(theOtherWayRound, expected, "the same catalog must come out the same way in either answer order");
+});
+
+// registry-catalog-service.md — "the ordering is applied before that cut, so which repositories the
+// limit keeps does not depend on the order the registry answered in" (REQ-39).
+test("searchRepositories orders another registry's catalog before the limit cuts it", async () => {
+  const catalog = ["team/delta", "team/alpha", "team/charlie", "team/bravo"];
+  const expected = ["team/alpha", "team/bravo"];
+
+  respond = () => ({ body: { repositories: catalog } });
+  const asAnswered = (await searchRepositories(registry(), "", 2)).map((repository) => repository.name);
+
+  respond = () => ({ body: { repositories: [...catalog].reverse() } });
+  const theOtherWayRound = (await searchRepositories(registry(), "", 2)).map((repository) => repository.name);
+
+  assert.deepEqual(asAnswered, expected, "the limit keeps the lowest names, not the first the registry happened to answer");
+  assert.deepEqual(theOtherWayRound, expected, "the set the limit keeps must not depend on the answer order either");
+});
+
+// registry-catalog-service.md — "Docker Hub ... The result keeps the order Docker Hub returned it
+// in — that order is a relevance ranking for the term the operator typed, so a search for nginx
+// still answers with nginx first, and it is deliberately not alphabetised" (REQ-40).
+test("searchRepositories keeps Docker Hub's own ranking, unalphabetised, for the term the operator typed", async () => {
+  const ranked = ["library/nginx", "bitnami/nginx", "aaa/nginx-exporter", "myorg/nginx-proxy"];
+  respond = () => ({ body: { results: ranked.map((name) => ({ repo_name: name })) } });
+
+  const repositories = await searchRepositories(dockerHub, "nginx", 25);
+
+  assert.deepEqual(
+    repositories.map((repository) => repository.name),
+    ranked,
+    "Hub's relevance ranking carries meaning and must survive: nginx stays the first result of a search for nginx",
+  );
 });
 
 // registry-catalog-service.md — "A registry is dialed over https unless its summary says it is
@@ -216,12 +280,14 @@ test("listRepositoryTags keeps a tag whose manifest cannot be read, with no size
 
   const tags = await listRepositoryTags(registry(), "team/api", 25);
 
+  // The tags are ordered by name, so the unreadable one keeps its place in that order rather than
+  // the place the registry answered in (REQ-41).
   assert.deepEqual(
     tags.map((tag) => tag.name),
-    ["good", "broken"],
+    ["broken", "good"],
   );
-  assert.equal(tags[0]!.sizeBytes, 3_000);
-  assert.equal(tags[1]!.sizeBytes, undefined);
+  assert.equal(tags[0]!.sizeBytes, undefined);
+  assert.equal(tags[1]!.sizeBytes, 3_000);
 });
 
 // registry-catalog-service.md — "At most limit tags are returned."
@@ -234,6 +300,76 @@ test("listRepositoryTags returns at most the requested number of tags", async ()
   const tags = await listRepositoryTags(registry(), "team/api", 2);
 
   assert.equal(tags.length, 2);
+});
+
+// registry-catalog-service.md — "Ordered by tag name under the list-order rule (compareNames), for
+// every registry, Docker Hub included: 1.25 before 1.26 before latest" (REQ-41)
+test("listRepositoryTags orders the tags by name, 1.25 before 1.26 before latest", async () => {
+  const answered = ["latest", "1.26", "1.25"];
+  respond = (url) => {
+    if (url.includes("/tags/list")) return { body: { tags: answered } };
+    return { body: manifest(1, [1]) };
+  };
+
+  const tags = await listRepositoryTags(registry(), "team/api", 25);
+
+  assert.deepEqual(
+    tags.map((tag) => tag.name),
+    ["1.25", "1.26", "latest"],
+  );
+});
+
+// registry-catalog-service.md — the same ordering "for every registry, Docker Hub included" (REQ-41)
+test("listRepositoryTags orders Docker Hub's tags by name too", async () => {
+  respond = () => ({ body: { results: [{ name: "latest" }, { name: "1.26" }, { name: "1.25" }] } });
+
+  const tags = await listRepositoryTags(dockerHub, "library/nginx", 25);
+
+  assert.deepEqual(
+    tags.map((tag) => tag.name),
+    ["1.25", "1.26", "latest"],
+  );
+});
+
+// registry-catalog-service.md — "A tag carries no identifier other than its name, so the final
+// comparison is that same name compared exactly", and the same tags must come out one way whichever
+// way round the registry answered (REQ-41, REQ-43, REQ-6).
+test("listRepositoryTags produces one sequence for tying tag names, in either answer order", async () => {
+  const answered = ["2.0.1", "2.0.01", "V1", "v1"];
+  const expected = ["2.0.01", "2.0.1", "V1", "v1"];
+  const respondWith = (tags: string[]) => (url: string) => {
+    if (url.includes("/tags/list")) return { body: { tags } };
+    return { body: manifest(1, [1]) };
+  };
+
+  respond = respondWith(answered);
+  const asAnswered = (await listRepositoryTags(registry(), "team/api", 25)).map((tag) => tag.name);
+
+  respond = respondWith([...answered].reverse());
+  const theOtherWayRound = (await listRepositoryTags(registry(), "team/api", 25)).map((tag) => tag.name);
+
+  assert.deepEqual(asAnswered, expected);
+  assert.deepEqual(theOtherWayRound, expected, "the same tags must come out the same way in either answer order");
+});
+
+// registry-catalog-service.md — "the ordering is applied before it, so which tags the limit keeps
+// does not depend on the order the registry answered in" (REQ-41).
+test("listRepositoryTags orders the tags before the limit cuts them", async () => {
+  const answered = ["v4", "v1", "v3", "v2"];
+  const expected = ["v1", "v2"];
+  const respondWith = (tags: string[]) => (url: string) => {
+    if (url.includes("/tags/list")) return { body: { tags } };
+    return { body: manifest(1, [1]) };
+  };
+
+  respond = respondWith(answered);
+  const asAnswered = (await listRepositoryTags(registry(), "team/api", 2)).map((tag) => tag.name);
+
+  respond = respondWith([...answered].reverse());
+  const theOtherWayRound = (await listRepositoryTags(registry(), "team/api", 2)).map((tag) => tag.name);
+
+  assert.deepEqual(asAnswered, expected, "the limit keeps the lowest tag names, not the first the registry happened to answer");
+  assert.deepEqual(theOtherWayRound, expected, "the set the limit keeps must not depend on the answer order either");
 });
 
 test("listRepositoryTags answers an empty list for a repository the registry reports no tags for", async () => {

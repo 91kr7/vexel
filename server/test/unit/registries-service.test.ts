@@ -170,6 +170,43 @@ test("listRegistries always lists the default index first, then the rest in alph
   );
 });
 
+// registries-service.md — "Within each group, entries are ordered by host under the list-order rule
+// (compareNames)": digit runs in a host read as numbers (REQ-23).
+test("listRegistries reads digit runs in a host as numbers", async () => {
+  await writeDockerConfig({ auths: { "registry-10.example": {}, "registry-2.example": {}, "registry-3.example": {} } });
+
+  const registries = await listRegistries();
+
+  assert.deepEqual(
+    registries.slice(1).map((registry) => registry.host),
+    ["registry-2.example", "registry-3.example", "registry-10.example"],
+  );
+});
+
+// registries-service.md — "the official group being compared before anything else", "a registry
+// carries no identifier other than its host, so the final comparison is that same host compared
+// exactly, and the same configuration produces the same sequence on every read" (REQ-24, REQ-25,
+// REQ-6).
+//
+// The two `registry-…` hosts tie under the name comparison (leading zeros), so only the exact
+// comparison of that same host separates them; `a-registry.example` sorts ahead of the default
+// index by name, so a flattened official group would show at once.
+test("listRegistries keeps the default index first and produces one sequence for tying hosts, in either configuration order", async () => {
+  const hosts = ["registry-1.example", "a-registry.example", "registry-01.example"];
+  const expected = ["docker.io", "a-registry.example", "registry-01.example", "registry-1.example"];
+  const authsFor = (order: string[]) => Object.fromEntries(order.map((host) => [host, {}]));
+
+  await writeDockerConfig({ auths: authsFor(hosts) });
+  const asConfigured = (await listRegistries()).map((registry) => registry.host);
+
+  await writeDockerConfig({ auths: authsFor([...hosts].reverse()) });
+  const reversed = (await listRegistries()).map((registry) => registry.host);
+
+  assert.equal(asConfigured[0], "docker.io", "the default index comes first whatever its host sorts as");
+  assert.deepEqual(asConfigured, expected);
+  assert.deepEqual(reversed, expected, "the same configuration must come out the same way in either order");
+});
+
 // registries-service.md — "normalizeRegistryHost resolves an empty value to the default index,
 // because that is how Docker's own configuration writes it": the inventory path must keep reading
 // such a key as the default index, and must not gain the acting operations' refusal.

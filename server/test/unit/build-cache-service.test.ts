@@ -95,7 +95,7 @@ test("listBuildCache parses genuine newline-delimited JSON, one record per line"
   const records = await listBuildCache();
 
   assert.deepEqual(
-    records.map((r) => r.id).sort(),
+    records.map((r) => r.id),
     ["rec-a", "rec-b"],
   );
 });
@@ -106,9 +106,78 @@ test("listBuildCache parses a single-line JSON array", async () => {
   const records = await listBuildCache();
 
   assert.deepEqual(
-    records.map((r) => r.id).sort(),
+    records.map((r) => r.id),
     ["arr-a", "arr-b"],
   );
+});
+
+// build-cache-service.md — "Ordered by record identifier, ascending, under the list-order rule".
+// The identifier stands in for the name a record has not got, so it goes through the same
+// comparison: a digit run in it reads as a number (REQ-37).
+test("listBuildCache orders the records by identifier, reading digit runs in it as numbers", async () => {
+  handler = () => ({
+    stdout: [record({ ID: "cache-10" }), record({ ID: "cache-3" }), record({ ID: "cache-2" })].map((entry) => JSON.stringify(entry)).join("\n"),
+    exitCode: 0,
+  });
+
+  const records = await listBuildCache();
+
+  assert.deepEqual(
+    records.map((entry) => entry.id),
+    ["cache-2", "cache-3", "cache-10"],
+  );
+});
+
+// build-cache-service.md — the identifier is "also the final comparison, so two records never tie",
+// and "the same records produce the same sequence on every read, whatever order buildx du listed
+// them in" (REQ-37, REQ-43, REQ-6).
+//
+// The pairs below tie under the name comparison, so only the exact comparison of that same
+// identifier separates them; asserting the result is merely ascending would pass on a comparator
+// that had dropped it.
+test("listBuildCache produces one sequence for tying identifiers, whatever order buildx du listed them in", async () => {
+  const listed = [record({ ID: "Beta-x" }), record({ ID: "beta-x" }), record({ ID: "alpha-1" }), record({ ID: "alpha-01" })];
+  const expected = ["alpha-01", "alpha-1", "Beta-x", "beta-x"];
+  const listedAs = (entries: unknown[]) => ({ stdout: entries.map((entry) => JSON.stringify(entry)).join("\n"), exitCode: 0 });
+
+  handler = () => listedAs(listed);
+  const asListed = (await listBuildCache()).map((entry) => entry.id);
+
+  handler = () => listedAs([...listed].reverse());
+  const reversedListing = (await listBuildCache()).map((entry) => entry.id);
+
+  assert.deepEqual(asListed, expected);
+  assert.deepEqual(reversedListing, expected, "the same records must come out the same way in either input order");
+});
+
+// build-cache-service.md — "The order is deliberately not a ranking: not by size, not by usage
+// state, not by the recorded build step ... ranking the panel is a product decision that has not
+// been taken, and must not arrive as a side effect of a determinism fix" (REQ-38).
+//
+// Pinned deliberately: a later change to a meaningful ranking has to come here first and be taken
+// on purpose, rather than arriving unnoticed.
+test("listBuildCache orders by identifier and not by size, in either direction", async () => {
+  handler = () => ({
+    stdout: [
+      record({ ID: "aaa-record", Size: "50MB" }),
+      record({ ID: "zzz-record", Size: "1MB" }),
+      record({ ID: "mmm-record", Size: "500MB" }),
+    ]
+      .map((entry) => JSON.stringify(entry))
+      .join("\n"),
+    exitCode: 0,
+  });
+
+  const records = await listBuildCache();
+
+  assert.deepEqual(
+    records.map((entry) => entry.id),
+    ["aaa-record", "mmm-record", "zzz-record"],
+    "the records are ordered by identifier",
+  );
+  const sizes = records.map((entry) => entry.sizeBytes);
+  assert.notDeepEqual([...sizes].sort((left, right) => right - left), sizes, "the order must not be size-descending");
+  assert.notDeepEqual([...sizes].sort((left, right) => left - right), sizes, "nor size-ascending");
 });
 
 test("listBuildCache rejects rather than silently misreading genuinely malformed output", async () => {
