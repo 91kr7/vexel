@@ -81,9 +81,13 @@ Two merged predecessors bear directly on this change, and both deliberately excl
 - **The product states, out loud, the rule that makes the two screens differ on purpose:** *a row
   carries a permanently visible action only when that action is taken on nearly every visit **and**
   completes without asking for anything.* Containers pass it — stop, pause and restart act at once.
-  Images fail it — not one of the six acts without either a form or a confirmation, `run` included:
-  it opens the full create-and-run form with the image pre-filled. Written down so the difference
-  between the two lists reads as a decision, not as drift.
+  Images fail it, and both conditions do the work — no action passes both. `run` fails immediacy:
+  it opens the full create-and-run form with the image pre-filled, so the click a permanent button
+  would save is a click into another click. `save` fails frequency: it is the one action that does
+  act at once (a download and a toast, no dialog), but exporting an image to a tarball is an
+  occasional operation, not something done on nearly every visit to this list. The rest ask for
+  something first. Written down so the difference between the two lists reads as a decision, not as
+  drift.
 - **The row's fixed-geometry argument does not transfer, and is not reproduced.** change-1 kept three
   slots in fixed positions substantially for a correctness reason: the containers list changes state
   beneath the pointer, so a slot had to mean the same thing at all times. An image has no state and
@@ -178,8 +182,10 @@ control — and neither depends on the other to be correct.
   never conditional, never hidden until hover, and never the thing that moves. A row with no
   applicable action still carries it, with its entries disabled, because a row whose control
   disappears cannot be told from a row whose control failed to render.
-- **The menu lists all six operations, in this order:** `Run…`, `Tag…`, `Untag`, `Push`, `Save…`,
-  `Remove`. The first five are the ordinary group; `Remove` is the destructive one.
+- **The menu lists all six operations, in this order:** `Run…`, `Tag…`, `Untag`, `Push…`, `Save`,
+  `Remove`. The first five are the ordinary group; `Remove` is the destructive one. The ellipsis
+  follows what each operation actually does: `push` always opens a dialog collecting the reference,
+  so it carries one; `save` opens nothing at all, so it does not.
 - **`Remove` is visually marked as destructive and set apart from the entries above it**, in the same
   treatment change-1 established for `Kill` and `Remove` on the container menu, so the entry that
   cannot be undone is identifiable before it is read.
@@ -323,7 +329,7 @@ control — and neither depends on the other to be correct.
 - **The screenshot shows the state to be changed, not the target.** Unlike change-1's, it is a
   photograph of today. It is used to identify the controls in question — the six-button strip and the
   panel's `✕` — and for nothing else. No arrangement is read off it.
-- **The menu's order is the row's order.** `Run…`, `Tag…`, `Untag`, `Push`, `Save…` preserve the
+- **The menu's order is the row's order.** `Run…`, `Tag…`, `Untag`, `Push…`, `Save` preserve the
   sequence the operator already reads left to right, with `Remove` last and set apart. Keeping the
   learned order costs nothing and removes one thing to relearn; no other ordering has evidence behind
   it.
