@@ -26,9 +26,22 @@ therefore written about the dialog surface, not about the screens that open it.
 
 **What the two failure modes are called here.** *Too wide* — the glass card extends beyond the
 content it holds, leaving a band of empty glass (measured on five real dialogs, +217px to +752px).
-*Too narrow* — the glass card is smaller than the content it holds, and the content is rendered
-outside its own surface (produced by deliberate experiment: 398px of glass around 480px of content;
-no natural instance found in the product). Both are the same cause and both must be verified.
+*Too narrow* — the glass card is smaller than the designed dialog width (produced by deliberate
+experiment: replacing a dialog's description with a short string collapses the card to 397.5px; no
+natural instance found in the product). Both are the same cause and both must be verified.
+
+**Correction, recorded rather than quietly amended.** An earlier statement of this plan said the
+too-narrow mode left the content 82px *outside* its own surface — 398px of glass around 480px of
+content. That was a measurement error: the reading of the content was taken after the experiment's
+text had already been restored. Measured in the same instant, the card is 397.5px and the content
+395.5px — they **agree**, because `min(480px, 100%)` resolves its percentage against the collapsed
+card, so the content follows the card down. **Nothing is rendered outside its surface, in either
+direction, on this build.** The too-narrow failure is a dialog rendered 397.5px wide where 480px was
+designed — a width that depends on the length of its own copy, which is REQ-3, REQ-4 and REQ-7 —
+and not an overflow. The requirement on the too-narrow direction stands, because the mechanism
+permits it and a later change to the content's own sizing would expose it; but it is a guard against
+a reachable state, not a description of an observed one, and it must not be written up as though it
+had been seen.
 
 **No number is fixed by this plan.** The requirements are about card and content *agreeing*, and
 about that agreement surviving a later retuning of whatever width the library designates. A change
@@ -51,7 +64,7 @@ dialog's width moves, that is a regression of this change, not a matter of taste
 | REQ-4 | A dialog's width does not vary with runtime data: the registry log-out confirmation is the same width for a short registry hostname and for a long one, so two operators looking at the same dialog see the same surface. |
 | REQ-5 | All ordinary dialogs of the product present at one single common width — the eleven the human listed included: prune stopped containers; initialize swarm; join swarm; import filesystem; both volume/network prune dialogs; registry log in; registry log out; create builder; create context; install plugin; system prune and its related prune dialogs. Today these show eleven different widths; afterwards they read as one family. |
 | REQ-6 | The agreement between card and content is a property of the mechanism, not of a value: the ordinary dialog's designed width is stated in one place in the library, and changing it there moves the card and the content together, leaving them in agreement at the new value with nothing else edited. |
-| REQ-7 | The ordinary dialog's designed width is not altered by this change: the content column of an ordinary dialog resolves to the same width after the fix as before it. |
+| REQ-7 | The ordinary dialog's designed width is not altered by this change: an ordinary dialog occupies the same width on screen after the fix as before it. The box that carries the designed width is the **card** — what the operator sees and measures. The content column inside it is that width less the glass's own hairline border on each side, so it reads two pixels narrower once the width moves onto the card; that is the border becoming visible in the numbers, not a change of the design. A fix that widened the card to keep the content's number identical would be altering the dialog to preserve an internal measurement, which is the opposite of this requirement. |
 | REQ-8 | The large-format dialogs — image diff, layer efficiency, layer explorer, filesystem browser — keep the wide format they are entitled to and are not narrowed towards the ordinary width; their designed width is likewise unaltered by this change, and their card is exactly the size of their content, in both directions. |
 | REQ-9 | Where the viewport rather than the designed width is what limits a dialog — a narrow window, a phone-width viewport, a large dialog on a small screen — the card and the content still agree, the dialog keeps the same clearance from the edges of the screen it keeps today, and nothing overflows the viewport horizontally. |
 | REQ-10 | The dialog continues to answer content in height: it grows vertically with what it holds, over-tall content still scrolls inside the dialog as it does today, and the card is the height of its content with no band of empty glass above or below it. |
