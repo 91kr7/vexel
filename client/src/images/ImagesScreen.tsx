@@ -41,8 +41,11 @@ import {
 import { useFileUpload, useImageTransferStream } from '../data/use-image-transfer';
 import { containerImportUploadUrl, type ContainerImportResult } from '../data/container-transfer-client';
 import { ContainerCreateForm } from '../containers/ContainerCreateForm';
+import { FilesystemBrowser } from './FilesystemBrowser';
 import { ImageDetailPanel } from './ImageDetailPanel';
 import { ImageDiffView } from './ImageDiffView';
+import { LayerEfficiencyView } from './LayerEfficiencyView';
+import { LayerExplorer } from './LayerExplorer';
 import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useCrossNavigation } from '../shell/services/CrossNavigationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
@@ -50,6 +53,29 @@ import { useProgress } from '../shell/services/ProgressService';
 
 const NO_TAGS_TO_UNTAG_REASON = 'This image has no tags to untag.';
 const NO_TAGS_TO_PUSH_REASON = 'This image has no tags to push.';
+/**
+ * Deliberately a fact about the *list*, not about the row's own image: the
+ * entry greys out because an unrelated image was removed, and a reason phrased
+ * like `Untag`'s or `Push…`'s would read as a fault of this image.
+ */
+const NO_SECOND_IMAGE_REASON = 'There is no second image in the list to compare with.';
+
+/**
+ * Which of an image's four analysis views is on screen, and the image it was
+ * opened on. One piece of state rather than four flags: at most one is ever
+ * open, and each is bound to the image whose row menu opened it — never to the
+ * selection, and never to whatever image an open detail panel is showing.
+ */
+interface OpenImageFlow {
+  kind: 'layers' | 'signals' | 'filesystem' | 'diff';
+  imageId: string;
+  /** The layer the explorer opens at (a signals finding, or a build-cache cross-reference). */
+  layerIndex?: number;
+  /** Starts the layer's changeset analysis without the cost warning — set only where the caller knows it is already cached. */
+  autoAnalyze?: boolean;
+  /** The comparison's second operand, supplied by the two-row bulk path alone. */
+  compareWithId?: string;
+}
 
 export interface ImagesScreenProps {
   images: ImageSummary[];
@@ -114,7 +140,10 @@ function stepStatus(step: { status: string }): ProgressStep['status'] {
  * prune-dangling, a searchable table of local images with multi-select,
  * per-image tag/untag/push/save/remove actions with destructive confirmation
  * for remove, save-to-tarball (a browser download) for one or several
- * selected images, and an inspect surface with the raw payload.
+ * selected images, an inspect surface with the raw payload, and the image's
+ * four analysis views — the layer explorer, the efficiency and signals view,
+ * the filesystem browser and the comparison — opened from the row's menu and
+ * presented here rather than by the panel, so none of them needs one open.
  */
 export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenProps) {
   const { confirm } = useConfirmation();
@@ -126,7 +155,13 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [layerFocus, setLayerFocus] = useState<{ imageId: string; layerIndex?: number; requestId: number } | undefined>(undefined);
+  const [flow, setFlow] = useState<OpenImageFlow | undefined>(undefined);
+  /**
+   * The last findings map the efficiency and signals view reported, kept with
+   * the image it was computed for so the layer explorer marks the layers
+   * carrying findings for that image alone (REQ-65, REQ-67).
+   */
+  const [findings, setFindings] = useState<{ imageId: string; layers: Map<number, number> } | undefined>(undefined);
 
   const [pullOpen, setPullOpen] = useState(false);
   const [pullReference, setPullReference] = useState('');
@@ -152,10 +187,6 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
   const [importOpen, setImportOpen] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importTargetReference, setImportTargetReference] = useState('');
-
-  const [diffOpen, setDiffOpen] = useState(false);
-  const [diffImageAId, setDiffImageAId] = useState<string | undefined>(undefined);
-  const [diffImageBId, setDiffImageBId] = useState<string | undefined>(undefined);
 
   const pullTransfer = useImageTransferStream(pullStreamUrl);
   const pushTransfer = useImageTransferStream(pushStreamUrl);
@@ -184,13 +215,16 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
     if (pushStreamUrl && pushTransfer.done && !pushTransfer.error) closePushDialog();
   }, [pushStreamUrl, pushTransfer.done, pushTransfer.error, closePushDialog]);
 
-  // A cross-reference followed from a build-cache record arrives here naming
-  // an image and one of its layers (REQ-69): select the image, hand the layer
-  // to its detail panel, then acknowledge the request.
+  // A cross-reference followed from a build-cache record arrives here naming an
+  // image and one of its layers (REQ-69): select the image — its panel opens as
+  // it always did, this route being a different door from the row's menu — and
+  // open the layer explorer on it at the named layer, on arrival and again on
+  // every later request. Changesets stay behind their cost warning: nothing
+  // here says they are already cached.
   useEffect(() => {
     if (request?.screenId !== 'images-layers' || !request.objectId) return;
     setSelectedId(request.objectId);
-    setLayerFocus({ imageId: request.objectId, layerIndex: request.position, requestId: request.requestId });
+    setFlow({ kind: 'layers', imageId: request.objectId, layerIndex: request.position, autoAnalyze: false });
     consumeRequest();
   }, [request, consumeRequest]);
 
@@ -212,6 +246,20 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
   }, [images, loaded, selectedId]);
 
   /**
+   * None of the four views outlives its image. It used to be free: the four
+   * were rendered by the detail panel, which is the table's expanded region
+   * under a row that stops existing. Hosted by the screen they are not, and a
+   * view left standing keeps showing an image the daemon no longer has — from
+   * its own menu's `Remove`, from a prune, or from a `docker rmi` elsewhere on
+   * the machine. Compared against the unfiltered list and only once it has been
+   * read, exactly as the selection above: an image hidden by the search has not
+   * left the list, and a list not yet read says nothing about either.
+   */
+  useEffect(() => {
+    if (loaded && flow && !images.some((image) => image.id === flow.imageId)) setFlow(undefined);
+  }, [images, loaded, flow]);
+
+  /**
    * The row is the panel's only pointer route now that the panel has no close
    * control: selecting the selected row closes it, selecting another one leaves
    * it open and re-points it at that image.
@@ -219,6 +267,23 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
   function toggleSelection(image: ImageSummary) {
     setSelectedId((current) => (current === image.id ? undefined : image.id));
   }
+
+  /**
+   * Opens one of the image's four analysis views on the image whose row menu
+   * was used. It touches neither the selection nor the panel: with none open,
+   * none appears; with one open on another image, it stays open on that other
+   * image and this view is still the invoked row's.
+   */
+  function openImageFlow(kind: OpenImageFlow['kind'], image: ImageSummary) {
+    setFlow({ kind, imageId: image.id });
+  }
+
+  const closeImageFlow = useCallback(() => setFlow(undefined), []);
+
+  /** A signals finding closes the signals view and opens the layer explorer at the layer it concerns, already cached so analysis starts without the cost warning (REQ-65, REQ-67). */
+  const navigateToLayer = useCallback((layerIndex: number) => {
+    setFlow((current) => (current ? { kind: 'layers', imageId: current.imageId, layerIndex, autoAnalyze: true } : current));
+  }, []);
 
   function openPullDialog() {
     setPullReference('');
@@ -357,12 +422,10 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
     setSelectedIds((current) => (current.includes(image.id) ? current.filter((id) => id !== image.id) : [...current, image.id]));
   }
 
-  /** Starts a comparison from a two-image bulk selection (REQ-63). */
+  /** Starts a comparison from a two-image bulk selection (REQ-63): the one comparison view, opened with both operands rather than one. */
   function startCompareSelected() {
     if (selectedIds.length !== 2) return;
-    setDiffImageAId(selectedIds[0]);
-    setDiffImageBId(selectedIds[1]);
-    setDiffOpen(true);
+    setFlow({ kind: 'diff', imageId: selectedIds[0], compareWithId: selectedIds[1] });
     setSelectedIds([]);
   }
 
@@ -387,19 +450,34 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
   }
 
   /**
-   * Every action of a row, behind its overflow control: the same six entries in
+   * Every action of a row, behind its overflow control: the same ten entries in
    * the same order on every image whatever its tags, an inapplicable one
-   * disabled with its reason rather than removed. `Remove` is destructive and
-   * set apart from the five above it. The ellipsis marks the entries that ask
-   * for something before they act — `Untag` on a single-tag image, `Save` and
-   * `Remove` act at once or only confirm. The handlers are bound to this image,
-   * so a list that re-sorts or re-reads under an open menu can never redirect an
-   * entry at another one.
+   * disabled with its reason rather than removed. Three groups, marked by
+   * separation and tone alone — the image's four analyses, then the operations
+   * on it, then `Remove`, destructive and set apart. The ellipsis marks what
+   * asks for something before anything happens: the four views, `Run…`, `Tag…`
+   * and `Push…`; `Untag` on a single-tag image, `Save` and `Remove` act at once
+   * or only confirm. The handlers are bound to this image, so a list that
+   * re-sorts or re-reads under an open menu can never redirect an entry at
+   * another one. `Compare with…` is the one arrival that can be unavailable,
+   * and on a condition of the list rather than of this image; it follows the
+   * live list, the entries being rebuilt on every render.
    */
   function overflowEntriesFor(image: ImageSummary): MenuEntry[] {
     const tagless = image.tags.length === 0;
+    const noSecondImage = images.length < 2;
     return [
-      { id: 'run', label: 'Run…', onSelect: () => setRunReference(image.tags[0] ?? image.shortId) },
+      { id: 'layers', label: 'Explore layers…', onSelect: () => openImageFlow('layers', image) },
+      { id: 'signals', label: 'Efficiency & signals…', onSelect: () => openImageFlow('signals', image) },
+      { id: 'filesystem', label: 'Browse filesystem…', onSelect: () => openImageFlow('filesystem', image) },
+      {
+        id: 'compare',
+        label: 'Compare with…',
+        disabled: noSecondImage,
+        disabledReason: noSecondImage ? NO_SECOND_IMAGE_REASON : undefined,
+        onSelect: () => openImageFlow('diff', image),
+      },
+      { id: 'run', label: 'Run…', separated: true, onSelect: () => setRunReference(image.tags[0] ?? image.shortId) },
       { id: 'tag', label: 'Tag…', onSelect: () => openTagDialog(image) },
       { id: 'untag', label: 'Untag', disabled: tagless, disabledReason: tagless ? NO_TAGS_TO_UNTAG_REASON : undefined, onSelect: () => startUntag(image) },
       { id: 'push', label: 'Push…', disabled: tagless, disabledReason: tagless ? NO_TAGS_TO_PUSH_REASON : undefined, onSelect: () => openPushDialog(image) },
@@ -449,6 +527,10 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
 
   const filtered = images.filter((image) => matchesSearch(image, search));
   const hasDangling = images.some((image) => image.tags.length === 0);
+  // Resolved from the live list by id, never captured when the menu entry was
+  // chosen: a re-sort or a re-read cannot re-point an open view at another
+  // image, and the search — which the flow does not follow — cannot hide it.
+  const flowImage = flow ? images.find((image) => image.id === flow.imageId) : undefined;
 
   const pullSteps: ProgressStep[] = pullTransfer.steps.map((step) => ({
     id: step.id,
@@ -507,14 +589,7 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
           selectedRowKey={selectedId}
           onRowSelect={toggleSelection}
           expandedRowKey={selectedId}
-          renderExpanded={(image) => (
-            <ImageDetailPanel
-              image={image}
-              images={images}
-              onClose={() => setSelectedId(undefined)}
-              layerFocus={layerFocus?.imageId === image.id ? layerFocus : undefined}
-            />
-          )}
+          renderExpanded={(image) => <ImageDetailPanel image={image} onClose={() => setSelectedId(undefined)} />}
           emptyState={<EmptyState title={loaded ? 'No images match' : 'Loading images…'} description={loaded ? 'Try a different search.' : undefined} />}
           selection={{
             selectedKeys: selectedIds,
@@ -684,7 +759,48 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
         onCreated={() => setRunReference(undefined)}
       />
 
-      <ImageDiffView images={images} initialImageAId={diffImageAId} initialImageBId={diffImageBId} open={diffOpen} onClose={() => setDiffOpen(false)} />
+      {/*
+        The image's four analysis views, presented by the screen rather than by
+        the detail panel: each opens on the image whose row menu named it, with
+        or without a panel open, and only the open one is rendered — so two are
+        never on screen at once and none can hold state belonging to another
+        image. `Escape` needs nothing here: each is a `Modal`, and an open one
+        claims the key through the library's one arbitration registry and
+        consumes it, so nothing underneath is dismissed behind it.
+      */}
+      {flow && flowImage ? (
+        <>
+          {flow.kind === 'layers' ? (
+            <LayerExplorer
+              image={flowImage}
+              open
+              onClose={closeImageFlow}
+              initialSelectedLayerIndex={flow.layerIndex}
+              autoAnalyze={flow.autoAnalyze}
+              layersWithFindings={findings?.imageId === flowImage.id ? findings.layers : undefined}
+            />
+          ) : null}
+          {flow.kind === 'signals' ? (
+            <LayerEfficiencyView
+              image={flowImage}
+              open
+              onClose={closeImageFlow}
+              onNavigateToLayer={navigateToLayer}
+              onFindingsChange={(layers) => setFindings({ imageId: flow.imageId, layers })}
+            />
+          ) : null}
+          {flow.kind === 'filesystem' ? <FilesystemBrowser image={flowImage} open onClose={closeImageFlow} /> : null}
+          {flow.kind === 'diff' ? (
+            <ImageDiffView
+              images={images}
+              initialImageAId={flow.imageId}
+              initialImageBId={flow.compareWithId}
+              open
+              onClose={closeImageFlow}
+            />
+          ) : null}
+        </>
+      ) : null}
     </Stack>
   );
 }

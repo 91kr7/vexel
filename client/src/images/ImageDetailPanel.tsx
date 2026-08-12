@@ -1,6 +1,4 @@
-import { useEffect, useState } from 'react';
 import {
-  Button,
   CodeViewer,
   CollapsibleSection,
   DefinitionList,
@@ -12,18 +10,10 @@ import {
 } from '../ui';
 import type { ImageSummary } from '../data/images-client';
 import { useImageInspect } from '../data/use-image-inspect';
-import { FilesystemBrowser } from './FilesystemBrowser';
-import { ImageDiffView } from './ImageDiffView';
-import { LayerEfficiencyView } from './LayerEfficiencyView';
-import { LayerExplorer } from './LayerExplorer';
 
 export interface ImageDetailPanelProps {
   image: ImageSummary;
-  /** Every local image, offered as the other side of a comparison ("Compare with…", REQ-63). */
-  images: ImageSummary[];
   onClose: () => void;
-  /** Opens the layer explorer at this layer as soon as it arrives (REQ-69), e.g. following a build-cache record's reference. */
-  layerFocus?: { layerIndex?: number; requestId: number };
 }
 
 function formatBytes(bytes: number): string {
@@ -41,53 +31,21 @@ function formatBytes(bytes: number): string {
 /**
  * Image inspect surface (REQ-40): config, entrypoint/cmd, env, labels,
  * exposed ports, digest, platform, size and recorded history, plus the raw
- * payload. Later batches (layer stack, build-cache traceability) extend this
- * panel with further content.
+ * payload.
  */
-export function ImageDetailPanel({ image, images, onClose, layerFocus }: ImageDetailPanelProps) {
+export function ImageDetailPanel({ image, onClose }: ImageDetailPanelProps) {
   const { inspect, loaded, error, refresh } = useImageInspect(image.id);
-  const [layersOpen, setLayersOpen] = useState(false);
-  const [filesystemOpen, setFilesystemOpen] = useState(false);
-  const [diffOpen, setDiffOpen] = useState(false);
-  const [signalsOpen, setSignalsOpen] = useState(false);
-  const [autoAnalyzeLayers, setAutoAnalyzeLayers] = useState(false);
-  const [initialSelectedLayerIndex, setInitialSelectedLayerIndex] = useState<number | undefined>(undefined);
-  const [layersWithFindings, setLayersWithFindings] = useState<Map<number, number>>(new Map());
-
-  /** A reference followed from a build-cache record opens the layer explorer at the layer it names (REQ-69); changesets stay behind their cost warning, nothing here says they are cached. */
-  useEffect(() => {
-    if (!layerFocus) return;
-    setInitialSelectedLayerIndex(layerFocus.layerIndex);
-    setAutoAnalyzeLayers(false);
-    setLayersOpen(true);
-  }, [layerFocus]);
-
-  /** A signals finding closes the signals view and opens the layer explorer at the layer it concerns, already-cached so analysis starts without the cost warning (REQ-65, REQ-67). */
-  function navigateToLayer(layerIndex: number) {
-    setSignalsOpen(false);
-    setInitialSelectedLayerIndex(layerIndex);
-    setAutoAnalyzeLayers(true);
-    setLayersOpen(true);
-  }
 
   return (
     // The close control leaves with `dismissal`: the row that opened the panel
-    // closes it, and `Escape` closes it from the keyboard. Unlike the container
-    // panel, the header area keeps a populated action bar — these four open the
-    // image's own analyses and are panel actions, not row actions, so only the
-    // `✕` goes and nothing replaces it.
-    <DetailPanel
-      dismissal="opening-gesture"
-      onClose={onClose}
-      actions={
-        <>
-          <Button variant="secondary" onClick={() => setLayersOpen(true)}>Explore layers…</Button>
-          <Button variant="secondary" onClick={() => setSignalsOpen(true)}>Efficiency & signals…</Button>
-          <Button variant="secondary" onClick={() => setFilesystemOpen(true)}>Browse filesystem…</Button>
-          <Button variant="secondary" onClick={() => setDiffOpen(true)} disabled={images.length < 2}>Compare with…</Button>
-        </>
-      }
-    >
+    // closes it, and `Escape` closes it from the keyboard. The action bar is
+    // gone with it, and `actions` is *omitted* rather than passed an empty node
+    // — an empty one would keep the header's slot spacing and leave a gap where
+    // the four analysis buttons sat. This panel shows data and offers nothing,
+    // exactly as the container panel does: the intended end state, not a region
+    // waiting to be filled. The four analyses are the screen's own views now,
+    // opened from the row's overflow menu (`images-screen.md`).
+    <DetailPanel dismissal="opening-gesture" onClose={onClose}>
       <Stack gap="var(--space-4)">
         {error ? <ErrorBanner title="Could not load image details" detail={error} onRetry={refresh} /> : null}
         {!inspect ? (
@@ -126,17 +84,6 @@ export function ImageDetailPanel({ image, images, onClose, layerFocus }: ImageDe
           </>
         )}
       </Stack>
-      <LayerExplorer
-        image={image}
-        open={layersOpen}
-        onClose={() => setLayersOpen(false)}
-        initialSelectedLayerIndex={initialSelectedLayerIndex}
-        autoAnalyze={autoAnalyzeLayers}
-        layersWithFindings={layersWithFindings}
-      />
-      <LayerEfficiencyView image={image} open={signalsOpen} onClose={() => setSignalsOpen(false)} onNavigateToLayer={navigateToLayer} onFindingsChange={setLayersWithFindings} />
-      <FilesystemBrowser image={image} open={filesystemOpen} onClose={() => setFilesystemOpen(false)} />
-      <ImageDiffView images={images} initialImageAId={image.id} open={diffOpen} onClose={() => setDiffOpen(false)} />
     </DetailPanel>
   );
 }
