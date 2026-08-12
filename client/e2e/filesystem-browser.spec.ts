@@ -153,11 +153,14 @@ test('reuses the cached extraction the next time the image is browsed', async ({
     await expect(modal.getByText('Freshly extracted')).toBeVisible();
 
     // Closes the browser's own Modal first (overlay click, away from its content — the modal is
-    // still covering the detail panel's own close control), then closes the detail panel entirely
-    // (discarding the browser's client-side state) and reopens it from scratch for the same image.
+    // still covering the row underneath), then closes the detail panel entirely (discarding the
+    // browser's client-side state) and reopens it from scratch for the same image. The panel has
+    // no close control: its own row is what closes it, and selecting that row again reopens it
+    // (images/specs/images-screen.md).
     await page.locator('.ui-modal-overlay').click({ position: { x: 5, y: 5 } });
     await expect(modal).toHaveCount(0);
-    await page.getByRole('button', { name: 'Close detail' }).click();
+    await selectRow(imageRow(page, tag));
+    await expect(page.locator('.ui-data-table__expanded')).toHaveCount(0);
     await selectRow(imageRow(page, tag));
     await page.getByRole('button', { name: 'Browse filesystem…' }).click();
     const reopenedModal = filesystemBrowserModal(page, `Filesystem — ${tag}`);

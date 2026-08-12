@@ -262,7 +262,10 @@ test('running an image from its row opens the same form pre-filled with that ref
     const row = page.locator('.ui-data-table__row', { hasText: 'alpine:3.20' }).first();
     await expect(row).toBeVisible({ timeout: 15_000 });
 
-    await row.getByRole('button', { name: 'run', exact: true }).click();
+    // The row carries one control now: the create-and-run form is opened from its `Run…` entry
+    // (images/specs/images-screen.md).
+    await row.getByRole('button', { name: /^More actions for / }).click();
+    await page.getByRole('menuitem', { name: 'Run…', exact: true }).click();
 
     await expect(imageField(page)).toHaveValue('alpine:3.20');
 

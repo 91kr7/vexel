@@ -56,8 +56,8 @@ function ReportedErrors() {
   );
 }
 
-function renderScreen(images: ImageSummary[], onRefresh = vi.fn()) {
-  render(
+function screenTree(images: ImageSummary[], onRefresh: () => void) {
+  return (
     <ErrorReportingProvider>
       <ProgressProvider>
         <ConfirmationProvider>
@@ -69,9 +69,39 @@ function renderScreen(images: ImageSummary[], onRefresh = vi.fn()) {
           </CrossNavigationProvider>
         </ConfirmationProvider>
       </ProgressProvider>
-    </ErrorReportingProvider>,
+    </ErrorReportingProvider>
   );
-  return { onRefresh };
+}
+
+function renderScreen(images: ImageSummary[], onRefresh = vi.fn()) {
+  const view = render(screenTree(images, onRefresh));
+  return {
+    onRefresh,
+    /** Re-renders the screen with a new list, the way the live list re-reads under it. */
+    withImages: (next: ImageSummary[]) => view.rerender(screenTree(next, onRefresh)),
+  };
+}
+
+/** The row's action area, which is the row's only action-bearing area. */
+function actionArea(index = 0): HTMLElement {
+  return document.querySelectorAll<HTMLElement>('.ui-action-button-group')[index]!;
+}
+
+/** Opens a row's overflow menu and returns its entries, in the order they are listed. */
+async function openOverflow(user: ReturnType<typeof userEvent.setup>, title = 'nginx:1.27'): Promise<HTMLElement[]> {
+  await user.click(screen.getByRole('button', { name: `More actions for ${title}` }));
+  return screen.getAllByRole('menuitem');
+}
+
+/**
+ * The width the table reserves for its last column — the action column. Read
+ * from the inline grid track list the header carries, since jsdom applies no
+ * stylesheet.
+ */
+function actionColumnTrack(): string {
+  const header = document.querySelector<HTMLElement>('.ui-data-table__header')!;
+  const tracks = /grid-template-columns:\s*([^;]+)/.exec(header.getAttribute('style') ?? '')?.[1] ?? '';
+  return tracks.trim().split(/\s+/).pop() ?? '';
 }
 
 function tableRows(): HTMLElement[] {
@@ -199,22 +229,41 @@ describe('ImagesScreen — image list columns (plan-docker_management_app/REQ-37
   });
 });
 
-// images/specs/images-screen.md — the six per-image actions on every row,
-// always visible, without expanding it (REQ-42 added "save" as the fifth).
-describe('ImagesScreen — per-row actions (plan-docker_management_app/REQ-37, plan-docker_management_app/REQ-42)', () => {
-  function rowActionLabels(row: HTMLElement): string[] {
-    return within(row)
-      .getAllByRole('button')
-      .map((button) => button.textContent?.trim() ?? '');
-  }
+// images/specs/images-screen.md — the row's action area holds one overflow control and nothing
+// else, in every state of the image, and the six operations are its menu's entries
+// (plan-docker_management_app-image_row_actions/REQ-1, REQ-2, REQ-3).
+describe('ImagesScreen — the row carries the overflow control alone (REQ-1, REQ-2, REQ-3)', () => {
+  const STATES: Array<{ label: string; image: ImageSummary; title: string }> = [
+    { label: 'tagged', image: makeImage({ id: 'image-a', tags: ['nginx:1.27'] }), title: 'nginx:1.27' },
+    { label: 'multi-tagged', image: makeImage({ id: 'image-b', tags: ['multi:1', 'multi:2'] }), title: 'multi:1, multi:2' },
+    { label: 'dangling', image: makeImage({ id: 'image-c', shortId: 'cccccccccccc', tags: [] }), title: '<none> (cccccccccccc)' },
+  ];
 
-  it('shows run, tag, untag, push, save and remove on the row without expanding it', () => {
-    renderScreen([makeImage()]);
+  it.each(STATES)('carries the overflow control, and only it, on a $label image', ({ image, title }) => {
+    renderScreen([image]);
 
-    expect(rowActionLabels(tableRows()[0]!)).toEqual(['run', 'tag', 'untag', 'push', 'save', 'remove']);
+    const controls = Array.from(actionArea().querySelectorAll('button'));
+    expect(controls).toHaveLength(1);
+    expect(controls[0]).toHaveAccessibleName(`More actions for ${title}`);
+    // It reads as "there is more here": a menu opener, announcing whether it is open.
+    expect(controls[0]).toHaveAttribute('aria-haspopup', 'menu');
+    expect(controls[0]).toHaveAttribute('aria-expanded', 'false');
   });
 
-  it('carries the same six actions in the same order on every row', () => {
+  it.each(STATES)('puts no other action-bearing control anywhere on the row of a $label image', ({ image }) => {
+    renderScreen([image]);
+
+    const row = tableRows()[0]!;
+    const rowButtons = within(row).getAllByRole('button');
+    expect(rowButtons).toHaveLength(1);
+    expect(actionArea().contains(rowButtons[0]!)).toBe(true);
+    // None of the six flat actions survives anywhere on the row.
+    for (const label of ['run', 'tag', 'untag', 'push', 'save', 'remove']) {
+      expect(within(row).queryByRole('button', { name: label })).not.toBeInTheDocument();
+    }
+  });
+
+  it('carries it in the same final position on every row, whatever the image', () => {
     renderScreen([
       makeImage({ id: 'image-a', tags: ['a:1'] }),
       makeImage({ id: 'image-b', tags: [] }),
@@ -222,25 +271,111 @@ describe('ImagesScreen — per-row actions (plan-docker_management_app/REQ-37, p
     ]);
 
     for (const row of tableRows()) {
-      expect(rowActionLabels(row)).toEqual(['run', 'tag', 'untag', 'push', 'save', 'remove']);
+      const cells = Array.from(row.children);
+      const area = row.querySelector('.ui-action-button-group')!;
+      expect(cells[cells.length - 1]!.contains(area)).toBe(true);
+      expect(Array.from(area.querySelectorAll('button'))).toHaveLength(1);
     }
   });
 
-  it('disables untag and push for a dangling image, leaving tag and remove available', () => {
-    renderScreen([makeImage({ tags: [] })]);
+  it('names the control after its own image, keeping two dangling rows apart', () => {
+    renderScreen([
+      makeImage({ id: 'image-a', shortId: 'aaaaaaaaaaaa', tags: [] }),
+      makeImage({ id: 'image-b', shortId: 'bbbbbbbbbbbb', tags: [] }),
+    ]);
 
-    const row = tableRows()[0]!;
-    expect(within(row).getByRole('button', { name: 'untag' })).toBeDisabled();
-    expect(within(row).getByRole('button', { name: 'push' })).toBeDisabled();
-    expect(within(row).getByRole('button', { name: 'tag' })).toBeEnabled();
-    expect(within(row).getByRole('button', { name: 'remove' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'More actions for <none> (aaaaaaaaaaaa)' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'More actions for <none> (bbbbbbbbbbbb)' })).toBeInTheDocument();
   });
 
+  // images-screen.md — the column is sized from the library's menu-only action column token, not
+  // from the wider button one, and no length is written on the screen (REQ-18).
+  it('sizes the action column for the single control it now carries', () => {
+    renderScreen([makeImage()]);
+
+    expect(actionColumnTrack()).toBe('var(--data-table-menu-action-column-width)');
+  });
+});
+
+// images/specs/images-screen.md — the menu holds exactly six entries, always all six, always in
+// the same order (REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-9).
+describe('ImagesScreen — the row menu (REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-9)', () => {
+  const LABELS = ['Run…', 'Tag…', 'Untag', 'Push…', 'Save', 'Remove'];
+
+  it.each([
+    { label: 'tagged', tags: ['nginx:1.27'], title: 'nginx:1.27' },
+    { label: 'multi-tagged', tags: ['multi:1', 'multi:2'], title: 'multi:1, multi:2' },
+    { label: 'dangling', tags: [], title: '<none> (0123456789ab)' },
+  ])('lists Run…, Tag…, Untag, Push…, Save and Remove, in that order and nothing else, on a $label image', async ({ tags, title }) => {
+    const user = userEvent.setup();
+    renderScreen([makeImage({ tags })]);
+
+    const entries = await openOverflow(user, title);
+
+    expect(entries).toHaveLength(LABELS.length);
+    LABELS.forEach((label, index) => expect(entries[index]).toHaveAccessibleName(label));
+  });
+
+  it('opens the same six entries in the same order at every opening', async () => {
+    const user = userEvent.setup();
+    renderScreen([makeImage({ tags: ['nginx:1.27'] })]);
+
+    const first = (await openOverflow(user)).map((entry) => entry.textContent);
+    await user.keyboard('{Escape}');
+    const second = (await openOverflow(user)).map((entry) => entry.textContent);
+
+    expect(second).toEqual(first);
+  });
+
+  it('sets Remove apart as a group, in the destructive tone, and carries rmi as its only hint', async () => {
+    const user = userEvent.setup();
+    renderScreen([makeImage({ tags: ['nginx:1.27'] })]);
+
+    const entries = await openOverflow(user);
+
+    const separators = screen.getAllByRole('separator');
+    expect(separators).toHaveLength(1);
+    expect(separators[0]!.nextElementSibling).toHaveAccessibleName('Remove');
+    expect(entries[5]!.className).toContain('destructive');
+    expect(entries[5]).toHaveTextContent('rmi');
+    expect(entries[5]).toHaveAccessibleDescription(/rmi/);
+    // No other entry is destructive, and none of them carries a secondary hint:
+    // the remaining labels are the CLI verbs already.
+    entries.slice(0, 5).forEach((entry, index) => {
+      expect(entry.className).not.toContain('destructive');
+      expect(entry.textContent?.trim()).toBe(LABELS[index]);
+      expect(entry).toHaveAccessibleDescription('');
+    });
+  });
+
+  it('keeps Untag and Push… in place and disabled, stating why, when the image has no tags', async () => {
+    const user = userEvent.setup();
+    renderScreen([makeImage({ tags: [] })]);
+
+    const entries = await openOverflow(user, '<none> (0123456789ab)');
+
+    expect(entries[2]).toHaveAccessibleName('Untag');
+    expect(entries[2]).toHaveAttribute('aria-disabled', 'true');
+    expect(entries[2]).toHaveAccessibleDescription(/no tags to untag/i);
+    expect(entries[3]).toHaveAccessibleName('Push…');
+    expect(entries[3]).toHaveAttribute('aria-disabled', 'true');
+    expect(entries[3]).toHaveAccessibleDescription(/no tags to push/i);
+    // The four that do apply to a dangling image stay available.
+    for (const entry of [entries[0], entries[1], entries[4], entries[5]]) {
+      expect(entry).not.toHaveAttribute('aria-disabled', 'true');
+    }
+  });
+});
+
+// The operations these checks drove before this change are all still driven, through the entry
+// each of them now has (REQ-10, REQ-11, REQ-32).
+describe('ImagesScreen — the operations behind the entries (REQ-10, REQ-11)', () => {
   it('untags a single-tag image straight away, without a dialog and without a confirmation, then re-reads the list', async () => {
     const user = userEvent.setup();
     const { onRefresh } = renderScreen([makeImage({ tags: ['solo:1'] })]);
 
-    await user.click(within(tableRows()[0]!).getByRole('button', { name: 'untag' }));
+    const entries = await openOverflow(user, 'solo:1');
+    await user.click(entries[2]!);
 
     expect(screen.queryByRole('heading', { name: /^Confirm:/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: 'Reference to untag' })).not.toBeInTheDocument();
@@ -255,7 +390,8 @@ describe('ImagesScreen — per-row actions (plan-docker_management_app/REQ-37, p
     const user = userEvent.setup();
     const { onRefresh } = renderScreen([makeImage({ tags: ['multi:1', 'multi:2'] })]);
 
-    await user.click(within(tableRows()[0]!).getByRole('button', { name: 'untag' }));
+    const entries = await openOverflow(user, 'multi:1, multi:2');
+    await user.click(entries[2]!);
 
     const select = screen.getByRole('combobox', { name: 'Reference to untag' });
     await user.selectOptions(select, 'multi:2');
@@ -271,7 +407,8 @@ describe('ImagesScreen — per-row actions (plan-docker_management_app/REQ-37, p
     const user = userEvent.setup();
     const { onRefresh } = renderScreen([makeImage({ tags: ['nginx:1.27'] })]);
 
-    await user.click(within(tableRows()[0]!).getByRole('button', { name: 'remove' }));
+    const entries = await openOverflow(user);
+    await user.click(entries[5]!);
 
     expect(screen.getByRole('heading', { name: 'Confirm: nginx:1.27' })).toBeInTheDocument();
 
@@ -285,7 +422,8 @@ describe('ImagesScreen — per-row actions (plan-docker_management_app/REQ-37, p
     const user = userEvent.setup();
     const { onRefresh } = renderScreen([makeImage({ id: 'image-1', tags: ['nginx:1.27'] })]);
 
-    await user.click(within(tableRows()[0]!).getByRole('button', { name: 'remove' }));
+    const entries = await openOverflow(user);
+    await user.click(entries[5]!);
     await user.click(screen.getByRole('button', { name: 'Remove' }));
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -294,18 +432,33 @@ describe('ImagesScreen — per-row actions (plan-docker_management_app/REQ-37, p
     await waitFor(() => expect(onRefresh).toHaveBeenCalled());
   });
 
-  it('opens the tag dialog from the row action and reports the daemon error when tagging fails', async () => {
+  it('opens the tag dialog from its entry and reports the daemon error when tagging fails', async () => {
     const user = userEvent.setup();
     fetchMock.mockResolvedValue({ ok: false, status: 409, json: () => Promise.resolve({ error: 'reference already exists' }) });
     renderScreen([makeImage({ tags: ['nginx:1.27'] })]);
 
-    await user.click(within(tableRows()[0]!).getByRole('button', { name: 'tag' }));
+    const entries = await openOverflow(user);
+    await user.click(entries[1]!);
     const field = screen.getByRole('textbox', { name: 'New reference' });
     await user.clear(field);
     await user.type(field, 'nginx:copy');
     await user.click(screen.getByRole('button', { name: 'Tag' }));
 
     expect(await screen.findByText(/reference already exists/)).toBeInTheDocument();
+  });
+
+  // images-screen.md — a menu's entries are bound to the image its row was rendered for, so a
+  // re-read or a re-sort under an open menu can never point an entry at another image (REQ-16).
+  it('acts on the image its own row was rendered for', async () => {
+    const user = userEvent.setup();
+    renderScreen([makeImage({ id: 'image-a', tags: ['a:1'] }), makeImage({ id: 'image-b', tags: ['b:1'] })]);
+
+    const entries = await openOverflow(user, 'b:1');
+    await user.click(entries[5]!);
+    await user.click(screen.getByRole('button', { name: 'Remove' }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect((fetchMock.mock.calls[0] as [string])[0]).toContain('/api/images/image-b');
   });
 });
 
@@ -326,32 +479,21 @@ describe('ImagesScreen — row expansion (plan-docker_management_app/REQ-37)', (
     expect(tableRows()[0]!.getAttribute('aria-selected')).toBe('true');
   });
 
-  it('keeps the row actions out of the expanded region, which carries the detail panel alone', async () => {
+  // images-screen.md — the expanded region carries the panel alone: no row control of any kind
+  // is rendered inside it (REQ-1, REQ-17).
+  it('keeps every row control out of the expanded region, which carries the detail panel alone', async () => {
     const user = userEvent.setup();
     renderScreen([makeImage({ tags: ['nginx:1.27'] })]);
 
     await user.click(tableRows()[0]!);
 
     const expanded = document.querySelector<HTMLElement>('.ui-data-table__expanded')!;
-    for (const label of ['tag', 'untag', 'push', 'remove']) {
+    expect(expanded.querySelector('.ui-detail-panel')).not.toBeNull();
+    expect(expanded.querySelector('.ui-action-button-group')).toBeNull();
+    expect(within(expanded).queryByRole('button', { name: /^More actions for/ })).not.toBeInTheDocument();
+    for (const label of ['run', 'tag', 'untag', 'push', 'save', 'remove']) {
       expect(within(expanded).queryByRole('button', { name: label })).not.toBeInTheDocument();
     }
-    expect(expanded.querySelector('.ui-detail-panel')).not.toBeNull();
-  });
-
-  // plan-docker_management_app-container_detail_close/REQ-14 — the images panel keeps its close
-  // control and dismisses exactly as it does today: the container panel's variant is not its.
-  it('keeps the close control on the image detail panel, and closes with it', async () => {
-    const user = userEvent.setup();
-    renderScreen([makeImage({ id: 'image-1', tags: ['nginx:1.27'] })]);
-
-    await user.click(tableRows()[0]!);
-    const expanded = document.querySelector<HTMLElement>('.ui-data-table__expanded')!;
-    const closeControl = within(expanded).getByRole('button', { name: 'Close detail' });
-
-    await user.click(closeControl);
-
-    expect(document.querySelector('.ui-data-table__expanded')).toBeNull();
   });
 
   it('expands only one image at a time', async () => {
@@ -363,6 +505,242 @@ describe('ImagesScreen — row expansion (plan-docker_management_app/REQ-37)', (
 
     expect(document.querySelectorAll('.ui-data-table__expanded')).toHaveLength(1);
     expect(document.querySelectorAll('.ui-data-table__row--selected')).toHaveLength(1);
+  });
+});
+
+// image-detail-panel.md, images-screen.md — the panel offers no close control: the row that opened
+// it closes it, and `Escape` closes it from the keyboard, arbitrated against everything this screen
+// opens over it (REQ-20, REQ-21, REQ-22, REQ-23, REQ-24, REQ-25, REQ-26, REQ-27, REQ-31).
+describe('ImagesScreen — the detail panel is dismissed by its row and by Escape (REQ-20 … REQ-27, REQ-31)', () => {
+  const first = makeImage({ id: 'image-a', shortId: 'aaaaaaaaaaaa', tags: ['a:1'] });
+  const second = makeImage({ id: 'image-b', shortId: 'bbbbbbbbbbbb', tags: ['b:1'] });
+
+  function expandedRegion(): HTMLElement | null {
+    return document.querySelector<HTMLElement>('.ui-data-table__expanded');
+  }
+
+  /** The row the open panel is rendered directly below — which image it is pointing at. */
+  function panelOwner(): string {
+    const expanded = expandedRegion();
+    if (!expanded) throw new Error('no panel is open');
+    return expanded.previousElementSibling?.textContent ?? '';
+  }
+
+  function rowFor(reference: string): HTMLElement {
+    const row = tableRows().find((candidate) => candidate.textContent?.includes(reference));
+    if (!row) throw new Error(`no row for ${reference}`);
+    return row;
+  }
+
+  it('presents no close control on the panel, and nothing in its place', async () => {
+    const user = userEvent.setup();
+    renderScreen([first]);
+
+    await user.click(rowFor('a:1'));
+
+    const expanded = expandedRegion()!;
+    expect(screen.queryByRole('button', { name: 'Close detail' })).not.toBeInTheDocument();
+    expect(expanded.querySelector('.ui-detail-panel__close')).toBeNull();
+    // The variant the shared panel already offers, asked for through its public contract.
+    expect(expanded.querySelector('.ui-detail-panel')!.className).toContain('ui-detail-panel--no-close');
+  });
+
+  it('keeps the four panel actions, in the same order, with Compare with… unavailable below two images', async () => {
+    const user = userEvent.setup();
+    renderScreen([first]);
+
+    await user.click(rowFor('a:1'));
+
+    const actions = expandedRegion()!.querySelector<HTMLElement>('.ui-detail-panel__actions')!;
+    expect(Array.from(actions.querySelectorAll('button')).map((button) => button.textContent?.trim())).toEqual([
+      'Explore layers…',
+      'Efficiency & signals…',
+      'Browse filesystem…',
+      'Compare with…',
+    ]);
+    expect(within(actions).getByRole('button', { name: 'Compare with…' })).toBeDisabled();
+  });
+
+  it('offers Compare with… once there are two images to compare', async () => {
+    const user = userEvent.setup();
+    renderScreen([first, second]);
+
+    await user.click(rowFor('a:1'));
+
+    expect(within(expandedRegion()!).getByRole('button', { name: 'Compare with…' })).toBeEnabled();
+  });
+
+  it('closes the panel when the already-selected row is selected again', async () => {
+    const user = userEvent.setup();
+    renderScreen([first, second]);
+
+    await user.click(rowFor('a:1'));
+    expect(expandedRegion()).not.toBeNull();
+
+    await user.click(rowFor('a:1'));
+
+    expect(expandedRegion()).toBeNull();
+    expect(rowFor('a:1').getAttribute('aria-selected')).toBe('false');
+  });
+
+  it('keeps the panel open and re-points it when a different row is selected', async () => {
+    const user = userEvent.setup();
+    renderScreen([first, second]);
+
+    await user.click(rowFor('a:1'));
+    await user.click(rowFor('b:1'));
+
+    expect(document.querySelectorAll('.ui-data-table__expanded')).toHaveLength(1);
+    expect(panelOwner()).toContain('b:1');
+    expect(rowFor('b:1').getAttribute('aria-selected')).toBe('true');
+    expect(rowFor('a:1').getAttribute('aria-selected')).toBe('false');
+  });
+
+  it('closes the panel on Escape, including from a control inside its own contents', async () => {
+    const user = userEvent.setup();
+    renderScreen([first]);
+
+    await user.click(rowFor('a:1'));
+    await user.keyboard('{Escape}');
+    expect(expandedRegion()).toBeNull();
+
+    await user.click(rowFor('a:1'));
+    const explore = within(expandedRegion()!).getByRole('button', { name: 'Explore layers…' });
+    explore.focus();
+
+    await user.keyboard('{Escape}');
+
+    expect(expandedRegion()).toBeNull();
+  });
+
+  it('leaves the point of interaction on the list region when Escape closes the panel', async () => {
+    const user = userEvent.setup();
+    renderScreen([first]);
+
+    await user.click(rowFor('a:1'));
+    within(expandedRegion()!).getByRole('button', { name: 'Explore layers…' }).focus();
+
+    await user.keyboard('{Escape}');
+
+    expect(document.activeElement).toBe(document.querySelector('.ui-data-table'));
+    expect(document.activeElement).not.toBe(document.body);
+  });
+
+  it('closes only the row menu on the first Escape, and the panel on the second', async () => {
+    const user = userEvent.setup();
+    renderScreen([first]);
+
+    await user.click(rowFor('a:1'));
+    await openOverflow(user, 'a:1');
+
+    await user.keyboard('{Escape}');
+
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(expandedRegion()).not.toBeNull();
+
+    await user.keyboard('{Escape}');
+
+    expect(expandedRegion()).toBeNull();
+  });
+
+  it('leaves the panel exactly as it was while the remove confirmation is open', async () => {
+    const user = userEvent.setup();
+    renderScreen([first]);
+
+    await user.click(rowFor('a:1'));
+    const entries = await openOverflow(user, 'a:1');
+    await user.click(entries[5]!);
+    expect(screen.getByRole('heading', { name: 'Confirm: a:1' })).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+
+    expect(screen.getByRole('heading', { name: 'Confirm: a:1' })).toBeInTheDocument();
+    expect(expandedRegion()).not.toBeNull();
+  });
+
+  it('changes nothing on the screen when Escape is pressed with no panel open', async () => {
+    const user = userEvent.setup();
+    renderScreen([first, second]);
+    const search = screen.getByPlaceholderText('Search reference or digest…');
+    await user.type(search, 'a:1');
+
+    await user.keyboard('{Escape}');
+
+    expect(search).toHaveValue('a:1');
+    expect(tableRows()).toHaveLength(1);
+    expect(expandedRegion()).toBeNull();
+    expect(document.querySelectorAll('.ui-data-table__row--selected')).toHaveLength(0);
+  });
+});
+
+// images-screen.md — the selection never outlives its image, and an image merely hidden by the
+// search has not left the list (REQ-28, REQ-29, REQ-30).
+describe('ImagesScreen — the selection follows the image, not the search (REQ-28, REQ-29, REQ-30)', () => {
+  const first = makeImage({ id: 'image-a', shortId: 'aaaaaaaaaaaa', tags: ['a:1'] });
+  const second = makeImage({ id: 'image-b', shortId: 'bbbbbbbbbbbb', tags: ['b:1'] });
+
+  function expandedRegion(): HTMLElement | null {
+    return document.querySelector<HTMLElement>('.ui-data-table__expanded');
+  }
+
+  function rowFor(reference: string): HTMLElement {
+    const row = tableRows().find((candidate) => candidate.textContent?.includes(reference));
+    if (!row) throw new Error(`no row for ${reference}`);
+    return row;
+  }
+
+  it('marks the owning row as the selected one while its panel is open', async () => {
+    const user = userEvent.setup();
+    renderScreen([first, second]);
+
+    await user.click(rowFor('a:1'));
+
+    expect(rowFor('a:1').className).toContain('ui-data-table__row--selected');
+    expect(rowFor('a:1').getAttribute('aria-selected')).toBe('true');
+    expect(document.querySelectorAll('.ui-data-table__row--selected')).toHaveLength(1);
+  });
+
+  it('takes row, panel and selection away when the image leaves the list, and does not reopen the panel when the same id comes back', async () => {
+    const user = userEvent.setup();
+    const { withImages } = renderScreen([first, second]);
+
+    await user.click(rowFor('a:1'));
+    expect(expandedRegion()).not.toBeNull();
+
+    // Removed from the daemon — by this row's own menu, by a prune, or from the
+    // operator's own terminal: the live list re-reads without it.
+    withImages([second]);
+
+    await waitFor(() => expect(expandedRegion()).toBeNull());
+    expect(screen.queryByText('a:1')).not.toBeInTheDocument();
+
+    // An image id is a digest of its content, so the same content pulled or built
+    // again reproduces the id. The panel must not spring open by itself.
+    withImages([first, second]);
+
+    await waitFor(() => expect(rowFor('a:1')).toBeInTheDocument());
+    expect(expandedRegion()).toBeNull();
+    expect(document.querySelectorAll('.ui-data-table__row--selected')).toHaveLength(0);
+  });
+
+  it('keeps the selection while the search excludes the image, and brings row and panel back unchanged', async () => {
+    const user = userEvent.setup();
+    renderScreen([first, second]);
+
+    await user.click(rowFor('a:1'));
+    expect(expandedRegion()).not.toBeNull();
+
+    const search = screen.getByPlaceholderText('Search reference or digest…');
+    await user.type(search, 'b:1');
+
+    expect(screen.queryByText('a:1')).not.toBeInTheDocument();
+    expect(expandedRegion()).toBeNull();
+
+    await user.clear(search);
+
+    expect(expandedRegion()).not.toBeNull();
+    expect(expandedRegion()!.previousElementSibling?.textContent).toContain('a:1');
+    expect(rowFor('a:1').getAttribute('aria-selected')).toBe('true');
   });
 });
 
@@ -518,7 +896,7 @@ function makeTarballFile(name = 'images.tar', sizeBytes = 1024): File {
   return new File([new Uint8Array(sizeBytes)], name, { type: 'application/x-tar' });
 }
 
-// images-screen.md — a row's "save" action, and the BulkActionBar's "Save to
+// images-screen.md — a row's `Save` entry, and the BulkActionBar's "Save to
 // tarball…" action, immediately trigger a browser download: the browser owns
 // the transfer, so no dialog collects a target (REQ-42).
 describe('ImagesScreen — save to tarball (plan-docker_management_app/REQ-42)', () => {
@@ -536,11 +914,12 @@ describe('ImagesScreen — save to tarball (plan-docker_management_app/REQ-42)',
     clickSpy.mockRestore();
   });
 
-  it('downloads a single image\'s tarball via the row action, with no dialog opened first', async () => {
+  it('downloads a single image\'s tarball from its menu entry, with no dialog opened first', async () => {
     const user = userEvent.setup();
     renderScreen([makeImage({ tags: ['nginx:1.27'] })]);
 
-    await user.click(within(tableRows()[0]!).getByRole('button', { name: 'save' }));
+    const entries = await openOverflow(user);
+    await user.click(entries[4]!);
 
     expect(downloadedHrefs).toHaveLength(1);
     expect(downloadedHrefs[0]).toContain('/api/images/save');

@@ -227,13 +227,23 @@ describe('ContainersScreen — create/run entry points (plan-docker_management_a
   });
 });
 
+/**
+ * The images row carries one control now — its overflow menu — so the create-and-run form is
+ * reached from that menu's `Run…` entry rather than from a `run` button
+ * (images/specs/images-screen.md). What each check below proves is unchanged.
+ */
+async function openRunEntry(user: ReturnType<typeof userEvent.setup>, title: string) {
+  await user.click(screen.getByRole('button', { name: `More actions for ${title}` }));
+  await user.click(screen.getByRole('menuitem', { name: 'Run…' }));
+}
+
 describe('ImagesScreen — run this image (plan-docker_management_app/REQ-29)', () => {
-  // images-screen.md — the row's run action opens the create form pre-filled with that image's reference
+  // images-screen.md — the row's `Run…` entry opens the create form pre-filled with that image's reference
   it("opens the create form pre-filled with the image's own reference", async () => {
     const user = userEvent.setup();
     render(providers(<ImagesScreen images={[makeImage({ tags: ['redis:7'] })]} loaded onRefresh={vi.fn()} />));
 
-    await user.click(screen.getByRole('button', { name: 'run' }));
+    await openRunEntry(user, 'redis:7');
 
     expect(screen.getByRole('combobox', { name: 'Image reference' })).toHaveValue('redis:7');
   });
@@ -243,7 +253,7 @@ describe('ImagesScreen — run this image (plan-docker_management_app/REQ-29)', 
     const user = userEvent.setup();
     render(providers(<ImagesScreen images={[makeImage({ tags: [], shortId: '0123456789ab' })]} loaded onRefresh={vi.fn()} />));
 
-    await user.click(screen.getByRole('button', { name: 'run' }));
+    await openRunEntry(user, '<none> (0123456789ab)');
 
     expect(screen.getByRole('combobox', { name: 'Image reference' })).toHaveValue('0123456789ab');
   });
@@ -254,7 +264,7 @@ describe('ImagesScreen — run this image (plan-docker_management_app/REQ-29)', 
     const onRefresh = vi.fn();
     render(providers(<ImagesScreen images={[makeImage({ tags: ['redis:7'] })]} loaded onRefresh={onRefresh} />));
 
-    await user.click(screen.getByRole('button', { name: 'run' }));
+    await openRunEntry(user, 'redis:7');
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
 
     expect(screen.queryByRole('combobox', { name: 'Image reference' })).not.toBeInTheDocument();
@@ -267,7 +277,7 @@ describe('ImagesScreen — run this image (plan-docker_management_app/REQ-29)', 
     const user = userEvent.setup();
     render(providers(<ImagesScreen images={[makeImage({ tags: ['redis:7'] })]} loaded onRefresh={vi.fn()} />));
 
-    await user.click(screen.getByRole('button', { name: 'run' }));
+    await openRunEntry(user, 'redis:7');
     await user.click(screen.getByRole('button', { name: 'Create and start' }));
 
     await waitFor(() => expect(createContainer).toHaveBeenCalled());
