@@ -84,15 +84,25 @@ function layerExplorerModal(page: Page, title: string) {
   return page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: title }) });
 }
 
-/** Opens the layer explorer of a named image from the Images & layers screen. */
+/**
+ * Opens the layer explorer of a named image from the Images & layers screen, through the row's own
+ * overflow menu — the entry point it has now that the explorer is the screen's view rather than the
+ * detail panel's (images/specs/images-screen.md). No row is selected and no panel is open.
+ */
 async function openLayerExplorer(page: Page, reference: string) {
   await openApp(page, 'images-layers');
   await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible();
   await searchField(page).fill(reference);
   const row = imageRow(page, reference);
   await expect(row).toBeVisible({ timeout: 15_000 });
-  await selectRow(row);
-  await page.getByRole('button', { name: 'Explore layers…' }).click();
+  // The opening is retried as a whole: the list keeps re-reading from the daemon's own events —
+  // loudly so, right after this spec's own `docker build` — and a re-read that replaces the row
+  // takes its trigger, and with it the menu, as it is meant to (ui-library/specs/menu.md).
+  await expect(async () => {
+    await row.getByRole('button', { name: /^More actions for / }).click();
+    await expect(page.getByRole('menu')).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await page.getByRole('menuitem', { name: 'Explore layers…', exact: true }).click();
   const modal = layerExplorerModal(page, `Layer stack — ${reference}`);
   await expect(modal.locator('.ui-data-table__row').first()).toBeVisible({ timeout: 20_000 });
   return modal;
