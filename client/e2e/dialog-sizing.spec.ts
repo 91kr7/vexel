@@ -1,0 +1,387 @@
+import { expect, test, type Locator, type Page } from './support/test.js';
+import { openApp } from './support/fixtures.js';
+import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
+
+/**
+ * The library's dialog surface, measured in a real browser: the glass card of a
+ * dialog is the size of the dialog it holds — no band of empty glass beside the
+ * content (REQ-1), and no content rendered outside the surface meant to contain
+ * it (REQ-2). REQ ids belong to
+ * `plan-docker_management_app-dialog_sizing/requirements.md`.
+ *
+ * jsdom measures nothing (`getBoundingClientRect` returns zeros there), and a
+ * static assertion over the CSS text would check an implementation rather than
+ * the required effect, so this is the only place the property can be verified.
+ *
+ * Non-destructive throughout: every prune and removal dialog it opens is opened
+ * to be measured and **cancelled**, never confirmed. It creates no Docker object
+ * of its own; the single image it needs is the suite's own locally built one.
+ */
+
+/**
+ * Where the batch's numbers were taken, and the viewport the human's acceptance
+ * criteria are written against.
+ */
+test.use({ viewport: { width: 1280, height: 800 } });
+
+/**
+ * The ordinary dialog's designed width. It is not the definition of correctness
+ * — that is agreement between card and content, asserted separately — but the
+ * value this change must leave untouched (REQ-7).
+ */
+const ORDINARY_DIALOG_WIDTH = 480;
+
+/** The large format's designed width, likewise untouched by this change (REQ-8): `min(1100px, 92vw)`. */
+function largeDialogWidth(viewportWidth: number): number {
+  return Math.min(1100, viewportWidth * 0.92);
+}
+
+/**
+ * Agreement is asserted to the pixel. One pixel of slack absorbs subpixel
+ * layout only.
+ */
+const TOLERANCE_PX = 1;
+
+/**
+ * The slack allowed when checking a *designed* width against the boxes that
+ * carry it: the glass surface draws a hairline border, so the innermost box
+ * legitimately reads up to two pixels less than the outermost one. That border
+ * is the card's own edge — never a band of empty glass — so it is excluded from
+ * the designed-width check and never from the agreement check.
+ */
+const HAIRLINE_SLACK_PX = 2;
+
+interface Box {
+  width: number;
+  height: number;
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+interface DialogBoxes {
+  /** The overlay's first element child: the grid item, and what the glass paints as. */
+  card: Box;
+  /** The glass surface itself. */
+  glass: Box;
+  /** The glass's box inside its own border — what a card of that size actually offers its content. */
+  glassInner: Box;
+  /** The dialog the card exists to hold. */
+  content: Box;
+  viewportWidth: number;
+}
+
+/**
+ * Measures the one open dialog: the overlay's first element child, the glass
+ * inside it and the dialog content it holds.
+ *
+ * Selected through `.ui-modal-overlay` and the content's own class as they are
+ * today — 47 files across the client's test trees query this subtree by
+ * selector, and the measurement must work on either side of the fix.
+ */
+async function measureOpenDialog(page: Page, contentSelector: string): Promise<DialogBoxes> {
+  return page.evaluate((selector) => {
+    const overlays = document.querySelectorAll('.ui-modal-overlay');
+    if (overlays.length !== 1) {
+      throw new Error(`expected exactly one open dialog overlay, found ${overlays.length}`);
+    }
+    const card = overlays[0]!.firstElementChild;
+    if (!card) throw new Error('the dialog overlay has no element child to measure');
+    const glass = card.querySelector('.ui-overlay-glass');
+    if (!glass) throw new Error('no overlay-glass surface inside the dialog');
+    const content = card.querySelector(selector);
+    if (!content) throw new Error(`no ${selector} inside the dialog`);
+
+    const box = (element: Element): Box => {
+      const rect = element.getBoundingClientRect();
+      return { width: rect.width, height: rect.height, left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+    };
+    const glassBox = box(glass);
+    const style = getComputedStyle(glass);
+    const borderLeft = Number.parseFloat(style.borderLeftWidth);
+    const borderRight = Number.parseFloat(style.borderRightWidth);
+    const borderTop = Number.parseFloat(style.borderTopWidth);
+    const borderBottom = Number.parseFloat(style.borderBottomWidth);
+
+    return {
+      card: box(card),
+      glass: glassBox,
+      glassInner: {
+        left: glassBox.left + borderLeft,
+        right: glassBox.right - borderRight,
+        top: glassBox.top + borderTop,
+        bottom: glassBox.bottom - borderBottom,
+        width: glassBox.width - borderLeft - borderRight,
+        height: glassBox.height - borderTop - borderBottom,
+      },
+      content: box(content),
+      viewportWidth: window.innerWidth,
+    };
+  }, contentSelector);
+}
+
+/**
+ * Soft on purpose: every measurement of a run is wanted, not just the first one
+ * that disagrees — the numbers are the evidence.
+ */
+function expectLength(label: string, what: string, measured: number, expected: number, tolerance = TOLERANCE_PX): void {
+  expect
+    .soft(Math.abs(measured - expected), `${label} — ${what}: measured ${measured.toFixed(1)}px against ${expected.toFixed(1)}px`)
+    .toBeLessThanOrEqual(tolerance);
+}
+
+/**
+ * The property itself, in both directions and on both axes: the glass fills the
+ * card, and the content fills the glass — so there is no band of empty glass
+ * beside or around the content (REQ-1) and nothing rendered outside the surface
+ * holding it (REQ-2), in width (REQ-1, REQ-2) and in height (REQ-10).
+ */
+function expectCardIsTheSizeOfItsContent(label: string, boxes: DialogBoxes): void {
+  expectLength(label, 'the glass surface fills the card in width', boxes.glass.width, boxes.card.width);
+  expectLength(label, 'the glass surface fills the card in height', boxes.glass.height, boxes.card.height);
+
+  expectLength(label, 'the content is as wide as the glass holding it', boxes.content.width, boxes.glassInner.width);
+  expectLength(label, 'no glass to the left of the content', boxes.content.left, boxes.glassInner.left);
+  expectLength(label, 'no glass to the right of the content', boxes.content.right, boxes.glassInner.right);
+
+  expectLength(label, 'the content is as tall as the glass holding it', boxes.content.height, boxes.glassInner.height);
+  expectLength(label, 'no glass above the content', boxes.content.top, boxes.glassInner.top);
+  expectLength(label, 'no glass below the content', boxes.content.bottom, boxes.glassInner.bottom);
+}
+
+/** The designed width, asserted on every box that carries it (REQ-7, REQ-8). */
+function expectDesignedWidth(label: string, boxes: DialogBoxes, expected: number): void {
+  expectLength(label, 'the card is the designed width', boxes.card.width, expected, HAIRLINE_SLACK_PX);
+  expectLength(label, 'the content column is the designed width', boxes.content.width, expected, HAIRLINE_SLACK_PX);
+}
+
+/**
+ * Where the viewport, and not the designed width, is what limits a dialog: it
+ * still keeps a clearance from the edges of the screen and nothing runs off the
+ * side (REQ-9).
+ */
+function expectInsideTheViewport(label: string, boxes: DialogBoxes): void {
+  expect.soft(boxes.glass.left, `${label} — the card keeps a clearance from the left edge: left is ${boxes.glass.left.toFixed(1)}px`).toBeGreaterThan(0);
+  expect
+    .soft(boxes.glass.right, `${label} — the card keeps a clearance from the right edge: right is ${boxes.glass.right.toFixed(1)}px of ${boxes.viewportWidth}px`)
+    .toBeLessThan(boxes.viewportWidth);
+  expect.soft(boxes.content.left, `${label} — the content starts inside the viewport: left is ${boxes.content.left.toFixed(1)}px`).toBeGreaterThanOrEqual(0);
+  expect
+    .soft(boxes.content.right, `${label} — the content ends inside the viewport: right is ${boxes.content.right.toFixed(1)}px of ${boxes.viewportWidth}px`)
+    .toBeLessThanOrEqual(boxes.viewportWidth);
+}
+
+function createContextDialog(page: Page): Locator {
+  return page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: 'Create context' }) });
+}
+
+/** Opens Contexts → Create context, a `FormDialog` with a paragraph of copy — the case of `bugs-screen/bug-1.png`. */
+async function openCreateContextDialog(page: Page): Promise<Locator> {
+  await openApp(page, 'contexts');
+  await expect(page.getByRole('heading', { level: 2, name: 'Docker contexts' })).toBeVisible();
+  await page.getByRole('button', { name: 'Create context' }).click();
+  const dialog = createContextDialog(page);
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
+
+/**
+ * Opens Volumes & networks → Networks → Prune, a `ConfirmDialog`: a different
+ * content composition from a form, which is why the second ordinary dialog is
+ * not a second `FormDialog`. Cancelled by every caller — nothing is pruned.
+ */
+async function openPruneNetworksDialog(page: Page): Promise<Locator> {
+  await openApp(page, 'volumes-networks');
+  await expect(page.getByRole('heading', { level: 1, name: 'Volumes & networks' })).toBeVisible();
+  const networksPanel = page.locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Networks' }) });
+  const pruneButton = networksPanel.getByRole('button', { name: 'Prune', exact: true });
+  await expect(pruneButton).toBeEnabled({ timeout: 20_000 });
+  await pruneButton.click();
+  const dialog = page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: 'Confirm: unused networks' }) });
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
+
+/**
+ * Waits for the layer stack to load, retrying through the explorer's own
+ * "Retry" action if it does not — the wait `layer-explorer.spec.ts` already
+ * needs against this daemon, kept here so the dialog is measured with its final
+ * content rather than mid-load.
+ */
+async function waitForLayerStack(page: Page, dialog: Locator): Promise<void> {
+  const row = dialog.locator('.ui-data-table__row').first();
+  const retryButton = dialog.getByRole('button', { name: 'Retry' });
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    await Promise.race([
+      row.waitFor({ state: 'visible', timeout: 3000 }).catch(() => undefined),
+      retryButton.waitFor({ state: 'visible', timeout: 3000 }).catch(() => undefined),
+    ]);
+    if (await row.isVisible()) return;
+    if (await retryButton.isVisible()) {
+      await page.waitForTimeout(500);
+      await retryButton.click();
+    }
+  }
+  await row.waitFor({ state: 'visible', timeout: 10_000 });
+}
+
+/** Opens Images & layers → Explore layers… on the suite's own single-layer image: the `large` format. */
+async function openLayerExplorerDialog(page: Page): Promise<Locator> {
+  await ensureImage(TINY_IMAGE);
+  await openApp(page, 'images-layers');
+  await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible();
+  await page.getByPlaceholder('Search reference or digest…').fill(TINY_IMAGE);
+  const row = page.locator('.ui-data-table__row', { hasText: TINY_IMAGE }).first();
+  await expect(row).toBeVisible({ timeout: 20_000 });
+  await row.locator('.ui-data-table__cell').first().click();
+  await page.getByRole('button', { name: 'Explore layers…' }).click();
+  const dialog = page.locator('.ui-modal--size-large');
+  await expect(dialog).toBeVisible();
+  await waitForLayerStack(page, dialog);
+  return dialog;
+}
+
+/** Opens Containers → Run container…, the sheet-style surface that positions itself independently (REQ-13). */
+async function openCreateContainerSheet(page: Page): Promise<Locator> {
+  await openApp(page, 'containers');
+  await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
+  await page.getByRole('button', { name: 'Run container…' }).click();
+  const sheet = page.locator('.ui-form-sheet');
+  await expect(sheet).toBeVisible();
+  return sheet;
+}
+
+async function cancelDialog(dialog: Locator): Promise<void> {
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(dialog).toBeHidden();
+}
+
+/**
+ * Dismisses a dialog that offers no action row of its own — the layer explorer
+ * has none — the way an operator does: a click on the dimmed scrim, in its top
+ * corner, well outside the card at either viewport.
+ */
+async function dismissThroughTheScrim(page: Page, dialog: Locator): Promise<void> {
+  await page.locator('.ui-modal-overlay').click({ position: { x: 4, y: 4 } });
+  await expect(dialog).toBeHidden();
+}
+
+// REQ-1, REQ-2, REQ-7, REQ-10, REQ-16 — an ordinary form dialog with a paragraph of copy: the card
+// is the size of the dialog it holds, in both directions and on both axes, at the designed width
+// this change leaves untouched.
+test('the glass card of an ordinary form dialog is exactly the size of the dialog it holds', async ({ page }) => {
+  const dialog = await openCreateContextDialog(page);
+
+  const boxes = await measureOpenDialog(page, '.ui-modal');
+  expectCardIsTheSizeOfItsContent('Contexts → Create context', boxes);
+  expectDesignedWidth('Contexts → Create context', boxes, ORDINARY_DIALOG_WIDTH);
+
+  await cancelDialog(dialog);
+});
+
+// REQ-1, REQ-2, REQ-5, REQ-7, REQ-10 — a confirm dialog is a different content composition, and it
+// is the same width as the form dialog: the ordinary dialogs read as one family, not as one width
+// per screen. Opened and cancelled: nothing is pruned.
+test('the glass card of an ordinary confirm dialog hugs its content, at the same width as a form dialog', async ({ page }) => {
+  const confirmDialog = await openPruneNetworksDialog(page);
+  const confirmBoxes = await measureOpenDialog(page, '.ui-modal');
+  expectCardIsTheSizeOfItsContent('Volumes & networks → prune unused networks', confirmBoxes);
+  expectDesignedWidth('Volumes & networks → prune unused networks', confirmBoxes, ORDINARY_DIALOG_WIDTH);
+  await cancelDialog(confirmDialog);
+
+  const formDialog = await openCreateContextDialog(page);
+  const formBoxes = await measureOpenDialog(page, '.ui-modal');
+  expectLength('the two ordinary dialogs', 'present at one single common width', confirmBoxes.card.width, formBoxes.card.width);
+  await cancelDialog(formDialog);
+});
+
+// REQ-2, REQ-3, REQ-4, REQ-17 — the too-narrow direction, which no dialog of the product reaches on
+// its own: the open dialog's own description is replaced with a short string and the dialog
+// re-measured. The same dialog with short copy and with long copy is the identical width — a width
+// driven by the length of a text, or by a long runtime value, cannot come back.
+test('a dialog with short content still fits its card exactly, and is the same width as with long content', async ({ page }) => {
+  const dialog = await openCreateContextDialog(page);
+  const description = dialog.locator('.ui-form-dialog__description');
+  await expect(description).toBeVisible();
+  const longCopy = (await description.textContent()) ?? '';
+
+  const withLongCopy = await measureOpenDialog(page, '.ui-modal');
+  try {
+    await description.evaluate((element) => {
+      element.textContent = 'Short.';
+    });
+    const withShortCopy = await measureOpenDialog(page, '.ui-modal');
+
+    expectCardIsTheSizeOfItsContent('Contexts → Create context, with short copy', withShortCopy);
+    expectDesignedWidth('Contexts → Create context, with short copy', withShortCopy, ORDINARY_DIALOG_WIDTH);
+    expectLength('Contexts → Create context', 'the same width with short copy as with long copy', withShortCopy.card.width, withLongCopy.card.width);
+  } finally {
+    await description.evaluate((element, text) => {
+      element.textContent = text;
+    }, longCopy);
+  }
+
+  await cancelDialog(dialog);
+});
+
+// REQ-1, REQ-2, REQ-8, REQ-10, REQ-18 — the large format is drawn on the same surface: its card is
+// the size of its content too, and it keeps the wide format it is entitled to rather than being
+// narrowed towards the ordinary width.
+test('the glass card of a large dialog is exactly the size of the dialog it holds, and stays the wide format', async ({ page }) => {
+  const dialog = await openLayerExplorerDialog(page);
+
+  const boxes = await measureOpenDialog(page, '.ui-modal');
+  expectCardIsTheSizeOfItsContent('Images & layers → Explore layers', boxes);
+  expectDesignedWidth('Images & layers → Explore layers', boxes, largeDialogWidth(boxes.viewportWidth));
+  expect
+    .soft(boxes.card.width, `the large dialog must not be narrowed towards the ordinary width: measured ${boxes.card.width.toFixed(1)}px`)
+    .toBeGreaterThan(ORDINARY_DIALOG_WIDTH);
+
+  await dismissThroughTheScrim(page, dialog);
+});
+
+test.describe('at a phone-width viewport', () => {
+  // Where the screen, rather than the designed width, is what limits the dialog (REQ-9).
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  // REQ-1, REQ-2, REQ-9, REQ-18 — bounded by the screen, the card and the content still agree, the
+  // dialog keeps its clearance from the edges and nothing runs off the side.
+  test('an ordinary dialog still fits its card exactly and stays inside the screen', async ({ page }) => {
+    const dialog = await openCreateContextDialog(page);
+
+    const boxes = await measureOpenDialog(page, '.ui-modal');
+    expectCardIsTheSizeOfItsContent('Contexts → Create context, phone width', boxes);
+    expectInsideTheViewport('Contexts → Create context, phone width', boxes);
+    expect
+      .soft(boxes.card.width, `a screen-bounded dialog is narrower than its designed width: measured ${boxes.card.width.toFixed(1)}px`)
+      .toBeLessThan(ORDINARY_DIALOG_WIDTH);
+
+    await cancelDialog(dialog);
+  });
+
+  // REQ-1, REQ-2, REQ-9, REQ-18 — the same for the large format, which on a phone-width screen is
+  // bounded by the viewport rather than by its 1100px.
+  test('a large dialog still fits its card exactly and stays inside the screen', async ({ page }) => {
+    const dialog = await openLayerExplorerDialog(page);
+
+    const boxes = await measureOpenDialog(page, '.ui-modal');
+    expectCardIsTheSizeOfItsContent('Images & layers → Explore layers, phone width', boxes);
+    expectInsideTheViewport('Images & layers → Explore layers, phone width', boxes);
+
+    await dismissThroughTheScrim(page, dialog);
+  });
+});
+
+// REQ-13 — the sheet-style form surface positions itself independently of the shared dialog
+// positioner: it is measured against both failure modes, and is expected to agree before and after
+// the correction of the shared surface.
+test('the glass card of the form sheet is exactly the size of the sheet it holds', async ({ page }) => {
+  const sheet = await openCreateContainerSheet(page);
+
+  const boxes = await measureOpenDialog(page, '.ui-form-sheet');
+  expectCardIsTheSizeOfItsContent('Containers → Run container', boxes);
+
+  await sheet.getByRole('button', { name: 'Cancel' }).click();
+  await expect(sheet).toBeHidden();
+});

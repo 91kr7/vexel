@@ -29,6 +29,19 @@ Actions:
 
 ## Rules and invariants
 
+- **The sheet's own positioner states the width and the sheet fills it**
+  (`.ui-form-sheet__positioner { width: min(760px, 100%) }`, `.ui-form-sheet { width: 100% }`), so
+  the glass card and the sheet it holds cannot disagree in either direction, at any viewport. This
+  is the arrangement `Modal` was corrected into for
+  `plan-docker_management_app-dialog_sizing` — `FormSheet` was already right, and was the model for
+  that fix rather than a second surface to repair.
+- **Checked against both failure modes for that plan, and unaffected**
+  (`plan-docker_management_app-dialog_sizing/REQ-13`). Measured in the browser at a 1280px viewport,
+  before and after the correction of `Modal`, and identical in both: card **760.0 × 738.0**, sheet
+  **758.0 × 736.0** — the 2px being the glass's own hairline border on each side, not a band of empty
+  glass. No band beside or around the sheet, and nothing rendered outside the surface holding it.
+  Verified by `client/e2e/dialog-sizing.spec.ts`, which measures this surface alongside the dialogs.
+  Nothing about `FormSheet` was changed for that plan, and its width stays 760px.
 - While `busy`, every commit action and cancel is disabled and the overlay no longer cancels, so an
   in-flight operation cannot be dismissed as if it never started.
 - The footer and the banner never scroll out of view, whatever the body's height.
@@ -58,3 +71,4 @@ Actions:
 - plan-liquid_glass_overlays/REQ-1
 - plan-liquid_glass_overlays/REQ-2
 - plan-liquid_glass_overlays/REQ-15
+- plan-docker_management_app-dialog_sizing/REQ-13

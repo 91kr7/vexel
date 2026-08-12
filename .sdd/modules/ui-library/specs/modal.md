@@ -20,6 +20,24 @@ type: UI component
 
 ## Rules and invariants
 
+- **The dialog's positioner states the width and the content fills it, so the glass card and the
+  content it holds cannot disagree** — in either direction, at either size, at any viewport. There is
+  no band of empty glass beside the content, and no content outside the surface holding it; the card
+  is the box that carries the designed width (480px ordinary, `min(1100px, 92vw)` at `'large'`) and
+  the content column is that width less the glass's own hairline border on each side. A dialog's
+  width therefore never depends on the length of its copy or on runtime data: every ordinary dialog
+  in the application presents at one common width, and long and short content differ only in height.
+- Why the rule is written this way: stating the width on the content instead, as a `min(…, 100%)`,
+  made the card adopt the content's max-content width — a percentage is treated as `auto` in
+  intrinsic sizing, so the `100%` term drops out when the fit-content positioner asks the content for
+  its contribution.
+- **Retuning a dialog width means editing that one declaration**, and never re-splitting the width
+  across two elements: the moment two boxes are sized by independent rules the disagreement is back.
+- **A screen needing a dialog width of its own is a new requirement and a new decision.** A width
+  variant is added to this component deliberately; it is never introduced on a screen and never
+  discovered by a test.
+- The dialog answers its content in height as well: it grows with what it holds, and `'large'` caps
+  the height and scrolls inside the content, never on the positioner.
 - The dialog surface is a `raised` Surface carrying the overlay glass material
   (`material="overlay"`): what is behind the dialog shows through it blurred and unreadable, at
   both sizes — `'large'`'s own scroll changes what the dialog contains, never what it samples.
@@ -51,3 +69,17 @@ type: UI component
 - plan-liquid_glass_overlays/REQ-1
 - plan-liquid_glass_overlays/REQ-2
 - plan-liquid_glass_overlays/REQ-15
+- plan-docker_management_app-dialog_sizing/REQ-1
+- plan-docker_management_app-dialog_sizing/REQ-2
+- plan-docker_management_app-dialog_sizing/REQ-3
+- plan-docker_management_app-dialog_sizing/REQ-4
+- plan-docker_management_app-dialog_sizing/REQ-5
+- plan-docker_management_app-dialog_sizing/REQ-6
+- plan-docker_management_app-dialog_sizing/REQ-7
+- plan-docker_management_app-dialog_sizing/REQ-8
+- plan-docker_management_app-dialog_sizing/REQ-9
+- plan-docker_management_app-dialog_sizing/REQ-10
+- plan-docker_management_app-dialog_sizing/REQ-11
+- plan-docker_management_app-dialog_sizing/REQ-12
+- plan-docker_management_app-dialog_sizing/REQ-14
+- plan-docker_management_app-dialog_sizing/REQ-15

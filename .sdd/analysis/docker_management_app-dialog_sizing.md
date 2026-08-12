@@ -144,8 +144,17 @@ Three business reasons this is worth correcting rather than tolerating:
   never rendered — while the content itself is separately capped at the ordinary dialog width. The
   two answers differ, and the gap between them is what the operator sees. Proven by experiment:
   replacing the Create context description with a single short word collapsed the card from 1016px
-  to 398px while the content stayed 480px — the too-narrow mode, with content 82px wider than the
-  surface holding it. Restoring the text restored 1016px.
+  to 397.5px. Restoring the text restored 1016px.
+- **A correction to an earlier statement of this analysis, kept rather than erased.** That
+  experiment was first reported as leaving the content 82px *outside* its surface — 398px of glass
+  around 480px of content. It does not: the content reading had been taken after the text was
+  restored. Measured in the same instant, the card is 397.5px and the content 395.5px, and they
+  agree — the content's own `min(480px, 100%)` resolves against the collapsed card and follows it
+  down. So on this build **nothing is rendered outside its surface in either direction**, and the
+  too-narrow mode is a dialog drawn 397.5px wide where 480px was designed. The defect is therefore
+  best stated as one thing rather than two: **a dialog's width is a function of the length of its own
+  copy** — too wide when the copy is long, too narrow when it is short. That is what the human
+  reported, and it is enough on its own to justify the fix.
 - **"Not always correct" is taken at face value, in both directions.** The human's wording is
   precise and is honoured as written: the size is sometimes too big and sometimes too small. An
   understanding of this defect as "dialogs are too wide" would specify half a fix and leave the more

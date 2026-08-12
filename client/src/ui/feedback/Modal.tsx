@@ -24,10 +24,12 @@ export function Modal({ open, title, children, actions, onClose, size = 'default
   useEscapeClaim(open, () => {});
 
   if (!open) return null;
+  const positionerClass =
+    size === 'large' ? 'ui-modal__positioner ui-modal__positioner--size-large' : 'ui-modal__positioner';
   const modalClass = size === 'large' ? 'ui-modal ui-modal--size-large' : 'ui-modal';
   return (
     <div className="ui-modal-overlay" onClick={onClose}>
-      <div onClick={(event) => event.stopPropagation()}>
+      <div className={positionerClass} onClick={(event) => event.stopPropagation()}>
         <Surface elevation="raised" material="overlay">
           <div className={modalClass}>
             <h2 className="ui-modal__title">{title}</h2>
