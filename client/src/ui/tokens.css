@@ -127,9 +127,15 @@
      independent grid, so a column holding a per-row `ActionButtonGroup` must
      use a fixed (not fractional/content-based) track, sized for the widest
      action set that column can ever hold, or the buttons silently clip past
-     the row's edge. Sized for up to 6 dense (`size="sm"`) action buttons on
+     the row's edge. Sized for up to 4 dense (`size="sm"`) action controls on
      one line, with slack for a slightly wider label. */
   --data-table-action-column-width: 296px;
+
+  /* The same track for a column whose action set has come down to the overflow
+     control alone: one menu trigger plus the cell's own breathing room, and the
+     column header above it. Everything the six buttons used to hold goes back to
+     the data columns beside it. */
+  --data-table-menu-action-column-width: 64px;
 
   /* Overflow menu popup — the width it opens at (wide enough for a label with
      its secondary hint beside it, so entries do not each size differently) and

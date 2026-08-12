@@ -30,6 +30,13 @@ token by name, never a literal value.
     with a non-scrolling sibling subtract it. Note this value is a **fallback**: the true gutter
     varies by browser/platform and is measured at runtime where alignment depends on it (see
     `frame.md`).
+  - DataTable action column sizing: `--data-table-action-column-width` (296px) — a column holding a
+    row's action group, sized for up to four dense action controls on one line — and
+    `--data-table-menu-action-column-width` (64px) — the same column once its action set has come
+    down to the overflow control alone, sized for that one trigger plus the cell's own breathing
+    room and its column header. A screen picks the one that matches what its rows carry; neither
+    value is ever written on a screen.
+  - Overflow menu popup: `--menu-min-width` (236px), `--menu-max-height` (320px).
   - Elevation: `--shadow-{1,2,3}`.
   - Z-index: `--z-{backdrop,shell,content,overlay,modal,toast}`.
   - Overlay glass: `--blur-overlay` (20px) and `--overlay-glass-saturation` (140%), plus the three
@@ -53,6 +60,11 @@ token by name, never a literal value.
   Backdrop's corner-concentrated glows.
 - No component under `client/src/ui/` hard-codes a color, radius, spacing, shadow or z-index value
   outside this file; it references the token by name.
+- A `DataTable` renders each row as its own independent grid, so a column carrying an action group
+  must use one of the two fixed action-column tracks above rather than a fractional or
+  content-based one: a track sized narrower than the controls it holds clips them past the row's
+  edge, silently. The wider of the two is shared by every screen whose rows still carry buttons, so
+  a screen whose action set shrinks moves to the narrower token instead of narrowing the shared one.
 - `--blur-overlay` (20px) is the **only** blur value in the codebase and is documented as the
   **maximum** any surface may use: no component declares a blur length of its own, and none asks
   for a larger radius. The three overlay fills are the same hue as `--color-surface-raised`
@@ -67,3 +79,5 @@ token by name, never a literal value.
 - plan-docker_management_app/REQ-3
 - plan-docker_management_app/REQ-4
 - plan-liquid_glass_overlays/REQ-6
+- plan-docker_management_app-image_row_actions/REQ-18
+- plan-docker_management_app-image_row_actions/REQ-34

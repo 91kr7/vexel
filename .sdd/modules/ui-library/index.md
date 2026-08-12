@@ -2,7 +2,7 @@
 
 | Component | Type | Path | Responsibility | Spec |
 |-----------|------|------|-----------------|------|
-| Design tokens | configuration | `client/src/ui/tokens.css` | Color, typography, spacing, radii, border, elevation and z-index custom properties; single source of truth for every visual value | `specs/design-tokens.md` |
+| Design tokens | configuration | `client/src/ui/tokens.css` | Color, typography, spacing, radii, border, elevation, z-index and layout-sizing custom properties (including the two data-table action column widths); single source of truth for every visual value | `specs/design-tokens.md` |
 | Foundation stylesheet | configuration | `client/src/ui/foundation.css` | The library's single style entry point: imports tokens, applies the base reset | `specs/foundation-stylesheet.md` |
 | Backdrop | UI component | `client/src/ui/background/Backdrop.tsx` | Fixed, full-viewport layer rendering the static pre-blurred background asset | `specs/backdrop.md` |
 | Overlay glass material | configuration | `client/src/ui/glass/overlay-glass.css` | The one runtime-blurred glass material, opted into by the overlay surfaces (dialogs, toasts, the overflow menu popup, the choice popup, the phone drawer, the log stream's jump-to-live control) with its no-support and reduced-transparency fallbacks | `specs/overlay-glass.md` |

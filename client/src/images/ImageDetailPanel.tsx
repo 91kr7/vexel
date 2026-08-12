@@ -71,7 +71,13 @@ export function ImageDetailPanel({ image, images, onClose, layerFocus }: ImageDe
   }
 
   return (
+    // The close control leaves with `dismissal`: the row that opened the panel
+    // closes it, and `Escape` closes it from the keyboard. Unlike the container
+    // panel, the header area keeps a populated action bar — these four open the
+    // image's own analyses and are panel actions, not row actions, so only the
+    // `✕` goes and nothing replaces it.
     <DetailPanel
+      dismissal="opening-gesture"
       onClose={onClose}
       actions={
         <>

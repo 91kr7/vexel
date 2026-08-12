@@ -23,8 +23,8 @@ import {
   triggerDownload,
   useToast,
   type DataTableColumn,
+  type MenuEntry,
   type ProgressStep,
-  type RowAction,
 } from '../ui';
 import {
   IMAGE_LOAD_URL,
@@ -47,6 +47,9 @@ import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useCrossNavigation } from '../shell/services/CrossNavigationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
 import { useProgress } from '../shell/services/ProgressService';
+
+const NO_TAGS_TO_UNTAG_REASON = 'This image has no tags to untag.';
+const NO_TAGS_TO_PUSH_REASON = 'This image has no tags to push.';
 
 export interface ImagesScreenProps {
   images: ImageSummary[];
@@ -191,6 +194,28 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
     consumeRequest();
   }, [request, consumeRequest]);
 
+  /**
+   * The selection does not outlive its image. Compared against the unfiltered
+   * list on purpose: an image merely hidden by the search has not left the list
+   * and keeps both its selection and its panel, which come back together when
+   * the search is cleared. An image that is gone from the daemon — removed from
+   * its own row's menu, pruned, or removed from the operator's terminal — takes
+   * the selection with it, because an image id is a digest of its content, so
+   * pulling or building the same content again reproduces the id and a selection
+   * that outlived the removal would open the panel unasked. A list that has not
+   * been read yet says nothing about either, so nothing is cleared before it is:
+   * a cross-navigation (REQ-69) selects its image on arrival, possibly ahead of
+   * the first read.
+   */
+  useEffect(() => {
+    if (loaded && selectedId && !images.some((image) => image.id === selectedId)) setSelectedId(undefined);
+  }, [images, loaded, selectedId]);
+
+  /**
+   * The row is the panel's only pointer route now that the panel has no close
+   * control: selecting the selected row closes it, selecting another one leaves
+   * it open and re-points it at that image.
+   */
   function toggleSelection(image: ImageSummary) {
     setSelectedId((current) => (current === image.id ? undefined : image.id));
   }
@@ -238,8 +263,8 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
 
   /**
    * One tag untags straight away; several tags need the operator to say which
-   * reference to drop, so the choice moves to a dialog rather than to one row
-   * button per tag (the row's action column holds a fixed number of actions).
+   * reference to drop, so the choice moves to a dialog rather than to one entry
+   * per tag (the row's menu holds a fixed set of entries).
    */
   function startUntag(image: ImageSummary) {
     if (image.tags.length === 1) {
@@ -361,15 +386,25 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
     }
   }
 
-  /** Fixed set of six actions, sized to fit the row's action column. */
-  function actionsFor(image: ImageSummary): RowAction[] {
+  /**
+   * Every action of a row, behind its overflow control: the same six entries in
+   * the same order on every image whatever its tags, an inapplicable one
+   * disabled with its reason rather than removed. `Remove` is destructive and
+   * set apart from the five above it. The ellipsis marks the entries that ask
+   * for something before they act — `Untag` on a single-tag image, `Save` and
+   * `Remove` act at once or only confirm. The handlers are bound to this image,
+   * so a list that re-sorts or re-reads under an open menu can never redirect an
+   * entry at another one.
+   */
+  function overflowEntriesFor(image: ImageSummary): MenuEntry[] {
+    const tagless = image.tags.length === 0;
     return [
-      { id: 'run', label: 'run', onClick: () => setRunReference(image.tags[0] ?? image.shortId) },
-      { id: 'tag', label: 'tag', onClick: () => openTagDialog(image) },
-      { id: 'untag', label: 'untag', onClick: () => startUntag(image), disabled: image.tags.length === 0 },
-      { id: 'push', label: 'push', onClick: () => openPushDialog(image), disabled: image.tags.length === 0 },
-      { id: 'save', label: 'save', onClick: () => startSave([image.tags[0] ?? image.id]) },
-      { id: 'remove', label: 'remove', destructive: true, onClick: () => handleRemove(image) },
+      { id: 'run', label: 'Run…', onSelect: () => setRunReference(image.tags[0] ?? image.shortId) },
+      { id: 'tag', label: 'Tag…', onSelect: () => openTagDialog(image) },
+      { id: 'untag', label: 'Untag', disabled: tagless, disabledReason: tagless ? NO_TAGS_TO_UNTAG_REASON : undefined, onSelect: () => startUntag(image) },
+      { id: 'push', label: 'Push…', disabled: tagless, disabledReason: tagless ? NO_TAGS_TO_PUSH_REASON : undefined, onSelect: () => openPushDialog(image) },
+      { id: 'save', label: 'Save', onSelect: () => startSave([image.tags[0] ?? image.id]) },
+      { id: 'remove', label: 'Remove', hint: 'rmi', destructive: true, separated: true, onSelect: () => handleRemove(image) },
     ];
   }
 
@@ -404,8 +439,11 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
     {
       id: 'actions',
       header: 'ACTIONS',
-      width: 'var(--data-table-action-column-width)',
-      render: (image) => <ActionButtonGroup actions={actionsFor(image)} />,
+      // The column holds the overflow control and nothing else, so it is sized
+      // for that one trigger: the width the six buttons held goes to the data
+      // columns beside it.
+      width: 'var(--data-table-menu-action-column-width)',
+      render: (image) => <ActionButtonGroup actions={[]} overflow={{ label: `More actions for ${displayTitle(image)}`, entries: overflowEntriesFor(image) }} />,
     },
   ];
 
