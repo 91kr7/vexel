@@ -69,7 +69,10 @@ test('saving an image downloads a tarball that reloads it under the same referen
     await expect(row).toBeVisible({ timeout: 10_000 });
 
     const downloadPromise = page.waitForEvent('download');
-    await row.getByRole('button', { name: 'save', exact: true }).click();
+    // The row carries one control now: the tarball download is started from its `Save` entry
+    // (images/specs/images-screen.md).
+    await row.getByRole('button', { name: `More actions for ${tag}`, exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Save', exact: true }).click();
     const download = await downloadPromise;
 
     expect(download.suggestedFilename()).toBe(`${tag}.tar`.replace(':', '_'));

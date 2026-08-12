@@ -28,8 +28,12 @@ import { ToastProvider } from '../../src/ui';
  * screen from ever gaining a feature the other does not need. What is
  * compared below is exactly what is promised — table/wrapper/header/row
  * treatment and the treatment of the columns both screens do share — plus an
- * explicit, spec-grounded assertion of the one documented difference (the
- * selection column). In jsdom no stylesheet is applied, so what is
+ * explicit, spec-grounded assertion of each documented difference: the
+ * selection column, and the width of the action column, which the two screens
+ * deliberately no longer share since the images row came down to its overflow
+ * control alone (plan-docker_management_app-image_row_actions/REQ-18) while a
+ * containers row still carries three lifecycle buttons beside its own. In
+ * jsdom no stylesheet is applied, so what is
  * comparable here is the markup the visual language is carried by: class
  * names, row height, selected-row class. The computed-style side of the
  * comparison is covered by the e2e suite.
@@ -139,7 +143,6 @@ interface TableFingerprint {
   rowClass: string;
   rowHeight: string;
   dataCellClasses: string[];
-  actionColumnTrack: string;
   actionGroupClass: string;
 }
 
@@ -148,7 +151,6 @@ function fingerprint(root: HTMLElement): TableFingerprint {
   const header = table.querySelector<HTMLElement>('.ui-data-table__header')!;
   const row = table.querySelector<HTMLElement>('.ui-data-table__row')!;
   const scrollArea = table.querySelector<HTMLElement>('[style*="max-height"], .ui-scroll-area');
-  const headerTracks = header.style.gridTemplateColumns.split(' ');
   const dataHeaderCells = Array.from(header.children).filter((cell) => !cell.classList.contains('ui-data-table__select-cell'));
   const dataCells = Array.from(row.children).filter((cell) => !cell.classList.contains('ui-data-table__select-cell'));
   return {
@@ -161,9 +163,20 @@ function fingerprint(root: HTMLElement): TableFingerprint {
     rowClass: row.className,
     rowHeight: row.style.height,
     dataCellClasses: Array.from(new Set(dataCells.map((cell) => cell.className))),
-    actionColumnTrack: headerTracks[headerTracks.length - 1] ?? '',
     actionGroupClass: row.querySelector('.ui-action-button-group')?.className ?? '',
   };
+}
+
+/**
+ * The track a list reserves for its last column — the action column. Deliberately outside the
+ * shared fingerprint: the two screens no longer reserve the same width, and that difference is a
+ * requirement rather than a drift (see the check that asserts each one's token). Read from the
+ * inline grid track list the header carries, since jsdom applies no stylesheet.
+ */
+function actionColumnTrack(root: HTMLElement): string {
+  const header = root.querySelector<HTMLElement>('.ui-data-table__header')!;
+  const tracks = header.style.gridTemplateColumns.split(' ');
+  return tracks[tracks.length - 1] ?? '';
 }
 
 /** Whether the screen's table carries the (Images-only) leading multi-select checkbox column. */
@@ -273,13 +286,21 @@ describe('Images and Containers present the same table (plan-docker_management_a
     expect(imagesDataHeaderClasses).toEqual(containersDataHeaderClasses);
   });
 
-  it('reserves the same action column width on both lists', () => {
+  // The two lists no longer reserve the same action column width, and that is
+  // plan-docker_management_app-image_row_actions/REQ-18 rather than a drift: the images row came
+  // down to its overflow control alone and gives that width back to its own data columns, while a
+  // containers row still carries three lifecycle buttons plus its overflow. Each screen is held to
+  // the library token that matches what its rows carry, and neither writes a length of its own.
+  // REQ-3's promise — one shared `DataTable` treatment — is everything else in this file and is
+  // untouched by the difference.
+  it('sizes each list\'s action column from the library token matching what its rows carry', () => {
     const imagesRoot = renderImages();
-    const imagesTrack = fingerprint(imagesRoot).actionColumnTrack;
+    const imagesTrack = actionColumnTrack(imagesRoot);
     cleanup();
     const containersRoot = renderContainers();
 
-    expect(imagesTrack).toBe(fingerprint(containersRoot).actionColumnTrack);
+    expect(imagesTrack).toBe('var(--data-table-menu-action-column-width)');
+    expect(actionColumnTrack(containersRoot)).toBe('var(--data-table-action-column-width)');
   });
 
   it('no longer renders the images list as stacked cards', () => {
