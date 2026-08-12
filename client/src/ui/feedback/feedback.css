@@ -20,14 +20,28 @@
   padding: var(--space-6);
 }
 
+/*
+ * The dialog's width is stated here, on the positioner — the grid item the glass
+ * paints as — and the content below fills it, exactly as the sheet does. Stated
+ * on the content instead, a `min(480px, 100%)` left the card sized by the copy:
+ * a percentage counts as `auto` in intrinsic sizing, so the fit-content grid item
+ * adopted the content's max-content width and card and content disagreed.
+ */
+.ui-modal__positioner {
+  width: min(480px, 100%);
+}
+
+.ui-modal__positioner--size-large {
+  width: min(1100px, 92vw);
+}
+
 .ui-modal {
   z-index: var(--z-modal);
-  width: min(480px, 100%);
+  width: 100%;
   padding: var(--space-6);
 }
 
 .ui-modal--size-large {
-  width: min(1100px, 92vw);
   max-height: 85vh;
   overflow-y: auto;
 }
