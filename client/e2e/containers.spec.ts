@@ -229,23 +229,34 @@ test('the row menu is reachable, walked and activated from the keyboard alone', 
 // plan-docker_management_app-container_row_actions/REQ-14 — at most one menu is open at a time, and an open one is
 // unambiguously attached to the row it belongs to
 test('opening a second row menu closes the first', async ({ page }) => {
-  const first = `vexel-e2e-onemenu-a-${Date.now()}`;
-  const second = `vexel-e2e-onemenu-b-${Date.now()}`;
+  const stem = `vexel-e2e-onemenu-${Date.now()}`;
+  // Which of the two is the row above is decided by the list's order, not by which was created
+  // first: containers are ordered by name (plan-docker_management_app-list_ordering/REQ-8), so `-a`
+  // is above `-b` whatever order the daemon returns them in.
+  const above = `${stem}-a`;
+  const below = `${stem}-b`;
   try {
-    await createSleepingContainer(first);
-    await createSleepingContainer(second);
-    await expect(containerRow(page, first)).toBeVisible({ timeout: 15_000 });
-    await expect(containerRow(page, second)).toBeVisible({ timeout: 15_000 });
+    await createSleepingContainer(above);
+    await createSleepingContainer(below);
+    // Narrowed to the two fixtures, so they are the top rows of the table and the geometry the rest
+    // of this test depends on is the spec's own rather than whatever the operator's daemon holds.
+    await page.getByPlaceholder('Search name, image or state…').fill(stem);
+    await expect(containerRow(page, above)).toBeVisible({ timeout: 15_000 });
+    await expect(containerRow(page, below)).toBeVisible({ timeout: 15_000 });
 
-    await openOverflow(page, first);
-    await overflowTrigger(page, second).click();
+    // The second menu is opened on the row **above** the first one, and that is load-bearing: a
+    // row's menu opens below its own trigger and covers the rows underneath it, so a click aimed at
+    // a trigger below an open menu lands on the open menu instead — on `Kill` or `Remove`, at that.
+    // Driving it the other way round is a click no operator could make.
+    await openOverflow(page, below);
+    await overflowTrigger(page, above).click();
 
     await expect(page.getByRole('menu')).toHaveCount(1);
-    await expect(page.getByRole('menu')).toHaveAccessibleName(`More actions for ${second}`);
-    await expect(overflowTrigger(page, first)).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.getByRole('menu')).toHaveAccessibleName(`More actions for ${above}`);
+    await expect(overflowTrigger(page, below)).toHaveAttribute('aria-expanded', 'false');
   } finally {
-    await removeContainerQuietly(first);
-    await removeContainerQuietly(second);
+    await removeContainerQuietly(above);
+    await removeContainerQuietly(below);
   }
 });
 

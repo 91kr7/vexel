@@ -223,29 +223,37 @@ test('the row menu lists exactly Run…, Tag…, Untag, Push…, Save and Remove
 // unambiguously attached to the row it belongs to
 test('opening a second row menu closes the first', async ({ page }) => {
   const runId = Date.now();
-  const firstContainer = `vexel-e2e-onemenu-src-a-${runId}`;
-  const secondContainer = `vexel-e2e-onemenu-src-b-${runId}`;
-  const firstTag = `vexel-e2e-onemenu-${runId}-a:v1`;
-  const secondTag = `vexel-e2e-onemenu-${runId}-b:v1`;
+  const aboveContainer = `vexel-e2e-onemenu-src-a-${runId}`;
+  const belowContainer = `vexel-e2e-onemenu-src-b-${runId}`;
+  // Which of the two is the row above is decided by the list's order, not by which was built first:
+  // an image sorts by its lowest tag, repository before tag
+  // (plan-docker_management_app-list_ordering/REQ-17), so `-a` is above `-b` whatever order the
+  // daemon returns them in.
+  const aboveTag = `vexel-e2e-onemenu-${runId}-a:v1`;
+  const belowTag = `vexel-e2e-onemenu-${runId}-b:v1`;
   try {
-    await createStandaloneImage(firstTag, firstContainer);
-    await createStandaloneImage(secondTag, secondContainer);
+    await createStandaloneImage(aboveTag, aboveContainer);
+    await createStandaloneImage(belowTag, belowContainer);
     await page.reload();
     await searchField(page).fill(`vexel-e2e-onemenu-${runId}`);
-    const first = imageRow(page, firstTag);
-    const second = imageRow(page, secondTag);
-    await expect(first).toBeVisible({ timeout: 10_000 });
-    await expect(second).toBeVisible({ timeout: 10_000 });
+    const above = imageRow(page, aboveTag);
+    const below = imageRow(page, belowTag);
+    await expect(above).toBeVisible({ timeout: 10_000 });
+    await expect(below).toBeVisible({ timeout: 10_000 });
 
-    await openRowOverflow(page, first);
-    await rowOverflow(second).click();
+    // The second menu is opened on the row **above** the first one, and that is load-bearing: a
+    // row's menu opens below its own trigger and covers the rows underneath it, so a click aimed at
+    // a trigger below an open menu lands on the open menu instead — on `Remove`, at that. Driving it
+    // the other way round is a click no operator could make.
+    await openRowOverflow(page, below);
+    await rowOverflow(above).click();
 
     await expect(page.getByRole('menu')).toHaveCount(1);
-    await expect(page.getByRole('menu')).toHaveAccessibleName(`More actions for ${secondTag}`);
-    await expect(rowOverflow(first)).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.getByRole('menu')).toHaveAccessibleName(`More actions for ${aboveTag}`);
+    await expect(rowOverflow(below)).toHaveAttribute('aria-expanded', 'false');
   } finally {
-    await removeStandaloneImage(firstTag, firstContainer);
-    await removeStandaloneImage(secondTag, secondContainer);
+    await removeStandaloneImage(aboveTag, aboveContainer);
+    await removeStandaloneImage(belowTag, belowContainer);
   }
 });
 
