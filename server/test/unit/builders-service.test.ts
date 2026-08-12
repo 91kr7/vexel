@@ -215,6 +215,73 @@ test("listBuilders omits cacheBytes, rather than reporting zero, when the builde
   assert.equal(builders[0]!.cacheBytes, undefined);
 });
 
+function builder(name: string, current = false): Record<string, unknown> {
+  return { Name: name, Driver: "docker-container", Current: current, Nodes: [runningNode] };
+}
+
+/** The listed names in the order they came back: a builder carries no identifier but its name, so the name is the whole sequence. */
+async function listedNames(entries: Record<string, unknown>[]): Promise<string[]> {
+  handler = emptyCacheOnDu(JSON.stringify(entries));
+  const builders = await listBuilders();
+  return builders.map((entry) => entry.name);
+}
+
+// builders-service.md — "Ordered by builder name under the list-order rule (compareNames)" and
+// "The active builder keeps its alphabetical place: it is marked by active, never promoted" (REQ-11)
+test("listBuilders orders an out-of-order listing by name, leaving the active builder in its alphabetical place", async () => {
+  handler = emptyCacheOnDu(
+    JSON.stringify([builder("builder-10"), builder("zulu", true), builder("builder-2"), builder("alpha")]),
+  );
+
+  const builders = await listBuilders();
+
+  assert.deepEqual(
+    builders.map((entry) => entry.name),
+    ["alpha", "builder-2", "builder-10", "zulu"],
+  );
+  assert.equal(builders.at(-1)!.name, "zulu");
+  assert.equal(builders.at(-1)!.active, true);
+});
+
+// builders-service.md — "the final comparison is that same name compared exactly, which separates
+// two builders whose names differ only in case" (REQ-5, REQ-11, REQ-12)
+test("listBuilders separates two builders whose names differ only in case, both ways round", async () => {
+  const forwards = await listedNames([builder("data"), builder("Data")]);
+  const backwards = await listedNames([builder("Data"), builder("data")]);
+
+  assert.deepEqual(forwards, ["Data", "data"]);
+  assert.deepEqual(backwards, forwards);
+});
+
+// builders-service.md — "... or in leading zeros" (REQ-5, REQ-11, REQ-12)
+test("listBuilders separates two builders whose names differ only in leading zeros, both ways round", async () => {
+  const forwards = await listedNames([builder("node-1"), builder("node-01")]);
+  const backwards = await listedNames([builder("node-01"), builder("node-1")]);
+
+  assert.deepEqual(forwards, ["node-01", "node-1"]);
+  assert.deepEqual(backwards, forwards);
+});
+
+// builders-service.md — "The same builders produce the same sequence on every read, whatever order
+// buildx listed them in" (REQ-6, REQ-12): the only check that detects a missing final comparison,
+// since a sort that is stable keeps whatever buildx's own listing happened to say.
+test("listBuilders produces one sequence whichever order buildx listed the builders in", async () => {
+  const entries = [
+    builder("node-1"),
+    builder("Data"),
+    builder("node-10"),
+    builder("data"),
+    builder("node-01"),
+    builder("node-2"),
+  ];
+
+  const forwards = await listedNames(entries);
+  const backwards = await listedNames([...entries].reverse());
+
+  assert.deepEqual(forwards, ["Data", "data", "node-01", "node-1", "node-2", "node-10"]);
+  assert.deepEqual(backwards, forwards);
+});
+
 // builders-service.md — "createBuilder ... Rejects with the daemon's own message on a name
 // collision or an invalid driver/endpoint"
 test("createBuilder rejects with the daemon's own message on failure", async () => {

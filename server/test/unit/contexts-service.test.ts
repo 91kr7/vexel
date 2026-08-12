@@ -202,6 +202,74 @@ test("listContexts lists an externally created TCP+TLS context, marked tls, alon
   assert.equal(contexts.find((context) => context.name === "local-one")!.tls, false);
 });
 
+const localSocket = "unix:///var/run/docker.sock";
+
+/** The listed names in the order they came back: a context carries no identifier but its name, so the name is the whole sequence. */
+async function listedNames(entries: ListEntry[]): Promise<string[]> {
+  handler = inventory(entries);
+  const contexts = await listContexts();
+  return contexts.map((context) => context.name);
+}
+
+// contexts-service.md — "Ordered by context name under the list-order rule (compareNames)" and
+// "The active context keeps its alphabetical place: it is marked by active, never promoted" (REQ-10)
+test("listContexts orders an out-of-order inventory by name, leaving the active context in its alphabetical place", async () => {
+  handler = inventory([
+    listEntry("ctx-10", localSocket),
+    listEntry("zulu", localSocket, { Current: true }),
+    listEntry("ctx-2", localSocket),
+    listEntry("alpha", localSocket),
+  ]);
+
+  const contexts = await listContexts();
+
+  assert.deepEqual(
+    contexts.map((context) => context.name),
+    ["alpha", "ctx-2", "ctx-10", "zulu"],
+  );
+  assert.equal(contexts.at(-1)!.name, "zulu");
+  assert.equal(contexts.at(-1)!.active, true);
+});
+
+// contexts-service.md — "the final comparison is that same name compared exactly, which separates
+// two contexts whose names differ only in case" (REQ-5, REQ-10, REQ-12)
+test("listContexts separates two contexts whose names differ only in case, both ways round", async () => {
+  const forwards = await listedNames([listEntry("data", localSocket), listEntry("Data", localSocket)]);
+  const backwards = await listedNames([listEntry("Data", localSocket), listEntry("data", localSocket)]);
+
+  assert.deepEqual(forwards, ["Data", "data"]);
+  assert.deepEqual(backwards, forwards);
+});
+
+// contexts-service.md — "... or in leading zeros" (REQ-5, REQ-10, REQ-12)
+test("listContexts separates two contexts whose names differ only in leading zeros, both ways round", async () => {
+  const forwards = await listedNames([listEntry("ctx-1", localSocket), listEntry("ctx-01", localSocket)]);
+  const backwards = await listedNames([listEntry("ctx-01", localSocket), listEntry("ctx-1", localSocket)]);
+
+  assert.deepEqual(forwards, ["ctx-01", "ctx-1"]);
+  assert.deepEqual(backwards, forwards);
+});
+
+// contexts-service.md — "The same contexts produce the same sequence on every read, whatever order
+// Docker listed them in" (REQ-6, REQ-12): the only check that detects a missing final comparison,
+// since a sort that is stable keeps whatever Docker's own listing happened to say.
+test("listContexts produces one sequence whichever order Docker listed the contexts in", async () => {
+  const entries = [
+    listEntry("ctx-1", localSocket),
+    listEntry("Data", localSocket),
+    listEntry("ctx-10", localSocket),
+    listEntry("data", localSocket),
+    listEntry("ctx-01", localSocket),
+    listEntry("ctx-2", localSocket),
+  ];
+
+  const forwards = await listedNames(entries);
+  const backwards = await listedNames([...entries].reverse());
+
+  assert.deepEqual(forwards, ["ctx-01", "ctx-1", "ctx-2", "ctx-10", "Data", "data"]);
+  assert.deepEqual(backwards, forwards);
+});
+
 // contexts-service.md — "A non-zero exit or a spawn failure of the underlying CLI command rejects
 // with a DockerDaemonError (docker-access, code DaemonRejected) carrying Docker's own message"
 test("listContexts rejects with a DaemonRejected DockerDaemonError when the CLI exits non-zero", async () => {

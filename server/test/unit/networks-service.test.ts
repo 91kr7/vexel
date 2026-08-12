@@ -113,6 +113,67 @@ test("listNetworks rejects with the daemon's own error message on failure", asyn
   await assert.rejects(() => listNetworks(), /server error - please retry/);
 });
 
+function network(id: string, name: string): { Id: string; Name: string; Driver: string; Scope: string } {
+  return { Id: id, Name: name, Driver: "bridge", Scope: "local" };
+}
+
+/** Name and id together: the id is what the order falls back to, so an assertion that ignores it cannot see the tiebreak. */
+async function listedSequence(payload: { Id: string; Name: string }[]): Promise<string[]> {
+  networksBody = JSON.stringify(payload);
+  const networks = await listNetworks();
+  return networks.map((entry) => `${entry.name}#${entry.id}`);
+}
+
+// networks-service.md — "Ordered by network name under the list-order rule (compareNames): net-2
+// before net-10" (REQ-9)
+test("listNetworks orders an out-of-order payload by network name, digits as numbers and case ignored", async () => {
+  const sequence = await listedSequence([
+    network("id-1", "net-10"),
+    network("id-2", "host-only"),
+    network("id-3", "net-2"),
+    network("id-4", "Host"),
+    network("id-5", "alpha"),
+  ]);
+
+  assert.deepEqual(
+    sequence.map((entry) => entry.split("#")[0]),
+    ["alpha", "Host", "host-only", "net-2", "net-10"],
+  );
+});
+
+// networks-service.md — "two networks carrying the same name — Docker does not guarantee
+// network-name uniqueness — ordered by their ids rather than shuffled" (REQ-9, REQ-12)
+test("listNetworks orders two networks carrying the same name by their ids, both ways round", async () => {
+  const first = network("id-a", "duplicate");
+  const second = network("id-b", "duplicate");
+
+  const forwards = await listedSequence([second, first]);
+  const backwards = await listedSequence([first, second]);
+
+  assert.deepEqual(forwards, ["duplicate#id-a", "duplicate#id-b"]);
+  assert.deepEqual(backwards, forwards);
+});
+
+// networks-service.md — "The same networks produce the same sequence on every read, whatever order
+// the daemon supplied them in" (REQ-6, REQ-12): the only check that detects a missing tiebreak,
+// since a sort that is stable keeps whatever the payload happened to say.
+test("listNetworks produces one sequence whichever order the daemon supplied the networks in", async () => {
+  const payload = [
+    network("id-5", "app-1"),
+    network("id-1", "Data"),
+    network("id-3", "app-10"),
+    network("id-2", "data"),
+    network("id-4", "app-01"),
+    network("id-6", "app-2"),
+  ];
+
+  const forwards = await listedSequence(payload);
+  const backwards = await listedSequence([...payload].reverse());
+
+  assert.deepEqual(forwards, ["app-01#id-4", "app-1#id-5", "app-2#id-6", "app-10#id-3", "Data#id-1", "data#id-2"]);
+  assert.deepEqual(backwards, forwards);
+});
+
 // networks-service.md — getNetworkInspect's attachedContainers is read from the inspect payload's own
 // Containers map, authoritative unlike the listing
 test("getNetworkInspect reads attached container names from its own Containers map, carrying the raw payload", async () => {

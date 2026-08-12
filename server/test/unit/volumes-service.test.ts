@@ -101,6 +101,141 @@ test("listVolumes rejects with the daemon's own error message on failure", async
   await assert.rejects(() => listVolumes(), /server error - please retry/);
 });
 
+interface RawVolumeFixture {
+  Name: string;
+  Driver: string;
+  Mountpoint: string;
+  Scope: string;
+  CreatedAt?: string;
+}
+
+function volume(name: string, createdAt?: string): RawVolumeFixture {
+  const fixture: RawVolumeFixture = { Name: name, Driver: "local", Mountpoint: `/data/${name}`, Scope: "local" };
+  if (createdAt !== undefined) fixture.CreatedAt = createdAt;
+  return fixture;
+}
+
+/** A name of exactly 64 hexadecimal characters — the shape the daemon generates for a volume nobody named. */
+function hexName(prefix: string): string {
+  return prefix + "0".repeat(64 - prefix.length);
+}
+
+/** The listed names in the order they came back: a volume carries no identifier but its name, so the name is the whole sequence. */
+async function listedNames(payload: RawVolumeFixture[]): Promise<string[]> {
+  volumesBody = JSON.stringify({ Volumes: payload });
+  const volumes = await listVolumes();
+  return volumes.map((entry) => entry.name);
+}
+
+// volumes-service.md — "every named volume comes before every anonymous one, ordered by name under
+// the list-order rule", "the anonymous ones follow as one block, newest first by createdAt"
+// (REQ-13, REQ-14)
+test("listVolumes orders named volumes by name ahead of every anonymous one, the anonymous block newest first", async () => {
+  const older = hexName("b2");
+  const newer = hexName("a1");
+
+  const names = await listedNames([
+    volume(older, "2026-01-02T00:00:00Z"),
+    volume("vol-10", "2026-01-01T00:00:00Z"),
+    volume(newer, "2026-01-03T00:00:00Z"),
+    volume("api-data", "2026-01-01T00:00:00Z"),
+    volume("vol-2", "2026-01-01T00:00:00Z"),
+    volume("Backup", "2026-01-01T00:00:00Z"),
+  ]);
+
+  assert.deepEqual(names, ["api-data", "Backup", "vol-2", "vol-10", newer, older]);
+});
+
+// volumes-service.md — "the anonymous ones follow as one block, newest first by createdAt, with the
+// name compared exactly as the final comparison" (REQ-14): two anonymous volumes created in the
+// same instant are separated by their names rather than left in the daemon's order.
+test("listVolumes separates two anonymous volumes sharing a creation instant by their names, both ways round", async () => {
+  const first = hexName("aa");
+  const second = hexName("ab");
+
+  const forwards = await listedNames([volume(second, "2026-01-01T00:00:00Z"), volume(first, "2026-01-01T00:00:00Z")]);
+  const backwards = await listedNames([volume(first, "2026-01-01T00:00:00Z"), volume(second, "2026-01-01T00:00:00Z")]);
+
+  assert.deepEqual(forwards, [first, second]);
+  assert.deepEqual(backwards, forwards);
+});
+
+// list-order.md — "a row with no creation instant comes after the rows that have one", then the
+// exact name comparison separates them (REQ-14, REQ-16)
+test("listVolumes places an anonymous volume with no creation instant after those carrying one, separated by name", async () => {
+  const dated = hexName("cc");
+  const undatedFirst = hexName("da");
+  const undatedSecond = hexName("db");
+
+  const forwards = await listedNames([volume(undatedSecond), volume(undatedFirst), volume(dated, "2026-01-01T00:00:00Z")]);
+  const backwards = await listedNames([volume(dated, "2026-01-01T00:00:00Z"), volume(undatedFirst), volume(undatedSecond)]);
+
+  assert.deepEqual(forwards, [dated, undatedFirst, undatedSecond]);
+  assert.deepEqual(backwards, forwards);
+});
+
+// volumes-service.md — "A volume is anonymous when its name is exactly 64 hexadecimal characters",
+// "a volume an operator deliberately named with 64 hexadecimal characters is grouped with the
+// anonymous ones: no heuristic rescues it" (REQ-15)
+test("listVolumes groups any name of exactly 64 hexadecimal characters with the anonymous ones, and nothing else", async () => {
+  const daemonShaped = hexName("f1");
+  const upperCase = hexName("AB").toUpperCase();
+  const tooShort = hexName("e1").slice(0, 63);
+  const notHex = `${hexName("e2").slice(0, 63)}z`;
+
+  const names = await listedNames([
+    volume(daemonShaped, "2026-01-02T00:00:00Z"),
+    volume(upperCase, "2026-01-03T00:00:00Z"),
+    volume(tooShort, "2026-01-01T00:00:00Z"),
+    volume(notHex, "2026-01-01T00:00:00Z"),
+  ]);
+
+  assert.deepEqual(names, [tooShort, notHex, upperCase, daemonShaped]);
+});
+
+// volumes-service.md — "with the name compared exactly as the final comparison ..., so data and Data
+// are separated rather than tied" (REQ-5, REQ-13)
+test("listVolumes separates two named volumes whose names differ only in case, both ways round", async () => {
+  const forwards = await listedNames([volume("data", "2026-01-01T00:00:00Z"), volume("Data", "2026-01-01T00:00:00Z")]);
+  const backwards = await listedNames([volume("Data", "2026-01-01T00:00:00Z"), volume("data", "2026-01-01T00:00:00Z")]);
+
+  assert.deepEqual(forwards, ["Data", "data"]);
+  assert.deepEqual(backwards, forwards);
+});
+
+// volumes-service.md — "The same volumes produce the same sequence on every read, whatever order the
+// daemon supplied them in" (REQ-6, REQ-16): the only check that detects a missing final comparison,
+// since a sort that is stable keeps whatever the payload happened to say.
+test("listVolumes produces one sequence whichever order the daemon supplied the volumes in", async () => {
+  const newestAnonymous = hexName("ba");
+  const oldestAnonymous = hexName("bb");
+  const payload = [
+    volume("vol-1", "2026-01-01T00:00:00Z"),
+    volume(oldestAnonymous, "2026-01-01T00:00:00Z"),
+    volume("Data", "2026-01-01T00:00:00Z"),
+    volume("vol-10", "2026-01-01T00:00:00Z"),
+    volume(newestAnonymous, "2026-01-05T00:00:00Z"),
+    volume("data", "2026-01-01T00:00:00Z"),
+    volume("vol-01", "2026-01-01T00:00:00Z"),
+    volume("vol-2", "2026-01-01T00:00:00Z"),
+  ];
+
+  const forwards = await listedNames(payload);
+  const backwards = await listedNames([...payload].reverse());
+
+  assert.deepEqual(forwards, [
+    "Data",
+    "data",
+    "vol-01",
+    "vol-1",
+    "vol-2",
+    "vol-10",
+    newestAnonymous,
+    oldestAnonymous,
+  ]);
+  assert.deepEqual(backwards, forwards);
+});
+
 // volumes-service.md — getVolumeInspect returns VolumeSummary & { raw }, raw being the full payload as received
 test("getVolumeInspect carries the raw payload exactly as received, alongside the summary fields", async () => {
   const raw = { Name: "vol-a", Driver: "local", Mountpoint: "/data/vol-a", Scope: "local", ExtraDaemonField: "kept as-is" };

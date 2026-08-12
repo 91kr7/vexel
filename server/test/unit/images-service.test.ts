@@ -127,6 +127,175 @@ test("listImages rejects with the daemon's own error message on failure", async 
   await assert.rejects(() => listImages(), /server error - please retry/);
 });
 
+interface RawImageFixture {
+  Id: string;
+  RepoTags: string[];
+  RepoDigests?: string[];
+  Created: number;
+  Size: number;
+}
+
+const DEFAULT_CREATED = 1_700_000_000;
+
+function image(id: string, options: { tags?: string[]; digests?: string[]; created?: number } = {}): RawImageFixture {
+  const fixture: RawImageFixture = {
+    Id: id,
+    // The daemon's own placeholder for a row carrying no tag.
+    RepoTags: options.tags ?? ["<none>:<none>"],
+    Created: options.created ?? DEFAULT_CREATED,
+    Size: 10,
+  };
+  if (options.digests !== undefined) fixture.RepoDigests = options.digests;
+  return fixture;
+}
+
+/** Tags and id together: the id is what the order of the dangling block falls back to, so an assertion that ignores it cannot see the tiebreak. */
+function sequenceOf(images: { tags: string[]; id: string }[]): string[] {
+  return images.map((entry) => `${entry.tags.join(",") || "<none>"}#${entry.id}`);
+}
+
+async function listFrom(payload: RawImageFixture[]): Promise<string[]> {
+  listBody = JSON.stringify(payload);
+  return sequenceOf(await listImages());
+}
+
+// images-service.md — "tags ... Ordered lowest first under the list-order rule, the repository
+// compared before the tag ... and the order does not depend on the order the daemon returned
+// RepoTags in" (REQ-18, REQ-19)
+test("listImages orders a row's own tags lowest first, whichever order the daemon returned RepoTags in", async () => {
+  const supplied = ["nginx:latest", "alpine:3.20", "nginx:1.25"];
+  const expected = ["alpine:3.20", "nginx:1.25", "nginx:latest"];
+
+  listBody = JSON.stringify([image("sha256:multi", { tags: supplied })]);
+  const forwards = await listImages();
+  listBody = JSON.stringify([image("sha256:multi", { tags: [...supplied].reverse() })]);
+  const backwards = await listImages();
+
+  assert.deepEqual(forwards[0]!.tags, expected);
+  assert.deepEqual(backwards[0]!.tags, expected);
+});
+
+// images-service.md — "a tagged image sorts by its lowest tag ... repository compared before tag, so
+// every tag of one repository stays together" (REQ-17)
+test("listImages keeps every tag of one repository together and orders the tags within it", async () => {
+  const sequence = await listFrom([
+    image("sha256:a", { tags: ["nginx:latest"] }),
+    image("sha256:b", { tags: ["alpine:3.20"] }),
+    image("sha256:c", { tags: ["nginx:1.25"] }),
+    image("sha256:d", { tags: ["alpine:3.9"] }),
+  ]);
+
+  assert.deepEqual(sequence, ["alpine:3.9#sha256:d", "alpine:3.20#sha256:b", "nginx:1.25#sha256:c", "nginx:latest#sha256:a"]);
+});
+
+// images-service.md — "sorts by its lowest tag — the head of the ordered tags above, never the first
+// tag the daemon returned" (REQ-18): keying on the daemon's first tag would move the row when the
+// daemon returns the same tags the other way round.
+test("listImages keys a multi-tag image on its lowest tag, whichever order the daemon returned RepoTags in", async () => {
+  const supplied = ["zeta:1", "beta:1"];
+  const expected = ["alpha:1#sha256:a", "beta:1,zeta:1#sha256:m", "gamma:1#sha256:g"];
+
+  const forwards = await listFrom([
+    image("sha256:a", { tags: ["alpha:1"] }),
+    image("sha256:m", { tags: supplied }),
+    image("sha256:g", { tags: ["gamma:1"] }),
+  ]);
+  const backwards = await listFrom([
+    image("sha256:a", { tags: ["alpha:1"] }),
+    image("sha256:m", { tags: [...supplied].reverse() }),
+    image("sha256:g", { tags: ["gamma:1"] }),
+  ]);
+
+  assert.deepEqual(forwards, expected);
+  assert.deepEqual(backwards, expected);
+});
+
+// images-service.md — "an image with no tag but a digest reference sorts among the named ones, under
+// the repository of that reference ... taken as the lowest of them when there are several; it sorts
+// before the tagged images of that same repository", "the emitted fields are unchanged by any of
+// this: digest is still the first RepoDigest shortened" (REQ-20)
+test("listImages sorts a digest-only image under the lowest repository of its RepoDigests, leaving the emitted digest untouched", async () => {
+  const firstDigest = "a".repeat(64);
+  const lowestRepositoryDigest = "b".repeat(64);
+  listBody = JSON.stringify([
+    image("sha256:alpine", { tags: ["alpine:3.20"] }),
+    image("sha256:bydigest", {
+      digests: [`zzz/app@sha256:${firstDigest}`, `nginx@sha256:${lowestRepositoryDigest}`],
+    }),
+    image("sha256:nginx", { tags: ["nginx:1.25"] }),
+  ]);
+
+  const images = await listImages();
+
+  assert.deepEqual(sequenceOf(images), ["alpine:3.20#sha256:alpine", "<none>#sha256:bydigest", "nginx:1.25#sha256:nginx"]);
+  assert.equal(images[1]!.digest, `sha256:${firstDigest.slice(0, 12)}`);
+  assert.deepEqual(images[1]!.tags, []);
+});
+
+// images-service.md — the named block ends on "the image's id as the final comparison" (REQ-5): two
+// tags the name comparison calls equal — it ignores case — are separated by the images' own ids.
+test("listImages separates two images whose lowest tags differ only in case by their ids, both ways round", async () => {
+  const upper = image("sha256:b", { tags: ["app:V1"] });
+  const lower = image("sha256:a", { tags: ["app:v1"] });
+  const expected = ["app:v1#sha256:a", "app:V1#sha256:b"];
+
+  const forwards = await listFrom([upper, lower]);
+  const backwards = await listFrom([lower, upper]);
+
+  assert.deepEqual(forwards, expected);
+  assert.deepEqual(backwards, expected);
+});
+
+// images-service.md — "a dangling image (no tag and no digest reference) joins one block after every
+// named image, newest first by createdAt, with the image's id as the final comparison — so two
+// dangling images sharing a creation instant ... are still ordered identically on every read"
+// (REQ-21)
+test("listImages groups dangling images after every named one, newest first, sharing instants separated by id", async () => {
+  const payload = [
+    image("sha256:d2", { created: 1_700_000_100 }),
+    image("sha256:d3", { created: 1_700_000_200 }),
+    image("sha256:alpine", { tags: ["alpine:3.20"], created: 1_600_000_000 }),
+    image("sha256:d1", { created: 1_700_000_200 }),
+  ];
+  const expected = ["alpine:3.20#sha256:alpine", "<none>#sha256:d1", "<none>#sha256:d3", "<none>#sha256:d2"];
+
+  const forwards = await listFrom(payload);
+  const backwards = await listFrom([...payload].reverse());
+
+  assert.deepEqual(forwards, expected);
+  assert.deepEqual(backwards, expected);
+});
+
+// images-service.md — "The same images produce the same sequence on every read, whatever order the
+// daemon supplied them — or their RepoTags — in" (REQ-6, REQ-22): the only check that detects a
+// missing tiebreak, since a sort that is stable keeps whatever the payload happened to say.
+test("listImages produces one sequence whichever order the daemon supplied the images in", async () => {
+  const payload = [
+    image("sha256:dangling-b", { created: 1_700_000_300 }),
+    image("sha256:nginx-latest", { tags: ["nginx:latest"] }),
+    image("sha256:app-10", { tags: ["repo/app:10"] }),
+    image("sha256:bydigest", { digests: [`nginx@sha256:${"c".repeat(64)}`] }),
+    image("sha256:dangling-a", { created: 1_700_000_300 }),
+    image("sha256:app-2", { tags: ["repo/app:2"] }),
+    image("sha256:nginx-125", { tags: ["nginx:1.25"] }),
+  ];
+  const expected = [
+    "<none>#sha256:bydigest",
+    "nginx:1.25#sha256:nginx-125",
+    "nginx:latest#sha256:nginx-latest",
+    "repo/app:2#sha256:app-2",
+    "repo/app:10#sha256:app-10",
+    "<none>#sha256:dangling-a",
+    "<none>#sha256:dangling-b",
+  ];
+
+  const forwards = await listFrom(payload);
+  const backwards = await listFrom([...payload].reverse());
+
+  assert.deepEqual(forwards, expected);
+  assert.deepEqual(backwards, expected);
+});
+
 // images-service.md — entrypoint/command default to an empty array when unset
 test("getImageInspect defaults entrypoint and command to an empty array when the image sets neither", async () => {
   inspectBodies["sha256:abc"] = JSON.stringify({ Id: "sha256:abc", Created: "2024-01-01T00:00:00Z", Size: 10, Config: {} });
