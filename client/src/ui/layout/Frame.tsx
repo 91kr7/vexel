@@ -1,5 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { Backdrop } from '../background/Backdrop';
+import { useEscapeClaim } from '../controls/escape-arbitration';
 import './layout.css';
 
 export interface FrameProps {
@@ -53,14 +54,12 @@ export function Frame({ rail, header, footer, children }: FrameProps) {
     return () => window.removeEventListener('resize', measureScrollbarGutter);
   }, []);
 
-  useEffect(() => {
-    if (!railOpen) return;
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setRailOpen(false);
-    }
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [railOpen]);
+  // The open drawer is a claimant of `Escape` like every other dismissible
+  // surface, not a listener of its own: it is the innermost one while it is
+  // open, so one `Escape` closes the drawer and leaves whatever is open on the
+  // screen behind it alone — that surface takes the next one. The key is not
+  // prevented here, exactly as before.
+  useEscapeClaim(railOpen, () => setRailOpen(false));
 
   function handleRailClick(event: MouseEvent<HTMLDivElement>) {
     if ((event.target as HTMLElement).closest('button, a')) setRailOpen(false);

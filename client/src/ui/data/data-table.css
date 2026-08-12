@@ -3,6 +3,18 @@
   flex-direction: column;
 }
 
+/* The region is focusable only to receive the point of interaction back; a ring
+   around the whole list would read as a selection of it, so it is drawn for the
+   keyboard alone and never for a pointer-driven dismissal. */
+.ui-data-table:focus {
+  outline: none;
+}
+
+.ui-data-table:focus-visible {
+  outline: var(--border-width-hairline) solid var(--color-accent);
+  outline-offset: 2px;
+}
+
 .ui-data-table__header {
   display: grid;
   gap: var(--space-3);

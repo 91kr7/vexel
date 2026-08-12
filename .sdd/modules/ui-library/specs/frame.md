@@ -56,6 +56,11 @@ footer regions so feature code never writes a layout wrapper element itself.
   without Frame knowing about routing). Between `720px` and `1024px` the rail stays docked but
   narrows (`260px` → `220px`). This transient open/close transition is ordinary UI chrome, not the
   Backdrop layer — the CLAUDE.md animation ban targets the static background image, not a drawer.
+- **The open drawer is a claimant of `Escape`, not a listener of its own** (`escape-arbitration.md`).
+  While it is open it holds the innermost claim, so one `Escape` closes the drawer and leaves a
+  dismissible surface on the screen behind it exactly as it was — that surface takes the next one,
+  never the same one. The key is not prevented, as it never was. Above the phone breakpoint the rail
+  is docked, no drawer exists, and nothing is claimed.
 - That scrim is a **plain dim and declares no blur**, and says so explicitly rather than by
   omission. It spans the whole viewport, so blurring it would not blur a panel — it would blur the
   entire main view, background asset included, which is the cost the blur policy exists to refuse.
@@ -69,9 +74,11 @@ footer regions so feature code never writes a layout wrapper element itself.
 ## Dependencies
 
 - Backdrop, Overlay glass material
+- Escape arbitration
 
 ## Requirements served
 
+- plan-docker_management_app-container_detail_close/REQ-7
 - plan-docker_management_app/REQ-1
 - plan-docker_management_app/REQ-2
 - plan-docker_management_app/REQ-117

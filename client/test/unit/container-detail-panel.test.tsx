@@ -433,3 +433,39 @@ describe('ContainerDetailPanel — no filesystem export any more (REQ-19)', () =
   });
 
 });
+
+// container-detail-panel.md — the panel asks the shared panel for the presentation without a close
+// control: the row that opened it closes it, and `Escape` closes it from the keyboard. Nothing
+// replaces the `✕`, exactly as nothing replaced the export.
+describe('ContainerDetailPanel — dismissal without a close control (REQ-1, REQ-2, REQ-5)', () => {
+  it('offers no close control anywhere on the panel', async () => {
+    renderPanel();
+
+    // Awaited on the panel's own content, so the absence is asserted on a
+    // rendered panel rather than on one that has not drawn its header yet.
+    expect(await screen.findByRole('tab', { name: 'Config' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Close detail' })).not.toBeInTheDocument();
+    expect(document.querySelector('.ui-detail-panel__close')).toBeNull();
+  });
+
+  it('closes on Escape', async () => {
+    const user = userEvent.setup();
+    const { onClose } = renderPanel();
+    expect(await screen.findByRole('tab', { name: 'Config' })).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes on Escape from a control inside its own contents', async () => {
+    const user = userEvent.setup();
+    const { onClose } = renderPanel();
+
+    await user.click(await screen.findByRole('tab', { name: 'Inspect' }));
+    screen.getByRole('tab', { name: 'Inspect' }).focus();
+    await user.keyboard('{Escape}');
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});

@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Surface } from '../glass/Surface';
+import { useEscapeClaim } from './escape-arbitration';
 import './controls.css';
 
 export interface MenuEntry {
@@ -163,20 +164,26 @@ export function Menu({ label, entries, glyph = '…' }: MenuProps) {
     return () => document.removeEventListener('mousedown', dismissOnOutsideClick);
   }, [open, close]);
 
-  // The keyboard model is bound to the document while the menu is open, not to
-  // the popup: a key never reaches a listener on an element that does not hold
-  // the focus, and an open menu can lose it — to a surface re-rendering
-  // underneath it, or by simply never having taken it. Bound here, `Escape`
-  // closes wherever focus is, and an arrow key takes the focus back into the
-  // menu rather than needing it there first.
+  // `Escape` is not a listener of this component's own: an open menu is a claim
+  // registered with the library's arbitration, so it takes the key ahead of any
+  // dismissible surface it was opened over — which then gets the next `Escape`,
+  // instead of both resolving on one keystroke. The claim is not conditional on
+  // where the focus sits, which is the reason the handling was on the document
+  // in the first place: an open menu can lose the focus and must still close.
+  useEscapeClaim(open, (event) => {
+    event.preventDefault();
+    close(true);
+  });
+
+  // The rest of the keyboard model is bound to the document while the menu is
+  // open, not to the popup: a key never reaches a listener on an element that
+  // does not hold the focus, and an open menu can lose it — to a surface
+  // re-rendering underneath it, or by simply never having taken it. Bound here,
+  // an arrow key takes the focus back into the menu rather than needing it there
+  // first.
   useEffect(() => {
     if (!open) return;
     const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        close(true);
-        return;
-      }
       if (event.key === 'Tab') {
         // Not prevented: focus is put back on the trigger, so the browser moves
         // on from there as it would have if the menu had never opened.

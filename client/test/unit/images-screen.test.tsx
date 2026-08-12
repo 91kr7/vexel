@@ -339,6 +339,21 @@ describe('ImagesScreen — row expansion (plan-docker_management_app/REQ-37)', (
     expect(expanded.querySelector('.ui-detail-panel')).not.toBeNull();
   });
 
+  // plan-docker_management_app-container_detail_close/REQ-14 — the images panel keeps its close
+  // control and dismisses exactly as it does today: the container panel's variant is not its.
+  it('keeps the close control on the image detail panel, and closes with it', async () => {
+    const user = userEvent.setup();
+    renderScreen([makeImage({ id: 'image-1', tags: ['nginx:1.27'] })]);
+
+    await user.click(tableRows()[0]!);
+    const expanded = document.querySelector<HTMLElement>('.ui-data-table__expanded')!;
+    const closeControl = within(expanded).getByRole('button', { name: 'Close detail' });
+
+    await user.click(closeControl);
+
+    expect(document.querySelector('.ui-data-table__expanded')).toBeNull();
+  });
+
   it('expands only one image at a time', async () => {
     const user = userEvent.setup();
     renderScreen([makeImage({ id: 'image-a', tags: ['a:1'] }), makeImage({ id: 'image-b', tags: ['b:1'] })]);

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useEscapeClaim } from '../controls/escape-arbitration';
 import { Surface } from '../glass/Surface';
 import './feedback.css';
 
@@ -16,6 +17,12 @@ export interface ModalProps {
 
 /** Centered overlay-glass dialog over a dimmed overlay; closes on overlay click. */
 export function Modal({ open, title, children, actions, onClose, size = 'default' }: ModalProps) {
+  // An open dialog claims `Escape` and does nothing with it: the key does not
+  // close the dialog — that is unchanged — and, being claimed by the innermost
+  // surface, it no longer reaches a dismissible surface underneath, which would
+  // otherwise be dismissed behind a dialog covering it.
+  useEscapeClaim(open, () => {});
+
   if (!open) return null;
   const modalClass = size === 'large' ? 'ui-modal ui-modal--size-large' : 'ui-modal';
   return (

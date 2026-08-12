@@ -32,8 +32,8 @@ function ReportedErrors() {
   );
 }
 
-function renderScreen(containers: ContainerSummary[], onRefresh = vi.fn()) {
-  render(
+function screenTree(containers: ContainerSummary[], onRefresh: () => void) {
+  return (
     <ErrorReportingProvider>
       <ProgressProvider>
         <ConfirmationProvider>
@@ -43,9 +43,17 @@ function renderScreen(containers: ContainerSummary[], onRefresh = vi.fn()) {
           </ToastProvider>
         </ConfirmationProvider>
       </ProgressProvider>
-    </ErrorReportingProvider>,
+    </ErrorReportingProvider>
   );
-  return { onRefresh };
+}
+
+function renderScreen(containers: ContainerSummary[], onRefresh = vi.fn()) {
+  const view = render(screenTree(containers, onRefresh));
+  return {
+    onRefresh,
+    /** Re-renders the screen with a new list, the way the live list re-reads under it. */
+    withContainers: (next: ContainerSummary[]) => view.rerender(screenTree(next, onRefresh)),
+  };
 }
 
 let fetchMock: ReturnType<typeof vi.fn>;
@@ -580,6 +588,170 @@ describe('ContainersScreen — text/state filtering (REQ-23)', () => {
     expect(screen.getByText('db-alpine')).toBeInTheDocument();
     expect(screen.queryByText('web-nginx')).not.toBeInTheDocument();
     expect(screen.queryByText('cache-redis')).not.toBeInTheDocument();
+  });
+});
+
+// containers-screen.md — the row is the panel's only pointer route now, so selection is what the
+// panel's dismissal rests on: selecting the selected row closes it (REQ-3), selecting another
+// re-points it (REQ-4), a container that leaves the list closes it (REQ-15), and a container merely
+// filtered out of view keeps its selection, renders neither row nor panel, and comes back with its
+// panel intact (REQ-16).
+describe('ContainersScreen — row selection opens and closes the detail panel (REQ-3, REQ-4, REQ-15, REQ-16)', () => {
+  const web = makeContainer({ id: 'container-1', shortId: 'container1', name: 'web-nginx', image: 'nginx:1.27', state: 'running' });
+  const cache = makeContainer({ id: 'container-2', shortId: 'container2', name: 'cache-redis', image: 'redis:7', state: 'running' });
+
+  // The panel's read hook subscribes to daemon events through a module-level
+  // EventSource, which jsdom does not provide.
+  class FakeEventSource {
+    url: string;
+    constructor(url: string) {
+      this.url = url;
+    }
+    addEventListener() {}
+    close() {}
+  }
+
+  function inspectPayload(container: ContainerSummary) {
+    return {
+      id: container.id,
+      name: container.name,
+      image: container.image,
+      command: ['sleep'],
+      entrypoint: [],
+      createdAt: '2026-01-01T00:00:00Z',
+      state: { status: container.state, startedAt: '2026-01-01T00:00:01Z' },
+      restartPolicy: { name: 'no' },
+      resourceLimits: {},
+      env: [],
+      ports: [],
+      mounts: [],
+      networks: [],
+      labels: {},
+      raw: { Id: container.id },
+    };
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal('EventSource', FakeEventSource);
+    fetchMock.mockImplementation((url: string) => {
+      const inspected = [web, cache].find((container) => String(url).includes(`/containers/${container.id}/inspect`));
+      return Promise.resolve(
+        inspected
+          ? { ok: true, status: 200, json: () => Promise.resolve(inspectPayload(inspected)) }
+          : { ok: true, status: 204, json: () => Promise.resolve({}) },
+      );
+    });
+  });
+
+  function rowFor(name: string): HTMLElement {
+    const row = Array.from(document.querySelectorAll<HTMLElement>('.ui-data-table__row')).find((candidate) =>
+      candidate.textContent?.includes(name),
+    );
+    if (!row) throw new Error(`no row for ${name}`);
+    return row;
+  }
+
+  function expandedRegion(): HTMLElement | null {
+    return document.querySelector<HTMLElement>('.ui-data-table__expanded');
+  }
+
+  /** The name on the row the expanded panel is rendered directly below — which container the panel is pointing at. */
+  function panelOwner(): string {
+    const expanded = expandedRegion();
+    if (!expanded) throw new Error('no panel is open');
+    return expanded.previousElementSibling?.textContent ?? '';
+  }
+
+  it('opens the detail panel below the selected row, with that row marked as the selected one', async () => {
+    const user = userEvent.setup();
+    renderScreen([web, cache]);
+
+    await user.click(rowFor('web-nginx'));
+
+    expect(expandedRegion()).not.toBeNull();
+    expect(await within(expandedRegion()!).findByRole('tab', { name: 'Config' })).toBeInTheDocument();
+    expect(panelOwner()).toContain('web-nginx');
+    expect(rowFor('web-nginx')).toHaveAttribute('aria-selected', 'true');
+    expect(rowFor('cache-redis')).toHaveAttribute('aria-selected', 'false');
+  });
+
+  it('closes the panel when the already-selected row is selected again', async () => {
+    const user = userEvent.setup();
+    renderScreen([web, cache]);
+
+    await user.click(rowFor('web-nginx'));
+    expect(expandedRegion()).not.toBeNull();
+
+    await user.click(rowFor('web-nginx'));
+
+    expect(expandedRegion()).toBeNull();
+    expect(rowFor('web-nginx')).toHaveAttribute('aria-selected', 'false');
+  });
+
+  it('keeps the panel open and re-points it when a different row is selected', async () => {
+    const user = userEvent.setup();
+    renderScreen([web, cache]);
+
+    await user.click(rowFor('web-nginx'));
+    await user.click(rowFor('cache-redis'));
+
+    expect(expandedRegion()).not.toBeNull();
+    expect(panelOwner()).toContain('cache-redis');
+    expect(document.querySelectorAll('.ui-data-table__expanded')).toHaveLength(1);
+    expect(rowFor('cache-redis')).toHaveAttribute('aria-selected', 'true');
+    expect(rowFor('web-nginx')).toHaveAttribute('aria-selected', 'false');
+  });
+
+  it('closes the panel when its container leaves the list', async () => {
+    const user = userEvent.setup();
+    const { withContainers } = renderScreen([web, cache]);
+
+    await user.click(rowFor('web-nginx'));
+    expect(expandedRegion()).not.toBeNull();
+
+    // The daemon removed it; the live list re-reads without it.
+    withContainers([cache]);
+
+    await waitFor(() => expect(expandedRegion()).toBeNull());
+    expect(screen.queryByText('web-nginx')).not.toBeInTheDocument();
+  });
+
+  it('renders neither row nor panel while the selected container is searched out of view, and brings both back unchanged', async () => {
+    const user = userEvent.setup();
+    renderScreen([web, cache]);
+
+    await user.click(rowFor('web-nginx'));
+    expect(expandedRegion()).not.toBeNull();
+
+    const search = screen.getByPlaceholderText('Search name, image or state…');
+    await user.type(search, 'cache');
+
+    expect(screen.queryByText('web-nginx')).not.toBeInTheDocument();
+    expect(expandedRegion()).toBeNull();
+
+    await user.clear(search);
+
+    expect(expandedRegion()).not.toBeNull();
+    expect(panelOwner()).toContain('web-nginx');
+    expect(rowFor('web-nginx')).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('renders neither row nor panel while a state filter excludes the selected container, and brings both back unchanged', async () => {
+    const user = userEvent.setup();
+    renderScreen([web, makeContainer({ id: 'container-3', name: 'db-alpine', state: 'exited' })]);
+
+    await user.click(rowFor('web-nginx'));
+    expect(expandedRegion()).not.toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Stopped' }));
+
+    expect(screen.queryByText('web-nginx')).not.toBeInTheDocument();
+    expect(expandedRegion()).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'All' }));
+
+    expect(expandedRegion()).not.toBeNull();
+    expect(panelOwner()).toContain('web-nginx');
   });
 });
 

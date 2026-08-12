@@ -315,6 +315,14 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
     ];
   }
 
+  /**
+   * The row is the panel's only pointer route now that the panel has no close
+   * control: selecting the selected row closes it, selecting another one leaves
+   * it open on that container. A container filtered or searched out of view
+   * deliberately keeps its selection — the panel is the table's expansion of its
+   * own row, so neither is rendered while the row is out of the list and both
+   * come back together when it re-enters.
+   */
   function toggleSelection(container: ContainerSummary) {
     setSelectedId((current) => (current === container.id ? undefined : container.id));
   }
