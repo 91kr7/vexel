@@ -87,6 +87,33 @@ async function typeIntoTerminal(detail: ReturnType<typeof containerRow>, page: P
   await page.keyboard.press('Enter');
 }
 
+/**
+ * Records the terminal-input frames the client sends over the session socket.
+ *
+ * Session I/O travels as binary frames (the JSON text frames carry resizes and
+ * the server's notices), so the bytes themselves are what says a keystroke
+ * reached the session rather than being swallowed on the way.
+ */
+async function installInputFrameRecorder(page: Page) {
+  await page.addInitScript(() => {
+    const recorded: number[][] = [];
+    (window as unknown as { __inputFrames: number[][] }).__inputFrames = recorded;
+    const originalSend = WebSocket.prototype.send;
+    WebSocket.prototype.send = function patchedSend(this: WebSocket, data: unknown) {
+      if (data instanceof Uint8Array) recorded.push(Array.from(data));
+      else if (data instanceof ArrayBuffer) recorded.push(Array.from(new Uint8Array(data)));
+      return originalSend.call(this, data as string);
+    };
+  });
+}
+
+async function takeInputFrames(page: Page): Promise<number[][]> {
+  return page.evaluate(() => {
+    const frames = (window as unknown as { __inputFrames: number[][] }).__inputFrames;
+    return frames.splice(0, frames.length);
+  });
+}
+
 test.beforeEach(async ({ page }) => {
   // Pinned, not inherited: the last active screen survives by design (REQ-115),
   // and the Dashboard the application otherwise lands on names this screen in a
@@ -143,6 +170,57 @@ test.describe('Container exec sessions (REQ-34, REQ-36)', () => {
       await expect
         .poll(async () => terminalText(detail), { timeout: 15_000, message: 'expected whoami/pwd output for the chosen user and working directory' })
         .toMatch(/nobody[\s\S]*\/tmp/);
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+
+  // plan-docker_management_app-container_detail_close/REQ-8 — an Escape typed into a live session reaches the session and
+  // dismisses nothing around it. Both halves are asserted: the panel is still open *and* the keystroke was observed on
+  // the session's own channel — a session that quietly stops receiving one key still looks like a working session.
+  test('Escape typed in a live exec session reaches the session and leaves the panel open', async ({ page }) => {
+    const name = `vexel-e2e-exec-escape-${Date.now()}`;
+    try {
+      await installInputFrameRecorder(page);
+      // The recorder is installed first, so the load it applies to is this one;
+      // the screen is pinned rather than reached through a rail click the
+      // Dashboard's cross-navigation tiles make ambiguous (REQ-115).
+      await openApp(page, 'containers');
+      await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
+      await createIdleContainer(name);
+      const detail = await openTab(page, name, 'Exec');
+      // The fixture image ships `/bin/sh` and no bash, as small images do.
+      await detail.getByRole('combobox', { name: 'Shell' }).selectOption('/bin/sh');
+      await detail.getByRole('button', { name: 'Launch session' }).click();
+      await expect(detail.getByText('Connected')).toBeVisible({ timeout: 15_000 });
+
+      // The host owns the keystrokes typed inside it, so the key has to be typed
+      // there: clicking it focuses the emulator's own hidden input.
+      await detail.locator('.ui-terminal-host').click({ force: true });
+      await expect
+        .poll(async () => terminalText(detail), { timeout: 15_000, message: 'expected the shell prompt to be drawn before typing' })
+        .toMatch(/[$#]\s*$/);
+      // Everything the session has sent so far (the prompt's cursor-position
+      // reply included) is dropped, so what is asserted below is this keystroke.
+      await takeInputFrames(page);
+
+      await page.keyboard.press('Escape');
+
+      const seen: number[][] = [];
+      await expect
+        .poll(
+          async () => {
+            seen.push(...(await takeInputFrames(page)));
+            return seen.some((frame) => frame.length === 1 && frame[0] === 0x1b);
+          },
+          { timeout: 10_000, message: 'expected the Escape keystroke to be sent on the session channel' },
+        )
+        .toBe(true);
+
+      // Nothing around the session was dismissed by it, and the session is still live.
+      await expect(page.locator('.ui-data-table__expanded')).toBeVisible();
+      await expect(detail.getByText('Connected')).toBeVisible();
+      await expect(detail.locator('.ui-terminal-host')).toBeVisible();
     } finally {
       await removeContainerQuietly(name);
     }

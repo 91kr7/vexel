@@ -399,6 +399,250 @@ function openDetail(page: Page, name: string) {
   return containerRow(page, name).getByText(name, { exact: true }).click();
 }
 
+/** The name on the row the expanded panel is rendered directly below — which container the panel is pointing at. */
+async function panelOwner(page: Page): Promise<string> {
+  return page.evaluate(() => document.querySelector('.ui-data-table__expanded')?.previousElementSibling?.textContent ?? '');
+}
+
+// The container detail panel has no close control any more: the row that opened it closes it, and
+// `Escape` closes it from the keyboard — arbitrated against the other consumers of that key on this
+// screen. Nothing here covered the panel's dismissal before this change: it was opened and never
+// closed (plan-docker_management_app-container_detail_close/REQ-19).
+//
+// Serial for the same reason as the group below: these tests keep a panel open across several
+// steps, and virtualisation reserves no space for an expanded row.
+test.describe('Container detail panel dismissal (REQ-1, REQ-3, REQ-4, REQ-5, REQ-7, REQ-9, REQ-12, REQ-16)', () => {
+  test.describe.configure({ mode: 'serial' });
+
+  // plan-docker_management_app-container_detail_close/REQ-1, REQ-2, REQ-3, REQ-12 — the panel offers no close control,
+  // its row is visibly the selected one, and selecting that row again closes it
+  test('the open panel carries no close control, its row is the selected one, and re-selecting that row closes it', async ({ page }) => {
+    const name = `vexel-e2e-close-row-${Date.now()}`;
+    try {
+      await createSleepingContainer(name);
+      const row = containerRow(page, name);
+      await expect(row).toBeVisible({ timeout: 15_000 });
+
+      await openDetail(page, name);
+      const detail = page.locator('.ui-data-table__expanded');
+      await expect(detail).toBeVisible();
+
+      // Gone from the rendered interface — not hidden, not disabled, not moved.
+      await expect(page.getByRole('button', { name: 'Close detail' })).toHaveCount(0);
+      await expect(detail.locator('.ui-detail-panel__close')).toHaveCount(0);
+      // The bond to the row is visible without acting (REQ-12).
+      await expect(row).toHaveClass(/ui-data-table__row--selected/);
+      expect(await panelOwner(page)).toContain(name);
+
+      await openDetail(page, name);
+
+      await expect(detail).toHaveCount(0);
+      await expect(row).not.toHaveClass(/ui-data-table__row--selected/);
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+
+  // plan-docker_management_app-container_detail_close/REQ-4 — selecting a different row leaves the panel open and
+  // re-points it at the newly selected container
+  test('selecting another row keeps the panel open on that other container', async ({ page }) => {
+    const stem = `vexel-e2e-repoint-${Date.now()}`;
+    const first = `${stem}-a`;
+    const second = `${stem}-b`;
+    try {
+      await createSleepingContainer(first);
+      await createSleepingContainer(second);
+      await page.getByPlaceholder('Search name, image or state…').fill(stem);
+      await expect(containerRow(page, first)).toBeVisible({ timeout: 15_000 });
+      await expect(containerRow(page, second)).toBeVisible({ timeout: 15_000 });
+
+      await openDetail(page, first);
+      await expect(page.locator('.ui-data-table__expanded')).toBeVisible();
+
+      await openDetail(page, second);
+
+      await expect(page.locator('.ui-data-table__expanded')).toHaveCount(1);
+      await expect.poll(async () => panelOwner(page), { timeout: 10_000 }).toContain(second);
+      await expect(containerRow(page, second)).toHaveClass(/ui-data-table__row--selected/);
+      await expect(containerRow(page, first)).not.toHaveClass(/ui-data-table__row--selected/);
+    } finally {
+      await removeContainerQuietly(first);
+      await removeContainerQuietly(second);
+    }
+  });
+
+  // plan-docker_management_app-container_detail_close/REQ-5, REQ-6 — Escape closes the panel, including from a control
+  // inside the panel's own contents
+  test('Escape closes the panel, from the screen and from inside the panel itself', async ({ page }) => {
+    const name = `vexel-e2e-escape-${Date.now()}`;
+    try {
+      await createSleepingContainer(name);
+      await expect(containerRow(page, name)).toBeVisible({ timeout: 15_000 });
+      const detail = page.locator('.ui-data-table__expanded');
+
+      await openDetail(page, name);
+      await expect(detail).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(detail).toHaveCount(0);
+
+      // Again, this time with the focus on a control the operator reached inside the panel.
+      await openDetail(page, name);
+      await expect(detail).toBeVisible();
+      await detail.getByRole('tab', { name: 'Inspect' }).click();
+      await expect(detail.getByRole('tab', { name: 'Inspect' })).toBeFocused();
+
+      await page.keyboard.press('Escape');
+
+      await expect(detail).toHaveCount(0);
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+
+  // plan-docker_management_app-container_detail_close/REQ-7 — Escape is arbitrated innermost-first: an open row menu
+  // takes the key and closes alone, the panel takes the next one
+  test('with the row menu open, Escape closes only the menu and the next one closes the panel', async ({ page }) => {
+    const name = `vexel-e2e-escape-menu-${Date.now()}`;
+    try {
+      await createSleepingContainer(name);
+      await expect(containerRow(page, name)).toBeVisible({ timeout: 15_000 });
+      const detail = page.locator('.ui-data-table__expanded');
+
+      await openDetail(page, name);
+      await expect(detail).toBeVisible();
+      await openOverflow(page, name);
+
+      await page.keyboard.press('Escape');
+
+      await expect(page.getByRole('menu')).toHaveCount(0);
+      await expect(detail).toBeVisible();
+
+      await page.keyboard.press('Escape');
+
+      await expect(detail).toHaveCount(0);
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+
+  // plan-docker_management_app-container_detail_close/REQ-9 — while a confirmation is open over the screen, Escape
+  // dismisses the panel behind it; what the dialog does with the key is its own existing behaviour, which is nothing
+  test('with the Remove confirmation open, Escape leaves both the confirmation and the panel as they were', async ({ page }) => {
+    const name = `vexel-e2e-escape-dialog-${Date.now()}`;
+    try {
+      await createSleepingContainer(name);
+      await expect(containerRow(page, name)).toBeVisible({ timeout: 15_000 });
+      const detail = page.locator('.ui-data-table__expanded');
+
+      await openDetail(page, name);
+      await expect(detail).toBeVisible();
+      await openOverflow(page, name);
+      await menuEntry(page, 'Remove').click();
+      const confirmHeading = page.getByRole('heading', { name: `Confirm: ${name}` });
+      await expect(confirmHeading).toBeVisible();
+
+      await page.keyboard.press('Escape');
+
+      await expect(confirmHeading).toBeVisible();
+      await expect(detail).toBeVisible();
+
+      // The confirmation is closed the way it is meant to be, leaving the container in place.
+      await page.locator('.ui-modal').filter({ has: confirmHeading }).getByRole('button', { name: 'Cancel' }).click();
+      await expect(confirmHeading).toHaveCount(0);
+      await expect(detail).toBeVisible();
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+
+  // plan-docker_management_app-container_detail_close/REQ-16 — a search that excludes the selected container takes its
+  // row and its panel off screen together, and clearing it brings both back as they were
+  test('a search that excludes the selected container hides its row and its panel, and clearing it restores both', async ({ page }) => {
+    const name = `vexel-e2e-escape-filter-${Date.now()}`;
+    try {
+      await createSleepingContainer(name);
+      await expect(containerRow(page, name)).toBeVisible({ timeout: 15_000 });
+      const detail = page.locator('.ui-data-table__expanded');
+      const search = page.getByPlaceholder('Search name, image or state…');
+
+      await openDetail(page, name);
+      await expect(detail).toBeVisible();
+
+      await search.fill(`${name}-excluded-by-this-search`);
+
+      await expect(containerRow(page, name)).toHaveCount(0);
+      await expect(detail).toHaveCount(0);
+
+      await search.fill('');
+
+      await expect(containerRow(page, name)).toBeVisible();
+      await expect(detail).toBeVisible();
+      expect(await panelOwner(page)).toContain(name);
+      await expect(containerRow(page, name)).toHaveClass(/ui-data-table__row--selected/);
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+
+  // plan-docker_management_app-container_detail_close/REQ-10 — with no panel open, Escape changes nothing about what is
+  // selected, filtered or displayed on the screen
+  test('with no panel open, Escape changes nothing on the screen', async ({ page }) => {
+    const name = `vexel-e2e-escape-idle-${Date.now()}`;
+    try {
+      await createSleepingContainer(name);
+      const row = containerRow(page, name);
+      await expect(row).toBeVisible({ timeout: 15_000 });
+      const search = page.getByPlaceholder('Search name, image or state…');
+      await search.fill(name);
+      await page.getByRole('button', { name: 'Running' }).click();
+      await expect(row).toBeVisible();
+
+      await page.keyboard.press('Escape');
+
+      await expect(search).toHaveValue(name);
+      await expect(page.getByRole('button', { name: 'Running' })).toHaveAttribute('aria-pressed', 'true');
+      await expect(row).toBeVisible();
+      await expect(page.locator('.ui-data-table__expanded')).toHaveCount(0);
+      await expect(page.locator('.ui-data-table__row--selected')).toHaveCount(0);
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+
+  // ui-library/specs/frame.md — the phone navigation drawer is a claimant like any other: one Escape closes the drawer
+  // and leaves the panel open, the next one closes the panel (REQ-7)
+  test('with the phone navigation drawer open over the panel, Escape closes only the drawer', async ({ page }) => {
+    const name = `vexel-e2e-escape-drawer-${Date.now()}`;
+    try {
+      await createSleepingContainer(name);
+      await expect(containerRow(page, name)).toBeVisible({ timeout: 15_000 });
+      const detail = page.locator('.ui-data-table__expanded');
+
+      await openDetail(page, name);
+      await expect(detail).toBeVisible();
+
+      // Below the phone breakpoint, which is the only place the drawer exists at
+      // all: above it the rail is docked and claims nothing.
+      await page.setViewportSize({ width: 390, height: 844 });
+      await expect(detail).toBeVisible();
+
+      await page.getByRole('button', { name: 'Open navigation' }).click();
+      await expect(page.locator('.ui-frame__rail--open')).toBeVisible();
+
+      await page.keyboard.press('Escape');
+
+      await expect(page.locator('.ui-frame__rail--open')).toHaveCount(0);
+      await expect(detail).toBeVisible();
+
+      await page.keyboard.press('Escape');
+
+      await expect(detail).toHaveCount(0);
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+});
+
 // These tests keep a container's detail panel open across several UI steps
 // (tab switch, edit, save). DataTable virtualisation does not reserve extra
 // space for an expanded row (ui-library/specs/data-table.md), so another
