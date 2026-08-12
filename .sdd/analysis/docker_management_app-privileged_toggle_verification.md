@@ -61,6 +61,13 @@ path under permanent verification so the reported failure cannot exist unnoticed
 unnoticed tomorrow, and to record what was established — and what was not — so nobody investigates
 it a third time.
 
+**And the limit belongs here, not only further down.** Every attempt shared one browser engine, one
+GPU path and one machine, and so does the verification this work delivers. The standing hypothesis —
+an environment-, engine- or driver-specific paint failure — is therefore untested rather than
+refuted. **This work cannot clear bug-2, and anyone citing it as having exonerated the privileged
+path is citing it for something it was never able to do.** "Does not reproduce" is a description of
+seven attempts, not a verdict on the report.
+
 ## Business goal
 
 **The value on offer is not a repaired feature. It is the closing of a doubt, permanently, at the
@@ -159,6 +166,26 @@ Three reasons this is worth spending on, and one reason it must not be spent on 
 
 Not assumptions. Each of these was measured, and each is recorded with the measurement that supports
 it so a later reader can weigh it rather than take it on trust.
+
+**The seven attempts, enumerated.** Stated one by one rather than in aggregate, so a later reader can
+reconstruct any single one, check the numbering this file uses elsewhere, and see which axes were
+genuinely varied and which were held constant throughout.
+
+| # | Build | Arrangement | Entry path | Viewport | Action | Result |
+|---|---|---|---|---|---|---|
+| 1 | current `main` | dev (Vite 5173 + Express 3000) | Containers → `Run container…` | 1280 wide | toggle `Run privileged` | no crash; sheet intact, 1154 chars before and after |
+| 2 | current `main` | dev | Containers → `Run container…` | 1280 wide | toggle off, then on again | no crash |
+| 3 | current `main` | production (`npm run build` + `serve`) | Containers → `Run container…` | 1280 wide | toggle | no crash |
+| 4 | current `main` | production | Containers → `Run container…` | 1280 wide | image `alpine:3.20`, name set, privileged on, **`Create only`** | container created, sheet closed normally; fixture removed with `docker rm -fv` |
+| 5 | current `main` | production | Containers → `Create from image…` | 1280 wide | toggle | no crash |
+| 6 | current `main` | production | Containers → `Run container…` | **813 × 905** | toggle | no crash |
+| 7 | **pre-work `3725389`** | production, clean worktree | Containers → `Run container…` | **813 × 905** | toggle | no crash; 1154 chars before and after; control confirmed the old build |
+
+What varied: the build (two), the run arrangement (two), the entry path within the containers screen
+(two), the viewport (two), and the depth of the interaction (toggle only, versus a complete create).
+**What never varied, and is the whole of the standing hypothesis: one browser engine, one GPU path,
+one machine, one operator's daemon.** The image row's `Run…` entry was never exercised by hand at
+all — it is covered only by the standing check this work delivers.
 
 - **The failure does not reproduce on the build the report was written against.** The pre-work
   commit — `3725389 "First set of bugs"`, which was `main` at the moment `bugs.md` was written — was

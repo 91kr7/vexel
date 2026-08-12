@@ -61,6 +61,19 @@ Actions:
   banner appears, nothing is cleared and nothing is re-defaulted.
 - The form is reset to its initial values only when it opens, never in reaction to a refusal.
 - While the creation is in flight, the sheet is busy: the commit actions and cancel are disabled.
+- **Operating the privileged switch leaves the sheet drawing its own content**, and that is held
+  standing by `client/e2e/container-create-privileged.spec.ts`: after "Run privileged" is switched
+  on, every section, field and action is still present and carrying its text — the sheet's rendered
+  text is exactly as long as it was before the interaction — the switch reads as selected, and the
+  container the daemon then holds reports `HostConfig.Privileged`. **Before touching this form,
+  read the investigation behind that check**: bug-2 of the repository's `bugs.md` — "selecting
+  privileged the popup crashs!" — reported and never reproduced, recorded in
+  `.sdd/analysis/docker_management_app-privileged_toggle_verification.md`, which is its only
+  account; nothing is restated here. **Two limits that check carries, and the first governs
+  everything: it runs in a single browser engine, so it cannot observe an engine-specific paint
+  failure and therefore CANNOT CLEAR bug-2** — citing it as having exonerated the privileged path
+  is citing it for something it was never able to do. Second, it creates the container and never
+  starts it, so "Create and start" is outside its coverage.
 
 ## Dependencies
 
@@ -75,3 +88,5 @@ Actions:
 - plan-docker_management_app/REQ-27
 - plan-docker_management_app/REQ-28
 - plan-docker_management_app/REQ-29
+- plan-docker_management_app-privileged_toggle_verification/REQ-22
+- plan-docker_management_app-privileged_toggle_verification/REQ-25
