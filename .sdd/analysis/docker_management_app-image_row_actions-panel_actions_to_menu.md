@@ -252,11 +252,21 @@ everything works.
 - **At most one of the four is open at a time.** They are full views over the same screen; two at
   once has no meaning, and it would make the `Escape` chain ambiguous. Opening one from a menu closes
   any other that is open.
-- **`Escape` arbitration holds in the new case: a flow open with no panel.** Any of the four takes
-  `Escape` before the row menu and before the panel, and closing it must return the operator to the
-  images list — never close a panel underneath it, and never change what is selected. change-3 wrote
-  this chain for flows opened *from* a panel; it must now hold when there is no panel in the chain at
-  all.
+- **`Escape` arbitration holds in the new case: a flow open with no panel.** Any of the four **claims**
+  `Escape` ahead of the row menu and of the panel. change-3 wrote this chain for flows opened *from* a
+  panel; it must now hold when there is no panel in the chain at all.
+
+  **Corrected during planning, and the correction matters because the original wording described a
+  product this is not.** An earlier draft of this bullet said the four take `Escape` "and closing it
+  must return the operator to the images list", which reads as `Escape` *closing* the flow. It does
+  not, and must not: **no dialog in this product closes on `Escape`.** `Modal` claims the key through
+  the single arbitration registry and deliberately consumes it doing nothing, exactly so that nothing
+  underneath is dismissed out from under an open dialog — change-2's design, and the reason change-3
+  put `Escape`-to-close out of its own scope. Making these four close on `Escape` would be a
+  product-wide change to every dialog in the application and would contradict this analysis's own
+  "nothing else changes". What is required here is only the claim: while one of the four is open,
+  `Escape` resolves nothing — it does not close the flow, it does not close the row menu, it does not
+  close a panel underneath, and it does not change what is selected.
 - **A flow must not outlive its image without a way out.** The images list is live and is changed
   from outside the application: an image can be removed, pruned or re-tagged while its layers are
   being explored or its filesystem browsed, and `Remove` for that very image sits in the same menu the
