@@ -3,7 +3,7 @@ slug: docker_management_app-privileged_toggle_verification
 date: 2026-08-12
 spec: .sdd/analysis/docker_management_app-privileged_toggle_verification.md
 requirements: .sdd/plans/plan-docker_management_app-privileged_toggle_verification/requirements.md
-status: draft
+status: validated
 ---
 
 # Batches — The privileged path under standing verification, and the investigation on record
@@ -18,7 +18,7 @@ the premise of the whole item has failed (REQ-14) and the work stops rather than
 
 | Batch | Feature | REQ closed | Depends | Status | Human acceptance |
 | --- | --- | --- | --- | --- | --- |
-| 1 · privileged-path-verification | F1 — The privileged path under standing verification, and the investigation on record | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-9, REQ-10, REQ-11, REQ-12, REQ-13, REQ-14, REQ-15, REQ-16, REQ-17, REQ-18, REQ-19, REQ-20, REQ-21, REQ-22, REQ-23, REQ-24, REQ-25 | — | todo | **First, that nothing moved**: at a narrow window (~813px) open Containers → `Run container…`, toggle `Run privileged` — the sheet stays exactly as it was, every section still drawn, the toggle now on — then `Cancel`. The form, its wording, its layout, its sections and both commit actions are identical to before this batch, and `git status` shows **no file under `client/src/` or `server/src/` touched** and `client/test/unit/container-create-form.test.tsx` unmodified. **Then the check**: read `client/e2e/container-create-privileged.spec.ts` — its header names the record (`.sdd/analysis/docker_management_app-privileged_toggle_verification.md`), says in one line why the check is shaped around a *blank but present* sheet rather than around a successful create, and carries in its own words the sentence that this check **runs in one browser engine and therefore cannot clear bug-2**; if that sentence is absent the batch is not done. Run that spec on its own and watch it pass, including the **negative-control** test, which blanks the open sheet's content in the page and proves the content assertion **fails** on a surface that is present and empty — the symptom the screenshot depicts. **Then that the machine is as it was**: `docker ps -a --filter name=vexel-e2e-privileged` returns nothing, no new anonymous volume is on the daemon, and no privileged container was ever *started* — the check clicks `Create only`, never `Create and start`, and asserts `State.Running` is `false` alongside `HostConfig.Privileged` being `true`. **Then the record's reachability**: `bugs.md` carries **one appended annotation line under bug-2**, visibly an annotation, saying the item was investigated, did not reproduce, and where the record is — with the human's own text, typos included, **unaltered to the character**; and `.sdd/modules/containers/specs/container-create-form.md` carries the cross-reference naming the record, the check and the single-engine limit. The implementer reports having **read the record and confirmed** it carries the baseline result *with its control*, the crop measurement, the excluded and standing hypotheses, the measured/inferred/assumed distinction, the open thread and the cannot-clear sentence — and reports any of it missing rather than repairing it. **Test runs are batch-scoped**: `npm run lint`, `npm run test:typecheck -w client` (the only pass that typechecks the e2e tree) and this batch's single e2e spec, run on its own. **The full unit suite and the complete e2e suite are not this batch's business**: they run once at the end, after all six items of `bugs.md` are certified — bug-2 is the **fifth of six**. |
+| 1 · privileged-path-verification | F1 — The privileged path under standing verification, and the investigation on record | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-9, REQ-10, REQ-11, REQ-12, REQ-13, REQ-14, REQ-15, REQ-16, REQ-17, REQ-18, REQ-19, REQ-20, REQ-21, REQ-22, REQ-23, REQ-24, REQ-25 | — | certified | **First, that nothing moved**: at a narrow window (~813px) open Containers → `Run container…`, toggle `Run privileged` — the sheet stays exactly as it was, every section still drawn, the toggle now on — then `Cancel`. The form, its wording, its layout, its sections and both commit actions are identical to before this batch, and `git status` shows **no file under `client/src/` or `server/src/` touched** and `client/test/unit/container-create-form.test.tsx` unmodified. **Then the check**: read `client/e2e/container-create-privileged.spec.ts` — its header names the record (`.sdd/analysis/docker_management_app-privileged_toggle_verification.md`), says in one line why the check is shaped around a *blank but present* sheet rather than around a successful create, and carries in its own words the sentence that this check **runs in one browser engine and therefore cannot clear bug-2**; if that sentence is absent the batch is not done. Run that spec on its own and watch it pass, including the **negative-control** test, which blanks the open sheet's content in the page and proves the content assertion **fails** on a surface that is present and empty — the symptom the screenshot depicts. **Then that the machine is as it was**: `docker ps -a --filter name=vexel-e2e-privileged` returns nothing, no new anonymous volume is on the daemon, and no privileged container was ever *started* — the check clicks `Create only`, never `Create and start`, and asserts `State.Running` is `false` alongside `HostConfig.Privileged` being `true`. **Then the record's reachability**: `bugs.md` carries **one appended annotation line under bug-2**, visibly an annotation, saying the item was investigated, did not reproduce, and where the record is — with the human's own text, typos included, **unaltered to the character**; and `.sdd/modules/containers/specs/container-create-form.md` carries the cross-reference naming the record, the check and the single-engine limit. The implementer reports having **read the record and confirmed** it carries the baseline result *with its control*, the crop measurement, the excluded and standing hypotheses, the measured/inferred/assumed distinction, the open thread and the cannot-clear sentence — and reports any of it missing rather than repairing it. **Test runs are batch-scoped**: `npm run lint`, `npm run test:typecheck -w client` (the only pass that typechecks the e2e tree) and this batch's single e2e spec, run on its own. **The full unit suite and the complete e2e suite are not this batch's business**: they run once at the end, after all six items of `bugs.md` are certified — bug-2 is the **fifth of six**. |
 
 Batch statuses (`todo | in progress | implemented | certified`) are advanced only by the
 orchestrators of the later phases.
@@ -45,6 +45,16 @@ orchestrators of the later phases.
   reject. Made a standing test rather than a one-time observation because a one-time demonstration
   decays silently the first time somebody simplifies the content assertion — which is exactly the
   failure this item exists to prevent. It costs one test that touches no daemon.
+- **The content assertion is the sheet compared against itself, with exact equality and no tolerance
+  band.** The sheet's rendered text length before the toggle must equal its length after — never a
+  comparison against a literal. The investigation's 1154 characters is recorded as the observed value
+  and is not the expectation: self-relative equality survives any future rewording, because a
+  reworded form moves both sides together, while an absolute number would break on the next copy
+  tweak and teach whoever fixes it to loosen the assertion. And no band, because **the band is where
+  this check would quietly stop detecting the symptom** — the same argument that makes the negative
+  control permanent. If the toggle is ever legitimately made to change the form's content (a warning
+  when it is switched on, say), this check fails, and that failure is a review prompt rather than a
+  defect in the check.
 - **The container is created and never started. The started variant is refused outright.** The form
   offers `Cancel`, `Create only` and `Create and start`
   (`containers/specs/container-create-form.md`); the check uses `Create only`. Neither thing the
@@ -74,7 +84,10 @@ orchestrators of the later phases.
   `client/e2e/container-create-run.spec.ts` already covers `Create from image…` for the ordinary
   create-only path. The genuinely different route is the image row's `Run…` on Images & layers, which
   mounts the form from another screen with `initialImage` pre-filled — that is the second entry mode,
-  and it gets the full check, daemon assertion included.
+  and it gets the full check, daemon assertion included. **It is also new ground rather than a
+  re-run**: the human's investigation exercised `Run container…` and `Create from image…`, both on
+  the containers screen, and never the image row. One of the two modes covered here has therefore
+  never been attempted by hand, which is worth more than reproducing what was already tried.
 - **A new spec file rather than extending `container-create-run.spec.ts`.** That file is
   `test.describe.configure({ mode: 'serial' })` and carries a `beforeAll` that prepares the run's
   pullable reference, because several of its tests share and delete one image — cost and coupling

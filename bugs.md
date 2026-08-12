@@ -29,6 +29,7 @@
 - bug-2
   image: bugs-screen/bug-2.png
   containers > run container. selecting privileged the popup crashs!
+  [note] investigated, not reproduced — record: .sdd/analysis/docker_management_app-privileged_toggle_verification.md
 
 - bug-3
   the order of the elements of the panels in not set so the order of the element can change randomically based on the output of the docker daemon
