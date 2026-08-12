@@ -169,6 +169,39 @@ orchestrators of the later phases.
   change-3's record. This entry is left standing as the traceable origin of that correction, not as
   an open question.
 
+## Settled during development
+
+**Two defects found by the test phase, both landing in `client/src/ui/` — which this batch forbids
+itself to edit — and both therefore put to the human rather than fixed.** Recorded here because each
+is a decision about the product, not an implementation choice, and because the second one amends a
+requirement.
+
+- **The ten-entry menu is capped by the menu's own scrolling list, not by the table.** Measured in
+  the browser, identically at viewport heights 520 and 700: `.ui-menu__list` `scrollHeight` 380
+  against `clientHeight` 320, so `Save` showed at 72% and `Remove` — the destructive entry — sat
+  entirely below the fold. The popup portals and flips correctly and is *not* clipped by the table,
+  the card or the panel; the cap is `--menu-max-height: 320px` (`client/src/ui/tokens.css`), which
+  the six-entry menu fitted and ten do not. **Decision: raise the token so the ten are shown in
+  full.** That is one value in the design tokens and nothing else — no component, no CSS rule, no
+  images-specific variant — so REQ-12 stands: what the library gains is generic and the raise applies
+  to every menu. **This is the "junk drawer, realised" risk arriving in a measurable form**, one
+  release earlier than the count of entries alone would have shown it: the eleventh entry now costs a
+  second token raise, and re-reading that risk before adding it is no longer optional.
+- **`Modal` returns the point of interaction to the document when dismissed by its overlay, and that
+  is accepted.** Measured live and reproduced three times: while a flow is open the focus is on the
+  invoking row's `…` — the developer's static reading of `Menu.activate` holds — but the overlay's
+  `mousedown` blurs the trigger and `Modal` does no focus work of any kind, so dismissal lands on
+  `BODY`. It is **not a regression of this batch**: `Modal` has never handled focus, and the case
+  simply could not arise before, because these four always had a panel beneath them. `Menu`
+  (`preventDefault` on its outside click) and `DetailPanel` (`focusDismissalTarget` before unmount)
+  both avoid it; `Modal` does neither. **Decision: leave it exactly as it is** — visually the flow
+  closes and the operator is back on the images list, which is what the human asked for, and giving
+  `Modal` focus handling would change every dialog in the product on the evidence of one screen.
+  **REQ-19 is softened accordingly** (see `requirements.md`), and INT-8's check now asserts the half
+  that holds: the focus is on the row control while the flow is open. The cost is stated rather than
+  hidden: an operator navigating by keyboard restarts from the top of the page after dismissing one
+  of the four, instead of from the row they were working on.
+
 ## Coverage check
 
 **Every REQ is served by at least one INT**, and every REQ closes inside this batch — there is only

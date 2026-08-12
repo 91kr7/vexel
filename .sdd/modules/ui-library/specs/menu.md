@@ -82,6 +82,13 @@ Actions:
 - The trigger carries no overlay material and computes no filter: there is one of it per row of a
   list of any length. The popup carries the material by asking `Surface` for `material="overlay"` —
   it declares no blur of its own and introduces no second blur value.
+- **Every entry is shown, in full, at the sizes the product's menus are actually built at.** Being
+  outside every clipping ancestor is only half of it: the popup's own list caps its height at
+  `--menu-max-height` and scrolls past it, and an entry below that fold is as hidden as a clipped
+  one — the last of them being the destructive entry, by the grouping the menus here follow. The
+  token is therefore sized above the tallest menu the product builds, so the cap is a last resort
+  against a popup taller than the screen rather than something a menu meets in normal use. A menu
+  that outgrows it wants splitting into fewer entries, not a taller cap.
 - The popup's entries scroll inside the surface, never the surface itself, so the material's blur
   layer cannot scroll away from what it blurs.
 - Labels, hints, reasons and the destructive tone all use text roles whose contrast on glass is
