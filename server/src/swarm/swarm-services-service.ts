@@ -4,6 +4,7 @@
 // replaces it rather than merging it.
 import { getEngineClient } from "../connectivity/connection-status-service.js";
 import { DockerDaemonError } from "../docker/errors.js";
+import { byNameThenIdentity } from "../list-order/list-order.js";
 import { managerScoped, requireManager, type SwarmListing } from "./swarm-state-service.js";
 
 export const STACK_NAMESPACE_LABEL = "com.docker.stack.namespace";
@@ -155,7 +156,7 @@ async function readService(id: string): Promise<RawService> {
 export function listServices(): Promise<SwarmListing<SwarmService>> {
   return managerScoped(async () => {
     const raw = await readServices();
-    return raw.map(toService).sort((left, right) => left.name.localeCompare(right.name));
+    return raw.map(toService).sort(byNameThenIdentity({ name: (service) => service.name, identity: (service) => service.id }));
   });
 }
 

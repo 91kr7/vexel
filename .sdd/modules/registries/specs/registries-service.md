@@ -33,8 +33,11 @@ logging in and out, both delegated to the host's Docker credential store (REQ-85
     configuration says so, and a registry on the loopback interface (`localhost`, `*.localhost`,
     `127.*`, `::1`) is taken as insecure by default, exactly as Docker does.
   - `official` marks the default Docker index.
-  - The default index is always part of the inventory, logged in or not, and comes first; the rest
-    follow in alphabetical order of host.
+  - The default index is always part of the inventory, logged in or not, and **comes first** — the
+    official group being compared before anything else. Within each group, entries are **ordered by
+    host** under the list-order rule (`compareNames`); a registry carries no identifier other than
+    its host, so the final comparison is **that same host compared exactly**, and the same
+    configuration produces the same sequence on every read.
   - **No secret is ever part of the result**, in any field.
 - `getRegistry(host): Promise<RegistrySummary>`
   - The inventory entry for `host`; a host the installation is not configured for resolves to an
@@ -83,8 +86,12 @@ logging in and out, both delegated to the host's Docker credential store (REQ-85
 
 - docker-access: CLI runner, Active endpoint, EngineClient (the daemon's `/info` registry
   configuration)
+- list-order: List order (`byNameThenIdentity`, with the official flag as the group rank)
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-85
 - plan-docker_management_app/REQ-87
+- plan-docker_management_app-list_ordering/REQ-23
+- plan-docker_management_app-list_ordering/REQ-24
+- plan-docker_management_app-list_ordering/REQ-25

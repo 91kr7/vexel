@@ -164,6 +164,46 @@ test("listServices orders the services by name", async () => {
   );
 });
 
+// swarm-services-service.md — "ordered by service name under the list-order rule (compareNames)":
+// digit runs read as numbers, and case does not split the list into two alphabets (REQ-23).
+test("listServices reads digit runs in a service name as numbers, and keeps case together", async () => {
+  engine.on("GET", "/services", () => [
+    rawService({ ID: "s1", name: "api-10" }),
+    rawService({ ID: "s2", name: "API-3" }),
+    rawService({ ID: "s3", name: "api-2" }),
+  ]);
+
+  assert.deepEqual(
+    (await listServices()).items.map((service) => service.name),
+    ["api-2", "API-3", "api-10"],
+  );
+});
+
+// swarm-services-service.md — "with the service id as the final comparison, so two services whose
+// names differ only in case or in leading zeros never tie" and "The same services produce the same
+// sequence on every read, whatever order the daemon listed them in" (REQ-25, REQ-6).
+//
+// The names below genuinely tie under the name comparison, so only the id separates them: an
+// assertion that the result is merely alphabetical would pass on a comparator with no tiebreak.
+test("listServices produces one sequence for tying service names, whatever order the daemon listed them in", async () => {
+  const daemonOrder = [
+    rawService({ ID: "svc-b", name: "Data" }),
+    rawService({ ID: "svc-a", name: "data" }),
+    rawService({ ID: "svc-d", name: "app-1" }),
+    rawService({ ID: "svc-c", name: "app-01" }),
+  ];
+  const expected = ["svc-c", "svc-d", "svc-a", "svc-b"];
+
+  engine.on("GET", "/services", () => daemonOrder);
+  const asListed = (await listServices()).items.map((service) => service.id);
+
+  engine.on("GET", "/services", () => [...daemonOrder].reverse());
+  const reversed = (await listServices()).items.map((service) => service.id);
+
+  assert.deepEqual(asListed, expected);
+  assert.deepEqual(reversed, expected, "the same services must come out the same way in either input order");
+});
+
 // swarm-services-service.md — "off a manager: no items and the stated reason"
 test("listServices degrades to a stated reason off a manager", async () => {
   engine.on("GET", "/info", () => inactiveInfo());

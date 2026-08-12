@@ -7,6 +7,7 @@
 // showing an empty list that would read as "none installed".
 import { getEngineClient } from "../connectivity/connection-status-service.js";
 import { DockerDaemonError } from "../docker/errors.js";
+import { byNameThenIdentity } from "../list-order/list-order.js";
 import type { PluginListing } from "./cli-plugins-service.js";
 
 export interface DaemonPlugin {
@@ -65,7 +66,7 @@ export async function listDaemonPlugins(): Promise<PluginListing<DaemonPlugin>> 
     const response = await getEngineClient().request("/plugins");
     const raw = JSON.parse(response.body) as RawPlugin[] | null;
     if (!Array.isArray(raw)) return { items: [], unavailableReason: "This daemon did not answer with a plugin list." };
-    return { items: raw.map(toDaemonPlugin).sort((a, b) => a.name.localeCompare(b.name)) };
+    return { items: raw.map(toDaemonPlugin).sort(byNameThenIdentity({ name: (plugin) => plugin.name, identity: (plugin) => plugin.id })) };
   } catch (error) {
     if (isNotExposed(error)) {
       return { items: [], unavailableReason: `This daemon does not expose managed plugins: ${error.message}` };

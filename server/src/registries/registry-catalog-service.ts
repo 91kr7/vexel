@@ -11,6 +11,7 @@
 // back by this application (REQ-87), so what is browsable here is what the
 // registry lets an anonymous client reach.
 import { DockerDaemonError } from "../docker/errors.js";
+import { byNameThenIdentity } from "../list-order/list-order.js";
 import { isDockerHub, normalizeRegistryHost, type RegistrySummary } from "./registries-service.js";
 
 const HUB_API = "https://hub.docker.com/v2";
@@ -24,6 +25,11 @@ const MANIFEST_ACCEPT = [
   "application/vnd.oci.image.manifest.v1+json",
   "application/vnd.oci.image.index.v1+json",
 ].join(", ");
+
+// A repository and a tag carry no identifier but their own name, so the last
+// comparison is that same name compared exactly.
+const nameOrder = byNameThenIdentity<string>({ name: (name) => name, identity: (name) => name });
+const tagOrder = byNameThenIdentity<TagSummary>({ name: (tag) => tag.name, identity: (tag) => tag.name });
 
 export interface RepositorySummary {
   /** The repository path inside the registry, e.g. `library/nginx`, `myorg/api`. */
@@ -55,8 +61,10 @@ export function pullReferenceFor(host: string, repository: string, tag: string):
 
 /**
  * Repositories of `registry` matching `query`. Docker Hub is searched (it has
- * no catalog to list, so an empty query yields nothing); every other registry
- * has its catalog listed and filtered on the term.
+ * no catalog to list, so an empty query yields nothing) and its result set
+ * keeps the order Hub returned it in, which is a relevance ranking for the term
+ * the operator typed; every other registry has its catalog listed, filtered on
+ * the term and ordered by repository name, having no ranking of its own.
  */
 export async function searchRepositories(registry: RegistrySummary, query: string, limit: number): Promise<RepositorySummary[]> {
   const term = query.trim();
@@ -64,7 +72,7 @@ export async function searchRepositories(registry: RegistrySummary, query: strin
   return listCatalog(registry, term, limit);
 }
 
-/** Tags of `repository`, most recently updated first where the registry says so, each with its size. */
+/** Tags of `repository`, ordered by tag name, each with its size. */
 export async function listRepositoryTags(registry: RegistrySummary, repository: string, limit: number): Promise<TagSummary[]> {
   const path = repository.trim().replace(/^\/+|\/+$/g, "");
   if (path === "") throw new DockerDaemonError("DaemonRejected", "A repository is required.");
@@ -97,7 +105,8 @@ async function listHubTags(repository: string, limit: number): Promise<TagSummar
       sizeBytes: typeof entry.full_size === "number" ? entry.full_size : undefined,
       updatedAt: entry.last_updated,
       pullReference: pullReferenceFor("docker.io", repository, entry.name),
-    }));
+    }))
+    .sort(tagOrder);
 }
 
 async function listCatalog(registry: RegistrySummary, term: string, limit: number): Promise<RepositorySummary[]> {
@@ -105,15 +114,21 @@ async function listCatalog(registry: RegistrySummary, term: string, limit: numbe
   // still has something to choose from.
   const payload = await fetchRegistryJson<{ repositories?: string[] }>(registry, `/v2/_catalog?n=${Math.max(limit * 4, 100)}`);
   const lowered = term.toLowerCase();
+  // Ordered before the page is cut, so which repositories the limit keeps does
+  // not depend on the order the registry answered in either.
   return (payload.repositories ?? [])
     .filter((name) => typeof name === "string" && (lowered === "" || name.toLowerCase().includes(lowered)))
+    .sort(nameOrder)
     .slice(0, limit)
     .map((name) => ({ name }));
 }
 
 async function listV2Tags(registry: RegistrySummary, repository: string, limit: number): Promise<TagSummary[]> {
   const payload = await fetchRegistryJson<{ tags?: string[] | null }>(registry, `/v2/${repository}/tags/list?n=${limit}`);
-  const names = (payload.tags ?? []).filter((tag): tag is string => typeof tag === "string").slice(0, limit);
+  const names = (payload.tags ?? [])
+    .filter((tag): tag is string => typeof tag === "string")
+    .sort(nameOrder)
+    .slice(0, limit);
 
   const sizes = new Map<string, number | undefined>();
   for (let index = 0; index < names.length; index += TAG_SIZE_CONCURRENCY) {

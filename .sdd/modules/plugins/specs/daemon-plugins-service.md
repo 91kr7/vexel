@@ -19,7 +19,9 @@ the interface each implements and whether it is enabled.
   - `type` reads "volume driver", "network driver", "IPAM driver", "log driver", "authorization",
     "secret provider" or "metrics collector"; an interface with no such wording is shown as the
     daemon names it, and a plugin declaring none reads "plugin".
-  - The items come back ordered by name.
+  - The items come back **ordered by plugin name** under the list-order rule (`compareNames`), with
+    the plugin's **id** as the final comparison, so two plugins whose names differ only in case or
+    in leading zeros never tie; the same plugins produce the same sequence on every read.
   - A daemon that does not expose managed plugins at all → an empty listing whose
     `unavailableReason` quotes the daemon; any other daemon failure is raised.
 - `getDaemonPlugin(name) → DaemonPlugin` — one plugin's summary; the shape every state change
@@ -46,7 +48,10 @@ the interface each implements and whether it is enabled.
 
 - docker-access: EngineClient
 - plugins: CliPluginsService (the shared `PluginListing` shape)
+- list-order: List order (`byNameThenIdentity`)
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-99
+- plan-docker_management_app-list_ordering/REQ-23
+- plan-docker_management_app-list_ordering/REQ-25

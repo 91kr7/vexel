@@ -13,6 +13,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { getEngineClient } from "../docker/engine-client.js";
 import { DockerDaemonError } from "../docker/errors.js";
+import { byNameThenIdentity } from "../list-order/list-order.js";
 import { runCapture } from "./registry-cli.js";
 
 /** Docker's own name for the default index, as it keys it in `config.json`. */
@@ -143,7 +144,16 @@ export async function listRegistries(): Promise<RegistrySummary[]> {
     };
   });
 
-  return summaries.sort((a, b) => (a.official === b.official ? a.host.localeCompare(b.host) : a.official ? -1 : 1));
+  // The official entry stays ahead of the host-only ones: it is the grouping
+  // rank compared before the host, and a registry has no identifier but its
+  // host, so the last comparison is that same host compared exactly.
+  return summaries.sort(
+    byNameThenIdentity({
+      group: (registry) => (registry.official ? 0 : 1),
+      name: (registry) => registry.host,
+      identity: (registry) => registry.host,
+    }),
+  );
 }
 
 export async function getRegistry(host: string): Promise<RegistrySummary> {

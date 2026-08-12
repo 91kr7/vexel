@@ -21,7 +21,10 @@ two changes an operator makes to one: its role or availability, and its removal 
   - `leader` / `reachability` → only meaningful on a manager node; `leader` is false on a worker.
   - `self` → this node is the daemon the application is talking to.
   - `version` → the index the daemon requires to accept the next update of this node.
-  - ordered: managers first, then by hostname — the cluster reads the same way twice running.
+  - **Managers come before workers**, that grouping being compared before anything else; within a
+    role, **ordered by hostname** under the list-order rule (`compareNames`), with the node **id**
+    as the final comparison — so two nodes whose hostnames differ only in case never tie, and the
+    cluster reads the same way twice running whatever order the daemon listed the nodes in.
   - off a manager: no items and the stated reason (see SwarmStateService).
 - `updateNode(id, { role?, availability? }) → SwarmNode`
   - effect: the node's role and/or availability change; everything else about the node is preserved.
@@ -46,7 +49,11 @@ two changes an operator makes to one: its role or availability, and its removal 
 
 - swarm: SwarmStateService (manager scoping, local node id)
 - docker-access: EngineClient (active context)
+- list-order: List order (`byNameThenIdentity`, with the role as the group rank)
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-81
+- plan-docker_management_app-list_ordering/REQ-23
+- plan-docker_management_app-list_ordering/REQ-24
+- plan-docker_management_app-list_ordering/REQ-25

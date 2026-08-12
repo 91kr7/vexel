@@ -23,7 +23,10 @@ sub-commands — with the version and the availability the installation itself r
       "hidden" flag);
     - `unavailable` — the installation found it and refuses to run it; `unavailableReason` then
       carries the installation's own explanation, and only then.
-  - The items come back ordered by name.
+  - The items come back **ordered by plugin name** under the list-order rule (`compareNames`). A CLI
+    plugin carries no identifier other than its name, so the final comparison is **that same name
+    compared exactly**, which separates two plugins whose names differ only in case or in leading
+    zeros; the same plugins produce the same sequence on every read.
   - The local Docker installation not answering at all → an empty listing whose
     `unavailableReason` quotes the failure; never a rejection.
   - An answer that is not the installation's client information, or one that carries no plugin
@@ -42,7 +45,10 @@ sub-commands — with the version and the availability the installation itself r
 ## Dependencies
 
 - docker-access: CLI runner, Active endpoint
+- list-order: List order (`byNameThenIdentity`)
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-98
+- plan-docker_management_app-list_ordering/REQ-23
+- plan-docker_management_app-list_ordering/REQ-25

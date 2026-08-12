@@ -2,6 +2,7 @@
 // Every reading goes through the manager scoping of the state service, so on a
 // daemon that is not a manager it degrades to a stated reason.
 import { getEngineClient } from "../connectivity/connection-status-service.js";
+import { byNameThenIdentity } from "../list-order/list-order.js";
 import { getSwarmState, managerScoped, requireManager, type SwarmListing } from "./swarm-state-service.js";
 
 export type SwarmNodeRole = "manager" | "worker";
@@ -92,12 +93,17 @@ export function listNodes(): Promise<SwarmListing<SwarmNode>> {
   return managerScoped(async () => {
     const [response, state] = await Promise.all([getEngineClient().request("/nodes"), getSwarmState()]);
     const raw = JSON.parse(response.body) as RawNode[];
+    // Managers stay ahead of workers: the role is the grouping rank compared
+    // before the hostname, and only the comparison of hostnames changes.
     return raw
       .map((node) => toNode(node, state.nodeId))
-      .sort((left, right) => {
-        if (left.role !== right.role) return left.role === "manager" ? -1 : 1;
-        return left.hostname.localeCompare(right.hostname);
-      });
+      .sort(
+        byNameThenIdentity({
+          group: (node) => (node.role === "manager" ? 0 : 1),
+          name: (node) => node.hostname,
+          identity: (node) => node.id,
+        }),
+      );
   });
 }
 

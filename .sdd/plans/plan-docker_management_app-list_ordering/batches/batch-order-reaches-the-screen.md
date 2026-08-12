@@ -26,8 +26,10 @@ discovery is exactly what the batch exists for — fix it there, under the UI-li
 
 **The Dashboard is not one of the six and is deliberately excluded.** Its container activity list
 does sort client-side (`client/src/dashboard/DashboardScreen.tsx:101`), grouping by container state
-before comparing names, and that grouping is the point of an activity panel. **Do not "fix" it**
-(REQ-42, batch 7).
+before comparing names. That grouping is the point of an activity panel, and the list is **already a
+total order** — Docker keeps container names unique on a daemon, so no two rows can tie on (state,
+name) and it cannot reshuffle between reads. It does not have the defect being fixed. **Do not "fix"
+it** (REQ-42, batch 7).
 
 ## The test rules that bite hardest here
 

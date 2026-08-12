@@ -8,6 +8,7 @@
 // client-side only, so it still answers while the daemon is unreachable.
 import { runCliCommand } from "../docker/cli-runner.js";
 import { resolveActiveEndpoint } from "../docker/endpoint.js";
+import { byNameThenIdentity } from "../list-order/list-order.js";
 
 /**
  * A reading that may legitimately have nothing to show: `unavailableReason`
@@ -71,7 +72,9 @@ export async function listCliPlugins(): Promise<PluginListing<CliPlugin>> {
     return { items: [], unavailableReason: "This Docker installation does not expose a CLI plugin inventory." };
   }
 
-  return { items: clientInfo.Plugins.map(toCliPlugin).sort((a, b) => a.name.localeCompare(b.name)) };
+  // A CLI plugin has no identifier but its name, so the last comparison is that
+  // same name compared exactly.
+  return { items: clientInfo.Plugins.map(toCliPlugin).sort(byNameThenIdentity({ name: (plugin) => plugin.name, identity: (plugin) => plugin.name })) };
 }
 
 function toCliPlugin(raw: RawCliPlugin): CliPlugin {

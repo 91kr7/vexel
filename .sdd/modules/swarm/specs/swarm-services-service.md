@@ -23,11 +23,16 @@ published ports), their creation, update, inspection together with their tasks, 
   - `image` → without its pinned `@sha256:` digest, which the daemon appends to every deployed
     service and which is not what the operator recognises the service by.
   - `stack` → the stack the service belongs to, when it carries one.
-  - ordered by name.
+  - **Ordered by service name** under the list-order rule (`compareNames`), with the service **id**
+    as the final comparison, so two services whose names differ only in case or in leading zeros
+    never tie.
+  - The same services produce the **same sequence on every read**, whatever order the daemon listed
+    them in.
   - off a manager: no items and the stated reason.
 - `getServiceDetail(id) → { service, env[], labels, tasks[], raw }`
   - `tasks` → `{ id, slot?, nodeId?, nodeHostname?, state, desiredState, message?, error?,
-    timestamp? }`, most recent first.
+    timestamp? }`, **most recent first** — a chronology, not a name order, and it is not touched by
+    the list-order rule.
   - `nodeHostname` → resolved from the node inventory; absent when the task is not on a node yet.
   - `raw` → the daemon's own service payload, for the full reading.
   - rejects if the daemon is not a manager, or with the daemon's message for an unknown service.
@@ -64,7 +69,11 @@ published ports), their creation, update, inspection together with their tasks, 
 
 - swarm: SwarmStateService (manager scoping)
 - docker-access: EngineClient (active context)
+- list-order: List order (`byNameThenIdentity`)
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-82
+- plan-docker_management_app-list_ordering/REQ-23
+- plan-docker_management_app-list_ordering/REQ-25
+- plan-docker_management_app-list_ordering/REQ-26

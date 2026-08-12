@@ -14,6 +14,13 @@ CLI channel; the compose file path is never operator-typed, it comes straight fr
 
 - `listComposeProjects(): Promise<ComposeProjectSummary[]>`
   - One entry per project known to `docker compose ls --all`.
+  - **Ordered by project name** under the list-order rule (`compareNames`): `web-2` before `web-10`,
+    `Api` next to `api-gateway` rather than in a second alphabet. A project carries no identifier
+    other than its name, so the final comparison is **that same name compared exactly**, which
+    separates two projects whose names differ only in case or in leading zeros (`app-1` from
+    `app-01`).
+  - The same projects produce the **same sequence on every read**, whatever order
+    `docker compose ls` listed them in.
 - `getComposeProject(name): Promise<ComposeProjectSummary>`
   - Re-reads a single project's own status (e.g. right after a lifecycle action).
 - `ComposeProjectSummary`: `{ name, configFiles, state, services, error? }`
@@ -23,7 +30,9 @@ CLI channel; the compose file path is never operator-typed, it comes straight fr
     running, `'stopped'` when none is, `'partial'` when mixed, `'unknown'` when the project's
     services could not be read (see `error`).
   - `services: ComposeServiceSummary[]` — `{ name, image, state, replicas }`; `replicas` is the
-    number of container instances currently backing that service.
+    number of container instances currently backing that service. **Ordered by service name** under
+    the same rule, with that name compared exactly as the final comparison, and nested inside their
+    project — in `getComposeProject` exactly as in `listComposeProjects`.
   - `error?: string` — the daemon's own message, set only when this project's services could not be
     read (`docker compose ps` failed for it); `state` is `'unknown'` in that case.
 
@@ -36,7 +45,11 @@ CLI channel; the compose file path is never operator-typed, it comes straight fr
 ## Dependencies
 
 - docker-access: CLI runner (`runCliCommand`, via the module-internal `compose-cli.ts` helper)
+- list-order: List order (`byNameThenIdentity`)
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-75
+- plan-docker_management_app-list_ordering/REQ-35
+- plan-docker_management_app-list_ordering/REQ-36
+- plan-docker_management_app-list_ordering/REQ-43

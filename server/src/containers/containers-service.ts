@@ -3,6 +3,7 @@
 // (REQ-19) whose latest reading is merged into every list response.
 import { getEngineClient } from "../connectivity/connection-status-service.js";
 import { INTERNAL_CONTAINER_LABEL } from "../image-analysis/filesystem-extraction-service.js";
+import { byNameThenIdentity } from "../list-order/list-order.js";
 
 export type ContainerState = "created" | "running" | "paused" | "restarting" | "removing" | "exited" | "dead";
 
@@ -168,7 +169,10 @@ export async function listContainers(): Promise<ContainerSummary[]> {
   const raw = JSON.parse(response.body) as RawContainer[];
   // Intermediate filesystem-extraction containers are internal plumbing
   // (REQ-54): never shown as a container anywhere in the application.
-  return raw.filter((container) => container.Labels?.[INTERNAL_CONTAINER_LABEL] !== "true").map(toSummary);
+  return raw
+    .filter((container) => container.Labels?.[INTERNAL_CONTAINER_LABEL] !== "true")
+    .map(toSummary)
+    .sort(byNameThenIdentity({ name: (container) => container.name, identity: (container) => container.id }));
 }
 
 export async function startContainer(id: string): Promise<void> {

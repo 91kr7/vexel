@@ -94,6 +94,44 @@ test("listSwarmData strips a config's data, which the daemon hands back", async 
   );
 });
 
+// swarm-secrets-service.md — "Ordered by name under the list-order rule (compareNames)": digit runs
+// read as numbers, case not splitting the list into two alphabets — for a config exactly as for a
+// secret, both kinds behaving the same (REQ-23).
+test("listSwarmData reads digit runs in a name as numbers, for a config as for a secret", async () => {
+  engine.on("GET", "/configs", () => [
+    rawData({ ID: "c1", name: "nginx-10" }),
+    rawData({ ID: "c2", name: "NGINX-3" }),
+    rawData({ ID: "c3", name: "nginx-2" }),
+  ]);
+
+  assert.deepEqual(
+    (await listSwarmData("config")).items.map((item) => item.name),
+    ["nginx-2", "NGINX-3", "nginx-10"],
+  );
+});
+
+// swarm-secrets-service.md — "with the item's id as the final comparison, so two secrets (or two
+// configs) whose names differ only in case or in leading zeros never tie; the same objects produce
+// the same sequence on every read" (REQ-25, REQ-6).
+test("listSwarmData produces one sequence for tying names, whatever order the daemon listed them in", async () => {
+  const daemonOrder = [
+    rawData({ ID: "s-b", name: "Token" }),
+    rawData({ ID: "s-a", name: "token" }),
+    rawData({ ID: "s-d", name: "cert-1" }),
+    rawData({ ID: "s-c", name: "cert-01" }),
+  ];
+  const expected = ["s-c", "s-d", "s-a", "s-b"];
+
+  engine.on("GET", "/secrets", () => daemonOrder);
+  const asListed = (await listSwarmData("secret")).items.map((item) => item.id);
+
+  engine.on("GET", "/secrets", () => [...daemonOrder].reverse());
+  const reversed = (await listSwarmData("secret")).items.map((item) => item.id);
+
+  assert.deepEqual(asListed, expected);
+  assert.deepEqual(reversed, expected, "the same objects must come out the same way in either input order");
+});
+
 // swarm-secrets-service.md — getSwarmDataMetadata: "the same metadata as the listing, for one
 // object; never any data"
 test("getSwarmDataMetadata answers metadata only, never the data the daemon returns", async () => {

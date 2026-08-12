@@ -2,6 +2,7 @@
 // compose file path(s) — discovered from the daemon's own
 // `com.docker.compose.project.config_files` label via `docker compose ls`,
 // never typed — and overall/per-service state via `docker compose ps`.
+import { byNameThenIdentity } from "../list-order/list-order.js";
 import { runComposeJsonArray } from "./compose-cli.js";
 
 export interface ComposeServiceSummary {
@@ -37,7 +38,10 @@ interface RawComposeServiceStatus {
 
 export async function listComposeProjects(): Promise<ComposeProjectSummary[]> {
   const listing = await runComposeJsonArray<RawComposeProjectListing>(["ls", "--all", "--format", "json"]);
-  return Promise.all(listing.map((project) => toProjectSummary(project.Name, splitConfigFiles(project.ConfigFiles))));
+  const projects = await Promise.all(listing.map((project) => toProjectSummary(project.Name, splitConfigFiles(project.ConfigFiles))));
+  // A project has no identifier but its name, so the last comparison is that
+  // same name compared exactly.
+  return projects.sort(byNameThenIdentity({ name: (project) => project.name, identity: (project) => project.name }));
 }
 
 /** Re-reads a single project's own status, e.g. right after a lifecycle action. */
@@ -71,12 +75,16 @@ function groupServices(raw: RawComposeServiceStatus[]): ComposeServiceSummary[] 
     rows.push(row);
     byService.set(row.Service, rows);
   }
-  return [...byService.entries()].map(([name, rows]) => ({
-    name,
-    image: rows[0]?.Image ?? "",
-    state: rows.some((row) => row.State === "running") ? "running" : (rows[0]?.State ?? "unknown"),
-    replicas: rows.length,
-  }));
+  // A service has no identifier but its name within the project, so the last
+  // comparison is that same name compared exactly.
+  return [...byService.entries()]
+    .map(([name, rows]) => ({
+      name,
+      image: rows[0]?.Image ?? "",
+      state: rows.some((row) => row.State === "running") ? "running" : (rows[0]?.State ?? "unknown"),
+      replicas: rows.length,
+    }))
+    .sort(byNameThenIdentity({ name: (service) => service.name, identity: (service) => service.name }));
 }
 
 function overallState(services: ComposeServiceSummary[]): ComposeProjectState {

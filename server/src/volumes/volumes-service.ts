@@ -3,6 +3,7 @@
 // the daemon's own /volumes listing: they are merged in from /system/df
 // (per-volume UsageData) and /containers/json (each container's own Mounts).
 import { getEngineClient } from "../connectivity/connection-status-service.js";
+import { byNamedThenUnnamedNewest } from "../list-order/list-order.js";
 
 export interface VolumeSummary {
   name: string;
@@ -103,7 +104,27 @@ export async function listVolumes(): Promise<VolumeSummary[]> {
     readMountedBy(),
   ]);
   const payload = JSON.parse(volumesResponse.body) as { Volumes?: RawVolume[] | null };
-  return (payload.Volumes ?? []).map((raw) => toSummary(raw, sizes, mountedBy));
+  return (payload.Volumes ?? [])
+    .map((raw) => toSummary(raw, sizes, mountedBy))
+    .sort(
+      byNamedThenUnnamedNewest({
+        name: (volume) => (isAnonymousName(volume.name) ? null : volume.name),
+        createdAt: (volume) => volume.createdAt,
+        identity: (volume) => volume.name,
+      }),
+    );
+}
+
+/**
+ * The name shape the daemon generates for a volume nobody named. A volume an
+ * operator deliberately named that way is grouped with the anonymous ones and
+ * is not rescued by a heuristic: it is cosmetic, and the alternative is
+ * scattering thousands of hex names through the named ones.
+ */
+const ANONYMOUS_VOLUME_NAME = /^[0-9a-fA-F]{64}$/;
+
+function isAnonymousName(name: string): boolean {
+  return ANONYMOUS_VOLUME_NAME.test(name);
 }
 
 /** `GET /volumes/{name}` itself rejects with a daemon 404 for an unknown name. */

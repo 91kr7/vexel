@@ -4,6 +4,7 @@ import { pluginsRouter } from "../../src/plugins/plugins-routes.js";
 import type { CliPlugin, PluginListing } from "../../src/plugins/cli-plugins-service.js";
 import type { DaemonPlugin } from "../../src/plugins/daemon-plugins-service.js";
 import type { PluginPrivilege } from "../../src/plugins/plugin-management-service.js";
+import { byNameThenIdentity } from "../../src/list-order/list-order.js";
 import { REGISTRY_IMAGE, ensureImages } from "../support/base-images.js";
 import { RUN_ID, buildApp, startApp } from "../support/fixtures.js";
 import { pluginIsInstalled, removePluginQuietly, startPluginFixture, type PluginFixture } from "../support/plugin-fixture.js";
@@ -107,10 +108,16 @@ test("GET /api/plugins reports every CLI plugin with its invocation, version and
         assert.equal(plugin.unavailableReason, undefined, `${plugin.name} is runnable and must carry no refusal reason`);
       }
     }
-    // Ordered by name, whichever plugins this installation happens to ship.
+    // Ordered by the product's own rule, whichever plugins this installation happens to ship.
+    // Asserted against `byNameThenIdentity` rather than against a bare `localeCompare`: that was
+    // the host-locale, tiebreak-less comparison this ordering work removed, and re-sorting the
+    // served list with it here would have agreed with the product only for as long as no installed
+    // plugin carried a digit run or a case twin.
     assert.deepEqual(
       body.cli.items.map((plugin) => plugin.name),
-      [...body.cli.items.map((plugin) => plugin.name)].sort((a, b) => a.localeCompare(b)),
+      [...body.cli.items]
+        .sort(byNameThenIdentity<CliPlugin>({ name: (plugin) => plugin.name, identity: (plugin) => plugin.name }))
+        .map((plugin) => plugin.name),
     );
   } finally {
     await close();
@@ -132,7 +139,9 @@ test("GET /api/plugins reports every daemon plugin with its name, interface in w
     }
     assert.deepEqual(
       body.daemon.items.map((plugin) => plugin.name),
-      [...body.daemon.items.map((plugin) => plugin.name)].sort((a, b) => a.localeCompare(b)),
+      [...body.daemon.items]
+        .sort(byNameThenIdentity<DaemonPlugin>({ name: (plugin) => plugin.name, identity: (plugin) => plugin.id }))
+        .map((plugin) => plugin.name),
     );
     // This file installs nothing: its own plugin is not in the daemon's list.
     assert.equal(

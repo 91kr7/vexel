@@ -1,5 +1,6 @@
 // Build-cache inventory and prune through the CLI channel (REQ-91): record
 // id, type, size and usage state, and reclaiming unused records.
+import { byNameThenIdentity } from "../list-order/list-order.js";
 import { parseHumanSize, runBuildxCapture, runBuildxJsonArray } from "./buildx-cli.js";
 
 export type BuildCacheUsageState = "shared" | "in-use" | "reclaimable";
@@ -28,7 +29,11 @@ interface RawCacheRecord {
 
 export async function listBuildCache(): Promise<BuildCacheRecord[]> {
   const raw = await runBuildxJsonArray<RawCacheRecord>(["du", "--format", "json"]);
-  return raw.map(toCacheRecord);
+  // A record carries no name and no creation time, so its identifier stands in
+  // for the name and is also the last comparison. Ordering by size or by usage
+  // state would be a ranking nobody has decided on; this one is arbitrary and
+  // stable, and stable is what was asked for.
+  return raw.map(toCacheRecord).sort(byNameThenIdentity({ name: (record) => record.id, identity: (record) => record.id }));
 }
 
 /** Prunes reclaimable build-cache records, reporting the space reclaimed. */

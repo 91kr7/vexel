@@ -9,6 +9,7 @@
 // (departure Three), so nothing here takes a compose file.
 import { getEngineClient } from "../connectivity/connection-status-service.js";
 import { DockerDaemonError } from "../docker/errors.js";
+import { byNameThenIdentity } from "../list-order/list-order.js";
 import { listServices, STACK_NAMESPACE_LABEL, type SwarmServiceMode } from "./swarm-services-service.js";
 import { managerScoped, requireManager, type SwarmListing } from "./swarm-state-service.js";
 
@@ -116,9 +117,11 @@ export function listStacks(): Promise<SwarmListing<SwarmStack>> {
     // A stack whose services are all gone but whose secrets, configs or
     // networks remain is still a stack, and still removable.
     for (const namespace of [...secretCounts.keys(), ...configCounts.keys(), ...networkCounts.keys()]) ensure(namespace);
+    // A stack has no identifier but its name, so the last comparison is that
+    // same name compared exactly; a service inside one carries its own id.
     return [...stacks.values()]
-      .map((stack) => ({ ...stack, services: stack.services.sort((left, right) => left.name.localeCompare(right.name)) }))
-      .sort((left, right) => left.name.localeCompare(right.name));
+      .map((stack) => ({ ...stack, services: stack.services.sort(byNameThenIdentity({ name: (service) => service.name, identity: (service) => service.id })) }))
+      .sort(byNameThenIdentity({ name: (stack) => stack.name, identity: (stack) => stack.name }));
   });
 }
 

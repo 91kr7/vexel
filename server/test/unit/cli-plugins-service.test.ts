@@ -145,6 +145,41 @@ test("listCliPlugins orders the items by name", async () => {
   );
 });
 
+// cli-plugins-service.md — "ordered by plugin name under the list-order rule (compareNames)": digit
+// runs read as numbers, case not splitting the list into two alphabets (REQ-23).
+test("listCliPlugins reads digit runs in a plugin name as numbers, and keeps case together", async () => {
+  handler = () => ({ stdout: clientInfo([{ Name: "tool-10" }, { Name: "TOOL-3" }, { Name: "tool-2" }]) });
+
+  const { items } = await listCliPlugins();
+
+  assert.deepEqual(
+    items.map((plugin) => plugin.name),
+    ["tool-2", "TOOL-3", "tool-10"],
+  );
+});
+
+// cli-plugins-service.md — "A CLI plugin carries no identifier other than its name, so the final
+// comparison is that same name compared exactly, which separates two plugins whose names differ
+// only in case or in leading zeros; the same plugins produce the same sequence on every read"
+// (REQ-25, REQ-6).
+//
+// The pairs below tie under the name comparison, so only the exact comparison of that same name
+// separates them: a comparator that took "the key is the name" to mean the tiebreak is a no-op
+// would leave their order to whichever way round the installation listed them.
+test("listCliPlugins produces one sequence for tying plugin names, in either input order", async () => {
+  const reported = [{ Name: "Scout" }, { Name: "scout" }, { Name: "buildx-1" }, { Name: "buildx-01" }];
+  const expected = ["buildx-01", "buildx-1", "Scout", "scout"];
+
+  handler = () => ({ stdout: clientInfo(reported) });
+  const asListed = (await listCliPlugins()).items.map((plugin) => plugin.name);
+
+  handler = () => ({ stdout: clientInfo([...reported].reverse()) });
+  const reversed = (await listCliPlugins()).items.map((plugin) => plugin.name);
+
+  assert.deepEqual(asListed, expected);
+  assert.deepEqual(reversed, expected, "the same plugins must come out the same way in either input order");
+});
+
 // cli-plugins-service.md — "The local Docker installation not answering at all -> an empty listing
 // whose unavailableReason quotes the failure; never a rejection."
 test("listCliPlugins answers with an empty listing quoting the failure when the installation does not answer", async () => {

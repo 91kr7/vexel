@@ -2,7 +2,7 @@
 
 | Component | Type | Path | Responsibility | Spec |
 |-----------|------|------|-----------------|------|
-| ContainersService | backend service | `server/src/containers/containers-service.ts` | Lists containers over the Engine API, runs lifecycle operations and prune, samples CPU/memory for running containers at a bounded rate, and reads/updates a container's full configuration (in place or by recreating it) | `specs/containers-service.md` |
+| ContainersService | backend service | `server/src/containers/containers-service.ts` | Lists containers over the Engine API in name order, runs lifecycle operations and prune, samples CPU/memory for running containers at a bounded rate, and reads/updates a container's full configuration (in place or by recreating it) | `specs/containers-service.md` |
 | ContainerCreateService | backend service | `server/src/containers/container-create-service.ts` | Creates a container over the Engine API from a full configuration, resolving the image first (local, or pulled with progress), create-only or create-and-start, reporting the daemon's own refusal message | `specs/container-create-service.md` |
 | Container create endpoint | REST endpoint | `server/src/containers/containers-routes.ts` | Exposes container creation to the client, streaming pull progress and then the creation outcome as newline-delimited JSON | `specs/container-create-endpoint.md` |
 | Containers endpoints | REST endpoint | `server/src/containers/containers-routes.ts` | Exposes container listing, lifecycle, rename, prune, inspect and configuration update to the client | `specs/containers-endpoints.md` |
