@@ -25,6 +25,12 @@ configuration.
     listed.
   - Every context is listed **whatever its endpoint kind** — a TCP+TLS one created outside the
     application included: none is filtered out, and none is marked unsupported.
+  - **Ordered by context name** under the list-order rule (`compareNames`). A context carries no
+    identifier other than its name, so the final comparison is **that same name compared exactly**,
+    which separates two contexts whose names differ only in case or in leading zeros.
+  - The **active context keeps its alphabetical place**: it is marked by `active`, never promoted.
+  - The same contexts produce the **same sequence on every read**, whatever order Docker listed
+    them in.
 - `createContext(input): Promise<ContextSummary>`
   - `input`: `{ name, kind: 'local' | 'ssh', host?, description? }`.
   - `local` → the endpoint is the default Docker socket of the machine running the server; the
@@ -67,8 +73,11 @@ configuration.
 ## Dependencies
 
 - docker-access: CLI runner, Active endpoint
+- list-order: List order (`byNameThenIdentity`)
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-92
 - plan-docker_management_app/REQ-93
+- plan-docker_management_app-list_ordering/REQ-10
+- plan-docker_management_app-list_ordering/REQ-12

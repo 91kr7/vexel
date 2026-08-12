@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { defaultLocalSocket, parseEndpointUrl, setActiveEndpoint } from "../docker/endpoint.js";
 import { DockerDaemonError } from "../docker/errors.js";
 import type { DockerEndpoint, TlsOptions } from "../docker/types.js";
+import { byNameThenIdentity } from "../list-order/list-order.js";
 import { runDockerCapture, runDockerJsonArray } from "./docker-cli.js";
 
 export type ContextEndpointKind = "local" | "ssh" | "tcp";
@@ -57,15 +58,21 @@ interface RawContextInspect {
 export async function listContexts(): Promise<ContextSummary[]> {
   const raw = await runDockerJsonArray<RawContext>(["context", "ls", "--format", "json"]);
   const tlsByName = await readTlsMaterial(raw.map((entry) => entry.Name));
-  return raw.map((entry) => ({
-    name: entry.Name,
-    description: entry.Description ? entry.Description : undefined,
-    endpoint: entry.DockerEndpoint ?? "",
-    kind: endpointKind(entry.DockerEndpoint ?? ""),
-    tls: tlsByName.get(entry.Name) !== undefined,
-    active: entry.Current === true,
-    error: entry.Error ? entry.Error : undefined,
-  }));
+  return raw
+    .map((entry) => ({
+      name: entry.Name,
+      description: entry.Description ? entry.Description : undefined,
+      endpoint: entry.DockerEndpoint ?? "",
+      kind: endpointKind(entry.DockerEndpoint ?? ""),
+      tls: tlsByName.get(entry.Name) !== undefined,
+      active: entry.Current === true,
+      error: entry.Error ? entry.Error : undefined,
+    }))
+    // A context has no identifier but its name, so the last comparison is that
+    // same name compared exactly: it separates what the name comparison calls
+    // equal (`Data` from `data`), and is not a no-op. The active context is
+    // marked, never promoted.
+    .sort(byNameThenIdentity({ name: (context) => context.name, identity: (context) => context.name }));
 }
 
 export async function createContext(input: CreateContextInput): Promise<ContextSummary> {

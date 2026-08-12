@@ -2,7 +2,7 @@
 
 | Component | Type | Path | Responsibility | Spec |
 |-----------|------|------|-----------------|------|
-| ImagesService | backend service | `server/src/images/images-service.ts` | Lists local images over the Engine API (tags, digest, platform(s), size, age) and reads an image's inspect data (config, entrypoint/cmd, env, labels, exposed ports, history) plus the raw payload | `specs/images-service.md` |
+| ImagesService | backend service | `server/src/images/images-service.ts` | Lists local images over the Engine API keyed by their lowest tag with the dangling ones grouped last, newest first (tags, digest, platform(s), size, age) and reads an image's inspect data (config, entrypoint/cmd, env, labels, exposed ports, history) plus the raw payload | `specs/images-service.md` |
 | ImageTransferService | backend service | `server/src/images/image-transfer-service.ts` | Registry-facing image operations over the Engine API: pull and push with per-layer progress, tag, untag, remove, and prune of dangling images; also opens/consumes the browser-facing save/load tarball streams | `specs/image-transfer-service.md` |
 | Images endpoints | REST endpoint | `server/src/images/images-routes.ts` | Exposes image listing, inspect, pull/push progress streams, save (browser download), load (browser upload), tag, untag, remove and prune to the client | `specs/images-endpoints.md` |
 | Images client | frontend data client | `client/src/data/images-client.ts` | Typed `fetch` wrapper for the images endpoints, the pull/push progress stream URL builders, the save download URL builder and the load upload URL | `specs/images-client.md` |

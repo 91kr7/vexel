@@ -21,6 +21,12 @@ and select-active.
   - `active` reflects buildx's own "current" builder.
   - `cacheBytes` is the sum of that builder's own build-cache record sizes; omitted (not zero) when
     it could not be read, e.g. the builder is not running.
+  - **Ordered by builder name** under the list-order rule (`compareNames`). A builder carries no
+    identifier other than its name, so the final comparison is **that same name compared exactly**,
+    which separates two builders whose names differ only in case or in leading zeros.
+  - The **active builder keeps its alphabetical place**: it is marked by `active`, never promoted.
+  - The same builders produce the **same sequence on every read**, whatever order buildx listed
+    them in.
 - `createBuilder(input): Promise<BuilderSummary>`
   - `input`: `{ name, driver, endpoint?, platforms: string[] }`.
   - Rejects with the daemon's own message on a name collision or an invalid driver/endpoint.
@@ -46,8 +52,11 @@ and select-active.
 ## Dependencies
 
 - docker-access: CLI runner
+- list-order: List order (`byNameThenIdentity`)
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-88
 - plan-docker_management_app/REQ-89
+- plan-docker_management_app-list_ordering/REQ-11
+- plan-docker_management_app-list_ordering/REQ-12

@@ -1,6 +1,7 @@
 // buildx builder inventory and management through the CLI channel (REQ-88,
 // REQ-89): name, driver, endpoint, supported platforms, status and cache
 // size, which builder is active, plus select-active, create and remove.
+import { byNameThenIdentity } from "../list-order/list-order.js";
 import { parseHumanSize, runBuildxCapture, runBuildxJsonArray } from "./buildx-cli.js";
 
 export interface BuilderSummary {
@@ -42,7 +43,11 @@ interface RawCacheRecord {
 
 export async function listBuilders(): Promise<BuilderSummary[]> {
   const raw = await runBuildxJsonArray<RawBuilder>(["ls", "--format", "json"]);
-  return Promise.all(raw.map(toBuilderSummary));
+  const builders = await Promise.all(raw.map(toBuilderSummary));
+  // A builder has no identifier but its name, so the last comparison is that
+  // same name compared exactly — a different comparison of the same string, not
+  // a no-op. The active builder keeps its alphabetical place.
+  return builders.sort(byNameThenIdentity({ name: (builder) => builder.name, identity: (builder) => builder.name }));
 }
 
 export async function createBuilder(input: CreateBuilderInput): Promise<BuilderSummary> {

@@ -3,6 +3,7 @@
 // containers are not part of the daemon's own /networks listing: they are
 // merged in from /containers/json (each container's own NetworkSettings).
 import { getEngineClient } from "../connectivity/connection-status-service.js";
+import { byNameThenIdentity } from "../list-order/list-order.js";
 
 export interface NetworkSummary {
   id: string;
@@ -96,7 +97,11 @@ export async function listNetworks(): Promise<NetworkSummary[]> {
     readAttachedContainers(),
   ]);
   const raw = JSON.parse(networksResponse.body) as RawNetwork[];
-  return raw.map((network) => toSummary(network, attachedContainers));
+  // Docker does not guarantee network-name uniqueness, so the id decides
+  // between two rows carrying one name rather than the daemon's own order.
+  return raw
+    .map((network) => toSummary(network, attachedContainers))
+    .sort(byNameThenIdentity({ name: (network) => network.name, identity: (network) => network.id }));
 }
 
 /** `GET /networks/{id}` itself rejects with a daemon 404 for an unknown id/name; its own `Containers` map is authoritative. */

@@ -23,6 +23,11 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   - `ports`: `{ privatePort, publicPort?, type }[]`.
   - `cpuPercent`/`memoryUsageBytes`/`memoryLimitBytes` are present only for a `running` container
     that the sampler has read at least once since it started running.
+  - **Ordered by container name** under the list-order rule (`compareNames`), with the container's
+    `id` as the final comparison: `app-2` before `app-10`, `Redis` next to `redis-cache`, and two
+    containers whose names differ only in case or in leading zeros separated by their ids.
+  - The same containers produce the **same sequence on every read**, whatever order the daemon
+    supplied them in.
 - `startContainer(id)`, `stopContainer(id)`, `restartContainer(id)`, `pauseContainer(id)`,
   `unpauseContainer(id)`, `killContainer(id)`: `Promise<void>` — the matching Engine API lifecycle
   call.
@@ -87,6 +92,7 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 
 - docker-access: EngineClient (via `getEngineClient()`), DockerDaemonError
 - image-analysis: `INTERNAL_CONTAINER_LABEL`
+- list-order: List order (`byNameThenIdentity`)
 
 ## Requirements served
 
@@ -98,3 +104,5 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 - plan-docker_management_app/REQ-25
 - plan-docker_management_app/REQ-26
 - plan-docker_management_app/REQ-54
+- plan-docker_management_app-list_ordering/REQ-8
+- plan-docker_management_app-list_ordering/REQ-12

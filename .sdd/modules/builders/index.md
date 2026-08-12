@@ -2,7 +2,7 @@
 
 | Component | Type | Path | Responsibility | Spec |
 |-----------|------|------|-----------------|------|
-| BuildersService | backend service | `server/src/builders/builders-service.ts` | buildx builder inventory (name, driver, endpoint, platforms, status, cache size, active builder) and create/remove/select-active through the CLI channel | `specs/builders-service.md` |
+| BuildersService | backend service | `server/src/builders/builders-service.ts` | buildx builder inventory in name order (name, driver, endpoint, platforms, status, cache size, active builder) and create/remove/select-active through the CLI channel | `specs/builders-service.md` |
 | BuildCacheService | backend service | `server/src/builders/build-cache-service.ts` | Build-cache inventory (id, type, size, usage state, recorded build step) and prune through the CLI channel, reporting the space reclaimed | `specs/build-cache-service.md` |
 | BuildCacheUsageService | backend service | `server/src/builders/build-cache-usage-service.ts` | Reverse lookup from a build-cache record to the local images and layers it relates to, or the stated reason none can be named | `specs/build-cache-usage-service.md` |
 | Builders endpoints | REST endpoint | `server/src/builders/builders-routes.ts` | Exposes builder listing/create/remove/use, build-cache listing/prune and a record's related images/layers to the client | `specs/builders-endpoints.md` |

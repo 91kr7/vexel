@@ -19,6 +19,11 @@ network's full inspect data, create, remove and prune unused networks, and attac
   - `attachedContainers` — names of every container (running or stopped) currently attached to the
     network, derived from `GET /containers/json?all=true`'s per-container `NetworkSettings.Networks`
     (the listing endpoint's own payload carries no attachment data); empty for an unattached network.
+  - **Ordered by network name** under the list-order rule (`compareNames`), with the network's `id`
+    as the final comparison: `net-2` before `net-10`, and two networks carrying the **same name** —
+    Docker does not guarantee network-name uniqueness — ordered by their ids rather than shuffled.
+  - The same networks produce the **same sequence on every read**, whatever order the daemon
+    supplied them in.
 - `getNetworkInspect(id): Promise<NetworkInspect>` — via `GET /networks/{id}`; rejects with the
   daemon's own 404 for an unknown id/name.
   - `NetworkInspect`: `NetworkSummary & { raw }`; `raw` is the full inspect payload exactly as
@@ -45,9 +50,12 @@ network's full inspect data, create, remove and prune unused networks, and attac
 ## Dependencies
 
 - docker-access: EngineClient (via `getEngineClient()`), DockerDaemonError
+- list-order: List order (`byNameThenIdentity`)
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-72
 - plan-docker_management_app/REQ-73
 - plan-docker_management_app/REQ-74
+- plan-docker_management_app-list_ordering/REQ-9
+- plan-docker_management_app-list_ordering/REQ-12
