@@ -370,9 +370,24 @@ Sources: [Portainer #3006, no default sort on tables](https://github.com/portain
   labels. They may present the same instability; they are not what the six named services return,
   they are not evidenced in the request, and pulling them in would widen a fix into a sweep. If one
   is reported, it is the same rule applied one level down.
-- **Lists not among the thirteen named here** (for example anything derived from compose projects or
-  swarm tasks that is assembled from another list): they inherit the order of the data they are
-  built from and are not separately specified by this fix.
+- **Lists not among the thirteen named here.** ~~They inherit the order of the data they are built
+  from and are not separately specified by this fix.~~ **Both halves of that sentence were corrected
+  during planning; it is struck through rather than deleted so nobody re-derives it.**
+
+  *On the first half:* a derived list does **not** necessarily inherit its source's order.
+  `client/src/dashboard/DashboardScreen.tsx:101` sorts containers by state and then by name, in the
+  client, over a list the server had already ordered. Establish what a derived list does; do not
+  assume it inherits. That one is deliberately left untouched — its comparison is already a *total*
+  order, since Docker enforces unique container names on a daemon, so it cannot reshuffle between
+  reads, which is the defect being fixed here. What survives is host-locale dependence, which varies
+  the order between machines and never between two reads on one machine.
+
+  *On the second half:* three lists that are not among the thirteen were found unsorted during
+  planning and **are** in scope after all — compose projects, build-cache records, and the registry
+  catalog's repositories and tags. The human's request names "the panels", not a list of services,
+  and leaving known-shuffling panels unfixed would answer it only partly. They are planned in a
+  batch of their own, last, depending on nothing and depended on by nothing, so the widening can be
+  dropped whole without touching the six reported panels.
 - **Performance work on the list endpoints**, beyond not making them perceptibly slower.
 - **The other five items of `bugs.md`**, each analysed in its own file and listed at the top of this
   one. With bug-3, the file is exhausted.
