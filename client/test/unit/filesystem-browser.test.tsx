@@ -162,6 +162,27 @@ describe('FilesystemBrowser — cost warning, progress and cancel (plan-docker_m
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
   });
 
+  // filesystem-browser.md — the extraction dialog is one of the four opted into the shared surface's
+  // self-dismissal: it states its completion and then goes on its own, leaving the extracted tree
+  // as what the operator's next look lands on
+  // (progress_completion_autoclose/REQ-1, REQ-6, REQ-13)
+  it('states the completion and then dismisses the progress dialog by itself, leaving the tree browsable', async () => {
+    render(<FilesystemBrowser image={makeImage()} open onClose={vi.fn()} />, { wrapper: withToast });
+    await userEvent.click(screen.getByRole('button', { name: 'Browse filesystem…' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Extract' }));
+
+    act(() => latestSource().emit('result', { imageId: 'sha256:0123456789abcdef0123456789abcdef0123456789abcdef', entryCount: 2, fromCache: false }));
+    act(() => latestSource().emit('end'));
+
+    // Read by its class: the completion is also exposed as a status message, so the word is in the
+    // dialog twice on purpose.
+    await waitFor(() => expect(document.querySelector('.ui-transfer-progress-dialog__caption')).toHaveTextContent('Completed'));
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Extracting the filesystem' })).not.toBeInTheDocument(), {
+      timeout: 3000,
+    });
+    await waitFor(() => expect(screen.getByText('bin')).toBeInTheDocument());
+  });
+
   // filesystem-browser.md — Cancel discards the run (the container is still removed server-side)
   // and returns to the "not extracted yet" prompt
   it('cancelling the progress dialog while active stops the extraction stream and returns to "not extracted yet"', async () => {

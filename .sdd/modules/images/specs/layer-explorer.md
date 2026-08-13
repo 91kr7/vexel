@@ -63,6 +63,13 @@ Actions:
     what it produced. Only Cancel or starting a new analysis replaces it.
   - Close, once the analysis failed, dismisses the dialog and clears it (there is nothing to keep),
     so "Analyze changesets…" is offered again.
+  - Once the analysis succeeds the dialog states `Completed` — the shared surface's own wording —
+    and **dismisses itself** a second later, which is that same acknowledgement made without the
+    operator having to give it: this view asks the surface for it (`autoCloseOnDone`), its result
+    being rendered behind the dialog rather than in it, and the pressed Close and the elapsed second
+    are one and the same closing path. No completion wording, state or timer of this view's own; its
+    `formatCaption` keeps describing the in-flight phase only. A failed analysis never dismisses
+    itself.
 - Selecting a layer row shows that layer's changeset once analysis has completed and its dialog has
   been dismissed (Close does not hide the result, only the dialog); before that, or while a run is
   active, the same "not analyzed yet" prompt is shown regardless of which layer is selected (analysis
@@ -98,3 +105,7 @@ Actions:
 - plan-docker_management_app/REQ-65
 - plan-docker_management_app/REQ-67
 - plan-docker_management_app/REQ-68
+- plan-docker_management_app-progress_completion_autoclose/REQ-5
+- plan-docker_management_app-progress_completion_autoclose/REQ-12
+- plan-docker_management_app-progress_completion_autoclose/REQ-15
+- plan-docker_management_app-progress_completion_autoclose/REQ-16

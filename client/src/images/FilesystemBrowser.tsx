@@ -351,6 +351,7 @@ export function FilesystemBrowser({ image, open, onClose }: FilesystemBrowserPro
         }
         onCancel={cancelExtraction}
         onClose={closeProgressDialog}
+        autoCloseOnDone
       />
     </Modal>
   );

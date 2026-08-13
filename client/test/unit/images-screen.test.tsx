@@ -1377,6 +1377,11 @@ describe('ImagesScreen — load tarball (plan-docker_management_app/REQ-42)', ()
     act(() => latestUpload().respond(200, JSON.stringify({ references: ['myrepo/app:1.0'] })));
 
     expect(screen.getByText('myrepo/app:1.0')).toBeInTheDocument();
+    // The completed state, stated in words by the library on this surface too — and then the dialog
+    // stays: it is the only place the loaded references are shown, so it is deliberately not opted
+    // into the self-dismissal, and this `Close` is what dismisses it
+    // (progress_completion_autoclose/REQ-5, REQ-12).
+    expect(document.querySelector('.ui-transfer-progress-dialog__caption')).toHaveTextContent('Completed');
     await user.click(screen.getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(onRefresh).toHaveBeenCalled());
   });
@@ -1435,6 +1440,9 @@ describe('ImagesScreen — import filesystem (plan-docker_management_app/REQ-43)
     act(() => latestUpload().respond(200, JSON.stringify({ reference: 'myrepo/imported:v1' })));
 
     expect(screen.getByText('myrepo/imported:v1')).toBeInTheDocument();
+    // Same completed state, and the same deliberate exclusion from the self-dismissal as the load
+    // flow above (progress_completion_autoclose/REQ-5, REQ-12).
+    expect(document.querySelector('.ui-transfer-progress-dialog__caption')).toHaveTextContent('Completed');
     await user.click(screen.getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(onRefresh).toHaveBeenCalled());
   });

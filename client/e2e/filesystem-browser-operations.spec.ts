@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
+import { expectCompletedThenSelfDismissed } from './support/progress-completion.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 // Every test drives the same extracted-filesystem fixture image; running
@@ -66,8 +67,10 @@ async function openAndExtract(page: Page, tag: string) {
   await expect(confirmHeading).toBeVisible();
   await confirmHeading.locator('xpath=..').getByRole('button', { name: 'Extract' }).click();
   const progressDialog = page.getByRole('heading', { name: 'Extracting the filesystem' }).locator('xpath=..');
-  await expect(progressDialog.getByRole('button', { name: 'Close' })).toBeVisible({ timeout: 20_000 });
-  await progressDialog.getByRole('button', { name: 'Close' }).click();
+  // Re-pointed at the dialog's own dismissal: the completion is stated while it is still there, and
+  // it then leaves with nothing pressed (progress_completion_autoclose/REQ-18, REQ-24). The `Close`
+  // press that used to be here would now race that dismissal.
+  await expectCompletedThenSelfDismissed(progressDialog, 20_000);
   // Every fixture file lives under /data; expanding it once exposes them all to the row locators below.
   await treeRow(modal, 'data').locator('.ui-tree-view__caret').click();
   await expect(treeRow(modal, 'hello.txt')).toBeVisible();

@@ -287,6 +287,7 @@ export function LayerExplorer({ image, open, onClose, initialSelectedLayerIndex,
         }
         onCancel={cancelAnalysis}
         onClose={closeProgressDialog}
+        autoCloseOnDone
       />
     </Modal>
   );

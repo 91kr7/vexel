@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { expect, test, type Page } from './support/test.js';
 
 import { openApp, ownershipArgs } from './support/fixtures.js';
+import { expectCompletedThenSelfDismissed } from './support/progress-completion.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 // Every test compares the very same fixture pair; running serially avoids
@@ -62,7 +63,7 @@ function diffModal(page: Page) {
   return page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: 'Compare filesystems' }) });
 }
 
-/** Confirms the cost-warning dialog, then waits for the comparison to end and closes the progress dialog. */
+/** Confirms the cost-warning dialog, then waits for the comparison to end and for its dialog to go. */
 async function confirmAndFinishComparison(page: Page, modal: ReturnType<typeof diffModal>): Promise<void> {
   await modal.getByRole('button', { name: 'Compare' }).click();
   const confirmHeading = page.getByRole('heading', { name: /^Confirm: / });
@@ -70,8 +71,10 @@ async function confirmAndFinishComparison(page: Page, modal: ReturnType<typeof d
   await confirmHeading.locator('xpath=..').getByRole('button', { name: 'Compare' }).click();
 
   const progressDialog = page.getByRole('heading', { name: 'Comparing filesystems' }).locator('xpath=..');
-  await expect(progressDialog.getByRole('button', { name: 'Close' })).toBeVisible({ timeout: 30_000 });
-  await progressDialog.getByRole('button', { name: 'Close' }).click();
+  // Re-pointed at the dialog's own dismissal: the completion is stated while it is still there, and
+  // it then leaves with nothing pressed (progress_completion_autoclose/REQ-18, REQ-24). The `Close`
+  // press that used to be here would now race that dismissal.
+  await expectCompletedThenSelfDismissed(progressDialog, 30_000);
 }
 
 // Two small scratch images: image A has a path only it has and a "changed.txt" with its own

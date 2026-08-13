@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { expect, test, type Page } from './support/test.js';
 
 import { openApp, ownershipArgs } from './support/fixtures.js';
+import { expectCompletedThenSelfDismissed } from './support/progress-completion.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 async function buildImage(tag: string, dockerfile: string): Promise<void> {
@@ -125,9 +126,13 @@ test('analyzes layer efficiency and secret signals, then navigates from a findin
   await confirmHeading.locator('xpath=..').getByRole('button', { name: 'Analyze', exact: true }).click();
 
   const progressDialog = page.getByRole('heading', { name: 'Analyzing layer efficiency' }).locator('xpath=..');
-  await expect(progressDialog.getByRole('button', { name: 'Close' })).toBeVisible({ timeout: 60_000 });
-  await progressDialog.getByRole('button', { name: 'Close' }).click();
+  // The second of the two dialogs the human reported, as the same sequence over time: the
+  // completion stated while the dialog is still there, then the dialog gone with nothing pressed
+  // (progress_completion_autoclose/REQ-18). The `Close` press that used to be here would now race
+  // the dialog's own dismissal.
+  await expectCompletedThenSelfDismissed(progressDialog, 60_000);
 
+  // The efficiency signals, readable behind the dialog that left on its own (REQ-13).
   const wasteSection = findingsSection(modal, 0);
   const duplicatesSection = findingsSection(modal, 1);
   const secretsSection = findingsSection(modal, 2);

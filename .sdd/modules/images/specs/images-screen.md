@@ -117,6 +117,12 @@ Actions (the image's four analysis views):
   closes that dialog and opens a `TransferProgressDialog` driven by `useFileUpload`, showing upload
   byte progress with a genuine cancel while it runs, the references loaded once it ends (Close
   re-reads the list), or the failure.
+- **This dialog and the import one below state `Completed` like every other, and then wait**: they
+  are the two the screen deliberately does **not** opt into the shared surface's self-dismissal
+  (`autoCloseOnDone` is not passed), because the dialog's own body is the only place the references
+  of the images just created are shown — a dialog that left on its own would take the operation's
+  only result with it. They are dismissed by hand, and that is the correct behaviour rather than an
+  omission: the four analyses opt in, these two do not.
 - "Import filesystem…" opens a `FormDialog` with a `FilePicker` for a local filesystem tarball and an
   optional target reference (REQ-43); submitting opens the same kind of `TransferProgressDialog`
   (a second, independent `useFileUpload`) over the containers' filesystem-import upload, showing the
@@ -269,3 +275,7 @@ Navigation:
 - plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-33
 - plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-34
 - plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-35
+- plan-docker_management_app-progress_completion_autoclose/REQ-5
+- plan-docker_management_app-progress_completion_autoclose/REQ-12
+- plan-docker_management_app-progress_completion_autoclose/REQ-15
+- plan-docker_management_app-progress_completion_autoclose/REQ-16

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
+import { expectCompletedThenSelfDismissed } from './support/progress-completion.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { TINY_IMAGE, TINY_IMAGE_FILE, ensureImage } from '../../server/test/support/base-images.js';
 
@@ -88,9 +89,21 @@ test('browses the complete filesystem of an image without running it, lazily exp
     const progressHeading = page.getByRole('heading', { name: 'Extracting the filesystem' });
     await expect(progressHeading).toBeVisible();
     const progressDialog = progressHeading.locator('xpath=..');
-    await expect(progressDialog.getByRole('button', { name: 'Close' })).toBeVisible({ timeout: 15_000 });
-    await progressDialog.getByRole('button', { name: 'Close' }).click();
+    // The first of the two dialogs the human reported, as a sequence over time: the completion
+    // stated while the dialog is still there, then the dialog gone with nothing pressed
+    // (progress_completion_autoclose/REQ-13, REQ-18). Nothing is clicked between the two: the
+    // `Close` press that used to be here would now race the dialog's own dismissal.
+    await expectCompletedThenSelfDismissed(progressDialog, 15_000);
 
+    // Where the keyboard is left once the dialog goes by itself (REQ-13): on the document, exactly
+    // where a manual dismissal leaves it — the dialog's own controls having gone with the dialog —
+    // and never on a control that no longer exists.
+    await expect
+      .poll(() => page.evaluate(() => document.activeElement?.tagName.toLowerCase() ?? null))
+      .toBe('body');
+    await expect(page.getByRole('button', { name: 'Close' })).toHaveCount(0);
+
+    // The outcome the operator's next look lands on: the view underneath, revealed intact.
     await expect(modal.getByText('Freshly extracted')).toBeVisible();
     const treeRow = (name: string) => modal.locator('.ui-tree-view__row', { hasText: name });
     await expect(treeRow(TINY_IMAGE_FILE)).toBeVisible();
@@ -165,8 +178,7 @@ test('reuses the cached extraction the next time the image is browsed', async ({
     await modal.getByRole('button', { name: 'Browse filesystem…' }).click();
     await page.getByRole('heading', { name: `Confirm: ${tag}` }).locator('xpath=..').getByRole('button', { name: 'Extract' }).click();
     const progressDialog = page.getByRole('heading', { name: 'Extracting the filesystem' }).locator('xpath=..');
-    await expect(progressDialog.getByRole('button', { name: 'Close' })).toBeVisible({ timeout: 15_000 });
-    await progressDialog.getByRole('button', { name: 'Close' }).click();
+    await expectCompletedThenSelfDismissed(progressDialog, 15_000);
     await expect(modal.getByText('Freshly extracted')).toBeVisible();
 
     // Closes the browser's own Modal (overlay click, away from its content — the modal is still
@@ -192,6 +204,13 @@ test('reuses the cached extraction the next time the image is browsed', async ({
 
     await reopenedModal.getByRole('button', { name: 'Browse filesystem…' }).click();
     await page.getByRole('heading', { name: `Confirm: ${tag}` }).locator('xpath=..').getByRole('button', { name: 'Extract' }).click();
+
+    // The run the human reported: served from the cache, so no phase is ever reported for it. The
+    // dialog states its completion all the same — not the "no phase yet" wording it used to be left
+    // on under a full bar — and then leaves on its own
+    // (progress_completion_autoclose/REQ-2, REQ-22).
+    const cachedProgressDialog = page.getByRole('heading', { name: 'Extracting the filesystem' }).locator('xpath=..');
+    await expectCompletedThenSelfDismissed(cachedProgressDialog, 15_000);
 
     await expect(reopenedModal.getByText('From cache')).toBeVisible({ timeout: 15_000 });
   } finally {

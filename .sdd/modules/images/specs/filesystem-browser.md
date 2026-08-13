@@ -47,6 +47,12 @@ Actions:
   intermediate container is still removed server-side) and returns to the "not extracted yet"
   prompt; Close, once succeeded, only dismisses the dialog and the browsed tree stays; Close, once
   failed, also clears the run so extraction can be retried.
+- Once the extraction succeeds the dialog states `Completed` — the shared surface's own wording, not
+  this screen's — and **dismisses itself** a second later, revealing the extracted tree: this view
+  asks the surface for that (`autoCloseOnDone`), its result being rendered behind the dialog rather
+  than in it. This screen supplies no completion wording, no completion state and no timer of its
+  own; its `formatCaption` keeps describing the in-flight phase only, and is not consulted once the
+  extraction is done. A failed extraction never dismisses itself.
 - Typing in the search field, "Next"/"Previous" → navigates `activeMatchIndex`; each navigation
   selects that match, expands (and lazily loads) every one of its ancestor directories so it becomes
   visible in the tree (REQ-60).
@@ -96,3 +102,7 @@ Actions:
 - plan-docker_management_app/REQ-61
 - plan-docker_management_app/REQ-62
 - plan-docker_management_app/REQ-113
+- plan-docker_management_app-progress_completion_autoclose/REQ-5
+- plan-docker_management_app-progress_completion_autoclose/REQ-12
+- plan-docker_management_app-progress_completion_autoclose/REQ-15
+- plan-docker_management_app-progress_completion_autoclose/REQ-16

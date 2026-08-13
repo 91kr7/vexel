@@ -48,6 +48,11 @@ Actions:
   cancel-vs-close distinction as the filesystem browser's extraction dialog: Cancel discards the
   run and returns to the picker; Close, once succeeded, only dismisses the dialog and the diff tree
   stays; Close, once failed, clears the run so comparison can be retried.
+- Once the comparison succeeds the dialog states `Completed` — the shared surface's own wording —
+  and **dismisses itself** a second later, revealing the diff tree: this view asks the surface for
+  that (`autoCloseOnDone`), its result being rendered behind the dialog rather than in it. No
+  completion wording, state or timer of this view's own; its `formatCaption` keeps describing the
+  in-flight phase only. A failed comparison never dismisses itself.
 - Choosing a status filter chip narrows the tree to that status (and any ancestor directory holding
   a match in its subtree, via `DiffTreeView`'s roll-up).
 - Selecting a tree row shows that path's changed aspects and side-by-side content in the detail
@@ -86,3 +91,7 @@ Actions:
 - plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-24
 - plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-27
 - plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-35
+- plan-docker_management_app-progress_completion_autoclose/REQ-5
+- plan-docker_management_app-progress_completion_autoclose/REQ-12
+- plan-docker_management_app-progress_completion_autoclose/REQ-15
+- plan-docker_management_app-progress_completion_autoclose/REQ-16

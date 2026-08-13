@@ -323,6 +323,7 @@ export function ImageDiffView({ images, initialImageAId, initialImageBId, open, 
         }
         onCancel={cancelComparison}
         onClose={closeProgressDialog}
+        autoCloseOnDone
       />
     </Modal>
   );
