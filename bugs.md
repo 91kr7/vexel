@@ -1,37 +1,25 @@
-- change-1
-    image: bugs-screen/change-1.png
-    I want reorganize the containers action so in the container row only the most used action are visibile as default as shown in the sceenshot.
-    The secondary action must be shown in a submenù!
-    the container rename function and the export filesystem must be moved in the submenù
-
-- change-2
-    image: bugs-screen/change-2.png
-    in the panel that show the container details remove the "X" button that is used to clone the container panel!
-    the container panel can be closed by clicking on the container row!!!
-
-- change-3
-    image: bugs-screen/change-3.png
-    all action must be moved in a submenù as done for the change-1
-
 - bug-1
-    image: bugs-screen/bug-1.png
-    the size of the popup is not always correct for the text that must contains! the image bugs-screen/bug-1.png is an example but open the popup that i'll wrote next and analyse them using your browser and screenshot functionality:
-        - containers > prune stopped
-        - swarm > initialize swarm / join swarm
-        - images & layers > import filesystem
-        - volumes > two prune popups
-        - registries > login/logout
-        - builders & cache > creare builder
-        - contexts > create context
-        - plugins > install plugin
-        - system & prune > System prune / prune popups
+  image: bugs-screen/bug-1.png
+  description: images menù > after the file system extraction the status is "starting"!
+  how to fix: update the status from "starting" to "completed" and after 1sec from "completed" autoclose the popup.
+  be carefull! the same problem exists in the popup "Analyzing layer efficiency"! apply the same fix
 
 - bug-2
   image: bugs-screen/bug-2.png
-  containers > run container. selecting privileged the popup crashs!
-  [note] investigated, not reproduced — record: .sdd/analysis/docker_management_app-privileged_toggle_verification.md
-  [note] supersedes the note above — reproduced with a real mouse click (the seven earlier attempts were programmatic, which moves no focus), cause measured (the switch's hidden checkbox was drawn 1346px from the switch, and focusing it scrolled the sheet 1044px out of view) and fixed — record: .sdd/analysis/docker_management_app-toggle_focus_scroll.md
+  description: images menù > action "browse filesyste".
+  everytime the popup "Filesystem not extracted yet" is showed!
+  how to fix: i don't like this popup because it's obvious that the filesystem of an image is not extracter yet so don't show this popup and show immediatelly the popup that contains the text "Extracting the filesystem creates a container from the image (never started) and copies out about ***MB, taking roughly 5s."!
 
 - bug-3
-  the order of the elements of the panels in not set so the order of the element can change randomically based on the output of the docker daemon
-  can you implement a sort? you are free to choise the best implementation
+  image: bugs-screen/bug-3.png
+  description: popup style is not correct
+  how to fix: analyse the screenshot! there are a lot of spaces not used! fix and ehance the layout!
+
+- bug-4
+  image: bugs-screen/bug-4.png
+  description: too arious layout! actually there are section that contains the container/image configs, environment ecc.... these sections are not well structured because there is too much wasted space
+  how to fix: analyse the screenshot! my propose is to subdivide these infos in columns (based on the device size!)
+
+- bug-5
+  image: bugs-screen/bug-5.png
+  how to fix: Remove all copy buttons!!!!
