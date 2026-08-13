@@ -3,7 +3,20 @@ request_slug: docker_management_app-privileged_toggle_verification
 date: 2026-08-12
 type: evolution
 reference: .sdd/analysis/docker_management_app.md
+superseded_by: .sdd/analysis/docker_management_app-toggle_focus_scroll.md
 ---
+
+> **⚠ SUPERSEDED — the conclusion of this file is false.** It concluded that the reported crash does
+> not reproduce, and delivered verification instead of a fix. **The defect is real, was reproduced
+> with a real mouse click, and its cause is proved**: see
+> [`docker_management_app-toggle_focus_scroll.md`](./docker_management_app-toggle_focus_scroll.md).
+>
+> The axis that never varied across the seven attempts recorded below was **not the browser engine**,
+> as this file concluded — it was the **instrument**. Every attempt used programmatic
+> `HTMLElement.click()`, which does not move focus, and focus is what triggers the defect. The
+> environmental hypothesis this file called untested is now **refuted**, and its Open thread is moot.
+>
+> The file is kept unedited below, as the record of what was concluded and on what evidence.
 
 ## Request
 

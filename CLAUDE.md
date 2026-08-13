@@ -291,6 +291,31 @@ Roughly 35 MB in total, and that rule stands: do not reach for a heavier image b
 be lying around. The suite used `postgres:16` this way and paid 663 MB for a process that only had
 to sleep.
 
+### What a check drives, and what it measures
+
+Both halves below were paid for by one shipped defect — a switch that dragged its dialog 1044px above
+the top of the viewport (bug-2) — which the coverage written for that very report passed on, twice
+over.
+
+**A check that does not use a real pointer cannot detect a defect only focus or hit-testing can
+trigger.** Seven programmatic activations — `HTMLElement.click()` and dispatched events — found
+nothing across two builds, both entry paths and a complete privileged create; one real click at the
+control's own coordinates found it immediately. A programmatic activation moves no focus, and focus
+was the whole trigger: the browser scrolls a focused element into view, and this control's visually
+hidden input was drawn 1346px away from the switch it belongs to. So an interaction a human performs
+with a mouse is checked with a **real pointer at the visible control's coordinates** — never by
+calling the element's own `click()`, never by dispatching an event, and never by aiming at the
+visually hidden input behind a control, whose position is frequently the very thing under
+examination.
+
+**A check that measures content cannot detect a defect that moves position.** The same coverage
+counted 1154 characters of dialog text before the toggle and 1154 after — with the defect active, on
+a dialog that had just been carried off screen. A surface dragged out of the viewport keeps every
+child and every character it had; what it loses is its **coordinates**. So a check for "the surface
+broke" asserts the surface's viewport box before and after the interaction, and that the control just
+operated is still inside the viewport. Content assertions stay beside that one where they answer a
+different symptom — a surface present and blank — never instead of it.
+
 ## Running it — two arrangements, and which belongs to whom
 
 There are two ways to bring this application up, and they are not interchangeable. One is how the

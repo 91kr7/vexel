@@ -14,9 +14,23 @@
  * Anyone simplifying this file into "the sheet is visible" has written the check
  * that would not have caught the thing it exists for.
  *
- * The investigation behind it is recorded in
- * `.sdd/analysis/docker_management_app-privileged_toggle_verification.md`, which
- * is the only account of it; nothing here summarises it.
+ * **And that is not what the report was.** bug-2 has since been reproduced with a
+ * real pointer and its cause measured: operating the switch drags the sheet
+ * 1044px above the top of the viewport, because the switch's visually hidden
+ * input is drawn 1346px away from the switch and the browser scrolls a focused
+ * element into view. Nothing crashes and nothing blanks — the operator is
+ * looking at the wrong part of an intact interface. So the content assertions
+ * described above stay, guarding the symptom they were written for, and the
+ * assertion that can actually fail on this defect is the **position** one:
+ * the sheet's viewport coordinates across the interaction, and the switch still
+ * inside the viewport after it. That is
+ * `plan-docker_management_app-toggle_focus_scroll/REQ-10, REQ-11, REQ-12`, and
+ * the shared measurement lives in `support/surface-stability.ts`.
+ *
+ * The investigation behind the file's original shape is recorded in
+ * `.sdd/analysis/docker_management_app-privileged_toggle_verification.md`;
+ * nothing here summarises it, and its "not reproducible" verdict is superseded
+ * by `.sdd/analysis/docker_management_app-toggle_focus_scroll.md`.
  *
  * **Two limits, and the first governs everything. This check runs in one browser
  * engine. It cannot observe an engine-specific paint failure — the failure class
@@ -33,6 +47,7 @@
  */
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { CASE_LABEL, OWNER_LABEL, RUN_ID, navEntry, openApp } from './support/fixtures.js';
+import { clickAndExpectSurfaceUnmoved } from './support/surface-stability.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 
@@ -85,6 +100,16 @@ function editorField(page: Page, name: string): Locator {
 
 function privilegedToggle(page: Page): Locator {
   return formSheet(page).getByRole('checkbox', { name: 'Run privileged' });
+}
+
+/**
+ * The **visible** switch — the track an operator aims a pointer at. The control
+ * addressed above is the visually hidden input behind it, which is what a
+ * pointer must never be sent to: where it is drawn is the very thing under
+ * examination here.
+ */
+function privilegedSwitch(page: Page): Locator {
+  return formSheet(page).locator('.ui-toggle:has(input[aria-label="Run privileged"]) .ui-toggle__track');
 }
 
 async function removeContainerQuietly(name: string): Promise<void> {
@@ -177,9 +202,20 @@ async function enterOwnershipLabels(page: Page, caseName: string): Promise<void>
 }
 
 /**
- * Operates the switch and asserts the two things the report is about: the sheet
- * still draws exactly what it drew (REQ-1), and the switch reads as selected
- * (REQ-2).
+ * Operates the switch and asserts what the report is about.
+ *
+ * **The position assertion is the one that can fail.** The content assertions
+ * below it were the whole of this check and they pass with the defect active —
+ * 1154 characters before and 1154 after, on a sheet that had been dragged 1044px
+ * above the top of the viewport. A surface carried off screen keeps its
+ * children and its text; what it does not keep is its coordinates
+ * (plan-docker_management_app-toggle_focus_scroll/REQ-10). They are kept beside
+ * it because they answer a different symptom — a surface present and blank —
+ * and the negative control below still guards them.
+ *
+ * The click is delivered by a real pointer at the visible switch's own
+ * coordinates (REQ-11). Nothing here may go back to activating the input
+ * programmatically: that moves no focus, and focus is the entire trigger.
  */
 async function togglePrivilegedAndAssertSheetSurvives(page: Page): Promise<void> {
   // The image field takes the focus when the sheet opens, so its suggestion
@@ -190,7 +226,24 @@ async function togglePrivilegedAndAssertSheetSurvives(page: Page): Promise<void>
   // before the sheet is measured, so both measurements are of the same thing.
   await imageField(page).press('Escape');
   const before = await sheetContentLength(page);
-  await formSheet(page).getByText('Run privileged', { exact: true }).click();
+
+  const { surfaceBefore, surfaceAfter } = await clickAndExpectSurfaceUnmoved({
+    page,
+    surface: formSheet(page),
+    surfaceName: 'the create sheet',
+    control: privilegedSwitch(page),
+    controlName: 'the privileged switch',
+    hiddenControl: privilegedToggle(page),
+  });
+  // The whole box, not only its position: operating this switch reveals no
+  // field and hides none — the sheet's "Privileges" section holds the switch and
+  // the two capability fields whatever the switch says — so a sheet that changed
+  // size did something this interaction has no business doing.
+  expect(
+    surfaceAfter,
+    'the create sheet changed size when the privileged switch was operated, which reveals or hides nothing',
+  ).toEqual(surfaceBefore);
+
   await expect(privilegedToggle(page), 'the switch does not read as selected after being operated').toBeChecked();
   const after = await sheetContentLength(page);
   expect(after, 'the sheet drew a different amount of content after the privileged switch was operated').toBe(before);
@@ -252,8 +305,9 @@ test('the content assertion refuses a sheet that is present and blank', async ({
 
   const sheet = formSheet(page);
   // The symptom, constructed: the surface keeps the geometry it had and loses
-  // its own content. There is no defect to fail against — the report does not
-  // reproduce — so this is the only evidence the assertion detects anything.
+  // its own content. No defect of the product produces that — the reproduced
+  // one moves the sheet and keeps its content, which is the opposite — so this
+  // is the only evidence the content assertions detect anything at all.
   //
   // The geometry is pinned on purpose. Emptied and left to collapse, the surface
   // has no box at all and reads as hidden, so a check asserting nothing but "the
