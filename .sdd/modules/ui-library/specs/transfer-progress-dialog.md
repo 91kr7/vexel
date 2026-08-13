@@ -14,7 +14,7 @@ it ends.
 ## Contract
 
 - `<TransferProgressDialog open title description? currentBytes totalBytes? status errorMessage?
-  onCancel onClose children? formatCaption? />`
+  onCancel onClose onRetry? children? formatCaption? />`
   - `currentBytes: number`, `totalBytes?: number` — the current/total progress units; `totalBytes`
     known renders a determinate bar, unknown an indeterminate one.
   - `formatCaption?: (currentBytes, totalBytes?) => string` — overrides the caption entirely, for a
@@ -27,6 +27,10 @@ it ends.
     overlay/close control while active.
   - `onClose` — called by the Close action, shown once `status` is `'done'` or `'error'`, and by the
     overlay/close control at that point.
+  - `onRetry?` — when given, a retry action is offered **inside the failure report itself** (the
+    `ErrorBanner`'s own retry), for an operation whose caller has a way to start it again; omitted,
+    the failure offers only its dismissal. It never replaces the Close action and never appears
+    while `status` is `'active'` or `'done'`.
   - `children` — rendered only while `status` is `'done'` (e.g. the resulting references).
   - `autoCloseOnDone?: boolean` — opt-in, **default off**: once the completed state has been
     rendered, the dialog closes itself after one second by calling the same `onClose` a manual close

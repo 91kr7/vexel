@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetchImageFilesystemChildren, imageFilesystemStreamUrl } from '../../src/data/image-filesystem-client';
+import { fetchImageFilesystemChildren, fetchKeptImageFilesystem, imageFilesystemStreamUrl } from '../../src/data/image-filesystem-client';
 
 let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -74,5 +74,39 @@ describe('fetchImageFilesystemChildren (images/specs/image-filesystem-client.md)
     fetchMock.mockResolvedValue({ ok: false, status: 500, json: () => Promise.reject(new Error('no body')) });
 
     await expect(fetchImageFilesystemChildren('sha256:abc')).rejects.toThrow('Request failed with HTTP 500');
+  });
+});
+
+// image-filesystem-client.md — the read the two shapes of the browse action are decided by
+// (plan-docker_management_app-filesystem_browse_direct/REQ-4, REQ-16). Kept and not-kept are two
+// normal answers here, unlike the tree/metadata calls whose `404` means "extract first".
+describe('fetchKeptImageFilesystem (images/specs/image-filesystem-client.md)', () => {
+  it('reads the kept summary for an image whose extraction is still kept', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () =>
+        Promise.resolve({ kept: true, summary: { imageId: 'sha256:abc', entryCount: 42, fromCache: true, refusedCount: 1 } }),
+    });
+
+    const answer = await fetchKeptImageFilesystem('sha256:abc');
+
+    expect(String(fetchMock.mock.calls[0]![0])).toBe('/api/images/sha256%3Aabc/filesystem/kept');
+    expect(answer).toEqual({ kept: true, summary: { imageId: 'sha256:abc', entryCount: 42, fromCache: true, refusedCount: 1 } });
+  });
+
+  // Absence is an answer, not a failure: it is the whole point of the call.
+  it('answers "nothing kept" without throwing for an image never extracted', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({ kept: false }) });
+
+    await expect(fetchKeptImageFilesystem('sha256:abc')).resolves.toEqual({ kept: false });
+  });
+
+  // A genuine failure is still a failure — the caller degrades to the cost warning rather than
+  // reading a missing answer as "kept".
+  it('throws with the server error message when the read itself fails', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 502, json: () => Promise.resolve({ error: 'the daemon is unreachable' }) });
+
+    await expect(fetchKeptImageFilesystem('sha256:abc')).rejects.toThrow('the daemon is unreachable');
   });
 });

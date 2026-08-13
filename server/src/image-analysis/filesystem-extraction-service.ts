@@ -159,6 +159,24 @@ export async function extractImageFilesystem(
 }
 
 /**
+ * The summary of the result kept for `imageId`'s content, or `undefined` when
+ * nothing usable is kept — a plain read, for the caller deciding whether an
+ * extraction has to be offered at all.
+ *
+ * It looks the analysis cache up and nothing else: no daemon call, no
+ * container, no extraction started, nothing written. Absence is an answer
+ * rather than an error, including for an indexed artifact that can no longer
+ * be read — that is "nothing kept" as surely as no entry at all, and the
+ * caller offers the extraction with its cost instead of a dead end.
+ */
+export async function getKeptFilesystemExtraction(imageId: string): Promise<FilesystemExtractionResult | undefined> {
+  const filesystem = await getExtractedFilesystem(imageId).catch(() => undefined);
+  if (!filesystem) return undefined;
+  // `fromCache` by construction: what is being reported is a result that already exists.
+  return { imageId, entryCount: filesystem.entries.length, fromCache: true, refusedCount: filesystem.refusals.length };
+}
+
+/**
  * Direct children of `parentPath` (default the root) from a previously
  * extracted, still-cached filesystem (REQ-52) — designed for lazy expansion:
  * only one directory level is read per call. `undefined` when this image has

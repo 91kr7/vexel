@@ -179,3 +179,55 @@ test('analyzes layer efficiency and secret signals, then navigates from a findin
   await expect(otherModal.locator('.ui-data-table__row').first()).toBeVisible({ timeout: 20_000 });
   await expect(otherModal.getByText(/findings · \d+/)).toHaveCount(0);
 });
+
+// **bug-1's cached-run coverage, relocated here — it was not deleted**
+// (plan-docker_management_app-filesystem_browse_direct/REQ-28).
+//
+// It moved here because this fix removes the dialog from the cached filesystem path: the filesystem
+// browser now opens a kept result straight into the tree, raising no progress dialog at all, so the
+// scenario that certified bug-1's hardest case had nowhere left to live there.
+//
+// The case itself: a run **served from the shared changeset cache, for which no phase is ever
+// reported**. The dialog's caption has nothing to describe, and it must state `Completed` all the
+// same — not the "no phase yet" wording it used to be left on under a full bar — and then leave on
+// its own, with nothing pressed
+// (plan-docker_management_app-progress_completion_autoclose/REQ-2, REQ-22).
+//
+// Both runs are this test's own: the run's data directory — the analysis cache included — is
+// emptied before every single test, so the cache hit is created here, within the test, and nothing
+// is inherited from the test above.
+test('states the completion and leaves on its own for a cached analysis, which reports no phase at all', async ({ page }) => {
+  await searchField(page).fill(TAG);
+  const row = imageRow(page, TAG);
+  await expect(row).toBeVisible({ timeout: 10_000 });
+
+  // First run: genuinely uncached, and the one that populates the changeset cache.
+  await chooseRowAction(page, row, 'Efficiency & signals…');
+  const modal = signalsModal(page, /^Efficiency & signals/);
+  await expect(modal).toBeVisible();
+  await modal.getByRole('button', { name: 'Analyze layer efficiency…' }).click();
+  await page.getByRole('heading', { name: `Confirm: ${TAG}` }).locator('xpath=..').getByRole('button', { name: 'Analyze', exact: true }).click();
+  await expectCompletedThenSelfDismissed(page.getByRole('heading', { name: 'Analyzing layer efficiency' }).locator('xpath=..'), 60_000);
+  await expect(modal.getByText('Efficiency score')).toBeVisible();
+
+  // Closes the view's own Modal (overlay click, away from its content), which discards its
+  // client-side state entirely: only the open view is rendered, so nothing of it survives the
+  // closing (images/specs/images-screen.md). Re-opened from the row, the view is back on its own
+  // `Not analyzed yet` screen — deliberately left to its own report and untouched by this fix
+  // (filesystem_browse_direct/REQ-22) — which is what makes the second run a genuine question to
+  // the server's cache.
+  await page.locator('.ui-modal-overlay').click({ position: { x: 5, y: 5 } });
+  await expect(modal).toHaveCount(0);
+
+  await chooseRowAction(page, imageRow(page, TAG), 'Efficiency & signals…');
+  const reopened = signalsModal(page, /^Efficiency & signals/);
+  await expect(reopened.getByText('Not analyzed yet')).toBeVisible();
+
+  await reopened.getByRole('button', { name: 'Analyze layer efficiency…' }).click();
+  await page.getByRole('heading', { name: `Confirm: ${TAG}` }).locator('xpath=..').getByRole('button', { name: 'Analyze', exact: true }).click();
+
+  const cachedProgressDialog = page.getByRole('heading', { name: 'Analyzing layer efficiency' }).locator('xpath=..');
+  await expectCompletedThenSelfDismissed(cachedProgressDialog, 15_000);
+
+  await expect(reopened.getByText('Efficiency score')).toBeVisible({ timeout: 15_000 });
+});

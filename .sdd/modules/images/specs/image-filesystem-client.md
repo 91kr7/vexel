@@ -14,6 +14,13 @@ search, and single-file/subtree export as a browser download (REQ-58–62).
 
 - `imageFilesystemStreamUrl(id, force?): string` — builds `/api/images/{id}/filesystem/stream`
   (`?force=true` when `force`); consumed with `useImageFilesystemExtraction`.
+- `fetchKeptImageFilesystem(id): Promise<KeptImageFilesystem>` — `GET
+  /api/images/{id}/filesystem/kept`, the free read the browse action's two shapes are decided by.
+  `KeptImageFilesystem`: `{ kept: false } | { kept: true; summary: FilesystemExtractionResult }`.
+  **Kept and not-kept are two normal answers**, unlike the tree/metadata calls whose `404` means
+  "extract first": absence is what the caller is asking about, so it is never an error here. A
+  genuine failure (the read itself failing) still throws, so the caller degrades to the cost warning
+  rather than reading a missing answer as "kept".
 - `fetchImageFilesystemChildren(id, path?): Promise<FilesystemEntry[]>` — `GET
   /api/images/{id}/filesystem/entries[?path=...]`; throws (including on a `404`, meaning the
   filesystem has not been extracted yet) rather than returning an empty list.
@@ -57,3 +64,5 @@ search, and single-file/subtree export as a browser download (REQ-58–62).
 - plan-docker_management_app/REQ-61
 - plan-docker_management_app/REQ-62
 - plan-docker_management_app/REQ-113
+- plan-docker_management_app-filesystem_browse_direct/REQ-4
+- plan-docker_management_app-filesystem_browse_direct/REQ-16

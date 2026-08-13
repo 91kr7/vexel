@@ -731,6 +731,106 @@ test("the cache is invalidated by a content change (new image id) and reused for
   }
 });
 
+// plan-docker_management_app-filesystem_browse_direct/REQ-13, REQ-16, REQ-17, REQ-31 — the read the
+// browse action's two shapes are decided by. It is a plain read of what is kept for this image's
+// **content**: it creates nothing, starts no extraction and touches the daemon not at all, and
+// "nothing kept" is an answer rather than an error.
+test("GET /:id/filesystem/kept answers 'nothing kept' for an image never extracted, creating no container and leaving the daemon untouched", async () => {
+  const app = buildApp();
+  const { url, close } = await startApp(app);
+  try {
+    // Scoped to this file's own fixture image, never to a host-wide total: the API pass runs files
+    // in parallel and another file's containers legitimately come and go meanwhile.
+    const digestBefore = await dockerInspect("{{.Id}}", SCRATCH_TAG);
+    const tagsBefore = await dockerInspect("{{json .RepoTags}}", SCRATCH_TAG);
+    const containersBefore = await listInternalContainerIds(scratchImageId);
+
+    const response = await fetch(`${url}/api/images/${encodeURIComponent(scratchImageId)}/filesystem/kept`);
+
+    assert.equal(response.status, 200, "an image with nothing kept is a normal answer, not a 404");
+    assert.deepEqual(await response.json(), { kept: false });
+
+    // No intermediate extraction container at any point, and the image itself is exactly as it was.
+    assert.deepEqual(await listInternalContainerIds(scratchImageId), containersBefore, "the read created an intermediate container");
+    assert.equal(await dockerInspect("{{.Id}}", SCRATCH_TAG), digestBefore);
+    assert.equal(await dockerInspect("{{json .RepoTags}}", SCRATCH_TAG), tagsBefore);
+  } finally {
+    await close();
+  }
+});
+
+// plan-docker_management_app-filesystem_browse_direct/REQ-4, REQ-16, REQ-20 — once an extraction is
+// kept, the read answers with the summary the extraction itself reported (the entry count and the
+// refused count), which is what lets the surface state the reuse rather than merely show a tree.
+test("GET /:id/filesystem/kept answers with the entry count and refused count the extraction reported, and still creates nothing", async () => {
+  const app = buildApp();
+  const { url, close } = await startApp(app);
+  try {
+    // The kept state is created by this test, within this test: every test starts with the cache
+    // empty (support/fresh-data-dir.ts).
+    const events = await readSseUntilDone(await fetch(`${url}/api/images/${encodeURIComponent(scratchImageId)}/filesystem/stream?force=true`));
+    const extracted = events.find((event) => event.event === "result")!.data as unknown as FilesystemExtractionResult;
+    await assertNoLeftoverInternalContainer(scratchImageId);
+    const containersBefore = await listInternalContainerIds(scratchImageId);
+
+    const response = await fetch(`${url}/api/images/${encodeURIComponent(scratchImageId)}/filesystem/kept`);
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), {
+      kept: true,
+      summary: {
+        imageId: scratchImageId,
+        entryCount: extracted.entryCount,
+        // Kept by construction: what is being reported is a result that already exists.
+        fromCache: true,
+        refusedCount: extracted.refusedCount,
+      },
+    });
+    assert.deepEqual(await listInternalContainerIds(scratchImageId), containersBefore, "the read created an intermediate container");
+  } finally {
+    await close();
+  }
+});
+
+// plan-docker_management_app-filesystem_browse_direct/REQ-13 — "already extracted" means this
+// image's content, not its tag: a rebuilt image carrying a familiar tag has never been extracted
+// and reads as such, so the direct-to-tree shape can never serve a stale tree.
+test("GET /:id/filesystem/kept is keyed by image content: a rebuild under the same tag reads as nothing kept", async () => {
+  const app = buildApp();
+  const { url, close } = await startApp(app);
+  const contentTag = `vexel-test-fs-kept-${process.pid}-${Date.now()}:1`;
+  // The rebuild below takes the tag off the first image, leaving it dangling: it is this test's own
+  // to remove, and only its id can name it afterwards.
+  let idV1 = "";
+  try {
+    await buildImage(contentTag, ["FROM scratch", "COPY v1.txt /v1.txt", 'ENTRYPOINT ["/none"]', ""].join("\n"), {
+      "v1.txt": "kept-content-version-1",
+    });
+    idV1 = await dockerInspect("{{.Id}}", contentTag);
+    await readSseUntilDone(await fetch(`${url}/api/images/${encodeURIComponent(idV1)}/filesystem/stream`));
+
+    const keptV1 = (await (await fetch(`${url}/api/images/${encodeURIComponent(idV1)}/filesystem/kept`)).json()) as { kept: boolean };
+    assert.equal(keptV1.kept, true, "expected the just-extracted content to read as kept");
+
+    // Same tag, genuinely different content: a new image id, and nothing kept for it.
+    await buildImage(contentTag, ["FROM scratch", "COPY v2.txt /v2.txt", 'ENTRYPOINT ["/none"]', ""].join("\n"), {
+      "v2.txt": "kept-content-version-2, entirely different",
+    });
+    const idV2 = await dockerInspect("{{.Id}}", contentTag);
+    assert.notEqual(idV2, idV1, "rebuilding with different content must produce a different image id");
+
+    const keptV2 = (await (await fetch(`${url}/api/images/${encodeURIComponent(idV2)}/filesystem/kept`)).json()) as { kept: boolean };
+    assert.equal(keptV2.kept, false, "expected the rebuilt content to read as never extracted, not as v1's kept result");
+
+    // And the read never started an extraction for it either.
+    assert.deepEqual(await listInternalContainerIds(idV2), []);
+  } finally {
+    await removeImageQuietly(contentTag);
+    if (idV1) await removeImageQuietly(idV1);
+    await close();
+  }
+});
+
 // local-persistence/specs/persistence-endpoints.md, plan-docker_management_app/REQ-113 — the
 // filesystem extraction's stored artifact is reflected in the analysis-cache's reported total size.
 test("the analysis-cache total size reflects a stored filesystem extraction artifact", async () => {

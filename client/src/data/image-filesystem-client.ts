@@ -18,6 +18,13 @@ export interface FilesystemExtractionResult {
   refusedCount: number;
 }
 
+/**
+ * The answer of the "is a result kept for this image's content?" read. Kept and
+ * not-kept are two normal answers: absence is what the caller is asking about,
+ * unlike the tree/metadata calls whose `404` means "extract first".
+ */
+export type KeptImageFilesystem = { kept: false } | { kept: true; summary: FilesystemExtractionResult };
+
 export interface FilesystemEntryMetadata {
   path: string;
   name: string;
@@ -87,6 +94,18 @@ async function requireOk(response: Response): Promise<void> {
 export function imageFilesystemStreamUrl(id: string, force?: boolean): string {
   const query = force ? '?force=true' : '';
   return `/api/images/${encodeURIComponent(id)}/filesystem/stream${query}`;
+}
+
+/**
+ * Whether an extraction result is still kept for this image's content, with its summary when there
+ * is one — the read the browser's two shapes are decided by, which costs nothing and starts nothing.
+ * A genuine failure still throws, so the caller degrades to the cost warning rather than reading a
+ * missing answer as "kept".
+ */
+export async function fetchKeptImageFilesystem(id: string): Promise<KeptImageFilesystem> {
+  const response = await fetch(`/api/images/${encodeURIComponent(id)}/filesystem/kept`);
+  await requireOk(response);
+  return (await response.json()) as KeptImageFilesystem;
 }
 
 /** Direct children of `path` (root when omitted) in a previously extracted filesystem (REQ-52); throws when this image has no cached extraction yet. */

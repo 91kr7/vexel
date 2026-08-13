@@ -33,6 +33,7 @@ import {
 } from '../data/image-filesystem-client';
 import { useImageFilesystemExtraction } from '../data/use-image-filesystem-extraction';
 import { useImageFilesystemEntryContent, useImageFilesystemEntryMetadata } from '../data/use-image-filesystem-entry';
+import { useImageFilesystemKeptResult } from '../data/use-image-filesystem-kept-result';
 import { useImageFilesystemSearch } from '../data/use-image-filesystem-search';
 import { useImageFilesystemTree } from '../data/use-image-filesystem-tree';
 
@@ -69,37 +70,48 @@ function toTreeNode(entry: FilesystemEntry): TreeNode {
 }
 
 /**
- * Filesystem browser for one image (REQ-52–62, REQ-113): a cost warning,
- * then cancellable extraction progress (a container created from the image
- * and never started, its filesystem copied out and removed again), then the
- * merged filesystem as a lazily expanded tree, searchable, with a metadata
- * and content-preview panel and single-file/subtree download — identically
- * for a distroless/scratch image since nothing from it is ever executed.
+ * Filesystem browser for one image (REQ-52–62, REQ-113), in two shapes decided
+ * before anything is raised: with nothing kept for the image's content, the
+ * cost warning is the first thing on screen and confirming it runs a
+ * cancellable extraction (a container created from the image and never
+ * started, its filesystem copied out and removed again); with a result still
+ * kept, the tree is on screen directly — no warning about a cost that will not
+ * be paid, and no progress dialog for an operation that never runs. Either way
+ * the merged filesystem is a lazily expanded, searchable tree with a metadata
+ * and content-preview panel and single-file/subtree download — identically for
+ * a distroless/scratch image since nothing from it is ever executed.
  */
 export function FilesystemBrowser({ image, open, onClose }: FilesystemBrowserProps) {
   const [warningOpen, setWarningOpen] = useState(false);
   const [pendingForce, setPendingForce] = useState(false);
   const [extractionUrl, setExtractionUrl] = useState<string | undefined>(undefined);
   const [progressDialogOpen, setProgressDialogOpen] = useState(false);
+  const [shapeDecided, setShapeDecided] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [modeOverride, setModeOverride] = useState<FilesystemContentMode | undefined>(undefined);
   const [subtreeExportBusy, setSubtreeExportBusy] = useState(false);
 
+  const kept = useImageFilesystemKeptResult(open ? image.id : undefined);
   const extraction = useImageFilesystemExtraction(extractionUrl);
   const tree = useImageFilesystemTree(image.id);
-  const search = useImageFilesystemSearch(extraction.result ? image.id : undefined);
   const toast = useToast();
 
-  const metadataState = useImageFilesystemEntryMetadata(extraction.result ? image.id : undefined, selectedId);
+  // One result feeds the whole extracted view, whether it was just extracted or
+  // was already kept: the two shapes differ in what is raised on the way in, not
+  // in what the operator ends up browsing.
+  const result = extraction.result ?? kept.summary;
+
+  const search = useImageFilesystemSearch(result ? image.id : undefined);
+  const metadataState = useImageFilesystemEntryMetadata(result ? image.id : undefined, selectedId);
   const contentState = useImageFilesystemEntryContent(
-    extraction.result && metadataState.metadata?.kind === 'file' ? image.id : undefined,
+    result && metadataState.metadata?.kind === 'file' ? image.id : undefined,
     metadataState.metadata?.kind === 'file' ? selectedId : undefined,
     modeOverride,
   );
 
   const rootEntries = tree.childrenByPath.get(ROOT_PATH);
-  if (extraction.result && rootEntries === undefined && !tree.loadingPaths.has(ROOT_PATH)) tree.loadChildren(ROOT_PATH);
+  if (result && rootEntries === undefined && !tree.loadingPaths.has(ROOT_PATH)) tree.loadChildren(ROOT_PATH);
 
   const childrenById = new Map<string, TreeNode[]>();
   for (const [path, entries] of tree.childrenByPath) {
@@ -142,24 +154,66 @@ export function FilesystemBrowser({ image, open, onClose }: FilesystemBrowserPro
     setWarningOpen(true);
   }
 
+  // The shape, decided on the free read alone and never by starting the work
+  // and hiding the surfaces afterwards: nothing kept for this image's content
+  // raises the cost warning at once, a kept result raises nothing at all.
+  useEffect(() => {
+    if (shapeDecided || !kept.answered) return;
+    setShapeDecided(true);
+    if (!kept.summary) openWarning(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shapeDecided, kept.answered, kept.summary]);
+
+  // A result answered as kept can stop being kept between that answer and the
+  // read of its tree (kept results are operator-clearable): the flow then
+  // degrades to the cost warning, never to a dead end (filesystem_browse_direct/REQ-14).
+  const rootReadFailed = tree.errorsByPath.has(ROOT_PATH);
+  useEffect(() => {
+    if (!rootReadFailed || extraction.result || !kept.summary) return;
+    kept.discard();
+    tree.reset();
+    openWarning(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rootReadFailed, extraction.result, kept.summary]);
+
   function startExtraction() {
     setWarningOpen(false);
     setProgressDialogOpen(true);
+    // The kept result is superseded by the run about to replace it, so nothing
+    // of it is shown against the fresh one.
+    kept.discard();
     tree.reset();
     setExpandedIds(new Set());
     setSelectedId(undefined);
     setExtractionUrl(imageFilesystemStreamUrl(image.id, pendingForce));
   }
 
-  /** Cancelling genuinely stops the work and leaves nothing behind (REQ-54, REQ-55): the intermediate container is still removed server-side. */
+  /** Declining leaves nothing open (filesystem_browse_direct/REQ-7) — unless there is a result behind the warning, i.e. a declined re-extraction, which simply goes back to it (filesystem_browse_direct/REQ-10). */
+  function declineWarning() {
+    setWarningOpen(false);
+    if (!result) onClose();
+  }
+
+  /** Cancelling genuinely stops the work and leaves nothing behind (REQ-54, REQ-55): the intermediate container is still removed server-side, and the operator is back on the images list (filesystem_browse_direct/REQ-8). */
   function cancelExtraction() {
     setProgressDialogOpen(false);
     setExtractionUrl(undefined);
+    if (!result) onClose();
   }
 
+  /** Dismissing the report of a failure leaves the operator on the images list, not in an empty surface (filesystem_browse_direct/REQ-9). */
   function closeProgressDialog() {
     setProgressDialogOpen(false);
-    if (extraction.error) setExtractionUrl(undefined);
+    if (!extraction.error) return;
+    setExtractionUrl(undefined);
+    if (!result) onClose();
+  }
+
+  /** The retry offered inside the failure report (filesystem_browse_direct/REQ-9): the cost is announced again before anything actually starts (filesystem_browse_direct/REQ-18). */
+  function retryExtraction() {
+    setProgressDialogOpen(false);
+    setExtractionUrl(undefined);
+    openWarning(pendingForce);
   }
 
   function toggleExpand(node: TreeNode) {
@@ -198,14 +252,21 @@ export function FilesystemBrowser({ image, open, onClose }: FilesystemBrowserPro
   return (
     <Modal open={open} title={`Filesystem — ${image.tags[0] ?? image.shortId}`} onClose={onClose} size="large">
       <Stack gap="var(--space-4)">
-        {extraction.result ? (
+        {/*
+          While the shape is still being decided the operator is asked for nothing (filesystem_browse_direct/REQ-6): a plain
+          indication naming the image, with nothing to press behind it — never a prompt, never a
+          button, never an empty state.
+        */}
+        {!result && kept.loading ? <Spinner label={`Opening the filesystem of ${image.tags[0] ?? image.shortId}`} /> : null}
+
+        {result ? (
           <>
             <Row justify="between" align="center">
               <StatusPill
-                tone={extraction.result.fromCache ? 'neutral' : 'success'}
+                tone={result.fromCache ? 'neutral' : 'success'}
                 action={{ label: 'Re-extract…', onClick: () => openWarning(true) }}
               >
-                {extraction.result.fromCache ? 'From cache' : 'Freshly extracted'} · {extraction.result.entryCount} entries
+                {result.fromCache ? 'From cache' : 'Freshly extracted'} · {result.entryCount} entries
               </StatusPill>
               <Button variant="secondary" disabled={subtreeExportBusy} onClick={() => downloadSubtree(ROOT_PATH)}>
                 Download whole filesystem…
@@ -215,23 +276,17 @@ export function FilesystemBrowser({ image, open, onClose }: FilesystemBrowserPro
               Includes container-creation scaffolding (e.g. .dockerenv, dev/, etc/hostname, proc/, sys/) written by Docker itself,
               not necessarily shipped by the image.
             </FieldMessage>
-            {extraction.result.refusedCount > 0 ? (
+            {result.refusedCount > 0 ? (
               <FieldMessage tone="danger">
-                {extraction.result.refusedCount} entr{extraction.result.refusedCount === 1 ? 'y was' : 'ies were'} refused because
-                {extraction.result.refusedCount === 1 ? ' it attempted' : ' they attempted'} to leave the extracted tree (an absolute path, a
+                {result.refusedCount} entr{result.refusedCount === 1 ? 'y was' : 'ies were'} refused because
+                {result.refusedCount === 1 ? ' it attempted' : ' they attempted'} to leave the extracted tree (an absolute path, a
                 "../" segment, or a symlink target escaping it) and never entered the browsed filesystem.
               </FieldMessage>
             ) : null}
           </>
         ) : null}
 
-        {!extraction.result ? (
-          <EmptyState
-            title="Filesystem not extracted yet"
-            description="No process from this image is ever run: a container is created from it, its filesystem is copied out, and the container is removed."
-            action={<Button onClick={() => openWarning(false)}>Browse filesystem…</Button>}
-          />
-        ) : (
+        {result ? (
           <>
             <StreamSearchField
               value={search.query}
@@ -320,7 +375,7 @@ export function FilesystemBrowser({ image, open, onClose }: FilesystemBrowserPro
               }
             />
           </>
-        )}
+        ) : null}
       </Stack>
 
       <ConfirmDialog
@@ -330,7 +385,7 @@ export function FilesystemBrowser({ image, open, onClose }: FilesystemBrowserPro
         confirmLabel="Extract"
         destructive={false}
         onConfirm={startExtraction}
-        onCancel={() => setWarningOpen(false)}
+        onCancel={declineWarning}
       />
 
       <TransferProgressDialog
@@ -351,6 +406,7 @@ export function FilesystemBrowser({ image, open, onClose }: FilesystemBrowserPro
         }
         onCancel={cancelExtraction}
         onClose={closeProgressDialog}
+        onRetry={retryExtraction}
         autoCloseOnDone
       />
     </Modal>

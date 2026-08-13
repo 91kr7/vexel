@@ -17,6 +17,8 @@ export interface TransferProgressDialogProps {
   errorMessage?: string;
   onCancel: () => void;
   onClose: () => void;
+  /** Optional retry offered **inside the failure report**, for an operation whose caller has somewhere to send the operator back to; omitted, the failure only offers its dismissal. */
+  onRetry?: () => void;
   children?: ReactNode;
   /** Overrides the default byte-formatted caption, for a determinate operation whose progress is not measured in bytes (e.g. a layer count). Receives the raw `currentBytes`/`totalBytes` values. Never consulted once the operation is done: completion is worded here. */
   formatCaption?: (currentBytes: number, totalBytes?: number) => string;
@@ -72,6 +74,7 @@ export function TransferProgressDialog({
   errorMessage,
   onCancel,
   onClose,
+  onRetry,
   children,
   formatCaption,
   autoCloseOnDone = false,
@@ -152,7 +155,9 @@ export function TransferProgressDialog({
             <p className="ui-transfer-progress-dialog__caption">{caption}</p>
           </div>
         ) : null}
-        {status === 'error' ? <ErrorBanner title="Transfer failed" detail={errorMessage ?? 'The transfer was interrupted.'} /> : null}
+        {status === 'error' ? (
+          <ErrorBanner title="Transfer failed" detail={errorMessage ?? 'The transfer was interrupted.'} onRetry={onRetry} />
+        ) : null}
         {done ? children : null}
       </div>
     </Modal>

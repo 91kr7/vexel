@@ -51,18 +51,18 @@ function treeRow(modal: ReturnType<typeof filesystemBrowserModal>, name: string)
   return modal.locator('.ui-tree-view__row', { hasText: name });
 }
 
-/** Opens the browser for the given already-listed image tag and runs a fresh, forced extraction. */
+/** Opens the browser for the given already-listed image tag and runs a fresh extraction. */
 async function openAndExtract(page: Page, tag: string) {
   await page.reload();
   await searchField(page).fill(tag);
   const row = imageRow(page, tag);
   await expect(row).toBeVisible({ timeout: 10_000 });
-  // The row's own menu entry, with no row selected and no detail panel open. The button clicked
-  // straight after is a different control with the same words: the extraction prompt *inside* the
-  // browser view, which is why it is scoped to the modal (filesystem-browser.md).
+  // The row's own menu entry, with no row selected and no detail panel open. It now lands on the
+  // cost warning itself: nothing is extracted for this image content yet — every test starts with
+  // the analysis cache empty — so this is shape A, and the surface behind the warning offers
+  // nothing to press (filesystem_browse_direct/REQ-2, filesystem-browser.md).
   await chooseRowAction(page, row, 'Browse filesystem…');
   const modal = filesystemBrowserModal(page, `Filesystem — ${tag}`);
-  await modal.getByRole('button', { name: 'Browse filesystem…' }).click();
   const confirmHeading = page.getByRole('heading', { name: `Confirm: ${tag}` });
   await expect(confirmHeading).toBeVisible();
   await confirmHeading.locator('xpath=..').getByRole('button', { name: 'Extract' }).click();

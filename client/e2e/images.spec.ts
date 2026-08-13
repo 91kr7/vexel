@@ -1154,7 +1154,22 @@ test.describe('The four analysis views, opened from the row menu (REQ-4, REQ-13 
       const views = [
         { label: 'Explore layers…', heading: `Layer stack — ${tag}` },
         { label: 'Efficiency & signals…', heading: `Efficiency & signals — ${tag}` },
-        { label: 'Browse filesystem…', heading: `Filesystem — ${tag}` },
+        // The filesystem browser opens straight onto its cost warning now, the image having never
+        // been extracted (filesystem_browse_direct/REQ-2). The surface itself is open behind it, so
+        // what this test is about — which view the row's entry hosts, and that only one is hosted
+        // at a time — is asserted exactly as for the other three; only the way out differs, since
+        // an overlay click can no longer choose between two stacked overlays.
+        {
+          label: 'Browse filesystem…',
+          heading: `Filesystem — ${tag}`,
+          dismiss: async () => {
+            await page
+              .getByRole('heading', { name: `Confirm: ${tag}` })
+              .locator('xpath=..')
+              .getByRole('button', { name: 'Cancel' })
+              .click();
+          },
+        },
         { label: 'Compare with…', heading: 'Compare filesystems' },
       ];
 
@@ -1170,7 +1185,8 @@ test.describe('The four analysis views, opened from the row menu (REQ-4, REQ-13 
         // Two of the four are never on screen together (REQ-16).
         await expect(page.locator('.ui-modal--size-large')).toHaveCount(1);
 
-        await dismissView(page);
+        if ('dismiss' in view && view.dismiss) await view.dismiss();
+        else await dismissView(page);
         await expect(heading).toHaveCount(0);
         await expect(detailPanels(page)).toHaveCount(0);
       }
@@ -1230,6 +1246,12 @@ test.describe('The four analysis views, opened from the row menu (REQ-4, REQ-13 
 
   // REQ-18 — the case the product has not had before: one of the four open with no panel beneath it. The open view holds
   // the innermost claim on the key and consumes it, so nothing underneath is dismissed by it.
+  //
+  // Driven through `Explore layers…` rather than the filesystem browser: that browser now opens
+  // with its cost warning already on screen (filesystem_browse_direct/REQ-2), and `Escape` there
+  // correctly answers the *warning* — an innermost claim of its own. The hosting rule this test
+  // exists for is unchanged and keeps its coverage on a view whose first surface is not a dialog;
+  // the filesystem flow's own `Escape` behaviour is not what this test is about.
   test('Escape with one of the four open dismisses nothing beneath it', async ({ page }) => {
     const containerName = `vexel-e2e-views-escape-src-${Date.now()}`;
     const tag = `vexel-e2e-views-escape-${Date.now()}:v1`;
@@ -1242,8 +1264,8 @@ test.describe('The four analysis views, opened from the row menu (REQ-4, REQ-13 
 
       // First with no panel at all: nothing on the images list moves.
       await openRowOverflow(page, row);
-      await menuEntry(page, 'Browse filesystem…').click();
-      const heading = page.getByRole('heading', { name: `Filesystem — ${tag}` });
+      await menuEntry(page, 'Explore layers…').click();
+      const heading = page.getByRole('heading', { name: `Layer stack — ${tag}` });
       await expect(heading).toBeVisible();
 
       await page.keyboard.press('Escape');
@@ -1257,7 +1279,7 @@ test.describe('The four analysis views, opened from the row menu (REQ-4, REQ-13 
       await selectRow(row);
       await expect(expandedPanel(page)).toBeVisible();
       await openRowOverflow(page, row);
-      await menuEntry(page, 'Browse filesystem…').click();
+      await menuEntry(page, 'Explore layers…').click();
       await expect(heading).toBeVisible();
 
       await page.keyboard.press('Escape');
