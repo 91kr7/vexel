@@ -23,12 +23,23 @@ function imageRow(page: Page, text: string) {
   return page.locator('.ui-data-table__row', { hasText: text });
 }
 
-async function selectRow(row: ReturnType<typeof imageRow>): Promise<void> {
-  await row.locator('.ui-data-table__cell').first().click();
-}
-
 function searchField(page: Page) {
   return page.getByPlaceholder('Search reference or digest…');
+}
+
+/**
+ * Opens one of the image's four analyses from the row's own overflow menu — the entry point they all
+ * have now that they are the screen's views rather than the detail panel's
+ * (images/specs/images-screen.md). The opening is retried as a whole: the list keeps re-reading from
+ * the daemon's own events, and a re-read that replaces the row takes its trigger — and with it the
+ * menu — as it is meant to (ui-library/specs/menu.md).
+ */
+async function chooseRowAction(page: Page, row: ReturnType<typeof imageRow>, label: string): Promise<void> {
+  await expect(async () => {
+    await row.getByRole('button', { name: /^More actions for / }).click();
+    await expect(page.getByRole('menu')).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await page.getByRole('menuitem', { name: label, exact: true }).click();
 }
 
 function filesystemBrowserModal(page: Page, title: string) {
@@ -45,8 +56,10 @@ async function openAndExtract(page: Page, tag: string) {
   await searchField(page).fill(tag);
   const row = imageRow(page, tag);
   await expect(row).toBeVisible({ timeout: 10_000 });
-  await selectRow(row);
-  await page.getByRole('button', { name: 'Browse filesystem…' }).click();
+  // The row's own menu entry, with no row selected and no detail panel open. The button clicked
+  // straight after is a different control with the same words: the extraction prompt *inside* the
+  // browser view, which is why it is scoped to the modal (filesystem-browser.md).
+  await chooseRowAction(page, row, 'Browse filesystem…');
   const modal = filesystemBrowserModal(page, `Filesystem — ${tag}`);
   await modal.getByRole('button', { name: 'Browse filesystem…' }).click();
   const confirmHeading = page.getByRole('heading', { name: `Confirm: ${tag}` });
