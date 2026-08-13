@@ -618,7 +618,17 @@
   font-size: var(--font-size-sm);
 }
 
+/* `position: relative` is load-bearing, not styling: it makes the switch the
+   containing block of its own visually hidden checkbox. Without it the absolute
+   checkbox resolves against whatever distant positioned ancestor happens to be
+   above it — measured 1346px away from its track in the "Run a container" sheet
+   — and a real click focuses it, so the browser scrolls that far-away point into
+   view and drags the whole sheet out of the viewport (y=-1044). With it, the gap
+   is 10.3px and the sheet does not move at all. The checkbox stays focusable, tabbable
+   and announced: a cure that hides it or removes it from the tab order is
+   refused (plan-docker_management_app-toggle_focus_scroll/REQ-6). */
 .ui-toggle {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);

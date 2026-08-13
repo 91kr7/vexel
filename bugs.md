@@ -30,6 +30,7 @@
   image: bugs-screen/bug-2.png
   containers > run container. selecting privileged the popup crashs!
   [note] investigated, not reproduced — record: .sdd/analysis/docker_management_app-privileged_toggle_verification.md
+  [note] supersedes the note above — reproduced with a real mouse click (the seven earlier attempts were programmatic, which moves no focus), cause measured (the switch's hidden checkbox was drawn 1346px from the switch, and focusing it scrolled the sheet 1044px out of view) and fixed — record: .sdd/analysis/docker_management_app-toggle_focus_scroll.md
 
 - bug-3
   the order of the elements of the panels in not set so the order of the element can change randomically based on the output of the docker daemon
