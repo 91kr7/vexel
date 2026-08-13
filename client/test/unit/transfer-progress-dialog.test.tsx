@@ -239,4 +239,116 @@ describe('TransferProgressDialog — self-dismissal (ui-library/specs/transfer-p
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  // transfer-progress-dialog.md — the overlay is one of the surface's usual dismissal gestures and
+  // keeps working throughout the second, the abandoned timer adding no second call (REQ-10)
+  it('still closes by the overlay inside the second, and adds no second call after it', () => {
+    vi.useFakeTimers();
+    const { rerender, onClose } = renderDialog({ status: 'active', autoCloseOnDone: true });
+    rerender({ status: 'done' });
+
+    advance(AUTO_CLOSE_MS / 2);
+    act(() => {
+      fireEvent.click(document.querySelector('.ui-modal-overlay')!);
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    advance(AUTO_CLOSE_MS * 5);
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  // transfer-progress-dialog.md — a failure that arrives after some progress has been reported arms
+  // nothing either: the dialog stays on screen with its cause until it is dismissed (REQ-8, REQ-20)
+  it('never closes itself on a failure that arrives after progress was reported', () => {
+    vi.useFakeTimers();
+    const { rerender, onClose } = renderDialog({
+      status: 'active',
+      currentBytes: 6,
+      totalBytes: 10,
+      autoCloseOnDone: true,
+    });
+
+    rerender({ status: 'error', errorMessage: 'the export stream ended early' });
+    advance(AUTO_CLOSE_MS * 30);
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText('the export stream ended early')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
+  });
+
+  // transfer-progress-dialog.md — the pending close belongs to the completion that armed it, which
+  // cuts both ways: the completion that follows a re-run inside the second arms its own (REQ-11)
+  it('arms a fresh close for the completion that follows a re-run inside the second', () => {
+    vi.useFakeTimers();
+    const { rerender, onClose } = renderDialog({ status: 'active', autoCloseOnDone: true });
+
+    rerender({ status: 'done' });
+    advance(AUTO_CLOSE_MS - 100);
+    rerender({ status: 'active' });
+    advance(AUTO_CLOSE_MS);
+    expect(onClose).not.toHaveBeenCalled();
+
+    rerender({ status: 'done' });
+    advance(AUTO_CLOSE_MS - 1);
+    expect(onClose).not.toHaveBeenCalled();
+
+    advance(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('TransferProgressDialog — the completion of a run with no phase and no total (ui-library/specs/transfer-progress-dialog.md)', () => {
+  /** What a caller reports for a run served from a cache: no phase was ever reported for it. */
+  const NO_PHASE_CAPTION = 'Starting…';
+
+  // transfer-progress-dialog.md — the completion wording replaces `formatCaption`'s output whatever
+  // it returns, the "no phase reported yet" wording of a cached run included (REQ-2, REQ-22)
+  it('replaces the "no phase reported yet" wording of a cached run', () => {
+    renderDialog({ status: 'done', currentBytes: 0, formatCaption: () => NO_PHASE_CAPTION });
+
+    expect(caption()).toHaveTextContent('Completed');
+    expect(screen.queryByText(NO_PHASE_CAPTION)).not.toBeInTheDocument();
+  });
+
+  // transfer-progress-dialog.md — at `done` the caption reads `Completed` and the bar is full, the
+  // two agreeing in the same render; the rule is not conditional on the total being known, and a
+  // run served from a cache is exactly the one that reports neither progress nor a total
+  // (REQ-1, REQ-2)
+  it('shows the bar full at completion even when the total was never known', () => {
+    renderDialog({ status: 'done', currentBytes: 0, formatCaption: () => NO_PHASE_CAPTION });
+
+    expect(barWidth()).toBe('100%');
+  });
+});
+
+describe('TransferProgressDialog — nothing else about the surface changes (ui-library/specs/transfer-progress-dialog.md)', () => {
+  // transfer-progress-dialog.md — exactly one of Cancel (active) or Close (done/error) is offered,
+  // and `children` are rendered only at `done` (REQ-16)
+  it('offers Close and not Cancel once completed, with the caller\'s own content shown', () => {
+    renderDialog({ status: 'done', totalBytes: 10, currentBytes: 10, children: 'myrepo/app:1.0' });
+
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
+    expect(screen.getByText('myrepo/app:1.0')).toBeInTheDocument();
+  });
+
+  // transfer-progress-dialog.md — while running, Cancel is the action offered and the caller's own
+  // in-flight phase wording is the caption (REQ-16)
+  it('offers Cancel and not Close while running, captioned by the caller\'s phase wording', () => {
+    renderDialog({ status: 'active', totalBytes: 10, currentBytes: 3 });
+
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Close' })).not.toBeInTheDocument();
+    expect(caption()).toHaveTextContent(PHASE_CAPTION);
+  });
+
+  // transfer-progress-dialog.md — the progress bar is not shown while `status` is `'error'`: the
+  // ErrorBanner takes its place (REQ-16)
+  it('replaces the bar with the failure cause on a failure', () => {
+    renderDialog({ status: 'error', errorMessage: 'the daemon refused the export' });
+
+    expect(document.querySelector('.ui-progress-bar')).toBeNull();
+    expect(screen.getByText('the daemon refused the export')).toBeInTheDocument();
+  });
 });

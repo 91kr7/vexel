@@ -50,6 +50,24 @@ export async function expectCompletionStated(progressDialog: Locator, completion
     progressCaption(progressDialog),
     'the progress dialog never stated its completion: its caption kept naming a phase, or the "no phase yet" wording of a cached run, under a full bar',
   ).toHaveText('Completed', { timeout: completionTimeout });
+
+  // The other half of the same moment: the completion is also perceivable without sight, exposed as
+  // a status message — and *only* as one, occupying no visible space, so what a sighted operator
+  // reads is the caption alone and not the word twice
+  // (progress_completion_autoclose/REQ-14, REQ-16). Checked here rather than in the component tests
+  // because it is a question about layout, which the jsdom checks cannot answer: they load no
+  // stylesheet.
+  const announcement = progressDialog.getByRole('status');
+  await expect(
+    announcement,
+    'the completion was not announced: the dialog carries no status message stating it',
+  ).toContainText('Completed');
+  const box = await announcement.boundingBox();
+  expect(box, 'the completion status message is not rendered at all, so nothing is announced').not.toBeNull();
+  expect(
+    Math.max(box!.width, box!.height),
+    'the completion status message is drawn: the operator sees the completion wording twice over',
+  ).toBeLessThanOrEqual(1);
 }
 
 /**
