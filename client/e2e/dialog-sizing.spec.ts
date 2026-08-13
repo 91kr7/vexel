@@ -226,7 +226,15 @@ async function waitForLayerStack(page: Page, dialog: Locator): Promise<void> {
   await row.waitFor({ state: 'visible', timeout: 10_000 });
 }
 
-/** Opens Images & layers → Explore layers… on the suite's own single-layer image: the `large` format. */
+/**
+ * Opens Images & layers → Explore layers… on the suite's own single-layer image: the `large` format.
+ *
+ * Reached from the row's own overflow menu, with no row selected and no detail panel open — the
+ * entry point the four analyses have now that they are the screen's views rather than the panel's
+ * (images/specs/images-screen.md). What is measured here is the dialog's own box, which the surface
+ * it is drawn over does not enter into; the row click that used to precede this existed only to open
+ * the panel that held the button.
+ */
 async function openLayerExplorerDialog(page: Page): Promise<Locator> {
   await ensureImage(TINY_IMAGE);
   await openApp(page, 'images-layers');
@@ -234,13 +242,19 @@ async function openLayerExplorerDialog(page: Page): Promise<Locator> {
   await page.getByPlaceholder('Search reference or digest…').fill(TINY_IMAGE);
   const row = page.locator('.ui-data-table__row', { hasText: TINY_IMAGE }).first();
   await expect(row).toBeVisible({ timeout: 20_000 });
-  await row.locator('.ui-data-table__cell').first().click();
-  await page.getByRole('button', { name: 'Explore layers…' }).click();
+  // Retried as a whole: the list keeps re-reading from the daemon's own events, and a re-read that
+  // replaces the row takes its trigger — and with it the menu (ui-library/specs/menu.md).
+  await expect(async () => {
+    await row.getByRole('button', { name: /^More actions for / }).click();
+    await expect(page.getByRole('menu')).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await page.getByRole('menuitem', { name: 'Explore layers…', exact: true }).click();
   const dialog = page.locator('.ui-modal--size-large');
   await expect(dialog).toBeVisible();
   await waitForLayerStack(page, dialog);
   return dialog;
 }
+
 
 /** Opens Containers → Run container…, the sheet-style surface that positions itself independently (REQ-13). */
 async function openCreateContainerSheet(page: Page): Promise<Locator> {

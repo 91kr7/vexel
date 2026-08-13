@@ -36,6 +36,28 @@ function searchField(page: Page) {
   return page.getByPlaceholder('Search reference or digest…');
 }
 
+/**
+ * Opens one of the image's four analyses from the row's own overflow menu — the entry point they all
+ * have now that they are the screen's views rather than the detail panel's
+ * (images/specs/images-screen.md).
+ */
+async function chooseRowAction(page: Page, row: ReturnType<typeof imageRow>, label: string): Promise<void> {
+  // The opening is retried as a whole: the list keeps re-reading from the daemon's own events, and a
+  // re-read that replaces the row takes its trigger — and with it the menu — as it is meant to
+  // (ui-library/specs/menu.md). Same precedent as the keyboard case in `images.spec.ts`.
+  await expect(async () => {
+    await row.getByRole('button', { name: /^More actions for / }).click();
+    await expect(page.getByRole('menu')).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await page.getByRole('menuitem', { name: label, exact: true }).click();
+}
+
+/** The image id the daemon holds a reference under — what the view's pick-lists carry as their value. */
+async function imageIdOf(reference: string): Promise<string> {
+  const { stdout } = await execFileAsync('docker', ['image', 'inspect', reference, '--format', '{{.Id}}']);
+  return stdout.trim();
+}
+
 function diffModal(page: Page) {
   return page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: 'Compare filesystems' }) });
 }
@@ -105,13 +127,21 @@ test('compares two images from "Compare with…", browses the diff tree, and pre
   await searchField(page).fill(TAG_A);
   const rowA = imageRow(page, TAG_A);
   await expect(rowA).toBeVisible({ timeout: 10_000 });
-  await selectRow(rowA);
-  await page.getByRole('button', { name: 'Compare with…' }).click();
+
+  // Started from the row's own menu entry, with no row selected and no detail panel open — the case
+  // that did not exist while this view was the panel's (panel_actions_to_menu/REQ-13, REQ-30).
+  await chooseRowAction(page, rowA, 'Compare with…');
 
   const modal = diffModal(page);
   await expect(modal).toBeVisible();
+  await expect(page.locator('.ui-detail-panel')).toHaveCount(0);
   // "Compare with…" pre-picks this image as the first side (images/specs/image-diff-view.md).
-  await expect(modal.getByLabel('First image')).toHaveValue(/./);
+  await expect(modal.getByLabel('First image')).toHaveValue(await imageIdOf(TAG_A));
+  // REQ-23 — and the view **states** which image that is, by the reference the row shows, so the
+  // operator reads which side is theirs rather than inferring it from a pre-filled control.
+  await expect(modal.getByText(`Started from ${TAG_A}`, { exact: false })).toBeVisible();
+  // The right-hand operand starts unchosen, and is picked inside the view (REQ-23, REQ-24).
+  await expect(modal.getByLabel('Second image')).toHaveValue('');
   await modal.getByLabel('Second image').selectOption({ label: TAG_B });
 
   await confirmAndFinishComparison(page, modal);
@@ -156,8 +186,10 @@ test('cancelling the comparison progress dialog discards the run and returns to 
   await searchField(page).fill(TAG_A);
   const rowA = imageRow(page, TAG_A);
   await expect(rowA).toBeVisible({ timeout: 10_000 });
+  // Selected first, then started from that same row's menu: a panel open underneath changes nothing
+  // about which image the comparison is started from (panel_actions_to_menu/REQ-13, REQ-14).
   await selectRow(rowA);
-  await page.getByRole('button', { name: 'Compare with…' }).click();
+  await chooseRowAction(page, rowA, 'Compare with…');
 
   const modal = diffModal(page);
   await modal.getByLabel('Second image').selectOption({ label: TAG_C });
@@ -171,4 +203,42 @@ test('cancelling the comparison progress dialog discards the run and returns to 
 
   await expect(progressHeading).toHaveCount(0);
   await expect(modal.getByText('No comparison yet')).toBeVisible();
+});
+
+// plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-35 — one view serves both shapes of the
+// operation, in either order and repeatedly, and neither leaves its operands behind for a later opening of the other:
+// the row shape supplies the first operand alone and says so, the bulk shape supplies both and says nothing.
+test('serves the row shape and the bulk shape one after the other, neither leaking its operands into the other', async ({ page }) => {
+  const idA = await imageIdOf(TAG_A);
+  const idB = await imageIdOf(TAG_B);
+  await searchField(page).fill('vexel-e2e-diff-');
+  await expect(imageRow(page, TAG_A)).toBeVisible({ timeout: 10_000 });
+  await expect(imageRow(page, TAG_B)).toBeVisible({ timeout: 10_000 });
+  const modal = diffModal(page);
+
+  // The row shape: one operand, stated in words, the second unchosen.
+  await chooseRowAction(page, imageRow(page, TAG_A), 'Compare with…');
+  await expect(modal.getByLabel('First image')).toHaveValue(idA);
+  await expect(modal.getByLabel('Second image')).toHaveValue('');
+  await expect(modal.getByText(`Started from ${TAG_A}`, { exact: false })).toBeVisible();
+  await page.locator('.ui-modal-overlay').click({ position: { x: 5, y: 5 } });
+  await expect(modal).toHaveCount(0);
+
+  // The bulk shape, straight after it: both operands pre-chosen, and no "started from" line — the
+  // comparison was not started from a row, and the second operand is genuinely the checked one, not
+  // a leftover of the opening before.
+  await imageRow(page, TAG_A).getByRole('checkbox').click();
+  await imageRow(page, TAG_B).getByRole('checkbox').click();
+  await page.getByRole('button', { name: 'Compare filesystems…' }).click();
+  await expect(modal.getByLabel('First image')).toHaveValue(idA);
+  await expect(modal.getByLabel('Second image')).toHaveValue(idB);
+  await expect(modal.getByText('Started from', { exact: false })).toHaveCount(0);
+  await page.locator('.ui-modal-overlay').click({ position: { x: 5, y: 5 } });
+  await expect(modal).toHaveCount(0);
+
+  // And the row shape again, from the other image: the bulk shape's second operand did not survive.
+  await chooseRowAction(page, imageRow(page, TAG_B), 'Compare with…');
+  await expect(modal.getByLabel('First image')).toHaveValue(idB);
+  await expect(modal.getByLabel('Second image')).toHaveValue('');
+  await expect(modal.getByText(`Started from ${TAG_B}`, { exact: false })).toBeVisible();
 });

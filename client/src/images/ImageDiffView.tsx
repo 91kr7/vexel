@@ -6,6 +6,7 @@ import {
   DefinitionList,
   DiffTreeView,
   EmptyState,
+  FieldMessage,
   Modal,
   Row,
   Select,
@@ -26,7 +27,7 @@ import { useImageFilesystemEntryContent } from '../data/use-image-filesystem-ent
 
 export interface ImageDiffViewProps {
   images: ImageSummary[];
-  /** Pre-selected image ids (REQ-63): both from a two-image bulk selection, or one from an image's "Compare with…" action. */
+  /** Pre-selected image ids (REQ-63): both from a two-image bulk selection, or the first alone from a row's "Compare with…" entry. */
   initialImageAId?: string;
   initialImageBId?: string;
   open: boolean;
@@ -94,6 +95,11 @@ function estimateComparisonSeconds(sizeBytesA: number, sizeBytesB: number): numb
  * comparison progress (extracting either side not already cached, then
  * comparing), then the difference as a navigable, status-filterable tree;
  * selecting a changed path states what changed and previews both sides.
+ *
+ * One view, two shapes of the operation: the bulk path arrives with both
+ * operands, the row path with the first one alone. Nothing is remembered
+ * between openings — every opening re-seeds both sides from the ids it was
+ * given — so neither shape can leave an operand behind for the other.
  */
 export function ImageDiffView({ images, initialImageAId, initialImageBId, open, onClose }: ImageDiffViewProps) {
   const [imageAId, setImageAId] = useState('');
@@ -121,6 +127,15 @@ export function ImageDiffView({ images, initialImageAId, initialImageBId, open, 
 
   const imageA = images.find((image) => image.id === imageAId);
   const imageB = images.find((image) => image.id === imageBId);
+  /**
+   * The row shape of the operation: one operand supplied, the other left to be
+   * chosen here. The view says which image it was started from, by the same
+   * reference the pick-list shows, so the side that is theirs is read rather
+   * than inferred from a pre-filled control. Stated, never pinned — the operand
+   * stays changeable, and the line goes once it has been changed, since it would
+   * then name an image that is no longer the first side.
+   */
+  const startedFrom = initialImageAId !== undefined && initialImageBId === undefined ? images.find((image) => image.id === initialImageAId) : undefined;
   const rootEntries = tree.childrenByPath.get(ROOT_PATH);
   if (diff.result && rootEntries === undefined && !tree.loadingPaths.has(ROOT_PATH)) tree.loadChildren(ROOT_PATH);
 
@@ -179,6 +194,11 @@ export function ImageDiffView({ images, initialImageAId, initialImageBId, open, 
   return (
     <Modal open={open} title="Compare filesystems" onClose={onClose} size="large">
       <Stack gap="var(--space-4)">
+        {startedFrom && imageAId === startedFrom.id ? (
+          <FieldMessage tone="muted">
+            Started from {imageLabel(startedFrom)} — the first image of this comparison. Pick the second one below.
+          </FieldMessage>
+        ) : null}
         <Row gap="var(--space-3)" align="center">
           <Select
             ariaLabel="First image"

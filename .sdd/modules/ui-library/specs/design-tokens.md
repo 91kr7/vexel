@@ -36,7 +36,13 @@ token by name, never a literal value.
     down to the overflow control alone, sized for that one trigger plus the cell's own breathing
     room and its column header. A screen picks the one that matches what its rows carry; neither
     value is ever written on a screen.
-  - Overflow menu popup: `--menu-min-width` (236px), `--menu-max-height` (320px).
+  - Overflow menu popup: `--menu-min-width` (236px) and `--menu-max-height` (480px) — the height
+    beyond which a popup's entries scroll inside it. A last resort against a popup taller than the
+    screen, never a size a menu is meant to reach: a scrolling menu hides the entries below its
+    fold, and the last of them is the destructive one. Sized above the tallest menu the product
+    builds — ten entries, two group separators and a reason line under every entry that can be
+    disabled at once — so that menu is shown whole. It makes no menu taller: a cap only stops
+    capping earlier.
   - Elevation: `--shadow-{1,2,3}`.
   - Z-index: `--z-{backdrop,shell,content,overlay,modal,toast}`.
   - Overlay glass: `--blur-overlay` (20px) and `--overlay-glass-saturation` (140%), plus the three

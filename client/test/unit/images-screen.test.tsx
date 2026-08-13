@@ -297,16 +297,28 @@ describe('ImagesScreen — the row carries the overflow control alone (REQ-1, RE
   });
 });
 
-// images/specs/images-screen.md — the menu holds exactly six entries, always all six, always in
-// the same order (REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-9).
-describe('ImagesScreen — the row menu (REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-9)', () => {
-  const LABELS = ['Run…', 'Tag…', 'Untag', 'Push…', 'Save', 'Remove'];
+// images/specs/images-screen.md — the menu holds exactly ten entries, always all ten, always in
+// the same order, read as three groups marked by separation and tone alone
+// (REQ-5, REQ-6, REQ-7, REQ-8, REQ-9, REQ-25, REQ-26).
+describe('ImagesScreen — the row menu of ten (REQ-5, REQ-6, REQ-7, REQ-8, REQ-9, REQ-25, REQ-26)', () => {
+  const LABELS = [
+    'Explore layers…',
+    'Efficiency & signals…',
+    'Browse filesystem…',
+    'Compare with…',
+    'Run…',
+    'Tag…',
+    'Untag',
+    'Push…',
+    'Save',
+    'Remove',
+  ];
 
   it.each([
     { label: 'tagged', tags: ['nginx:1.27'], title: 'nginx:1.27' },
     { label: 'multi-tagged', tags: ['multi:1', 'multi:2'], title: 'multi:1, multi:2' },
     { label: 'dangling', tags: [], title: '<none> (0123456789ab)' },
-  ])('lists Run…, Tag…, Untag, Push…, Save and Remove, in that order and nothing else, on a $label image', async ({ tags, title }) => {
+  ])('lists the four analyses, then Run…, Tag…, Untag, Push…, Save, then Remove, in that order and nothing else, on a $label image', async ({ tags, title }) => {
     const user = userEvent.setup();
     renderScreen([makeImage({ tags })]);
 
@@ -316,7 +328,7 @@ describe('ImagesScreen — the row menu (REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-
     LABELS.forEach((label, index) => expect(entries[index]).toHaveAccessibleName(label));
   });
 
-  it('opens the same six entries in the same order at every opening', async () => {
+  it('opens the same ten entries in the same order at every opening', async () => {
     const user = userEvent.setup();
     renderScreen([makeImage({ tags: ['nginx:1.27'] })]);
 
@@ -327,21 +339,39 @@ describe('ImagesScreen — the row menu (REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-
     expect(second).toEqual(first);
   });
 
-  it('sets Remove apart as a group, in the destructive tone, and carries rmi as its only hint', async () => {
+  // Three groups, marked by separation and tone alone: one boundary above `Run…`, the one that
+  // already set `Remove` apart, and nothing else — no heading, no group label (REQ-6).
+  it('marks the two group boundaries and introduces no section heading', async () => {
     const user = userEvent.setup();
     renderScreen([makeImage({ tags: ['nginx:1.27'] })]);
 
-    const entries = await openOverflow(user);
+    await openOverflow(user);
 
     const separators = screen.getAllByRole('separator');
-    expect(separators).toHaveLength(1);
-    expect(separators[0]!.nextElementSibling).toHaveAccessibleName('Remove');
-    expect(entries[5]!.className).toContain('destructive');
-    expect(entries[5]).toHaveTextContent('rmi');
-    expect(entries[5]).toHaveAccessibleDescription(/rmi/);
-    // No other entry is destructive, and none of them carries a secondary hint:
-    // the remaining labels are the CLI verbs already.
-    entries.slice(0, 5).forEach((entry, index) => {
+    expect(separators).toHaveLength(2);
+    expect(separators[0]!.nextElementSibling).toHaveAccessibleName('Run…');
+    expect(separators[1]!.nextElementSibling).toHaveAccessibleName('Remove');
+    // The popup holds entries and separators, and nothing that reads as a heading.
+    const list = screen.getByRole('menu');
+    expect(within(list).queryByRole('heading')).not.toBeInTheDocument();
+    for (const child of Array.from(list.children)) {
+      expect(['menuitem', 'separator']).toContain(child.getAttribute('role'));
+    }
+  });
+
+  it('keeps Remove destructive with rmi as the menu\'s only hint, the four arrivals carrying none', async () => {
+    const user = userEvent.setup();
+    // Two images, so `Compare with…` is available and carries no reason of its own either.
+    renderScreen([makeImage({ id: 'image-a', tags: ['nginx:1.27'] }), makeImage({ id: 'image-b', tags: ['other:1'] })]);
+
+    const entries = await openOverflow(user);
+
+    expect(entries[9]!.className).toContain('destructive');
+    expect(entries[9]).toHaveTextContent('rmi');
+    expect(entries[9]).toHaveAccessibleDescription(/rmi/);
+    // No other entry is destructive, and none of them carries a secondary hint: the four arrivals
+    // keep the labels they had on the panel, ellipses included, and nothing beside them.
+    entries.slice(0, 9).forEach((entry, index) => {
       expect(entry.className).not.toContain('destructive');
       expect(entry.textContent?.trim()).toBe(LABELS[index]);
       expect(entry).toHaveAccessibleDescription('');
@@ -350,20 +380,75 @@ describe('ImagesScreen — the row menu (REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-
 
   it('keeps Untag and Push… in place and disabled, stating why, when the image has no tags', async () => {
     const user = userEvent.setup();
-    renderScreen([makeImage({ tags: [] })]);
+    renderScreen([makeImage({ id: 'image-c', shortId: 'cccccccccccc', tags: [] }), makeImage({ id: 'image-b', tags: ['other:1'] })]);
 
-    const entries = await openOverflow(user, '<none> (0123456789ab)');
+    const entries = await openOverflow(user, '<none> (cccccccccccc)');
 
-    expect(entries[2]).toHaveAccessibleName('Untag');
-    expect(entries[2]).toHaveAttribute('aria-disabled', 'true');
-    expect(entries[2]).toHaveAccessibleDescription(/no tags to untag/i);
-    expect(entries[3]).toHaveAccessibleName('Push…');
-    expect(entries[3]).toHaveAttribute('aria-disabled', 'true');
-    expect(entries[3]).toHaveAccessibleDescription(/no tags to push/i);
-    // The four that do apply to a dangling image stay available.
-    for (const entry of [entries[0], entries[1], entries[4], entries[5]]) {
-      expect(entry).not.toHaveAttribute('aria-disabled', 'true');
+    expect(entries[6]).toHaveAccessibleName('Untag');
+    expect(entries[6]).toHaveAttribute('aria-disabled', 'true');
+    expect(entries[6]).toHaveAccessibleDescription(/no tags to untag/i);
+    expect(entries[7]).toHaveAccessibleName('Push…');
+    expect(entries[7]).toHaveAttribute('aria-disabled', 'true');
+    expect(entries[7]).toHaveAccessibleDescription(/no tags to push/i);
+    // Every other entry — the four analyses included — applies to a dangling image just as well.
+    for (const index of [0, 1, 2, 3, 4, 5, 8, 9]) {
+      expect(entries[index]).not.toHaveAttribute('aria-disabled', 'true');
     }
+  });
+
+  // The tallest state the menu is ever read in, and the one no live daemon can be put into: a
+  // dangling image that is also the only image in the list, so `Untag`, `Push…` **and**
+  // `Compare with…` each carry a reason line under their label at once. The popup's own height is
+  // not measurable here (jsdom lays nothing out) and is asserted in the browser on the states a
+  // daemon can be put into (`images.spec.ts`); what is checked here is that all ten entries and all
+  // three reasons are rendered together (REQ-9, REQ-25).
+  it('renders all ten entries and all three reasons at once on a dangling image alone in the list', async () => {
+    const user = userEvent.setup();
+    renderScreen([makeImage({ id: 'image-c', shortId: 'cccccccccccc', tags: [] })]);
+
+    const entries = await openOverflow(user, '<none> (cccccccccccc)');
+
+    expect(entries).toHaveLength(LABELS.length);
+    LABELS.forEach((label, index) => expect(entries[index]).toHaveAccessibleName(label));
+    expect(entries[3]).toHaveAccessibleDescription(/second image/i);
+    expect(entries[6]).toHaveAccessibleDescription(/no tags to untag/i);
+    expect(entries[7]).toHaveAccessibleDescription(/no tags to push/i);
+    const reasons = screen.getByRole('menu').querySelectorAll('.ui-menu__item-reason');
+    expect(reasons).toHaveLength(3);
+  });
+
+  // REQ-25 — shown in place and disabled, never removed, and the reason states a condition of the
+  // *list* rather than a fault of this row's image, deliberately unlike Untag's and Push…'s.
+  it('shows Compare with… disabled, on a reason naming the list, while the list holds one image', async () => {
+    const user = userEvent.setup();
+    renderScreen([makeImage({ tags: ['nginx:1.27'] })]);
+
+    const entries = await openOverflow(user);
+
+    expect(entries[3]).toHaveAccessibleName('Compare with…');
+    expect(entries[3]).toHaveAttribute('aria-disabled', 'true');
+    expect(entries[3]).toHaveAccessibleDescription(/list/i);
+    expect(entries[3]).toHaveAccessibleDescription(/second image/i);
+    // Not a fact about this image, which is what Untag's and Push…'s reasons are.
+    expect(entries[3]).not.toHaveAccessibleDescription(/this image/i);
+  });
+
+  // REQ-26 — the availability follows the live list: a second image appearing from outside the
+  // application makes the entry available at the next opening.
+  it('offers Compare with… once a second image appears in the list', async () => {
+    const user = userEvent.setup();
+    const first = makeImage({ id: 'image-a', tags: ['a:1'] });
+    const { withImages } = renderScreen([first]);
+
+    expect((await openOverflow(user, 'a:1'))[3]).toHaveAttribute('aria-disabled', 'true');
+    await user.keyboard('{Escape}');
+
+    withImages([first, makeImage({ id: 'image-b', tags: ['b:1'] })]);
+
+    const entries = await openOverflow(user, 'a:1');
+    expect(entries[3]).toHaveAccessibleName('Compare with…');
+    expect(entries[3]).not.toHaveAttribute('aria-disabled', 'true');
+    expect(entries[3]).toHaveAccessibleDescription('');
   });
 });
 
@@ -375,7 +460,7 @@ describe('ImagesScreen — the operations behind the entries (REQ-10, REQ-11)', 
     const { onRefresh } = renderScreen([makeImage({ tags: ['solo:1'] })]);
 
     const entries = await openOverflow(user, 'solo:1');
-    await user.click(entries[2]!);
+    await user.click(entries[6]!);
 
     expect(screen.queryByRole('heading', { name: /^Confirm:/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: 'Reference to untag' })).not.toBeInTheDocument();
@@ -391,7 +476,7 @@ describe('ImagesScreen — the operations behind the entries (REQ-10, REQ-11)', 
     const { onRefresh } = renderScreen([makeImage({ tags: ['multi:1', 'multi:2'] })]);
 
     const entries = await openOverflow(user, 'multi:1, multi:2');
-    await user.click(entries[2]!);
+    await user.click(entries[6]!);
 
     const select = screen.getByRole('combobox', { name: 'Reference to untag' });
     await user.selectOptions(select, 'multi:2');
@@ -408,7 +493,7 @@ describe('ImagesScreen — the operations behind the entries (REQ-10, REQ-11)', 
     const { onRefresh } = renderScreen([makeImage({ tags: ['nginx:1.27'] })]);
 
     const entries = await openOverflow(user);
-    await user.click(entries[5]!);
+    await user.click(entries[9]!);
 
     expect(screen.getByRole('heading', { name: 'Confirm: nginx:1.27' })).toBeInTheDocument();
 
@@ -423,7 +508,7 @@ describe('ImagesScreen — the operations behind the entries (REQ-10, REQ-11)', 
     const { onRefresh } = renderScreen([makeImage({ id: 'image-1', tags: ['nginx:1.27'] })]);
 
     const entries = await openOverflow(user);
-    await user.click(entries[5]!);
+    await user.click(entries[9]!);
     await user.click(screen.getByRole('button', { name: 'Remove' }));
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -438,7 +523,7 @@ describe('ImagesScreen — the operations behind the entries (REQ-10, REQ-11)', 
     renderScreen([makeImage({ tags: ['nginx:1.27'] })]);
 
     const entries = await openOverflow(user);
-    await user.click(entries[1]!);
+    await user.click(entries[5]!);
     const field = screen.getByRole('textbox', { name: 'New reference' });
     await user.clear(field);
     await user.type(field, 'nginx:copy');
@@ -454,7 +539,7 @@ describe('ImagesScreen — the operations behind the entries (REQ-10, REQ-11)', 
     renderScreen([makeImage({ id: 'image-a', tags: ['a:1'] }), makeImage({ id: 'image-b', tags: ['b:1'] })]);
 
     const entries = await openOverflow(user, 'b:1');
-    await user.click(entries[5]!);
+    await user.click(entries[9]!);
     await user.click(screen.getByRole('button', { name: 'Remove' }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
@@ -545,29 +630,40 @@ describe('ImagesScreen — the detail panel is dismissed by its row and by Escap
     expect(expanded.querySelector('.ui-detail-panel')!.className).toContain('ui-detail-panel--no-close');
   });
 
-  it('keeps the four panel actions, in the same order, with Compare with… unavailable below two images', async () => {
+  // Inverted, not dropped: the four actions this panel used to carry are gone from it, and nothing
+  // takes their place — no strip, no gap, no link, no chevron, no tab, no keyboard hint
+  // (panel_actions_to_menu REQ-1, REQ-2).
+  it('presents no action bar at all, and none of the four analysis actions', async () => {
     const user = userEvent.setup();
     renderScreen([first]);
 
     await user.click(rowFor('a:1'));
 
-    const actions = expandedRegion()!.querySelector<HTMLElement>('.ui-detail-panel__actions')!;
-    expect(Array.from(actions.querySelectorAll('button')).map((button) => button.textContent?.trim())).toEqual([
-      'Explore layers…',
-      'Efficiency & signals…',
-      'Browse filesystem…',
-      'Compare with…',
-    ]);
-    expect(within(actions).getByRole('button', { name: 'Compare with…' })).toBeDisabled();
+    const panel = expandedRegion()!.querySelector<HTMLElement>('.ui-detail-panel')!;
+    // The slot is omitted rather than emptied: no header strip is kept where the four buttons sat.
+    expect(panel.querySelector('.ui-detail-panel__actions')).toBeNull();
+    expect(panel.querySelector('.ui-detail-panel__header')).toBeNull();
+    for (const label of ['Explore layers…', 'Efficiency & signals…', 'Browse filesystem…', 'Compare with…']) {
+      expect(within(panel).queryByRole('button', { name: label })).not.toBeInTheDocument();
+      expect(within(panel).queryByRole('link', { name: label })).not.toBeInTheDocument();
+      expect(within(panel).queryByRole('tab', { name: label })).not.toBeInTheDocument();
+    }
   });
 
-  it('offers Compare with… once there are two images to compare', async () => {
+  // The affordance moved rather than vanished: with a second image to compare with, the entry is
+  // the row menu's, and the panel still offers nothing (REQ-1, REQ-25).
+  it('offers Compare with… from the row menu, never from the panel, once there are two images', async () => {
     const user = userEvent.setup();
     renderScreen([first, second]);
 
     await user.click(rowFor('a:1'));
 
-    expect(within(expandedRegion()!).getByRole('button', { name: 'Compare with…' })).toBeEnabled();
+    expect(within(expandedRegion()!).queryByRole('button', { name: 'Compare with…' })).not.toBeInTheDocument();
+
+    const entries = await openOverflow(user, 'a:1');
+
+    expect(entries[3]).toHaveAccessibleName('Compare with…');
+    expect(entries[3]).not.toHaveAttribute('aria-disabled', 'true');
   });
 
   it('closes the panel when the already-selected row is selected again', async () => {
@@ -605,8 +701,9 @@ describe('ImagesScreen — the detail panel is dismissed by its row and by Escap
     expect(expandedRegion()).toBeNull();
 
     await user.click(rowFor('a:1'));
-    const explore = within(expandedRegion()!).getByRole('button', { name: 'Explore layers…' });
-    explore.focus();
+    // A control of the panel's own contents, the four analysis actions having left it.
+    const section = await within(expandedRegion()!).findByRole('button', { name: /Environment/ });
+    section.focus();
 
     await user.keyboard('{Escape}');
 
@@ -618,7 +715,7 @@ describe('ImagesScreen — the detail panel is dismissed by its row and by Escap
     renderScreen([first]);
 
     await user.click(rowFor('a:1'));
-    within(expandedRegion()!).getByRole('button', { name: 'Explore layers…' }).focus();
+    (await within(expandedRegion()!).findByRole('button', { name: /Environment/ })).focus();
 
     await user.keyboard('{Escape}');
 
@@ -649,7 +746,7 @@ describe('ImagesScreen — the detail panel is dismissed by its row and by Escap
 
     await user.click(rowFor('a:1'));
     const entries = await openOverflow(user, 'a:1');
-    await user.click(entries[5]!);
+    await user.click(entries[9]!);
     expect(screen.getByRole('heading', { name: 'Confirm: a:1' })).toBeInTheDocument();
 
     await user.keyboard('{Escape}');
@@ -670,6 +767,235 @@ describe('ImagesScreen — the detail panel is dismissed by its row and by Escap
     expect(tableRows()).toHaveLength(1);
     expect(expandedRegion()).toBeNull();
     expect(document.querySelectorAll('.ui-data-table__row--selected')).toHaveLength(0);
+  });
+});
+
+// images/specs/images-screen.md — the image's four analyses are views the screen presents: each
+// opens from the row's own menu entry with no detail panel open anywhere, on the image whose menu
+// opened it, one at a time, and none of them outlives its image
+// (panel_actions_to_menu REQ-13, REQ-14, REQ-15, REQ-16, REQ-20).
+describe('ImagesScreen — the four analysis views, opened from the row menu (REQ-13, REQ-14, REQ-15, REQ-16, REQ-20)', () => {
+  const first = makeImage({ id: 'image-a', shortId: 'aaaaaaaaaaaa', tags: ['a:1'] });
+  const second = makeImage({ id: 'image-b', shortId: 'bbbbbbbbbbbb', tags: ['b:1'] });
+
+  /** Every entry of the first group, with the heading its view is titled by. */
+  const VIEWS = [
+    { entry: 0, label: 'Explore layers…', heading: 'Layer stack — b:1' },
+    { entry: 1, label: 'Efficiency & signals…', heading: 'Efficiency & signals — b:1' },
+    { entry: 2, label: 'Browse filesystem…', heading: 'Filesystem — b:1' },
+    { entry: 3, label: 'Compare with…', heading: 'Compare filesystems' },
+  ];
+
+  function expandedRegion(): HTMLElement | null {
+    return document.querySelector<HTMLElement>('.ui-data-table__expanded');
+  }
+
+  function rowFor(reference: string): HTMLElement {
+    const row = tableRows().find((candidate) => candidate.textContent?.includes(reference));
+    if (!row) throw new Error(`no row for ${reference}`);
+    return row;
+  }
+
+  /** The way out every one of the four offers: the dialog's own overlay (`Modal`). */
+  async function dismissView(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+    await user.click(document.querySelector<HTMLElement>('.ui-modal-overlay')!);
+  }
+
+  it.each(VIEWS)('opens $label on the invoked row\'s image with no panel open, and opens none', async ({ entry, heading }) => {
+    const user = userEvent.setup();
+    renderScreen([first, second]);
+
+    const entries = await openOverflow(user, 'b:1');
+    await user.click(entries[entry]!);
+
+    expect(await screen.findByRole('heading', { name: heading })).toBeInTheDocument();
+    // No panel opened behind it, and no row became selected.
+    expect(expandedRegion()).toBeNull();
+    expect(document.querySelectorAll('.ui-data-table__row--selected')).toHaveLength(0);
+  });
+
+  it.each(VIEWS)('leaves the screen with no panel and no selection when $label is closed again', async ({ entry, heading }) => {
+    const user = userEvent.setup();
+    renderScreen([first, second]);
+
+    const entries = await openOverflow(user, 'b:1');
+    await user.click(entries[entry]!);
+    expect(await screen.findByRole('heading', { name: heading })).toBeInTheDocument();
+
+    await dismissView(user);
+
+    await waitFor(() => expect(screen.queryByRole('heading', { name: heading })).not.toBeInTheDocument());
+    expect(expandedRegion()).toBeNull();
+    expect(document.querySelectorAll('.ui-data-table__row--selected')).toHaveLength(0);
+  });
+
+  // REQ-14, REQ-15 — the subject is the row whose menu was used, never the selected image nor the
+  // one an open panel is showing, and that panel is exactly as it was left when the view closes.
+  it('acts on the invoked row\'s image while a panel is open on another, and leaves that panel untouched', async () => {
+    const user = userEvent.setup();
+    renderScreen([first, second]);
+
+    await user.click(rowFor('a:1'));
+    expect(expandedRegion()).not.toBeNull();
+
+    const entries = await openOverflow(user, 'b:1');
+    await user.click(entries[0]!);
+
+    expect(await screen.findByRole('heading', { name: 'Layer stack — b:1' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Layer stack — a:1' })).not.toBeInTheDocument();
+    expect(expandedRegion()!.previousElementSibling?.textContent).toContain('a:1');
+
+    await dismissView(user);
+
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Layer stack — b:1' })).not.toBeInTheDocument());
+    expect(expandedRegion()).not.toBeNull();
+    expect(expandedRegion()!.previousElementSibling?.textContent).toContain('a:1');
+    expect(rowFor('a:1').getAttribute('aria-selected')).toBe('true');
+  });
+
+  // REQ-16 — at most one of the four is on screen at a time.
+  it('closes whichever of the four was already open when another is chosen', async () => {
+    const user = userEvent.setup();
+    renderScreen([first, second]);
+
+    await user.click((await openOverflow(user, 'a:1'))[0]!);
+    expect(await screen.findByRole('heading', { name: 'Layer stack — a:1' })).toBeInTheDocument();
+
+    await dismissView(user);
+    await user.click((await openOverflow(user, 'a:1'))[2]!);
+
+    expect(await screen.findByRole('heading', { name: 'Filesystem — a:1' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Layer stack — a:1' })).not.toBeInTheDocument();
+  });
+
+  // REQ-20 — none of the four outlives its image: compared against the unfiltered list, once read.
+  it('resolves an open view when its image leaves the list', async () => {
+    const user = userEvent.setup();
+    const { withImages } = renderScreen([first, second]);
+
+    await user.click((await openOverflow(user, 'a:1'))[0]!);
+    expect(await screen.findByRole('heading', { name: 'Layer stack — a:1' })).toBeInTheDocument();
+
+    // Removed from that very menu, pruned, or removed in the operator's own terminal: the live
+    // list re-reads without it.
+    withImages([second]);
+
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Layer stack — a:1' })).not.toBeInTheDocument());
+  });
+
+  it('keeps an open view when its image is merely hidden by the search', async () => {
+    const user = userEvent.setup();
+    renderScreen([first, second]);
+
+    await user.click((await openOverflow(user, 'a:1'))[0]!);
+    expect(await screen.findByRole('heading', { name: 'Layer stack — a:1' })).toBeInTheDocument();
+
+    await user.type(screen.getByPlaceholderText('Search reference or digest…'), 'b:1');
+
+    expect(tableRows()).toHaveLength(1);
+    expect(screen.getByRole('heading', { name: 'Layer stack — a:1' })).toBeInTheDocument();
+  });
+
+  // REQ-19, REQ-33 (first half) — the menu hands the focus back to the row's own trigger before the
+  // view opens, so the point of interaction is in the images list for the whole life of the view.
+  it('leaves the point of interaction on the row\'s own overflow trigger while a view is open', async () => {
+    const user = userEvent.setup();
+    renderScreen([first, second]);
+
+    await user.click((await openOverflow(user, 'b:1'))[0]!);
+
+    expect(await screen.findByRole('heading', { name: 'Layer stack — b:1' })).toBeInTheDocument();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'More actions for b:1' }));
+  });
+});
+
+// images/specs/image-diff-view.md — one comparison view, two shapes of the operation: the row shape
+// supplies the first operand alone and states it in words, the bulk shape supplies both, and neither
+// leaves its operands behind for a later opening of the other
+// (panel_actions_to_menu REQ-23, REQ-24, REQ-27, REQ-35).
+describe('ImagesScreen — the comparison serves both shapes (REQ-23, REQ-24, REQ-27, REQ-35)', () => {
+  const first = makeImage({ id: 'image-a', shortId: 'aaaaaaaaaaaa', tags: ['a:1'] });
+  const second = makeImage({ id: 'image-b', shortId: 'bbbbbbbbbbbb', tags: ['b:1'] });
+
+  async function dismissView(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+    await user.click(document.querySelector<HTMLElement>('.ui-modal-overlay')!);
+  }
+
+  it('opens from a row with that image as the first side, stated in words, and the second unchosen', async () => {
+    const user = userEvent.setup();
+    renderScreen([first, second]);
+
+    await user.click((await openOverflow(user, 'a:1'))[3]!);
+
+    expect(await screen.findByRole('heading', { name: 'Compare filesystems' })).toBeInTheDocument();
+    expect(screen.getByLabelText('First image')).toHaveValue('image-a');
+    expect(screen.getByLabelText('Second image')).toHaveValue('');
+    // Read, not inferred from a pre-filled control: the reference the row shows, in the view.
+    expect(screen.getByText(/Started from a:1/)).toBeInTheDocument();
+  });
+
+  it('states the first side only while it still is the one the comparison was started from', async () => {
+    const user = userEvent.setup();
+    renderScreen([first, second]);
+
+    await user.click((await openOverflow(user, 'a:1'))[3]!);
+    expect(await screen.findByText(/Started from a:1/)).toBeInTheDocument();
+
+    // Stated, never pinned: the operand stays changeable.
+    await user.selectOptions(screen.getByLabelText('First image'), 'image-b');
+
+    expect(screen.getByLabelText('First image')).toHaveValue('image-b');
+    expect(screen.queryByText(/Started from/)).not.toBeInTheDocument();
+  });
+
+  it('cannot start a comparison of an image with itself', async () => {
+    const user = userEvent.setup();
+    renderScreen([first, second]);
+
+    await user.click((await openOverflow(user, 'a:1'))[3]!);
+    expect(await screen.findByRole('heading', { name: 'Compare filesystems' })).toBeInTheDocument();
+
+    // The second side unchosen: nothing to compare yet.
+    expect(screen.getByRole('button', { name: 'Compare' })).toBeDisabled();
+
+    await user.selectOptions(screen.getByLabelText('Second image'), 'image-a');
+
+    expect(screen.getByRole('button', { name: 'Compare' })).toBeDisabled();
+
+    await user.selectOptions(screen.getByLabelText('Second image'), 'image-b');
+
+    expect(screen.getByRole('button', { name: 'Compare' })).toBeEnabled();
+  });
+
+  // REQ-35 — both shapes, one after the other, against the one view: neither leaks its operands.
+  it('runs both shapes in the same session without either leaving its operands behind', async () => {
+    const user = userEvent.setup();
+    renderScreen([first, second]);
+
+    // The row shape: one operand, stated.
+    await user.click((await openOverflow(user, 'a:1'))[3]!);
+    expect(await screen.findByRole('heading', { name: 'Compare filesystems' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Second image')).toHaveValue('');
+    await dismissView(user);
+
+    // The bulk shape: both operands, and no "started from" line — the view was not started from a row.
+    await user.click(within(tableRows()[0]!).getByRole('checkbox'));
+    await user.click(within(tableRows()[1]!).getByRole('checkbox'));
+    await user.click(screen.getByRole('button', { name: 'Compare filesystems…' }));
+
+    expect(await screen.findByRole('heading', { name: 'Compare filesystems' })).toBeInTheDocument();
+    expect(screen.getByLabelText('First image')).toHaveValue('image-a');
+    expect(screen.getByLabelText('Second image')).toHaveValue('image-b');
+    expect(screen.queryByText(/Started from/)).not.toBeInTheDocument();
+    await dismissView(user);
+
+    // The row shape again: the bulk shape's second operand did not survive into it.
+    await user.click((await openOverflow(user, 'b:1'))[3]!);
+
+    expect(await screen.findByRole('heading', { name: 'Compare filesystems' })).toBeInTheDocument();
+    expect(screen.getByLabelText('First image')).toHaveValue('image-b');
+    expect(screen.getByLabelText('Second image')).toHaveValue('');
+    expect(screen.getByText(/Started from b:1/)).toBeInTheDocument();
   });
 });
 
@@ -919,7 +1245,7 @@ describe('ImagesScreen — save to tarball (plan-docker_management_app/REQ-42)',
     renderScreen([makeImage({ tags: ['nginx:1.27'] })]);
 
     const entries = await openOverflow(user);
-    await user.click(entries[4]!);
+    await user.click(entries[8]!);
 
     expect(downloadedHrefs).toHaveLength(1);
     expect(downloadedHrefs[0]).toContain('/api/images/save');

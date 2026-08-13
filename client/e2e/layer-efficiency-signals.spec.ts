@@ -20,15 +20,24 @@ function imageRow(page: Page, text: string) {
   return page.locator('.ui-data-table__row', { hasText: text });
 }
 
-// Selects a row by clicking a non-action cell (mirrors images.spec.ts's own helper): the
-// multi-select checkbox column, when present, is a `.ui-data-table__select-cell`, not a
-// `.ui-data-table__cell`, so this always lands on the first real column cell.
-async function selectRow(row: ReturnType<typeof imageRow>): Promise<void> {
-  await row.locator('.ui-data-table__cell').first().click();
-}
-
 function searchField(page: Page) {
   return page.getByPlaceholder('Search reference or digest…');
+}
+
+/**
+ * Opens one of the image's four analyses from the row's own overflow menu — the entry point they all
+ * have now that they are the screen's views rather than the detail panel's
+ * (images/specs/images-screen.md).
+ */
+async function chooseRowAction(page: Page, row: ReturnType<typeof imageRow>, label: string): Promise<void> {
+  // The opening is retried as a whole: the list keeps re-reading from the daemon's own events, and a
+  // re-read that replaces the row takes its trigger — and with it the menu — as it is meant to
+  // (ui-library/specs/menu.md). Same precedent as the keyboard case in `images.spec.ts`.
+  await expect(async () => {
+    await row.getByRole('button', { name: /^More actions for / }).click();
+    await expect(page.getByRole('menu')).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await page.getByRole('menuitem', { name: label, exact: true }).click();
 }
 
 function signalsModal(page: Page, title: RegExp) {
@@ -64,12 +73,22 @@ const DOCKERFILE = [
   '',
 ].join('\n');
 
+/**
+ * A second image, sharing the fixture's own base layer and carrying no analysis of its own: what the
+ * findings map must **not** be applied to. Its single layer is the base one, the same index the
+ * fixture's own findings fall on, so a map left unscoped would mark it.
+ */
+const OTHER_TAG = `vexel-e2e-signals-other-${Date.now()}:v1`;
+const OTHER_DOCKERFILE = ['FROM alpine:3.20', 'LABEL vexel.e2e=signals-other', ''].join('\n');
+
 test.beforeAll(async () => {
   await buildImage(TAG, DOCKERFILE);
+  await buildImage(OTHER_TAG, OTHER_DOCKERFILE);
 });
 
 test.afterAll(async () => {
   await removeImageQuietly(TAG);
+  await removeImageQuietly(OTHER_TAG);
 });
 
 test.beforeEach(async ({ page }) => {
@@ -88,11 +107,13 @@ test('analyzes layer efficiency and secret signals, then navigates from a findin
   await searchField(page).fill(TAG);
   const row = imageRow(page, TAG);
   await expect(row).toBeVisible({ timeout: 10_000 });
-  await selectRow(row);
 
-  await page.getByRole('button', { name: 'Efficiency & signals…' }).click();
+  // Opened from the row's own menu with no row selected and no detail panel open — the case that
+  // did not exist while this view was the panel's (panel_actions_to_menu/REQ-13, REQ-30).
+  await chooseRowAction(page, row, 'Efficiency & signals…');
   const modal = signalsModal(page, /^Efficiency & signals/);
   await expect(modal).toBeVisible();
+  await expect(page.locator('.ui-detail-panel')).toHaveCount(0);
 
   // layer-efficiency-view.md — the heuristic disclaimer is shown before any analysis has run.
   await expect(modal.getByText(/heuristic/i)).toBeVisible();
@@ -123,7 +144,7 @@ test('analyzes layer efficiency and secret signals, then navigates from a findin
   await expect(secretsSection.getByText('root/.aws/credentials')).toBeVisible();
 
   // Drilling down from the wasted file navigates to the layer explorer, pre-selected at the layer
-  // that wrote the now-dead bytes, already analyzing (image-detail-panel.md).
+  // that wrote the now-dead bytes, already analyzing — the hand-off the screen holds now (images-screen.md).
   await wasteSection.getByText('data/waste.bin').click();
   await wasteSection.getByRole('button', { name: /View layer/i }).click();
 
@@ -137,4 +158,19 @@ test('analyzes layer efficiency and secret signals, then navigates from a findin
   // this layer's changesets were already computed as part of the shared job.
   await expect(layerModal.locator('.ui-data-table__row--selected').first()).toBeVisible({ timeout: 15_000 });
   await expect(layerModal.getByText('Changesets not analyzed yet')).toHaveCount(0);
+
+  // images-screen.md — the findings map marks the layers carrying findings **for that image alone**.
+  // Now that it is the screen's state rather than the panel's, another image's explorer opened right
+  // after must carry none of it (panel_actions_to_menu/REQ-17).
+  await page.locator('.ui-modal-overlay').click({ position: { x: 5, y: 5 } });
+  await expect(layerModal).toHaveCount(0);
+  await searchField(page).fill(OTHER_TAG);
+  const otherRow = imageRow(page, OTHER_TAG);
+  await expect(otherRow).toBeVisible({ timeout: 10_000 });
+
+  await chooseRowAction(page, otherRow, 'Explore layers…');
+
+  const otherModal = page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: `Layer stack — ${OTHER_TAG}` }) });
+  await expect(otherModal.locator('.ui-data-table__row').first()).toBeVisible({ timeout: 20_000 });
+  await expect(otherModal.getByText(/findings · \d+/)).toHaveCount(0);
 });

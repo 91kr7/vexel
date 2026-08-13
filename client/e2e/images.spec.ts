@@ -69,6 +69,29 @@ function menuEntry(page: Page, label: string) {
   return page.getByRole('menuitem', { name: label, exact: true });
 }
 
+/**
+ * The open menu's own geometry: whether the popup's scrolling list holds all of its content at once,
+ * and how much of the last entry — `Remove`, the destructive one — is actually shown. The popup caps
+ * its list rather than growing without bound, so "displayed in full" is this reading, not the
+ * viewport's alone.
+ */
+async function openMenuGeometry(page: Page) {
+  return page.evaluate(() => {
+    const list = document.querySelector('.ui-menu__list');
+    if (!list) return null;
+    const listRect = list.getBoundingClientRect();
+    const last = list.querySelector('[role="menuitem"][aria-label="Remove"]');
+    const lastRect = last?.getBoundingClientRect();
+    return {
+      clientHeight: list.clientHeight,
+      scrollHeight: list.scrollHeight,
+      removeVisibleRatio: lastRect
+        ? Number((Math.max(0, Math.min(lastRect.bottom, listRect.bottom) - Math.max(lastRect.top, listRect.top)) / lastRect.height).toFixed(3))
+        : 0,
+    };
+  });
+}
+
 async function openRowOverflow(page: Page, row: ReturnType<typeof imageRow>): Promise<void> {
   await rowOverflow(row).click();
   await expect(page.getByRole('menu')).toBeVisible();
@@ -189,9 +212,10 @@ test('the row carries the overflow control alone, named after its image, in the 
   }
 });
 
-// plan-docker_management_app-image_row_actions/REQ-4, REQ-5, REQ-6, REQ-7 — the menu lists exactly six entries, in the
-// row's own order, with Remove last, set apart, in the destructive tone and carrying `rmi`; no other entry has a hint
-test('the row menu lists exactly Run…, Tag…, Untag, Push…, Save and Remove, in that order', async ({ page }) => {
+// plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-5, REQ-6, REQ-7, REQ-8 — the menu lists exactly
+// ten entries, in three groups marked by separation and tone alone: the image's four analyses, then the operations on
+// it, then Remove — set apart, in the destructive tone and carrying `rmi`, the menu's only hint. No section heading
+test('the row menu lists exactly the four analyses, Run…, Tag…, Untag, Push…, Save and Remove, in that order', async ({ page }) => {
   const containerName = `vexel-e2e-entries-src-${Date.now()}`;
   const tag = `vexel-e2e-entries-${Date.now()}:v1`;
   try {
@@ -204,16 +228,26 @@ test('the row menu lists exactly Run…, Tag…, Untag, Push…, Save and Remove
     await openRowOverflow(page, row);
 
     const entries = page.getByRole('menuitem');
-    await expect(entries).toHaveCount(6);
-    await expect(entries.nth(0)).toHaveText('Run…');
-    await expect(entries.nth(1)).toHaveText('Tag…');
-    await expect(entries.nth(2)).toHaveText('Untag');
-    await expect(entries.nth(3)).toHaveText('Push…');
-    await expect(entries.nth(4)).toHaveText('Save');
-    await expect(entries.nth(5)).toContainText('Remove');
-    await expect(entries.nth(5)).toContainText('rmi');
-    await expect(entries.nth(5)).toHaveClass(/destructive/);
-    await expect(page.getByRole('menu').locator('[role="separator"]')).toHaveCount(1);
+    await expect(entries).toHaveCount(10);
+    await expect(entries.nth(0)).toHaveText('Explore layers…');
+    await expect(entries.nth(1)).toHaveText('Efficiency & signals…');
+    await expect(entries.nth(2)).toHaveText('Browse filesystem…');
+    await expect(entries.nth(3)).toHaveText('Compare with…');
+    await expect(entries.nth(4)).toHaveText('Run…');
+    await expect(entries.nth(5)).toHaveText('Tag…');
+    await expect(entries.nth(6)).toHaveText('Untag');
+    await expect(entries.nth(7)).toHaveText('Push…');
+    await expect(entries.nth(8)).toHaveText('Save');
+    await expect(entries.nth(9)).toContainText('Remove');
+    await expect(entries.nth(9)).toContainText('rmi');
+    await expect(entries.nth(9)).toHaveClass(/destructive/);
+    // Two boundaries: the one opening the operations group, and the one that already set Remove apart.
+    const separators = page.getByRole('menu').locator('[role="separator"]');
+    await expect(separators).toHaveCount(2);
+    // No heading, no group label: the popup holds entries and separators and nothing else.
+    await expect(page.getByRole('menu').getByRole('heading')).toHaveCount(0);
+    const childRoles = await page.getByRole('menu').evaluate((list) => Array.from(list.children).map((child) => child.getAttribute('role')));
+    expect(new Set(childRoles)).toEqual(new Set(['menuitem', 'separator']));
   } finally {
     await removeStandaloneImage(tag, containerName);
   }
@@ -289,8 +323,9 @@ test('the row menu closes on Escape, on an outside click and on choosing an entr
   }
 });
 
-// plan-docker_management_app-image_row_actions/REQ-14 — an open menu is shown in full wherever its row sits, including
-// the last rows of a list long enough to scroll, and is never clipped by the table
+// plan-docker_management_app-image_row_actions/REQ-14, plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-10
+// — an open menu is shown in full wherever its row sits, including the last rows of a list long enough to scroll, and is
+// never clipped by the table, the card, the panel or any scroll container between it and the edge of the viewport
 test('a menu opened on the last visible row of a scrolling list is shown in full', async ({ page }) => {
   const runId = Date.now();
   const stem = `vexel-e2e-clip-${runId}`;
@@ -299,9 +334,11 @@ test('a menu opened on the last visible row of a scrolling list is shown in full
   try {
     for (const fixture of fixtures) await createStandaloneImage(fixture.tag, fixture.containerName);
     await page.reload();
-    // A short viewport, so the table has to scroll and the last row sits against
-    // the bottom edge — the case the popup has to flip above its trigger for.
-    await page.setViewportSize({ width: 1280, height: 520 });
+    // A short viewport, so the table has to scroll and the last row sits against the bottom edge —
+    // the case the popup has to flip above its trigger for. Sized to hold the popup the menu now
+    // opens: four more entries make it taller, and a viewport shorter than the popup itself would be
+    // measuring the window rather than the clipping this requirement is about.
+    await page.setViewportSize({ width: 1280, height: 700 });
     await searchField(page).fill(stem);
     const last = imageRow(page, tags[tags.length - 1]!);
     await expect(last).toBeVisible({ timeout: 10_000 });
@@ -309,10 +346,28 @@ test('a menu opened on the last visible row of a scrolling list is shown in full
 
     await openRowOverflow(page, last);
 
-    // Every entry of it, not merely the popup's first pixels.
-    for (const label of ['Run…', 'Tag…', 'Untag', 'Push…', 'Save', 'Remove']) {
+    // Not clipped by the containers it is opened inside: the popup is drawn past the table's own
+    // scrolled body, which is what "never clipped by the table, the card or any scroll container
+    // between it and the edge of the viewport" means.
+    const reachesOutsideTheTable = await page.evaluate(() => {
+      const popup = document.querySelector('.ui-menu__popup')?.getBoundingClientRect();
+      const body = document.querySelector('.ui-data-table__body')?.getBoundingClientRect();
+      if (!popup || !body) return false;
+      return popup.top < body.top || popup.bottom > body.bottom;
+    });
+    expect(reachesOutsideTheTable, 'the popup is drawn past the table body that would otherwise clip it').toBe(true);
+
+    // And shown in full: every entry of the ten, not merely the popup's first pixels
+    // (panel_actions_to_menu/REQ-10).
+    for (const label of ['Explore layers…', 'Efficiency & signals…', 'Browse filesystem…', 'Compare with…', 'Run…', 'Tag…', 'Untag', 'Push…', 'Save', 'Remove']) {
       await expect(menuEntry(page, label)).toBeInViewport({ ratio: 1 });
     }
+    // In full inside the popup too: the list holds all ten at once instead of scrolling them, so
+    // `Remove` is read without being looked for.
+    const geometry = await openMenuGeometry(page);
+    expect(geometry, 'the open menu\'s geometry').not.toBeNull();
+    expect(geometry!.scrollHeight, 'the popup\'s list scrolls its own entries').toBeLessThanOrEqual(geometry!.clientHeight);
+    expect(geometry!.removeVisibleRatio, 'how much of Remove is shown').toBe(1);
   } finally {
     for (const fixture of fixtures) await removeStandaloneImage(fixture.tag, fixture.containerName);
   }
@@ -339,18 +394,25 @@ test('the row menu is reachable, walked and activated from the keyboard alone', 
     }).toPass({ timeout: 15_000 });
 
     await page.keyboard.press('Enter');
-    await expect(menuEntry(page, 'Run…')).toBeFocused();
+    await expect(menuEntry(page, 'Explore layers…')).toBeFocused();
     await page.keyboard.press('ArrowDown');
-    await expect(menuEntry(page, 'Tag…')).toBeFocused();
+    await expect(menuEntry(page, 'Efficiency & signals…')).toBeFocused();
     await page.keyboard.press('ArrowUp');
-    await expect(menuEntry(page, 'Run…')).toBeFocused();
+    await expect(menuEntry(page, 'Explore layers…')).toBeFocused();
+    // Every one of the ten is walked to, across both group boundaries.
+    for (const label of ['Efficiency & signals…', 'Browse filesystem…', 'Compare with…', 'Run…', 'Tag…', 'Untag', 'Push…', 'Save', 'Remove']) {
+      await page.keyboard.press('ArrowDown');
+      await expect(menuEntry(page, label)).toBeFocused();
+    }
 
     await page.keyboard.press('Escape');
     await expect(page.getByRole('menu')).toHaveCount(0);
     await expect(rowOverflow(row)).toBeFocused();
 
+    // Activated from the keyboard alone, on an entry of the second group.
     await page.keyboard.press('Enter');
-    await page.keyboard.press('ArrowDown');
+    for (let step = 0; step < 5; step += 1) await page.keyboard.press('ArrowDown');
+    await expect(menuEntry(page, 'Tag…')).toBeFocused();
     await page.keyboard.press('Enter');
     await expect(page.getByRole('textbox', { name: 'New reference' })).toBeVisible();
   } finally {
@@ -413,9 +475,12 @@ test('the checkbox column and the bulk action bar are untouched by the row menu'
     await imageRow(page, secondTag).getByRole('checkbox').check();
 
     await expect(page.getByRole('button', { name: 'Compare filesystems…' })).toBeEnabled();
-    // Neither bulk action moved into the row's menu.
+    // Neither bulk action moved into the row's menu: the row's own comparison entry is a different
+    // operation (one operand, not two checked rows) and does not stand in for it.
     await openRowOverflow(page, imageRow(page, firstTag));
-    await expect(page.getByRole('menuitem', { name: /tarball|Compare/ })).toHaveCount(0);
+    await expect(page.getByRole('menuitem', { name: /tarball/ })).toHaveCount(0);
+    await expect(page.getByRole('menuitem', { name: 'Compare filesystems…', exact: true })).toHaveCount(0);
+    await expect(menuEntry(page, 'Compare with…')).toBeVisible();
   } finally {
     await removeStandaloneImage(firstTag, firstContainer);
     await removeStandaloneImage(secondTag, secondContainer);
@@ -553,20 +618,27 @@ test('marks a dangling image with a dangling badge and disables its untag and pu
     // The row carries the same single control a tagged row does (REQ-2).
     await expect(row.locator('.ui-action-button-group').getByRole('button')).toHaveCount(1);
 
-    // The same six entries, in the same order, with Untag and Push… disabled in place and saying
+    // The same ten entries, in the same order, with Untag and Push… disabled in place and saying
     // why they are unavailable rather than removed (REQ-8, REQ-9).
     await openRowOverflow(page, row);
     const entries = page.getByRole('menuitem');
-    await expect(entries).toHaveCount(6);
-    await expect(entries.nth(2)).toHaveAccessibleName('Untag');
-    await expect(entries.nth(2)).toHaveAttribute('aria-disabled', 'true');
-    await expect(entries.nth(2)).toHaveAccessibleDescription(/no tags to untag/i);
-    await expect(entries.nth(3)).toHaveAccessibleName('Push…');
-    await expect(entries.nth(3)).toHaveAttribute('aria-disabled', 'true');
-    await expect(entries.nth(3)).toHaveAccessibleDescription(/no tags to push/i);
-    for (const index of [0, 1, 4, 5]) {
+    await expect(entries).toHaveCount(10);
+    await expect(entries.nth(6)).toHaveAccessibleName('Untag');
+    await expect(entries.nth(6)).toHaveAttribute('aria-disabled', 'true');
+    await expect(entries.nth(6)).toHaveAccessibleDescription(/no tags to untag/i);
+    await expect(entries.nth(7)).toHaveAccessibleName('Push…');
+    await expect(entries.nth(7)).toHaveAttribute('aria-disabled', 'true');
+    await expect(entries.nth(7)).toHaveAccessibleDescription(/no tags to push/i);
+    // Everything else applies to a dangling image too — the four analyses included.
+    for (const index of [0, 1, 2, 3, 4, 5, 8, 9]) {
       await expect(entries.nth(index)).not.toHaveAttribute('aria-disabled', 'true');
     }
+    // The taller of the two states the menu is read in: two of its entries carry a reason line as
+    // well as a label, and all ten are still shown in full rather than scrolled (REQ-9, REQ-10).
+    const geometry = await openMenuGeometry(page);
+    expect(geometry, 'the open menu\'s geometry on a dangling image').not.toBeNull();
+    expect(geometry!.scrollHeight, 'the popup\'s list scrolls its own entries').toBeLessThanOrEqual(geometry!.clientHeight);
+    expect(geometry!.removeVisibleRatio, 'how much of Remove is shown').toBe(1);
   } finally {
     await execFileAsync('docker', ['rm', '-fv', containerName]).catch(() => undefined);
     await execFileAsync('docker', ['rmi', '-f', firstId.trim()]).catch(() => undefined);
@@ -783,7 +855,7 @@ test('pulling an image by reference shows per-layer progress and the image appea
 test.describe('Image detail panel dismissal (REQ-20, REQ-21, REQ-22, REQ-23, REQ-24, REQ-25, REQ-28, REQ-29, REQ-30)', () => {
   test.describe.configure({ mode: 'serial' });
 
-  test('the open panel carries no close control, keeps its four actions, and its row closes it', async ({ page }) => {
+  test('the open panel carries no close control and no actions at all, and its row closes it', async ({ page }) => {
     const containerName = `vexel-e2e-panel-close-src-${Date.now()}`;
     const tag = `vexel-e2e-panel-close-${Date.now()}:v1`;
     try {
@@ -800,13 +872,16 @@ test.describe('Image detail panel dismissal (REQ-20, REQ-21, REQ-22, REQ-23, REQ
       // Gone from the rendered interface — not hidden, not disabled, not moved (REQ-20).
       await expect(page.getByRole('button', { name: 'Close detail' })).toHaveCount(0);
       await expect(detail.locator('.ui-detail-panel__close')).toHaveCount(0);
-      // The four panel actions are untouched, in the same order (REQ-21).
-      await expect(detail.locator('.ui-detail-panel__actions').getByRole('button')).toHaveText([
-        'Explore layers…',
-        'Efficiency & signals…',
-        'Browse filesystem…',
-        'Compare with…',
-      ]);
+      // The four analysis actions are gone with it, and nothing takes their place: the action slot
+      // is omitted rather than emptied, so no strip and no gap is kept where they sat
+      // (panel_actions_to_menu REQ-1, REQ-2).
+      await expect(detail.locator('.ui-detail-panel__actions')).toHaveCount(0);
+      await expect(detail.locator('.ui-detail-panel__header')).toHaveCount(0);
+      for (const label of ['Explore layers…', 'Efficiency & signals…', 'Browse filesystem…', 'Compare with…']) {
+        await expect(detail.getByRole('button', { name: label })).toHaveCount(0);
+        await expect(detail.getByRole('link', { name: label })).toHaveCount(0);
+        await expect(detail.getByRole('tab', { name: label })).toHaveCount(0);
+      }
       // The bond to the row is visible without acting (REQ-28).
       await expect(row).toHaveClass(/ui-data-table__row--selected/);
 
@@ -864,11 +939,13 @@ test.describe('Image detail panel dismissal (REQ-20, REQ-21, REQ-22, REQ-23, REQ
       await page.keyboard.press('Escape');
       await expect(detail).toHaveCount(0);
 
-      // Again, this time with the focus on a control inside the panel's own contents.
+      // Again, this time with the focus on a control inside the panel's own contents — one of its
+      // collapsible sections, the four analysis actions having left the panel.
       await selectRow(row);
       await expect(detail).toBeVisible();
-      await detail.getByRole('button', { name: 'Explore layers…' }).focus();
-      await expect(detail.getByRole('button', { name: 'Explore layers…' })).toBeFocused();
+      const section = detail.getByRole('button', { name: /Environment/ });
+      await section.focus();
+      await expect(section).toBeFocused();
 
       await page.keyboard.press('Escape');
 
@@ -1022,6 +1099,277 @@ test.describe('Image detail panel dismissal (REQ-20, REQ-21, REQ-22, REQ-23, REQ
       expect(await panelOwner(page)).toContain(tag);
       await expect(imageRow(page, tag)).toHaveClass(/ui-data-table__row--selected/);
     } finally {
+      await removeStandaloneImage(tag, containerName);
+    }
+  });
+});
+
+// images/specs/images-screen.md — the image's four analyses are views the **screen** presents: each opens from the row's
+// own menu entry with no detail panel open anywhere, on the image whose menu opened it, one at a time, dismisses nothing
+// beneath it and does not outlive its image
+// (plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-4, REQ-13, REQ-14, REQ-15, REQ-16, REQ-18,
+// REQ-19, REQ-20, REQ-26, REQ-30).
+test.describe('The four analysis views, opened from the row menu (REQ-4, REQ-13 … REQ-20, REQ-26, REQ-30)', () => {
+  test.describe.configure({ mode: 'serial' });
+
+  /** The way out every one of the four offers: the dialog's own overlay (`Modal` closes on an overlay click). */
+  async function dismissView(page: Page): Promise<void> {
+    await page.locator('.ui-modal-overlay').click({ position: { x: 5, y: 5 } });
+  }
+
+  /**
+   * Every image detail panel currently rendered. Located by the panel's own element rather than by
+   * the table's expanded region, since the layer explorer holds a table of its own that expands too.
+   */
+  function detailPanels(page: Page) {
+    return page.locator('.ui-detail-panel');
+  }
+
+  /** What the browser currently holds the point of interaction on, described rather than located. */
+  async function pointOfInteraction(page: Page) {
+    return page.evaluate(() => {
+      const active = document.activeElement;
+      return {
+        tag: active?.tagName ?? null,
+        isDocument: active === null || active === document.body || active === document.documentElement,
+        label: active?.getAttribute('aria-label') ?? null,
+        insideImagesList: Boolean(active?.closest('.ui-data-table')),
+        connected: Boolean(active?.isConnected),
+      };
+    });
+  }
+
+  test('opens each of the four from a row\'s menu with no panel open, on that row\'s image, one at a time', async ({ page }) => {
+    const containerName = `vexel-e2e-views-src-${Date.now()}`;
+    const tag = `vexel-e2e-views-${Date.now()}:v1`;
+    try {
+      await createStandaloneImage(tag, containerName);
+      await page.reload();
+      await searchField(page).fill(tag);
+      const row = imageRow(page, tag);
+      await expect(row).toBeVisible({ timeout: 10_000 });
+      // No panel anywhere on the screen, for the whole test.
+      await expect(detailPanels(page)).toHaveCount(0);
+
+      const views = [
+        { label: 'Explore layers…', heading: `Layer stack — ${tag}` },
+        { label: 'Efficiency & signals…', heading: `Efficiency & signals — ${tag}` },
+        { label: 'Browse filesystem…', heading: `Filesystem — ${tag}` },
+        { label: 'Compare with…', heading: 'Compare filesystems' },
+      ];
+
+      for (const view of views) {
+        await openRowOverflow(page, row);
+        await menuEntry(page, view.label).click();
+
+        const heading = page.getByRole('heading', { name: view.heading });
+        await expect(heading).toBeVisible({ timeout: 15_000 });
+        // Opening it opened no panel and selected no row (REQ-15).
+        await expect(detailPanels(page)).toHaveCount(0);
+        await expect(row).not.toHaveClass(/ui-data-table__row--selected/);
+        // Two of the four are never on screen together (REQ-16).
+        await expect(page.locator('.ui-modal--size-large')).toHaveCount(1);
+
+        await dismissView(page);
+        await expect(heading).toHaveCount(0);
+        await expect(detailPanels(page)).toHaveCount(0);
+      }
+
+      // The comparison names the image it was started from, by the reference the row shows (REQ-23).
+      await openRowOverflow(page, row);
+      await menuEntry(page, 'Compare with…').click();
+      await expect(page.getByText(`Started from ${tag}`, { exact: false })).toBeVisible();
+      await dismissView(page);
+    } finally {
+      await removeStandaloneImage(tag, containerName);
+    }
+  });
+
+  test('shows the invoked row\'s image while a panel is open on another, and leaves that panel exactly as it was', async ({ page }) => {
+    const runId = Date.now();
+    const panelContainer = `vexel-e2e-views-panel-src-a-${runId}`;
+    const viewContainer = `vexel-e2e-views-panel-src-b-${runId}`;
+    const panelTag = `vexel-e2e-views-panel-${runId}-a:v1`;
+    const viewTag = `vexel-e2e-views-panel-${runId}-b:v1`;
+    try {
+      await createStandaloneImage(panelTag, panelContainer);
+      await createStandaloneImage(viewTag, viewContainer);
+      await page.reload();
+      await searchField(page).fill(`vexel-e2e-views-panel-${runId}`);
+      await expect(imageRow(page, panelTag)).toBeVisible({ timeout: 10_000 });
+      await expect(imageRow(page, viewTag)).toBeVisible({ timeout: 10_000 });
+
+      await selectRow(imageRow(page, panelTag));
+      await expect(expandedPanel(page)).toBeVisible();
+      // Waited out on purpose: the panel grows from its loading state to its full height when the
+      // inspect payload lands, which moves every row below it. Opening the menu across that reflow
+      // is a race of this test's own making, not a behaviour of the product.
+      await expect(expandedPanel(page).getByText('Raw payload')).toBeVisible({ timeout: 15_000 });
+
+      await imageRow(page, viewTag).scrollIntoViewIfNeeded();
+      await openRowOverflow(page, imageRow(page, viewTag));
+      await menuEntry(page, 'Explore layers…').click();
+
+      // The view is the invoked row's, not the selected image's (REQ-14).
+      await expect(page.getByRole('heading', { name: `Layer stack — ${viewTag}` })).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByRole('heading', { name: `Layer stack — ${panelTag}` })).toHaveCount(0);
+      expect(await panelOwner(page)).toContain(panelTag);
+
+      await dismissView(page);
+
+      // The panel the operator had opened is exactly as they left it (REQ-15).
+      await expect(page.getByRole('heading', { name: `Layer stack — ${viewTag}` })).toHaveCount(0);
+      await expect(expandedPanel(page)).toHaveCount(1);
+      expect(await panelOwner(page)).toContain(panelTag);
+      await expect(imageRow(page, panelTag)).toHaveClass(/ui-data-table__row--selected/);
+    } finally {
+      await removeStandaloneImage(panelTag, panelContainer);
+      await removeStandaloneImage(viewTag, viewContainer);
+    }
+  });
+
+  // REQ-18 — the case the product has not had before: one of the four open with no panel beneath it. The open view holds
+  // the innermost claim on the key and consumes it, so nothing underneath is dismissed by it.
+  test('Escape with one of the four open dismisses nothing beneath it', async ({ page }) => {
+    const containerName = `vexel-e2e-views-escape-src-${Date.now()}`;
+    const tag = `vexel-e2e-views-escape-${Date.now()}:v1`;
+    try {
+      await createStandaloneImage(tag, containerName);
+      await page.reload();
+      await searchField(page).fill(tag);
+      const row = imageRow(page, tag);
+      await expect(row).toBeVisible({ timeout: 10_000 });
+
+      // First with no panel at all: nothing on the images list moves.
+      await openRowOverflow(page, row);
+      await menuEntry(page, 'Browse filesystem…').click();
+      const heading = page.getByRole('heading', { name: `Filesystem — ${tag}` });
+      await expect(heading).toBeVisible();
+
+      await page.keyboard.press('Escape');
+
+      await expect(heading).toBeVisible();
+      await expect(detailPanels(page)).toHaveCount(0);
+      await expect(row).not.toHaveClass(/ui-data-table__row--selected/);
+      await dismissView(page);
+
+      // Then with a panel open underneath: it is still open and the selection is unchanged.
+      await selectRow(row);
+      await expect(expandedPanel(page)).toBeVisible();
+      await openRowOverflow(page, row);
+      await menuEntry(page, 'Browse filesystem…').click();
+      await expect(heading).toBeVisible();
+
+      await page.keyboard.press('Escape');
+
+      await expect(heading).toBeVisible();
+      await expect(expandedPanel(page)).toBeVisible();
+      await expect(row).toHaveClass(/ui-data-table__row--selected/);
+
+      // The order already applied is unchanged: the panel takes the key once the view has gone.
+      await dismissView(page);
+      await expect(heading).toHaveCount(0);
+      await page.keyboard.press('Escape');
+      await expect(expandedPanel(page)).toHaveCount(0);
+    } finally {
+      await removeStandaloneImage(tag, containerName);
+    }
+  });
+
+  // REQ-19, softened during development after this measurement (see `batches.md`, "Settled during
+  // development"): while one of the four is open with no panel open, the point of interaction is the
+  // row control that opened it, and it is never on an element that no longer exists. Where it lands
+  // *after* the flow is dismissed is `Modal`'s established behaviour and is not this change's
+  // business, so nothing is asserted about it here.
+  test('leaves the point of interaction on the row control that opened the view, with no panel open', async ({ page }) => {
+    const containerName = `vexel-e2e-views-focus-src-${Date.now()}`;
+    const tag = `vexel-e2e-views-focus-${Date.now()}:v1`;
+    try {
+      await createStandaloneImage(tag, containerName);
+      await page.reload();
+      await searchField(page).fill(tag);
+      const row = imageRow(page, tag);
+      await expect(row).toBeVisible({ timeout: 10_000 });
+      await expect(detailPanels(page)).toHaveCount(0);
+
+      await openRowOverflow(page, row);
+      await menuEntry(page, 'Explore layers…').click();
+      const heading = page.getByRole('heading', { name: `Layer stack — ${tag}` });
+      await expect(heading).toBeVisible({ timeout: 15_000 });
+
+      // The menu handed the focus back to the row's own trigger before the view opened, and the
+      // trigger outlives the view: still in the images list, still part of the document.
+      const whileOpen = await pointOfInteraction(page);
+      expect(whileOpen, `the point of interaction while the view is open — measured ${JSON.stringify(whileOpen)}`).toMatchObject({
+        isDocument: false,
+        insideImagesList: true,
+        connected: true,
+        label: `More actions for ${tag}`,
+      });
+    } finally {
+      await removeStandaloneImage(tag, containerName);
+    }
+  });
+
+  // REQ-20 — none of the four outlives its image: removed in the operator's own terminal while a view is open on it,
+  // the view resolves itself instead of standing there showing an image that no longer exists.
+  test('resolves an open view when its image is removed from another terminal', async ({ page }) => {
+    const containerName = `vexel-e2e-views-gone-src-${Date.now()}`;
+    const tag = `vexel-e2e-views-gone-${Date.now()}:v1`;
+    try {
+      await createStandaloneImage(tag, containerName);
+      await page.reload();
+      await searchField(page).fill(tag);
+      const row = imageRow(page, tag);
+      await expect(row).toBeVisible({ timeout: 10_000 });
+
+      await openRowOverflow(page, row);
+      await menuEntry(page, 'Explore layers…').click();
+      const heading = page.getByRole('heading', { name: `Layer stack — ${tag}` });
+      await expect(heading).toBeVisible({ timeout: 15_000 });
+
+      // Removed outside the application, exactly as the daemon's own events reach it.
+      await execFileAsync('docker', ['rm', '-fv', containerName]).catch(() => undefined);
+      await removeTagQuietly(tag);
+
+      await expect(heading).toHaveCount(0, { timeout: 20_000 });
+      await expect(imageRow(page, tag)).toHaveCount(0);
+    } finally {
+      await removeStandaloneImage(tag, containerName);
+    }
+  });
+
+  // REQ-26 — the comparison's availability follows the live list: an image appearing from outside the application is
+  // offered as the second side at the next opening, with no reload.
+  test('offers an image that appeared while the screen was open as the comparison\'s second side', async ({ page }) => {
+    const runId = Date.now();
+    const containerName = `vexel-e2e-views-live-src-${runId}`;
+    const laterContainer = `vexel-e2e-views-live-src-b-${runId}`;
+    const tag = `vexel-e2e-views-live-${runId}-a:v1`;
+    const laterTag = `vexel-e2e-views-live-${runId}-b:v1`;
+    try {
+      await createStandaloneImage(tag, containerName);
+      await page.reload();
+      await searchField(page).fill(`vexel-e2e-views-live-${runId}`);
+      const row = imageRow(page, tag);
+      await expect(row).toBeVisible({ timeout: 10_000 });
+      await expect(imageRow(page, laterTag)).toHaveCount(0);
+
+      // Built from outside the application, with the screen open and never reloaded.
+      await createStandaloneImage(laterTag, laterContainer);
+      await expect(imageRow(page, laterTag)).toBeVisible({ timeout: 20_000 });
+
+      await openRowOverflow(page, row);
+      const compare = menuEntry(page, 'Compare with…');
+      await expect(compare).not.toHaveAttribute('aria-disabled', 'true');
+      await compare.click();
+
+      const modal = page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: 'Compare filesystems' }) });
+      await expect(modal).toBeVisible();
+      await modal.getByLabel('Second image').selectOption({ label: laterTag });
+      await expect(modal.getByLabel('Second image')).toHaveValue(/./);
+    } finally {
+      await removeStandaloneImage(laterTag, laterContainer);
       await removeStandaloneImage(tag, containerName);
     }
   });

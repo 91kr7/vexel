@@ -21,12 +21,29 @@ function imageRow(page: Page, text: string) {
   return page.locator('.ui-data-table__row', { hasText: text });
 }
 
+/** Selects a row by clicking a non-action cell (the action group swallows its own clicks). */
 async function selectRow(row: ReturnType<typeof imageRow>): Promise<void> {
   await row.locator('.ui-data-table__cell').first().click();
 }
 
 function searchField(page: Page) {
   return page.getByPlaceholder('Search reference or digest…');
+}
+
+/**
+ * Opens one of the image's four analyses from the row's own overflow menu — the entry point they all
+ * have now that they are the screen's views rather than the detail panel's
+ * (images/specs/images-screen.md).
+ */
+async function chooseRowAction(page: Page, row: ReturnType<typeof imageRow>, label: string): Promise<void> {
+  // The opening is retried as a whole: the list keeps re-reading from the daemon's own events, and a
+  // re-read that replaces the row takes its trigger — and with it the menu — as it is meant to
+  // (ui-library/specs/menu.md). Same precedent as the keyboard case in `images.spec.ts`.
+  await expect(async () => {
+    await row.getByRole('button', { name: /^More actions for / }).click();
+    await expect(page.getByRole('menu')).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await page.getByRole('menuitem', { name: label, exact: true }).click();
 }
 
 function filesystemBrowserModal(page: Page, title: string) {
@@ -53,11 +70,13 @@ test('browses the complete filesystem of an image without running it, lazily exp
     await searchField(page).fill(tag);
     const row = imageRow(page, tag);
     await expect(row).toBeVisible({ timeout: 10_000 });
-    await selectRow(row);
 
-    await page.getByRole('button', { name: 'Browse filesystem…' }).click();
+    // Opened from the row's own menu with no row selected and no detail panel open — the case that
+    // did not exist while the browser was the panel's (panel_actions_to_menu/REQ-13, REQ-30).
+    await chooseRowAction(page, row, 'Browse filesystem…');
     const modal = filesystemBrowserModal(page, `Filesystem — ${tag}`);
     await expect(modal).toBeVisible();
+    await expect(page.locator('.ui-detail-panel')).toHaveCount(0);
     await expect(modal.getByText('Filesystem not extracted yet')).toBeVisible();
 
     await modal.getByRole('button', { name: 'Browse filesystem…' }).click();
@@ -101,8 +120,7 @@ test('warns about the cost before extracting, and cancelling returns to the not-
     await searchField(page).fill(tag);
     const row = imageRow(page, tag);
     await expect(row).toBeVisible({ timeout: 10_000 });
-    await selectRow(row);
-    await page.getByRole('button', { name: 'Browse filesystem…' }).click();
+    await chooseRowAction(page, row, 'Browse filesystem…');
     const modal = filesystemBrowserModal(page, `Filesystem — ${tag}`);
 
     await modal.getByRole('button', { name: 'Browse filesystem…' }).click();
@@ -141,8 +159,7 @@ test('reuses the cached extraction the next time the image is browsed', async ({
     await searchField(page).fill(tag);
     const row = imageRow(page, tag);
     await expect(row).toBeVisible({ timeout: 10_000 });
-    await selectRow(row);
-    await page.getByRole('button', { name: 'Browse filesystem…' }).click();
+    await chooseRowAction(page, row, 'Browse filesystem…');
     const modal = filesystemBrowserModal(page, `Filesystem — ${tag}`);
 
     await modal.getByRole('button', { name: 'Browse filesystem…' }).click();
@@ -152,17 +169,24 @@ test('reuses the cached extraction the next time the image is browsed', async ({
     await progressDialog.getByRole('button', { name: 'Close' }).click();
     await expect(modal.getByText('Freshly extracted')).toBeVisible();
 
-    // Closes the browser's own Modal first (overlay click, away from its content — the modal is
-    // still covering the row underneath), then closes the detail panel entirely (discarding the
-    // browser's client-side state) and reopens it from scratch for the same image. The panel has
-    // no close control: its own row is what closes it, and selecting that row again reopens it
+    // Closes the browser's own Modal (overlay click, away from its content — the modal is still
+    // covering the row underneath), which discards its client-side state entirely: only the open
+    // view is rendered, so nothing of it survives the closing. Reopened from the row's menu, the
+    // browser is back at its unextracted prompt and the extraction is asked for again — which is
+    // what makes the second one a genuine question to the server's cache
     // (images/specs/images-screen.md).
     await page.locator('.ui-modal-overlay').click({ position: { x: 5, y: 5 } });
     await expect(modal).toHaveCount(0);
+
+    // change-3's own dismissal check, kept: the panel offers no close control — its row opens it and
+    // selecting that row again closes it. It no longer stands in for discarding the browser's state,
+    // which closing the view does on its own.
     await selectRow(imageRow(page, tag));
-    await expect(page.locator('.ui-data-table__expanded')).toHaveCount(0);
+    await expect(page.locator('.ui-detail-panel')).toHaveCount(1);
     await selectRow(imageRow(page, tag));
-    await page.getByRole('button', { name: 'Browse filesystem…' }).click();
+    await expect(page.locator('.ui-detail-panel')).toHaveCount(0);
+
+    await chooseRowAction(page, imageRow(page, tag), 'Browse filesystem…');
     const reopenedModal = filesystemBrowserModal(page, `Filesystem — ${tag}`);
     await expect(reopenedModal.getByText('Filesystem not extracted yet')).toBeVisible();
 

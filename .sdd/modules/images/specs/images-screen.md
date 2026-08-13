@@ -33,13 +33,25 @@ Shows:
   `<none> (<short id>)` for a dangling image, so two dangling rows are still told apart. The column
   is sized from the library's menu-only action column token, not from the wider button one, so the
   data columns beside it take that width back.
-- Its menu holds exactly six entries, always all six, always in this order: `Run…`, `Tag…`, `Untag`,
-  `Push…`, `Save`, then — set apart as a group, in the destructive tone and carrying the hint
-  `rmi` — `Remove`. No other entry carries a hint: the remaining labels are the CLI verbs already.
-  The ellipsis follows what each operation does rather than the label's shape: `Run…`, `Tag…` and
-  `Push…` ask for something before they act, `Untag` (single-tag case), `Save` and `Remove` do not.
-- On a dangling image the same six entries appear in the same order, `Untag` and `Push…` disabled
+- Its menu holds exactly ten entries, always all ten, always in this order, read as three groups
+  marked by separation and tone alone — no heading, no group label, no icon:
+  - `Explore layers…`, `Efficiency & signals…`, `Browse filesystem…`, `Compare with…` — the image's
+    own four analyses, none of them carrying a hint;
+  - a separator, then `Run…`, `Tag…`, `Untag`, `Push…`, `Save`;
+  - a separator, then — in the destructive tone and carrying the hint `rmi` — `Remove`.
+  `Remove` is the only entry carrying a hint: every other label is the CLI verb or the analysis's own
+  words already. The ellipsis follows what each operation does rather than the label's shape: the
+  four analyses, `Run…`, `Tag…` and `Push…` ask for something (a view to work in, a value) before
+  anything happens, `Untag` (single-tag case), `Save` and `Remove` do not.
+- On a dangling image the same ten entries appear in the same order, `Untag` and `Push…` disabled
   and stating why ("This image has no tags to untag." / "…to push.") rather than removed.
+- `Explore layers…`, `Efficiency & signals…` and `Browse filesystem…` apply to every image and are
+  never disabled. `Compare with…` is disabled — shown in place, never removed — when the unfiltered
+  list holds fewer than two images, and its reason states the condition of **the list** ("There is no
+  second image in the list to compare with."), deliberately unlike `Untag`/`Push…`, whose reasons are
+  facts about *this* image: an entry greyed because an unrelated image was deleted must not read as a
+  fault of this row. The condition follows the live list, so an image appearing or vanishing from
+  outside the application makes the entry available or unavailable at the next opening.
 - Selecting a row expands an `ImageDetailPanel` with its inspect data directly below it; the
   expanded region carries the panel alone, with no row control inside it.
 - An empty/loading state inside the table area when there are no matching images.
@@ -68,6 +80,39 @@ Actions:
   own progress from here.
 - The `BulkActionBar`'s "Compare filesystems…" action, enabled only when exactly two images are
   selected, opens the `ImageDiffView` with both pre-picked and clears the selection (REQ-63).
+
+Actions (the image's four analysis views):
+- `Explore layers…`, `Efficiency & signals…`, `Browse filesystem…` and `Compare with…` open the
+  `LayerExplorer`, the `LayerEfficiencyView`, the `FilesystemBrowser` and the `ImageDiffView` — views
+  the **screen** presents, not the detail panel's. Each opens, shows its content and stays open with
+  no detail panel open anywhere on the screen; whether a panel happens to be open has no bearing on
+  whether one opens, on what it shows or on whether it stays open.
+- Each acts on **the image whose row menu opened it** — never the selected one, never the one an open
+  panel is showing — and stays on it however the list re-sorts, re-reads, gains or loses rows, the
+  image being resolved from the live list by id.
+- Opening one opens no detail panel and changes nothing about the selection; closing one closes no
+  detail panel and changes nothing about the selection. A panel the operator had opened is exactly as
+  they left it when the view closes.
+- At most one of the four is on screen at a time: opening one closes whichever was already open.
+- `Compare with…` opens the comparison with the row's image as the first side and the second side
+  unchosen, chosen inside the view; the bulk `Compare filesystems…` opens the same one view with both
+  sides pre-chosen. Neither shape leaves its operands behind for a later opening of the other.
+- Closing one of the four leaves the point of interaction where the menu left it — on the row's
+  overflow trigger, which is in the images list and outlives the view — since the `Menu` returns the
+  focus to its trigger before the view opens and no dialog moves it afterwards.
+- `Escape` with one of the four open dismisses nothing beneath it: the view holds the innermost claim
+  on the key through the library's one arbitration registry and consumes it, so a panel open
+  underneath stays open, the selection does not change and nothing on the list moves. Whether the key
+  also closes the view is `Modal`'s own established behaviour (it does not) and is unchanged.
+- None of the four outlives its image: when the image a view is showing is no longer in the
+  **unfiltered** list — removed from that very menu, pruned, or removed or re-tagged outside the
+  application — the view resolves itself rather than staying open on an image that no longer exists.
+  Compared once the list has been read, exactly as the selection is: an image merely hidden by the
+  search has not left the list, and a list not yet read says nothing about either.
+- The efficiency and signals view's hand-off is the screen's now: choosing a finding closes that view
+  and opens the layer explorer at the layer it concerns with the analysis already primed (past the
+  cost warning), and the findings map it reports marks the layers carrying findings in the layer
+  explorer — for that image alone, and only once the view has been analysed at least once.
 - "Load tarball…" opens a `FormDialog` with a `FilePicker` for a local tarball (REQ-42); submitting
   closes that dialog and opens a `TransferProgressDialog` driven by `useFileUpload`, showing upload
   byte progress with a genuine cancel while it runs, the references loaded once it ends (Close
@@ -95,18 +140,21 @@ Actions (selection and dismissal):
   come back unchanged when the search is cleared.
 
 Navigation:
-- Arriving here from a build-cache record's reference (REQ-69) selects the named image and hands its
-  detail panel the layer to open at, then acknowledges the navigation request. The layer focus
-  applies only to the image it names: selecting another row afterwards never inherits it.
+- Arriving here from a build-cache record's reference (REQ-69) selects the named image — its panel
+  opening as it always did — and opens the layer explorer on that image at the layer it names, on
+  arrival and again on every later request, then acknowledges the navigation request. Changesets stay
+  behind their cost warning, nothing here saying they are already cached. The layer focus applies
+  only to the image it names: selecting another row afterwards never inherits it.
 
 ## Rules and invariants
 
 - "Prune dangling" is disabled when no image is currently dangling (untagged).
 - `Push…` and `Untag` are disabled for a dangling image (no reference to act on), and every disabled
   entry carries the reason it is unavailable, so a greyed entry is legible as "not for this image,
-  because…" rather than as broken.
-- Every row's menu offers the same six entries in the same order at every opening, on every image,
-  whatever its tags: the order never differs between two openings.
+  because…" — or, for `Compare with…` alone, as "not while the list holds only this one" — rather
+  than as broken.
+- Every row's menu offers the same ten entries in the same order at every opening, on every image,
+  whatever its tags and whatever else the list holds: the order never differs between two openings.
 - A menu's entries are bound to the image its row was rendered for, so the list re-reading or
   re-sorting under an open menu can never point an entry at another image; the menu belongs to the
   row's identity (the image id) and goes with it if that image leaves the list.
@@ -116,8 +164,14 @@ Navigation:
   glyph appears anywhere on the row, and opening the menu never also selects the row.
 - This screen contributes no markup and no styling of its own for the action area: it is one
   `ActionButtonGroup` with an empty action list and its trailing `Menu`, and the sizing is a library
-  token. One menu open at a time, non-clipping, keyboard-operable, focus returned to the trigger and
-  the innermost `Escape` claimant on this screen are the library's, by consuming it unchanged.
+  token — four more entries make the popup taller, never the trigger wider, and no length is written
+  here. One menu open at a time, non-clipping over ten entries, keyboard-operable, focus returned to
+  the trigger and the innermost `Escape` claimant on this screen are the library's, by consuming it
+  unchanged. The screen adds no overlay surface, no blur and no filter of its own.
+- The screen holds **one** comparison view, serving both shapes of the operation: the row shape (one
+  operand) and the bulk shape (two). Which of the four views is open, and the image it was opened on,
+  is one piece of state, so two of them can never be on screen together and none can be pointed at an
+  image other than the one whose menu opened it.
 - Only one image row can be expanded at a time, and it is the selected one.
 - The selection never outlives its image. Compared against the unfiltered list, and only once the
   list has actually been read: an image id is a digest of its content, so the same content pulled or
@@ -140,7 +194,7 @@ Navigation:
   TransferProgressDialog, FilePicker, triggerDownload, TextField, Select, Card, ErrorBanner,
   EmptyState, Stack, useToast
 - Images client, useImageTransferStream, useFileUpload
-- ImageDetailPanel, ImageDiffView
+- ImageDetailPanel, LayerExplorer, LayerEfficiencyView, FilesystemBrowser, ImageDiffView
 - containers: ContainerCreateForm, Container transfer client
 - app-shell: ConfirmationService, ProgressService, ErrorReportingService, CrossNavigationService
 
@@ -154,7 +208,12 @@ Navigation:
 - plan-docker_management_app/REQ-29
 - plan-docker_management_app/REQ-42
 - plan-docker_management_app/REQ-43
+- plan-docker_management_app/REQ-47
+- plan-docker_management_app/REQ-52
 - plan-docker_management_app/REQ-63
+- plan-docker_management_app/REQ-65
+- plan-docker_management_app/REQ-66
+- plan-docker_management_app/REQ-67
 - plan-docker_management_app/REQ-69
 - plan-docker_management_app-image_row_actions/REQ-1
 - plan-docker_management_app-image_row_actions/REQ-2
@@ -183,3 +242,30 @@ Navigation:
 - plan-docker_management_app-image_row_actions/REQ-30
 - plan-docker_management_app-image_row_actions/REQ-33
 - plan-docker_management_app-image_row_actions/REQ-37
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-4
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-5
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-6
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-7
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-8
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-9
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-10
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-11
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-12
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-13
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-14
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-15
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-16
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-17
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-18
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-19
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-20
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-21
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-22
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-24
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-25
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-26
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-31
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-32
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-33
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-34
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-35

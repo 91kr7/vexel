@@ -15,15 +15,25 @@ side by side (REQ-63, REQ-64).
 
 - `<ImageDiffView images initialImageAId? initialImageBId? open onClose />` — `images:
   ImageSummary[]`, offered as the pick-list for both sides; `initialImageAId?`/`initialImageBId?`
-  pre-select one or both sides (a two-image bulk selection gives both, an image's "Compare with…"
-  action gives only its own id); `open` shows the view, resetting its picks to the initial ids each
+  pre-select one or both sides; `open` shows the view, resetting its picks to the initial ids each
   time it opens.
+- **One view, two shapes of the operation, and this is a constraint on the view rather than a note
+  about its callers.** The *bulk* shape supplies **both** operands (two checked rows) and opens with
+  both pre-chosen; the *row* shape supplies **only** the first one (the row whose menu started it)
+  and opens with the second unchosen, to be picked inside the view. Both work, in either order and
+  repeatedly, and neither leaves its operands behind for a later opening of the other.
 
 Description:
 - A large `Modal` holding two `Select`s (with a "vs" `Badge` between them) to choose or change the
   two images, then — once a comparison has run — a `StatusPill` summarising the counts and a
   `SplitPane` pairing a `DiffTreeView` of the difference with the selected path's detail.
 Shows:
+- In the row shape (a first side supplied, no second), a line **stating in words which image the
+  comparison was started from**, by the same reference the pick-list shows it under, so the operator
+  reads which side is theirs instead of inferring it from a pre-filled `Select`. The operand is
+  stated, **not pinned**: it stays changeable, and the line is shown only while the first side is
+  still the one the comparison was started from. The bulk shape, which pre-chooses both sides, shows
+  no such line. The `Modal`'s own title is "Compare filesystems" in both shapes.
 - Before any comparison: an `EmptyState` inviting the operator to pick two images and compare.
 - After a comparison: the `StatusPill` ("`<n>` added · `<n>` removed · `<n>` changed"), the
   `DiffTreeView` (status-filterable, lazily expanded one directory level at a time), and — once a
@@ -55,12 +65,16 @@ Actions:
   new comparison, replaces it.
 - Reopening the view (a fresh `open`) always resets the picked images to `initialImageAId`/
   `initialImageBId`, the tree state and the status filter, so a stale comparison from a previous
-  pair is never shown against a new pick.
+  pair is never shown against a new pick — and so an operand supplied by one shape of the operation
+  can never survive into an opening of the other.
+- A comparison of an image with itself cannot be started: "Compare" stays unavailable while either
+  side is unchosen or both name the same image.
 
 ## Dependencies
 
 - ui-library: Modal, Select, Badge, Row, Stack, SplitPane, DiffTreeView, DefinitionList,
-  SideBySideViewer, EmptyState, Spinner, StatusPill, ConfirmDialog, TransferProgressDialog, Button
+  SideBySideViewer, EmptyState, FieldMessage, Spinner, StatusPill, ConfirmDialog,
+  TransferProgressDialog, Button
 - useImageDiffStream, useImageDiffTree, Image diff client
 - useImageFilesystemEntryContent (paired content reads, one call per side)
 
@@ -68,3 +82,7 @@ Actions:
 
 - plan-docker_management_app/REQ-63
 - plan-docker_management_app/REQ-64
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-23
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-24
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-27
+- plan-docker_management_app-image_row_actions-panel_actions_to_menu/REQ-35

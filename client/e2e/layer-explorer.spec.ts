@@ -32,6 +32,22 @@ function searchField(page: Page) {
   return page.getByPlaceholder('Search reference or digest…');
 }
 
+/**
+ * Opens one of the image's four analyses from the row's own overflow menu — the entry point they
+ * all have now that they are the screen's views rather than the detail panel's
+ * (images/specs/images-screen.md).
+ */
+async function chooseRowAction(page: Page, row: ReturnType<typeof imageRow>, label: string): Promise<void> {
+  // The opening is retried as a whole: the list keeps re-reading from the daemon's own events, and a
+  // re-read that replaces the row takes its trigger — and with it the menu — as it is meant to
+  // (ui-library/specs/menu.md). Same precedent as the keyboard case in `images.spec.ts`.
+  await expect(async () => {
+    await row.getByRole('button', { name: /^More actions for / }).click();
+    await expect(page.getByRole('menu')).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await page.getByRole('menuitem', { name: label, exact: true }).click();
+}
+
 function layerExplorerModal(page: Page, title: string) {
   return page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: title }) });
 }
@@ -66,14 +82,18 @@ test.beforeEach(async ({ page }) => {
 
 // plan-docker_management_app/REQ-47, plan-docker_management_app/REQ-48 — a registry-pulled image
 // (never built locally) shows its whole layer stack, with the compressed size marked unavailable.
-test('opens the layer explorer from the image detail panel and shows the ordered layer stack for a registry-pulled image', async ({ page }) => {
+// Opened from the row's own menu with **no row selected and no detail panel open** — the case that did
+// not exist while the explorer was the panel's (panel_actions_to_menu/REQ-13, REQ-30).
+test('opens the layer explorer from the row menu with no panel open, and shows the ordered layer stack for a registry-pulled image', async ({ page }) => {
   await searchField(page).fill('registry');
   const row = imageRow(page, 'registry:2');
   await expect(row).toBeVisible({ timeout: 10_000 });
-  await selectRow(row);
 
-  await page.getByRole('button', { name: 'Explore layers…' }).click();
+  await chooseRowAction(page, row, 'Explore layers…');
 
+  // No panel opened behind it, and no row became selected.
+  await expect(page.locator('.ui-data-table__expanded')).toHaveCount(0);
+  await expect(page.locator('.ui-data-table__row--selected')).toHaveCount(0);
   const modal = layerExplorerModal(page, 'Layer stack — registry:2');
   await expect(modal).toBeVisible();
   // SIGNALS marks the layers carrying an efficiency or secret finding, and CACHE the build-cache
@@ -97,8 +117,7 @@ test('warns about cost before analyzing, and cancelling closes the progress dial
     await searchField(page).fill(tag);
     const row = imageRow(page, tag);
     await expect(row).toBeVisible({ timeout: 10_000 });
-    await selectRow(row);
-    await page.getByRole('button', { name: 'Explore layers…' }).click();
+    await chooseRowAction(page, row, 'Explore layers…');
 
     const modal = layerExplorerModal(page, `Layer stack — ${tag}`);
     await waitForLayerStack(page, modal);
@@ -145,8 +164,7 @@ test('keeps the changeset browsable after closing the dialog, and layer selectio
     await searchField(page).fill(tag);
     const row = imageRow(page, tag);
     await expect(row).toBeVisible({ timeout: 10_000 });
-    await selectRow(row);
-    await page.getByRole('button', { name: 'Explore layers…' }).click();
+    await chooseRowAction(page, row, 'Explore layers…');
 
     const modal = layerExplorerModal(page, `Layer stack — ${tag}`);
     await waitForLayerStack(page, modal);
