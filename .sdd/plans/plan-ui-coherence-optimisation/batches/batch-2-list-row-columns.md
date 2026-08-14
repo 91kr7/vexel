@@ -45,3 +45,40 @@ screens.
   columns, not the table's; nothing here touches its rule, its property set or its content classes,
   and its column counts must be identical at the same measured section width afterwards.
 - No blur, no `style`, no raw tag, no hard-coded length outside `tokens.css`.
+
+## The expanded detail panel pans with the row — decided here, confirmed or overturned in batch 5
+
+Recorded because it is a product decision, not a side effect, and because the second half of it will
+look like a regression to whoever measures the panel at 375px without having read this.
+
+**What changed, and only at 375×812.** The repair makes a row grow to the width its columns need and
+lets the table pan; the expansion (`renderExpanded`) is part of that scrollable content, so it is laid
+out at the row's width. Measured on containers: the panel was **333px** wide on the delivered build
+and is **907px** now — the row's own width — and it pans with the table rather than sitting still
+inside it. Its height fell from 635px to 355px, having width to lay out in at last. **Nothing about it
+changes at any desktop width**: `{x:301, y:319, w:958, h:355}` at 1280×800 and `{x:301, y:319, w:1118,
+h:355}` at 1440×1000, before and after, identical. The cost is real and it is the operator's: on a
+phone, reading a detail panel now means panning horizontally.
+
+**Why alignment with the row rather than pinning to the viewport.** A panel held at the viewport's
+width while the table pans underneath it parts company with the row that opened it: the row's cells
+slide, the panel does not, and at any non-zero scroll offset the panel's left edge is somewhere in the
+middle of the row above it, with blank space beside it. The panel is an expansion *of a row*, so it
+keeps the row's box. The alternative — treating the panel as an expansion of the **viewport**, pinned
+and full-width against the visible region, with the table panning behind it — is coherent too, and it
+is the one that would spare the operator the pan.
+
+**Batch 5 is where that choice is made or unmade.** REQ-23 has `DetailPanel` "always the full width of
+the screen's content column"; at 375px, with the table panning, "full width" has two readings — the
+row's width (this batch's) and the viewport's (the pinned one). Batch 5 writes that contract for the
+primitive every migrated screen will use, so it must state which one it means rather than inherit this
+one silently. Whatever it decides is expressed on the component, never at a call site.
+
+**The bug-4 note, so it is not read as a regression.**
+`plan-docker_management_app-detail_property_columns`' rule is untouched — same rule, same property
+set, same content classes, and the same column count at the same measured section width. What moved at
+375px is the **section's width**, from 333px to 907px, and that rule is width-driven by design: more
+width, more bands. A 375-wide check of the property columns therefore legitimately sees more bands than
+the delivered build did, and a check that pins the delivered count at 375px is asserting the old
+section width, not bug-4's rule. At 1440×1000 and 1280×800 the counts are unchanged, because the
+section width is unchanged.

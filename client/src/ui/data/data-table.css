@@ -1,6 +1,20 @@
+/* The table is the region that pans horizontally when its columns' minimums
+   exceed the width it was given. It has to be this element and not the body's
+   own scroll region, because the header row is laid out on the same tracks as
+   the rows and lives outside that region: whichever box scrolls has to carry
+   both, or a column would part company with the label naming it. */
 .ui-data-table {
   display: flex;
   flex-direction: column;
+  overflow-x: auto;
+}
+
+/* The body's scroll region is sized to the width its rows ask for, so it never
+   scrolls horizontally itself — it hands that overflow up to the table above,
+   where the header can follow it. Vertical scrolling (`maxHeight`) is untouched
+   and stays here. */
+.ui-data-table > .ui-scroll-area {
+  min-width: min-content;
 }
 
 /* The region is focusable only to receive the point of interaction back; a ring
@@ -17,6 +31,7 @@
 
 .ui-data-table__header {
   display: grid;
+  min-width: min-content;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-4);
   border-bottom: var(--border-width-hairline) solid var(--color-border-subtle);
@@ -39,12 +54,30 @@
   width: 100%;
 }
 
+/* `min-content` here is the sum of the tracks' own minimums (plus the gaps and
+   the padding): the row grows to the width its columns need instead of dividing
+   a width that is not enough between them, which is what the table above then
+   scrolls. The header carries the same rule and the same tracks, so the two
+   resolve to identical column widths and stay aligned however far it is
+   scrolled.
+
+   The row no longer clips on the inline axis: clipping there hid the overflow
+   from the scroll region instead of letting it be scrolled — `scrollWidth 432 /
+   clientWidth 333` on the row while the scroll area around it reported
+   `scrollWidth === clientWidth` and so offered nothing to drag. What that
+   clipping did protect is the block axis, and `clip` keeps exactly that: content
+   taller than the fixed `rowHeight` is still cut rather than spilling into the
+   row below. `visible` + `clip` is the one mixed pair the two properties keep as
+   written; `visible` beside `hidden` would compute back to `auto` and make the
+   row a scroll container again. */
 .ui-data-table__row {
   display: grid;
   align-items: center;
+  min-width: min-content;
   gap: var(--space-3);
   padding: 0 var(--space-4);
-  overflow: hidden;
+  overflow-x: visible;
+  overflow-y: clip;
   border-bottom: var(--border-width-hairline) solid var(--color-border-subtle);
 }
 
@@ -62,6 +95,14 @@
   background: var(--color-accent-tint);
 }
 
+/* The cell keeps waiving its automatic minimum, and that is what makes the
+   track's minimum the one number in charge. Restored, the automatic minimum is
+   the cell's own min-content — for the single-line, `nowrap` values these cells
+   carry, the whole string — so a column would be as wide as its longest value,
+   at every width: a 64-character digest would demand ~500px, the ellipsis
+   truncation the delivered desktop layout is built on would never happen again,
+   and the row's width would follow the data rather than the design. The floor
+   under a column is declared, per track, in `DataTable`'s `columnTrack`. */
 .ui-data-table__cell {
   min-width: 0;
   font-size: var(--font-size-sm);

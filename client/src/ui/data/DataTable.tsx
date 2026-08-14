@@ -8,6 +8,12 @@ export interface DataTableColumn<T> {
   header: string;
   /** `grid-template-columns` track for this column (default `1fr`). */
   width?: string;
+  /**
+   * The width this column may never resolve below. Defaults, for a flexible
+   * `width`, to the flex factor times `--data-table-column-min-width`; a length
+   * or an explicit `minmax()` `width` already states its own minimum.
+   */
+  minWidth?: string;
   align?: 'start' | 'end';
   render: (row: T) => ReactNode;
 }
@@ -48,6 +54,27 @@ export interface DataTableProps<T> {
 
 const OVERSCAN_ROWS = 6;
 
+const FLEXIBLE_WIDTH = /^\s*(\d*\.?\d+)fr\s*$/;
+
+/**
+ * A column's `grid-template-columns` track, carrying the minimum below which it
+ * may not resolve. A flexible width becomes `minmax(factor × minimum, n fr)`:
+ * scaling the minimum by the flex factor is what keeps a compressed table's
+ * columns in the proportions they were declared with rather than equalising
+ * them, and what keeps the minimum inert at the widths where the fractions
+ * already resolve wider. A width that is a length or an already-written
+ * `minmax()` states its own minimum and is used as given.
+ */
+function columnTrack(column: { width?: string; minWidth?: string }): string {
+  const width = column.width ?? '1fr';
+  const flexFactor = FLEXIBLE_WIDTH.exec(width)?.[1];
+  if (flexFactor === undefined) return column.minWidth ? `minmax(${column.minWidth}, ${width})` : width;
+  const minimum =
+    column.minWidth ??
+    (Number(flexFactor) === 1 ? 'var(--data-table-column-min-width)' : `calc(${flexFactor} * var(--data-table-column-min-width))`);
+  return `minmax(${minimum}, ${width})`;
+}
+
 /**
  * Dense data table with column definitions, hover/selected row states, and
  * virtualised scrolling when `maxHeight` is set (REQ-109): only the rows in
@@ -85,9 +112,8 @@ export function DataTable<T>({
     setScrollTop(event.currentTarget.scrollTop);
   }
 
-  const gridTemplateColumns = (selection ? ['36px', ...columns.map((column) => column.width ?? '1fr')] : columns.map((column) => column.width ?? '1fr')).join(
-    ' ',
-  );
+  const columnTracks = columns.map((column) => columnTrack(column));
+  const gridTemplateColumns = (selection ? ['36px', ...columnTracks] : columnTracks).join(' ');
   const headerRowStyle: CSSProperties = { gridTemplateColumns };
 
   const virtualized = Boolean(maxHeight) && !autoRowHeight;
