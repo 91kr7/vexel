@@ -231,6 +231,12 @@
   .ui-frame__rail {
     position: fixed;
     inset: var(--space-3) auto var(--space-3) var(--space-3);
+    /* Sized by its own two insets, which is what `height: 100%` above defeats:
+       a fixed box with a top, a bottom and a height is over-constrained, the
+       height wins and the bottom inset is dropped — so the drawer measured a
+       whole viewport starting --space-3 down it, and hung that much of its card
+       (and the entries in it) below the bottom edge. */
+    height: auto;
     z-index: var(--z-overlay);
     width: 280px;
     max-width: 82vw;

@@ -14,7 +14,7 @@
 | CollapsibleSection | UI component | `client/src/ui/glass/CollapsibleSection.tsx` | Titled section of a detail surface that expands/collapses its content | `specs/collapsible-section.md` |
 | DetailPanel | UI component | `client/src/ui/glass/DetailPanel.tsx` | Detail surface for a selected object: header with title/subtitle, trailing actions and a body, presented either with its close control or without one — closed by the gesture that opened it and by `Escape` | `specs/detail-panel.md` |
 | StateSummaryBar | UI component | `client/src/ui/glass/StateSummaryBar.tsx` | Full-width strip stating a subsystem's condition: state dot, the state in words, a monospace facts line and trailing actions | `specs/state-summary-bar.md` |
-| Frame | UI component | `client/src/ui/layout/Frame.tsx` | Application frame: rail / header / content / footer as floating glass panels over the Backdrop; owns the responsive breakpoints and the phone off-canvas rail drawer | `specs/frame.md` |
+| Frame | UI component | `client/src/ui/layout/Frame.tsx` | Application frame: rail / header / content / footer as floating glass panels over the Backdrop; owns the responsive breakpoints, the phone off-canvas rail drawer and the rail's viewport-bounded sizing wrapper | `specs/frame.md` |
 | Stack | UI component | `client/src/ui/layout/Stack.tsx` | Vertical flex layout primitive | `specs/layout-primitives.md` |
 | Row | UI component | `client/src/ui/layout/Row.tsx` | Horizontal flex layout primitive with alignment helpers | `specs/layout-primitives.md` |
 | Grid | UI component | `client/src/ui/layout/Grid.tsx` | CSS-grid layout primitive, with the named `pair` arrangement (two equal columns, stacking when its own box cannot carry both) | `specs/layout-primitives.md` |
@@ -24,7 +24,7 @@
 | BandStack | UI component | `client/src/ui/layout/BandStack.tsx` | Vertical arrangement of intrinsic chrome bands above the single region that absorbs the remaining height; bounded by what it is placed in, and accepting no length from the caller | `specs/band-stack.md` |
 | Spacer | UI component | `client/src/ui/layout/Spacer.tsx` | Flexible spacer for Row/Stack siblings | `specs/layout-primitives.md` |
 | SplitPane | UI component | `client/src/ui/layout/SplitPane.tsx` | Two-pane surface — a fixed-width side next to a flexible one, divided by a hairline — for a tree/list next to its detail view; optionally filling the region it is placed in, top-aligning the trailing pane and stacking below the phone breakpoint | `specs/split-pane.md` |
-| NavRail, NavBrand | UI component | `client/src/ui/navigation/NavRail.tsx` | Persistent left navigation rail and its brand mark | `specs/navigation-primitives.md` |
+| NavRail, NavBrand | UI component | `client/src/ui/navigation/NavRail.tsx` | Persistent left navigation rail and its brand mark; bounds its own content, scrolls the entries that do not fit the rail and fades the entry meeting the cut | `specs/navigation-primitives.md` |
 | NavGroup | UI component | `client/src/ui/navigation/NavGroup.tsx` | Labeled group of navigation entries | `specs/navigation-primitives.md` |
 | NavItem | UI component | `client/src/ui/navigation/NavItem.tsx` | Single navigation entry: glyph, label, active state, count badge | `specs/navigation-primitives.md` |
 | FooterStatus | UI component | `client/src/ui/navigation/FooterStatus.tsx` | Footer status block (e.g. active Docker context) | `specs/navigation-primitives.md` |
