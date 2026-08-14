@@ -178,8 +178,9 @@
   min-width: 0;
 }
 
+/* `flex: none` is the truncation contract's (`.ui-truncating-meta`): the inline
+   action keeps its width whatever the text beside it is. */
 .ui-table-two-line-cell__action {
-  flex: none;
   opacity: 0;
 }
 
@@ -188,21 +189,20 @@
   opacity: 1;
 }
 
+/* One line each, ellipsised: the three properties that do it are the truncation
+   contract's (`.ui-truncating-line`), which the component puts on both lines —
+   and withholds from both in the wrapping variant below, so the boundary
+   between the two is a class the cell does or does not carry rather than a set
+   of overrides fighting the same declarations. */
 .ui-table-two-line-cell__title {
   font-weight: var(--font-weight-medium);
   color: var(--color-text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .ui-table-two-line-cell__subtitle {
   font-family: var(--font-family-mono);
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* Wrapping variant: the lines read as sentences, so they are shown in full and
@@ -213,9 +213,6 @@
 
 .ui-table-two-line-cell--wrap .ui-table-two-line-cell__title,
 .ui-table-two-line-cell--wrap .ui-table-two-line-cell__subtitle {
-  overflow: visible;
-  text-overflow: clip;
-  white-space: normal;
   overflow-wrap: anywhere;
 }
 
@@ -224,12 +221,14 @@
   line-height: var(--line-height-normal);
 }
 
+/* Both carry `.ui-truncating-line` — the meta cell except in its wrapping
+   variant — so the one line and its ellipsis are the contract's, here as in a
+   card row. The floor under them is not the run floor but the column's own
+   track minimum (`--data-table-column-min-width`): a table cell already sits in
+   a grid whose tracks refuse to reach 0px. */
 .ui-table-meta-cell {
   display: block;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   font-family: var(--font-family-mono);
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
@@ -238,9 +237,6 @@
 .ui-table-identifier-cell {
   display: block;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   font-family: var(--font-family-mono);
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);
@@ -263,9 +259,7 @@
 }
 
 .ui-table-meta-cell--wrap {
-  white-space: normal;
   overflow-wrap: anywhere;
-  text-overflow: clip;
 }
 
 .ui-table-meta-cell--unavailable {
@@ -400,11 +394,13 @@
   background: var(--color-accent-tint);
 }
 
+/* The row's flexible run: the floor, the flex basis and the wrap that goes with
+   them are the contract's (`.ui-truncating-run` in truncation.css), carried by
+   this element. All that is left here is how the dot and the heading sit. */
 .ui-card-list__leading {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  min-width: 0;
 }
 
 .ui-card-list__heading {
@@ -425,11 +421,13 @@
   color: var(--color-text-muted);
 }
 
+/* `flex: none` is the contract's (`.ui-truncating-meta`), not a second copy of
+   it written here: the badges and the meta values keep their natural width
+   however long the identifier beside them is. */
 .ui-card-list__trailing {
   display: flex;
   align-items: center;
   gap: var(--space-4);
-  flex: none;
 }
 
 .ui-card-list__badges {

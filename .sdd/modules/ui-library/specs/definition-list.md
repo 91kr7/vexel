@@ -46,6 +46,18 @@ Shows:
 - **A value longer than its band wraps inside it**, gaining no ellipsis, no tooltip-only presentation
   and no hidden overflow. A label wraps only when it alone is wider than its band, and is never shrunk
   to make room for a value.
+
+  > **A list row truncates, a property band wraps** — the boundary of the library's truncation
+  > contract (`truncation-contract.md`), stated here because this is the side a later reader gets
+  > wrong. That contract exists because a flexible text laid beside trailing metadata in a **row**
+  > overlaps it, and the answer there is an explicit floor plus an ellipsis. A band is not that
+  > shape and takes none of its classes: it has no trailing metadata to collide with, and its values
+  > are the ones an operator most needs to read exactly — a digest, a mount path, an environment
+  > line. Clamping one to a line here would not repair a layout defect, it would create a data loss.
+  > **What is legitimate here is the band getting wider or the section getting fewer columns; what
+  > is never legitimate is the value getting shorter.** The route out of a truncation elsewhere is
+  > this component: where a list row truncates an identifier, the object's detail surface shows the
+  > same value here, wrapped and selectable.
 - Band padding, type, colour, the wash and the 37px band step are the delivered ones: this component
   moves space, it does not restyle and it does not buy density out of the type.
 - The row gap is `--space-1` (the delivered band step), the column gap `--space-6`; both are tokens.
@@ -88,3 +100,5 @@ Shows:
 - plan-docker_management_app-detail_property_columns/REQ-26
 - plan-docker_management_app-detail_property_columns/REQ-32
 - plan-docker_management_app-detail_property_columns/REQ-34
+- plan-ui-coherence-optimisation/REQ-20
+- plan-ui-coherence-optimisation/REQ-21

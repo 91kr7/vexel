@@ -1,0 +1,58 @@
+/*
+ * The truncation contract, written once.
+ *
+ * A row that lays a flexible text run beside trailing metadata — a card row's
+ * title/subtitle against its badges and meta, a storage row's description
+ * against its size and its action — has to say which of the two gives way when
+ * the width runs out. Without that, the run keeps its max-content width (a
+ * Docker identifier is 64 characters, a mount path an absolute path: the normal
+ * case here, not an edge case) and simply inks over whatever stands to its
+ * right.
+ *
+ * The contract, in four rules and one token:
+ *   - the run may shrink, and truncates with an ellipsis instead of overflowing;
+ *   - the trailing metadata never shrinks;
+ *   - the run never shrinks below `--truncating-run-min-width`, so it is never
+ *     reduced to an ellipsis alone;
+ *   - when the row cannot hold the floored run and the trailing group side by
+ *     side, the trailing group takes a line of its own — it is never squeezed,
+ *     never pushed outside the card, and never overlapped.
+ *
+ * Its boundary, which is the part a later reader gets wrong: **a list row
+ * truncates, a property band wraps.** These classes belong to rows. A property
+ * band (`DefinitionList`) shows its value in full, wrapped, and takes none of
+ * them; that is where a truncation would stop being a layout decision and
+ * become a data loss.
+ */
+
+/* The row. `wrap` is what turns "not enough width" into a second line rather
+   than an overflow. It is safe at the delivered desktop widths only because the
+   run below is flexed from a zero basis: were its basis its own content, the
+   line would break on the run's max-content width and a long identifier would
+   push the trailing group down at any viewport. */
+.ui-truncating-row {
+  flex-wrap: wrap;
+}
+
+/* The flexible run. `min-width: min(floor, 100%)` is the floor and its own
+   escape: on a row narrower than the floor the run takes the row's whole width
+   and the trailing group wraps under it, instead of the floor pushing the row
+   wider than the card that holds it. */
+.ui-truncating-run {
+  flex: 1 1 0;
+  min-width: min(var(--truncating-run-min-width), 100%);
+}
+
+/* One line of the run. Applied to the lines that carry machine values — names,
+   identifiers, paths — and deliberately not to a line that reads as a sentence
+   and is expected in full. */
+.ui-truncating-line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The trailing metadata: its natural width, whatever the run does. */
+.ui-truncating-meta {
+  flex: none;
+}

@@ -321,11 +321,15 @@
   border-bottom: none;
 }
 
-.ui-storage-usage-row__text {
-  flex: 1 1 auto;
-  min-width: 0;
-}
+/* `.ui-storage-usage-row__text` carries no rule of its own: its basis, its
+   floor and the row's wrap are the truncation contract's, declared once in
+   truncation.css (`.ui-truncating-run`, `.ui-truncating-row`). A `min-width` of
+   its own here would be the same property declared twice at the same
+   specificity, decided by stylesheet order.
 
+   The label is left out of the contract on purpose — it is a fixed caption in
+   the product's own wording, not a machine value, so it wraps rather than
+   losing characters, and only the description below it truncates. */
 .ui-storage-usage-row__label {
   margin: 0;
   font-size: var(--font-size-sm);

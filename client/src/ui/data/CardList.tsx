@@ -3,6 +3,7 @@ import { Surface } from '../glass/Surface';
 import { Badge } from '../controls/Badge';
 import type { StatusTone } from '../controls/StatusPill';
 import { StatusDotCell } from './TableCells';
+import '../truncation.css';
 import './data-table.css';
 
 export interface CardListRowSelection {
@@ -55,6 +56,10 @@ export interface CardListProps<T> {
  * registries and plugins: a title, a monospace subtitle, a trailing badge
  * group and meta values, selectable, with an optional expanded content slot
  * rendered inside the same card directly below its header row.
+ *
+ * The header row honors the library's truncation contract (`truncation.css`):
+ * the title/subtitle run shrinks and ellipsises, the trailing group keeps its
+ * natural width, and neither ever inks over the other.
  */
 export function CardList<T>({ items, itemKey, renderRow, selectedKey, onSelect, expandedKey, renderExpanded, emptyState }: CardListProps<T>) {
   if (items.length === 0) return <div className="ui-card-list__empty">{emptyState}</div>;
@@ -68,22 +73,26 @@ export function CardList<T>({ items, itemKey, renderRow, selectedKey, onSelect, 
         return (
           <Surface key={key} elevation="flat" padding="none">
             <div
-              className={selected ? 'ui-card-list__item ui-card-list__item--selected' : 'ui-card-list__item'}
+              className={
+                selected
+                  ? 'ui-card-list__item ui-truncating-row ui-card-list__item--selected'
+                  : 'ui-card-list__item ui-truncating-row'
+              }
               onClick={onSelect ? () => onSelect(item) : undefined}
               aria-selected={onSelect ? selected : undefined}
             >
-              <div className="ui-card-list__leading">
+              <div className="ui-card-list__leading ui-truncating-run">
                 {row.selection ? <StatusDotCell tone={row.selection.active ? 'success' : 'neutral'} /> : row.status ? <StatusDotCell tone={row.status} /> : null}
                 <div className="ui-card-list__heading">
-                  <span className="ui-card-list__title">{row.title}</span>
+                  <span className="ui-card-list__title ui-truncating-line">{row.title}</span>
                   {subtitleLines(row.subtitle).map((line, index) => (
-                    <span key={index} className="ui-card-list__subtitle">
+                    <span key={index} className="ui-card-list__subtitle ui-truncating-line">
                       {line}
                     </span>
                   ))}
                 </div>
               </div>
-              <div className="ui-card-list__trailing">
+              <div className="ui-card-list__trailing ui-truncating-meta">
                 {row.selection || row.badges ? (
                   <div className="ui-card-list__badges">
                     {row.selection ? selectionControl(row.selection) : null}

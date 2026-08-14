@@ -167,6 +167,31 @@
      horizontally rather than starving its columns. */
   --data-table-column-min-width: 72px;
 
+  /* The floor under a **truncating run** — the flexible text of a row that also
+     carries trailing metadata (`truncation.css`). The run may shrink and
+     ellipsises; below this width it stops shrinking and the trailing group takes
+     a line of its own instead. The same reasoning as the column minimum above,
+     for the row shapes that are not a grid: an explicit floor plus an ellipsis,
+     never the automatic minimum, which would size the run to a 64-character
+     digest (~500px) and end the truncation the desktop layout is built on.
+
+     Two figures decide the value, and it is the smaller of them:
+     - what the content needs: at the 12px monospace these subtitles and
+       descriptions draw in, a character inks ~7.2px, so 120px carries ~16
+       characters plus the ellipsis — more than the 12-character short form
+       Docker itself abbreviates a 64-character digest to (~87px), so a
+       truncated row still identifies the object it names.
+     - what the delivered desktop allows: this minimum must bind **nowhere** at
+       1440x1000 or 1280x800, or it would redraw a delivered layout instead of
+       repairing a broken one. Measured over all 111 card rows and every storage
+       row the product renders: the narrowest run any of them is offered at
+       1280x800 is 138.7px (Plugins, the `docker buildx` row, whose trailing
+       cluster is 207.3px of a 402px card) and at 1440x1000 it is 218.7px. 120px
+       keeps ~13% of margin under the 138.7.
+     Below those widths the floor binds and the trailing group wraps under the
+     run, which is the row's answer to a width that cannot hold both. */
+  --truncating-run-min-width: 120px;
+
   /* Property-band sizing, by content class. A property section lays its bands
      out as "as many bands of at least this minimum as fit" against its own box
      (`ContentColumns`), so these are the only numbers that decide how many

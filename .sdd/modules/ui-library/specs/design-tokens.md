@@ -49,6 +49,16 @@ token by name, never a literal value.
     (containers; images 107.6px, coverage 123.2px, the dashboard's list 121.8px, the layer explorer
     ~100px). Never written at a call site; a column that needs a different floor states it through
     `DataTable`'s own `minWidth`.
+  - Truncating-run minimum: `--truncating-run-min-width` (120px) — the floor under the flexible text
+    of a row that also carries trailing metadata (`truncation-contract.md`). The same idea as the
+    column minimum above, for the row shapes that are not a grid, and the smaller of the same two
+    figures: what the content needs (~7.2px per character at the 12px monospace these subtitles and
+    descriptions are drawn in, so 120px carries ~16 characters plus the ellipsis — more than the
+    12-character short form Docker itself abbreviates a 64-character digest to, ~87px) and what the
+    delivered desktop allows — it must bind **nowhere** at 1440×1000 or 1280×800, and the narrowest
+    run any shipped row is offered at 1280×800 is 138.7px (Plugins, the `docker buildx` row, whose
+    trailing cluster is 207.3px of a 402px card; 218.7px at 1440×1000), measured over all 111 card
+    rows and 6 storage rows the product renders. Never written at a call site.
   - Property-band sizing by content class: `--band-min-pair-{short-scalar,long-single-line}`
     (360px / 560px), `--band-min-value-{short-scalar,long-single-line}` (240px / 460px) and
     `--band-run-max-{short-scalar,long-single-line}` (500px / 700px). The minima decide how many
