@@ -268,6 +268,14 @@ test('fills left to right then down, and hands assistive technology that same or
 
 // (i) REQ-16 — the collapsible sections follow the same rule, each by its own content class, and
 // none of them changes its default open/closed state.
+//
+// **The `Environment` comparison below is degenerate on this fixture, and the load-bearing
+// measurement for REQ-16 is not here.** `alpine:3.20` declares one environment value and no labels,
+// so what is measured is a one-band section — which is one column on any build, content class
+// honoured or ignored. `property-columns-rule.spec.ts` carries the real case, on an image built with
+// eight long environment values and six long labels, where the class shows as 2 columns against the
+// properties' 4. What stays useful here is the `History` half and the open/closed states, which this
+// fixture does exhibit.
 test('arranges Environment by its own class and keeps History one entry per line at full width', async ({ page }) => {
   await openImagePanel(page, { width: 1920, height: 1080 });
   const properties = await measureSection(propertySection(page), 'the image panel property section');

@@ -43,14 +43,17 @@ Shows:
   `--content-columns-row-gap` (default `--space-2`; `DefinitionList` sets `--space-1` to keep its
   delivered band step).
 - The class minima and maxima are design values in `tokens.css`, derived from the content and never
-  written at a call site. A band of a **pair** carries ~125px more than a band of a **value** alone:
-  the longest label in the product's property sections (~85px), the label→value gap (`--space-4`) and
-  the band's horizontal padding (2 × `--space-3`).
+  written at a call site. Both forms carry the band's own horizontal padding (2 × `--space-3` =
+  24px); what a **pair** band carries on top of its value is the **label run** — the longest label in
+  the product's property sections (`Exposed ports`, ~85px) plus the label→value gap (`--space-4`,
+  16px), **~100px**. The difference between the two shipped minima of a class is therefore **120px
+  for short scalars and 100px for long single-line text**, and the extra 20px of the short class is
+  rounding, not content: see the table's own derivation below.
 
 | Content class | Minimum, pair | Minimum, value | Maximum of the label→value run | Where the figure comes from |
 | --- | --- | --- | --- | --- |
-| `short-scalar` (default) | 360px | 240px | 500px | the longest single-line scalar in these sections, `Created` at 30 characters (~216px of 12px monospace), plus the label run |
-| `long-single-line` | 560px | 460px | 700px | an environment or label value routinely past 60 characters (~435px), plus the label run; the maximum carries the same **additive** ~140px of headroom as the short class, so it absorbs a fractional column's surplus |
+| `short-scalar` (default) | 360px | 240px | 500px | the longest single-line scalar in these sections is `Created` at 30 characters, ~216px of 12px monospace ink: **216 + 24 padding = 240px** of value, and **240 + ~100 label run = 341px, rounded up to 360px** |
+| `long-single-line` | 560px | 460px | 700px | an environment or label value routinely passes 60 characters, ~435px of ink: **435 + 24 padding = 459px, rounded up to 460px**, and **460 + ~100 label run = 559px, rounded to 560px**. The maximum carries the same **additive** ~140px of headroom as the short class, so it absorbs a fractional column's surplus |
 | `free-text` | one column, full width | one column, full width | none | a whole Dockerfile instruction against a timestamp label is not a column |
 
 - **Why a class has two minima, and where the second one came from.** The plan stated one minimum
@@ -59,10 +62,15 @@ Shows:
   mount line on its own. Measured on the delivered frame, that column is **1083px at 2560 × 1440**,
   so under the pair minimum it would have stayed one entry per line at every width in existence and
   the report's own outcome (REQ-19) would have been unreachable. The resolution is not a fourth class
-  but the same content arithmetic applied to what the band actually holds: **minimum = value +
-  padding**, plus the ~125px label run **only when there is a label**. At the value minimum of 460px
-  that column carries two entries from 944px onward — one at 1280 and 1920, two at 2560, which is
-  exactly where the report says the defect lives.
+  but the same content arithmetic applied to what the band actually holds: **minimum = ink +
+  padding**, plus the ~100px label run **only when there is a label** — 459px for this class, taken
+  up to 460px. At that minimum the column carries two entries from 944px onward: one at 1280 and at
+  1920, two at 2560, which is exactly where the report says the defect lives.
+- **Why 460px and not the widest number that would have worked.** That same 1083px column gives two
+  entries per line at any minimum up to **529px**, and 1920's 763px column stays at one from 370px
+  up. 460px sits **70px below** the ceiling and well above the floor: it is the ink of the class's
+  own worst case, not the widest figure the checks would have accepted. A number fitted to make a
+  suite green would have taken the whole of that range.
 - With the `--space-6` gap and the 360px short-scalar minimum the count is `floor((W + 24) / 384)`:
   **600px → 1, 900px → 2, 1300px → 3, 1700px → 4**, transitions at 744 / 1128 / 1512px. Long
   single-line pairs reach a second column at 1144px, single values at 944px. Measured on the delivered

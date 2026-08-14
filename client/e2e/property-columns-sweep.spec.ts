@@ -161,6 +161,11 @@ test('plugins and registries: whatever property section each presents is sound a
 // property list it presents is the caller-stated one, which this batch deliberately leaves alone and
 // which `property-columns-untouched-guard.spec.ts` owns. If a list without a stated count ever
 // appears on this screen, the count below changes and this sweep gains it.
+//
+// **This test measures no geometry, and REQ-28 names the screen among its ten.** The geometry of
+// this screen's lists is measured in `property-columns-rule.spec.ts`; what is asserted here is the
+// one thing that decides which of the two files owns it — whether any list on the screen states a
+// count of its own.
 test('the coverage matrix: its only property list is the caller-stated one, which this batch leaves alone', async ({ page }) => {
   for (const viewport of SWEEP_VIEWPORTS) {
     await page.setViewportSize(viewport);

@@ -144,19 +144,33 @@
      written at a call site.
 
      Every figure is derived from the content, not chosen. At the 12px
-     monospace the values are drawn in, a character inks ~7.2px. A band of a
-     label→value pair carries, beside its value: the longest label in the
-     product's property sections (`Exposed ports`, ~85px), the label→value gap
-     (--space-4) and the band's own horizontal padding (2 × --space-3) — ~125px
-     in total, which is the difference between each `pair` minimum and the
-     `value` minimum of the same class.
+     monospace the values are drawn in, a character inks ~7.2px. Every band
+     carries the band's own horizontal padding (2 × --space-3 = 24px), pair and
+     value form alike; what a `pair` band carries **on top of** its value is the
+     **label run**: the longest label in the product's property sections
+     (`Exposed ports`, ~85px) plus the label→value gap (--space-4, 16px) —
+     **~100px**.
 
      - short scalar: the longest single-line scalar in these sections is
-       `Created` at 30 characters (~216px), so ~240px of value plus the ~125px
-       of label run, rounded up to 360px.
+       `Created` at 30 characters (~216px of ink), so 216 + 24 = **240px** of
+       value. Plus the ~100px label run that is 341px, **rounded up to 360px**.
+       The 120px between the two shipped tokens is therefore the ~100px label
+       run and ~19px of that rounding-up — not one figure but two.
      - long single-line: an environment or label value routinely passes 60
-       characters (~435px), so ~460px of value plus the same label run, rounded
-       to 560px.
+       characters (~435px of ink), so 435 + 24 = 459px, **rounded up to 460px**.
+       Plus the same ~100px label run that is 559px, rounded to **560px**. Here
+       the difference between the two tokens is the label run alone, **100px**.
+
+     So the pair-to-value difference is **120px for short scalars and 100px for
+     long single-line text**, and a reader adding a fourth class derives its two
+     minima from the ink of its own worst case, not from either difference.
+
+     The 460px is the conservative end of its own range and deliberately so: the
+     surface it was derived for — the `Config` tab's environment · mounts column,
+     1083px at 2560 × 1440 — carries two entries per line at any minimum up to
+     529px, and one per line at 1920's 763px column from 370px up. 460px sits
+     70px below that ceiling; a figure chosen to make a check pass would have
+     taken the whole of it.
      - unbounded free text (the image panel's `History`, a whole Dockerfile
        instruction against a timestamp) has no minimum here at all: it is one
        column at the section's full width and states so in its own rule.

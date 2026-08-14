@@ -41,9 +41,12 @@ token by name, never a literal value.
     `--band-run-max-{short-scalar,long-single-line}` (500px / 700px). The minima decide how many
     bands a property section fits in its own box, the maxima bound the label→value run inside a
     band. Every figure is derived from the content at the 12px monospace the values are drawn in
-    (~7.2px per character), and the ~125px between a `pair` minimum and the `value` minimum of the
-    same class is the label run a pair carries: the longest label in these sections (~85px), the
-    label→value gap and the band's horizontal padding. See `content-columns.md`; none of these is
+    (~7.2px per character). Both forms carry the band's own horizontal padding (24px); what a
+    `pair` band carries on top of its value is the **label run** — the longest label in these
+    sections (~85px) plus the label→value gap (16px), **~100px**. The difference between the two
+    shipped minima of a class is therefore **120px for short scalars** (~100px of label run and
+    ~19px of rounding 341px up to 360px) and **100px for long single-line text** (459px rounded up
+    to 460px, 559px to 560px) — two figures, not one. See `content-columns.md`; none of these is
     ever written at a call site.
   - Overflow menu popup: `--menu-min-width` (236px) and `--menu-max-height` (480px) — the height
     beyond which a popup's entries scroll inside it. A last resort against a popup taller than the
