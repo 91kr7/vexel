@@ -288,6 +288,28 @@ async function revealTreeRow(page: Page, dialog: Locator, name: string): Promise
   return row;
 }
 
+/**
+ * The index, among the tree's mounted expandable carets, of one whose **row lies wholly inside the
+ * tree's scrollport** — a directory the operator can actually see and click — or `-1` when the tree
+ * currently shows none.
+ *
+ * A virtualised tree mounts an overscan row or two past the fold: they are in the document, a
+ * locator finds them, and a click on one is a click on a control nobody can see, which the runner
+ * reaches by scrolling the tree first. Any measurement of "what moved the tree" would then be a
+ * measurement of the harness (CLAUDE.md, "a real pointer at the visible control's own coordinates").
+ */
+async function visibleExpandableCaretIndex(dialog: Locator): Promise<number> {
+  return dialog.evaluate((element) => {
+    const scrollport = element.querySelector('.ui-tree-view .ui-scroll-area');
+    if (!scrollport) throw new Error('the tree has no scrollport');
+    const port = scrollport.getBoundingClientRect();
+    return Array.from(element.querySelectorAll('.ui-tree-view__row .ui-tree-view__caret--expandable')).findIndex((caret) => {
+      const row = caret.parentElement?.getBoundingClientRect();
+      return row !== undefined && row.height > 0 && row.top >= port.top - 0.5 && row.bottom <= port.bottom + 0.5;
+    });
+  });
+}
+
 // REQ-1, REQ-2, REQ-3, REQ-6, REQ-13, REQ-14, REQ-15, REQ-18, REQ-25 — the height the dialog has is
 // distributed by intent: intrinsic chrome, one elastic region, no interior void, one scroll
 // container, and a region that answers to the viewport it is drawn in.
@@ -488,6 +510,71 @@ test('a selection, a long preview, a search hit and a keyboard step move the tre
     const afterKeyboard = await scrollport.evaluate((element) => element.scrollTop);
     expect(afterKeyboard, `walking down the tree with the keyboard never scrolled it: scrollTop stayed at ${beforeKeyboard}`).toBeGreaterThan(beforeKeyboard);
     expect(await dialog.evaluate((element) => element.scrollTop), 'walking down the tree with the keyboard scrolled the dialog').toBe(0);
+  } finally {
+    await closeBrowser(page, dialog);
+  }
+});
+
+// REQ-16, REQ-26 and `ui-library/specs/tree-view.md` — **the other half of the reveal the fill mode
+// introduces: what it may not move.** The rule reads "a selection or a search hit is brought into
+// this container's window … so an operator's own scroll position is never overruled", and expanding
+// a directory is neither of those two things: the operator asked for that directory's children, at
+// the place in the tree they had scrolled to, and the tree they were looking at is where the answer
+// has to appear. The delivered build revealed nothing at all and so moved nothing here; this check
+// states what the mode is contracted to keep.
+test('expanding a directory leaves the tree where the operator scrolled it', async ({ page }) => {
+  test.setTimeout(120_000);
+  const dialog = await openBrowsedFilesystem(page);
+  const scrollport = dialog.locator('.ui-tree-view .ui-scroll-area');
+  try {
+    // A tree with more rows than its region can show, and a selection made near the top of it —
+    // both with a real pointer at the control's own coordinates (REQ-31).
+    await expandRootDirectory(dialog, 'etc', 'hostname');
+    await dialog.locator('.ui-tree-view__row').first().click();
+    await expect(dialog.locator('.ui-tree-view__row--selected')).toHaveCount(1);
+
+    // The operator scrolls away from their selection, the way they reach a directory further down,
+    // and stops as soon as one is **on screen**: the wheel turns until a caret's own row lies wholly
+    // inside the tree's scrollport. A virtualised tree also mounts an overscan row or two beyond the
+    // fold, and aiming at one of those is aiming at a control no operator can see or click — the
+    // harness would then scroll the tree itself to reach it, and that scrolling, not the product's,
+    // is what the comparison would be made of.
+    const scrollportBox = await boxOf(scrollport, "the tree's scrollport");
+    await page.mouse.move(scrollportBox.x + scrollportBox.width / 2, scrollportBox.y + 16);
+    let caretIndex = -1;
+    for (let turn = 0; turn < 12 && caretIndex === -1; turn += 1) {
+      await page.mouse.wheel(0, 160);
+      await page.waitForTimeout(150);
+      caretIndex = await visibleExpandableCaretIndex(dialog);
+    }
+    expect(caretIndex, 'no expandable directory came fully into the tree’s scrollport, so there is nothing an operator could have expanded').toBeGreaterThanOrEqual(0);
+
+    const scrolledTo = await scrollport.evaluate((element) => element.scrollTop);
+    expect(scrolledTo, 'the tree never scrolled away from the selection, so nothing is being checked').toBeGreaterThan(ROW_HEIGHT_PX);
+
+    // ...and expands the directory they can see, on its own caret, at its own coordinates: the click
+    // lands where the control already is and scrolls nothing to get there (REQ-31).
+    const caret = dialog.locator('.ui-tree-view__row .ui-tree-view__caret--expandable').nth(caretIndex);
+    const expandedRowBefore = await boxOf(caret.locator('xpath=..'), 'the directory row being expanded');
+    const port = await boxOf(scrollport, "the tree's scrollport");
+    expect(
+      expandedRowBefore.y >= port.y - 0.5 && expandedRowBefore.y + expandedRowBefore.height <= port.y + port.height + 0.5,
+      `the directory this check is about to expand is at y=${expandedRowBefore.y.toFixed(1)}..${(expandedRowBefore.y + expandedRowBefore.height).toFixed(
+        1,
+      )} against a scrollport of ${port.y.toFixed(1)}..${(port.y + port.height).toFixed(1)}: it is not on screen, and the click would scroll the tree itself to reach it`,
+    ).toBe(true);
+    await caret.click();
+    await page.waitForTimeout(1_500);
+
+    expect(
+      await scrollport.evaluate((element) => element.scrollTop),
+      `expanding a directory scrolled the tree back from ${scrolledTo}px to the row selected earlier: the operator's own scroll position was overruled`,
+    ).toBe(scrolledTo);
+    const expandedRowAfter = await boxOf(caret.locator('xpath=..'), 'the directory row being expanded');
+    expect(
+      { y: expandedRowAfter.y },
+      `the directory the operator expanded moved from y=${expandedRowBefore.y.toFixed(1)} to y=${expandedRowAfter.y.toFixed(1)}: its children were fetched onto a screen it is no longer on`,
+    ).toEqual({ y: expandedRowBefore.y });
   } finally {
     await closeBrowser(page, dialog);
   }

@@ -90,6 +90,8 @@ export function TreeView({
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+  /** The selection whose reveal has already been performed, so no later render repeats it. */
+  const revealedSelectionRef = useRef<string | undefined>(undefined);
 
   useLayoutEffect(() => {
     if (scrollRef.current) setViewportHeight(scrollRef.current.clientHeight);
@@ -124,18 +126,34 @@ export function TreeView({
   // A selection or a search hit is brought into **this** container's window, and
   // into no other: the row a search jumped to is otherwise not mounted at all
   // while the tree is virtualised, and letting the browser reveal it would
-  // scroll every ancestor — the dialog included. Only what is out of the window
-  // moves it, so an operator's own scroll position is never overruled.
+  // scroll every ancestor — the dialog included. Only a row out of the window
+  // moves the scroll position, and only ever the row that has just been
+  // selected.
+  //
+  // Once per change of selection, which is what the ref is for rather than a
+  // dependency list. Keyed on the row count instead, the reveal fired on every
+  // expansion, every collapse and every completed lazy load: an operator who
+  // scrolled away from an earlier selection to reach a directory, and expanded
+  // it, was carried back to that selection — with the directory whose children
+  // they had just asked for taken off the screen. A reveal that is still pending
+  // (a search hit whose ancestor directories are still loading, so the row it
+  // named does not exist yet) stays pending, and is completed by the load that
+  // brings the row in.
   useLayoutEffect(() => {
     const element = scrollRef.current;
-    if (!fill || !element || selectedId === undefined) return;
+    if (!fill || !element) return;
+    if (selectedId === undefined) {
+      revealedSelectionRef.current = undefined;
+      return;
+    }
+    if (revealedSelectionRef.current === selectedId) return;
     const index = rows.findIndex((row) => row.type === 'node' && row.node.id === selectedId);
     if (index === -1) return;
+    revealedSelectionRef.current = selectedId;
     const top = index * rowHeight;
     if (top < element.scrollTop) element.scrollTop = top;
     else if (top + rowHeight > element.scrollTop + element.clientHeight) element.scrollTop = top + rowHeight - element.clientHeight;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fill, selectedId, rows.length, rowHeight]);
+  });
 
   function selectableIndex(fromIndex: number, direction: 1 | -1): number {
     let index = fromIndex;

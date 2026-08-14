@@ -59,10 +59,20 @@ be loaded on demand by the caller (REQ-52).
   screen that grows mounts the rows it has just made room for. A tree of hundreds of entries still
   mounts only the rows in and around the visible window.
 - **In `fill`, a selection or a search hit is brought into *this* container's window, and into no
-  other.** Only a row outside the window moves it, so an operator's own scroll position is never
-  overruled — and no ancestor is scrolled, which is what keeps a search hit from scrolling the dialog
-  the tree sits in. Letting the browser reveal the row would scroll every ancestor; the row a search
-  jumped to is, in any case, not mounted at all until this happens.
+  other.** No ancestor is scrolled, which is what keeps a search hit from scrolling the dialog the
+  tree sits in; letting the browser reveal the row would scroll every one of them, and the row a
+  search jumped to is, in any case, not mounted at all until this happens.
+- **The reveal happens once per change of selection, and a row already inside the window moves
+  nothing.** Everything else the tree does leaves the scroll position exactly where it is:
+  **expanding a directory, collapsing one, and a lazy load arriving move nothing** while the
+  selection is unchanged. The operator scrolled to that directory to ask for its children, and its
+  children have to appear where they are looking — the tree is not entitled to return them to a
+  selection made earlier. (Keyed on the row count instead, the reveal fired on every one of those
+  three: measured, an expansion carried a tree from `scrollTop` 960 back to 0 and took the expanded
+  directory off the screen.)
+- A reveal that cannot yet be performed — a search hit whose ancestor directories are still loading,
+  so the row it named does not exist yet — **stays pending** and is completed by the load that brings
+  the row in. It is still one reveal for that one selection.
 - The delivered `maxHeight` path — including the absence of that reveal — is **preserved exactly**
   for callers that do not ask for `fill`. Row height, density and keyboard navigation are the same in
   both modes.
