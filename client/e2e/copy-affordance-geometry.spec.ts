@@ -43,6 +43,21 @@ const DELIVERED_ID_BAND_PX = 43;
 const DELIVERED_NEIGHBOUR_BAND_PX = 33;
 /** Sub-pixel layout and font metrics differ by a fraction between runs; a band height is not a design token. */
 const HEIGHT_TOLERANCE_PX = 1.5;
+/**
+ * The band's own label→value gap on the delivered build — `--space-4`, the same
+ * on every band before this removal and after it.
+ *
+ * **Pinned to the number, and not only asserted uniform across the bands.** The
+ * uniformity assertion below answers "was one band retuned", which is the shape
+ * a fix patching the `Id` band alone would take; it cannot answer "was the gap
+ * retuned everywhere", and a uniform 16px → 12px would satisfy it. That half was
+ * settled for this batch by reading the diff — which works once, for whoever
+ * happens to have the diff beside them, and this check outlives that reader. A
+ * later change to `--space-4` is legitimate and will fail here; the failure names
+ * the delivered figure so that its reader learns *what moved* rather than only
+ * that something did.
+ */
+const DELIVERED_LABEL_TO_VALUE_GAP_PX = 16;
 
 function imageRow(page: Page, text: string): Locator {
   return page.locator('.ui-data-table__row', { hasText: text }).first();
@@ -228,8 +243,17 @@ test('the property band value keeps its gap from the label, and is now the heigh
   const gaps = measured.map((entry) => entry.gap);
   expect(
     Math.max(...gaps) - Math.min(...gaps),
-    `${evidence} — the label→value gap is no longer the same on every band, so the band's own spacing was retuned`,
+    `${evidence} — the label→value gap is no longer the same on every band, so one band's own spacing was retuned`,
   ).toBeLessThanOrEqual(1);
+
+  // And it is still the gap the delivered build drew, not merely a gap drawn consistently: the
+  // uniformity above is satisfied by a retune applied to every band at once, which is the shape a
+  // tidy-up takes.
+  const offGap = measured.filter((entry) => Math.abs(entry.gap - DELIVERED_LABEL_TO_VALUE_GAP_PX) > 1);
+  expect(
+    offGap.map((entry) => `${entry.label} ${Math.round(entry.gap)}px`),
+    `${evidence} — the label→value gap is no longer the delivered ${DELIVERED_LABEL_TO_VALUE_GAP_PX}px (\`--space-4\`) that every band drew before this removal and after it: these bands measure something else, so the band's own spacing was retuned across the section`,
+  ).toEqual([]);
 
   // And the `Id` band's value is now a value like the others, not a value beside a control.
   const idHeight = measured.find((entry) => entry.label === 'Id')!.height;
