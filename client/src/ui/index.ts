@@ -21,9 +21,12 @@ export { StateSummaryBar, type StateSummaryBarProps } from './glass/StateSummary
 export { Frame, type FrameProps } from './layout/Frame';
 export { Stack, type StackProps } from './layout/Stack';
 export { Row, type RowProps } from './layout/Row';
-export { Grid, type GridProps } from './layout/Grid';
+export { Grid, type GridProps, type GridArrangement } from './layout/Grid';
+export { ContentColumns, type ContentColumnsProps } from './layout/ContentColumns';
+export { type ContentClass } from './layout/content-columns';
 export { DashboardLayout, type DashboardLayoutProps } from './layout/DashboardLayout';
 export { QuadPanelLayout, type QuadPanelLayoutProps } from './layout/QuadPanelLayout';
+export { BandStack, type BandStackProps } from './layout/BandStack';
 export { Spacer } from './layout/Spacer';
 export { SplitPane, type SplitPaneProps } from './layout/SplitPane';
 
@@ -52,7 +55,6 @@ export { BulkActionBar, type BulkActionBarProps, type BulkActionBarAction } from
 export { FilePicker, type FilePickerProps } from './controls/FilePicker';
 export { ScreenToolbar, type ScreenToolbarProps, type ScreenToolbarAction } from './controls/ScreenToolbar';
 export { Tabs, type TabsProps, type TabItem } from './controls/Tabs';
-export { CopyButton, type CopyButtonProps } from './controls/CopyButton';
 export { RevealableValue, type RevealableValueProps, type RevealableValueAction } from './controls/RevealableValue';
 export { NumberField, type NumberFieldProps } from './controls/NumberField';
 export { Stepper, type StepperProps } from './controls/Stepper';

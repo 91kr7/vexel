@@ -2,6 +2,23 @@
   outline: none;
 }
 
+/*
+ * The tree's bound comes from the region it is placed in: it fills that region
+ * and its scrollport takes whatever is left inside it, which is the definite
+ * height the virtualised window is measured against.
+ */
+.ui-tree-view--fill {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.ui-tree-view--fill > .ui-scroll-area {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .ui-tree-view__body {
   width: 100%;
 }

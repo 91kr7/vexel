@@ -33,6 +33,12 @@ operations built on it, and the cross-image filesystem diff stream/tree-read pai
   `FilesystemExtractionResult`, sent just before `end`), `end`, or `error` (`{ message }`) if it
   fails. `force=true` bypasses the cache and re-extracts. Disconnecting cancels the in-flight
   extraction — the intermediate container is still removed.
+- `GET /api/images/:id/filesystem/kept` → `{ kept: false }`, or `{ kept: true, summary }` with the
+  `FilesystemExtractionResult` of the result kept for this image's **content**, from
+  `getKeptFilesystemExtraction`. A cache lookup and nothing else: no daemon call, no container, no
+  extraction started, nothing written. **"Nothing kept" answers `200`, not `404`**: absence is
+  precisely what the caller is asking about, and it is what tells the client to offer the extraction
+  with its cost instead of opening the tree.
 - `GET /api/images/:id/filesystem/entries[?path=...]` → `{ path, entries }`, the direct children of
   `path` (root when omitted) from `listImageFilesystemChildren`; `404` when this image's filesystem
   has not been extracted yet.
@@ -102,3 +108,8 @@ operations built on it, and the cross-image filesystem diff stream/tree-read pai
 - plan-docker_management_app/REQ-67
 - plan-docker_management_app/REQ-68
 - plan-docker_management_app/REQ-113
+- plan-docker_management_app-filesystem_browse_direct/REQ-4
+- plan-docker_management_app-filesystem_browse_direct/REQ-13
+- plan-docker_management_app-filesystem_browse_direct/REQ-16
+- plan-docker_management_app-filesystem_browse_direct/REQ-17
+- plan-docker_management_app-filesystem_browse_direct/REQ-20

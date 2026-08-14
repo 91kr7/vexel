@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
+import { expectCompletedThenSelfDismissed } from './support/progress-completion.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 // Every test drives the same extracted-filesystem fixture image; running
@@ -50,24 +51,26 @@ function treeRow(modal: ReturnType<typeof filesystemBrowserModal>, name: string)
   return modal.locator('.ui-tree-view__row', { hasText: name });
 }
 
-/** Opens the browser for the given already-listed image tag and runs a fresh, forced extraction. */
+/** Opens the browser for the given already-listed image tag and runs a fresh extraction. */
 async function openAndExtract(page: Page, tag: string) {
   await page.reload();
   await searchField(page).fill(tag);
   const row = imageRow(page, tag);
   await expect(row).toBeVisible({ timeout: 10_000 });
-  // The row's own menu entry, with no row selected and no detail panel open. The button clicked
-  // straight after is a different control with the same words: the extraction prompt *inside* the
-  // browser view, which is why it is scoped to the modal (filesystem-browser.md).
+  // The row's own menu entry, with no row selected and no detail panel open. It now lands on the
+  // cost warning itself: nothing is extracted for this image content yet — every test starts with
+  // the analysis cache empty — so this is shape A, and the surface behind the warning offers
+  // nothing to press (filesystem_browse_direct/REQ-2, filesystem-browser.md).
   await chooseRowAction(page, row, 'Browse filesystem…');
   const modal = filesystemBrowserModal(page, `Filesystem — ${tag}`);
-  await modal.getByRole('button', { name: 'Browse filesystem…' }).click();
   const confirmHeading = page.getByRole('heading', { name: `Confirm: ${tag}` });
   await expect(confirmHeading).toBeVisible();
   await confirmHeading.locator('xpath=..').getByRole('button', { name: 'Extract' }).click();
   const progressDialog = page.getByRole('heading', { name: 'Extracting the filesystem' }).locator('xpath=..');
-  await expect(progressDialog.getByRole('button', { name: 'Close' })).toBeVisible({ timeout: 20_000 });
-  await progressDialog.getByRole('button', { name: 'Close' }).click();
+  // Re-pointed at the dialog's own dismissal: the completion is stated while it is still there, and
+  // it then leaves with nothing pressed (progress_completion_autoclose/REQ-18, REQ-24). The `Close`
+  // press that used to be here would now race that dismissal.
+  await expectCompletedThenSelfDismissed(progressDialog, 20_000);
   // Every fixture file lives under /data; expanding it once exposes them all to the row locators below.
   await treeRow(modal, 'data').locator('.ui-tree-view__caret').click();
   await expect(treeRow(modal, 'hello.txt')).toBeVisible();

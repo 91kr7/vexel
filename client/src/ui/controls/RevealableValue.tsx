@@ -1,5 +1,4 @@
 import { Button } from './Button';
-import { CopyButton } from './CopyButton';
 import './controls.css';
 
 const MASK = '••••••••••••••••••••';
@@ -19,18 +18,25 @@ export interface RevealableValueProps {
   loading?: boolean;
   /** Shown when there is no value yet. */
   placeholder?: string;
-  /** One extra action after copy, e.g. rotating the value. */
+  /** One extra action after the reveal control, e.g. rotating the value. */
   action?: RevealableValueAction;
 }
 
 /**
  * A sensitive value the application received back (a join token): masked until
- * an explicit reveal, copyable without being shown, with room for the action
- * that replaces it. While hidden the value is not rendered at all — not as
- * text, not as an attribute — so hiding is not a visual effect over readable
- * markup. The mask has a fixed length: its width says nothing about the value
- * behind it. A value the operator types in is `SecretField` instead, which has
- * no reveal control at all.
+ * an explicit reveal, with room for the action that replaces it. While hidden
+ * the value is not rendered at all — not as text, not as an attribute — so
+ * hiding is not a visual effect over readable markup. The mask has a fixed
+ * length: its width says nothing about the value behind it. A value the operator
+ * types in is `SecretField` instead, which has no reveal control at all.
+ *
+ * **"copyable without being shown" was withdrawn on 2026-08-14**, by
+ * `plan-docker_management_app-remove_copy_controls` — every copy affordance left
+ * the client on the human's own instruction, this one included. Taking the token
+ * now means displaying it. The masking is *not* vestigial as a result: it is
+ * still what keeps the value off a shared screen until the operator asks for it,
+ * and it is still what makes a rotation safe to perform without exposing what is
+ * being replaced.
  */
 export function RevealableValue({ value, ariaLabel, revealed, onRevealedChange, loading = false, placeholder = 'Not read yet', action }: RevealableValueProps) {
   const known = value !== undefined && value !== '';
@@ -51,12 +57,6 @@ export function RevealableValue({ value, ariaLabel, revealed, onRevealedChange, 
         <Button size="sm" variant="ghost" disabled={!known || loading} onClick={() => onRevealedChange(!revealed)}>
           {revealed ? 'Hide' : 'Show'}
         </Button>
-        {/* Kept mounted whatever the state: an affordance that vanishes while
-            the value is read and reappears afterwards moves under the pointer.
-            Copying does not display the value, so it is available whether the
-            value is revealed or hidden — but not before it is known, and not
-            while a read could still replace it. */}
-        <CopyButton value={value ?? ''} disabled={!known || loading} />
         {action ? (
           <Button size="sm" variant="ghost" disabled={action.disabled || loading} onClick={action.onClick}>
             {action.label}

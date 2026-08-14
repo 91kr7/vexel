@@ -37,6 +37,12 @@ analysis cache across restarts when the image content is unchanged (REQ-113).
     never the tar header's own raw target text, which may be absolute or carry a `..` chain (REQ-58,
     REQ-62). A symlink whose target cannot be resolved this way is excluded entirely (see
     `refusals` below), never indexed with an unresolved or partially-resolved target.
+- `getKeptFilesystemExtraction(imageId): Promise<FilesystemExtractionResult | undefined>` — **a
+  plain read of what is kept**, for the caller deciding whether an extraction has to be offered at
+  all: the summary of the result kept for this image's content (`entryCount`, `refusedCount`,
+  `fromCache` true by construction), or `undefined` when nothing usable is kept. Absence is an
+  answer, not an error — including when a cached artifact exists in the index but can no longer be
+  read, which is "nothing kept" as surely as no entry at all.
 - `getExtractedFilesystem(imageId): Promise<ImageFilesystem | undefined>` — the full previously
   extracted, still-cached filesystem (`{ imageId, entries, refusals }`); the shared read path
   `FilesystemEntryService`, `FilesystemContentService`, `FilesystemSearchService` and
@@ -66,6 +72,12 @@ analysis cache across restarts when the image content is unchanged (REQ-113).
   operator's is at stake: these volumes are created by, and only ever belong to, a container this
   service made and never started. The same holds for the startup sweep of containers left by an
   interrupted run.
+- `getKeptFilesystemExtraction` **touches the daemon not at all**: it looks the analysis cache up,
+  reads the artifact it points at, and answers. Nothing is created, nothing is started, nothing is
+  written, and no Docker operation of any kind is issued — it exists so a caller can decide whether
+  an extraction has to be offered *without* starting one and suppressing the surfaces afterwards.
+  Being keyed on the same content digest as the extraction cache, a rebuilt image reusing a tag
+  answers "nothing kept".
 - A prior result for the image's content digest (looked up in the analysis cache under a key
   distinct from the changeset cache's, since both artifact kinds are computed for the same image id
   but the cache holds one artifact per key) short-circuits straight to `onEnd` with `fromCache:
@@ -115,3 +127,7 @@ analysis cache across restarts when the image content is unchanged (REQ-113).
 - plan-docker_management_app/REQ-58
 - plan-docker_management_app/REQ-62
 - plan-docker_management_app/REQ-113
+- plan-docker_management_app-filesystem_browse_direct/REQ-13
+- plan-docker_management_app-filesystem_browse_direct/REQ-16
+- plan-docker_management_app-filesystem_browse_direct/REQ-17
+- plan-docker_management_app-filesystem_browse_direct/REQ-20

@@ -231,14 +231,16 @@ describe('ImageDiffView — diff tree and detail pane (plan-docker_management_ap
     expect(screen.getByText('right body')).toBeInTheDocument();
   });
 
-  // image-diff-view.md — Close, once succeeded, only dismisses the dialog: the diff tree stays browsable
-  it('keeps the diff tree browsable after closing the dialog on success', async () => {
+  // image-diff-view.md — once succeeded, the dialog states its completion and dismisses itself: the
+  // diff tree behind it stays browsable (progress_completion_autoclose/REQ-1, REQ-6, REQ-13, REQ-24)
+  it('states the completion, dismisses itself and leaves the diff tree browsable', async () => {
     await runComparisonToResult();
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument());
 
-    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(document.querySelector('.ui-transfer-progress-dialog__caption')).toHaveTextContent('Completed'));
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Comparing filesystems' })).not.toBeInTheDocument(), {
+      timeout: 3000,
+    });
 
-    expect(screen.queryByRole('heading', { name: 'Comparing filesystems' })).not.toBeInTheDocument();
     expect(screen.getByText('changed.txt')).toBeInTheDocument();
   });
 

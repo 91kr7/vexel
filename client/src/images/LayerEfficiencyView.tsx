@@ -258,6 +258,7 @@ export function LayerEfficiencyView({ image, open, onClose, onNavigateToLayer, o
         }
         onCancel={cancelAnalysis}
         onClose={closeProgressDialog}
+        autoCloseOnDone
       />
     </Modal>
   );

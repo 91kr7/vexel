@@ -40,6 +40,11 @@ Shows:
 Actions:
 - "Analyze layer efficiency…" → opens a `ConfirmDialog` stating the estimated cost, then a
   cancellable progress dialog (mirrors LayerExplorer's own analysis flow, REQ-51).
+- Once the analysis succeeds that dialog states `Completed` — the shared surface's own wording — and
+  **dismisses itself** a second later, revealing the findings: this view asks the surface for that
+  (`autoCloseOnDone`), its result being rendered behind the dialog rather than in it. No completion
+  wording, state or timer of this view's own; its `formatCaption` keeps describing the in-flight
+  phase only. A failed analysis never dismisses itself.
 - Selecting a finding expands it in place; its "View layer" action calls `onNavigateToLayer`.
 
 ## Rules and invariants
@@ -62,3 +67,7 @@ Actions:
 - plan-docker_management_app/REQ-65
 - plan-docker_management_app/REQ-66
 - plan-docker_management_app/REQ-67
+- plan-docker_management_app-progress_completion_autoclose/REQ-5
+- plan-docker_management_app-progress_completion_autoclose/REQ-12
+- plan-docker_management_app-progress_completion_autoclose/REQ-15
+- plan-docker_management_app-progress_completion_autoclose/REQ-16

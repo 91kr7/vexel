@@ -129,6 +129,26 @@ describe('LayerEfficiencyView — heuristic disclaimer and pre-analysis state (p
     expect(screen.queryByRole('heading', { name: `Confirm: ${image.tags[0]}` })).not.toBeInTheDocument();
     expect(FakeEventSource.instances).toHaveLength(0);
   });
+
+  // layer-efficiency-view.md — the analysis dialog is one of the four opted into the shared
+  // surface's self-dismissal: it states its completion and then goes on its own, leaving the
+  // signals readable behind it (progress_completion_autoclose/REQ-1, REQ-6, REQ-13)
+  it('states the completion and then dismisses the progress dialog by itself, leaving the findings readable', async () => {
+    render(<LayerEfficiencyView image={makeImage()} open onClose={vi.fn()} onNavigateToLayer={vi.fn()} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Analyze layer efficiency…' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Analyze' }));
+
+    act(() => latestSource().emit('result', makeSignals()));
+    act(() => latestSource().emit('end'));
+
+    // Read by its class: the completion is also exposed as a status message, so the word is in the
+    // dialog twice on purpose.
+    await waitFor(() => expect(document.querySelector('.ui-transfer-progress-dialog__caption')).toHaveTextContent('Completed'));
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Analyzing layer efficiency' })).not.toBeInTheDocument(), {
+      timeout: 3000,
+    });
+    expect(screen.getByText('app/waste.bin')).toBeInTheDocument();
+  });
 });
 
 // layer-efficiency-view.md — once analysed: efficiency score gauge and reading, wasted files,

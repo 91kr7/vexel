@@ -124,14 +124,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-// userEvent.setup() installs its own navigator.clipboard stub, so the test's
-// stub must be defined after setup() to take precedence over it.
-function stubClipboard(): ReturnType<typeof vi.fn> {
-  const writeText = vi.fn().mockResolvedValue(undefined);
-  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
-  return writeText;
-}
-
 describe('ContainerDetailPanel — Config tab (REQ-24, REQ-25)', () => {
   // container-detail-panel.md — edit mode is seeded from the current inspect data; save is disabled while nothing changed
   it('seeds the edit form with the current restart policy and disables Save until something changes', async () => {
@@ -261,19 +253,25 @@ describe('ContainerDetailPanel — Logs tab (REQ-30)', () => {
 });
 
 describe('ContainerDetailPanel — Inspect tab (REQ-26)', () => {
-  // plan-docker_management_app/REQ-26 — the raw inspect payload is viewable and copyable as-is
-  it('shows the raw inspect payload verbatim and copies it exactly on request', async () => {
+  /**
+   * plan-docker_management_app/REQ-26, **narrowed on 2026-08-14** to *viewable
+   * and selectable* as-is (plan-docker_management_app-remove_copy_controls/REQ-23).
+   *
+   * **Restated, not deleted**: the payload's completeness used to be checked
+   * through what a copy handed over, which was the strongest form available —
+   * the whole serialised payload, character for character. It still is, and it is
+   * still asserted; it is now read off the block that displays it rather than off
+   * the clipboard, which is the only thing that changed (REQ-30).
+   */
+  it('shows the raw inspect payload verbatim, exactly as the Engine returned it', async () => {
     const user = userEvent.setup();
-    const writeText = stubClipboard();
     renderPanel();
 
     await user.click(await screen.findByRole('tab', { name: 'Inspect' }));
 
     expect(await screen.findByText(/raw-container-1-id/)).toBeInTheDocument();
-    const copyButtons = screen.getAllByRole('button', { name: 'Copy' });
-    await user.click(copyButtons[copyButtons.length - 1]);
-
-    expect(writeText).toHaveBeenCalledWith(JSON.stringify(baseInspect().raw, null, 2));
+    const blocks = Array.from(document.querySelectorAll('.ui-code-viewer__code'));
+    expect(blocks.at(-1)).toHaveTextContent(JSON.stringify(baseInspect().raw, null, 2), { normalizeWhitespace: false });
   });
 });
 

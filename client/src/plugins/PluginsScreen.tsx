@@ -56,7 +56,7 @@ function cliRow(plugin: CliPlugin): CardListRowContent {
 
 function inspectItems(inspect: PluginInspect): DefinitionItem[] {
   return [
-    { label: 'Name', value: inspect.name, copyValue: inspect.name },
+    { label: 'Name', value: inspect.name },
     { label: 'Id', value: inspect.id },
     { label: 'Reference', value: inspect.reference ?? 'not recorded' },
     { label: 'Interfaces', value: inspect.interfaceTypes.length > 0 ? inspect.interfaceTypes.join(', ') : 'none reported' },

@@ -31,6 +31,9 @@ be loaded on demand by the caller (REQ-52).
     the keyboard-focused row) calls `onSelect`.
   - `maxHeight?: string` — caps the tree's height and enables virtualised scrolling (only the rows
     in and around the visible window are mounted); unset renders every visible row.
+  - `fill?: boolean` (default `false`) — the tree's bound comes from the **region it is placed in**
+    rather than from a stated maximum, with virtualisation working exactly as it does under
+    `maxHeight`.
   - `rowHeight?: number` — fixed row height in px (default `32`).
   - `emptyState?: ReactNode` — shown instead of the tree when `rootNodes` is empty.
   - `matchedIds?: Set<string>` — ids marked as matching an in-progress search (REQ-60); a matched
@@ -51,6 +54,28 @@ be loaded on demand by the caller (REQ-52).
   directory, also toggles its expansion.
 - Virtualisation follows `DataTable`'s own approach: fixed `rowHeight` windowing over the flattened
   visible-row list, with overscan, so scrolling a large tree never mounts every row at once.
+- **`fill` preserves virtualisation**: the window is measured from the scroll container itself rather
+  than from a parsed length, and it follows that container as the container follows the screen — a
+  screen that grows mounts the rows it has just made room for. A tree of hundreds of entries still
+  mounts only the rows in and around the visible window.
+- **In `fill`, a selection or a search hit is brought into *this* container's window, and into no
+  other.** No ancestor is scrolled, which is what keeps a search hit from scrolling the dialog the
+  tree sits in; letting the browser reveal the row would scroll every one of them, and the row a
+  search jumped to is, in any case, not mounted at all until this happens.
+- **The reveal happens once per change of selection, and a row already inside the window moves
+  nothing.** Everything else the tree does leaves the scroll position exactly where it is:
+  **expanding a directory, collapsing one, and a lazy load arriving move nothing** while the
+  selection is unchanged. The operator scrolled to that directory to ask for its children, and its
+  children have to appear where they are looking — the tree is not entitled to return them to a
+  selection made earlier. (Keyed on the row count instead, the reveal fired on every one of those
+  three: measured, an expansion carried a tree from `scrollTop` 960 back to 0 and took the expanded
+  directory off the screen.)
+- A reveal that cannot yet be performed — a search hit whose ancestor directories are still loading,
+  so the row it named does not exist yet — **stays pending** and is completed by the load that brings
+  the row in. It is still one reveal for that one selection.
+- The delivered `maxHeight` path — including the absence of that reveal — is **preserved exactly**
+  for callers that do not ask for `fill`. Row height, density and keyboard navigation are the same in
+  both modes.
 
 ## Dependencies
 
@@ -59,5 +84,8 @@ be loaded on demand by the caller (REQ-52).
 ## Requirements served
 
 - plan-docker_management_app/REQ-52
+- plan-docker_management_app-filesystem_browser_layout/REQ-18
+- plan-docker_management_app-filesystem_browser_layout/REQ-25
+- plan-docker_management_app-filesystem_browser_layout/REQ-26
 - plan-docker_management_app/REQ-60
 - plan-docker_management_app/REQ-63

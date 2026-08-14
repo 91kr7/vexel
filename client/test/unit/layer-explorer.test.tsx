@@ -308,11 +308,14 @@ describe('LayerExplorer — changeset view (plan-docker_management_app/REQ-49)',
       }),
     );
     act(() => latestSource().emit('end'));
-    await waitFor(() => expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument());
 
-    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+    // The completion is stated while the dialog is still there, and the dialog then goes on its own
+    // — nothing is pressed (progress_completion_autoclose/REQ-1, REQ-6, REQ-24).
+    await waitFor(() => expect(document.querySelector('.ui-transfer-progress-dialog__caption')).toHaveTextContent('Completed'));
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Analyzing layer changesets' })).not.toBeInTheDocument(), {
+      timeout: 3000,
+    });
 
-    expect(screen.queryByRole('heading', { name: 'Analyzing layer changesets' })).not.toBeInTheDocument();
     expect(screen.queryByText('Changesets not analyzed yet')).not.toBeInTheDocument();
     expect(screen.getByText('app/config.yml')).toBeInTheDocument();
 

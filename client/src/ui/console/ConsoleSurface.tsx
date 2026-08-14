@@ -1,7 +1,6 @@
 import { useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Badge, type BadgeTone } from '../controls/Badge';
 import { Button } from '../controls/Button';
-import { CopyButton } from '../controls/CopyButton';
 import { ScrollArea } from '../glass/ScrollArea';
 import { Spinner } from '../feedback/Spinner';
 import './console-surface.css';
@@ -136,7 +135,6 @@ export function ConsoleSurface({
                   {entry.running ? <Spinner /> : null}
                   {!entry.running && entry.status ? <Badge tone={entry.statusTone ?? 'neutral'}>{entry.status}</Badge> : null}
                   {entry.note ? <span className="ui-console-surface__note">{entry.note}</span> : null}
-                  <CopyButton value={transcriptOf(entry, promptSymbol)} />
                   {onRerun ? (
                     <Button size="sm" variant="ghost" disabled={busy} onClick={() => onRerun(entry.id)}>
                       Re-run
@@ -185,11 +183,4 @@ export function ConsoleSurface({
       </div>
     </div>
   );
-}
-
-/** What a per-entry copy hands over: the command as typed, then its output. */
-function transcriptOf(entry: ConsoleEntry, promptSymbol: string): string {
-  const output = entry.lines.map((line) => line.text).join('\n');
-  const head = `${promptSymbol} ${entry.command}`;
-  return output ? `${head}\n${output}` : head;
 }

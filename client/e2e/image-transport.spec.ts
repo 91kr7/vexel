@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { expect, test, type Download, type Page } from './support/test.js';
 import { navEntry, openApp, ownershipArgs } from './support/fixtures.js';
+import { expectCompletedAndStillWaiting } from './support/progress-completion.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 
@@ -154,6 +155,14 @@ test('loading a tarball from the operator\'s machine uploads it with progress an
     // Scoped to the dialog itself: a background poll can independently bring the same reference into
     // the table underneath while the dialog is still open, which would otherwise match twice.
     await expect(progressDialog.getByText(tag)).toBeVisible({ timeout: 20_000 });
+    // One of the two dialogs deliberately excluded from the self-dismissal: it states its
+    // completion like every other one and then keeps waiting, however long, because it is the only
+    // place the reference of the image just loaded is shown
+    // (progress_completion_autoclose/REQ-12, REQ-21).
+    await expectCompletedAndStillWaiting(progressDialog, 20_000);
+    await expect(progressDialog.getByText(tag)).toBeVisible();
+    // This press stays, and is the correct behaviour rather than a race: nothing else dismisses
+    // this dialog.
     await progressDialog.getByRole('button', { name: 'Close' }).click();
 
     await searchField(page).fill(tag);
@@ -213,6 +222,10 @@ test('exporting a container filesystem and importing it back builds an image und
     await expect(progressDialog).toBeVisible();
     // Scoped to the dialog itself, for the same reason as the load flow above.
     await expect(progressDialog.getByText(targetReference)).toBeVisible({ timeout: 20_000 });
+    // The second dialog excluded from the self-dismissal, for the same reason as the load flow
+    // above (progress_completion_autoclose/REQ-12, REQ-21).
+    await expectCompletedAndStillWaiting(progressDialog, 20_000);
+    await expect(progressDialog.getByText(targetReference)).toBeVisible();
     await progressDialog.getByRole('button', { name: 'Close' }).click();
 
     await searchField(page).fill(targetReference);

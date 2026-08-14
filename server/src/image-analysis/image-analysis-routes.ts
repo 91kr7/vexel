@@ -5,7 +5,7 @@ import { readFilesystemEntryContent, type FilesystemContentMode } from "./filesy
 import { resolveRequestPath } from "./filesystem-containment.js";
 import { getFilesystemEntryMetadata } from "./filesystem-entry-service.js";
 import { getSubtreeExportSummary, openFilesystemEntryDownload, openSubtreeArchiveDownload } from "./filesystem-export-service.js";
-import { extractImageFilesystem, listImageFilesystemChildren } from "./filesystem-extraction-service.js";
+import { extractImageFilesystem, getKeptFilesystemExtraction, listImageFilesystemChildren } from "./filesystem-extraction-service.js";
 import { compareImageFilesystems, listDiffChildren } from "./image-diff-service.js";
 import { searchFilesystemEntries } from "./filesystem-search-service.js";
 import { getImageBuildCacheTrace } from "./layer-build-cache-service.js";
@@ -112,6 +112,23 @@ imageAnalysisRouter.get("/:id/filesystem/stream", (req, res) =>
     ),
   ),
 );
+
+/**
+ * Whether an extraction result is still kept for this image's content, and its summary when there
+ * is one — the free read the browse action's two shapes are decided by
+ * (filesystem_browse_direct/REQ-4, REQ-16). A cache lookup and nothing else: no daemon call, no
+ * container, no extraction
+ * started, nothing written. "Nothing kept" is an answer with a `200`, not a `404`: absence is
+ * precisely what the caller is asking about.
+ */
+imageAnalysisRouter.get("/:id/filesystem/kept", async (req, res) => {
+  try {
+    const summary = await getKeptFilesystemExtraction(req.params.id);
+    res.json(summary ? { kept: true, summary } : { kept: false });
+  } catch (error) {
+    respondError(res, error);
+  }
+});
 
 /** Direct children of a path in a previously extracted filesystem (REQ-52), lazily read one directory level at a time. */
 imageAnalysisRouter.get("/:id/filesystem/entries", async (req, res) => {

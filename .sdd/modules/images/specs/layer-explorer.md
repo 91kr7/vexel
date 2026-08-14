@@ -35,7 +35,9 @@ Shows:
 - Per layer, in the cache column: a followable `CrossReference` to the build-cache record behind it
   when the association exists, otherwise `unavailable` with the reason as its tooltip (REQ-68).
 - Above the changeset view of the selected layer: a "Build step & build cache" section with the
-  layer's full recorded command (copyable) and either a followable `CrossReference` to its cache
+  layer's full recorded command (selectable text; the copy affordance beside it left on 2026-08-14
+  with every other one, `plan-docker_management_app-remove_copy_controls`) and either a followable
+  `CrossReference` to its cache
   record — with the record's type, usage state and size next to it — or, in its place, the full
   sentence stating why the association does not exist (REQ-68). A registry-pulled image therefore
   shows an explanation, never an empty panel.
@@ -63,6 +65,13 @@ Actions:
     what it produced. Only Cancel or starting a new analysis replaces it.
   - Close, once the analysis failed, dismisses the dialog and clears it (there is nothing to keep),
     so "Analyze changesets…" is offered again.
+  - Once the analysis succeeds the dialog states `Completed` — the shared surface's own wording —
+    and **dismisses itself** a second later, which is that same acknowledgement made without the
+    operator having to give it: this view asks the surface for it (`autoCloseOnDone`), its result
+    being rendered behind the dialog rather than in it, and the pressed Close and the elapsed second
+    are one and the same closing path. No completion wording, state or timer of this view's own; its
+    `formatCaption` keeps describing the in-flight phase only. A failed analysis never dismisses
+    itself.
 - Selecting a layer row shows that layer's changeset once analysis has completed and its dialog has
   been dismissed (Close does not hide the result, only the dialog); before that, or while a run is
   active, the same "not analyzed yet" prompt is shown regardless of which layer is selected (analysis
@@ -98,3 +107,7 @@ Actions:
 - plan-docker_management_app/REQ-65
 - plan-docker_management_app/REQ-67
 - plan-docker_management_app/REQ-68
+- plan-docker_management_app-progress_completion_autoclose/REQ-5
+- plan-docker_management_app-progress_completion_autoclose/REQ-12
+- plan-docker_management_app-progress_completion_autoclose/REQ-15
+- plan-docker_management_app-progress_completion_autoclose/REQ-16

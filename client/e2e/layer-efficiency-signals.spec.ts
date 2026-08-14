@@ -4,6 +4,9 @@ import { join } from 'node:path';
 import { expect, test, type Page } from './support/test.js';
 
 import { openApp, ownershipArgs } from './support/fixtures.js';
+import { countStreamProgressEvents, progressEventsSeen } from './support/analysis-progress-events.js';
+import { expectCompletedThenSelfDismissed } from './support/progress-completion.js';
+import { expectRegionPinnedAcrossViewportHeights } from './support/pinned-region.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 async function buildImage(tag: string, dockerfile: string): Promise<void> {
@@ -125,9 +128,13 @@ test('analyzes layer efficiency and secret signals, then navigates from a findin
   await confirmHeading.locator('xpath=..').getByRole('button', { name: 'Analyze', exact: true }).click();
 
   const progressDialog = page.getByRole('heading', { name: 'Analyzing layer efficiency' }).locator('xpath=..');
-  await expect(progressDialog.getByRole('button', { name: 'Close' })).toBeVisible({ timeout: 60_000 });
-  await progressDialog.getByRole('button', { name: 'Close' }).click();
+  // The second of the two dialogs the human reported, as the same sequence over time: the
+  // completion stated while the dialog is still there, then the dialog gone with nothing pressed
+  // (progress_completion_autoclose/REQ-18). The `Close` press that used to be here would now race
+  // the dialog's own dismissal.
+  await expectCompletedThenSelfDismissed(progressDialog, 60_000);
 
+  // The efficiency signals, readable behind the dialog that left on its own (REQ-13).
   const wasteSection = findingsSection(modal, 0);
   const duplicatesSection = findingsSection(modal, 1);
   const secretsSection = findingsSection(modal, 2);
@@ -142,6 +149,12 @@ test('analyzes layer efficiency and secret signals, then navigates from a findin
   // counted among the wasted files above — expected, its bytes are gone too).
   await expect(secretsSection.getByText('root/.npmrc')).toBeVisible();
   await expect(secretsSection.getByText('root/.aws/credentials')).toBeVisible();
+
+  // plan-docker_management_app-filesystem_browser_layout/REQ-20 — this dialog is deliberately out of
+  // that report's scope: it states no height of its own and is simply the size of its content, so
+  // its body must measure the same at both viewport heights. See `support/pinned-region.ts` for the
+  // recorded breach the two sibling dialogs carry and for when this assertion is deleted.
+  await expectRegionPinnedAcrossViewportHeights(page, modal.locator('.ui-modal__body'), 'Images & layers → Efficiency & signals');
 
   // Drilling down from the wasted file navigates to the layer explorer, pre-selected at the layer
   // that wrote the now-dead bytes, already analyzing — the hand-off the screen holds now (images-screen.md).
@@ -173,4 +186,78 @@ test('analyzes layer efficiency and secret signals, then navigates from a findin
   const otherModal = page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: `Layer stack — ${OTHER_TAG}` }) });
   await expect(otherModal.locator('.ui-data-table__row').first()).toBeVisible({ timeout: 20_000 });
   await expect(otherModal.getByText(/findings · \d+/)).toHaveCount(0);
+});
+
+// **bug-1's cached-run coverage, relocated here — it was not deleted**
+// (plan-docker_management_app-filesystem_browse_direct/REQ-28).
+//
+// It moved here because this fix removes the dialog from the cached filesystem path: the filesystem
+// browser now opens a kept result straight into the tree, raising no progress dialog at all, so the
+// scenario that certified bug-1's hardest case had nowhere left to live there.
+//
+// The case itself: a run **served from the shared changeset cache, for which no phase is ever
+// reported**. The dialog's caption has nothing to describe, and it must state `Completed` all the
+// same — not the "no phase yet" wording it used to be left on under a full bar — and then leave on
+// its own, with nothing pressed
+// (plan-docker_management_app-progress_completion_autoclose/REQ-2, REQ-22).
+//
+// Both runs are this test's own: the run's data directory — the analysis cache included — is
+// emptied before every single test, so the cache hit is created here, within the test, and nothing
+// is inherited from the test above.
+test('states the completion and leaves on its own for a cached analysis, which reports no phase at all', async ({ page }) => {
+  // The witness of the scenario itself: how many phases each run actually reported. "The dialog
+  // completed and left" is true of an ordinary uncached run too, so without this the relocated
+  // check would no longer be bug-1's hardest case at all — merely a second copy of the test above.
+  // Installed as an init script, so the reload below is what arms it.
+  await countStreamProgressEvents(page);
+  await page.reload();
+  await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible();
+
+  await searchField(page).fill(TAG);
+  const row = imageRow(page, TAG);
+  await expect(row).toBeVisible({ timeout: 10_000 });
+
+  // First run: genuinely uncached, and the one that populates the changeset cache.
+  await chooseRowAction(page, row, 'Efficiency & signals…');
+  const modal = signalsModal(page, /^Efficiency & signals/);
+  await expect(modal).toBeVisible();
+  await modal.getByRole('button', { name: 'Analyze layer efficiency…' }).click();
+  await page.getByRole('heading', { name: `Confirm: ${TAG}` }).locator('xpath=..').getByRole('button', { name: 'Analyze', exact: true }).click();
+  await expectCompletedThenSelfDismissed(page.getByRole('heading', { name: 'Analyzing layer efficiency' }).locator('xpath=..'), 60_000);
+  await expect(modal.getByText('Efficiency score')).toBeVisible();
+
+  // The witness's own floor: a run that really did the work reports phases, so the zero asserted
+  // after the second run is a fact about that run and not about a counter that never counts.
+  const phasesOnTheFirstRun = await progressEventsSeen(page, '/signals/stream');
+  expect(phasesOnTheFirstRun, 'the uncached analysis reported no phase either: the phase witness counts nothing').toBeGreaterThan(0);
+
+  // Closes the view's own Modal (overlay click, away from its content), which discards its
+  // client-side state entirely: only the open view is rendered, so nothing of it survives the
+  // closing (images/specs/images-screen.md). Re-opened from the row, the view is back on its own
+  // `Not analyzed yet` screen — deliberately left to its own report and untouched by this fix
+  // (filesystem_browse_direct/REQ-22) — which is what makes the second run a genuine question to
+  // the server's cache.
+  await page.locator('.ui-modal-overlay').click({ position: { x: 5, y: 5 } });
+  await expect(modal).toHaveCount(0);
+
+  await chooseRowAction(page, imageRow(page, TAG), 'Efficiency & signals…');
+  const reopened = signalsModal(page, /^Efficiency & signals/);
+  await expect(reopened.getByText('Not analyzed yet')).toBeVisible();
+
+  await reopened.getByRole('button', { name: 'Analyze layer efficiency…' }).click();
+  await page.getByRole('heading', { name: `Confirm: ${TAG}` }).locator('xpath=..').getByRole('button', { name: 'Analyze', exact: true }).click();
+
+  const cachedProgressDialog = page.getByRole('heading', { name: 'Analyzing layer efficiency' }).locator('xpath=..');
+  await expectCompletedThenSelfDismissed(cachedProgressDialog, 15_000);
+
+  await expect(reopened.getByText('Efficiency score')).toBeVisible({ timeout: 15_000 });
+
+  // And the second run is the case itself: served from the shared changeset cache, it reported no
+  // phase at all — so the completion the dialog stated above replaced the "no phase reported yet"
+  // wording under a full bar, which is precisely what bug-1 was certified on
+  // (progress_completion_autoclose/REQ-2, REQ-22).
+  expect(
+    await progressEventsSeen(page, '/signals/stream'),
+    'the second analysis reported phases of its own: it was not served from the cache, so the relocated scenario never exercised the no-phase case',
+  ).toBe(phasesOnTheFirstRun);
 });

@@ -54,8 +54,8 @@ Actions:
   from the host's credential store; once confirmed, the row turns unauthenticated.
 - Typing in the search box → searches (default index) or filters (any other registry) the
   repositories.
-- A tag chip's "pull" → opens a dialog naming the exact reference that will be pulled, with a copy
-  affordance; confirming starts the pull and shows per-layer progress. Success closes the dialog and
+- A tag chip's "pull" → opens a dialog naming the exact reference that will be pulled, as selectable
+  text; confirming starts the pull and shows per-layer progress. Success closes the dialog and
   announces the pull; a failure keeps the dialog open with the daemon's message.
 
 ## Rules and invariants

@@ -7,8 +7,7 @@ type: frontend hook
 # useContainerLogs
 
 **Purpose** → the client-side subscription to a container's log stream: a bounded line buffer fed
-without one render per line, automatic reconnection, and a snapshot of the buffer for copy or
-download.
+without one render per line, automatic reconnection, and a snapshot of the buffer for download.
 
 ## Contract
 

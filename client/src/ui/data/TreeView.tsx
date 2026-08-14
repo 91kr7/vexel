@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type UIEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type UIEvent } from 'react';
 import { ScrollArea } from '../glass/ScrollArea';
 import { Spinner } from '../feedback/Spinner';
 import './tree-view.css';
@@ -28,6 +28,13 @@ export interface TreeViewProps {
   onSelect?: (node: TreeNode) => void;
   /** Caps the tree's height and enables virtualised scrolling; unset renders every visible row. */
   maxHeight?: string;
+  /**
+   * Takes the height of the region the tree is placed in instead of a stated
+   * maximum, with virtualisation working exactly as it does under `maxHeight`:
+   * the window is measured from the scroll container itself, so it follows the
+   * region as the region follows the screen.
+   */
+  fill?: boolean;
   /** Fixed row height in px (default 32). */
   rowHeight?: number;
   emptyState?: ReactNode;
@@ -74,6 +81,7 @@ export function TreeView({
   selectedId,
   onSelect,
   maxHeight,
+  fill = false,
   rowHeight = 32,
   emptyState,
   matchedIds = EMPTY_SET,
@@ -82,10 +90,24 @@ export function TreeView({
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+  /** The selection whose reveal has already been performed, so no later render repeats it. */
+  const revealedSelectionRef = useRef<string | undefined>(undefined);
 
   useLayoutEffect(() => {
     if (scrollRef.current) setViewportHeight(scrollRef.current.clientHeight);
-  }, [maxHeight, rootNodes.length]);
+  }, [maxHeight, fill, rootNodes.length]);
+
+  // In the region-bounded mode the scrollport's height is whatever the region
+  // currently offers, so it is observed rather than measured once: a screen that
+  // grows must mount the rows it has just made room for. (jsdom provides no
+  // ResizeObserver; there is no layout to observe there either.)
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!fill || !element || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => setViewportHeight(element.clientHeight));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [fill]);
 
   function handleScroll(event: UIEvent<HTMLDivElement>) {
     setScrollTop(event.currentTarget.scrollTop);
@@ -94,12 +116,44 @@ export function TreeView({
   const rows: FlatRow[] = [];
   flatten(rootNodes, 0, expandedIds, childrenById, loadingIds, rows);
 
-  const virtualized = Boolean(maxHeight);
+  const virtualized = Boolean(maxHeight) || fill;
   const startIndex = virtualized ? Math.max(0, Math.floor(scrollTop / rowHeight) - OVERSCAN_ROWS) : 0;
   const endIndex = virtualized ? Math.min(rows.length, Math.ceil((scrollTop + viewportHeight) / rowHeight) + OVERSCAN_ROWS) : rows.length;
   const visibleRows = rows.slice(startIndex, endIndex);
   const topSpacerHeight = virtualized ? startIndex * rowHeight : 0;
   const bottomSpacerHeight = virtualized ? (rows.length - endIndex) * rowHeight : 0;
+
+  // A selection or a search hit is brought into **this** container's window, and
+  // into no other: the row a search jumped to is otherwise not mounted at all
+  // while the tree is virtualised, and letting the browser reveal it would
+  // scroll every ancestor — the dialog included. Only a row out of the window
+  // moves the scroll position, and only ever the row that has just been
+  // selected.
+  //
+  // Once per change of selection, which is what the ref is for rather than a
+  // dependency list. Keyed on the row count instead, the reveal fired on every
+  // expansion, every collapse and every completed lazy load: an operator who
+  // scrolled away from an earlier selection to reach a directory, and expanded
+  // it, was carried back to that selection — with the directory whose children
+  // they had just asked for taken off the screen. A reveal that is still pending
+  // (a search hit whose ancestor directories are still loading, so the row it
+  // named does not exist yet) stays pending, and is completed by the load that
+  // brings the row in.
+  useLayoutEffect(() => {
+    const element = scrollRef.current;
+    if (!fill || !element) return;
+    if (selectedId === undefined) {
+      revealedSelectionRef.current = undefined;
+      return;
+    }
+    if (revealedSelectionRef.current === selectedId) return;
+    const index = rows.findIndex((row) => row.type === 'node' && row.node.id === selectedId);
+    if (index === -1) return;
+    revealedSelectionRef.current = selectedId;
+    const top = index * rowHeight;
+    if (top < element.scrollTop) element.scrollTop = top;
+    else if (top + rowHeight > element.scrollTop + element.clientHeight) element.scrollTop = top + rowHeight - element.clientHeight;
+  });
 
   function selectableIndex(fromIndex: number, direction: 1 | -1): number {
     let index = fromIndex;
@@ -154,7 +208,7 @@ export function TreeView({
   if (rootNodes.length === 0) return <div className="ui-tree-view__empty">{emptyState}</div>;
 
   return (
-    <div className="ui-tree-view" role="tree" tabIndex={0} onKeyDown={handleKeyDown}>
+    <div className={fill ? 'ui-tree-view ui-tree-view--fill' : 'ui-tree-view'} role="tree" tabIndex={0} onKeyDown={handleKeyDown}>
       <ScrollArea ref={scrollRef} maxHeight={maxHeight} onScroll={handleScroll}>
         <div className="ui-tree-view__body">
           {topSpacerHeight > 0 ? <div style={{ height: topSpacerHeight }} /> : null}

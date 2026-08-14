@@ -210,10 +210,9 @@ export function SwarmServicesPanel({ services, loaded, canManage, onCreate, onUp
       <Stack gap="var(--space-3)">
         {detail.error ? <ErrorBanner title="Could not read the service" detail={detail.error} onRetry={detail.refresh} /> : null}
         <DefinitionList
-          columns={2}
           items={[
-            { label: 'Service id', value: service.id, copyValue: service.id },
-            { label: 'Image', value: service.image, copyValue: service.image },
+            { label: 'Service id', value: service.id },
+            { label: 'Image', value: service.image },
             { label: 'Mode', value: service.mode },
             { label: 'Replicas', value: formatReplicas(service.replicasRunning, service.replicasDesired) },
             { label: 'Published ports', value: portLine(service.ports) || 'none' },

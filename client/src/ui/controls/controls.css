@@ -767,8 +767,27 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  flex: 1 1 240px;
   min-width: 0;
+  /*
+   * The band's own size is the size of the controls it holds, on whichever axis
+   * it is placed: no growth, and no basis of its own. It used to declare
+   * `flex: 1 1 240px` unconditionally — a rule written for a row, which reads as
+   * "240px tall" the moment the band is stacked in a column, and drew a 37px
+   * control in the middle of a 240px band with 103px of nothing above and below
+   * it. `flex-grow` is worse still on the block axis: it turns a 240px void into
+   * a "takes everything left" one.
+   */
+  flex: 0 0 auto;
+}
+
+/*
+ * In a row, the delivered contract, unchanged: at least 240px wide and growing
+ * to fill the row. The decision is made here, by the axis the band was actually
+ * placed on, and never by a prop asking the call site which axis it is on —
+ * that prop is this defect written down.
+ */
+.ui-row > .ui-stream-search {
+  flex: 1 1 240px;
 }
 
 .ui-stream-search__input {

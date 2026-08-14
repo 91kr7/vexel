@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import { expect, test, type Page } from './support/test.js';
 
 import { openApp, ownershipArgs } from './support/fixtures.js';
+import { expectCompletedThenSelfDismissed } from './support/progress-completion.js';
+import { expectRegionPinnedAcrossViewportHeights } from './support/pinned-region.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 // Every test compares the very same fixture pair; running serially avoids
@@ -62,7 +64,7 @@ function diffModal(page: Page) {
   return page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: 'Compare filesystems' }) });
 }
 
-/** Confirms the cost-warning dialog, then waits for the comparison to end and closes the progress dialog. */
+/** Confirms the cost-warning dialog, then waits for the comparison to end and for its dialog to go. */
 async function confirmAndFinishComparison(page: Page, modal: ReturnType<typeof diffModal>): Promise<void> {
   await modal.getByRole('button', { name: 'Compare' }).click();
   const confirmHeading = page.getByRole('heading', { name: /^Confirm: / });
@@ -70,8 +72,10 @@ async function confirmAndFinishComparison(page: Page, modal: ReturnType<typeof d
   await confirmHeading.locator('xpath=..').getByRole('button', { name: 'Compare' }).click();
 
   const progressDialog = page.getByRole('heading', { name: 'Comparing filesystems' }).locator('xpath=..');
-  await expect(progressDialog.getByRole('button', { name: 'Close' })).toBeVisible({ timeout: 30_000 });
-  await progressDialog.getByRole('button', { name: 'Close' }).click();
+  // Re-pointed at the dialog's own dismissal: the completion is stated while it is still there, and
+  // it then leaves with nothing pressed (progress_completion_autoclose/REQ-18, REQ-24). The `Close`
+  // press that used to be here would now race that dismissal.
+  await expectCompletedThenSelfDismissed(progressDialog, 30_000);
 }
 
 // Two small scratch images: image A has a path only it has and a "changed.txt" with its own
@@ -157,6 +161,12 @@ test('compares two images from "Compare with…", browses the diff tree, and pre
   await expect(modal.getByText('Content', { exact: true })).toBeVisible();
   await expect(modal.getByText('content-A')).toBeVisible();
   await expect(modal.getByText('content-B')).toBeVisible();
+
+  // plan-docker_management_app-filesystem_browser_layout/REQ-20 — this dialog is deliberately out of
+  // that report's scope: its two-pane region is still pinned in feature code (`maxHeight="480px"`,
+  // and `"360px"` on the side-by-side viewer) and must measure the same at both viewport heights.
+  // See `support/pinned-region.ts` for the recorded breach and for when this assertion is deleted.
+  await expectRegionPinnedAcrossViewportHeights(page, modal.locator('.ui-split-pane').first(), 'Images & layers → Compare filesystems');
 });
 
 // plan-docker_management_app/REQ-63 — a two-image bulk selection opens the diff view with both

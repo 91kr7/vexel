@@ -101,9 +101,8 @@ export function SwarmNodesPanel({ nodes, loaded, canManage, onUpdate, onRemove }
     return (
       <Stack gap="var(--space-3)">
         <DefinitionList
-          columns={2}
           items={[
-            { label: 'Node id', value: node.id, copyValue: node.id },
+            { label: 'Node id', value: node.id },
             { label: 'Platform', value: node.platform ?? '—' },
             { label: 'Reachability', value: node.reachability ?? (node.role === 'manager' ? 'unknown' : 'not a manager') },
             { label: 'Labels', value: Object.keys(node.labels).length === 0 ? 'none' : Object.entries(node.labels).map(([key, value]) => `${key}=${value}`).join(', ') },

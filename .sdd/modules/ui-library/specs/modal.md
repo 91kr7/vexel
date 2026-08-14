@@ -38,6 +38,21 @@ type: UI component
   discovered by a test.
 - The dialog answers its content in height as well: it grows with what it holds, and `'large'` caps
   the height and scrolls inside the content, never on the positioner.
+- **A `'large'` dialog whose body holds a `BandStack` hands its own bounded height down to it**, and
+  only that kind of dialog does. The cap becomes the card's used height, the body shrinks against it,
+  and the arrangement is given the definite height its filling region distributes — which is what
+  stops the body from overflowing the card and leaving the card itself scrolling, a second scrollbar
+  around content that already has one. Every dialog **without** an arrangement keeps exactly the
+  layout it has, which is what leaves the three sibling large dialogs untouched while the library
+  grows underneath them. The card's own scroll stays as the backstop for a viewport too short even
+  for the chrome.
+- **That gate reads the dialog's content, not its API**, and the consequence is worth knowing before
+  it surprises someone: any future `'large'` dialog that happens to nest a `BandStack` **at any
+  depth** inherits the column layout silently, without asking for it and without naming it at the
+  call site. Accepted rather than overlooked — a dialog holding an arrangement is exactly the dialog
+  that needs to hand its height down, so the sniff and the intent coincide today. A dialog that
+  wanted the arrangement *without* the column layout would be the signal to make this an explicit
+  choice on the dialog instead.
 - The dialog surface is a `raised` Surface carrying the overlay glass material
   (`material="overlay"`): what is behind the dialog shows through it blurred and unreadable, at
   both sizes — `'large'`'s own scroll changes what the dialog contains, never what it samples.
@@ -60,6 +75,8 @@ type: UI component
 
 - Surface, Overlay glass material
 - Escape arbitration
+- BandStack (recognised in the stylesheet, not imported: a `'large'` dialog holding one becomes a
+  column so the arrangement has a height to distribute)
 
 ## Requirements served
 
@@ -83,3 +100,4 @@ type: UI component
 - plan-docker_management_app-dialog_sizing/REQ-12
 - plan-docker_management_app-dialog_sizing/REQ-14
 - plan-docker_management_app-dialog_sizing/REQ-15
+- plan-docker_management_app-filesystem_browser_layout/REQ-6

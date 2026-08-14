@@ -15,14 +15,6 @@ function lines(count: number, prefix = 'line'): LogStreamLine[] {
   return Array.from({ length: count }, (_, index) => ({ id: String(index), text: `${prefix}-${index}` }));
 }
 
-// userEvent.setup() installs its own navigator.clipboard stub, so the test's
-// stub must be defined after setup() to take precedence over it.
-function stubClipboard(): ReturnType<typeof vi.fn> {
-  const writeText = vi.fn().mockResolvedValue(undefined);
-  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
-  return writeText;
-}
-
 /**
  * The style rules of the log stream's own stylesheet, selector and declarations,
  * comments stripped. Resolved from the client workspace root (vitest's working
@@ -92,24 +84,6 @@ describe('LogStream (REQ-30, REQ-31)', () => {
       0,
     );
     expect(totalHeight).toBe(1000 * 20);
-  });
-
-  // log-stream.md — "Copy" puts the full text of the buffer on the clipboard, one line per row
-  it('copies every buffered line as text, without timestamps unless they are shown', async () => {
-    const user = userEvent.setup();
-    const writeText = stubClipboard();
-    const buffer: LogStreamLine[] = [
-      { id: '1', text: 'first', timestamp: '10:00:00' },
-      { id: '2', text: 'second', timestamp: '10:00:01' },
-    ];
-    const { rerender } = render(<LogStream lines={buffer} />);
-
-    await user.click(screen.getByRole('button', { name: 'Copy' }));
-    expect(writeText).toHaveBeenCalledWith('first\nsecond');
-
-    rerender(<LogStream lines={buffer} showTimestamps />);
-    await user.click(screen.getByRole('button', { name: /Cop/ }));
-    expect(writeText).toHaveBeenLastCalledWith('10:00:00 first\n10:00:01 second');
   });
 
   // log-stream.md — the download action exists only when a file name is given, and saves the buffer under it

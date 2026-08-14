@@ -256,26 +256,44 @@
   color: var(--color-danger-strong);
 }
 
+/* The arrangement itself is `.ui-content-columns` (layout/content-columns.css),
+   carried by the same element: as many bands as this list's own box can hold at
+   its content class's minimum. All that is left here is the band step, which is
+   the delivered one. */
 .ui-definition-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.ui-definition-list--columns-2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-1) var(--space-6);
+  --content-columns-row-gap: var(--space-1);
 }
 
 .ui-definition-list__row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-4);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   background: var(--color-wash-1);
+}
+
+/* The band fills its track — its wash reaches the section's edge, so no dead
+   margin re-appears on the right — while the label→value run inside it is
+   bounded by the content class's maximum, with the surplus as trailing padding.
+   That is what a `space-between` band got wrong, and why the row above no
+   longer asks for one: it does not add space, it pushes two items to opposite
+   ends of whatever width the band was handed, which on a 1550px band leaves
+   ~1500px between a label and its value.
+   The percentage resolves against the track, not against the band's own
+   content, so there is no circularity; below the bound the trailing padding is
+   simply the band's own. */
+.ui-content-columns > .ui-definition-list__row {
+  padding-inline-end: max(var(--space-3), calc(100% - var(--space-3) - var(--band-run-max, 100%)));
+}
+
+/* A label is not shrunk to fit — proportional shrinking would break `Created`
+   at five characters to make room for a long value. It wraps only when it alone
+   is wider than the band it sits in, which is what a 36-character label key in
+   a column does. */
+.ui-content-columns > .ui-definition-list__row > .ui-definition-list__label {
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .ui-definition-list__label {
@@ -302,10 +320,12 @@
   gap: var(--space-2);
 }
 
-.ui-code-viewer__actions {
-  display: flex;
-  justify-content: flex-end;
-}
+/* The block's action row is gone, rule and element together, rather than kept
+   with a rule keyed on emptiness: it held exactly one child — the copy control —
+   so with that child removed there is no state in which it has anything to draw.
+   A rule left behind for an element nothing renders is the unused style REQ-10
+   refuses, and an element left behind would still consume the block's own
+   `gap` above six raw payload blocks (REQ-11). */
 
 .ui-card-list {
   display: flex;

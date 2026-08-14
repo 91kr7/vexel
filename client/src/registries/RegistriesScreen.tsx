@@ -304,7 +304,7 @@ export function RegistriesScreen() {
         onCancel={closePullDialog}
       >
         <Stack gap="var(--space-3)">
-          <DefinitionList items={[{ label: 'Reference', value: pullReference ?? '', copyValue: pullReference }]} />
+          <DefinitionList items={[{ label: 'Reference', value: pullReference ?? '' }]} />
           {pullStreamUrl ? <StepProgressList steps={pullSteps.length === 0 ? [{ id: 'overall', label: 'Starting…', status: 'active' }] : pullSteps} /> : null}
           {pullTransfer.error ? <ErrorBanner title="Pull failed" detail={pullTransfer.error} /> : null}
         </Stack>

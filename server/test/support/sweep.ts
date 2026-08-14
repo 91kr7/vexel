@@ -40,4 +40,8 @@ await stopSharedRegistry();
 await sweep("container", ["ps", "-a"], ["rm", "-fv"]);
 await sweep("volume", ["volume", "ls"], ["volume", "rm"]);
 await sweep("network", ["network", "ls"], ["network", "rm"]);
-await sweep("image", ["images"], ["rmi", "-f"]);
+// `-a`, because `docker images` without it omits untagged images entirely — and an
+// image that has lost its tag while a container still referenced it is exactly the
+// leftover this sweep exists for. The label filter still stands between it and
+// anything of the operator's.
+await sweep("image", ["images", "-a"], ["rmi", "-f"]);

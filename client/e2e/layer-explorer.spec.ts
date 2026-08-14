@@ -1,5 +1,7 @@
 import { expect, test, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
+import { expectCompletedThenSelfDismissed } from './support/progress-completion.js';
+import { expectRegionPinnedAcrossViewportHeights } from './support/pinned-region.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { TINY_IMAGE, TINY_IMAGE_FILE, ensureImage } from '../../server/test/support/base-images.js';
 
@@ -104,6 +106,12 @@ test('opens the layer explorer from the row menu with no panel open, and shows t
   expect(await rows.count()).toBeGreaterThan(1);
   // images-analysis/specs/layer-metadata-service.md — the local daemon reports no compressed size
   await expect(modal.getByText('unavailable').first()).toBeVisible();
+
+  // plan-docker_management_app-filesystem_browser_layout/REQ-20 — this dialog is deliberately out of
+  // that report's scope: its inner layer table is still pinned in feature code (`maxHeight="320px"`)
+  // and must measure the same at both viewport heights. See `support/pinned-region.ts` for the
+  // recorded breach and for when this assertion is deleted.
+  await expectRegionPinnedAcrossViewportHeights(page, modal.locator('.ui-data-table .ui-scroll-area').first(), 'Images & layers → Explore layers');
 });
 
 // plan-docker_management_app/REQ-51 — the operator is warned of the expected time and temporary
@@ -177,11 +185,13 @@ test('keeps the changeset browsable after closing the dialog, and layer selectio
 
     const progressHeading = page.getByRole('heading', { name: 'Analyzing layer changesets' });
     const progressDialog = progressHeading.locator('xpath=..');
-    await expect(progressDialog.getByRole('button', { name: 'Close' })).toBeVisible({ timeout: 30_000 });
-    await progressDialog.getByRole('button', { name: 'Close' }).click();
+    // Re-pointed at the dialog's own dismissal: the completion is stated while it is still there,
+    // and it then leaves with nothing pressed (progress_completion_autoclose/REQ-18, REQ-24). The
+    // `Close` press that used to be here would now race that dismissal.
+    await expectCompletedThenSelfDismissed(progressDialog, 30_000);
 
     // The dialog is gone, but the just-computed changeset must still be browsable — not a
-    // "not analyzed yet" prompt sent back by Close.
+    // "not analyzed yet" prompt left behind by the dismissal.
     await expect(progressHeading).toHaveCount(0);
     await expect(modal.getByText('Changesets not analyzed yet')).toHaveCount(0);
     await expect(modal.locator('.ui-data-table__expanded')).toContainText(TINY_IMAGE_FILE);

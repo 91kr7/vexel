@@ -144,13 +144,18 @@ function inspectPayload() {
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
-  // The expanded detail panel reads the image's inspect payload; every other
-  // call is a mutation answered with an empty success.
+  // The expanded detail panel reads the image's inspect payload; the filesystem browser, as soon as
+  // it is mounted, asks whether a result is kept for the image's content — the read its two shapes
+  // are decided by (filesystem_browse_direct/REQ-4, REQ-16) — and is answered "nothing kept" here,
+  // so what this screen's own tests drive is the shape with the cost warning. Every other call is a
+  // mutation answered with an empty success.
   fetchMock = vi.fn().mockImplementation((url: string) =>
     Promise.resolve(
       String(url).includes('/inspect')
         ? { ok: true, status: 200, json: () => Promise.resolve(inspectPayload()) }
-        : { ok: true, status: 204, json: () => Promise.resolve({}) },
+        : String(url).includes('/filesystem/kept')
+          ? { ok: true, status: 200, json: () => Promise.resolve({ kept: false }) }
+          : { ok: true, status: 204, json: () => Promise.resolve({}) },
     ),
   );
   vi.stubGlobal('fetch', fetchMock);
@@ -1377,6 +1382,11 @@ describe('ImagesScreen — load tarball (plan-docker_management_app/REQ-42)', ()
     act(() => latestUpload().respond(200, JSON.stringify({ references: ['myrepo/app:1.0'] })));
 
     expect(screen.getByText('myrepo/app:1.0')).toBeInTheDocument();
+    // The completed state, stated in words by the library on this surface too — and then the dialog
+    // stays: it is the only place the loaded references are shown, so it is deliberately not opted
+    // into the self-dismissal, and this `Close` is what dismisses it
+    // (progress_completion_autoclose/REQ-5, REQ-12).
+    expect(document.querySelector('.ui-transfer-progress-dialog__caption')).toHaveTextContent('Completed');
     await user.click(screen.getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(onRefresh).toHaveBeenCalled());
   });
@@ -1435,6 +1445,9 @@ describe('ImagesScreen — import filesystem (plan-docker_management_app/REQ-43)
     act(() => latestUpload().respond(200, JSON.stringify({ reference: 'myrepo/imported:v1' })));
 
     expect(screen.getByText('myrepo/imported:v1')).toBeInTheDocument();
+    // Same completed state, and the same deliberate exclusion from the self-dismissal as the load
+    // flow above (progress_completion_autoclose/REQ-5, REQ-12).
+    expect(document.querySelector('.ui-transfer-progress-dialog__caption')).toHaveTextContent('Completed');
     await user.click(screen.getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(onRefresh).toHaveBeenCalled());
   });

@@ -1,6 +1,5 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type UIEvent } from 'react';
 import { Button } from '../controls/Button';
-import { CopyButton } from '../controls/CopyButton';
 import { EmptyState } from '../feedback/EmptyState';
 import { ScrollArea } from '../glass/ScrollArea';
 import '../glass/overlay-glass.css';
@@ -111,14 +110,16 @@ export function LogStream({
 
   return (
     <div className="ui-log-stream">
-      <div className="ui-log-stream__actions">
-        <CopyButton value={plainText} />
-        {downloadFileName ? (
+      {/* Not rendered at all when it would have no children — a stream offered
+          without a download filename, which is Compose whenever no project is
+          selected. An empty flex child still consumes its parent's gap. */}
+      {downloadFileName ? (
+        <div className="ui-log-stream__actions">
           <Button size="sm" onClick={download}>
             Download
           </Button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
       {lines.length === 0 ? (
         <EmptyState title={emptyLabel} />
       ) : (

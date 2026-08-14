@@ -232,7 +232,7 @@ export function LayerExplorer({ image, open, onClose, initialSelectedLayerIndex,
                 <SectionHeader variant="eyebrow" title="Build step & build cache" />
                 {trace.error ? <ErrorBanner title="Could not load the build-cache association" detail={trace.error} onRetry={trace.refresh} /> : null}
                 <DefinitionList
-                  items={[{ label: 'Build step', value: selectedLink?.command ?? selectedLink?.instruction ?? '–', copyValue: selectedLink?.command }]}
+                  items={[{ label: 'Build step', value: selectedLink?.command ?? selectedLink?.instruction ?? '–' }]}
                 />
                 {renderSelectedCacheReference()}
               </Stack>
@@ -287,6 +287,7 @@ export function LayerExplorer({ image, open, onClose, initialSelectedLayerIndex,
         }
         onCancel={cancelAnalysis}
         onClose={closeProgressDialog}
+        autoCloseOnDone
       />
     </Modal>
   );
