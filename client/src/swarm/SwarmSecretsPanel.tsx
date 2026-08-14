@@ -108,7 +108,7 @@ export function SwarmSecretsPanel({ secrets, loaded, canManage, onCreate, onRemo
       <Stack gap="var(--space-3)">
         <DefinitionList
           items={[
-            { label: 'Secret id', value: secret.id, copyValue: secret.id },
+            { label: 'Secret id', value: secret.id },
             { label: 'Created', value: formatAge(secret.createdAt) },
             { label: 'Updated', value: formatAge(secret.updatedAt) },
             { label: 'Stack', value: secret.stack ?? 'none' },

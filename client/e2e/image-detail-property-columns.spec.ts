@@ -260,10 +260,13 @@ test('fills left to right then down, and hands assistive technology that same or
   expect(geometry.positionalOrder[0], `${evidence} — \`Id\` is no longer the first band`).toBe('Id');
   expect(geometry.positionalOrder.at(-1), `${evidence} — \`Exposed ports\` is no longer the last band`).toBe('Exposed ports');
 
-  // Beside the geometry (REQ-40): the copy affordance is still inside the `Id` band, beside its own
-  // value — untouched by this report, since bug-5 concerns it and is worked next (REQ-32).
+  // Beside the geometry (REQ-40): the `Id` band holds its value and nothing else. **Inverted, not
+  // deleted** — this asserted that a copy affordance *was* inside the band, under REQ-32's fence
+  // reserving it for bug-5; bug-5 removed it on 2026-08-14, so the record of what changed lives in
+  // the check itself (plan-docker_management_app-remove_copy_controls/REQ-24).
   const idBand = propertySection(page).locator('.ui-definition-list__row').filter({ hasText: 'Id' }).first();
-  await expect(idBand.getByRole('button', { name: 'Copy' })).toBeVisible();
+  await expect(idBand.locator('.ui-definition-list__value')).toBeVisible();
+  await expect(idBand.getByRole('button')).toHaveCount(0);
 });
 
 // (i) REQ-16 — the collapsible sections follow the same rule, each by its own content class, and
@@ -324,10 +327,13 @@ test('is a single column below the 720px breakpoint, exactly as delivered', asyn
 
   expect(geometry.columns, `${evidence} — the section is in columns at a width where the delivered build is one`).toBe(1);
   expect(geometry.lines, `${evidence} — the section does not draw one line per property, as the delivered build does at this width`).toBe(geometry.bands.length);
-  // Nothing wraps that did not wrap on the delivered build. Measured on the values themselves: the
-  // `Id` band is 43px against its neighbours' 33px on the delivered build too, because it holds the
-  // copy control — a band height comparison would read that as a wrap and call the delivered
-  // presentation a regression against itself.
+  // Nothing wraps that did not wrap on the delivered build. Measured on the values themselves,
+  // which is now belt and braces rather than a necessity: while this spec was written the `Id` band
+  // measured 43px against its neighbours' 33px because it held the copy control, so a band-height
+  // comparison would have read that as a wrap and called the delivered presentation a regression
+  // against itself. That control left on 2026-08-14 and every band is 33px
+  // (plan-docker_management_app-remove_copy_controls/REQ-14) — the value-line measurement stays
+  // because it is the correct definition of "the value wrapped" whatever a band happens to hold.
   const wrapped = geometry.bands.filter(valueWraps);
   expect(wrapped.map((band) => band.label), `${evidence} — ${wrapped.length} value(s) wrap here, where the delivered build wraps none`).toEqual([]);
   expectNothingClippedOrOverlapped(geometry, evidence);

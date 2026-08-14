@@ -10,7 +10,7 @@ type: UI component
 typed, its output and how it ended, and — on the same surface — the prompt that adds the next one.
 
 Not a `LogStream`: that surface is one continuous tail of a single stream, where this one is a
-sequence of self-contained entries (own command, own status, own copy and re-run) followed by an
+sequence of self-contained entries (own command, own status, own re-run) followed by an
 editable prompt line, and it wraps long lines instead of clipping them (a raw API body is one very
 long line).
 
@@ -48,8 +48,6 @@ Shows:
 
 Actions:
 
-- "Copy" (on every entry) → puts `"<promptSymbol> <command>"` followed by the entry's output lines,
-  one per line, on the clipboard.
 - "Re-run" (on every entry, only when `onRerun` is set) → calls `onRerun(entry.id)`; inert while
   `busy`.
 - "Cancel" (only while `busy` and `onCancel` is set) → calls `onCancel`.
@@ -68,7 +66,7 @@ Actions:
 
 ## Dependencies
 
-- ScrollArea, Badge, Button, CopyButton, Spinner
+- ScrollArea, Badge, Button, Spinner
 
 ## Requirements served
 

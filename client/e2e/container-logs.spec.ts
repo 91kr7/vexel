@@ -189,24 +189,6 @@ test.describe('Container logs (REQ-30, REQ-31)', () => {
     }
   });
 
-  // plan-docker_management_app/REQ-31 — the visible log can be copied
-  test('copying the log puts the visible lines on the clipboard', async ({ page, context }) => {
-    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-    const name = `vexel-e2e-logs-copy-${Date.now()}`;
-    try {
-      await createLoggingContainer(name);
-      const detail = await openLogsTab(page, name);
-      await expect(detail.getByText('hello-from-stdout')).toBeVisible({ timeout: 15_000 });
-
-      await detail.getByRole('button', { name: 'Copy' }).click();
-
-      const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
-      expect(clipboardText).toContain('hello-from-stdout');
-    } finally {
-      await removeContainerQuietly(name);
-    }
-  });
-
   // plan-docker_management_app/REQ-31 — the visible log can be downloaded
   test('downloading the log saves it as <container name>-logs.txt', async ({ page }) => {
     const name = `vexel-e2e-logs-download-${Date.now()}`;

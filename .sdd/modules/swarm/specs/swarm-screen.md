@@ -34,8 +34,10 @@ Actions:
   → a form with the manager addresses, the join token (entered masked, never displayed back) and an
   optional advertise address.
 - in a swarm, on a manager: "Join tokens" → a dialog showing the worker and manager tokens, each
-  hidden until asked for, copyable, and each rotatable on the spot; the tokens are read when the
-  dialog opens and dropped when it closes.
+  hidden until asked for and each rotatable on the spot; the tokens are read when the dialog opens
+  and dropped when it closes. A token is taken by revealing it and selecting it — the only route
+  since 2026-08-14, `plan-docker_management_app-remove_copy_controls`/REQ-21, which records that cost
+  as accepted.
 - in a swarm: "Leave swarm" → asks the confirmation service, naming the consequence (the node stops
   being part of the cluster; a last manager needs the forced leave, which the confirmation states).
 - the token action is offered on a manager only; a worker sees state, leave, and the stated reason

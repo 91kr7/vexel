@@ -54,7 +54,7 @@ export function ImageDetailPanel({ image, onClose }: ImageDetailPanelProps) {
           <>
             <DefinitionList
               items={[
-                { label: 'Id', value: inspect.id.slice(0, 19), copyValue: inspect.id },
+                { label: 'Id', value: inspect.id.slice(0, 19) },
                 { label: 'Tags', value: inspect.tags.join(', ') || '<none>' },
                 { label: 'Digest', value: inspect.digest ?? '–' },
                 { label: 'Platform(s)', value: inspect.platforms.join(', ') || '–' },

@@ -9,6 +9,11 @@
   gap: var(--space-2);
 }
 
+/* Kept, unlike the code viewer's: this row still has a child whenever a download
+   filename is given, and `Download` sits exactly where it did. The empty case —
+   a stream offered without one, which is Compose with no project selected — is
+   resolved by not rendering the row at all rather than by a rule keyed on
+   emptiness, so it consumes no gap from the stream either (REQ-12). */
 .ui-log-stream__actions {
   display: flex;
   justify-content: flex-end;

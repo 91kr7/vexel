@@ -320,10 +320,12 @@
   gap: var(--space-2);
 }
 
-.ui-code-viewer__actions {
-  display: flex;
-  justify-content: flex-end;
-}
+/* The block's action row is gone, rule and element together, rather than kept
+   with a rule keyed on emptiness: it held exactly one child — the copy control —
+   so with that child removed there is no state in which it has anything to draw.
+   A rule left behind for an element nothing renders is the unused style REQ-10
+   refuses, and an element left behind would still consume the block's own
+   `gap` above six raw payload blocks (REQ-11). */
 
 .ui-card-list {
   display: flex;

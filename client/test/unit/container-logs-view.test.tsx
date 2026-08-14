@@ -67,14 +67,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-// userEvent.setup() installs its own navigator.clipboard stub, so the test's
-// stub must be defined after setup() to take precedence over it.
-function stubClipboard(): ReturnType<typeof vi.fn> {
-  const writeText = vi.fn().mockResolvedValue(undefined);
-  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
-  return writeText;
-}
-
 describe('ContainerLogsView (REQ-30, REQ-31)', () => {
   // plan-docker_management_app/REQ-30 — the container's log lines are shown as they arrive
   it('shows the log lines arriving on the stream', async () => {
@@ -177,19 +169,6 @@ describe('ContainerLogsView (REQ-30, REQ-31)', () => {
     await user.type(screen.getByRole('textbox', { name: 'Search the stream' }), 'zzz');
 
     expect(await screen.findByText('No matches')).toBeInTheDocument();
-  });
-
-  // plan-docker_management_app/REQ-31 — the buffered log can be copied as text
-  it('copies the buffered log lines as text', async () => {
-    const user = userEvent.setup();
-    const writeText = stubClipboard();
-    render(<ContainerLogsView container={container} />);
-    emit([{ text: 'first' }, { text: 'second' }]);
-    await screen.findByText('first');
-
-    await user.click(screen.getByRole('button', { name: 'Copy' }));
-
-    expect(writeText).toHaveBeenCalledWith('first\nsecond');
   });
 
   // plan-docker_management_app/REQ-31 — the buffered log can be downloaded as <container name>-logs.txt

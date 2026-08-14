@@ -7,7 +7,7 @@ type: UI component
 # ContainerLogsView
 
 **Purpose** → the logs surface of a container: stream selection and filters above a live-tailing
-log region, with in-surface search, highlighted matches and copy/download of the buffer.
+log region, with in-surface search, highlighted matches and download of the buffer.
 
 ## Contract
 
@@ -36,8 +36,10 @@ Actions:
 - since/until → reopens the stream bounded to that range.
 - follow / "Jump to live" → follows the tail, or stops following when the operator scrolls up.
 - search → highlights every match; next/previous move the current match; the match count is shown.
-- "Copy" → copies the buffered log as text; "Download" → saves it as
-  `<container name>-logs.txt`.
+- "Download" → saves the buffered log as `<container name>-logs.txt`. It is the only way to take
+  the buffer off this surface: the region is virtualised, so a hand-selection captures the rendered
+  window and never the buffer (`plan-docker_management_app-remove_copy_controls`/REQ-20, which
+  records that as an accepted cost).
 - retry on the failure banner → reopens the stream.
 
 ## Rules and invariants

@@ -682,9 +682,11 @@ test.describe('Container detail panel (REQ-24, REQ-25, REQ-26)', () => {
     }
   });
 
-  // plan-docker_management_app/REQ-26 — the raw inspect payload is viewable and copyable as-is
-  test('the Inspect tab shows the raw payload and its copy affordance confirms the copy', async ({ page, context }) => {
-    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  // plan-docker_management_app/REQ-26, **narrowed on 2026-08-14** to viewable and selectable as-is
+  // (plan-docker_management_app-remove_copy_controls/REQ-23). The copy step and the clipboard
+  // permission it needed go with the affordance; the assertion around them stays — the payload is
+  // shown, in full, as real selectable text (REQ-30).
+  test('the Inspect tab shows the raw payload as selectable text', async ({ page }) => {
     const name = `vexel-e2e-inspect-${Date.now()}`;
     try {
       await createSleepingContainer(name);
@@ -696,11 +698,9 @@ test.describe('Container detail panel (REQ-24, REQ-25, REQ-26)', () => {
       await detail.getByRole('tab', { name: 'Inspect' }).click();
       await expect(detail.getByText(/"Image":\s*"alpine:3.20"/)).toBeVisible();
 
-      // The raw payload's own copy affordance: the Id and Image fields above it
-      // carry a "Copy" each.
-      await detail.locator('.ui-code-viewer').getByRole('button', { name: 'Copy' }).click();
-      const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
-      expect(clipboardText).toContain('"alpine:3.20"');
+      // Selectable by hand is the fallback the removal leaves, so it is asserted rather than assumed.
+      const block = detail.locator('.ui-code-viewer__code').last();
+      await expect(block).toHaveCSS('user-select', /^(auto|text)$/);
     } finally {
       await removeContainerQuietly(name);
     }

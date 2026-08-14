@@ -9,16 +9,9 @@ import { ConsoleSurface, type ConsoleEntry } from '../../src/ui';
 afterEach(cleanup);
 
 // ui-library/specs/console-surface.md — the transcript of a command console: self-contained entries
-// with their own command, output, status, copy and re-run, plus the prompt that adds the next one
-// (REQ-100, REQ-101, REQ-102, REQ-104).
-
-// userEvent.setup() installs its own navigator.clipboard stub, so the test's stub must be defined
-// after setup() to take precedence over it.
-function stubClipboard(): ReturnType<typeof vi.fn> {
-  const writeText = vi.fn().mockResolvedValue(undefined);
-  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
-  return writeText;
-}
+// with their own command, output, status and re-run, plus the prompt that adds the next one
+// (REQ-100, REQ-101, REQ-102, REQ-104). The per-entry copy left on 2026-08-14
+// (plan-docker_management_app-remove_copy_controls), and its coverage with it.
 
 function entry(overrides: Partial<ConsoleEntry> = {}): ConsoleEntry {
   return {
@@ -106,6 +99,16 @@ describe('ConsoleSurface — the transcript', () => {
     expect(screen.queryByText('Nothing has been run yet.')).not.toBeInTheDocument();
   });
 
+  // console-surface.md — "the prompt symbol and the command exactly as given". **Restated, not
+  // deleted**: the caller's own prompt symbol used to be checked through what a copy handed over,
+  // and the symbol outlived the copy — so it is now checked where it is actually shown
+  // (plan-docker_management_app-remove_copy_controls/REQ-30).
+  it('draws each entry with the prompt symbol the caller chose', () => {
+    const { container } = renderSurface({ entries: [entry({ command: 'GET /info', lines: [] })], promptSymbol: '>' });
+
+    expect(container.querySelector('.ui-console-surface__symbol')).toHaveTextContent('>');
+  });
+
   it('keeps the entries in the order they were given', () => {
     const { container } = renderSurface({
       entries: [entry({ id: 'first', command: 'docker version' }), entry({ id: 'second', command: 'docker info' })],
@@ -117,38 +120,6 @@ describe('ConsoleSurface — the transcript', () => {
 });
 
 describe('ConsoleSurface — per-entry actions (REQ-102)', () => {
-  // console-surface.md — "Copy (on every entry) → puts "<promptSymbol> <command>" followed by the
-  // entry's output lines, one per line, on the clipboard"
-  it('copies the command and its output, one line per line', async () => {
-    const user = userEvent.setup();
-    const writeText = stubClipboard();
-    renderSurface({
-      entries: [
-        entry({
-          command: 'docker ps -a',
-          lines: [
-            { id: 'a', text: 'first' },
-            { id: 'b', text: 'second' },
-          ],
-        }),
-      ],
-    });
-
-    await user.click(screen.getByRole('button', { name: 'Copy' }));
-
-    expect(writeText).toHaveBeenCalledWith('$ docker ps -a\nfirst\nsecond');
-  });
-
-  it('copies with the prompt symbol the caller chose', async () => {
-    const user = userEvent.setup();
-    const writeText = stubClipboard();
-    renderSurface({ entries: [entry({ command: 'GET /info', lines: [] })], promptSymbol: '>' });
-
-    await user.click(screen.getByRole('button', { name: 'Copy' }));
-
-    expect(writeText).toHaveBeenCalledWith('> GET /info');
-  });
-
   // console-surface.md — "Re-run (on every entry, only when onRerun is set) → calls onRerun(entry.id)"
   it('offers no re-run control when onRerun is not given', () => {
     renderSurface({ entries: [entry()] });

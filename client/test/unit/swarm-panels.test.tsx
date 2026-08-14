@@ -426,8 +426,9 @@ describe('SwarmSecretsPanel (swarm/specs/swarm-secrets-panel.md)', () => {
     expect(visibleText()).toContain('blog');
   });
 
-  // "Nothing in this panel ever shows a secret's value ... there is no reveal affordance, no copy
-  // affordance and no request that could return it" (REQ-84)
+  // "Nothing in this panel ever shows a secret's value ... there is no reveal affordance and no
+  // request that could return it" (REQ-84). The clause about a copy affordance went with the
+  // affordance itself on 2026-08-14 (plan-docker_management_app-remove_copy_controls).
   it('offers no reveal of a secret, on the listing or on an opened one', async () => {
     const user = userEvent.setup();
     renderPanel(<SwarmSecretsPanel secrets={listing([dataItem()])} loaded canManage onCreate={noop} onRemove={async () => undefined} />);
@@ -439,22 +440,23 @@ describe('SwarmSecretsPanel (swarm/specs/swarm-secrets-panel.md)', () => {
     }
   });
 
-  // ...and what can be copied off an opened secret is its metadata, never anything that could be
-  // the value (REQ-84).
-  it('copies nothing but the metadata of an opened secret', async () => {
+  // ...and what an opened secret puts on screen is its metadata, never anything that could be the
+  // value (REQ-84). **Restated, not deleted**: this used to be checked by pressing every copy
+  // control and reading what each one handed over, which is no longer a route off the panel — so the
+  // same claim is now made of the markup itself, which is where the value would have to appear
+  // first (plan-docker_management_app-remove_copy_controls/REQ-30).
+  it('puts nothing but the metadata of an opened secret on screen, in its text or in any attribute', async () => {
     const user = userEvent.setup();
-    const writeText = vi.fn().mockResolvedValue(undefined);
     renderPanel(<SwarmSecretsPanel secrets={listing([dataItem()])} loaded canManage onCreate={noop} onRemove={async () => undefined} />);
-    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
 
     await user.click(screen.getByText('db_password'));
-    for (const copy of screen.queryAllByRole('button', { name: /copy/i })) {
-      await user.click(copy);
-    }
 
-    for (const [copied] of writeText.mock.calls) {
-      expect(['sec-1', 'db_password']).toContain(copied);
-    }
+    // Everything the browser holds for the opened secret: its text and every attribute of every node.
+    const markup = document.body.innerHTML;
+    for (const metadata of ['sec-1', 'db_password']) expect(markup).toContain(metadata);
+    // A `value` is what a secret's payload would be called wherever it leaked; none is rendered.
+    expect(document.body.querySelectorAll('input, textarea')).toHaveLength(0);
+    expect(markup).not.toMatch(/data-(secret|value)=/);
   });
 
   // "for the opened secret: its id, the stack, its creation and update times and its labels —

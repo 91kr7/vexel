@@ -98,7 +98,7 @@ function VolumeDetail({ volume, onRemoved }: { volume: VolumeSummary; onRemoved:
           <DefinitionList
             items={[
               { label: 'Driver', value: inspect.driver },
-              { label: 'Mountpoint', value: inspect.mountpoint, copyValue: inspect.mountpoint },
+              { label: 'Mountpoint', value: inspect.mountpoint },
               { label: 'Scope', value: inspect.scope },
               { label: 'Created', value: inspect.createdAt || '–' },
               { label: 'Mounted by', value: inspect.mountedBy.length > 0 ? inspect.mountedBy.join(', ') : 'nothing' },

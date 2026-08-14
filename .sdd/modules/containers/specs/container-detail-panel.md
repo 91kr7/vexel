@@ -70,7 +70,9 @@ Shows (Inspect tab):
 - A `DefinitionList` of id, name, image, command, entrypoint, created date, state, started/finished
   dates and exit code; collapsible sections for networks, labels and (when the container defines a
   health check) the latest health status/failing streak/log entries; the raw inspect payload as
-  formatted, copyable JSON (REQ-26).
+  formatted JSON, shown in full as real selectable text in a scroll area (REQ-26, narrowed from
+  *"copyable"* to *"selectable"* on 2026-08-14 by
+  `plan-docker_management_app-remove_copy_controls`/REQ-23).
 - Each property section states **only its content class**: the ten properties, `Networks`, `Health`
   and the Config tab's runtime configuration take the default short scalar, `Labels` declares long
   single-line. The number of columns each shows follows from that section's own width
@@ -90,7 +92,9 @@ Actions:
     edit mode open with the operator's input intact.
 - "Cancel" (form footer) discards the in-progress edit and returns to view mode without contacting
   the server.
-- Selecting the Inspect tab's copy affordance copies the exact raw payload text to the clipboard.
+- The Inspect tab's payload block offers no action of its own: obtaining the full container id from
+  it is a hand-selection inside the block, which
+  `plan-docker_management_app-remove_copy_controls`/REQ-19 records as an accepted cost.
 
 ## Rules and invariants
 

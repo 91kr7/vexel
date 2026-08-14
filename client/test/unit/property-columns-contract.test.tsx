@@ -29,7 +29,7 @@ const uiRoot = join(process.cwd(), 'src', 'ui');
 const source = (path: string) => readFileSync(join(process.cwd(), 'src', path), 'utf8');
 
 const ITEMS = [
-  { label: 'Id', value: 'sha256:abcdef012345', copyValue: 'sha256:abcdef012345' },
+  { label: 'Id', value: 'sha256:abcdef012345' },
   { label: 'Tags', value: 'alpine:3.20' },
   { label: 'Created', value: '2026-04-16T23:53:24.896953537Z' },
 ];
@@ -131,15 +131,43 @@ describe('DefinitionList — the markup a screen reader is handed', () => {
     expect(labels).toEqual(ITEMS.map((item) => item.label));
   });
 
-  // REQ-32 — the copy affordance stays inside its own band, beside its own value. bug-5 concerns it
-  // and is worked next; nothing here anticipates it either way.
-  it('keeps a copy affordance inside the band of the value it copies', () => {
+  /**
+   * **REQ-32 is discharged, and this assertion inverts rather than disappearing.**
+   *
+   * What stood here was *"the copy affordance stays inside its own band, beside
+   * its own value ... the one item with `copyValue`, and only it"* — the fence
+   * bug-4 put around the control while bug-5 was still to be worked. bug-5 is
+   * this fix, and it removed the control and the `copyValue` field with it
+   * (plan-docker_management_app-remove_copy_controls/REQ-8, REQ-24), so that
+   * sentence is now false in both halves.
+   *
+   * It is inverted here rather than deleted so the record of what changed lives
+   * in the check itself: a band renders its label and its value **and nothing
+   * else**, and the retired field is gone from the type — which
+   * `npm run test:typecheck -w client` proves for every call site at once, and
+   * which is stated here where the count of the delivered thirteen was taken.
+   */
+  it('renders a band as its label and its value alone, with no control beside them', () => {
     const { container } = render(<DefinitionList items={ITEMS} />);
     const idBand = container.querySelector('.ui-definition-list__row')!;
     const value = idBand.querySelector('.ui-definition-list__value')!;
-    expect(within(value as HTMLElement).getByRole('button', { name: 'Copy' })).toBeTruthy();
-    // The one item with `copyValue`, and only it.
-    expect(container.querySelectorAll('button').length).toBe(1);
+
+    expect(value.textContent).toBe('sha256:abcdef012345');
+    expect(within(value as HTMLElement).queryAllByRole('button')).toEqual([]);
+    // Over the whole section, not the first band: no band of any list carries one.
+    expect(container.querySelectorAll('button').length).toBe(0);
+  });
+
+  // REQ-8 — removed from the public API, not deprecated and not defaulted: the field is not on the
+  // item type, so a caller that passes one does not compile.
+  it('states no copy field on the item type', () => {
+    const text = source(join('ui', 'data', 'DefinitionList.tsx'));
+    const item = text.slice(text.indexOf('export interface DefinitionItem'), text.indexOf('export interface DefinitionListProps'));
+
+    expect(item, 'the item type still carries the retired copy field').not.toMatch(/copyValue/);
+    expect(item.replace(/\/\*[\s\S]*?\*\//g, ''), 'the item type declares something besides its label and its value').toMatch(
+      /^[\s\S]*label:\s*string;[\s\S]*value:\s*ReactNode;[\s\S]*$/,
+    );
   });
 });
 
@@ -351,10 +379,12 @@ describe('the image panel still shows every property it showed', () => {
 
   afterEach(() => vi.unstubAllGlobals());
 
-  // REQ-31, REQ-15 — every property, in its declared order, with its label, its value and its copy
-  // control. Content, deliberately: it answers a different symptom from the geometry — a section
-  // present and blank — and it certifies nothing about the arrangement (REQ-40).
-  it('renders the nine properties in their declared order, with the Copy beside Id', async () => {
+  // REQ-31, REQ-15 — every property, in its declared order, with its label and its value. Content,
+  // deliberately: it answers a different symptom from the geometry — a section present and blank —
+  // and it certifies nothing about the arrangement (REQ-40). The `Copy` that used to be asserted
+  // beside `Id` left on 2026-08-14 and the assertion inverts with it
+  // (plan-docker_management_app-remove_copy_controls/REQ-24).
+  it('renders the nine properties in their declared order, with no control beside Id', async () => {
     const image = { id: inspect.id, shortId: 'd9e853e87e55', tags: inspect.tags, digest: inspect.digest, platforms: inspect.platforms, sizeBytes: inspect.sizeBytes, createdAt: inspect.createdAt };
     render(<ImageDetailPanel image={image} onClose={() => {}} />);
 
@@ -363,7 +393,10 @@ describe('the image panel still shows every property it showed', () => {
     expect(labels.slice(0, 9)).toEqual(['Id', 'Tags', 'Digest', 'Platform(s)', 'Size', 'Created', 'Entrypoint', 'Command', 'Exposed ports']);
 
     const idBand = document.querySelector('.ui-definition-list__row')!;
-    expect(within(idBand.querySelector('.ui-definition-list__value') as HTMLElement).getByRole('button', { name: 'Copy' })).toBeTruthy();
+    const idValue = idBand.querySelector('.ui-definition-list__value') as HTMLElement;
+    // The value is still there in full, and it is the band's only content (REQ-16).
+    expect(idValue.textContent).toBe(inspect.id.slice(0, 19));
+    expect(within(idValue).queryAllByRole('button')).toEqual([]);
 
     // The collapsible sections are closed by default and stay so: nothing about their state changes
     // with the arrangement (REQ-16).

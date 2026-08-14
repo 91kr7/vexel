@@ -337,7 +337,7 @@ export function FilesystemBrowser({ image, open, onClose }: FilesystemBrowserPro
                   <Stack gap="var(--space-4)">
                     <DefinitionList
                       items={[
-                        { label: 'Path', value: `/${metadataState.metadata.path}`, copyValue: `/${metadataState.metadata.path}` },
+                        { label: 'Path', value: `/${metadataState.metadata.path}` },
                         { label: 'Type', value: metadataState.metadata.kind },
                         { label: 'Size', value: metadataState.metadata.sizeBytes !== undefined ? formatBytes(metadataState.metadata.sizeBytes) : '–' },
                         { label: 'Permissions', value: metadataState.metadata.permissions ?? '–' },

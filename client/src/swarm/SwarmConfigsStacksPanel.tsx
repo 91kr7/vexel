@@ -142,7 +142,7 @@ export function SwarmConfigsStacksPanel({
       <Stack gap="var(--space-3)">
         <DefinitionList
           items={[
-            { label: 'Config id', value: config.id, copyValue: config.id },
+            { label: 'Config id', value: config.id },
             { label: 'Created', value: formatAge(config.createdAt) },
             { label: 'Updated', value: formatAge(config.updatedAt) },
             { label: 'Stack', value: config.stack ?? 'none' },

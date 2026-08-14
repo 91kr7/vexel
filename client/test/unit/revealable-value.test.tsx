@@ -12,13 +12,10 @@ const TOKEN = 'SWMTKN-1-49nj1cmql0jkz5s954yi3oex3nedyz0fb0xx14ie39trti4wxv-8vxv8
 
 afterEach(cleanup);
 
-// userEvent.setup() installs its own navigator.clipboard stub, so the test's
-// stub must be defined after setup() to take precedence over it.
-function stubClipboard(): ReturnType<typeof vi.fn> {
-  const writeText = vi.fn().mockResolvedValue(undefined);
-  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
-  return writeText;
-}
+// The component's stated purpose used to end "copyable while hidden"; that clause was **withdrawn
+// on 2026-08-14** by plan-docker_management_app-remove_copy_controls, and the coverage of it goes
+// with it. Everything else this file checks — the masked default, the reveal, the disabled states,
+// the action slot — is untouched by that withdrawal and is what the component still contracts.
 
 /** Everything the browser holds for this component: its text and every attribute of every node. */
 function renderedMarkup(): string {
@@ -70,18 +67,6 @@ describe('RevealableValue (ui-library/specs/revealable-value.md)', () => {
     expect(onRevealedChange).toHaveBeenCalledWith(false);
   });
 
-  // '"Copy" ... available whether the value is revealed or hidden, since copying does not display it'
-  it('copies the exact value while it is still hidden', async () => {
-    const user = userEvent.setup();
-    const writeText = stubClipboard();
-    render(<RevealableValue value={TOKEN} ariaLabel="Worker join token" revealed={false} onRevealedChange={() => undefined} />);
-
-    await user.click(screen.getByRole('button', { name: 'Copy' }));
-
-    expect(writeText).toHaveBeenCalledWith(TOKEN);
-    expect(document.body.textContent).not.toContain(TOKEN);
-  });
-
   // '"Show" ... disabled while there is no value or loading'
   it('offers no reveal while there is no value, and shows the placeholder instead', () => {
     render(<RevealableValue ariaLabel="Worker join token" revealed={false} onRevealedChange={() => undefined} />);
@@ -90,21 +75,7 @@ describe('RevealableValue (ui-library/specs/revealable-value.md)', () => {
     expect(screen.getByText('Not read yet')).toBeInTheDocument();
   });
 
-  // '"Copy" ... **Always present**, and disabled while there is no value or loading'; "No
-  // affordance is ever unmounted for lack of a value ... so the row does not reflow"
-  it('keeps the copy affordance, disabled and inert, while there is no value', async () => {
-    // The pointer-events check is switched off for the session, not per call:
-    // `click` takes the element alone, so a per-call option would be ignored.
-    const user = userEvent.setup({ pointerEventsCheck: 0 });
-    const writeText = stubClipboard();
-    render(<RevealableValue ariaLabel="Worker join token" revealed={false} onRevealedChange={() => undefined} />);
-
-    const copy = screen.getByRole('button', { name: 'Copy' });
-    expect(copy).toBeDisabled();
-    await user.click(copy);
-    expect(writeText).not.toHaveBeenCalled();
-  });
-
+  // "No affordance is ever unmounted for lack of a value ... so the row does not reflow"
   it('mounts the same affordances whether or not the value is there yet, so the row does not reflow', () => {
     const { unmount } = render(<RevealableValue ariaLabel="Token" revealed={false} onRevealedChange={() => undefined} />);
     const withoutValue = screen.getAllByRole('button').map((button) => button.textContent);
@@ -122,28 +93,16 @@ describe('RevealableValue (ui-library/specs/revealable-value.md)', () => {
     expect(screen.getByText('Ask the cluster for it')).toBeInTheDocument();
   });
 
-  // "loading?: boolean — the value is being read; the reveal and copy affordances are disabled"
+  // "loading?: boolean — the value is being read; the reveal affordance is disabled"
   it('disables the reveal while the value is being read', () => {
     render(<RevealableValue value={TOKEN} ariaLabel="Token" revealed={false} onRevealedChange={() => undefined} loading />);
 
     expect(screen.getByRole('button', { name: 'Show' })).toBeDisabled();
   });
 
-  it('disables the copy while the value is being read, and copies nothing then', async () => {
-    // The pointer-events check is switched off for the session, not per call:
-    // `click` takes the element alone, so a per-call option would be ignored.
-    const user = userEvent.setup({ pointerEventsCheck: 0 });
-    const writeText = stubClipboard();
-    render(<RevealableValue value={TOKEN} ariaLabel="Token" revealed={false} onRevealedChange={() => undefined} loading />);
-
-    const copy = screen.getByRole('button', { name: 'Copy' });
-    expect(copy).toBeDisabled();
-    await user.click(copy);
-    expect(writeText).not.toHaveBeenCalled();
-  });
-
-  // "action?: { label, onClick, disabled? } — one extra action rendered after copy (e.g. 'Rotate')"
-  it('renders the one extra action the caller gave, after copy', async () => {
+  // "action?: { label, onClick, disabled? } — one extra action rendered after the reveal control
+  // (e.g. 'Rotate')"
+  it('renders the one extra action the caller gave, after the reveal control', async () => {
     const user = userEvent.setup();
     const onClick = vi.fn();
     render(

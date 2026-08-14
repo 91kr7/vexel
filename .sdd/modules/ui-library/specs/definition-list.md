@@ -7,13 +7,12 @@ type: UI component
 # DefinitionList
 
 **Purpose** → label → value bands for a detail surface (e.g. a container's identity, restart policy,
-environment variables), each with an optional copy affordance, arranged in as many columns as the
-list's own width can carry.
+environment variables), arranged in as many columns as the list's own width can carry.
 
 ## Contract
 
 - `<DefinitionList items contentClass? />`
-  - `items: { label, value: ReactNode, copyValue?: string }[]`.
+  - `items: { label, value: ReactNode }[]`.
   - `contentClass?: 'short-scalar' | 'long-single-line' | 'free-text'` — default `'short-scalar'`.
     What the section holds; the minimum band width follows from it (`content-columns.md`). **This is
     the only thing a caller states about the layout**: no count, no track template, no length.
@@ -21,8 +20,10 @@ list's own width can carry.
     will be given, and a component with both a stated count and a derived one has two answers to the
     same question. The delivered `columns?: 1 | 2` and its `--columns-2` two-track rule are removed,
     not deprecated.
-  - When `copyValue` is set on an item, its band renders a `CopyButton` for that exact text next to
-    `value`, in that position, in the tab order it already had.
+  - A band renders its label and its value and nothing else. The `copyValue?: string` field, and
+    the copy affordance it switched on, were **removed on 2026-08-14** by
+    `plan-docker_management_app-remove_copy_controls` — removed from the type, not deprecated and not
+    defaulted, so a caller that passes one does not compile.
 
 Shows:
 - One band per item, in the declared order, filling left to right then down.
@@ -51,7 +52,6 @@ Shows:
 
 ## Dependencies
 
-- CopyButton
 - ContentColumns (`contentColumnsClassName`, form `pair`)
 
 ## Requirements served

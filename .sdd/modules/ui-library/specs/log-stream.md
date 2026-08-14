@@ -8,13 +8,14 @@ type: UI component
 
 **Purpose** → the surface that displays a long, growing stream of monospace log lines: virtualised
 rendering, follow/auto-scroll with a "jump to live" affordance, an optional timestamp column,
-per-line stream tagging, match highlighting, and copy/download of the displayed buffer.
+per-line stream tagging, match highlighting, and download of the displayed buffer.
 
 ## Contract
 
 Description:
 
-- a dark, sunken monospace region with an actions row above it (copy, optional download) and, when
+- a dark, sunken monospace region with an actions row above it (the download action, when one is
+  offered — the row is not drawn at all otherwise) and, when
   follow is off, a floating "Jump to live" control over the bottom of the region, through whose
   frame the lines it sits over show blurred.
 
@@ -30,8 +31,9 @@ Props:
   - `activeMatchLineId?: string` — the line to bring into view and emphasize as the current match.
   - `maxHeight?: string` (default `"320px"`), `lineHeight?: number` in px (default `20`).
   - `emptyLabel?: string` — title shown when `lines` is empty (default `"No log output."`).
-  - `downloadFileName?: string` — when given, a download action producing a plain-text file with
-    that name appears next to the copy action.
+  - `downloadFileName?: string` — when given, an action row appears above the region holding a
+    download action producing a plain-text file with that name. When it is **not** given the row has
+    nothing to hold and is not rendered at all, so it consumes no height and no gap.
 
 Shows:
 
@@ -46,10 +48,12 @@ Shows:
 
 Actions:
 
-- "Copy" → puts the full text of `lines` on the clipboard, one line per row, each prefixed with its
-  `source` when present and its timestamp only when `showTimestamps` is true.
-- "Download" (only when `downloadFileName` is given) → saves that same text as a plain-text file
-  named `downloadFileName`.
+- "Download" (only when `downloadFileName` is given) → saves the full text of `lines` as a
+  plain-text file named `downloadFileName`, one line per row, each prefixed with its `source` when
+  present and its timestamp only when `showTimestamps` is true.
+  - It is the **only** way to take the buffer off this surface. A copy action stood beside it until
+    2026-08-14, when `plan-docker_management_app-remove_copy_controls` removed it; the region is
+    virtualised, so a hand-selection captures the rendered window and never the buffer.
 - "Jump to live" (only shown when `follow` is false) → calls `onFollowChange(true)`.
 
 ## Rules and invariants
@@ -78,7 +82,7 @@ Actions:
 
 ## Dependencies
 
-- ScrollArea, CopyButton, Button, EmptyState, Overlay glass material
+- ScrollArea, Button, EmptyState, Overlay glass material
 
 ## Requirements served
 

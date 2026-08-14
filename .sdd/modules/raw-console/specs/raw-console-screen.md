@@ -45,7 +45,6 @@ Actions:
   once the line is actually going to run.
 - "Re-run" on an entry → runs that entry's command again, on that entry's channel, through the same
   path as a typed one.
-- "Copy" on an entry → its command and its output on the clipboard.
 - "Cancel", while an entry is running → ends it; the entry keeps the output it had produced.
 - up/down arrows in the prompt → walk the previous commands, the ones from before the restart
   included.

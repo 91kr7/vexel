@@ -1,13 +1,10 @@
 import type { ReactNode } from 'react';
-import { CopyButton } from '../controls/CopyButton';
 import { contentColumnsClassName, type ContentClass } from '../layout/content-columns';
 import './data-table.css';
 
 export interface DefinitionItem {
   label: string;
   value: ReactNode;
-  /** When set, renders a copy affordance next to the value using this exact text. */
-  copyValue?: string;
 }
 
 export interface DefinitionListProps {
@@ -20,7 +17,7 @@ export interface DefinitionListProps {
   contentClass?: ContentClass;
 }
 
-/** Label → value bands, each with an optional copy affordance. */
+/** Label → value bands. */
 export function DefinitionList({ items, contentClass = 'short-scalar' }: DefinitionListProps) {
   return (
     <div className={`ui-definition-list ${contentColumnsClassName('pair', contentClass)}`}>
@@ -31,10 +28,7 @@ export function DefinitionList({ items, contentClass = 'short-scalar' }: Definit
         // technology and comes apart the moment one value wraps.
         <div className="ui-definition-list__row" key={index}>
           <span className="ui-definition-list__label">{item.label}</span>
-          <span className="ui-definition-list__value">
-            {item.value}
-            {item.copyValue ? <CopyButton value={item.copyValue} /> : null}
-          </span>
+          <span className="ui-definition-list__value">{item.value}</span>
         </div>
       ))}
     </div>

@@ -55,7 +55,6 @@ export { BulkActionBar, type BulkActionBarProps, type BulkActionBarAction } from
 export { FilePicker, type FilePickerProps } from './controls/FilePicker';
 export { ScreenToolbar, type ScreenToolbarProps, type ScreenToolbarAction } from './controls/ScreenToolbar';
 export { Tabs, type TabsProps, type TabItem } from './controls/Tabs';
-export { CopyButton, type CopyButtonProps } from './controls/CopyButton';
 export { RevealableValue, type RevealableValueProps, type RevealableValueAction } from './controls/RevealableValue';
 export { NumberField, type NumberFieldProps } from './controls/NumberField';
 export { Stepper, type StepperProps } from './controls/Stepper';

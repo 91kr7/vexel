@@ -35,7 +35,9 @@ Shows:
 - Per layer, in the cache column: a followable `CrossReference` to the build-cache record behind it
   when the association exists, otherwise `unavailable` with the reason as its tooltip (REQ-68).
 - Above the changeset view of the selected layer: a "Build step & build cache" section with the
-  layer's full recorded command (copyable) and either a followable `CrossReference` to its cache
+  layer's full recorded command (selectable text; the copy affordance beside it left on 2026-08-14
+  with every other one, `plan-docker_management_app-remove_copy_controls`) and either a followable
+  `CrossReference` to its cache
   record — with the record's type, usage state and size next to it — or, in its place, the full
   sentence stating why the association does not exist (REQ-68). A registry-pulled image therefore
   shows an explanation, never an empty panel.

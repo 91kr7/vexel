@@ -35,7 +35,10 @@ Actions:
 ## Rules and invariants
 
 - **Nothing in this panel ever shows a secret's value**: it is typed once, sent, and never read back
-  — there is no reveal affordance, no copy affordance and no request that could return it (REQ-84).
+  — there is no reveal affordance and no request that could return it (REQ-84). The clause naming a
+  copy affordance went with the affordance itself on 2026-08-14
+  (`plan-docker_management_app-remove_copy_controls`); the panel offers none because the client
+  offers none anywhere.
 - The value lives in the form's state only while the form is open, and is cleared on submit, on
   cancel and on failure.
 - Labels are offered at creation, as a key/value editor: a secret created through the application

@@ -130,8 +130,10 @@ async function measure(section: Locator): Promise<Measurement> {
           bottom: rect.bottom,
           height: rect.height,
           // The number of line boxes the value's own text is drawn over: what "the value wrapped"
-          // actually means, rather than a height compared with a neighbour's. The text of a control
-          // inside the band is left out — a `Copy` is not a second line of the value.
+          // actually means, rather than a height compared with a neighbour's. The text of any
+          // control inside the band is left out — a control is not a second line of the value.
+          // Written when every `Id` band held a copy affordance, which left on 2026-08-14
+          // (plan-docker_management_app-remove_copy_controls); the exclusion is generic and stays.
           valueLines: value
             ? (() => {
                 const range = document.createRange();

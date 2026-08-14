@@ -129,8 +129,11 @@ export async function measureSection(section: Locator, name: string): Promise<Se
     const intersects = (a: DOMRect, b: DOMRect) => a.left < b.right - 0.5 && a.right > b.left + 0.5 && a.top < b.bottom - 0.5 && a.bottom > b.top + 0.5;
 
     // The line boxes a text is drawn over, and the ink it occupies across them.
-    // The text of a control inside the band is left out: a `Copy` is not a
-    // second line of the value.
+    // The text of any control inside the band is left out: a control is not a
+    // second line of the value. Written when every `Id` band held a copy
+    // affordance, which left on 2026-08-14
+    // (plan-docker_management_app-remove_copy_controls); the exclusion is
+    // generic and stays correct for whatever a band holds next.
     const textRects = (target: Element | null | undefined) => {
       if (!target) return [] as DOMRect[];
       const range = document.createRange();

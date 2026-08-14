@@ -370,9 +370,9 @@ export function ContainerDetailPanel({ container, onClose, onContainerReplaced }
       <Stack gap="var(--space-4)">
         <DefinitionList
           items={[
-            { label: 'Id', value: data.id.slice(0, 12), copyValue: data.id },
+            { label: 'Id', value: data.id.slice(0, 12) },
             { label: 'Name', value: data.name },
-            { label: 'Image', value: data.image, copyValue: data.image },
+            { label: 'Image', value: data.image },
             { label: 'Command', value: data.command.join(' ') || '–' },
             { label: 'Entrypoint', value: data.entrypoint.join(' ') || '–' },
             { label: 'Created', value: data.createdAt },

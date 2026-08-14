@@ -259,10 +259,11 @@ test('offers the long-tail commands as starting points that only prefill the pro
   await expect(transcript(page).locator('.ui-console-surface__entry')).toHaveCount(before);
 });
 
-// plan-docker_management_app/REQ-102 — the console keeps the session's history, allows recalling and
-// re-running a previous entry, and allows copying any entry with its output
-test('recalls, re-runs and copies a previous entry with its output', async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+// plan-docker_management_app/REQ-102 — the console keeps the session's history, and allows
+// recalling and re-running a previous entry. Copying an entry left on 2026-08-14 with every other
+// copy affordance (plan-docker_management_app-remove_copy_controls); the recall and the re-run
+// around it are untouched, and the transcript they act on is still asserted (REQ-30).
+test('recalls and re-runs a previous entry with its output', async ({ page }) => {
   const command = `docker ps --filter label=${marker('recall')}`;
   await submit(page, command);
   const entry = entryFor(page, command);
@@ -273,11 +274,10 @@ test('recalls, re-runs and copies a previous entry with its output', async ({ pa
   await expect(prompt(page)).toHaveValue(command);
   await prompt(page).fill('');
 
-  // Copy: the command and its output go on the clipboard together.
-  await entry.getByRole('button', { name: 'Copy' }).click();
-  const copied = await page.evaluate(() => navigator.clipboard.readText());
-  expect(copied).toContain(command);
-  expect(copied).toContain('$ ');
+  // The entry still carries its command and the prompt symbol beside it — what the copy used to be
+  // read for, asserted where it is actually drawn (REQ-30).
+  await expect(entry.locator('.ui-console-surface__command')).toHaveText(command);
+  await expect(entry.locator('.ui-console-surface__symbol')).toHaveText('$');
 
   // Re-run: the same command runs again, as a second entry.
   await entry.getByRole('button', { name: 'Re-run' }).click();
