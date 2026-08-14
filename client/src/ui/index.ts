@@ -40,7 +40,6 @@ export { StatusPill, type StatusPillProps, type StatusTone, type StatusPillActio
 export { Button, type ButtonProps, type ButtonVariant, type ButtonSize } from './controls/Button';
 export { IconButton, type IconButtonProps } from './controls/IconButton';
 export { Badge, type BadgeProps, type BadgeTone, type BadgeVariant } from './controls/Badge';
-export { KeyHint, type KeyHintProps } from './controls/KeyHint';
 export { ExternalLink, type ExternalLinkProps } from './controls/ExternalLink';
 export { PathInput, type PathInputProps, type PathInputValidationState } from './controls/PathInput';
 export { StorageUsageRow, type StorageUsageRowProps, type StorageUsageRowAction } from './controls/StorageUsageRow';

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from './support/test.js';
-import { activeContextLabel, openApp } from './support/fixtures.js';
+import { activeContextLabel, navEntry, openApp } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 const RUN_ID = `${process.pid}-${Date.now()}`;
@@ -87,13 +87,17 @@ test.beforeEach(async ({ page }) => {
   await openConsole(page);
 });
 
-// plan-docker_management_app/REQ-100 / app-shell/specs/shell.md — "The header's 'Console' button
-// makes the raw-console screen active"
-test('the header console button opens the raw console', async ({ page }) => {
+// plan-docker_management_app/REQ-100, plan-ui-coherence-optimisation/REQ-15 /
+// app-shell/specs/shell.md — "Selecting a `NavItem` sets it active … and replaces the content area
+// with its screen". The route this test used to drive was the header's own "Console" button, which
+// offered the same destination as the rail entry beside it as a different kind of thing; the entry
+// is the single route to the screen now, so what is restated here is that the screen is still
+// reached — and still usable on arrival.
+test('the raw console is opened from its navigation entry', async ({ page }) => {
   await openApp(page, 'dashboard');
   await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible();
 
-  await page.locator('header').getByRole('button', { name: 'Console' }).click();
+  await navEntry(page, 'Raw console').click();
 
   await expect(page.getByRole('heading', { level: 1, name: 'Raw console' })).toBeVisible();
   await expect(prompt(page)).toBeVisible();

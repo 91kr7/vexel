@@ -704,17 +704,6 @@
   color: var(--color-text-muted);
 }
 
-.ui-key-hint {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px var(--space-1);
-  border-radius: var(--radius-sm);
-  border: var(--border-width-hairline) solid var(--color-border-strong);
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
-}
-
 .ui-segmented {
   display: inline-flex;
   padding: 2px;

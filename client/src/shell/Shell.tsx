@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Badge,
-  Button,
   Card,
   ErrorBanner,
   EventStream,
   FooterStatus,
   Frame,
-  KeyHint,
   NavBrand,
   NavGroup,
   NavItem,
@@ -215,12 +213,6 @@ export function Shell() {
                     {statusLabel}
                   </StatusPill>
                   {connection.apiVersion ? <Badge>{`Engine API v${connection.apiVersion}`}</Badge> : null}
-                  <Button variant="ghost">
-                    <KeyHint keys="⌘K" /> Search
-                  </Button>
-                  <Button variant="secondary" onClick={() => selectScreen('raw-console')}>
-                    Console
-                  </Button>
                 </Row>
               }
             />

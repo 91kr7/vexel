@@ -16,9 +16,9 @@ Description:
   any screen it renders can call `useToast()`/`useConfirmation()` without the caller wiring them).
   Inside, renders a `Frame` whose rail is a `NavRail` built from the navigation data (one
   `NavGroup` per group, one `NavItem` per screen), whose header is a `PageHeader` for the active
-  screen (with a live-events `StatusPill`, an "Engine API v…" `Badge` when the daemon is reachable,
-  a search `Button` with a `KeyHint`, and a console `Button`), and whose footer status (active
-  Docker context) is shown inside the rail.
+  screen (with a live-events `StatusPill` and an "Engine API v…" `Badge` when the daemon is
+  reachable — and nothing else: the header states what is true of the connection and offers no
+  control of its own), and whose footer status (active Docker context) is shown inside the rail.
 Shows:
 - The active screen's title and description in the header; in the content area: any active
   `ErrorBanner`s (REQ-7), an unreachable-daemon `ErrorBanner` with cause and retry when the daemon
@@ -70,8 +70,9 @@ Actions:
   `useConnectionStatus().retry()` to re-probe the daemon immediately (REQ-10).
 - The "Local storage" card's "Clear" action calls `clearAnalysisCache()` then refreshes the shown
   size; it is disabled while the cache is empty or its size has not loaded yet.
-- The header's "Console" button makes the `raw-console` screen active, by the same path as
-  selecting its `NavItem` — so it is persisted as `lastScreenId` too (REQ-100).
+- The `raw-console` screen is reached by its own `NavItem`, in the rail and in the phone drawer, and
+  by nothing else: the header carries no second route to it
+  (plan-ui-coherence-optimisation/REQ-15, REQ-100).
 Navigation:
 - No URL routing in this batch: the active screen is local component state, defaulting to
   `defaultScreenId` until preferences restore it (see below).
@@ -105,7 +106,17 @@ Navigation:
   (REQ-6/REQ-8) are supplied by the Shell itself.
 - The header's action group is a wrapping `Row` (`wrap`): PageHeader only wraps at its own top
   level, so a non-wrapping action row would overflow the header card once the viewport is narrow
-  enough that the pill, version badge, search and console no longer fit on one line.
+  enough that the pill and the version badge no longer fit on one line.
+- Every control the header renders answers a real click, and the header advertises no keyboard
+  shortcut: it carries no control without a handler, no keyboard hint for a keystroke nothing
+  answers, and no second route to a destination the rail already offers. On a reachable daemon that
+  leaves the header with **no interactive control at all** — the status pill grows its inline
+  "Retry" only while the daemon is unreachable, and the version badge is a label. Removing the
+  search control and the console action closed the space they occupied; the remaining two keep the
+  order, spacing and height they were delivered with, and nothing replaced either — no disabled
+  control, no tooltip, no placeholder field (plan-ui-coherence-optimisation/REQ-12,
+  plan-ui-coherence-optimisation/REQ-13, plan-ui-coherence-optimisation/REQ-14,
+  plan-ui-coherence-optimisation/REQ-15, plan-ui-coherence-optimisation/REQ-16).
 - Once `usePreferences()` reports `loaded`, the active screen is set to `preferences.lastScreenId`
   if it names a known screen; this restore runs at most once per mount and only while the operator
   has not yet selected a screen themselves. A preferences read that settles after the operator has
@@ -121,8 +132,7 @@ Navigation:
 ## Dependencies
 
 - ui-library: Frame, NavRail, NavBrand, NavGroup, NavItem, FooterStatus, PageHeader, StatusPill,
-  Badge, Button, KeyHint, Row, Stack, Card, SectionHeader, ErrorBanner, EventStream,
-  StorageUsageRow, ToastProvider
+  Badge, Row, Stack, Card, SectionHeader, ErrorBanner, EventStream, StorageUsageRow, ToastProvider
 - Navigation data, AboutNotice, PlaceholderScreen, ConfirmationService, ErrorReportingService, ProgressService,
   ConnectionStatusService, EventStreamService
 - local-persistence: usePreferences, fetchAnalysisCacheUsage, clearAnalysisCache
@@ -172,3 +182,8 @@ Navigation:
 - plan-docker_management_app/REQ-105
 - plan-docker_management_app-about_license_notice/REQ-6
 - plan-docker_management_app-about_license_notice/REQ-7
+- plan-ui-coherence-optimisation/REQ-12
+- plan-ui-coherence-optimisation/REQ-13
+- plan-ui-coherence-optimisation/REQ-14
+- plan-ui-coherence-optimisation/REQ-15
+- plan-ui-coherence-optimisation/REQ-16
