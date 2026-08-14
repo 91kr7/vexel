@@ -79,12 +79,22 @@ take them on trust, and so the removal can be checked against a list rather than
 | **Anything already unobtainable, so that it is not attributed here?** | **Yes: the image panel's `Digest`.** The server shortens it before it ever reaches the client (`server/src/images/images-service.ts:197-203`, `shortDigest`), and that band has **no** copy control today — its full text is already only in the raw payload. Unchanged by this report, and recorded so the change is not blamed for it. |
 | **Is there a case where selection is not an equivalent fallback?** | **Yes, one: the log stream.** `LogStream` is virtualised — only the visible slice of lines is in the DOM (`LogStream.tsx:106-110`), with spacer elements above and below — so a manual select-all captures the rendered window, not the buffer. Its copy handed over the **whole** buffer as text. The equivalent that remains is **`Download`**, present on the container logs view (which always passes a filename) and on Compose **only while a project is selected**. Consequence: putting a whole log on the clipboard stops being possible; saving it to a file remains. |
 | **Is there a case where the loss is not merely convenience?** | **Yes, one: the swarm join tokens.** `RevealableValue` exists to hold a value *"masked until an explicit reveal, copyable without ever being shown"* — the copy control was the route that never displayed the token. After the removal the only route to a join token is `Show`, i.e. the token is drawn on screen and selected by hand. On a shared screen, a projector or a recorded session, the secret becomes visible where it previously need not have been. This is the sharpest cost in the tranche; it is recorded here, and the removal is carried out as instructed. |
-| **Does any flow — a test, a tooltip, a toast, an announcement, a focus path — depend on the control?** | **No product flow; a good deal of coverage.** There is no tooltip, no toast and no live region: the entire confirmation is the button's own label swapping to `Copied` for 1.5 seconds (`CopyButton.tsx:22-23`). No control anywhere is reachable only by tabbing *past* a copy control, so no keyboard path is lost — but every removed control was a tab stop, so tab order shortens on nine screens. The coverage that depends on it: **unit** — `copy-button.test.tsx` (the whole file), `console-surface.test.tsx:137,147`, `revealable-value.test.tsx:79,102,139`, `log-stream.test.tsx:107`, `container-logs-view.test.tsx:190`, `container-detail-panel.test.tsx:273`, `swarm-panels.test.tsx:448`, and bug-4's own contract test `property-columns-contract.test.tsx:32,140-141,357,366` (*"the one item with `copyValue`, and only it"*, *"with the `Copy` beside `Id`"*); **e2e** — `containers.spec.ts:687-703`, `container-logs.spec.ts:193-204`, `raw-console.spec.ts:265-278`, `image-detail-property-columns.spec.ts:263-266`. Three of those specs call `context.grantPermissions(['clipboard-read', 'clipboard-write'])`, which becomes pointless. |
+| **Does any flow — a test, a tooltip, a toast, an announcement, a focus path — depend on the control?** | **No product flow; a good deal of coverage.** There is no tooltip, no toast and no live region: the entire confirmation is the button's own label swapping to `Copied` for 1.5 seconds (`CopyButton.tsx:22-23`). No control anywhere is reachable only by tabbing *past* a copy control, so no keyboard path is lost — but every removed control was a tab stop, so tab order shortens on eight screens. The coverage that depends on it: **unit** — `copy-button.test.tsx` (the whole file), `console-surface.test.tsx:137,147`, `revealable-value.test.tsx:79,102,139`, `log-stream.test.tsx:107`, `container-logs-view.test.tsx:190`, `container-detail-panel.test.tsx:273`, `swarm-panels.test.tsx:448`, and bug-4's own contract test `property-columns-contract.test.tsx:32,140-141,357,366` (*"the one item with `copyValue`, and only it"*, *"with the `Copy` beside `Id`"*); **e2e** — `containers.spec.ts:687-703`, `container-logs.spec.ts:193-204`, `raw-console.spec.ts:265-278`, `image-detail-property-columns.spec.ts:263-266`. Three of those specs call `context.grantPermissions(['clipboard-read', 'clipboard-write'])`, which becomes pointless. |
 | **What exactly does this do to bug-4's records?** | **Four places, all of them written down.** (1) `image-detail-property-columns.spec.ts:328-330` — the comment stating the `Id` band measures **43px against its neighbours' 33px on the delivered build too, because it holds the copy control**, and the wrap heuristic it justifies: after the removal the `Id` band is 33px like the rest, so the note describes a build that no longer exists. (2) The same spec at `:263-266` asserts the `Copy` **is visible** inside the `Id` band — it must invert. (3) `client/e2e/support/property-bands.ts:132` and `property-columns-rule.spec.ts:134` both carry a comment excluding a `Copy`'s text from the measured text rectangles; the helper stays correct (it excludes control text generically), the comments no longer describe anything. (4) bug-4's REQ-32 is discharged. **Nothing else of bug-4 moves**: the column rule derives its minimum band width from `Created`, the longest value, not from the `Id` band, so column counts and transition widths are unaffected, and the section becomes marginally *shorter*, which satisfies bug-4's height ceilings a fortiori. |
 | **Does a delivered requirement mandate copying?** | **One, derived — not the analysis.** `.sdd/plans/plan-docker_management_app/requirements.md:85`, REQ-26: *"The raw inspect payload of a container is viewable and copyable as-is."* The base analysis says nothing about copying at all, so this report narrows a requirement invented downstream rather than contradicting the product's own analysis. After this report the payload is **viewable and selectable as-is**, and REQ-26's second adjective is superseded. A dozen further module records describe the control and would otherwise be left describing something that does not ship — the `CopyButton` row in `ui-library/index.md:51` and its `specs/copy-button.md`, plus copy clauses in the specs for `DefinitionList`, `CodeViewer`, `LogStream`, `ConsoleSurface`, `RevealableValue`, the container detail panel, the container logs view, the raw console screen, the swarm screen and the layer explorer. |
 | **Does anything outside the client copy?** | **No.** Nothing on the server, and the terminal's selection behaviour is xterm.js's and the browser's own, not a product affordance — the operator selecting text and pressing the platform's copy shortcut is the browser, and it is untouched by this report. |
 
-**Conclusion.** One component, one clipboard call, five render sites, twelve feature props, nine
+> **Correction, 2026-08-14, by the orchestrating session.** Three totals in this file were wrong when
+> it was written and have been corrected in place: **thirteen** `copyValue` props across eleven files
+> (not twelve — the enumeration below always had thirteen entries; `SwarmServicesPanel.tsx` contributes
+> two and `FilesystemBrowser.tsx:340` was dropped from the sum), **twenty-four** instance sites (not
+> twenty-two), and **eight** screens (not nine — eight are named, nine were counted). The four
+> per-component counts were right. The lists were right throughout; only the sums were not. This is
+> recorded rather than silently fixed because on a report whose whole instruction is *remove them all*,
+> a checklist short by one prop is exactly how the defect survives the fix. **The enumeration governs,
+> never the figure.**
+
+**Conclusion.** One component, one clipboard call, five render sites, thirteen feature props, eight
 screens. The removal is small, complete and mechanically checkable; the parts that need judgement are
 not "how" but "what it costs" — a full image or container id becomes a manual selection in a JSON
 block, a whole log becomes a download instead of a clipboard write, and a swarm join token can no
@@ -93,7 +103,7 @@ carried out as instructed.
 
 ## Summary
 
-Every copy affordance in the client is removed — the `Copy` controls on nine screens, the single
+Every copy affordance in the client is removed — the `Copy` controls on eight screens, the single
 library component behind all of them, its export, the item field that enables it and its `Copied`
 confirmation — leaving every value displayed exactly as it is today and selectable by mouse and
 keyboard, with nothing added in their place.
@@ -102,7 +112,7 @@ keyboard, with nothing added in their place.
 
 **The human asked for it in the plainest terms the tranche contains, and the control is his to
 refuse.** Four exclamation marks on a one-line report is not a request for options. This is a product
-decision about the interface's own vocabulary: a `Copy` sits beside values on nine screens, above every
+decision about the interface's own vocabulary: a `Copy` sits beside values on eight screens, above every
 raw payload, above every log and on every console entry, and the operator who reported it does not want
 it there. That is sufficient, and this report implements it.
 
@@ -111,7 +121,7 @@ today one of them carries a control that inflates its own height by 30% — 43px
 figure bug-4 measured and briefly mistook for a layout regression — and the shortest values on the
 panel are the ones whose bands are tallest, purely because of the control. Removing it makes the
 property section shorter, uniform in band height, and compounds the density bug-4 was written to buy.
-It also removes a tab stop beside every value on nine screens, and a widget whose label mutates for
+It also removes a tab stop beside every value on eight screens, and a widget whose label mutates for
 1.5 seconds after use.
 
 **The library gets smaller by a whole component, which is the honest measure of a removal.** A
@@ -227,15 +237,15 @@ thing. It is written here rather than left to whoever writes the spec:
   would pass with an icon-only instance still shipping** — the component's own `label` prop makes that
   one prop away — and would equally pass on a control relabelled `Copy id`. Recorded because it is the
   exact mistake available here.
-- **The surfaces are enumerated, not sampled.** All nine screens and all twenty-two instance sites from
+- **The surfaces are enumerated, not sampled.** All eight screens and all twenty-four instance sites from
   the inventory above are covered; a spec that opens the image detail panel and stops has checked the
   screenshot, not the instruction.
 - **Every interaction is driven with a real pointer at the visible control's coordinates** — expanding
   an image or container row, opening a tab, opening a collapsible section, selecting a layer, revealing
   a token — never `element.click()`, never a dispatched event, never a visually hidden target.
 - **The check must fail on the delivered build**, and the delivered figures are on record here for
-  that purpose: one clipboard implementation, five library render sites, twelve `copyValue` props,
-  nine screens, every instance labelled `Copy`, and an `Id` band of 43px against its neighbours' 33px.
+  that purpose: one clipboard implementation, five library render sites, thirteen `copyValue` props,
+  eight screens, every instance labelled `Copy`, and an `Id` band of 43px against its neighbours' 33px.
 - **Content assertions stand beside the behavioural ones, never instead of them**: that each affected
   value is still displayed with its exact text, and still selectable. A surface that lost its control
   *and* its value has passed half a check.
@@ -270,8 +280,8 @@ contradiction of what he asked for.
 - **This is a fix, not an evolution.** A delivered affordance is withdrawn on the reporter's own
   instruction; the surfaces keep every value and every other capability, and nothing new is built.
 - **"All" means all, by behaviour.** The screenshot shows one instance and the word is "all", so the
-  scope is every copy affordance in the client — the five library render sites, the twelve feature
-  props, the nine screens and the component itself — and not the band in the crop. Leaving some would
+  scope is every copy affordance in the client — the five library render sites, the thirteen feature
+  props, the eight screens and the component itself — and not the band in the crop. Leaving some would
   also leave the product internally inconsistent, which is the state the single-library rule exists to
   prevent.
 - **Nothing replaces it, and no partial reading is entertained.** No replacement affordance, no
@@ -356,7 +366,7 @@ costs, so the cost is on the record and not inferred later.
 - **The one countervailing fact, and it is a technical one.** `Clipboard.writeText()` is available
   *"only in secure contexts (HTTPS)"* and throws `NotAllowedError` when it is not permitted; the
   delivered control calls it with no guard and no error handling. A self-hosted tool served over plain
-  HTTP and opened from another machine therefore already has dead copy buttons on nine screens. The
+  HTTP and opened from another machine therefore already has dead copy buttons on eight screens. The
   affordance being withdrawn was never uniformly available.
   ([MDN — Clipboard.writeText()](https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/writeText))
 
@@ -369,8 +379,8 @@ costs, so the cost is on the record and not inferred later.
 - **The component is left in the library, unused.** The screens look right, the human is satisfied by a
   screenshot, and the product still contains the thing he asked to remove — plus a spec describing it
   and an export offering it to the next feature. "Removed" would be false.
-- **Only the screenshot's instance is done.** One band in a crop against twenty-two instance sites on
-  nine screens, three of which render one control per row: a bug-6 with the same one line.
+- **Only the screenshot's instance is done.** One band in a crop against twenty-four instance sites on
+  eight screens, three of which render one control per row: a bug-6 with the same one line.
 - **A replacement sneaks in.** Copy-on-click on the value, a context-menu entry, a keyboard shortcut, a
   `title` carrying the full id — each well meant, each the same affordance renamed, each a direct
   contradiction of an instruction that could not be plainer.
@@ -401,7 +411,7 @@ costs, so the cost is on the record and not inferred later.
 - Every copy affordance in the client: the single library component and its clipboard call, its export
   from the library's public entry point, the `copyValue` field of the definition-list item type, the
   five library render sites (property band, code viewer, log stream, console entry, revealable value)
-  and the twelve feature props that switch them on, across nine screens.
+  and the thirteen feature props that switch them on, across eight screens.
 - The confirmation state (`Copied`, and its timer) that went with the control.
 - The correctness of the surfaces afterwards: no empty action row, no stray gap, uniform property-band
   heights, every value still displayed and still selectable.
