@@ -256,6 +256,42 @@ async function openLayerExplorerDialog(page: Page): Promise<Locator> {
 }
 
 
+/**
+ * Opens Images & layers → Browse filesystem… on the suite's own single-layer image: the second
+ * instance of the `large` format, and one the delivered cases never measured — they all use the
+ * layer explorer, so this dialog has never been held to this file's guarantee.
+ *
+ * The image is deliberately one whose filesystem holds only a handful of root entries (its own file
+ * plus Docker's container-creation scaffolding): content demonstrably shorter than the 85vh cap, so
+ * a dialog that had started taking the available height instead of its content's would be seen here.
+ *
+ * Reached from the row's own overflow menu with a real pointer at each visible control, and through
+ * the cost warning the flow raises for an image nothing is kept for.
+ */
+async function openFilesystemBrowserDialog(page: Page): Promise<Locator> {
+  await ensureImage(TINY_IMAGE);
+  await openApp(page, 'images-layers');
+  await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible();
+  await page.getByPlaceholder('Search reference or digest…').fill(TINY_IMAGE);
+  const row = page.locator('.ui-data-table__row', { hasText: TINY_IMAGE }).first();
+  await expect(row).toBeVisible({ timeout: 20_000 });
+  await expect(async () => {
+    await row.getByRole('button', { name: /^More actions for / }).click();
+    await expect(page.getByRole('menu')).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await page.getByRole('menuitem', { name: 'Browse filesystem…', exact: true }).click();
+
+  const warning = page.getByRole('heading', { name: `Confirm: ${TINY_IMAGE}` });
+  await expect(warning).toBeVisible();
+  await warning.locator('xpath=..').getByRole('button', { name: 'Extract' }).click();
+  await expect(page.getByRole('heading', { name: 'Extracting the filesystem' })).toHaveCount(0, { timeout: 60_000 });
+
+  const dialog = page.locator('.ui-modal--size-large');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('.ui-tree-view__row').first()).toBeVisible({ timeout: 20_000 });
+  return dialog;
+}
+
 /** Opens Containers → Run container…, the sheet-style surface that positions itself independently (REQ-13). */
 async function openCreateContainerSheet(page: Page): Promise<Locator> {
   await openApp(page, 'containers');
@@ -355,6 +391,45 @@ test('the glass card of a large dialog is exactly the size of the dialog it hold
   await dismissThroughTheScrim(page, dialog);
 });
 
+// REQ-1, REQ-2, REQ-8, REQ-10 — the second large-format dialog, and the one whose interior is
+// re-laid out by plan-docker_management_app-filesystem_browser_layout: the card is the size of the
+// dialog it holds and keeps the designed wide format, exactly as the layer explorer does.
+test('the glass card of the filesystem browser is exactly the size of the dialog it holds, at the large format', async ({ page }) => {
+  const dialog = await openFilesystemBrowserDialog(page);
+
+  const boxes = await measureOpenDialog(page, '.ui-modal');
+  expectCardIsTheSizeOfItsContent('Images & layers → Browse filesystem', boxes);
+  expectDesignedWidth('Images & layers → Browse filesystem', boxes, largeDialogWidth(boxes.viewportWidth));
+
+  await dismissThroughTheScrim(page, dialog);
+});
+
+// plan-docker_management_app-filesystem_browser_layout/REQ-7, REQ-24 — **a maximum, not a height.**
+// The interior of this dialog now hands its remaining height to the tree; giving the arrangement a
+// height instead of a bound would make the dialog 85vh tall for ever and trade this report's defect
+// for the one `dialog_sizing` fixed. Browsing an image whose filesystem holds a handful of root
+// entries, the card is strictly shorter than the cap and still agrees exactly with its content: no
+// band of empty glass below the tree.
+test('a filesystem with a handful of entries opens a dialog shorter than the cap, still the size of its content', async ({ page }) => {
+  const dialog = await openFilesystemBrowserDialog(page);
+  const viewport = page.viewportSize();
+  expect(viewport, 'this run has no viewport size to measure the cap against').not.toBeNull();
+  const cap = (viewport as { height: number }).height * 0.85;
+
+  const boxes = await measureOpenDialog(page, '.ui-modal');
+  expect
+    .soft(
+      boxes.card.height,
+      `Images & layers → Browse filesystem, a short filesystem — the card measures ${boxes.card.height.toFixed(1)}px against the ${cap.toFixed(
+        1,
+      )}px cap: it is taking the height available rather than the height its content needs`,
+    )
+    .toBeLessThan(cap);
+  expectCardIsTheSizeOfItsContent('Images & layers → Browse filesystem, a short filesystem', boxes);
+
+  await dismissThroughTheScrim(page, dialog);
+});
+
 test.describe('at a phone-width viewport', () => {
   // Where the screen, rather than the designed width, is what limits the dialog (REQ-9).
   test.use({ viewport: { width: 390, height: 844 } });
@@ -382,6 +457,19 @@ test.describe('at a phone-width viewport', () => {
     const boxes = await measureOpenDialog(page, '.ui-modal');
     expectCardIsTheSizeOfItsContent('Images & layers → Explore layers, phone width', boxes);
     expectInsideTheViewport('Images & layers → Explore layers, phone width', boxes);
+
+    await dismissThroughTheScrim(page, dialog);
+  });
+
+  // REQ-1, REQ-2, REQ-9 — the re-laid-out large dialog at the width where the screen, and not its
+  // designed width, is what bounds it: the panes stack there, and the card still agrees with its
+  // content and stays inside the screen.
+  test('the filesystem browser still fits its card exactly and stays inside the screen', async ({ page }) => {
+    const dialog = await openFilesystemBrowserDialog(page);
+
+    const boxes = await measureOpenDialog(page, '.ui-modal');
+    expectCardIsTheSizeOfItsContent('Images & layers → Browse filesystem, phone width', boxes);
+    expectInsideTheViewport('Images & layers → Browse filesystem, phone width', boxes);
 
     await dismissThroughTheScrim(page, dialog);
   });

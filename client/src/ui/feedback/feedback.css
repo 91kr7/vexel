@@ -46,6 +46,35 @@
   overflow-y: auto;
 }
 
+/*
+ * A dialog holding a band arrangement (`BandStack`) becomes a column, and hands
+ * its own bounded height down to it.
+ *
+ * The arrangement can only distribute height that has actually been given to it,
+ * and a card laid out as a block gives it none: the card's height is `auto`
+ * under a `max-height`, so the body takes the height of its content, overflows
+ * the cap and leaves the card itself scrolling — a second scrollbar around
+ * content that already has one. Made a column instead, the cap becomes the
+ * card's used height, the body shrinks against it, and the arrangement is handed
+ * a definite height its filling region can scroll and virtualise within.
+ *
+ * Scoped with `:has()` on purpose: every dialog **without** an arrangement keeps
+ * exactly the block layout it has, which is what leaves the three sibling large
+ * dialogs — image diff, layer explorer, layer efficiency — untouched while the
+ * library grows underneath them. The `overflow-y` above stays as the backstop
+ * for a viewport too short for the chrome itself.
+ */
+.ui-modal--size-large:has(.ui-band-stack) {
+  display: flex;
+  flex-direction: column;
+}
+
+.ui-modal--size-large:has(.ui-band-stack) > .ui-modal__body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .ui-modal__title {
   margin: 0 0 var(--space-2);
   font-size: var(--font-size-lg);
@@ -218,6 +247,17 @@
   gap: var(--space-2);
   padding: var(--space-9) var(--space-6);
   text-align: center;
+}
+
+/*
+ * Inside a pane rather than on a screen: the placeholder is the height of its
+ * own two lines and sits where the content it stands in for would start, so an
+ * idle pane reads as waiting rather than as empty.
+ */
+.ui-empty-state--compact {
+  align-items: flex-start;
+  padding: var(--space-2) 0;
+  text-align: left;
 }
 
 .ui-empty-state__title {

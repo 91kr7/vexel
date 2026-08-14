@@ -6,6 +6,7 @@ import { expect, test, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { countStreamProgressEvents, progressEventsSeen } from './support/analysis-progress-events.js';
 import { expectCompletedThenSelfDismissed } from './support/progress-completion.js';
+import { expectRegionPinnedAcrossViewportHeights } from './support/pinned-region.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 async function buildImage(tag: string, dockerfile: string): Promise<void> {
@@ -148,6 +149,12 @@ test('analyzes layer efficiency and secret signals, then navigates from a findin
   // counted among the wasted files above — expected, its bytes are gone too).
   await expect(secretsSection.getByText('root/.npmrc')).toBeVisible();
   await expect(secretsSection.getByText('root/.aws/credentials')).toBeVisible();
+
+  // plan-docker_management_app-filesystem_browser_layout/REQ-20 — this dialog is deliberately out of
+  // that report's scope: it states no height of its own and is simply the size of its content, so
+  // its body must measure the same at both viewport heights. See `support/pinned-region.ts` for the
+  // recorded breach the two sibling dialogs carry and for when this assertion is deleted.
+  await expectRegionPinnedAcrossViewportHeights(page, modal.locator('.ui-modal__body'), 'Images & layers → Efficiency & signals');
 
   // Drilling down from the wasted file navigates to the layer explorer, pre-selected at the layer
   // that wrote the now-dead bytes, already analyzing — the hand-off the screen holds now (images-screen.md).

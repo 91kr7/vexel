@@ -1,0 +1,32 @@
+.ui-band-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  /*
+   * Bounded by what it is placed in, never given a height. It shrinks against a
+   * capped container — which is where the filling region gets a definite height
+   * to scroll within — and it never grows past its own content, because a
+   * container sized by its content offers no free space to grow into.
+   */
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Every band is intrinsic: the height of its own content, and it never shrinks. */
+.ui-band-stack > * {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+/* The one region that absorbs the remaining height, and the only one. */
+.ui-band-stack > .ui-band-stack__fill {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.ui-band-stack__fill > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}

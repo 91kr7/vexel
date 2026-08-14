@@ -31,6 +31,21 @@ Actions:
 - "Next"/"Previous" → `onNext()` / `onPrevious()`.
 - pressing Enter in the input → `onNext()`.
 
+## Rules and invariants
+
+- **The band is the size of the controls it holds, on whichever axis it is placed**, and it claims no
+  height nothing is drawn in. Placed in a column it is the height of its control and the full width
+  of the column; placed in a row it keeps a floor of 240px and grows to fill the row.
+- **The axis is decided here, by the axis the band was actually placed on, and never by the caller.**
+  There is no axis prop, deliberately: a prop asking a screen which axis it is on is the defect this
+  rule exists to prevent, written down. The row-axis rule is scoped to the library's own row
+  primitive, so the column case needs no cooperation from any call site.
+- Why it is stated this way: the band used to declare `flex: 1 1 240px` unconditionally — a rule
+  written for a row, which reads as *240px tall* the moment the band is stacked in a column. On the
+  image filesystem browser that drew a 37px control in the middle of a 240px band, with 103px of
+  nothing above and below it, twice over. `flex-grow` on the block axis is worse still: it turns a
+  240px void into a "takes everything left" one, so it must not survive there.
+
 ## Dependencies
 
 - TextField, Button
@@ -38,3 +53,5 @@ Actions:
 ## Requirements served
 
 - plan-docker_management_app/REQ-31
+- plan-docker_management_app-filesystem_browser_layout/REQ-3
+- plan-docker_management_app-filesystem_browser_layout/REQ-4

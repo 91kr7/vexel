@@ -24,6 +24,7 @@ export { Row, type RowProps } from './layout/Row';
 export { Grid, type GridProps } from './layout/Grid';
 export { DashboardLayout, type DashboardLayoutProps } from './layout/DashboardLayout';
 export { QuadPanelLayout, type QuadPanelLayoutProps } from './layout/QuadPanelLayout';
+export { BandStack, type BandStackProps } from './layout/BandStack';
 export { Spacer } from './layout/Spacer';
 export { SplitPane, type SplitPaneProps } from './layout/SplitPane';
 

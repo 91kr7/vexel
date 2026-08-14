@@ -68,6 +68,10 @@ function keptSummary(overrides: Partial<FilesystemExtractionResult> = {}): KeptA
 let fetchMock: ReturnType<typeof vi.fn>;
 let entriesByPath: Record<string, FilesystemEntry[]>;
 let keptAnswer: KeptAnswer;
+/** What the tree search answers, so the truncated-matches band can be raised as a state of its own (REQ-8). */
+let searchAnswer: { matches: { path: string; name: string; parentPath: string }[]; totalMatches: number; truncated: boolean };
+/** What a file preview answers, so the long-text and hex states can both be rendered (REQ-8). */
+let contentAnswer: { mode: 'text' | 'hex'; autoMode: 'text' | 'hex'; content: string; truncated: boolean };
 /** Set by the one test that needs the shape still undecided while it asserts. */
 let deferKept: { promise: Promise<void>; resolve: () => void } | undefined;
 /** Set by the REQ-14 test: the kept result is gone by the time the tree is read. */
@@ -77,6 +81,8 @@ beforeEach(() => {
   keptAnswer = { kept: false };
   deferKept = undefined;
   entriesFail = undefined;
+  searchAnswer = { matches: [], totalMatches: 0, truncated: false };
+  contentAnswer = { mode: 'text', autoMode: 'text', content: 'preview', truncated: false };
   entriesByPath = {
     '': [
       { path: 'bin', name: 'bin', kind: 'directory' },
@@ -105,9 +111,12 @@ beforeEach(() => {
           .find((candidate) => candidate.path === path);
         return { metadata: entry ? { ...entry, permissions: '-rw-r--r--', uid: 0, gid: 0 } : undefined };
       }
+      if (url.pathname.endsWith('/filesystem/search')) {
+        return searchAnswer;
+      }
       if (url.pathname.endsWith('/filesystem/content')) {
         return {
-          result: { path, mode: 'text', autoMode: 'text', content: 'preview', totalSizeBytes: 7, truncated: false },
+          result: { path, ...contentAnswer, totalSizeBytes: contentAnswer.content.length },
         };
       }
       return { path, entries: entriesByPath[path] ?? [] };
@@ -505,5 +514,250 @@ describe('FilesystemBrowser — browsing the extracted tree (plan-docker_managem
     expect(screen.getByText(/From cache/)).toBeInTheDocument();
     expect(screen.getByText('app.txt')).toBeInTheDocument();
     expect(FakeEventSource.instances).toHaveLength(0);
+  });
+});
+
+/**
+ * filesystem-browser.md — **the interior's contract and state, and deliberately nothing about its
+ * geometry.**
+ *
+ * jsdom performs no layout: every `getBoundingClientRect` here returns zeros, so a layout assertion
+ * written at this level passes on any build, the delivered defect included — the same failure mode
+ * as counting characters on a dialog that had been carried off screen. The geometry of this surface
+ * is therefore measured in one place only, `client/e2e/filesystem-browser-layout.spec.ts`, with a
+ * real browser and a real pointer. What is asserted here is what jsdom can honestly answer: which
+ * props are passed, which variant is rendered, which bands are in the document and in what order,
+ * and that every state of the surface still renders. These stand **beside** the measurements and
+ * never instead of them (plan-docker_management_app-filesystem_browser_layout/REQ-30).
+ */
+describe('FilesystemBrowser — the interior states no height and holds its bands, in every state (REQ-8, REQ-10, REQ-16, REQ-21, REQ-26, REQ-30, REQ-34)', () => {
+  /** The band stack of the surface's body — the arrangement the bands are laid out by. */
+  function bandStack(): HTMLElement {
+    const body = browserSurface().querySelector<HTMLElement>('.ui-modal__body');
+    expect(body, 'the surface has no body').not.toBeNull();
+    const stack = body!.firstElementChild as HTMLElement | null;
+    expect(stack, 'the surface\'s body holds no band arrangement').not.toBeNull();
+    return stack!;
+  }
+
+  /** The class list of each band, in document order — the reading order of the surface. */
+  function bandClassNames(): string[] {
+    return Array.from(bandStack().children).map((band) => band.className);
+  }
+
+  /** The one region of the arrangement that absorbs the remaining height, and what it holds. */
+  function fillRegion(): HTMLElement {
+    const fill = bandStack().querySelector<HTMLElement>(':scope > .ui-band-stack__fill');
+    expect(fill, `the arrangement has no filling region: [${bandClassNames().join(', ')}]`).not.toBeNull();
+    return fill!;
+  }
+
+  /** The two-pane region itself, which must be what the filling region holds and never a band of its own. */
+  function twoPaneRegion(): HTMLElement {
+    const region = fillRegion().querySelector<HTMLElement>('.ui-split-pane');
+    expect(region, 'the filling region does not hold the tree-and-detail region').not.toBeNull();
+    return region!;
+  }
+
+  /**
+   * The region carries no height of its own. Its one inline declaration is the library's own start
+   * width, travelling as a custom property so the stacked breakpoint can drop it — a width, from
+   * inside the library, and not a height stated by this screen.
+   */
+  function expectRegionStatesNoHeight(region: HTMLElement, when: string): void {
+    expect(region.style.maxHeight, `${when}: the two-pane region is capped by a stated height`).toBe('');
+    expect(region.style.height, `${when}: the two-pane region is given a height`).toBe('');
+  }
+
+  async function openExtracted(overrides: Partial<FilesystemExtractionResult> = {}): Promise<void> {
+    keptAnswer = keptSummary(overrides);
+    render(<FilesystemBrowser image={makeImage()} open onClose={vi.fn()} />, { wrapper: withToast });
+    await waitFor(() => expect(screen.getByText('app.txt')).toBeInTheDocument());
+  }
+
+  // REQ-21, REQ-22 — the pixel constants go **with** the fix rather than being replaced by smaller
+  // ones: they are themselves the breach of the standing rule that no size is stated outside the
+  // library. Read from the shipped source, because "not passed in the case I drove" is exactly what
+  // a surviving constant behind a condition would satisfy.
+  it('states no height, no length and no style anywhere in its own source', () => {
+    const source = readFileSync(join(process.cwd(), 'src/images/FilesystemBrowser.tsx'), 'utf8');
+
+    expect(source.match(/\bmaxHeight\b/g) ?? [], 'the filesystem browser still states a maxHeight in feature code').toEqual([]);
+    expect(source.match(/['"`]\d+(?:\.\d+)?(?:px|rem|em|vh|vw|ch)['"`]/g) ?? [], 'the filesystem browser still states a length in feature code').toEqual([]);
+    expect(source.match(/\bstyle=/g) ?? [], 'the filesystem browser states an inline style').toEqual([]);
+    expect(source.match(/\bclassName=/g) ?? [], 'the filesystem browser states a className').toEqual([]);
+  });
+
+  // REQ-21 — the same claim at the level of what is rendered: the two-pane region and the tree take
+  // their bound from the region they are placed in, so neither carries a height of its own.
+  it('passes no height to the two-pane region and none to the tree', async () => {
+    await openExtracted();
+
+    expectRegionStatesNoHeight(twoPaneRegion(), 'freshly opened');
+    for (const scrollport of Array.from(browserSurface().querySelectorAll<HTMLElement>('.ui-tree-view .ui-scroll-area'))) {
+      expect(scrollport.style.maxHeight, "the tree's scrollport is still capped by a stated height").toBe('');
+    }
+  });
+
+  // REQ-16 — every band of the surface, in the delivered reading order, with its delivered label.
+  it('holds the status row, the scaffolding note, the search band and the region as bands of the arrangement, in that order', async () => {
+    await openExtracted();
+
+    const classNames = bandClassNames();
+    expect(classNames.some((className) => className.includes('ui-row')), `no status row band among [${classNames.join(', ')}]`).toBe(true);
+    expect(
+      classNames.findIndex((className) => className.includes('ui-stream-search')),
+      `the search band is not a band of the arrangement itself: [${classNames.join(', ')}]`,
+    ).toBeGreaterThan(0);
+    expect(
+      classNames[classNames.length - 1],
+      `the filling region is not the last band of the arrangement: [${classNames.join(', ')}]`,
+    ).toContain('ui-band-stack__fill');
+    expect(twoPaneRegion()).toBeInTheDocument();
+
+    // The delivered labels, unchanged and in place.
+    const surface = within(browserSurface());
+    expect(surface.getByRole('button', { name: 'Re-extract…' })).toBeInTheDocument();
+    expect(surface.getByRole('button', { name: 'Download whole filesystem…' })).toBeInTheDocument();
+    expect(surface.getByRole('textbox', { name: 'Search the stream' })).toBeInTheDocument();
+    expect(surface.getByRole('button', { name: 'Previous' })).toBeInTheDocument();
+    expect(surface.getByRole('button', { name: 'Next' })).toBeInTheDocument();
+    expect(surface.getByText(/container-creation scaffolding/)).toBeInTheDocument();
+  });
+
+  // REQ-26 — the reading and tab order of the surface is the delivered one: nothing was reordered to
+  // make the height work out.
+  it('keeps the delivered reading and tab order', async () => {
+    await openExtracted();
+
+    const focusable = Array.from(
+      browserSurface().querySelectorAll<HTMLElement>('button, input, [role="tree"], [tabindex]:not([tabindex="-1"])'),
+    ).map((element) => element.getAttribute('aria-label') ?? element.getAttribute('role') ?? element.textContent);
+
+    expect(focusable.slice(0, 5)).toEqual(['Re-extract…', 'Download whole filesystem…', 'Search the stream', 'Previous', 'Next']);
+    expect(focusable[5], 'the tree does not follow the search band in tab order').toBe('tree');
+  });
+
+  // REQ-10 — the idle detail pane presents its placeholder compactly and at the top of its column,
+  // with the delivered wording and its one line, instead of a full-height void.
+  it('renders the idle detail placeholder as the compact variant, with its delivered wording', async () => {
+    await openExtracted();
+
+    const placeholder = screen.getByText('No entry selected').closest<HTMLElement>('.ui-empty-state')!;
+    expect(placeholder.className, 'the idle detail placeholder is not the compact variant').toContain('ui-empty-state--compact');
+    expect(within(placeholder).getByText('Select a file, directory or symlink to see its details.')).toBeInTheDocument();
+    expect(placeholder.parentElement?.closest('.ui-split-pane__end'), 'the placeholder is not in the trailing pane').not.toBeNull();
+  });
+
+  // REQ-10, and the other half of the same requirement: the tree's own empty state is a **screen**
+  // placeholder and keeps exactly the full-height, centred presentation it was delivered with.
+  it("leaves the tree's own Empty filesystem state on the delivered, non-compact variant", async () => {
+    entriesByPath = { '': [] };
+    keptAnswer = keptSummary({ entryCount: 0 });
+    render(<FilesystemBrowser image={makeImage()} open onClose={vi.fn()} />, { wrapper: withToast });
+
+    const empty = (await screen.findByText('Empty filesystem')).closest<HTMLElement>('.ui-empty-state')!;
+    expect(empty.className, "the tree's own empty state was changed to the compact variant").not.toContain('ui-empty-state--compact');
+  });
+
+  // REQ-8 — the layout holds in every state of this surface, not only the screenshot's four bands.
+  // Each state is rendered and the surface is asserted intact: the bands are there, the region is
+  // there, and nothing states a height.
+  it('renders while the shape is still being decided', async () => {
+    let release = () => {};
+    deferKept = { promise: new Promise<void>((resolve) => (release = resolve)), resolve: () => release() };
+    render(<FilesystemBrowser image={makeImage()} open onClose={vi.fn()} />, { wrapper: withToast });
+
+    expect(within(browserSurface()).getByRole('status', { name: /nginx:1\.27/ })).toBeInTheDocument();
+    expect(browserSurface().querySelector('.ui-split-pane'), 'a region is drawn before the shape is known').toBeNull();
+
+    deferKept.resolve();
+    await screen.findByRole('heading', { name: 'Confirm: nginx:1.27' });
+  });
+
+  it('renders a freshly extracted result and a reused one alike', async () => {
+    render(<FilesystemBrowser image={makeImage()} open onClose={vi.fn()} />, { wrapper: withToast });
+    await completeExtraction();
+
+    expect(screen.getByText(/Freshly extracted/)).toBeInTheDocument();
+    expectRegionStatesNoHeight(twoPaneRegion(), 'freshly extracted');
+
+    cleanup();
+    await openExtracted();
+    expect(screen.getByText(/From cache/)).toBeInTheDocument();
+    expectRegionStatesNoHeight(twoPaneRegion(), 'a reused result');
+  });
+
+  it('renders the refused-entries band as one more band of the arrangement', async () => {
+    await openExtracted({ refusedCount: 2 });
+
+    expect(await screen.findByText(/2 entries were refused because/)).toBeInTheDocument();
+    const classNames = bandClassNames();
+    expect(classNames[classNames.length - 1], `[${classNames.join(', ')}]`).toContain('ui-band-stack__fill');
+    expectRegionStatesNoHeight(twoPaneRegion(), 'the refused-entries band present');
+  });
+
+  it('renders the truncated-matches band as one more band of the arrangement', async () => {
+    searchAnswer = { matches: [{ path: 'app.txt', name: 'app.txt', parentPath: '' }], totalMatches: 500, truncated: true };
+    await openExtracted();
+
+    await userEvent.type(screen.getByRole('textbox', { name: 'Search the stream' }), 'a');
+
+    expect(await screen.findByText(/Showing the first 1 of 500 matches/)).toBeInTheDocument();
+    const classNames = bandClassNames();
+    expect(classNames[classNames.length - 1], `[${classNames.join(', ')}]`).toContain('ui-band-stack__fill');
+    expectRegionStatesNoHeight(twoPaneRegion(), 'the truncated-matches band present');
+  });
+
+  it('renders an empty filesystem with the arrangement intact', async () => {
+    entriesByPath = { '': [] };
+    keptAnswer = keptSummary({ entryCount: 0 });
+    render(<FilesystemBrowser image={makeImage()} open onClose={vi.fn()} />, { wrapper: withToast });
+
+    await screen.findByText('Empty filesystem');
+    expectRegionStatesNoHeight(twoPaneRegion(), 'an empty filesystem');
+  });
+
+  it.each([
+    ['a file', 'app.txt'],
+    ['a directory', 'bin'],
+  ])('renders %s selected, with its details in the trailing pane', async (_label, entryName) => {
+    await openExtracted();
+
+    await userEvent.click(screen.getByText(entryName));
+
+    expect(await screen.findByText(`/${entryName}`)).toBeInTheDocument();
+    expectRegionStatesNoHeight(twoPaneRegion(), 'an entry selected');
+  });
+
+  it('renders a symlink selected, with its link target', async () => {
+    entriesByPath = { '': [{ path: 'link', name: 'link', kind: 'symlink' }] };
+    keptAnswer = keptSummary({ entryCount: 1 });
+    render(<FilesystemBrowser image={makeImage()} open onClose={vi.fn()} />, { wrapper: withToast });
+    await waitFor(() => expect(screen.getByText('link')).toBeInTheDocument());
+
+    await userEvent.click(screen.getByText('link'));
+
+    expect(await screen.findByText('/link')).toBeInTheDocument();
+    expect(screen.getByText('Link target')).toBeInTheDocument();
+  });
+
+  it.each([
+    ['a long text preview', 'text' as const],
+    ['a hex preview', 'hex' as const],
+  ])('renders %s open in the trailing pane', async (_label, mode) => {
+    contentAnswer = {
+      mode,
+      autoMode: mode,
+      content: Array.from({ length: 400 }, (_unused, line) => `line ${line}`).join('\n'),
+      truncated: false,
+    };
+    await openExtracted();
+
+    await userEvent.click(screen.getByText('app.txt'));
+
+    expect(await screen.findByText('/app.txt')).toBeInTheDocument();
+    await waitFor(() => expect(browserSurface().querySelector('.ui-content-viewer')).not.toBeNull());
+    expectRegionStatesNoHeight(twoPaneRegion(), 'a preview open');
   });
 });

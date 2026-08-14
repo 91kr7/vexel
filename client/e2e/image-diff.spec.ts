@@ -5,6 +5,7 @@ import { expect, test, type Page } from './support/test.js';
 
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { expectCompletedThenSelfDismissed } from './support/progress-completion.js';
+import { expectRegionPinnedAcrossViewportHeights } from './support/pinned-region.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 // Every test compares the very same fixture pair; running serially avoids
@@ -160,6 +161,12 @@ test('compares two images from "Compare with…", browses the diff tree, and pre
   await expect(modal.getByText('Content', { exact: true })).toBeVisible();
   await expect(modal.getByText('content-A')).toBeVisible();
   await expect(modal.getByText('content-B')).toBeVisible();
+
+  // plan-docker_management_app-filesystem_browser_layout/REQ-20 — this dialog is deliberately out of
+  // that report's scope: its two-pane region is still pinned in feature code (`maxHeight="480px"`,
+  // and `"360px"` on the side-by-side viewer) and must measure the same at both viewport heights.
+  // See `support/pinned-region.ts` for the recorded breach and for when this assertion is deleted.
+  await expectRegionPinnedAcrossViewportHeights(page, modal.locator('.ui-split-pane').first(), 'Images & layers → Compare filesystems');
 });
 
 // plan-docker_management_app/REQ-63 — a two-image bulk selection opens the diff view with both

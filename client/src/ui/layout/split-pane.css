@@ -7,6 +7,7 @@
 
 .ui-split-pane__start {
   flex: 0 0 auto;
+  width: var(--ui-split-pane-start-width);
   min-width: 0;
   overflow: hidden;
 }
@@ -15,4 +16,67 @@
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
+}
+
+/*
+ * The height comes from the region the pane is placed in, rather than from a
+ * stated maximum: the pane fills it and each side scrolls independently inside
+ * whatever it turns out to be.
+ */
+.ui-split-pane--fill {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.ui-split-pane--fill > .ui-split-pane__start,
+.ui-split-pane--fill > .ui-split-pane__end {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/*
+ * The trailing pane's content sits at the **top** of its column and scrolls
+ * within it: an idle placeholder does not float in the middle of a tall column,
+ * and a long preview lengthens nothing and moves the leading pane not at all.
+ */
+.ui-split-pane--fill > .ui-split-pane__end {
+  justify-content: flex-start;
+  overflow-y: auto;
+}
+
+/*
+ * Below the product's existing phone breakpoint the two panes stack, the leading
+ * one first and keeping the larger share of the height. No breakpoint of its
+ * own is invented: this is the one the frame already uses.
+ */
+@media (max-width: 720px) {
+  .ui-split-pane--fill {
+    flex-direction: column;
+  }
+
+  /*
+   * Each pane starts from its own content and the leading one takes twice the
+   * share of whatever is left over, so the tree keeps the larger part of the
+   * height. Deliberately not a `0` basis: the pane's height is only definite
+   * once the surface around it has reached its own bound, and a zero basis on a
+   * surface that has not is a fixed point at zero — both panes measured 0px
+   * tall, which is exactly what a basis of `0` produced here.
+   */
+  .ui-split-pane--fill > .ui-split-pane__start {
+    width: auto;
+    flex: 2 1 auto;
+  }
+
+  .ui-split-pane--fill > .ui-split-pane__end {
+    flex: 1 1 auto;
+  }
+
+  /* The hairline divides the two panes along the axis they are now stacked on. */
+  .ui-split-pane--fill > .ui-divider--vertical {
+    width: auto;
+    height: var(--border-width-hairline);
+    align-self: auto;
+    flex: 0 0 auto;
+  }
 }

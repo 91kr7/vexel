@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  BandStack,
   Button,
   ConfirmDialog,
   DefinitionList,
@@ -251,17 +252,26 @@ export function FilesystemBrowser({ image, open, onClose }: FilesystemBrowserPro
 
   return (
     <Modal open={open} title={`Filesystem — ${image.tags[0] ?? image.shortId}`} onClose={onClose} size="large">
-      <Stack gap="var(--space-4)">
-        {/*
-          While the shape is still being decided the operator is asked for nothing (filesystem_browse_direct/REQ-6): a plain
-          indication naming the image, with nothing to press behind it — never a prompt, never a
-          button, never an empty state.
-        */}
-        {!result && kept.loading ? <Spinner label={`Opening the filesystem of ${image.tags[0] ?? image.shortId}`} /> : null}
+      {/*
+        While the shape is still being decided the operator is asked for nothing (filesystem_browse_direct/REQ-6): a plain
+        indication naming the image, with nothing to press behind it — never a prompt, never a
+        button, never an empty state.
+      */}
+      {!result && kept.loading ? <Spinner label={`Opening the filesystem of ${image.tags[0] ?? image.shortId}`} /> : null}
 
-        {result ? (
-          <>
-            <Row justify="between" align="center">
+      {result ? (
+        /*
+          The interior distributes its height by intent: every band above states something and
+          takes the height of its own content, and the tree-and-detail region is the single one
+          that absorbs whatever is left. No height, no length and no style is stated here — the
+          region's bound comes from the dialog through the arrangement, which is why the two pixel
+          constants that used to cap the pane and the tree are gone rather than reduced — a smaller
+          one would have been the same defect at another number
+          (filesystem_browser_layout/REQ-2, REQ-21, REQ-22).
+        */
+        <BandStack
+          bands={[
+            <Row key="status" justify="between" align="center">
               <StatusPill
                 tone={result.fromCache ? 'neutral' : 'success'}
                 action={{ label: 'Re-extract…', onClick: () => openWarning(true) }}
@@ -271,24 +281,20 @@ export function FilesystemBrowser({ image, open, onClose }: FilesystemBrowserPro
               <Button variant="secondary" disabled={subtreeExportBusy} onClick={() => downloadSubtree(ROOT_PATH)}>
                 Download whole filesystem…
               </Button>
-            </Row>
-            <FieldMessage tone="muted">
+            </Row>,
+            <FieldMessage key="scaffolding" tone="muted">
               Includes container-creation scaffolding (e.g. .dockerenv, dev/, etc/hostname, proc/, sys/) written by Docker itself,
               not necessarily shipped by the image.
-            </FieldMessage>
-            {result.refusedCount > 0 ? (
-              <FieldMessage tone="danger">
+            </FieldMessage>,
+            result.refusedCount > 0 ? (
+              <FieldMessage key="refused" tone="danger">
                 {result.refusedCount} entr{result.refusedCount === 1 ? 'y was' : 'ies were'} refused because
                 {result.refusedCount === 1 ? ' it attempted' : ' they attempted'} to leave the extracted tree (an absolute path, a
                 "../" segment, or a symlink target escaping it) and never entered the browsed filesystem.
               </FieldMessage>
-            ) : null}
-          </>
-        ) : null}
-
-        {result ? (
-          <>
+            ) : null,
             <StreamSearchField
+              key="search"
               value={search.query}
               onChange={search.setQuery}
               matchCount={search.matches.length}
@@ -296,15 +302,16 @@ export function FilesystemBrowser({ image, open, onClose }: FilesystemBrowserPro
               onNext={search.next}
               onPrevious={search.previous}
               placeholder="Search files by name or path…"
-            />
-            {search.truncated ? (
-              <FieldMessage tone="muted">
+            />,
+            search.truncated ? (
+              <FieldMessage key="truncated" tone="muted">
                 Showing the first {search.matches.length} of {search.totalMatches} matches.
               </FieldMessage>
-            ) : null}
-
+            ) : null,
+          ]}
+          fill={
             <SplitPane
-              maxHeight="480px"
+              fill
               start={
                 <TreeView
                   rootNodes={rootNodes}
@@ -315,13 +322,13 @@ export function FilesystemBrowser({ image, open, onClose }: FilesystemBrowserPro
                   selectedId={selectedId}
                   onSelect={(node) => setSelectedId(node.id)}
                   matchedIds={matchedIds}
-                  maxHeight="480px"
+                  fill
                   emptyState={<EmptyState title="Empty filesystem" />}
                 />
               }
               end={
                 selectedId === undefined ? (
-                  <EmptyState title="No entry selected" description="Select a file, directory or symlink to see its details." />
+                  <EmptyState compact title="No entry selected" description="Select a file, directory or symlink to see its details." />
                 ) : metadataState.loading ? (
                   <Spinner label="Loading entry metadata" />
                 ) : metadataState.error ? (
@@ -374,9 +381,9 @@ export function FilesystemBrowser({ image, open, onClose }: FilesystemBrowserPro
                 ) : null
               }
             />
-          </>
-        ) : null}
-      </Stack>
+          }
+        />
+      ) : null}
 
       <ConfirmDialog
         open={warningOpen}

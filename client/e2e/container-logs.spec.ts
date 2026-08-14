@@ -1,5 +1,6 @@
 import { expect, test, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
+import { expectBandFillsItsRow, expectBandIsTheHeightOfItsControl, measureSearchBand } from './support/search-band-axis.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 // A tiny, already-cached image whose entrypoint is overridden to `sh`: the
@@ -154,6 +155,35 @@ test.describe('Container logs (REQ-30, REQ-31)', () => {
 
       await detail.getByRole('button', { name: 'Previous' }).click();
       await expect(detail.getByText('1/11')).toBeVisible();
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+
+  // plan-docker_management_app-filesystem_browser_layout/REQ-4, REQ-27, REQ-35 — **the row axis of
+  // the shared search band**, measured on the one screen that uses it that way.
+  //
+  // The band is corrected for a column by the filesystem-browser layout report, and the correction
+  // lives in the band itself rather than at either call site. This is the check that goes red if the
+  // column is fixed by breaking the row: the band keeps its 240px floor, keeps growing to the end of
+  // the row it is in — asserted on the box, so "grow" is measured and not read off a stylesheet —
+  // and is the height of the control it holds here exactly as it must become there.
+  //
+  // Geometry, with a real pointer at the visible control's coordinates (REQ-29, REQ-31).
+  test('the search band keeps its row-axis behaviour: at least 240px wide, filling its row, and the height of its control', async ({ page }) => {
+    const name = `vexel-e2e-logs-band-${Date.now()}`;
+    try {
+      await createLoggingContainer(name);
+      const detail = await openLogsTab(page, name);
+      await expect(detail.getByText('hello-from-stdout')).toBeVisible({ timeout: 15_000 });
+
+      // A real pointer on the visible field before it is measured: the band is
+      // read in the state an operator leaves it in, never through its markup.
+      await detail.getByRole('textbox', { name: 'Search the stream' }).click();
+      const geometry = await measureSearchBand(detail.locator('.ui-stream-search'));
+
+      expectBandFillsItsRow('Containers → Logs, the stream search band', geometry);
+      expectBandIsTheHeightOfItsControl('Containers → Logs, the stream search band', geometry);
     } finally {
       await removeContainerQuietly(name);
     }

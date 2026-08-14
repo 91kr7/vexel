@@ -31,6 +31,9 @@ be loaded on demand by the caller (REQ-52).
     the keyboard-focused row) calls `onSelect`.
   - `maxHeight?: string` — caps the tree's height and enables virtualised scrolling (only the rows
     in and around the visible window are mounted); unset renders every visible row.
+  - `fill?: boolean` (default `false`) — the tree's bound comes from the **region it is placed in**
+    rather than from a stated maximum, with virtualisation working exactly as it does under
+    `maxHeight`.
   - `rowHeight?: number` — fixed row height in px (default `32`).
   - `emptyState?: ReactNode` — shown instead of the tree when `rootNodes` is empty.
   - `matchedIds?: Set<string>` — ids marked as matching an in-progress search (REQ-60); a matched
@@ -51,6 +54,18 @@ be loaded on demand by the caller (REQ-52).
   directory, also toggles its expansion.
 - Virtualisation follows `DataTable`'s own approach: fixed `rowHeight` windowing over the flattened
   visible-row list, with overscan, so scrolling a large tree never mounts every row at once.
+- **`fill` preserves virtualisation**: the window is measured from the scroll container itself rather
+  than from a parsed length, and it follows that container as the container follows the screen — a
+  screen that grows mounts the rows it has just made room for. A tree of hundreds of entries still
+  mounts only the rows in and around the visible window.
+- **In `fill`, a selection or a search hit is brought into *this* container's window, and into no
+  other.** Only a row outside the window moves it, so an operator's own scroll position is never
+  overruled — and no ancestor is scrolled, which is what keeps a search hit from scrolling the dialog
+  the tree sits in. Letting the browser reveal the row would scroll every ancestor; the row a search
+  jumped to is, in any case, not mounted at all until this happens.
+- The delivered `maxHeight` path — including the absence of that reveal — is **preserved exactly**
+  for callers that do not ask for `fill`. Row height, density and keyboard navigation are the same in
+  both modes.
 
 ## Dependencies
 
@@ -59,5 +74,8 @@ be loaded on demand by the caller (REQ-52).
 ## Requirements served
 
 - plan-docker_management_app/REQ-52
+- plan-docker_management_app-filesystem_browser_layout/REQ-18
+- plan-docker_management_app-filesystem_browser_layout/REQ-25
+- plan-docker_management_app-filesystem_browser_layout/REQ-26
 - plan-docker_management_app/REQ-60
 - plan-docker_management_app/REQ-63

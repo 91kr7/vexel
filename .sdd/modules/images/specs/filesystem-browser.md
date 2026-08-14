@@ -22,9 +22,16 @@ REQ-58–62, REQ-113).
 Description:
 - A large `Modal` whose body is, once the shape is known, either **nothing at all** (shape A: the
   cost warning is on screen over it, and the surface behind it carries only its title) or the
-  browsed filesystem (shape B and every completed extraction): a search field over the tree, then a
-  `SplitPane` — a searchable `TreeView` of the merged filesystem on the left, the selected entry's
-  metadata and (for a file) content preview in the right pane.
+  browsed filesystem (shape B and every completed extraction), laid out as a `BandStack`: the status
+  row, the scaffolding note, the refused-entries note when present, the search band and the
+  truncated-matches note when present are **bands** — each the height of its own content — over the
+  **single elastic region**, which holds the `SplitPane` of the searchable `TreeView` and the
+  selected entry's metadata and (for a file) content preview.
+- **The height of this surface is distributed by intent and stated nowhere in it.** The region's
+  bound comes from the dialog, through the arrangement: `SplitPane` and `TreeView` are both in their
+  fill modes, so the tree keeps a definite bounded height to virtualise within, and the dialog stays
+  the size of its content when its content is short. The idle detail placeholder is `EmptyState`'s
+  compact variant, at the top of the trailing pane.
 Shows:
 - **While the shape is being decided**: a `Spinner` alone, labelled with the image's own reference —
   no heading, no button, nothing to press. The operator is asked for nothing in order to find out
@@ -119,10 +126,16 @@ Actions:
   match whose ancestor directories have not finished loading yet.
 - No raw markup and no styling of its own: every visual element comes from the ui-library, and this
   flow adds no blur surface (it removes a surface and adds none).
+- **No pixel height, no length and no style is stated in this component at all.** The two
+  `maxHeight="480px"` constants it used to carry — one on the two-pane region, one on the tree —
+  are gone rather than reduced: they were themselves the breach of the rule that no size is
+  hard-coded outside the library, and a smaller constant would have been the same defect at another
+  number. Nothing here scrolls the dialog: the body holds exactly one scroll region, the tree's, plus
+  the detail pane's own when a preview is long.
 
 ## Dependencies
 
-- ui-library: Modal, SplitPane, TreeView, DefinitionList, EmptyState, ConfirmDialog,
+- ui-library: Modal, BandStack, SplitPane, TreeView, DefinitionList, EmptyState, ConfirmDialog,
   TransferProgressDialog, StatusPill, FieldMessage, ErrorBanner, Button, Row, Stack, Spinner,
   StreamSearchField, SegmentedControl, TextViewer, HexDumpViewer, triggerDownload, useToast
 - useImageFilesystemKeptResult, useImageFilesystemExtraction, useImageFilesystemTree,
@@ -166,3 +179,23 @@ Actions:
 - plan-docker_management_app-filesystem_browse_direct/REQ-20
 - plan-docker_management_app-filesystem_browse_direct/REQ-21
 - plan-docker_management_app-filesystem_browse_direct/REQ-22
+- plan-docker_management_app-filesystem_browser_layout/REQ-1
+- plan-docker_management_app-filesystem_browser_layout/REQ-2
+- plan-docker_management_app-filesystem_browser_layout/REQ-6
+- plan-docker_management_app-filesystem_browser_layout/REQ-7
+- plan-docker_management_app-filesystem_browser_layout/REQ-8
+- plan-docker_management_app-filesystem_browser_layout/REQ-9
+- plan-docker_management_app-filesystem_browser_layout/REQ-10
+- plan-docker_management_app-filesystem_browser_layout/REQ-11
+- plan-docker_management_app-filesystem_browser_layout/REQ-12
+- plan-docker_management_app-filesystem_browser_layout/REQ-13
+- plan-docker_management_app-filesystem_browser_layout/REQ-14
+- plan-docker_management_app-filesystem_browser_layout/REQ-15
+- plan-docker_management_app-filesystem_browser_layout/REQ-16
+- plan-docker_management_app-filesystem_browser_layout/REQ-17
+- plan-docker_management_app-filesystem_browser_layout/REQ-18
+- plan-docker_management_app-filesystem_browser_layout/REQ-21
+- plan-docker_management_app-filesystem_browser_layout/REQ-22
+- plan-docker_management_app-filesystem_browser_layout/REQ-23
+- plan-docker_management_app-filesystem_browser_layout/REQ-24
+- plan-docker_management_app-filesystem_browser_layout/REQ-26
