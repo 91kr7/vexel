@@ -18,18 +18,12 @@ export interface DefinitionListProps {
    * minimum — the caller states no count, no template and no length.
    */
   contentClass?: ContentClass;
-  /**
-   * @deprecated A caller-stated count, kept only until the surfaces that pass
-   * one are moved onto the derived arrangement. Do not add a new call site.
-   */
-  columns?: 1 | 2;
 }
 
 /** Label → value bands, each with an optional copy affordance. */
-export function DefinitionList({ items, contentClass = 'short-scalar', columns = 1 }: DefinitionListProps) {
-  const arrangement = `ui-definition-list ${contentColumnsClassName('pair', contentClass)}`;
+export function DefinitionList({ items, contentClass = 'short-scalar' }: DefinitionListProps) {
   return (
-    <div className={columns === 2 ? 'ui-definition-list ui-definition-list--columns-2' : arrangement}>
+    <div className={`ui-definition-list ${contentColumnsClassName('pair', contentClass)}`}>
       {items.map((item, index) => (
         // The band is the grid item, label and value inside it. They are never
         // placed in tracks of their own: a `display: contents` or subgrid

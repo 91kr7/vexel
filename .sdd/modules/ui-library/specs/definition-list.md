@@ -12,16 +12,15 @@ list's own width can carry.
 
 ## Contract
 
-- `<DefinitionList items contentClass? columns? />`
+- `<DefinitionList items contentClass? />`
   - `items: { label, value: ReactNode, copyValue?: string }[]`.
   - `contentClass?: 'short-scalar' | 'long-single-line' | 'free-text'` — default `'short-scalar'`.
     What the section holds; the minimum band width follows from it (`content-columns.md`). **This is
     the only thing a caller states about the layout**: no count, no track template, no length.
-  - `columns?: 1 | 2` — **a known defect, deliberately left standing.** A caller cannot know the width
-    it will be given, so a caller-stated count is the wrong shape; it is retired, together with its
-    `--columns-2` rule, by the work that moves the five surfaces still passing it onto the derived
-    arrangement. While it is passed, it overrides the derived arrangement entirely and the section
-    renders exactly as it did before that arrangement existed. **No new call site may use it.**
+  - **A caller states no column count, and the type refuses one.** A caller cannot know the width it
+    will be given, and a component with both a stated count and a derived one has two answers to the
+    same question. The delivered `columns?: 1 | 2` and its `--columns-2` two-track rule are removed,
+    not deprecated.
   - When `copyValue` is set on an item, its band renders a `CopyButton` for that exact text next to
     `value`, in that position, in the tab order it already had.
 
@@ -67,6 +66,7 @@ Shows:
 - plan-docker_management_app-detail_property_columns/REQ-10
 - plan-docker_management_app-detail_property_columns/REQ-11
 - plan-docker_management_app-detail_property_columns/REQ-14
-- plan-docker_management_app-detail_property_columns/REQ-30
+- plan-docker_management_app-detail_property_columns/REQ-25
+- plan-docker_management_app-detail_property_columns/REQ-26
 - plan-docker_management_app-detail_property_columns/REQ-32
 - plan-docker_management_app-detail_property_columns/REQ-34

@@ -12,8 +12,8 @@
  * `min(<minimum>, 100%)` is load-bearing, not defensive: a minimum wider than
  * the container degrades to the container's width instead of pushing a track
  * through it. Without it a 560px minimum inside a ~400px card overflows — the
- * defect the caller-stated `columns={2}` surfaces already show, which this rule
- * exists not to recreate.
+ * defect the five surfaces that used to state a count of their own showed at
+ * that width, which this rule exists not to recreate.
  *
  * The row gap is the consumer's, through --content-columns-row-gap: a property
  * list keeps its delivered 4px band step, a list of single values the 8px it

@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { ContentColumns, DefinitionList } from '../../src/ui';
+import { ContentColumns, DefinitionList, type DefinitionListProps } from '../../src/ui';
 import { ImageDetailPanel } from '../../src/images/ImageDetailPanel';
 
 /**
@@ -12,10 +12,12 @@ import { ImageDetailPanel } from '../../src/images/ImageDetailPanel';
  * **jsdom has no layout and reports every box as zero.** A column-count, a height
  * or a "the label is beside its value" assertion written here would therefore
  * pass on any build, the delivered defect included — which is the trap this
- * project has already paid for twice. **Every geometric assertion of this batch
+ * project has already paid for twice. **Every geometric assertion of this work
  * lives in the Playwright tree**, in
  * `image-detail-property-columns.spec.ts`, `container-detail-property-columns.spec.ts`,
- * `property-columns-sweep.spec.ts` and `property-columns-untouched-guard.spec.ts`.
+ * `property-columns-sweep.spec.ts` and `property-columns-derived-count.spec.ts` —
+ * the last of which measures the five surfaces that used to state their own
+ * count, and replaced the guard that held them still while they did.
  *
  * What is checkable here, and is checked, is the **contract**: what a caller can
  * state, what the markup associates with what, which class each call site
@@ -46,11 +48,38 @@ describe('DefinitionList — what a caller may state', () => {
     expect(props, 'the props declare a width, a minimum or a maximum').not.toMatch(/width|minWidth|maxWidth|min-width/i);
     expect(props, 'the props declare a track template').not.toMatch(/template|1fr|repeat\(/);
     expect(props, 'the props accept a length').not.toMatch(/\d+px|gap/);
-    // What it does accept: the item list, the content class, and the caller-stated count that is
-    // deliberately still here and is retired by the work that takes it off its five call sites.
+    // What it accepts, and the whole of it: the item list and the content class.
     expect(props).toMatch(/items:\s*DefinitionItem\[\]/);
     expect(props).toMatch(/contentClass\?:\s*ContentClass/);
-    expect(props).toMatch(/columns\?:\s*1 \| 2/);
+  });
+
+  /**
+   * REQ-25 — **the count is removed, not deprecated.** A prop left in place with
+   * a warning leaves the product with two competing answers to "how many
+   * columns", which is the finding the whole report rests on. The type is what
+   * must refuse it, so the refusal is asserted where a type can be checked: the
+   * `@ts-expect-error` below fails `npm run test:typecheck -w client` if
+   * `columns` is ever accepted again — and fails it just as loudly if the line
+   * stops being an error for having been quietly deleted.
+   */
+  it('refuses a caller-stated count in the type, not merely in the prose', () => {
+    const refused: DefinitionListProps = {
+      items: ITEMS,
+      // @ts-expect-error a caller cannot state a column count: the prop does not exist.
+      columns: 2,
+    };
+    // The value exists so that the type above is checked; what is checked at runtime is the source.
+    expect(refused.items).toHaveLength(ITEMS.length);
+
+    // Comments stripped: the prose legitimately explains the count the arrangement derives. What
+    // must be gone is the identifier — the prop, its default and the class it selected.
+    const code = source(join('ui', 'data', 'DefinitionList.tsx'))
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/.*$/gm, '');
+    // Not preceded by a hyphen or a word character: `content-columns`, the module the shared rule
+    // lives in, is the arrangement's own home and is not a caller-stated count.
+    expect(code, 'the component still declares a caller-stated count').not.toMatch(/(?<![-\w])columns\b/);
+    expect(code, 'the retired two-track class is still emitted').not.toMatch(/columns-2/);
   });
 
   // REQ-6 — three declared classes, short scalar the default. Asserted through the arrangement each
@@ -182,6 +211,94 @@ describe('the two reported call sites state no layout constant', () => {
     // The environment · mounts list is the shared rule's value form at the long-single-line class.
     expect(text).toMatch(/<ContentColumns contentClass="long-single-line">/);
   });
+});
+
+describe('no feature file anywhere states a count, a template or a width for a property section', () => {
+  /**
+   * REQ-25, REQ-27 — **checked over the sources, not claimed in a plan.** The
+   * five surfaces that used to pass `columns={2}` are named one by one, because
+   * "four and a shrug" is the way this is got wrong; and the check is then made
+   * over **every** feature file, so a sixth call site cannot reintroduce a count
+   * quietly.
+   *
+   * Scoped to the property sections on purpose. `DataTable` states its own
+   * columns — they are its data — and the screen-level `Grid` still takes a free
+   * template string for the layouts this work deliberately leaves alone, so a
+   * check written against the file as a whole would either be false or would
+   * have to be softened until it said nothing.
+   */
+  const featureRoot = join(process.cwd(), 'src');
+
+  const THE_FIVE = [
+    'swarm/SwarmServicesPanel.tsx',
+    'swarm/SwarmSecretsPanel.tsx',
+    'swarm/SwarmConfigsStacksPanel.tsx',
+    'swarm/SwarmNodesPanel.tsx',
+    'coverage/CoverageMatrixScreen.tsx',
+  ] as const;
+
+  /** Every `.tsx` under `src` that is not the library itself: the feature layer. */
+  function featureFiles(directory = featureRoot): string[] {
+    return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) return entry.name === 'ui' ? [] : featureFiles(path);
+      return entry.name.endsWith('.tsx') ? [path] : [];
+    });
+  }
+
+  /**
+   * The props of every occurrence of a tag, brace-aware: an `items={[…]}` holds
+   * arrow functions, so a scan that stopped at the first `>` would cut the props
+   * in half and pass whatever came after.
+   */
+  function propsOf(text: string, tag: string): string[] {
+    const opener = `<${tag}`;
+    const found: string[] = [];
+    for (let start = text.indexOf(opener); start !== -1; start = text.indexOf(opener, start + 1)) {
+      let depth = 0;
+      let cursor = start + opener.length;
+      while (cursor < text.length) {
+        const character = text[cursor];
+        if (character === '{') depth += 1;
+        else if (character === '}') depth -= 1;
+        else if (character === '>' && depth === 0) break;
+        cursor += 1;
+      }
+      found.push(text.slice(start + opener.length, cursor));
+    }
+    return found;
+  }
+
+  it('the five surfaces that stated a count state none, and take the short-scalar default', () => {
+    for (const path of THE_FIVE) {
+      const lists = propsOf(source(path), 'DefinitionList');
+      expect(lists.length, `${path} no longer renders a property list at all`).toBeGreaterThan(0);
+      for (const props of lists) {
+        expect(props, `${path} still states a column count`).not.toMatch(/columns/);
+        // Short scalar, taken deliberately and recorded in `ui-library/specs/content-columns.md`:
+        // these lists hold ids, versions, dates and state words. Declaring the long class for the
+        // one joined label set among them would cost the section the columns this work exists to
+        // give it, at every width the operator has.
+        expect(props, `${path} declares a content class where it takes the short-scalar default`).not.toMatch(/contentClass/);
+      }
+    }
+  });
+
+  it.each(featureFiles().map((path) => [path.slice(featureRoot.length + 1), path] as const))(
+    '%s passes no count, template, width or length to a property section',
+    (name, path) => {
+      const text = readFileSync(path, 'utf8');
+      expect(text, `${name} names the retired two-track class`).not.toMatch(/ui-definition-list--columns-2/);
+      for (const tag of ['DefinitionList', 'ContentColumns']) {
+        for (const props of propsOf(text, tag)) {
+          expect(props, `${name} states a column count on a ${tag}`).not.toMatch(/columns\s*=/);
+          expect(props, `${name} states a track template on a ${tag}`).not.toMatch(/1fr|repeat\(auto-|grid-template/);
+          expect(props, `${name} carries an inline style on a ${tag}`).not.toMatch(/style\s*=\s*\{/);
+          expect(props, `${name} states a length on a ${tag}`).not.toMatch(/\d+px|minWidth|maxWidth|width=/);
+        }
+      }
+    },
+  );
 });
 
 describe('the library component keeps no knowledge of the domain', () => {

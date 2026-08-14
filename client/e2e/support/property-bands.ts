@@ -38,6 +38,24 @@ export interface BandGeometry {
   labelBox: Rect | null;
   valueBox: Rect | null;
   /**
+   * The number of **line boxes** the label's own text is drawn over, and the same
+   * for the value's — counted from the text's own client rects, not inferred
+   * from a height a control inside the band legitimately raises. This is what
+   * *"a 19-character digest wraps across three lines"* means as a number.
+   */
+  labelLines: number;
+  valueLines: number;
+  /**
+   * The **ink** of the label and of the value: the width their text occupies,
+   * summed over the line boxes it is drawn on. It is the only way to ask, of a
+   * text that has already wrapped, how wide it would have been on one line — and
+   * therefore the only way to tell a band that wraps because its arrangement is
+   * too narrow from one that wraps because its content genuinely exceeds any
+   * band (REQ-8, where wrapping is the correct outcome).
+   */
+  labelInk: number;
+  valueInk: number;
+  /**
    * The label→value run: from the label's left edge to the value's right edge.
    * This is the quantity the report is about — 1170px of it on the `Created`
    * band of a 1458px section (REQ-1).
@@ -110,6 +128,24 @@ export async function measureSection(section: Locator, name: string): Promise<Se
     };
     const intersects = (a: DOMRect, b: DOMRect) => a.left < b.right - 0.5 && a.right > b.left + 0.5 && a.top < b.bottom - 0.5 && a.bottom > b.top + 0.5;
 
+    // The line boxes a text is drawn over, and the ink it occupies across them.
+    // The text of a control inside the band is left out: a `Copy` is not a
+    // second line of the value.
+    const textRects = (target: Element | null | undefined) => {
+      if (!target) return [] as DOMRect[];
+      const range = document.createRange();
+      const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT);
+      const rects: DOMRect[] = [];
+      while (walker.nextNode()) {
+        const node = walker.currentNode;
+        if (!node.nodeValue?.trim()) continue;
+        if (node.parentElement?.closest('button')) continue;
+        range.selectNodeContents(node);
+        rects.push(...Array.from(range.getClientRects()));
+      }
+      return rects;
+    };
+
     const bands = Array.from(element.children)
       .filter((band) => band.getBoundingClientRect().height > 0)
       .map((band) => {
@@ -118,8 +154,14 @@ export async function measureSection(section: Locator, name: string): Promise<Se
         const valueElement = band.querySelector('.ui-definition-list__value');
         const labelBox = labelElement?.getBoundingClientRect() ?? null;
         const valueBox = valueElement?.getBoundingClientRect() ?? null;
+        const labelRects = textRects(labelElement);
+        const valueRects = textRects(valueElement);
         return {
           label: labelElement?.textContent ?? band.textContent?.slice(0, 40) ?? '(no label)',
+          labelLines: Math.max(1, labelRects.length),
+          valueLines: Math.max(1, valueRects.length),
+          labelInk: labelRects.reduce((total, line) => total + line.width, 0),
+          valueInk: valueRects.reduce((total, line) => total + line.width, 0),
           box: rect(band),
           labelBox: labelBox ? { top: labelBox.top, bottom: labelBox.bottom, left: labelBox.left, right: labelBox.right, width: labelBox.width, height: labelBox.height } : null,
           valueBox: valueBox ? { top: valueBox.top, bottom: valueBox.bottom, left: valueBox.left, right: valueBox.right, width: valueBox.width, height: valueBox.height } : null,

@@ -264,40 +264,26 @@
   --content-columns-row-gap: var(--space-1);
 }
 
-/* A caller-stated count, still here on purpose and retired by the work that
-   takes it off the five surfaces that pass one. It overrides the derived
-   arrangement above, so those surfaces render exactly as delivered. */
-.ui-definition-list--columns-2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-1) var(--space-6);
-}
-
 .ui-definition-list__row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-4);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   background: var(--color-wash-1);
 }
 
-/* The band of a derived arrangement fills its track — its wash reaches the
-   section's edge, so no dead margin re-appears on the right — while the
-   label→value run inside it is bounded by the content class's maximum, with the
-   surplus as trailing padding.
-   That is what `space-between` above gets wrong: it does not add space, it
-   pushes two items to opposite ends of whatever width the band was handed,
-   which on a 1550px band leaves ~1500px between a label and its value. It stays
-   on the bands of a caller-stated `columns={2}`, deliberately: those five
-   surfaces are retired by their own work and must render exactly as delivered
-   until then, so that a regression on them stays attributable.
+/* The band fills its track — its wash reaches the section's edge, so no dead
+   margin re-appears on the right — while the label→value run inside it is
+   bounded by the content class's maximum, with the surplus as trailing padding.
+   That is what a `space-between` band got wrong, and why the row above no
+   longer asks for one: it does not add space, it pushes two items to opposite
+   ends of whatever width the band was handed, which on a 1550px band leaves
+   ~1500px between a label and its value.
    The percentage resolves against the track, not against the band's own
    content, so there is no circularity; below the bound the trailing padding is
    simply the band's own. */
 .ui-content-columns > .ui-definition-list__row {
-  justify-content: flex-start;
   padding-inline-end: max(var(--space-3), calc(100% - var(--space-3) - var(--band-run-max, 100%)));
 }
 

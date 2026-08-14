@@ -226,12 +226,27 @@ describe('the reported call sites state a content class and nothing else', () =>
     }
   });
 
-  // The same reading applied to a surface that *does* state a count: if the props of a call site
-  // could not be read, the assertion above would be empty of content on any build.
-  it('reads a caller-stated count where one is still written', () => {
-    const swarm = read('swarm', 'SwarmServicesPanel.tsx');
+  /**
+   * The same reading applied to a call site that **does** state a count: if the
+   * props of one could not be read, the assertion above would be empty of
+   * content on any build.
+   *
+   * It used to be applied to `SwarmServicesPanel.tsx`, which was the last file
+   * in the product still writing `columns={2}`. The work that retired the
+   * caller-stated count took that source away, so the reading is exercised
+   * against a source written here — one that states a count, a template and a
+   * length — rather than against whichever file happens to still hold a defect.
+   * A self-check that depends on a defect surviving is a self-check with an
+   * expiry date.
+   */
+  it('reads a caller-stated count, template and length where one is written', () => {
+    const stated = `
+      <DefinitionList columns={2} style={{ minWidth: 360 }} items={list.map(([key, value]) => ({ label: key, value }))} />
+      <Grid columns="1fr 1fr" gap="var(--space-5)">{children}</Grid>
+    `;
 
-    expect(propsOf(swarm, 'DefinitionList').flat(), 'the reading of a call site’s props finds nothing where a count is written').toContain('columns');
+    expect(propsOf(stated, 'DefinitionList').flat(), 'the reading of a call site’s props finds nothing where a count is written').toEqual(['columns', 'style', 'items']);
+    expect(propsOf(stated, 'Grid').flat(), 'the reading of a call site’s props finds nothing where a template is written').toEqual(['columns', 'gap']);
   });
 
   // REQ-36 — and no stylesheet and no inline style anywhere in the file: the visual language has one

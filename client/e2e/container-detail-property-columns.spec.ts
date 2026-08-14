@@ -272,15 +272,17 @@ test('Config: the environment · mounts entries flow by their own column’s wid
 // REQ-17, REQ-24, REQ-12 — the Inspect tab's collapsible sections and the whole panel free of
 // clipping and overlap at the four widths, the narrow end included.
 //
-// **Of the three sections REQ-17 names, this fixture exhibits only `Labels`**, and the title is
-// wider than what is measured: the container is created and never started, so it has joined no
-// network and declares no health check, and `Networks` and `Health` hold nothing to arrange.
-// `property-columns-rule.spec.ts` measures all three on a fixture that has them.
+// **Of the three sections REQ-17 names, this fixture exhibits only `Labels`**, and the title says so:
+// the container is created and never started, so it has joined no network and declares no health
+// check, and `Networks` and `Health` hold nothing to arrange. `property-columns-rule.spec.ts`
+// measures all three on a fixture that has them. The title used to name the three and measure one;
+// it was renamed to what it measures, because a title claiming more than its assertion is the same
+// defect as a fixture that cannot fail, and the comment withdrawing the claim only hid it.
 //
 // REQ-7's degrading case — a minimum wider than the container it is given — is likewise **not**
 // asserted here and is not reachable from any viewport this file uses: it lives in that same spec,
 // on a section constrained to ~400px.
-test('Inspect: Networks, Labels and Health follow the rule, and nothing clips at 720 / 1280 / 1920 / 2560', async ({ page }) => {
+test('Inspect: the tab’s property section and its Labels section follow the rule, and nothing clips at 720 / 1280 / 1920 / 2560', async ({ page }) => {
   const name = `vexel-e2e-bug4-sections-${Date.now()}`;
   await createFixtureContainer(name);
   try {

@@ -153,7 +153,7 @@ export function CoverageMatrixScreen() {
                   </Button>
                 }
               />
-              <DefinitionList columns={2} items={baselineItems(coverage.baseline)} />
+              <DefinitionList items={baselineItems(coverage.baseline)} />
             </>
           ) : (
             <StateSummaryBar tone="neutral" title={coverage.loaded ? 'The baseline could not be read' : 'Reading the baseline…'} />

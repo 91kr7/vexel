@@ -157,25 +157,22 @@ test('plugins and registries: whatever property section each presents is sound a
   }
 });
 
-// REQ-28 — the coverage matrix, the tenth screen of the sweep. Stated rather than assumed: the only
-// property list it presents is the caller-stated one, which this batch deliberately leaves alone and
-// which `property-columns-untouched-guard.spec.ts` owns. If a list without a stated count ever
-// appears on this screen, the count below changes and this sweep gains it.
+// REQ-28 — the coverage matrix, the tenth screen of the sweep.
 //
-// **This test measures no geometry, and REQ-28 names the screen among its ten.** The geometry of
-// this screen's lists is measured in `property-columns-rule.spec.ts`; what is asserted here is the
-// one thing that decides which of the two files owns it — whether any list on the screen states a
-// count of its own.
-test('the coverage matrix: its only property list is the caller-stated one, which this batch leaves alone', async ({ page }) => {
+// **This test is the one edit the retirement of the caller-stated count forced on this file, and
+// the reason is the file's own.** As written for the batch that added it, it asserted that the only
+// property list on this screen was a caller-stated one — the fact that decided which file owned its
+// geometry — and said in the same breath that "if a list without a stated count ever appears on this
+// screen, the sweep gains it". That is what has happened: the count is retired, so the screen's
+// baseline list is now an ordinary consumer of the shared rule and is swept like the other nine.
+// Its own ~400px measurement lives in `property-columns-derived-count.spec.ts`.
+test('the coverage matrix: its baseline list is swept like every other consumer', async ({ page }) => {
   for (const viewport of SWEEP_VIEWPORTS) {
     await page.setViewportSize(viewport);
     await openApp(page, 'coverage-matrix');
-    const lists = screenContent(page).locator('.ui-definition-list');
-    await expect(lists.first()).toBeVisible({ timeout: 20_000 });
-    const total = await lists.count();
-    const callerStated = await screenContent(page).locator('.ui-definition-list--columns-2').count();
-    console.log(`[REQ-28] coverage matrix @${viewport.width}×${viewport.height}: ${total} property list(s), ${callerStated} of them caller-stated`);
-    expect(total - callerStated, 'the coverage matrix now presents a property list without a stated count, which this sweep must measure').toBe(0);
+    await expect(page.getByRole('heading', { level: 1, name: 'About' })).toBeVisible({ timeout: 20_000 });
+    const found = await sweepScreen(page, 'coverage matrix', viewport, 1);
+    expect(found, 'the coverage matrix presented no baseline list, which it shows whatever the daemon reports').toBeGreaterThanOrEqual(1);
   }
 });
 
