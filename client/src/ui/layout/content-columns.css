@@ -1,0 +1,64 @@
+/*
+ * "As many bands of at least X as fit, against the container's own box."
+ *
+ * The count is computed by the layout engine from the element's own width —
+ * `repeat(auto-fit, minmax(…, 1fr))` — so a section at half a panel and a
+ * section at full panel width show different counts on the same screen at the
+ * same instant, and nothing is measured in JavaScript, on scroll or per frame.
+ * A viewport media query cannot express that (it answers for the window, not
+ * for the box), and a container query is not needed to: intrinsic sizing
+ * already resolves against the box in question.
+ *
+ * `min(<minimum>, 100%)` is load-bearing, not defensive: a minimum wider than
+ * the container degrades to the container's width instead of pushing a track
+ * through it. Without it a 560px minimum inside a ~400px card overflows — the
+ * defect the caller-stated `columns={2}` surfaces already show, which this rule
+ * exists not to recreate.
+ *
+ * The row gap is the consumer's, through --content-columns-row-gap: a property
+ * list keeps its delivered 4px band step, a list of single values the 8px it
+ * was stacked with. The column gap is one token for every class.
+ */
+.ui-content-columns {
+  display: grid;
+  column-gap: var(--space-6);
+  row-gap: var(--content-columns-row-gap, var(--space-2));
+  min-width: 0;
+}
+
+.ui-content-columns > * {
+  /* A grid track's default minimum is its content, so one unbreakable long
+     value would otherwise blow out its track and starve its neighbours. */
+  min-width: 0;
+}
+
+/* Bands holding a label→value pair: the class minimum carries the label run. */
+.ui-content-columns--pair-short-scalar {
+  --band-run-max: var(--band-run-max-short-scalar);
+  grid-template-columns: repeat(auto-fit, minmax(min(var(--band-min-pair-short-scalar), 100%), 1fr));
+}
+
+.ui-content-columns--pair-long-single-line {
+  --band-run-max: var(--band-run-max-long-single-line);
+  grid-template-columns: repeat(auto-fit, minmax(min(var(--band-min-pair-long-single-line), 100%), 1fr));
+}
+
+/* Bands holding a single value, with no label beside it. */
+.ui-content-columns--value-short-scalar {
+  --band-run-max: var(--band-run-max-short-scalar);
+  grid-template-columns: repeat(auto-fit, minmax(min(var(--band-min-value-short-scalar), 100%), 1fr));
+}
+
+.ui-content-columns--value-long-single-line {
+  --band-run-max: var(--band-run-max-long-single-line);
+  grid-template-columns: repeat(auto-fit, minmax(min(var(--band-min-value-long-single-line), 100%), 1fr));
+}
+
+/* Unbounded free text is one column at the full width, in both forms: a
+   Dockerfile instruction against a timestamp label is not a column, and a
+   band-run bound of 100% is the absence of a bound. */
+.ui-content-columns--pair-free-text,
+.ui-content-columns--value-free-text {
+  --band-run-max: 100%;
+  grid-template-columns: minmax(0, 1fr);
+}

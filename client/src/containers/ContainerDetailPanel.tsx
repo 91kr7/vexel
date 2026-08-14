@@ -3,6 +3,7 @@ import {
   Button,
   CodeViewer,
   CollapsibleSection,
+  ContentColumns,
   DefinitionList,
   DetailPanel,
   EmptyState,
@@ -325,7 +326,7 @@ export function ContainerDetailPanel({ container, onClose, onContainerReplaced }
     }
 
     return (
-      <Grid columns="1fr 1fr" gap="var(--space-6)">
+      <Grid arrangement="pair">
         <Stack gap="var(--space-3)">
           <SectionHeader variant="eyebrow" title="Runtime configuration" />
           <DefinitionList
@@ -341,7 +342,7 @@ export function ContainerDetailPanel({ container, onClose, onContainerReplaced }
         </Stack>
         <Stack gap="var(--space-3)">
           <SectionHeader variant="eyebrow" title="Environment · Mounts" />
-          <Stack gap="var(--space-2)">
+          <ContentColumns contentClass="long-single-line">
             {data.env.length === 0 && data.mounts.length === 0 ? <MetaCell>–</MetaCell> : null}
             {data.env.map((entry) => (
               <MetaCell key={entry} wrap>
@@ -353,7 +354,7 @@ export function ContainerDetailPanel({ container, onClose, onContainerReplaced }
                 {`mount: ${mount.source} → ${mount.destination} (${mount.readOnly ? 'ro' : 'rw'})`}
               </MetaCell>
             ))}
-          </Stack>
+          </ContentColumns>
           <Row>
             <Button variant="subtle" onClick={startEdit}>
               Edit configuration
@@ -385,7 +386,7 @@ export function ContainerDetailPanel({ container, onClose, onContainerReplaced }
           <DefinitionList items={data.networks.map((network) => ({ label: network.name, value: network.ipAddress ?? '–' }))} />
         </CollapsibleSection>
         <CollapsibleSection title="Labels" summary={`${Object.keys(data.labels).length}`}>
-          <DefinitionList items={Object.entries(data.labels).map(([key, value]) => ({ label: key, value }))} />
+          <DefinitionList contentClass="long-single-line" items={Object.entries(data.labels).map(([key, value]) => ({ label: key, value }))} />
         </CollapsibleSection>
         {data.health ? (
           <CollapsibleSection title="Health" summary={data.health.status}>

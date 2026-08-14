@@ -36,6 +36,15 @@ token by name, never a literal value.
     down to the overflow control alone, sized for that one trigger plus the cell's own breathing
     room and its column header. A screen picks the one that matches what its rows carry; neither
     value is ever written on a screen.
+  - Property-band sizing by content class: `--band-min-pair-{short-scalar,long-single-line}`
+    (360px / 560px), `--band-min-value-{short-scalar,long-single-line}` (240px / 460px) and
+    `--band-run-max-{short-scalar,long-single-line}` (500px / 700px). The minima decide how many
+    bands a property section fits in its own box, the maxima bound the label→value run inside a
+    band. Every figure is derived from the content at the 12px monospace the values are drawn in
+    (~7.2px per character), and the ~125px between a `pair` minimum and the `value` minimum of the
+    same class is the label run a pair carries: the longest label in these sections (~85px), the
+    label→value gap and the band's horizontal padding. See `content-columns.md`; none of these is
+    ever written at a call site.
   - Overflow menu popup: `--menu-min-width` (236px) and `--menu-max-height` (480px) — the height
     beyond which a popup's entries scroll inside it. A last resort against a popup taller than the
     screen, never a size a menu is meant to reach: a scrolling menu hides the entries below its

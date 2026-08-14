@@ -2,7 +2,7 @@
 
 | Component | Type | Path | Responsibility | Spec |
 |-----------|------|------|-----------------|------|
-| Design tokens | configuration | `client/src/ui/tokens.css` | Color, typography, spacing, radii, border, elevation, z-index and layout-sizing custom properties (including the two data-table action column widths); single source of truth for every visual value | `specs/design-tokens.md` |
+| Design tokens | configuration | `client/src/ui/tokens.css` | Color, typography, spacing, radii, border, elevation, z-index and layout-sizing custom properties (including the two data-table action column widths and the property-band minima and maxima by content class); single source of truth for every visual value | `specs/design-tokens.md` |
 | Foundation stylesheet | configuration | `client/src/ui/foundation.css` | The library's single style entry point: imports tokens, applies the base reset | `specs/foundation-stylesheet.md` |
 | Backdrop | UI component | `client/src/ui/background/Backdrop.tsx` | Fixed, full-viewport layer rendering the static pre-blurred background asset | `specs/backdrop.md` |
 | Overlay glass material | configuration | `client/src/ui/glass/overlay-glass.css` | The one runtime-blurred glass material, opted into by the overlay surfaces (dialogs, toasts, the overflow menu popup, the choice popup, the phone drawer, the log stream's jump-to-live control) with its no-support and reduced-transparency fallbacks | `specs/overlay-glass.md` |
@@ -17,7 +17,8 @@
 | Frame | UI component | `client/src/ui/layout/Frame.tsx` | Application frame: rail / header / content / footer as floating glass panels over the Backdrop; owns the responsive breakpoints and the phone off-canvas rail drawer | `specs/frame.md` |
 | Stack | UI component | `client/src/ui/layout/Stack.tsx` | Vertical flex layout primitive | `specs/layout-primitives.md` |
 | Row | UI component | `client/src/ui/layout/Row.tsx` | Horizontal flex layout primitive with alignment helpers | `specs/layout-primitives.md` |
-| Grid | UI component | `client/src/ui/layout/Grid.tsx` | CSS-grid layout primitive | `specs/layout-primitives.md` |
+| Grid | UI component | `client/src/ui/layout/Grid.tsx` | CSS-grid layout primitive, with the named `pair` arrangement (two equal columns, stacking when its own box cannot carry both) | `specs/layout-primitives.md` |
+| ContentColumns | UI component | `client/src/ui/layout/ContentColumns.tsx` | As many bands as the container's own box carries at its content class's minimum width — the library's one answer to "how many of these fit here", for a list of single values; the shared rule itself lives in `client/src/ui/layout/content-columns.ts` and `content-columns.css` and is consumed by DefinitionList for label→value pairs | `specs/content-columns.md` |
 | DashboardLayout | UI component | `client/src/ui/layout/DashboardLayout.tsx` | Overview arrangement: a row of equal tiles above a two-column panel grid, with an optional full-width panel below | `specs/dashboard-layout.md` |
 | QuadPanelLayout | UI component | `client/src/ui/layout/QuadPanelLayout.tsx` | Four equal panels in a two-by-two grid, collapsing to one column below the tablet breakpoint | `specs/quad-panel-layout.md` |
 | BandStack | UI component | `client/src/ui/layout/BandStack.tsx` | Vertical arrangement of intrinsic chrome bands above the single region that absorbs the remaining height; bounded by what it is placed in, and accepting no length from the caller | `specs/band-stack.md` |
@@ -74,7 +75,7 @@
 | TreeView | UI component | `client/src/ui/data/TreeView.tsx` | Virtualised, expandable/collapsible tree with entry-type glyphs, single selection, keyboard navigation, a lazily loaded subtree contract and an optional per-node status accent; optionally bounded by the region it is placed in, virtualisation preserved | `specs/tree-view.md` |
 | DiffTreeView | UI component | `client/src/ui/data/DiffTreeView.tsx` | Diff variant of TreeView: added/removed/changed node status, directory roll-up counts and a status filter row | `specs/diff-tree-view.md` |
 | StatusDotCell, TwoLineCell, MetaCell, IdentifierCell, BadgeListCell, ProportionBarCell | UI component | `client/src/ui/data/TableCells.tsx` | Reusable DataTable cell contents: status dot, title/subtitle pair (optionally wrapping, and with the title omissible), muted monospace value (with an "unavailable" state), truncated identifier, badge list with overflow indicator, magnitude-proportional bar | `specs/table-cells.md` |
-| DefinitionList | UI component | `client/src/ui/data/DefinitionList.tsx` | Label → value rows with an optional copy affordance | `specs/definition-list.md` |
+| DefinitionList | UI component | `client/src/ui/data/DefinitionList.tsx` | Label → value bands with an optional copy affordance, arranged in as many columns as the list's own width carries at its content class's minimum, with the label→value run bounded inside each band | `specs/definition-list.md` |
 | PrivilegeList | UI component | `client/src/ui/data/PrivilegeList.tsx` | The permissions an operation asks for, one row each with its value and what it allows — the surface a grant is decided on | `specs/privilege-list.md` |
 | CodeViewer | UI component | `client/src/ui/data/CodeViewer.tsx` | Read-only monospace code/JSON block with a copy affordance | `specs/code-viewer.md` |
 | CodeEditor | UI component | `client/src/ui/data/CodeEditor.tsx` | Editable monospace code surface with a line-number gutter, dirty state and a validation status-line slot | `specs/code-editor.md` |

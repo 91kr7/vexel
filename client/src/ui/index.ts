@@ -21,7 +21,9 @@ export { StateSummaryBar, type StateSummaryBarProps } from './glass/StateSummary
 export { Frame, type FrameProps } from './layout/Frame';
 export { Stack, type StackProps } from './layout/Stack';
 export { Row, type RowProps } from './layout/Row';
-export { Grid, type GridProps } from './layout/Grid';
+export { Grid, type GridProps, type GridArrangement } from './layout/Grid';
+export { ContentColumns, type ContentColumnsProps } from './layout/ContentColumns';
+export { type ContentClass } from './layout/content-columns';
 export { DashboardLayout, type DashboardLayoutProps } from './layout/DashboardLayout';
 export { QuadPanelLayout, type QuadPanelLayoutProps } from './layout/QuadPanelLayout';
 export { BandStack, type BandStackProps } from './layout/BandStack';

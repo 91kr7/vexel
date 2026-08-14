@@ -132,6 +132,20 @@
   display: grid;
 }
 
+/* Two equal columns, stacking when the grid's own box cannot carry both.
+   `auto-fit` collapses every track its two children do not occupy, so the two
+   that remain always share the full width equally — the mocked half-and-half
+   shape at any desktop width — and below ~744px of the grid's own box only one
+   track fits and the pair stacks. Intrinsic, so no breakpoint is invented and
+   nothing is keyed to the viewport: a pair inside a narrow card stacks on a
+   wide screen, which a media query would get wrong. The minimum is the
+   short-scalar band's, since what these columns hold is property sections. */
+.ui-grid--pair {
+  grid-template-columns: repeat(auto-fit, minmax(min(var(--band-min-pair-short-scalar), 100%), 1fr));
+  gap: var(--space-6);
+  align-items: start;
+}
+
 .ui-grid > * {
   /* Grid tracks default to a minimum content size, so one unbreakable long
      value (e.g. a PATH-style env line) would otherwise blow out its track

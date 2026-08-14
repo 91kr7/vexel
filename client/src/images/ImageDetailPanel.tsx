@@ -66,13 +66,17 @@ export function ImageDetailPanel({ image, onClose }: ImageDetailPanelProps) {
               ]}
             />
             <CollapsibleSection title="Environment" summary={`${inspect.env.length}`}>
-              <DefinitionList items={inspect.env.map((entry) => ({ label: entry.split('=')[0], value: entry.split('=').slice(1).join('=') }))} />
+              <DefinitionList
+                contentClass="long-single-line"
+                items={inspect.env.map((entry) => ({ label: entry.split('=')[0], value: entry.split('=').slice(1).join('=') }))}
+              />
             </CollapsibleSection>
             <CollapsibleSection title="Labels" summary={`${Object.keys(inspect.labels).length}`}>
-              <DefinitionList items={Object.entries(inspect.labels).map(([key, value]) => ({ label: key, value }))} />
+              <DefinitionList contentClass="long-single-line" items={Object.entries(inspect.labels).map(([key, value]) => ({ label: key, value }))} />
             </CollapsibleSection>
             <CollapsibleSection title="History" summary={`${inspect.history.length} layers`}>
               <DefinitionList
+                contentClass="free-text"
                 items={inspect.history.map((entry, index) => ({
                   label: `${index + 1}. ${entry.createdAt}`,
                   value: `${entry.createdBy} (${formatBytes(entry.sizeBytes)})`,

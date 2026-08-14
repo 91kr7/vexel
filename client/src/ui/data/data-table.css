@@ -256,12 +256,17 @@
   color: var(--color-danger-strong);
 }
 
+/* The arrangement itself is `.ui-content-columns` (layout/content-columns.css),
+   carried by the same element: as many bands as this list's own box can hold at
+   its content class's minimum. All that is left here is the band step, which is
+   the delivered one. */
 .ui-definition-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+  --content-columns-row-gap: var(--space-1);
 }
 
+/* A caller-stated count, still here on purpose and retired by the work that
+   takes it off the five surfaces that pass one. It overrides the derived
+   arrangement above, so those surfaces render exactly as delivered. */
 .ui-definition-list--columns-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -276,6 +281,33 @@
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   background: var(--color-wash-1);
+}
+
+/* The band of a derived arrangement fills its track — its wash reaches the
+   section's edge, so no dead margin re-appears on the right — while the
+   label→value run inside it is bounded by the content class's maximum, with the
+   surplus as trailing padding.
+   That is what `space-between` above gets wrong: it does not add space, it
+   pushes two items to opposite ends of whatever width the band was handed,
+   which on a 1550px band leaves ~1500px between a label and its value. It stays
+   on the bands of a caller-stated `columns={2}`, deliberately: those five
+   surfaces are retired by their own work and must render exactly as delivered
+   until then, so that a regression on them stays attributable.
+   The percentage resolves against the track, not against the band's own
+   content, so there is no circularity; below the bound the trailing padding is
+   simply the band's own. */
+.ui-content-columns > .ui-definition-list__row {
+  justify-content: flex-start;
+  padding-inline-end: max(var(--space-3), calc(100% - var(--space-3) - var(--band-run-max, 100%)));
+}
+
+/* A label is not shrunk to fit — proportional shrinking would break `Created`
+   at five characters to make room for a long value. It wraps only when it alone
+   is wider than the band it sits in, which is what a 36-character label key in
+   a column does. */
+.ui-content-columns > .ui-definition-list__row > .ui-definition-list__label {
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .ui-definition-list__label {

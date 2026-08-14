@@ -55,6 +55,11 @@ Shows (Config tab, view mode):
 - A `DefinitionList` of restart policy, CPU limit, memory limit, port mapping, health check command
   and networks; collapsible sections for the full environment variable list and the mount list; an
   "Edit configuration" action.
+- The two sides sit in the library's named `pair` arrangement (`Grid arrangement="pair"`), so they
+  are the mocked two equal columns at desktop widths and **stack, each at full width**, when the
+  panel cannot carry both — instead of each being squeezed to ~180px. The environment · mounts list
+  is a `ContentColumns` at the long-single-line class, so it flows as many entries per line as its
+  own column carries: one at ordinary widths, two once that column passes ~944px.
 Shows (Config tab, edit mode):
 - Restart policy (select) with a max-retries field shown only for `on-failure`, CPU/memory limit
   fields, a key/value editor for environment variables, a repeatable row list for port mappings
@@ -66,6 +71,11 @@ Shows (Inspect tab):
   dates and exit code; collapsible sections for networks, labels and (when the container defines a
   health check) the latest health status/failing streak/log entries; the raw inspect payload as
   formatted, copyable JSON (REQ-26).
+- Each property section states **only its content class**: the ten properties, `Networks`, `Health`
+  and the Config tab's runtime configuration take the default short scalar, `Labels` declares long
+  single-line. The number of columns each shows follows from that section's own width
+  (`ui-library/content-columns.md`), so the Config tab's half-width list and the Inspect tab's
+  full-width one differ on the same screen at the same instant.
 Actions:
 - "Edit configuration" switches the Config tab to edit mode, seeded from the current inspect data.
 - Saving computes which fields changed since edit mode was entered (REQ-25):
@@ -89,6 +99,8 @@ Actions:
   leaving the Exec or Attach tab likewise closes the interactive session (REQ-36).
 - Switching `container` (a different row selected) resets edit mode and any in-progress edit.
 - The Exec and Attach tabs are only offered for a running container.
+- **The file states no column count, no track template, no width, no `style` and no CSS import**, and
+  the editing form is not part of that arrangement: it is exactly as delivered.
 - The save action is disabled while there is nothing to save (no field differs from the value edit
   mode was seeded with) and while a save is in flight.
 
@@ -98,7 +110,7 @@ Actions:
 - ContainerStatsView
 - ContainerProcessesView
 - ContainerSessionView
-- ui-library: DetailPanel, Tabs, DefinitionList, CollapsibleSection, CodeViewer, Select, NumberField,
+- ui-library: DetailPanel, Tabs, DefinitionList, ContentColumns, CollapsibleSection, CodeViewer, Select, NumberField,
   Toggle, TextField, KeyValueEditor, RepeatableRowList, FormFooter, SectionHeader, Row, Stack,
   Button, ErrorBanner, EmptyState, FormDialog, useToast
 - Containers client (updateContainerConfig)
@@ -123,3 +135,11 @@ Actions:
 - plan-docker_management_app-container_detail_close/REQ-5
 - plan-docker_management_app-container_detail_close/REQ-14
 - plan-docker_management_app-container_detail_close/REQ-17
+- plan-docker_management_app-detail_property_columns/REQ-6
+- plan-docker_management_app-detail_property_columns/REQ-17
+- plan-docker_management_app-detail_property_columns/REQ-18
+- plan-docker_management_app-detail_property_columns/REQ-19
+- plan-docker_management_app-detail_property_columns/REQ-22
+- plan-docker_management_app-detail_property_columns/REQ-27
+- plan-docker_management_app-detail_property_columns/REQ-31
+- plan-docker_management_app-detail_property_columns/REQ-34
