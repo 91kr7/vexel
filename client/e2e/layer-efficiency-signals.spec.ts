@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { expect, test, type Page } from './support/test.js';
 
 import { openApp, ownershipArgs } from './support/fixtures.js';
+import { countStreamProgressEvents, progressEventsSeen } from './support/analysis-progress-events.js';
 import { expectCompletedThenSelfDismissed } from './support/progress-completion.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
@@ -197,6 +198,14 @@ test('analyzes layer efficiency and secret signals, then navigates from a findin
 // emptied before every single test, so the cache hit is created here, within the test, and nothing
 // is inherited from the test above.
 test('states the completion and leaves on its own for a cached analysis, which reports no phase at all', async ({ page }) => {
+  // The witness of the scenario itself: how many phases each run actually reported. "The dialog
+  // completed and left" is true of an ordinary uncached run too, so without this the relocated
+  // check would no longer be bug-1's hardest case at all — merely a second copy of the test above.
+  // Installed as an init script, so the reload below is what arms it.
+  await countStreamProgressEvents(page);
+  await page.reload();
+  await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible();
+
   await searchField(page).fill(TAG);
   const row = imageRow(page, TAG);
   await expect(row).toBeVisible({ timeout: 10_000 });
@@ -209,6 +218,11 @@ test('states the completion and leaves on its own for a cached analysis, which r
   await page.getByRole('heading', { name: `Confirm: ${TAG}` }).locator('xpath=..').getByRole('button', { name: 'Analyze', exact: true }).click();
   await expectCompletedThenSelfDismissed(page.getByRole('heading', { name: 'Analyzing layer efficiency' }).locator('xpath=..'), 60_000);
   await expect(modal.getByText('Efficiency score')).toBeVisible();
+
+  // The witness's own floor: a run that really did the work reports phases, so the zero asserted
+  // after the second run is a fact about that run and not about a counter that never counts.
+  const phasesOnTheFirstRun = await progressEventsSeen(page, '/signals/stream');
+  expect(phasesOnTheFirstRun, 'the uncached analysis reported no phase either: the phase witness counts nothing').toBeGreaterThan(0);
 
   // Closes the view's own Modal (overlay click, away from its content), which discards its
   // client-side state entirely: only the open view is rendered, so nothing of it survives the
@@ -230,4 +244,13 @@ test('states the completion and leaves on its own for a cached analysis, which r
   await expectCompletedThenSelfDismissed(cachedProgressDialog, 15_000);
 
   await expect(reopened.getByText('Efficiency score')).toBeVisible({ timeout: 15_000 });
+
+  // And the second run is the case itself: served from the shared changeset cache, it reported no
+  // phase at all — so the completion the dialog stated above replaced the "no phase reported yet"
+  // wording under a full bar, which is precisely what bug-1 was certified on
+  // (progress_completion_autoclose/REQ-2, REQ-22).
+  expect(
+    await progressEventsSeen(page, '/signals/stream'),
+    'the second analysis reported phases of its own: it was not served from the cache, so the relocated scenario never exercised the no-phase case',
+  ).toBe(phasesOnTheFirstRun);
 });

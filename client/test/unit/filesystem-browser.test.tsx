@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -147,6 +149,43 @@ async function completeExtraction() {
 // kept for this image's content the cost warning is the first thing on screen, and the removed
 // empty state exists nowhere at all
 // (plan-docker_management_app-filesystem_browse_direct/REQ-1, REQ-2, REQ-6)
+// REQ-1 — the screen is removed **from the product**, not hidden, not relabelled and not made
+// conditional. A rendering check can only ever say "it is not on screen in the case I drove", which
+// is exactly what a conditional would satisfy; what the requirement asks is that the wording is not
+// in the shipped client at all, in any branch of any component.
+describe('The not-extracted empty state is gone from the shipped client (REQ-1)', () => {
+  /** Every source file of the client, read from the workspace directory vitest runs in. */
+  function clientSourceFiles(directory = join(process.cwd(), 'src')): string[] {
+    return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) return clientSourceFiles(path);
+      return /\.(ts|tsx|css)$/.test(entry.name) ? [path] : [];
+    });
+  }
+
+  const sources = clientSourceFiles().map((path) => ({ path, text: readFileSync(path, 'utf8') }));
+
+  it('has the screen it was checked against', () => {
+    // The check's own floor: a source list that had gone empty would pass the two below silently.
+    expect(sources.length).toBeGreaterThan(0);
+    expect(sources.some(({ path }) => path.endsWith('FilesystemBrowser.tsx'))).toBe(true);
+  });
+
+  it('carries the removed heading nowhere in the client sources', () => {
+    const offenders = sources.filter(({ text }) => text.includes('Filesystem not extracted yet')).map(({ path }) => path);
+
+    expect(offenders, 'the removed empty state\'s heading is still in the shipped client').toEqual([]);
+  });
+
+  it('carries the removed paragraph nowhere in the client sources', () => {
+    const offenders = sources
+      .filter(({ text }) => text.includes('its filesystem is copied out, and the container is removed'))
+      .map(({ path }) => path);
+
+    expect(offenders, 'the removed empty state\'s paragraph is still in the shipped client').toEqual([]);
+  });
+});
+
 describe('FilesystemBrowser — shape A, nothing kept for this image content (REQ-1, REQ-2, REQ-6)', () => {
   it('performs no read at all while closed', () => {
     render(<FilesystemBrowser image={makeImage()} open={false} onClose={vi.fn()} />, { wrapper: withToast });

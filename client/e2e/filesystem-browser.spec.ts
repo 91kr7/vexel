@@ -1,3 +1,6 @@
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { expectCompletedThenSelfDismissed } from './support/progress-completion.js';
@@ -13,9 +16,77 @@ async function createStandaloneImage(tag: string, containerName: string): Promis
   await execFileAsync('docker', ['commit', containerName, tag]);
 }
 
-async function removeStandaloneImage(tag: string, containerName: string): Promise<void> {
+/**
+ * How many entries the cancellation fixture carries, and why it is not the single-file image the
+ * rest of this file uses.
+ *
+ * Cancelling contracts that a **running** extraction stops (REQ-8, REQ-24), so the run has to still
+ * be running when the pointer reaches the Cancel control. Of the single-file image it is not: that
+ * extraction is over in about a tenth of a second, and the check only passed because the press
+ * landed inside that window — a margin a loaded machine takes away, and it takes it away as
+ * `Cancel` timing out, which reads exactly like a defect in the flow this batch changed.
+ *
+ * So the fixture is made long-lived rather than the press made faster. The cost is paid in **tar
+ * entries, not in bytes**: an extraction's duration is dominated by indexing the exported entries
+ * one by one, so 40 000 empty files buy a long run for almost no disk. Measured on this machine,
+ * against the product's own extraction: 6.7s end to end (0.4s creating and copying, the rest
+ * indexing) for an image of **0.5 MB** — two orders of magnitude under the suite's fixture budget
+ * (CLAUDE.md, "Fixtures stay small"), where a heavier base image would have bought seconds at the
+ * price of hundreds of megabytes. `FROM scratch`, so nothing is pulled and no shell is needed.
+ */
+const CANCELLABLE_ENTRY_COUNT = 40_000;
+
+/** An image whose extraction lasts long enough to be cancelled by a real pointer. */
+async function createManyEntryImage(tag: string): Promise<void> {
+  const contextDir = await mkdtemp(join(tmpdir(), 'vexel-e2e-fsbrowser-'));
+  try {
+    await mkdir(join(contextDir, 'many'));
+    for (let start = 0; start < CANCELLABLE_ENTRY_COUNT; start += 500) {
+      await Promise.all(
+        Array.from({ length: Math.min(500, CANCELLABLE_ENTRY_COUNT - start) }, (_, offset) =>
+          writeFile(join(contextDir, 'many', `entry-${start + offset}.txt`), `entry ${start + offset}\n`),
+        ),
+      );
+    }
+    // An ENTRYPOINT so the image is one `docker create` accepts; it is never run, here or by the
+    // extraction, which creates its intermediate container and never starts it (REQ-53).
+    await writeFile(join(contextDir, 'Dockerfile'), ['FROM scratch', 'COPY many /many', 'ENTRYPOINT ["/none"]', ''].join('\n'));
+    await execFileAsync('docker', ['build', ...ownershipArgs(tag), '-t', tag, contextDir], { timeout: 300_000 });
+  } finally {
+    await rm(contextDir, { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
+/**
+ * Removes a fixture image **and the content behind it**, not merely its tag.
+ *
+ * `docker rmi -f <tag>` only untags an image some container still references, and one still does at
+ * this point on the cancellation path: the intermediate extraction container is removed by the
+ * server in its own `finally`, a moment after the run it belongs to was cancelled. The image was
+ * then left dangling on the operator's host, once per run — labelled, so `test:sweep` could still
+ * find it, but that is the sweep's job and not an excuse (CLAUDE.md, "What a test creates, it
+ * destroys"). So the id is removed too, retried for as long as that removal takes.
+ */
+async function removeImageAndContent(tag: string): Promise<void> {
+  const imageId = await execFileAsync('docker', ['image', 'inspect', '--format', '{{.Id}}', tag])
+    .then(({ stdout }) => stdout.trim())
+    .catch(() => '');
   await execFileAsync('docker', ['rmi', '-f', tag]).catch(() => undefined);
+  if (!imageId) return;
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const stillThere = await execFileAsync('docker', ['image', 'inspect', '--format', '{{.Id}}', imageId]).then(
+      () => true,
+      () => false,
+    );
+    if (!stillThere) return;
+    await execFileAsync('docker', ['rmi', '-f', imageId]).catch(() => undefined);
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+}
+
+async function removeStandaloneImage(tag: string, containerName: string): Promise<void> {
   await execFileAsync('docker', ['rm', '-fv', containerName]).catch(() => undefined);
+  await removeImageAndContent(tag);
 }
 
 function imageRow(page: Page, text: string) {
@@ -190,11 +261,13 @@ test('opens the cost warning as the first thing after the row action, with the r
 // started extraction returns the operator to the images list, never to a surface offering to start
 // it again. plan-docker_management_app/REQ-55 is what the warning itself still serves.
 test('declining the cost warning leaves nothing open and nothing extracted, and cancelling a started extraction returns to the images list', async ({ page }) => {
-  const containerName = `vexel-e2e-fsbrowser-cost-src-${Date.now()}`;
   const tag = `vexel-e2e-fsbrowser-cost-${Date.now()}:v1`;
   const extractions = extractionStreamRequests(page);
   try {
-    await createStandaloneImage(tag, containerName);
+    // The many-entry fixture, not the single-file one the rest of this file uses: this is the one
+    // test that has to press Cancel **while the extraction is still running**, and it is the run's
+    // own length that makes that true rather than the speed of the press.
+    await createManyEntryImage(tag);
     await page.reload();
     await searchField(page).fill(tag);
     const row = imageRow(page, tag);
@@ -232,7 +305,25 @@ test('declining the cost warning leaves nothing open and nothing extracted, and 
     await expect(warning).toBeVisible();
     await warningDialog.getByRole('button', { name: 'Extract' }).click();
     await expect(progressHeading(page)).toBeVisible();
-    await progressHeading(page).locator('xpath=..').getByRole('button', { name: 'Cancel' }).click();
+
+    // The witness's own floor, and the reason the empty expectations above and in the shape B check
+    // mean anything: an extraction that **is** asked for is recorded. Without this, `toEqual([])`
+    // would also be satisfied by a recorder that never sees a request at all — the shape in which
+    // shape B's deterministic assertion (REQ-25, REQ-26) would silently stop being able to fail.
+    await expect
+      .poll(() => extractions.urls.length, { message: 'the extraction-stream witness recorded nothing for an extraction that did start' })
+      .toBe(1);
+
+    // What is being cancelled is a **running** extraction (REQ-8), and this is what says so at the
+    // moment of the press rather than hoping for it: the surface offers Cancel only while the
+    // operation is active, and Close as soon as it is not
+    // (ui-library/specs/transfer-progress-dialog.md). The many-entry fixture is what makes this
+    // true with room to spare — a measured 6.7s of run against a press that arrives in a fraction
+    // of a second — instead of by the press winning a race.
+    const cancelAction = progressHeading(page).locator('xpath=..').getByRole('button', { name: 'Cancel' });
+    await expect(cancelAction, 'the extraction was already over before it could be cancelled').toBeVisible();
+    await expect(progressHeading(page).locator('xpath=..').getByRole('button', { name: 'Close' })).toHaveCount(0);
+    await cancelAction.click();
 
     // Back on the images list, and on no surface offering to start it again (REQ-8).
     await expect(progressHeading(page)).toHaveCount(0);
@@ -241,7 +332,7 @@ test('declining the cost warning leaves nothing open and nothing extracted, and 
     await expect(page.getByText('Filesystem not extracted yet')).toHaveCount(0);
     await expect(row).toBeVisible();
   } finally {
-    await removeStandaloneImage(tag, containerName);
+    await removeImageAndContent(tag);
   }
 });
 

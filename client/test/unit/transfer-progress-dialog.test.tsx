@@ -352,3 +352,56 @@ describe('TransferProgressDialog — nothing else about the surface changes (ui-
     expect(screen.getByText('the daemon refused the export')).toBeInTheDocument();
   });
 });
+
+// transfer-progress-dialog.md — the optional retry, offered **inside the failure report itself**,
+// for an operation whose caller has a way to start it again
+// (plan-docker_management_app-filesystem_browse_direct/REQ-9)
+describe('TransferProgressDialog — the retry inside the failure report (ui-library/specs/transfer-progress-dialog.md)', () => {
+  /** The failure report itself, as opposed to the dialog around it: the retry has to live in here. */
+  function failureReport(): HTMLElement | null {
+    return document.querySelector<HTMLElement>('.ui-error-banner');
+  }
+
+  it('offers the retry inside the failure report, and calls it without dismissing the dialog', () => {
+    const onRetry = vi.fn();
+    const { onClose } = renderDialog({ status: 'error', errorMessage: 'the daemon refused the export', onRetry });
+
+    const retry = screen.getByRole('button', { name: 'Retry' });
+    expect(failureReport()?.contains(retry), 'the retry is offered outside the failure report').toBe(true);
+
+    act(() => {
+      fireEvent.click(retry);
+    });
+
+    expect(onRetry).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  // It never replaces the Close action: a failure is always dismissible, retry or no retry.
+  it('keeps the dismissal alongside the retry', () => {
+    renderDialog({ status: 'error', errorMessage: 'the daemon refused the export', onRetry: vi.fn() });
+
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
+  });
+
+  // Omitted, the failure offers only its dismissal — the prop is additive and off by default, so
+  // every other caller of this surface is unchanged.
+  it('offers no retry when the caller supplies none', () => {
+    renderDialog({ status: 'error', errorMessage: 'the daemon refused the export' });
+
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+  });
+
+  // It never appears while the operation is running or once it has completed: it belongs to the
+  // failure report and to nothing else.
+  it('offers no retry while the operation is running or once it has completed', () => {
+    const { rerender } = renderDialog({ status: 'active', onRetry: vi.fn() });
+
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+
+    rerender({ status: 'done', totalBytes: 10, currentBytes: 10 });
+
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+  });
+});
