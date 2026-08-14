@@ -93,7 +93,48 @@ widths comfortably inside a band rather than on a transition — the short-scala
 | ID | Requirement |
 | --- | --- |
 | REQ-25 | **The `columns: 1 \| 2` number disappears** — from the component's public API and from the five call sites that pass it (swarm services, secrets, configs & stacks, nodes; the coverage matrix). A caller cannot know the width it will be given, so a caller-stated count is the wrong shape; leaving it would also leave the component with two competing answers to "how many columns". |
-| REQ-26 | **Those five sections get the derived count, and their delivered narrow-width wrapping goes with it.** With the section measured at ~400px, each is one column and **no 19-character digest wraps across three lines**; at ordinary widths their visible outcome is the same count or a better one. The delivered ~150–180px cell is on record as the red. |
+| REQ-26 | **Those five sections get the derived count, and their delivered narrow-width wrapping goes with it.** With the section measured at ~400px, each is one column and **no 19-character digest wraps across three lines**; at ordinary widths their visible outcome is the same count or a better one, **except on a half-width card between roughly 1920px and 2100px of viewport, where the four swarm sections show one column against the two their retired count stated** — see the amendment below. The delivered ~150–180px cell is on record as the red. |
+
+### Amendment to REQ-26, 2026-08-14 — the half-width card between ~1920px and ~2100px
+
+Measured during this batch's test phase: at 1920×1080 a swarm quadrant's card gives its property section
+**682.0px**, and two short-scalar bands need **744px** (2 × 360 + 24). So those four sections show **one**
+column where the retired `columns={2}` showed two, at a width where the delivered build was not defective —
+its 329px cells did not wrap on that content. Two columns return at ~2560, where the section measures 1002px.
+
+REQ-26's second clause and REQ-3's certified 360px minimum are **jointly unsatisfiable** there. No content
+class restores two columns at 682px: that needs a minimum of 329px or less, and 360px was derived from
+content and certified in batch 1. This is a conflict between two requirements, not an implementation slip.
+
+**The arithmetic yields; REQ-26 takes the exception.** Three reasons, in the order they weighed:
+
+1. **The exception is the plan working, not failing.** The identical 682px half-width panel on volumes and
+   networks shows one column and was certified correct by batch 1's own sweep. Before this batch the swarm
+   cards were the special case — the only half-width panels in the product stating their own count. They are
+   now consistent with every other one. Restoring two columns for them alone would re-create, by a different
+   mechanism, exactly the caller-stated exception this batch exists to retire.
+2. **The alternative moves a certified figure with a product-wide blast radius.** Lowering the short-scalar
+   minimum below 329px to buy this one width band would put every short-scalar band in the product under the
+   width its content was measured to need — which is the wrapping defect this plan was opened to fix, bought
+   back at a different size. A 25-screen change to improve one card at one viewport is the wrong trade.
+3. **REQ-26's second clause was written before the measurement existed.** It expressed an expectation that
+   the retirement would cost no density anywhere. That expectation is false in one narrow band, and the
+   honest correction is to record where, not to bend the rule until the sentence comes true.
+
+**What the operator actually loses**: on a swarm card at a viewport between roughly 1920px and 2100px, a
+services section's eight properties occupy eight lines instead of about four. Nothing is clipped, nothing
+wraps, nothing is unreachable; the card is taller. Below that band the delivered build wrapped values over
+four to six line boxes, which was worse, and above it two columns return.
+
+**Consequence for the checks**: the measurement stays in the suite as a **recorded measurement of the
+accepted outcome**, not as a failing assertion — it pins the figures so that a later change to the minimum,
+to the card, or to the quadrant layout is noticed. The four swarm sections remain geometrically unmeasured
+on a daemon that is not a swarm manager; nothing in this suite may initialise one, and the check written for
+them skips with its reason stated.
+
+**Decided by the orchestrating session** under the human's standing delegation for this tranche, and
+**flagged to him explicitly** in the tranche report: it is the one decision here that trades a visible
+property of the product for consistency, and it is his to reverse.
 | REQ-27 | **Feature code states no column count, no track template and no width for these sections, anywhere in the product**, once this is done — including the `columns={2}` constants and the `Config` tab's `1fr 1fr`. This is grep-able and is checked as such. |
 
 ## F4 — Every consuming screen is accounted for, unaffected or correctly affected
