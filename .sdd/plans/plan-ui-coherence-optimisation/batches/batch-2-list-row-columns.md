@@ -46,39 +46,101 @@ screens.
   and its column counts must be identical at the same measured section width afterwards.
 - No blur, no `style`, no raw tag, no hard-coded length outside `tokens.css`.
 
-## The expanded detail panel pans with the row — decided here, confirmed or overturned in batch 5
+## The expanded detail panel is pinned to the table's visible box — REQ-23 decided here
 
-Recorded because it is a product decision, not a side effect, and because the second half of it will
-look like a regression to whoever measures the panel at 375px without having read this.
+Recorded because it is a product decision, and because the first version of this record understated
+how far it reached. **This section replaces that version**, which said the effect was at 375×812 and
+that nothing changed at any desktop width: both true at their endpoints and wrong in between.
 
-**What changed, and only at 375×812.** The repair makes a row grow to the width its columns need and
-lets the table pan; the expansion (`renderExpanded`) is part of that scrollable content, so it is laid
-out at the row's width. Measured on containers: the panel was **333px** wide on the delivered build
-and is **907px** now — the row's own width — and it pans with the table rather than sitting still
-inside it. Its height fell from 635px to 355px, having width to lay out in at last. **Nothing about it
-changes at any desktop width**: `{x:301, y:319, w:958, h:355}` at 1280×800 and `{x:301, y:319, w:1118,
-h:355}` at 1440×1000, before and after, identical. The cost is real and it is the operator's: on a
-phone, reading a detail panel now means panning horizontally.
+**What the first attempt actually did, and how far it reached.** Letting a row grow to the width its
+columns need and letting the table pan made the expansion — `renderExpanded`'s content, part of that
+scrollable content — lay out at the row's width. That width is a **floor**, so the panel stopped
+tracking the window far above the phone: it was **907.2px** on containers and **723.2px** on images at
+*every* window narrower than that, i.e. below ~940px and ~770px of viewport — around 550px of range,
+not one viewport. The property section inside it went constant with it (859.2px on the Config split,
+675.2px on images), and four steps of two certified predecessors failed on it, three of them at **700**
+and **720**, not at 375: `container-detail-property-columns.spec.ts:216` (Config at 700×900: two
+columns of 417.6px where the contract says stacked), `:285` (Inspect at 720×800: two columns over ten
+bands), `property-columns-rule.spec.ts:224` (a calibration that bottomed out at 675.2px against a
+600px target) and `:376` (a precondition below 560px made unreachable).
 
-**Why alignment with the row rather than pinning to the viewport.** A panel held at the viewport's
-width while the table pans underneath it parts company with the row that opened it: the row's cells
-slide, the panel does not, and at any non-zero scroll offset the panel's left edge is somewhere in the
-middle of the row above it, with blank space beside it. The panel is an expansion *of a row*, so it
-keeps the row's box. The alternative — treating the panel as an expansion of the **viewport**, pinned
-and full-width against the visible region, with the table panning behind it — is coherent too, and it
-is the one that would spare the operator the pan.
+**The decision.** REQ-23 is settled here rather than in batch 5: **the expansion is pinned to the
+table's own visible box — it keeps that box's width and stays in it while the grid pans underneath.**
+A row is a grid to be scanned across; a panel is prose and values to be read, and two columns of
+417.6px that require a horizontal pan to reach the second are worse than one column scrolled
+vertically. `plan-docker_management_app-detail_property_columns` chose one column below 720px
+deliberately; a side effect is not how a certified contract is overturned, and amending that
+predecessor's expected appearance to match this change is the one edit that would let a product
+change pass as a test detail.
 
-**Batch 5 is where that choice is made or unmade.** REQ-23 has `DetailPanel` "always the full width of
-the screen's content column"; at 375px, with the table panning, "full width" has two readings — the
-row's width (this batch's) and the viewport's (the pinned one). Batch 5 writes that contract for the
-primitive every migrated screen will use, so it must state which one it means rather than inherit this
-one silently. Whatever it decides is expressed on the component, never at a call site.
+**The objection it had to answer, and how the construction answers it.** A panel held at the window's
+width while the table pans underneath does part company with its row — at any non-zero offset its left
+edge would sit mid-row. So it is not merely sized: it is **held at the pan region's left edge**, moving
+with the pan rather than being left behind by it. Measured on containers at 375×812, pan range 574px:
+the panel's viewport x is 21 — the table's own left edge — at scroll offsets 0, 287 and 574, at a
+constant 333px wide.
 
-**The bug-4 note, so it is not read as a regression.**
-`plan-docker_management_app-detail_property_columns`' rule is untouched — same rule, same property
-set, same content classes, and the same column count at the same measured section width. What moved at
-375px is the **section's width**, from 333px to 907px, and that rule is width-driven by design: more
-width, more bands. A 375-wide check of the property columns therefore legitimately sees more bands than
-the delivered build did, and a check that pins the delivered count at 375px is asserting the old
-section width, not bug-4's rule. At 1440×1000 and 1280×800 the counts are unchanged, because the
-section width is unchanged.
+**Why the offset is written by the component and not declared as `position: sticky; left: 0`.**
+Measured, not assumed: sticky does **not** pin here. The expansion's nearest scroll container is the
+body's own scroll region, which never scrolls horizontally — the box that pans is one level further
+out — so a sticky inset resolves against a scrollport that does not move: the panel measured **x
+-379** at scroll offset 400, both with that region scrolling and with its inline axis clipped, against
+**x 21** with the offset written. `transform` pins it and is refused: it would make the expansion the
+containing block of every `position: fixed` descendant, and a dialog is rendered in place inside a
+panel rather than portalled — a fixed probe measured at the panel's own box (21, 543, 907×355) instead
+of the viewport (0, 0, 375×812). The element is therefore relatively positioned, and its `left` and
+`width` are written by `DataTable` while — and only while — the table pans; where the columns fit it
+carries no inline geometry at all.
+
+**The repair itself is untouched, which is the thing to check first.** Pinning takes nothing back: the
+row's tracks keep their minimums, the row keeps its own width, and the table keeps panning. Measured
+with the pin in place — containers at 700×900: row grid `20px 129.594px 72px 43.1875px 86.3906px 72px
+72px 296px`, row 907.2px wide, table `scrollWidth 907 / clientWidth 658`. Only the expansion stopped
+riding the grid. Note the pan reaches further than the panel defect did — the containers table pans at
+every viewport up to ~1230px, images up to ~1045px — because that is what "the columns do not fit"
+means; REQ-11 pins 1440×1000 and 1280×800, and both are untouched.
+
+**Measurements, panel width / property-section width, delivered against pinned:**
+
+| viewport | delivered (pre-batch) | first attempt | pinned |
+| --- | --- | --- | --- |
+| 375 | 333 / 285 | 907.2 / 417.6 | **333 / 285** |
+| 460 | 418 / 370 | 907.2 / 417.6 | **418 / 370** |
+| 640 | 598 / 550 | 907.2 / 417.6 | **598 / 550** |
+| 700 | 658 / 610 | 907.2 / 417.6 | **658 / 610** |
+| 720 | 678 / 630 | 907.2 / 417.6 | **678 / 630** |
+| 940 | 658 / 610 | 907.2 / 417.6 | **658 / 610** |
+| 1280 | 958 / 443 | 958 / 443 | **958 / 443** |
+| 1440 | 1118 / 523 | 1118 / 523 | **1118 / 523** |
+
+(containers; images the same shape, its first-attempt constant being 723.2 / 675.2). Every pinned
+figure equals the delivered one, so the four failing steps are measuring the geometry they were
+written against, and the earlier bug-4 note — "a 375-wide check legitimately sees more bands" —
+**is withdrawn**: no check sees more bands, at any width, because no section is wider than it was.
+
+**What batch 5 inherits.** REQ-23's "always the full width of the screen's content column" now has one
+reading and it is written into `data-table.md`: the panel is the width of the box its list is read in,
+never of the grid that list pans. Batch 5 states it on `DetailPanel` rather than re-deciding it.
+
+## Observation for a later batch — out of this batch's perimeter
+
+`client/src/ui/tokens.css`, on `--data-table-action-column-width`, sizes the containers row's action
+column at **296px**, for up to four dense controls on one line with slack for a wider label. Measured
+on the delivered build, that row's cluster — its four controls and its menu trigger — **inks 189px**
+of it, at 1440, at 1280 and at 375 alike. The 107px difference is real width, held in every row of the
+table at every viewport.
+
+**The consequence is now visible, which it was not before.** A table pans when its row's min-content
+exceeds its box, and that min-content carries this track whole: containers' is **907.2px**, so the
+table pans at every viewport up to about **1230px**. Were the track sized to what the cluster inks, the
+row would want roughly 800px and the pan would begin around **1120px** instead — about 107px of window
+in which the table would simply fit. Nothing is broken by this: the columns keep their minimums, the
+pan works, and REQ-11's two pinned widths are untouched either way. But it will read as inexplicable to
+whoever next wonders why a fairly wide window pans a table that looks as though it should fit.
+
+**Why it was left alone here.** The track is fixed, so narrowing it hands its width back to the data
+columns **at every width, desktop included** — it re-divides 1440×1000 and 1280×800, which is exactly
+REQ-11's territory. That is a change to the delivered appearance and needs its own before/after
+measurement and its own decision about how much slack a cluster keeps for labels it does not yet carry;
+it is not a batch-2 aside made while repairing a collapse. **Batch 17 (containers detail) is the
+natural place to pick it up**, that being where this row's action set is looked at on its own terms.

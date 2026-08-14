@@ -123,7 +123,16 @@
   min-width: 0;
 }
 
+/* Positioned so the component can hold it in the pan region's visible box while
+   the grid pans underneath (`DataTable`'s `pinExpansion`, which explains why the
+   offset is written rather than declared as a sticky inset). Relative and not
+   `transform`: a relatively positioned box is not the containing block of a
+   `position: fixed` descendant, and a dialog opened from a panel is rendered in
+   place. Below, `left` and `width` are the component's to write, and it writes
+   neither unless the table is actually panning. */
 .ui-data-table__expanded {
+  position: relative;
+  left: 0;
   padding: var(--space-4) var(--space-6) var(--space-5);
   background: var(--color-wash-1);
 }

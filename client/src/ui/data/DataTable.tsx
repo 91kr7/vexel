@@ -103,6 +103,8 @@ export function DataTable<T>({
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const panRef = useRef<HTMLDivElement>(null);
+  const expansionRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
     if (scrollRef.current) setViewportHeight(scrollRef.current.clientHeight);
@@ -111,6 +113,52 @@ export function DataTable<T>({
   function handleScroll(event: UIEvent<HTMLDivElement>) {
     setScrollTop(event.currentTarget.scrollTop);
   }
+
+  /**
+   * The expansion is pinned to the pan region's visible box: it keeps that
+   * box's width and stays in it while the grid pans underneath. A row is a grid
+   * to be scanned across; a detail panel is prose and values to be read, so it
+   * never becomes wider than the window it is read in — which is what carried a
+   * certified one-column arrangement into two columns of 417.6px at 700px of
+   * viewport.
+   *
+   * Written here rather than declared as `position: sticky; left: 0`, which
+   * cannot express it in this structure: the expansion's nearest scroll
+   * container is the body's own region, which never scrolls horizontally — the
+   * box that pans is one level further out — so a sticky inset resolves against
+   * a scrollport that does not move. Measured at 375px, panned to 400: the
+   * panel at x -379 with sticky, both with that region scrolling and with its
+   * inline axis clipped, against x 21 (the table's own left edge) this way.
+   *
+   * `transform` would pin it too, and is refused: it makes the expansion the
+   * containing block of every `position: fixed` descendant, and a dialog is
+   * rendered in place inside the panel, not portalled — the same probe measured
+   * at the panel's box (21, 543, 907×355) instead of the viewport.
+   *
+   * Nothing is written while the table is not panning, so at every width where
+   * the columns fit — every desktop width — the expansion carries no geometry
+   * of ours at all and lays out exactly as delivered.
+   */
+  function pinExpansion() {
+    const pan = panRef.current;
+    const expansion = expansionRef.current;
+    if (!pan || !expansion) return;
+    const panning = pan.scrollWidth > pan.clientWidth;
+    expansion.style.width = panning ? `${pan.clientWidth}px` : '';
+    expansion.style.left = panning ? `${pan.scrollLeft}px` : '';
+  }
+
+  // The pan region's box changes with the window, and nothing renders when it
+  // does, so it is observed rather than measured once. (jsdom provides no
+  // `ResizeObserver`; there is no layout to observe there either.)
+  useLayoutEffect(() => {
+    pinExpansion();
+    const pan = panRef.current;
+    if (!pan || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => pinExpansion());
+    observer.observe(pan);
+    return () => observer.disconnect();
+  }, [expandedRowKey, rows.length, columns.length, maxHeight, autoRowHeight]);
 
   const columnTracks = columns.map((column) => columnTrack(column));
   const gridTemplateColumns = (selection ? ['36px', ...columnTracks] : columnTracks).join(' ');
@@ -147,7 +195,7 @@ export function DataTable<T>({
     // own. `tabIndex={-1}` and nothing more: it takes focus when it is handed
     // it, and adds no stop of its own to the tab order, which walks the screen
     // exactly as it did before.
-    <div className="ui-data-table" tabIndex={-1} {...{ [DISMISSAL_FOCUS_TARGET_ATTRIBUTE]: '' }}>
+    <div className="ui-data-table" ref={panRef} onScroll={pinExpansion} tabIndex={-1} {...{ [DISMISSAL_FOCUS_TARGET_ATTRIBUTE]: '' }}>
       {hideHeader ? null : (
         <div className="ui-data-table__header" style={headerRowStyle}>
           {selection ? (
@@ -219,7 +267,11 @@ export function DataTable<T>({
                       </div>
                     ))}
                   </div>
-                  {key === expandedRowKey && renderExpanded ? <div className="ui-data-table__expanded">{renderExpanded(row)}</div> : null}
+                  {key === expandedRowKey && renderExpanded ? (
+                    <div className="ui-data-table__expanded" ref={expansionRef}>
+                      {renderExpanded(row)}
+                    </div>
+                  ) : null}
                 </Fragment>
               );
             })}

@@ -57,7 +57,8 @@ Description:
   the `width` tracks say — the delivered desktop layout, unchanged. Given less, the columns stop at
   their minimums and **the table pans horizontally**: it is the list region itself (`.ui-data-table`)
   that scrolls, reporting `scrollWidth > clientWidth`, and dragging it brings every column fully
-  into view. Header and rows pan together.
+  into view. Header and rows pan together; an open expansion does not pan — it holds the visible
+  box.
 
 ## Rules and invariants
 
@@ -86,10 +87,16 @@ Description:
   to hide. It still clips on the block axis, which is what the delivered clipping was actually
   protecting — content taller than the fixed `rowHeight` is cut rather than spilling into the row
   below.
-- When the table pans, the expanded row's content (`renderExpanded`) is laid out at the same width
-  as the rows and pans with them: it is part of the table's scrollable content, not a second region
-  beside it. Above the width where the minimums bind — every desktop width — nothing about it
-  changes.
+- **An expansion is never wider than the box the table is read in, and never pans.** While the table
+  pans, `renderExpanded`'s content keeps the width of the table's own visible box and stays in it as
+  the grid pans underneath: its left edge holds the table's left edge at every scroll offset.
+  A row is a grid to be scanned across; a panel is prose and values to be read, and a panel that has
+  to be panned to be read is worse than a panel scrolled vertically. This is what keeps the property
+  arrangement inside it (`ContentColumns`, `plan-docker_management_app-detail_property_columns`)
+  seeing the width the window actually offers — measured identical to the width before this
+  component gained its minimums, at 375, 460, 640, 700, 720, 940, 1280 and 1440.
+- Where the columns fit, the expansion carries **no geometry of the component's own** and lays out
+  as it always did — the delivered case, unchanged, at every desktop width.
 - The column minimums are the library's, so **every screen inherits them by construction**: no
   screen declares a minimum, a breakpoint-conditional column set or a width to compensate.
 - Virtualisation only accounts for the fixed `rowHeight` of each row when reserving scroll-window
