@@ -68,6 +68,14 @@ const SCREENS: { id: string; heading: string }[] = [
   // header to compare its rows against, and the sweep reports it and moves on, exactly as it does
   // for a list with no row. On a machine running no compose project the outer list is empty too.
   { id: 'compose', heading: 'Compose' },
+  // plan-ui-coherence-optimisation/REQ-55 — the five swarm inventories joined the object list in
+  // batch 12, the last of the migrations, and this sweep is written to cover **every** table the
+  // operator can reach. On a daemon outside a swarm the screen draws no list at all — the panels are
+  // rendered only where there is a cluster to read (REQ-52) — so the sweep finds nothing here and
+  // moves on, exactly as it does for any empty list. Nothing in this file initialises a swarm to
+  // make it find one: swarm mode is a property of the whole daemon, and the geometry of these rows
+  // is measured against a stubbed reading in `swarm-row-geometry.spec.ts` (REQ-56).
+  { id: 'swarm', heading: 'Swarm' },
 ];
 
 /** The widths a column may not state: each of them resolves against its own grid's content. */

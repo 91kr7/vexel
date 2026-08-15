@@ -114,6 +114,9 @@ const SURFACES = [
   '.ui-surface',
   '.ui-card__title',
   '.ui-dashboard-layout',
+  // Retired by batch 12 (`plan-ui-coherence-optimisation/REQ-55`): the swarm screen was its last
+  // call site, so it is matched on the delivered build alone now, and kept here so that the
+  // comparison keeps naming what that build drew.
   '.ui-quad-panel-layout',
   '.ui-split-pane',
   '.ui-band-stack',
@@ -205,7 +208,113 @@ const DELIBERATELY_CHANGED: Record<string, string> = {
     'plan-ui-coherence-optimisation/REQ-46…REQ-48 — the two hand-built plugin lists became the object list, the `Grid` that laid them side by side at every width was deleted rather than collapsed, the install action moved from a card header into the screen toolbar, and both empty results became the empty-state primitive',
   compose:
     'plan-ui-coherence-optimisation/REQ-49…REQ-51 — the projects left `GroupedRowsPanel`, the product’s third answer to “how is an object listed”, for the object list, and the component was deleted with them; the fixed `2fr 1fr` template that never collapsed was deleted rather than collapsed, its two regions having become views of the selected project’s own panel; and `No compose projects`, a bare title, became the empty-state primitive with a line and the action that resolves it',
+  swarm:
+    'plan-ui-coherence-optimisation/REQ-52…REQ-55 — the condition of the swarm is stated **once**, on one surface, with `Initialise a swarm` and `Join an existing one` inside it, where the delivered build stated it in a banner and again in each of five lists; the state bar is not drawn where there is no state to qualify, the panels are not drawn where there is no cluster to read, and `QuadPanelLayout` is deleted with the two-by-two grid, the five inventories stacked at the content column’s full width',
 };
+
+/**
+ * **What counts as a statement of the condition** — the definition the 12→1
+ * figure is only meaningful against, kept identical to `swarm-row-geometry.spec.ts`'s.
+ *
+ * A statement is a leaf element whose own text asserts, in words, that there is
+ * no cluster to read. A container is not counted for what its children say; a
+ * line saying what to *do* about the condition is an instruction and not a
+ * repetition of it; and a **state name is not an assertion**, so the delivered
+ * bar's `Swarm inactive` title is not counted. That is why this file reports
+ * **11** where `swarm-screen.md` records 12 — the spec counts the bar's title,
+ * this definition does not. The two agree that the answer after is **1**.
+ */
+const SWARM_CONDITION = /not part of a swarm|not a manager|only a manager|no cluster to read/i;
+
+/**
+ * The swarm screen, as the change REQ-52…REQ-55 declares can be measured on both
+ * builds: **how many elements say the same thing**, on how many surfaces, and
+ * what else the screen draws while saying it.
+ *
+ * This is the one place in the plan where a count of painted text *is* the
+ * requirement, so it is counted here rather than replaced by a box: a surface
+ * that still says "this daemon is not part of a swarm" five times has every
+ * rectangle it had. The boxes are measured beside it, not instead of it — the
+ * statement's own, and the lowest edge the screen reaches, which is what five
+ * repetitions cost in length.
+ */
+async function measureSwarmScreen(page: Page): Promise<{
+  columnWidth: number;
+  saying: string[];
+  surfaces: number;
+  emptyStates: number;
+  stateBars: number;
+  cards: string[];
+  cardLists: number;
+  objectLists: number;
+  quadPanelLayouts: number;
+  statement: { x: number; y: number; width: number; height: number } | null;
+  actions: { label: string; y: number; insideTheStatement: boolean }[];
+  /** Where each card's content actually starts, which is what REQ-54's 25.4px offset is about. */
+  cardContentTops: { card: string; y: number }[];
+  screenBottom: number;
+}> {
+  return await page.evaluate((pattern) => {
+    const test = new RegExp(pattern, 'i');
+    const content = document.querySelector('.ui-frame__content')! as HTMLElement;
+    const contentStyle = getComputedStyle(content);
+    const columnWidth =
+      content.clientWidth - Number.parseFloat(contentStyle.paddingLeft) - Number.parseFloat(contentStyle.paddingRight);
+    const box = (element: Element) => {
+      const rect = element.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    };
+
+    const leaves = [...content.querySelectorAll<HTMLElement>('*')].filter(
+      (element) => element.children.length === 0 && test.test((element.textContent ?? '').trim()),
+    );
+    const surfaces = new Set(
+      leaves
+        .map((element) => element.closest('.ui-empty-state, .ui-state-summary-bar, .ui-surface'))
+        .filter((surface): surface is Element => surface !== null),
+    );
+
+    // The statement of the condition: the empty state on this build, and — on the delivered one,
+    // which drew several — the first of them, so the two figures name the same kind of thing.
+    const statement = content.querySelector('.ui-empty-state');
+    const resolving = [...content.querySelectorAll<HTMLElement>('button')].filter((button) =>
+      /^(Initialise|Join)\b/.test((button.textContent ?? '').trim()),
+    );
+
+    const screenBottom = [...content.querySelectorAll<HTMLElement>('*')].reduce((lowest, element) => {
+      const rect = element.getBoundingClientRect();
+      return rect.height > 0 ? Math.max(lowest, rect.bottom) : lowest;
+    }, content.getBoundingClientRect().top);
+
+    return {
+      columnWidth,
+      saying: leaves.map((element) => (element.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 70)),
+      surfaces: surfaces.size,
+      emptyStates: content.querySelectorAll('.ui-empty-state').length,
+      stateBars: content.querySelectorAll('.ui-state-summary-bar').length,
+      cards: [...content.querySelectorAll('.ui-section-header__title')].map((node) => (node.textContent ?? '').trim()),
+      cardLists: content.querySelectorAll('.ui-card-list').length,
+      objectLists: content.querySelectorAll('.ui-data-table').length,
+      quadPanelLayouts: content.querySelectorAll('.ui-quad-panel-layout').length,
+      statement: statement ? box(statement) : null,
+      actions: resolving.map((button) => ({
+        label: (button.textContent ?? '').trim(),
+        y: button.getBoundingClientRect().y,
+        insideTheStatement: statement !== null && statement.contains(button),
+      })),
+      // Each card's own empty state, by the card that holds it: REQ-54's offset is the difference
+      // between two of them, `Secrets`' against `Configs & stacks`'.
+      cardContentTops: [...content.querySelectorAll('.ui-empty-state')]
+        .map((state) => ({ state, card: state.closest('.ui-surface:has(.ui-section-header__title)') }))
+        .filter((entry): entry is { state: Element; card: Element } => entry.card !== null)
+        .map(({ state, card }) => ({
+          card: (card.querySelector('.ui-section-header__title')?.textContent ?? '').trim(),
+          y: state.getBoundingClientRect().y,
+        })),
+      screenBottom,
+    };
+  }, SWARM_CONDITION.source);
+}
 
 /** The eight properties REQ-45 takes off the contexts screen, by the labels the delivered block used. */
 const DAEMON_PROPERTIES = [
@@ -918,6 +1027,108 @@ test.describe('F5 — the thirteen screens render as the delivered build does', 
               currentScreen.emptyStates.map((state) => state.title),
               `${at}: an empty state of the deleted column survives`,
             ).not.toContain('No project selected');
+
+            // The change is inside the screen: the shell's content column is where it was.
+            expect(round(currentScreen.columnWidth), `${at}: the shell's content column changed width`).toBe(round(deliveredScreen.columnWidth));
+            continue;
+          }
+
+          // The swarm screen, whose declared change is a **count**: one fact stated once. The
+          // delivered build said "this daemon is not part of a swarm" in the state bar and again in
+          // each of five lists, with the two actions that resolve it in the bar rather than in the
+          // statement; and it laid the panels out two by two, which capped a reveal at a third of
+          // the column. Both halves are measured on both builds.
+          if (screen.id === 'swarm') {
+            const deliveredScreen = await measureSwarmScreen(before);
+            const currentScreen = await measureSwarmScreen(page);
+            console.log(
+              `[REQ-52] ${at} ${screen.heading}: delivered ${deliveredScreen.saying.length} element(s) over ` +
+                `${deliveredScreen.surfaces} surface(s) — ${JSON.stringify(deliveredScreen.saying)}; ` +
+                `${deliveredScreen.emptyStates} empty state(s), ${deliveredScreen.stateBars} state bar(s), ` +
+                `cards ${JSON.stringify(deliveredScreen.cards)}, ${deliveredScreen.quadPanelLayouts} quad layout(s), ` +
+                `screen ends at y=${round(deliveredScreen.screenBottom)} — now ${currentScreen.saying.length} element(s) over ` +
+                `${currentScreen.surfaces} surface(s) — ${JSON.stringify(currentScreen.saying)}; ` +
+                `${currentScreen.emptyStates} empty state(s), ${currentScreen.stateBars} state bar(s), ` +
+                `cards ${JSON.stringify(currentScreen.cards)}, ${currentScreen.quadPanelLayouts} quad layout(s), ` +
+                `screen ends at y=${round(currentScreen.screenBottom)} — ${DELIBERATELY_CHANGED[screen.id]}`,
+            );
+            console.log(
+              `[REQ-53] ${at}: delivered actions ${JSON.stringify(deliveredScreen.actions)} against a statement at ` +
+                `${deliveredScreen.statement ? `y=${round(deliveredScreen.statement.y)}` : 'no statement surface'} — ` +
+                `now ${JSON.stringify(currentScreen.actions)} against ` +
+                `${currentScreen.statement ? `y=${round(currentScreen.statement.y)}` : 'no statement surface'}`,
+            );
+
+            // On a daemon that is in a swarm this screen states no condition at all, so there is
+            // nothing for either build to repeat and the comparison would show nothing. Reported and
+            // skipped rather than asserted against zero (REQ-56).
+            if (deliveredScreen.saying.length === 0) {
+              console.log(`[REQ-52] ${at}: this daemon is in a swarm, so neither build states the condition to compare`);
+              continue;
+            }
+
+            // REQ-54's premise, measured rather than quoted: on the delivered build the bottom row's
+            // two cards did **not** start their content at the same y — `Secrets`' empty state sat
+            // 25.4px above `Configs & stacks`', because that card was the only one holding two
+            // inventories and had to label the first of them inside its own body. After this batch
+            // there is no such card and no such row: one card per inventory, each starting its
+            // content 0px under its own header, which is measured on a manager in
+            // `swarm-row-geometry.spec.ts`. Reported at every viewport, asserted only where the
+            // delivered build actually drew the pair side by side.
+            const deliveredSecrets = deliveredScreen.cardContentTops.find((entry) => entry.card === 'Secrets');
+            const deliveredConfigs = deliveredScreen.cardContentTops.find((entry) => entry.card === 'Configs & stacks');
+            console.log(
+              `[REQ-54] ${at}: delivered card contents ${JSON.stringify(
+                deliveredScreen.cardContentTops.map((entry) => `${entry.card} y=${round(entry.y)}`),
+              )} — Secrets against Configs & stacks: ` +
+                `${deliveredSecrets && deliveredConfigs ? `${round(deliveredConfigs.y - deliveredSecrets.y)}px apart` : 'not both drawn'}`,
+            );
+            if (deliveredSecrets && deliveredConfigs && viewport.width >= 1280) {
+              expect(
+                round(deliveredConfigs.y - deliveredSecrets.y),
+                `${at}: the delivered bottom row already shared a baseline, so REQ-54 has nothing to repair here`,
+              ).not.toBe(0);
+            }
+
+            // The premise: the delivered build really did state one fact many times over, and really
+            // did lay the panels out two by two.
+            expect(
+              deliveredScreen.saying.length,
+              `${at}: the delivered build stated the condition ${deliveredScreen.saying.length} time(s), so REQ-52 has nothing to repair here`,
+            ).toBeGreaterThan(1);
+            expect(
+              deliveredScreen.surfaces,
+              `${at}: the delivered build already stated the condition on one surface`,
+            ).toBeGreaterThan(1);
+            expect(deliveredScreen.quadPanelLayouts, `${at}: the delivered build laid out no two-by-two grid here`).toBeGreaterThan(0);
+
+            // REQ-52 — stated once, on one surface, by one element.
+            expect(currentScreen.saying, `${at}: the condition is stated by more than one element`).toHaveLength(1);
+            expect(currentScreen.surfaces, `${at}: the condition is stated on more than one surface`).toBe(1);
+            expect(currentScreen.emptyStates, `${at}: more than one statement surface is drawn`).toBe(1);
+            expect(currentScreen.stateBars, `${at}: the state bar is drawn where there is no state to qualify`).toBe(0);
+            expect(currentScreen.cards, `${at}: an inventory card is drawn where there is no cluster to read`).toEqual([]);
+            expect(currentScreen.cardLists, `${at}: a hand-built card list is still drawn on this screen`).toBe(0);
+            expect(currentScreen.quadPanelLayouts, `${at}: the two-by-two grid is still laying the panels out`).toBe(0);
+
+            // REQ-53 — the two actions sit **in** the statement, where the delivered build had them
+            // in a bar above the repetitions.
+            expect(
+              deliveredScreen.actions.some((action) => action.insideTheStatement),
+              `${at}: the delivered build already carried a resolving action inside the statement`,
+            ).toBe(false);
+            expect(currentScreen.actions.length, `${at}: the screen offers neither way into a swarm`).toBe(2);
+            for (const action of currentScreen.actions) {
+              expect(action.insideTheStatement, `${at}: ${action.label} is drawn outside the statement of the condition`).toBe(true);
+            }
+
+            // …and the screen is shorter for it: five repetitions had a length.
+            expect(
+              currentScreen.screenBottom,
+              `${at}: the inactive screen still reaches y=${round(currentScreen.screenBottom)}, against a delivered ${round(
+                deliveredScreen.screenBottom,
+              )}`,
+            ).toBeLessThan(deliveredScreen.screenBottom);
 
             // The change is inside the screen: the shell's content column is where it was.
             expect(round(currentScreen.columnWidth), `${at}: the shell's content column changed width`).toBe(round(deliveredScreen.columnWidth));

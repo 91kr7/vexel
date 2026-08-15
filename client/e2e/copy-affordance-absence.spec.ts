@@ -464,16 +464,34 @@ test('swarm: no panel offers a copy on an id, and a join token is reachable only
   await expect(page.getByRole('heading', { level: 1, name: 'Swarm' })).toBeVisible({ timeout: 20_000 });
 
   // Sites 13–17 — every band of every panel that lists an object, over every row present (REQ-26).
-  for (const title of ['Nodes', 'Services & tasks', 'Secrets', 'Configs & stacks']) {
-    const panel = screenContent(page).locator('.ui-surface').filter({ has: page.getByRole('heading', { level: 2, name: title }) });
+  //
+  // **The markup is the object list's since batch 12** (`plan-ui-coherence-optimisation/REQ-55`):
+  // the five inventories left the hand-built card list for `DataTable`, a row's reveal is a
+  // `DetailPanel`, and the single `Configs & stacks` card became two, `Configs` and `Stacks`. Every
+  // assertion below is the one it always was — REQ-87 keeps bug-5 certified across the batches that
+  // touch its surfaces — and only the locators and the list of cards move with the migration. A
+  // stack's services are carried by its row rather than by a selection, so `Stacks` reveals no
+  // property band and is not one of the sites.
+  for (const title of ['Nodes', 'Services & tasks', 'Secrets', 'Configs']) {
+    const panel = screenContent(page)
+      .locator('.ui-surface')
+      .filter({ has: page.getByRole('heading', { level: 2, name: title, exact: true }) })
+      .first();
     await expect(panel).toBeVisible({ timeout: 20_000 });
-    const rows = panel.locator('.ui-card-list__item');
+    const rows = panel.locator('.ui-data-table__row');
     const count = await rows.count();
     for (let index = 0; index < count; index += 1) {
-      await rows.nth(index).click();
-      const expanded = panel.locator('.ui-card-list__expanded');
+      // On its first cell, with a real pointer: below the desktop breakpoint a row is wider than the
+      // box it is read in, so its own centre can sit over another column.
+      const cell = rows.nth(index).locator('.ui-data-table__cell').first();
+      await cell.scrollIntoViewIfNeeded();
+      const box = (await cell.boundingBox())!;
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      const expanded = panel.locator('.ui-detail-panel');
       if ((await expanded.count()) === 0) continue;
       await expectBandsHoldNoControl(expanded.locator('.ui-definition-list').first(), `Swarm → ${title}, row ${index}`);
+      // One detail is open at a time, so the row is closed again before the next one is opened.
+      await page.keyboard.press('Escape');
     }
   }
 

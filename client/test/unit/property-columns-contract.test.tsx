@@ -257,12 +257,34 @@ describe('no feature file anywhere states a count, a template or a width for a p
    */
   const featureRoot = join(process.cwd(), 'src');
 
+  /**
+   * The five surfaces, and **how each one states its property section now**.
+   *
+   * The four swarm panels used to render `<DefinitionList>` themselves. Since
+   * `plan-ui-coherence-optimisation/REQ-55` (batch 12) they hand their properties
+   * to `DetailPanel`, which renders the list for them: the props to read are
+   * `properties` and `propertiesContentClass` on that component. The coverage
+   * baseline still renders the list directly.
+   *
+   * **The content class each surface takes, and why the four swarm ones changed.**
+   * The certified rule is that the caller states the class and **never** the
+   * count, and that the class follows the content. When this check was written the
+   * four swarm sections held "ids, versions, dates and state words" — short
+   * scalars — and taking the long class would have cost them columns for nothing.
+   * Batch 12 changed what they hold: an image reference, environment lines, an
+   * address, a platform, and the sentence saying a secret's value is never
+   * displayed — single-line values of 56 to 60 characters, which is the content
+   * `long-single-line` was sized for (`ui-library/specs/content-columns.md`: "an
+   * environment or label value routinely passes 60 characters"). So the class
+   * moves with the content, which is the rule working rather than being broken.
+   * The predecessor's reasoning was not overturned; it was outgrown.
+   */
   const THE_FIVE = [
-    'swarm/SwarmServicesPanel.tsx',
-    'swarm/SwarmSecretsPanel.tsx',
-    'swarm/SwarmConfigsStacksPanel.tsx',
-    'swarm/SwarmNodesPanel.tsx',
-    'coverage/CoverageMatrixScreen.tsx',
+    { path: 'swarm/SwarmServicesPanel.tsx', tag: 'DetailPanel', contentClass: 'long-single-line' },
+    { path: 'swarm/SwarmSecretsPanel.tsx', tag: 'DetailPanel', contentClass: 'long-single-line' },
+    { path: 'swarm/SwarmConfigsStacksPanel.tsx', tag: 'DetailPanel', contentClass: 'long-single-line' },
+    { path: 'swarm/SwarmNodesPanel.tsx', tag: 'DetailPanel', contentClass: 'long-single-line' },
+    { path: 'coverage/CoverageMatrixScreen.tsx', tag: 'DefinitionList', contentClass: null },
   ] as const;
 
   /** Every `.tsx` under `src` that is not the library itself: the feature layer. */
@@ -297,17 +319,28 @@ describe('no feature file anywhere states a count, a template or a width for a p
     return found;
   }
 
-  it('the five surfaces that stated a count state none, and take the short-scalar default', () => {
-    for (const path of THE_FIVE) {
-      const lists = propsOf(source(path), 'DefinitionList');
-      expect(lists.length, `${path} no longer renders a property list at all`).toBeGreaterThan(0);
-      for (const props of lists) {
-        expect(props, `${path} still states a column count`).not.toMatch(/columns/);
-        // Short scalar, taken deliberately and recorded in `ui-library/specs/content-columns.md`:
-        // these lists hold ids, versions, dates and state words. Declaring the long class for the
-        // one joined label set among them would cost the section the columns this work exists to
-        // give it, at every width the operator has.
-        expect(props, `${path} declares a content class where it takes the short-scalar default`).not.toMatch(/contentClass/);
+  it('the five surfaces that stated a count state none, and take the class their content calls for', () => {
+    for (const { path, tag, contentClass } of THE_FIVE) {
+      const sections = propsOf(source(path), tag);
+      expect(sections.length, `${path} no longer states a property section through <${tag}> at all`).toBeGreaterThan(0);
+      const stating = sections.filter((props) => /\bproperties=\{|\bitems=\{/.test(props));
+      expect(stating.length, `${path} renders <${tag}> but hands it no properties`).toBeGreaterThan(0);
+
+      for (const props of stating) {
+        // The half that has never moved and never may: **no count, at any width.**
+        expect(props, `${path} states a column count`).not.toMatch(/\bcolumns\s*=/);
+        expect(props, `${path} states a track template`).not.toMatch(/1fr|repeat\(auto-|grid-template/);
+
+        if (contentClass === null) {
+          // Short scalar, taken deliberately: this list holds versions and API numbers.
+          expect(props, `${path} declares a content class where it takes the short-scalar default`).not.toMatch(/[cC]ontentClass/);
+        } else {
+          // …and the half that follows the content. See THE_FIVE's own note: these sections now
+          // hold 56–60 character single-line values, which is the content this class is sized for.
+          expect(props, `${path} no longer states the class its content calls for`).toMatch(
+            new RegExp(`[cC]ontentClass="${contentClass}"`),
+          );
+        }
       }
     }
   });

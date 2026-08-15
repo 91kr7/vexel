@@ -5,10 +5,18 @@ import type { SwarmListing, SwarmState, SwarmTokensReading } from '../../src/dat
 import type { UseSwarmResult } from '../../src/data/use-swarm';
 
 // The Swarm screen: the cluster's state with initialise / join / leave and its
-// join tokens, above the four panels (swarm/specs/swarm-screen.md, REQ-79 to
+// join tokens, above the inventories (swarm/specs/swarm-screen.md, REQ-79 to
 // REQ-84). The hook is mocked, so the screen's own contract is what is under
-// test — including the two states this machine cannot be in at once, a manager
-// and a worker.
+// test — including the three states this machine cannot be in at once, outside a
+// swarm, a manager and a worker.
+//
+// `plan-ui-coherence-optimisation/REQ-52`, `REQ-53` — the condition of the
+// swarm is stated in exactly **one** place at any moment: the state bar where
+// there is a state to qualify, the empty state where there is not, never both,
+// and no panel states it at all. The two actions that resolve it are **inside**
+// that statement. The assertions that used to require the opposite — a bar above
+// four panels each repeating the reason — are replaced here rather than deleted:
+// the behaviour they covered is the one the batch removes (batch 12, INT-7).
 const readTokens = vi.fn();
 const rotateToken = vi.fn();
 const initialise = vi.fn();
@@ -133,18 +141,83 @@ beforeEach(() => {
 
 afterEach(cleanup);
 
-describe('SwarmScreen — the state bar (swarm/specs/swarm-screen.md)', () => {
-  // "the state in words ('Swarm active', 'Swarm inactive', ...)"; "outside a swarm: that this daemon
-  // is not part of one"
-  it('says the daemon is outside a swarm, and offers the way in', () => {
+/**
+ * Every element on screen stating, in its own words, that there is no cluster to
+ * read — the count swarm-screen.md pins at **12 on the delivered build and 1
+ * after** for a daemon outside a swarm.
+ */
+function statementsOfTheCondition(): HTMLElement[] {
+  return [...document.querySelectorAll<HTMLElement>('*')].filter(
+    (element) =>
+      element.children.length === 0 &&
+      /not part of a swarm|not a manager|only a manager|no cluster to read/i.test((element.textContent ?? '').trim()),
+  );
+}
+
+describe('SwarmScreen — the one statement of the condition (REQ-52, REQ-53)', () => {
+  // swarm-screen.md — "where there is no cluster to read, **exactly one statement of why, on one
+  // surface** — the empty state, with the two actions that resolve it *inside* it"; and "The state
+  // bar is not drawn outside a swarm. It exists to qualify a state with facts; a daemon that is not
+  // in a swarm has none to qualify."
+  it('states the condition once, on the empty state, and draws no state bar to repeat it', () => {
     renderScreen();
 
-    expect(screen.getByText('Swarm inactive')).toBeInTheDocument();
-    expect(visibleText()).toMatch(/not part of (a|one) swarm|not part of one/i);
-    expect(screen.getByRole('button', { name: 'Initialise swarm' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Join swarm' })).toBeInTheDocument();
+    expect(document.querySelectorAll('.ui-empty-state')).toHaveLength(1);
+    expect(document.querySelectorAll('.ui-state-summary-bar')).toHaveLength(0);
+    expect(screen.getByText('This daemon is not part of a swarm')).toBeInTheDocument();
+    expect(statementsOfTheCondition()).toHaveLength(1);
   });
 
+  // REQ-53 — "`Initialise a swarm` and `Join an existing one` belong to the empty state that
+  // explains the condition, not to a banner above four empty states that repeat it."
+  it('carries both resolving actions inside the statement itself', () => {
+    renderScreen();
+
+    const statement = document.querySelector('.ui-empty-state') as HTMLElement;
+    const initialiseAction = screen.getByRole('button', { name: 'Initialise a swarm' });
+    const joinAction = screen.getByRole('button', { name: 'Join an existing one' });
+
+    expect(statement.contains(initialiseAction), 'Initialise a swarm sits outside the statement of the condition').toBe(true);
+    expect(statement.contains(joinAction), 'Join an existing one sits outside the statement of the condition').toBe(true);
+  });
+
+  // REQ-52 — "**No panel states it at all** — the panels are rendered only where there is a cluster
+  // to read". Outside a swarm the screen holds the statement and nothing else.
+  it('draws no inventory panel at all where there is no cluster to read', () => {
+    renderScreen();
+
+    for (const title of ['Nodes', 'Services & tasks', 'Secrets', 'Configs', 'Stacks']) {
+      expect(screen.queryByRole('heading', { name: title }), `the ${title} panel is drawn outside a swarm`).toBeNull();
+    }
+    expect(document.querySelectorAll('.ui-data-table')).toHaveLength(0);
+  });
+
+  // swarm-screen.md — "before the first reading settles: 'Reading the swarm state…', alone."
+  it('states the pending read alone, before the first reading settles', () => {
+    swarm = { ...swarmResult(undefined), loaded: false } as UseSwarmResult;
+
+    renderScreen();
+
+    expect(screen.getByText('Reading the swarm state…')).toBeInTheDocument();
+    expect(document.querySelectorAll('.ui-empty-state')).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Initialise a swarm' })).toBeNull();
+  });
+
+  // swarm-screen.md — "on a manager, the five inventories in this order, each in a card of its own",
+  // and the condition stated nowhere, the bar having a state to qualify instead.
+  it('draws the five inventories on a manager, and states no condition beside them', () => {
+    swarm = swarmResult(managerState());
+
+    renderScreen();
+
+    for (const title of ['Nodes', 'Services & tasks', 'Secrets', 'Configs', 'Stacks']) {
+      expect(screen.getByRole('heading', { name: title })).toBeInTheDocument();
+    }
+    expect(statementsOfTheCondition()).toEqual([]);
+  });
+});
+
+describe('SwarmScreen — the state bar (swarm/specs/swarm-screen.md)', () => {
   // "the token action is offered on a manager only"; "in a swarm: 'Leave swarm'"
   it('offers neither the join tokens nor leaving when the daemon is in no swarm', () => {
     renderScreen();
@@ -170,30 +243,38 @@ describe('SwarmScreen — the state bar (swarm/specs/swarm-screen.md)', () => {
     expect(visibleText()).toMatch(/healthy/i);
     expect(screen.getByRole('button', { name: 'Join tokens' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Leave swarm' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Initialise swarm' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Initialise a swarm' })).toBeNull();
   });
 
-  // "on a worker: that it is a worker and that only a manager reads the cluster"; "a worker sees
-  // state, leave, and the stated reason in every panel"
-  it('states that a worker cannot read the cluster, and offers no token action', () => {
+  // swarm-screen.md — "in a swarm but not on a manager ...: 'No cluster to read from here' with the
+  // daemon's **own** reason where it gave one, and **no** action — nothing on this screen promotes a
+  // node." Stated once, beside the bar that qualifies the state the daemon *is* in.
+  it('states a worker’s condition once, in the daemon’s own words, and offers no action to resolve it', () => {
     swarm = swarmResult(workerState(), WORKER_REASON);
 
     renderScreen();
 
-    expect(visibleText()).toMatch(/worker/i);
-    expect(visibleText()).toMatch(/only a manager/i);
+    expect(screen.getByText('No cluster to read from here')).toBeInTheDocument();
+    expect(screen.getByText(WORKER_REASON)).toBeInTheDocument();
+    expect(document.querySelectorAll('.ui-empty-state')).toHaveLength(1);
+    // One surface, so the daemon's own sentence is part of the one statement rather than a second
+    // one: nothing outside the empty state says the same thing again.
+    const statement = document.querySelector('.ui-empty-state') as HTMLElement;
+    expect(
+      statementsOfTheCondition().filter((element) => !statement.contains(element)),
+      'a worker’s condition is stated somewhere besides the one surface',
+    ).toEqual([]);
+    // Nothing on this screen promotes a node, so the statement carries no action at all.
+    expect(statement.querySelectorAll('button, [role="button"], a')).toHaveLength(0);
     expect(screen.queryByRole('button', { name: 'Join tokens' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Leave swarm' })).toBeInTheDocument();
   });
 
-  // "the tone is green for a healthy swarm, amber for a degraded raft ..., and neutral when the
-  // daemon is not in a swarm"
-  it('colours the state dot green when healthy, amber when degraded and neutral outside a swarm', () => {
+  // "the tone is green for a healthy swarm and amber for a degraded raft or a pending / locked /
+  // errored state". The neutral case the delivered build drew outside a swarm is gone with the bar
+  // itself, which is no longer drawn where there is no state to qualify.
+  it('colours the state dot green when healthy and amber when degraded', () => {
     const toneOf = () => (document.querySelector('.ui-table-status-dot') as HTMLElement).className;
-
-    renderScreen();
-    expect(toneOf()).not.toMatch(/tone-(success|warning|danger)/);
-    cleanup();
 
     swarm = swarmResult(managerState());
     renderScreen();
@@ -218,22 +299,6 @@ describe('SwarmScreen — the state bar (swarm/specs/swarm-screen.md)', () => {
     expect(refresh).toHaveBeenCalled();
   });
 
-  // "the four panels: Nodes, Services & tasks, Secrets, Configs & stacks"
-  it('shows the four panels of the mockup', () => {
-    renderScreen();
-
-    for (const title of ['Nodes', 'Services & tasks', 'Secrets', 'Configs & stacks']) {
-      expect(screen.getByRole('heading', { name: title })).toBeInTheDocument();
-    }
-  });
-
-  // "The screen never shows an empty panel ... every panel carries the reason it has nothing to
-  // list."
-  it('carries the reason in every panel when the daemon is not a manager', () => {
-    renderScreen();
-
-    expect(screen.getAllByText(INACTIVE_REASON).length).toBeGreaterThanOrEqual(4);
-  });
 });
 
 describe('SwarmScreen — initialise and join (swarm/specs/swarm-screen.md)', () => {
@@ -243,7 +308,7 @@ describe('SwarmScreen — initialise and join (swarm/specs/swarm-screen.md)', ()
     initialise.mockResolvedValue(managerState());
     renderScreen();
 
-    await user.click(screen.getByRole('button', { name: 'Initialise swarm' }));
+    await user.click(screen.getByRole('button', { name: 'Initialise a swarm' }));
     const dialog = openDialog();
     await user.type(within(dialog).getByLabelText(/advertise/i), '10.0.0.9');
     await user.click(within(dialog).getByRole('button', { name: /initialise/i }));
@@ -257,7 +322,7 @@ describe('SwarmScreen — initialise and join (swarm/specs/swarm-screen.md)', ()
     const user = userEvent.setup();
     renderScreen();
 
-    await user.click(screen.getByRole('button', { name: 'Join swarm' }));
+    await user.click(screen.getByRole('button', { name: 'Join an existing one' }));
 
     const dialog = openDialog();
     const token = within(dialog).getByLabelText(/token/i);
@@ -271,13 +336,13 @@ describe('SwarmScreen — initialise and join (swarm/specs/swarm-screen.md)', ()
     const user = userEvent.setup();
     renderScreen();
 
-    await user.click(screen.getByRole('button', { name: 'Join swarm' }));
+    await user.click(screen.getByRole('button', { name: 'Join an existing one' }));
     await user.type(within(openDialog()).getByLabelText(/token/i), 'SWMTKN-1-typed-by-hand');
     await user.click(within(openDialog()).getByRole('button', { name: /cancel/i }));
 
     expect(document.body.innerHTML).not.toContain('SWMTKN-1-typed-by-hand');
 
-    await user.click(screen.getByRole('button', { name: 'Join swarm' }));
+    await user.click(screen.getByRole('button', { name: 'Join an existing one' }));
     expect(within(openDialog()).getByLabelText(/token/i)).toHaveValue('');
   });
 });

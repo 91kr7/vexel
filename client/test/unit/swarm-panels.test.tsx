@@ -57,9 +57,18 @@ async function addLabelRow(user: ReturnType<typeof userEvent.setup>, scope: HTML
   if (value !== '') await user.type(within(scope).getByLabelText(`Labels Value ${row}`), value);
 }
 
-/** A row of a card list, found by the name it leads with. */
+/**
+ * The **first cell** of the object-list row a node is listed on, which is what a
+ * selection is made on. Scoped to the list: the opened node's own panel states
+ * the hostname again as a property, so a search over the whole document finds
+ * two.
+ */
 function nodeRow(hostname: string): HTMLElement {
-  return screen.getByText((content) => content.startsWith(hostname));
+  const cell = [...document.querySelectorAll<HTMLElement>('.ui-data-table__row > .ui-data-table__cell:first-child')].find(
+    (candidate) => (candidate.textContent ?? '').trim().startsWith(hostname),
+  );
+  if (!cell) throw new Error(`no row is listed for ${hostname}`);
+  return cell;
 }
 
 /** Everything the operator can read on the panel. */
@@ -136,31 +145,48 @@ afterEach(cleanup);
 describe('SwarmNodesPanel (swarm/specs/swarm-nodes-panel.md)', () => {
   const noop = async () => undefined as never;
 
-  // "per node: a dot coloured by its status, the hostname (the node the application is talking to
-  // marked 'this node'), and a monospace line with its status ..., its engine version and its
-  // address"; "the role badge reads 'leader' on the leader"; "the availability reads 'active',
-  // 'pause' or 'drain'"
+  // swarm-nodes-panel.md — "one row per node ... with: the hostname (the node the application is
+  // talking to marked 'this node'), the role as a badge reading 'leader' on the leader ..., the
+  // availability as a badge ..., the status as a dot and the daemon's own word, and the daemon's
+  // message about that node".
   it('states each node with its hostname, role, availability and status', () => {
     renderPanel(
-      <SwarmNodesPanel nodes={listing([node()])} loaded canManage onUpdate={noop} onRemove={async () => undefined} />,
+      <SwarmNodesPanel nodes={listing([node()])}  onUpdate={noop} onRemove={async () => undefined} />,
     );
 
     expect(screen.getByText('Nodes')).toBeInTheDocument();
-    expect(visibleText()).toContain('manager-alpha');
-    expect(visibleText()).toContain('this node');
-    expect(screen.getByText('leader')).toBeInTheDocument();
-    expect(screen.getByText('active')).toBeInTheDocument();
-    expect(visibleText()).toContain('ready');
-    expect(visibleText()).toContain('27.0.3');
-    expect(visibleText()).toContain('10.0.0.7');
+    const row = nodeRow('manager-alpha').closest('.ui-data-table__row') as HTMLElement;
+    const rowText = (row.textContent ?? '').replace(/\s+/g, ' ');
+    expect(rowText).toContain('manager-alpha');
+    expect(rowText).toContain('this node');
+    expect(rowText).toContain('leader');
+    expect(rowText).toContain('active');
+    expect(rowText).toContain('ready');
+  });
+
+  // "The engine version and the address are stated **in the panel and not in the row**: six columns
+  // and their gaps resolve to 808px of the 854px a 1280×800 card offers ... The full value of
+  // anything the row omits or truncates is in the panel."
+  it('states the engine version and the address in the opened node’s panel, and not in its row', async () => {
+    const user = userEvent.setup();
+    renderPanel(<SwarmNodesPanel nodes={listing([node()])}  onUpdate={noop} onRemove={async () => undefined} />);
+
+    const rowText = (nodeRow('manager-alpha').closest('.ui-data-table__row')!.textContent ?? '').replace(/\s+/g, ' ');
+    expect(rowText, 'the engine version is a column of the row').not.toContain('27.0.3');
+    expect(rowText, 'the address is a column of the row').not.toContain('10.0.0.7');
+
+    await user.click(nodeRow('manager-alpha'));
+
+    const panel = document.querySelector('.ui-detail-panel') as HTMLElement;
+    expect(panel.textContent).toContain('27.0.3');
+    expect(panel.textContent).toContain('10.0.0.7');
+    expect(panel.textContent).toContain('node-1');
   });
 
   it('reads the role badge as manager or worker when the node is not the leader', () => {
     renderPanel(
       <SwarmNodesPanel
         nodes={listing([node({ id: 'w1', hostname: 'worker-beta', role: 'worker', leader: false, self: false, availability: 'drain' })])}
-        loaded
-        canManage
         onUpdate={noop}
         onRemove={async () => undefined}
       />,
@@ -171,32 +197,28 @@ describe('SwarmNodesPanel (swarm/specs/swarm-nodes-panel.md)', () => {
     expect(visibleText()).not.toContain('this node');
   });
 
-  // "with nothing to show: the reason the listing carries ... or 'No nodes' on a manager with an
-  // empty cluster, or 'Reading nodes…' before the first read settles"
-  it('states the reason it has nothing to list rather than showing an empty list', () => {
-    renderPanel(<SwarmNodesPanel nodes={listing<SwarmNode>([], REASON)} loaded canManage={false} onUpdate={noop} onRemove={async () => undefined} />);
+  // swarm-nodes-panel.md — "with no node listed: the empty state's title, the reason the listing
+  // carries where it carries one, and no action — nothing here adds a node to a cluster."
+  it('states the reason the listing carries rather than showing an empty list', () => {
+    renderPanel(<SwarmNodesPanel nodes={listing<SwarmNode>([], REASON)}  onUpdate={noop} onRemove={async () => undefined} />);
 
     expect(screen.getByText(REASON)).toBeInTheDocument();
   });
 
-  it('says there are no nodes on a manager with an empty cluster', () => {
-    renderPanel(<SwarmNodesPanel nodes={listing<SwarmNode>([])} loaded canManage onUpdate={noop} onRemove={async () => undefined} />);
+  it('says there are no nodes on a manager with an empty cluster, and offers no action', () => {
+    renderPanel(<SwarmNodesPanel nodes={listing<SwarmNode>([])}  onUpdate={noop} onRemove={async () => undefined} />);
 
     expect(screen.getByText('No nodes')).toBeInTheDocument();
+    const empty = document.querySelector('.ui-empty-state') as HTMLElement;
+    expect(empty.querySelectorAll('button, [role="button"], a')).toHaveLength(0);
   });
 
-  it('says it is still reading before the first read settles', () => {
-    renderPanel(<SwarmNodesPanel nodes={listing<SwarmNode>([])} loaded={false} canManage onUpdate={noop} onRemove={async () => undefined} />);
-
-    expect(screen.getByText('Reading nodes…')).toBeInTheDocument();
-  });
-
-  // "selecting a row -> expands it"; "in the expansion, 'Availability' -> same, for active / pause /
-  // drain", applied immediately
-  it('applies a change of availability from the expanded row', async () => {
+  // "selecting a row -> reveals that node's detail panel"; "'Availability' (in the panel) -> the
+  // same, for active / pause / drain", applied immediately
+  it('applies a change of availability from the opened node’s panel', async () => {
     const user = userEvent.setup();
     const onUpdate = vi.fn().mockResolvedValue(node({ availability: 'drain' }));
-    renderPanel(<SwarmNodesPanel nodes={listing([node()])} loaded canManage onUpdate={onUpdate} onRemove={async () => undefined} />);
+    renderPanel(<SwarmNodesPanel nodes={listing([node()])}  onUpdate={onUpdate} onRemove={async () => undefined} />);
 
     await user.click(nodeRow('manager-alpha'));
     const availability = screen.getByLabelText(/^Availability/);
@@ -205,15 +227,14 @@ describe('SwarmNodesPanel (swarm/specs/swarm-nodes-panel.md)', () => {
     await waitFor(() => expect(onUpdate).toHaveBeenCalledWith('node-1', { availability: 'drain' }));
   });
 
-  // "'Remove node' -> asks the confirmation service, naming the node and the consequence; only then
+  // "'Remove' (row) -> asks the confirmation service, naming the node and the consequence; only then
   // is the node removed. Removal is forced ... and the confirmation says so."
   it('confirms a node removal, names the node and the forced removal, and only then removes it', async () => {
     const user = userEvent.setup();
     const onRemove = vi.fn().mockResolvedValue(undefined);
-    renderPanel(<SwarmNodesPanel nodes={listing([node()])} loaded canManage onUpdate={noop} onRemove={onRemove} />);
+    renderPanel(<SwarmNodesPanel nodes={listing([node()])}  onUpdate={noop} onRemove={onRemove} />);
 
-    await user.click(nodeRow('manager-alpha'));
-    await user.click(screen.getByRole('button', { name: 'Remove node' }));
+    await user.click(screen.getByRole('button', { name: 'Remove' }));
 
     const dialog = confirmation();
     expect(dialog).toBeTruthy();
@@ -226,15 +247,28 @@ describe('SwarmNodesPanel (swarm/specs/swarm-nodes-panel.md)', () => {
     await waitFor(() => expect(onRemove).toHaveBeenCalledWith('node-1', true));
   });
 
-  // "every action is absent (or inert) when the daemon is not a manager"
-  it('offers no action when the daemon is not a manager', async () => {
+  // swarm-nodes-panel.md — "One detail is open at a time — the list's own guarantee, and
+  // `DetailPanel`'s across the interface"; in the `opening-gesture` presentation the row that opened
+  // the panel closes it and the panel offers no close control of its own.
+  it('opens one node at a time, closed again by its own row, with no close control', async () => {
     const user = userEvent.setup();
-    renderPanel(<SwarmNodesPanel nodes={listing([node()])} loaded canManage={false} onUpdate={noop} onRemove={async () => undefined} />);
+    renderPanel(
+      <SwarmNodesPanel
+        nodes={listing([node(), node({ id: 'w1', hostname: 'worker-beta', role: 'worker', leader: false, self: false })])}
+        onUpdate={noop}
+        onRemove={async () => undefined}
+      />,
+    );
 
     await user.click(nodeRow('manager-alpha'));
+    expect(document.querySelectorAll('.ui-detail-panel')).toHaveLength(1);
+    expect(document.querySelectorAll('.ui-detail-panel [aria-label="Close detail"]')).toHaveLength(0);
 
-    expect(screen.queryByRole('button', { name: 'Remove node' })).toBeNull();
-    expect(screen.queryByLabelText(/^Availability/)).toBeNull();
+    await user.click(nodeRow('worker-beta'));
+    expect(document.querySelectorAll('.ui-detail-panel'), 'a second panel was opened beside the first').toHaveLength(1);
+
+    await user.click(nodeRow('worker-beta'));
+    expect(document.querySelectorAll('.ui-detail-panel'), 'the open node’s own row left it open').toHaveLength(0);
   });
 });
 
@@ -245,7 +279,7 @@ describe('SwarmServicesPanel (swarm/specs/swarm-services-panel.md)', () => {
   // image, running/desired and a badge reading 'replicated' or 'global'"
   it('states each service with its image, replicas, ports and mode', () => {
     renderPanel(
-      <SwarmServicesPanel services={listing([service()])} loaded canManage onCreate={noop} onUpdate={noop} onRemove={async () => undefined} />,
+      <SwarmServicesPanel services={listing([service()])}  onCreate={noop} onUpdate={noop} onRemove={async () => undefined} />,
     );
 
     expect(screen.getByText('Services & tasks')).toBeInTheDocument();
@@ -256,20 +290,24 @@ describe('SwarmServicesPanel (swarm/specs/swarm-services-panel.md)', () => {
     expect(visibleText()).toContain('8080');
   });
 
-  it('states the reason, the empty cluster or the pending read in place of a listing', () => {
-    const { unmount } = render(<></>);
-    unmount();
-
-    renderPanel(<SwarmServicesPanel services={listing<SwarmService>([], REASON)} loaded canManage={false} onCreate={noop} onUpdate={noop} onRemove={async () => undefined} />);
+  // swarm-services-panel.md — "with no service listed: the empty state's title, the line saying what
+  // puts a service there, and the action that creates one — **withheld where the reading itself
+  // states a reason**, which creating a service would not resolve."
+  it('states the reason where the reading carries one, and offers to create a service only where it does not', () => {
+    renderPanel(<SwarmServicesPanel services={listing<SwarmService>([], REASON)}  onCreate={noop} onUpdate={noop} onRemove={async () => undefined} />);
     expect(screen.getByText(REASON)).toBeInTheDocument();
+    expect(
+      (document.querySelector('.ui-empty-state') as HTMLElement).querySelectorAll('button, [role="button"], a'),
+      'an action is offered beside a reason creating a service would not resolve',
+    ).toHaveLength(0);
     cleanup();
 
-    renderPanel(<SwarmServicesPanel services={listing<SwarmService>([])} loaded canManage onCreate={noop} onUpdate={noop} onRemove={async () => undefined} />);
+    renderPanel(<SwarmServicesPanel services={listing<SwarmService>([])}  onCreate={noop} onUpdate={noop} onRemove={async () => undefined} />);
     expect(screen.getByText('No services')).toBeInTheDocument();
-    cleanup();
-
-    renderPanel(<SwarmServicesPanel services={listing<SwarmService>([])} loaded={false} canManage onCreate={noop} onUpdate={noop} onRemove={async () => undefined} />);
-    expect(screen.getByText('Reading services…')).toBeInTheDocument();
+    expect(
+      (document.querySelector('.ui-empty-state') as HTMLElement).querySelectorAll('button, [role="button"], a').length,
+      'an empty cluster is stated without the action that resolves it',
+    ).toBeGreaterThan(0);
   });
 
   // "for the opened service: ... then one row per task with its slot, the node it runs on, its state
@@ -287,7 +325,7 @@ describe('SwarmServicesPanel (swarm/specs/swarm-services-panel.md)', () => {
       raw: {},
     };
     serviceDetailResult = { detail, loaded: true, refresh: () => undefined };
-    renderPanel(<SwarmServicesPanel services={listing([service()])} loaded canManage onCreate={noop} onUpdate={noop} onRemove={async () => undefined} />);
+    renderPanel(<SwarmServicesPanel services={listing([service()])}  onCreate={noop} onUpdate={noop} onRemove={async () => undefined} />);
 
     await user.click(screen.getByText('blog_api'));
 
@@ -303,7 +341,7 @@ describe('SwarmServicesPanel (swarm/specs/swarm-services-panel.md)', () => {
     const user = userEvent.setup();
     const onRemove = vi.fn().mockResolvedValue(undefined);
     serviceDetailResult = { detail: { service: service(), env: [], labels: {}, tasks: [], raw: {} }, loaded: true, refresh: () => undefined };
-    renderPanel(<SwarmServicesPanel services={listing([service()])} loaded canManage onCreate={noop} onUpdate={noop} onRemove={onRemove} />);
+    renderPanel(<SwarmServicesPanel services={listing([service()])}  onCreate={noop} onUpdate={noop} onRemove={onRemove} />);
 
     await user.click(screen.getByText('blog_api'));
     await user.click(screen.getByRole('button', { name: 'Remove' }));
@@ -320,7 +358,7 @@ describe('SwarmServicesPanel (swarm/specs/swarm-services-panel.md)', () => {
   // count, which the form states instead of accepting a number."
   it('offers a replica count for a replicated service and states its absence for a global one', async () => {
     const user = userEvent.setup();
-    renderPanel(<SwarmServicesPanel services={listing<SwarmService>([])} loaded canManage onCreate={noop} onUpdate={noop} onRemove={async () => undefined} />);
+    renderPanel(<SwarmServicesPanel services={listing<SwarmService>([])}  onCreate={noop} onUpdate={noop} onRemove={async () => undefined} />);
 
     await user.click(screen.getByRole('button', { name: 'Create service' }));
     expect(screen.getByLabelText(/replica/i)).toBeInTheDocument();
@@ -336,7 +374,7 @@ describe('SwarmServicesPanel (swarm/specs/swarm-services-panel.md)', () => {
   it('creates a service with the labels typed, dropping a row with no key', async () => {
     const user = userEvent.setup();
     const onCreate = vi.fn().mockResolvedValue(service());
-    renderPanel(<SwarmServicesPanel services={listing<SwarmService>([])} loaded canManage onCreate={onCreate} onUpdate={noop} onRemove={async () => undefined} />);
+    renderPanel(<SwarmServicesPanel services={listing<SwarmService>([])}  onCreate={onCreate} onUpdate={noop} onRemove={async () => undefined} />);
 
     await user.click(screen.getByRole('button', { name: 'Create service' }));
     const dialog = document.querySelector('.ui-modal') as HTMLElement;
@@ -355,7 +393,7 @@ describe('SwarmServicesPanel (swarm/specs/swarm-services-panel.md)', () => {
   // the create dialog holds no two fields with the same accessible name; each keeps its own add action"
   it('announces the environment rows apart from the label rows in the create dialog', async () => {
     const user = userEvent.setup();
-    renderPanel(<SwarmServicesPanel services={listing<SwarmService>([])} loaded canManage onCreate={noop} onUpdate={noop} onRemove={async () => undefined} />);
+    renderPanel(<SwarmServicesPanel services={listing<SwarmService>([])}  onCreate={noop} onUpdate={noop} onRemove={async () => undefined} />);
 
     await user.click(screen.getByRole('button', { name: 'Create service' }));
     const dialog = within(document.querySelector('.ui-modal') as HTMLElement);
@@ -377,7 +415,7 @@ describe('SwarmServicesPanel (swarm/specs/swarm-services-panel.md)', () => {
   it('offers the label editor when creating a service and not when updating one', async () => {
     const user = userEvent.setup();
     serviceDetailResult = { detail: { service: service(), env: [], labels: {}, tasks: [], raw: {} }, loaded: true, refresh: () => undefined };
-    renderPanel(<SwarmServicesPanel services={listing([service()])} loaded canManage onCreate={noop} onUpdate={noop} onRemove={async () => undefined} />);
+    renderPanel(<SwarmServicesPanel services={listing([service()])}  onCreate={noop} onUpdate={noop} onRemove={async () => undefined} />);
 
     await user.click(screen.getByRole('button', { name: 'Create service' }));
     expect(within(document.querySelector('.ui-modal') as HTMLElement).getByRole('button', { name: 'Add label' })).toBeInTheDocument();
@@ -390,20 +428,43 @@ describe('SwarmServicesPanel (swarm/specs/swarm-services-panel.md)', () => {
     expect(within(updateDialog).queryByRole('button', { name: 'Add label' })).toBeNull();
   });
 
-  // "every action is absent when the daemon is not a manager"
-  it('offers no action when the daemon is not a manager', () => {
-    renderPanel(
-      <SwarmServicesPanel services={listing([service()])} loaded canManage={false} onCreate={noop} onUpdate={noop} onRemove={async () => undefined} />,
-    );
+  // swarm-services-panel.md — "**A task is listed, not described.** The tasks of the opened service
+  // are rows of the same object list the screen lists everything else with, rather than label/value
+  // pairs in the property grid: a task has a state, a node and a message, which is a row and not a
+  // property."
+  it('lists the opened service’s tasks as rows of a nested list, not as property bands', async () => {
+    const user = userEvent.setup();
+    serviceDetailResult = {
+      detail: {
+        service: service(),
+        env: [],
+        labels: {},
+        tasks: [
+          { id: 'task-1', slot: 1, nodeId: 'node-1', nodeHostname: 'manager-alpha', state: 'running', desiredState: 'running' },
+          { id: 'task-2', slot: 2, nodeId: 'w1', nodeHostname: 'worker-beta', state: 'running', desiredState: 'running' },
+        ],
+        raw: {},
+      },
+      loaded: true,
+      refresh: () => undefined,
+    };
+    renderPanel(<SwarmServicesPanel services={listing([service()])}  onCreate={noop} onUpdate={noop} onRemove={async () => undefined} />);
 
-    expect(screen.queryByRole('button', { name: 'Create service' })).toBeNull();
+    await user.click(screen.getByText('blog_api'));
+
+    const panel = document.querySelector('.ui-detail-panel') as HTMLElement;
+    expect(panel.querySelectorAll('.ui-data-table'), 'the tasks are not carried by a list of their own').toHaveLength(1);
+    expect(panel.querySelectorAll('.ui-data-table .ui-data-table__row')).toHaveLength(2);
+    // …and no band of the property grid is a task.
+    const bandLabels = [...panel.querySelectorAll('.ui-definition-list__label')].map((label) => (label.textContent ?? '').trim());
+    expect(bandLabels).not.toContain('Tasks');
   });
 
   // "Creating and updating never take a file: this panel composes a service from arguments"
   // (departure Three, REQ-83)
   it('composes a service from arguments: no file, no path, no compose editor', async () => {
     const user = userEvent.setup();
-    renderPanel(<SwarmServicesPanel services={listing<SwarmService>([])} loaded canManage onCreate={noop} onUpdate={noop} onRemove={async () => undefined} />);
+    renderPanel(<SwarmServicesPanel services={listing<SwarmService>([])}  onCreate={noop} onUpdate={noop} onRemove={async () => undefined} />);
 
     await user.click(screen.getByRole('button', { name: 'Create service' }));
 
@@ -418,7 +479,7 @@ describe('SwarmSecretsPanel (swarm/specs/swarm-secrets-panel.md)', () => {
 
   // "per secret: the name and its age (18d ago), plus the stack it belongs to when it has one"
   it('states each secret with its name and its age', () => {
-    renderPanel(<SwarmSecretsPanel secrets={listing([dataItem({ stack: 'blog' })])} loaded canManage onCreate={noop} onRemove={async () => undefined} />);
+    renderPanel(<SwarmSecretsPanel secrets={listing([dataItem({ stack: 'blog' })])}  onCreate={noop} onRemove={async () => undefined} />);
 
     expect(screen.getByText('Secrets')).toBeInTheDocument();
     expect(visibleText()).toContain('db_password');
@@ -431,7 +492,7 @@ describe('SwarmSecretsPanel (swarm/specs/swarm-secrets-panel.md)', () => {
   // affordance itself on 2026-08-14 (plan-docker_management_app-remove_copy_controls).
   it('offers no reveal of a secret, on the listing or on an opened one', async () => {
     const user = userEvent.setup();
-    renderPanel(<SwarmSecretsPanel secrets={listing([dataItem()])} loaded canManage onCreate={noop} onRemove={async () => undefined} />);
+    renderPanel(<SwarmSecretsPanel secrets={listing([dataItem()])}  onCreate={noop} onRemove={async () => undefined} />);
 
     await user.click(screen.getByText('db_password'));
 
@@ -447,7 +508,7 @@ describe('SwarmSecretsPanel (swarm/specs/swarm-secrets-panel.md)', () => {
   // first (plan-docker_management_app-remove_copy_controls/REQ-30).
   it('puts nothing but the metadata of an opened secret on screen, in its text or in any attribute', async () => {
     const user = userEvent.setup();
-    renderPanel(<SwarmSecretsPanel secrets={listing([dataItem()])} loaded canManage onCreate={noop} onRemove={async () => undefined} />);
+    renderPanel(<SwarmSecretsPanel secrets={listing([dataItem()])}  onCreate={noop} onRemove={async () => undefined} />);
 
     await user.click(screen.getByText('db_password'));
 
@@ -463,7 +524,7 @@ describe('SwarmSecretsPanel (swarm/specs/swarm-secrets-panel.md)', () => {
   // metadata, and only metadata, with a line saying the value cannot be read back"
   it('opens a secret on its metadata, saying the value cannot be read back', async () => {
     const user = userEvent.setup();
-    renderPanel(<SwarmSecretsPanel secrets={listing([dataItem()])} loaded canManage onCreate={noop} onRemove={async () => undefined} />);
+    renderPanel(<SwarmSecretsPanel secrets={listing([dataItem()])}  onCreate={noop} onRemove={async () => undefined} />);
 
     await user.click(screen.getByText('db_password'));
 
@@ -475,7 +536,7 @@ describe('SwarmSecretsPanel (swarm/specs/swarm-secrets-panel.md)', () => {
   // with no reveal control and is dropped from the form the moment it closes"
   it('asks for the value in a masked field with no reveal control', async () => {
     const user = userEvent.setup();
-    renderPanel(<SwarmSecretsPanel secrets={listing<SwarmDataItem>([])} loaded canManage onCreate={noop} onRemove={async () => undefined} />);
+    renderPanel(<SwarmSecretsPanel secrets={listing<SwarmDataItem>([])}  onCreate={noop} onRemove={async () => undefined} />);
 
     await user.click(screen.getByRole('button', { name: 'New secret' }));
 
@@ -487,7 +548,7 @@ describe('SwarmSecretsPanel (swarm/specs/swarm-secrets-panel.md)', () => {
 
   it('drops the value when the form closes, whichever way it closed', async () => {
     const user = userEvent.setup();
-    renderPanel(<SwarmSecretsPanel secrets={listing<SwarmDataItem>([])} loaded canManage onCreate={noop} onRemove={async () => undefined} />);
+    renderPanel(<SwarmSecretsPanel secrets={listing<SwarmDataItem>([])}  onCreate={noop} onRemove={async () => undefined} />);
 
     await user.click(screen.getByRole('button', { name: 'New secret' }));
     await user.type(within(document.querySelector('.ui-modal') as HTMLElement).getByLabelText(/value/i), 'typed-secret-value');
@@ -505,7 +566,7 @@ describe('SwarmSecretsPanel (swarm/specs/swarm-secrets-panel.md)', () => {
   it('creates a secret with the labels typed, so it can be recognised as its creator\'s', async () => {
     const user = userEvent.setup();
     const onCreate = vi.fn().mockResolvedValue(dataItem());
-    renderPanel(<SwarmSecretsPanel secrets={listing<SwarmDataItem>([])} loaded canManage onCreate={onCreate} onRemove={async () => undefined} />);
+    renderPanel(<SwarmSecretsPanel secrets={listing<SwarmDataItem>([])}  onCreate={onCreate} onRemove={async () => undefined} />);
 
     await user.click(screen.getByRole('button', { name: 'New secret' }));
     const dialog = document.querySelector('.ui-modal') as HTMLElement;
@@ -522,7 +583,7 @@ describe('SwarmSecretsPanel (swarm/specs/swarm-secrets-panel.md)', () => {
 
   it('clears the label rows when the form closes and again when it reopens', async () => {
     const user = userEvent.setup();
-    renderPanel(<SwarmSecretsPanel secrets={listing<SwarmDataItem>([])} loaded canManage onCreate={noop} onRemove={async () => undefined} />);
+    renderPanel(<SwarmSecretsPanel secrets={listing<SwarmDataItem>([])}  onCreate={noop} onRemove={async () => undefined} />);
 
     await user.click(screen.getByRole('button', { name: 'New secret' }));
     await addLabelRow(user, document.querySelector('.ui-modal') as HTMLElement, 1, 'left-behind', 'value');
@@ -539,7 +600,7 @@ describe('SwarmSecretsPanel (swarm/specs/swarm-secrets-panel.md)', () => {
   it('confirms a secret removal, naming the secret and what would prevent it', async () => {
     const user = userEvent.setup();
     const onRemove = vi.fn().mockResolvedValue(undefined);
-    renderPanel(<SwarmSecretsPanel secrets={listing([dataItem()])} loaded canManage onCreate={noop} onRemove={onRemove} />);
+    renderPanel(<SwarmSecretsPanel secrets={listing([dataItem()])}  onCreate={noop} onRemove={onRemove} />);
 
     await user.click(screen.getByText('db_password'));
     await user.click(screen.getByRole('button', { name: 'Remove' }));
@@ -552,28 +613,22 @@ describe('SwarmSecretsPanel (swarm/specs/swarm-secrets-panel.md)', () => {
     await waitFor(() => expect(onRemove).toHaveBeenCalledWith('sec-1'));
   });
 
-  // "creation and removal are absent when the daemon is not a manager"
-  it('offers neither creation nor removal when the daemon is not a manager', async () => {
-    const user = userEvent.setup();
-    renderPanel(<SwarmSecretsPanel secrets={listing([dataItem()])} loaded canManage={false} onCreate={noop} onRemove={async () => undefined} />);
-
-    await user.click(screen.getByText('db_password'));
-
-    expect(screen.queryByRole('button', { name: 'New secret' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull();
-  });
-
-  it('states the reason, the empty cluster or the pending read in place of a listing', () => {
-    renderPanel(<SwarmSecretsPanel secrets={listing<SwarmDataItem>([], REASON)} loaded canManage={false} onCreate={noop} onRemove={async () => undefined} />);
+  // swarm-secrets-panel.md — "with no secret listed: the empty state's title, the line saying what a
+  // secret is and that it can never be read back, and the action that creates one — withheld where
+  // the reading itself states a reason."
+  it('states the reason where the reading carries one, and offers to create a secret only where it does not', () => {
+    renderPanel(<SwarmSecretsPanel secrets={listing<SwarmDataItem>([], REASON)}  onCreate={noop} onRemove={async () => undefined} />);
     expect(screen.getByText(REASON)).toBeInTheDocument();
+    expect(
+      (document.querySelector('.ui-empty-state') as HTMLElement).querySelectorAll('button, [role="button"], a'),
+    ).toHaveLength(0);
     cleanup();
 
-    renderPanel(<SwarmSecretsPanel secrets={listing<SwarmDataItem>([])} loaded canManage onCreate={noop} onRemove={async () => undefined} />);
+    renderPanel(<SwarmSecretsPanel secrets={listing<SwarmDataItem>([])}  onCreate={noop} onRemove={async () => undefined} />);
     expect(screen.getByText('No secrets')).toBeInTheDocument();
-    cleanup();
-
-    renderPanel(<SwarmSecretsPanel secrets={listing<SwarmDataItem>([])} loaded={false} canManage onCreate={noop} onRemove={async () => undefined} />);
-    expect(screen.getByText('Reading secrets…')).toBeInTheDocument();
+    expect(
+      (document.querySelector('.ui-empty-state') as HTMLElement).querySelectorAll('button, [role="button"], a').length,
+    ).toBeGreaterThan(0);
   });
 });
 
@@ -584,16 +639,12 @@ describe('SwarmConfigsStacksPanel (swarm/specs/swarm-configs-stacks-panel.md)', 
   function renderConfigsStacks(overrides: {
     configs?: SwarmListing<SwarmDataItem>;
     stacks?: SwarmListing<SwarmStack>;
-    loaded?: boolean;
-    canManage?: boolean;
     onRemoveStack?: (name: string) => Promise<typeof removalResult>;
   } = {}) {
     renderPanel(
       <SwarmConfigsStacksPanel
         configs={overrides.configs ?? listing([dataItem({ kind: 'config', id: 'cfg-1', name: 'nginx_conf' })])}
         stacks={overrides.stacks ?? listing([stack()])}
-        loaded={overrides.loaded ?? true}
-        canManage={overrides.canManage ?? true}
         onCreateConfig={noop}
         onRemoveConfig={async () => undefined}
         onRemoveStack={overrides.onRemoveStack ?? (async () => removalResult)}
@@ -601,41 +652,54 @@ describe('SwarmConfigsStacksPanel (swarm/specs/swarm-configs-stacks-panel.md)', 
     );
   }
 
-  // "one card titled 'Configs & stacks', holding two labelled groups ...: the configs first, the
-  // stacks below them"; "per stack: the name and a line counting its services, secrets, configs and
-  // networks"
-  it('holds the configs and the stacks, each with what the daemon says of them', () => {
+  // swarm-configs-stacks-panel.md — "**two cards, one per inventory** — `Configs` then `Stacks`",
+  // which is what repairs the alignment REQ-54 measures: the single card that held both had to label
+  // its first list inside its own body.
+  it('draws one card per inventory, each with what the daemon says of it', () => {
     renderConfigsStacks();
 
-    expect(screen.getByText('Configs & stacks')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Configs' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Stacks' })).toBeInTheDocument();
+    expect(screen.queryByText('Configs & stacks'), 'the single two-inventory card survives').toBeNull();
     expect(visibleText()).toContain('nginx_conf');
     expect(visibleText()).toContain('blog');
-    // The counting line names all four kinds of object the stack is made of.
+    // The counting columns name all four kinds of object the stack is made of.
     expect(visibleText()).toMatch(/service/i);
     expect(visibleText()).toMatch(/network/i);
   });
 
-  // "for the opened stack: one row per service with its image, mode and running/desired replicas"
-  it('opens a stack on the services that make it up', async () => {
-    const user = userEvent.setup();
+  // REQ-54 / swarm-configs-stacks-panel.md — "each carries one section header and starts its content
+  // 0px under it". No sublabel is supplied anywhere on this screen: the arrangement that would have
+  // needed one is gone.
+  it('supplies no header sublabel and no inner label of its own', () => {
     renderConfigsStacks();
 
-    await user.click(screen.getByText('blog'));
+    expect(document.querySelectorAll('.ui-section-header__sublabel')).toHaveLength(0);
+    // The eyebrow header that used to label the first list inside the card body is gone with it.
+    expect(document.querySelectorAll('.ui-section-header--eyebrow')).toHaveLength(0);
+  });
 
+  // "a stack's services are carried by the row, not by a selection: ... a nested header-less list in
+  // the row's own content" — so they are on screen with nothing selected at all.
+  it('carries a stack’s services in the row itself, opened or not', () => {
+    renderConfigsStacks();
+
+    expect(document.querySelectorAll('.ui-detail-panel'), 'a stack was opened before anything was clicked').toHaveLength(0);
+    const nested = document.querySelectorAll('.ui-data-table__row-content .ui-data-table');
+    expect(nested, 'a stack row carries no nested list of its services').toHaveLength(1);
     expect(visibleText()).toContain('blog_api');
     expect(visibleText()).toContain('alpine:3.20');
     expect(visibleText()).toContain('2/3');
   });
 
-  // "'Remove stack' -> asks the confirmation service, naming the stack and stating that its
+  // "'Remove' on a stack -> asks the confirmation service, naming the stack and stating that its
   // services, secrets, configs and networks all go; on success it reports what was actually removed"
   it('confirms a stack removal, naming everything that goes, and reports what went', async () => {
     const user = userEvent.setup();
     const onRemoveStack = vi.fn().mockResolvedValue(removalResult);
-    renderConfigsStacks({ onRemoveStack });
+    renderConfigsStacks({ stacks: listing([stack()]), configs: listing<SwarmDataItem>([]), onRemoveStack });
 
-    await user.click(screen.getByText('blog'));
-    await user.click(screen.getByRole('button', { name: 'Remove stack' }));
+    await user.click(screen.getByRole('button', { name: 'Remove' }));
 
     const dialog = confirmation();
     expect(dialog.textContent).toContain('blog');
@@ -689,8 +753,6 @@ describe('SwarmConfigsStacksPanel (swarm/specs/swarm-configs-stacks-panel.md)', 
       <SwarmConfigsStacksPanel
         configs={listing<SwarmDataItem>([])}
         stacks={listing<SwarmStack>([])}
-        loaded
-        canManage
         onCreateConfig={onCreateConfig}
         onRemoveConfig={async () => undefined}
         onRemoveStack={async () => removalResult}
@@ -708,27 +770,20 @@ describe('SwarmConfigsStacksPanel (swarm/specs/swarm-configs-stacks-panel.md)', 
     expect(onCreateConfig.mock.calls[0]![0]).toMatchObject({ name: 'nginx_conf', labels: { 'vexel.test.run': '42' } });
   });
 
-  // "creation and removal are absent when the daemon is not a manager"
-  it('offers neither creation nor removal when the daemon is not a manager', async () => {
-    const user = userEvent.setup();
-    renderConfigsStacks({ canManage: false });
-
-    await user.click(screen.getByText('blog'));
-
-    expect(screen.queryByRole('button', { name: 'New config' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Remove stack' })).toBeNull();
-  });
-
-  // "with nothing to show in a group: the reason the listing carries, 'No configs' / 'No stacks' on
-  // a manager with none"
-  it('states the reason, or that there is none, for each group on its own', () => {
+  // swarm-configs-stacks-panel.md — "for the stacks, the title, the line saying that a stack
+  // deployed from a terminal appears here, and **no** action — nothing in this application deploys
+  // one"; for the configs, the action that creates one, withheld where the reading states a reason.
+  it('states each empty inventory on its own, the stacks with no action at all', () => {
     renderConfigsStacks({ configs: listing<SwarmDataItem>([]), stacks: listing<SwarmStack>([]) });
 
     expect(screen.getByText('No configs')).toBeInTheDocument();
     expect(screen.getByText('No stacks')).toBeInTheDocument();
+    const [configs, stacks] = [...document.querySelectorAll<HTMLElement>('.ui-empty-state')];
+    expect(configs!.querySelectorAll('button, [role="button"], a').length, 'the empty configs inventory offers no action').toBeGreaterThan(0);
+    expect(stacks!.querySelectorAll('button, [role="button"], a'), 'the empty stacks inventory offers an action').toHaveLength(0);
     cleanup();
 
-    renderConfigsStacks({ configs: listing<SwarmDataItem>([], REASON), stacks: listing<SwarmStack>([], REASON), canManage: false });
+    renderConfigsStacks({ configs: listing<SwarmDataItem>([], REASON), stacks: listing<SwarmStack>([], REASON) });
     expect(screen.getAllByText(REASON).length).toBeGreaterThan(0);
   });
 });

@@ -31,6 +31,7 @@ const clientRoot = process.cwd();
  * - batch 9 — contexts (`REQ-42` … `REQ-45`)
  * - batch 10 — plugins (`REQ-46` … `REQ-48`)
  * - batch 11 — compose (`REQ-49` … `REQ-51`)
+ * - batch 12 — swarm (`REQ-52` … `REQ-56`)
  */
 const MIGRATED_FILES = [
   'src/builders/BuildersScreen.tsx',
@@ -38,6 +39,10 @@ const MIGRATED_FILES = [
   'src/contexts/ContextsScreen.tsx',
   'src/plugins/PluginsScreen.tsx',
   'src/registries/RegistriesScreen.tsx',
+  'src/swarm/SwarmConfigsStacksPanel.tsx',
+  'src/swarm/SwarmNodesPanel.tsx',
+  'src/swarm/SwarmSecretsPanel.tsx',
+  'src/swarm/SwarmServicesPanel.tsx',
   'src/volumes-networks/NetworksPanel.tsx',
   'src/volumes-networks/VolumesPanel.tsx',
   'src/volumes-networks/VolumesNetworksScreen.tsx',
@@ -74,6 +79,10 @@ describe('the library layer is consumed only by the screens migrated onto it (RE
       'src/contexts/ContextsScreen.tsx',
       'src/plugins/PluginsScreen.tsx',
       'src/registries/RegistriesScreen.tsx',
+      'src/swarm/SwarmConfigsStacksPanel.tsx',
+      'src/swarm/SwarmNodesPanel.tsx',
+      'src/swarm/SwarmSecretsPanel.tsx',
+      'src/swarm/SwarmServicesPanel.tsx',
       'src/volumes-networks/NetworksPanel.tsx',
       'src/volumes-networks/VolumesPanel.tsx',
     ]);
@@ -83,16 +92,28 @@ describe('the library layer is consumed only by the screens migrated onto it (RE
   // chips there, the repositories list its tag chips, and the compose list the nested header-less
   // list of a project's services — which is the composition `GroupedRowsPanel` was retired against
   // (`REQ-49`), so it is stated here rather than answered by a component of its own
-  it('has row content rendered by the networks list, the repositories list and the compose list', () => {
+  it('has row content rendered by the networks list, the repositories list, the compose list and the stacks list', () => {
     expect(featureCallSites(/renderRowContent[=:]/)).toEqual([
       'src/compose/ComposeScreen.tsx',
       'src/registries/RegistriesScreen.tsx',
+      'src/swarm/SwarmConfigsStacksPanel.tsx',
       'src/volumes-networks/NetworksPanel.tsx',
     ]);
   });
 
-  // section-header.md — the same-baseline sublabel, whose first consumer is the swarm bottom row: no
-  // migrated screen states one yet
+  /**
+   * section-header.md — the same-baseline sublabel, which **no screen consumes and none is now
+   * expected to**.
+   *
+   * This expectation was written awaiting "the swarm bottom row" as its first consumer, on the
+   * premise that `Configs & stacks` carried a `CONFIGS` sublabel its neighbour `Secrets` did not.
+   * Batch 12 established there never was one — `sublabel` appears nowhere in `src/` outside the
+   * library, before the migration or after it — and that the 25.4px offset REQ-54 measured came from
+   * a `SectionHeader variant="eyebrow"` **inside the card body**, which is what a single card
+   * holding two inventories needed. Two cards, one per inventory, remove the cause; the sublabel had
+   * nothing to repair. So the empty list below is a **fact about the tree**, not a debt awaiting a
+   * first consumer, and the primitive's own guarantee stays covered by its unit test.
+   */
   it('has no screen supplying a header sublabel', () => {
     expect(featureCallSites(/\bsublabel[=:]/)).toEqual([]);
   });
@@ -100,25 +121,23 @@ describe('the library layer is consumed only by the screens migrated onto it (RE
   // detail-panel.md — properties as a structural prop rather than a hand-built grid; the
   // build-cache record's panel is the third (builders-screen.md, REQ-39), the context's the fourth,
   // where it is the route out of the endpoint the row truncates (REQ-21, REQ-42), the daemon
-  // plugin's inspection the fifth (plugins-screen.md, REQ-46) and the compose project's the sixth
-  // (compose-screen.md, REQ-50)
+  // plugin's inspection the fifth (plugins-screen.md, REQ-46), the compose project's the sixth
+  // (compose-screen.md, REQ-50) and swarm's four panels the last of the migrations (REQ-55)
   it('has the panel properties stated through the new props by the migrated panels', () => {
-    expect(featureCallSites(/\bproperties=\{/)).toEqual([
+    const panelsWithProperties = [
       'src/builders/BuildersScreen.tsx',
       'src/compose/ComposeScreen.tsx',
       'src/contexts/ContextsScreen.tsx',
       'src/plugins/PluginsScreen.tsx',
+      'src/swarm/SwarmConfigsStacksPanel.tsx',
+      'src/swarm/SwarmNodesPanel.tsx',
+      'src/swarm/SwarmSecretsPanel.tsx',
+      'src/swarm/SwarmServicesPanel.tsx',
       'src/volumes-networks/NetworksPanel.tsx',
       'src/volumes-networks/VolumesPanel.tsx',
-    ]);
-    expect(featureCallSites(/\bpropertiesContentClass=/)).toEqual([
-      'src/builders/BuildersScreen.tsx',
-      'src/compose/ComposeScreen.tsx',
-      'src/contexts/ContextsScreen.tsx',
-      'src/plugins/PluginsScreen.tsx',
-      'src/volumes-networks/NetworksPanel.tsx',
-      'src/volumes-networks/VolumesPanel.tsx',
-    ]);
+    ];
+    expect(featureCallSites(/\bproperties=\{/)).toEqual(panelsWithProperties);
+    expect(featureCallSites(/\bpropertiesContentClass=/)).toEqual(panelsWithProperties);
   });
 
   // action-button-group.md — an action's weight is the only thing a caller says about it. The
@@ -128,7 +147,8 @@ describe('the library layer is consumed only by the screens migrated onto it (RE
   // click on it and must not read as the statement beside it (REQ-43); the plugins screen because
   // removing a daemon plugin takes its data with it (REQ-46, plugins-screen.md); the compose screen
   // because bringing a stack down removes every container of it while bringing it up does not
-  // (REQ-49, compose-screen.md).
+  // (REQ-49, compose-screen.md); and each swarm panel because removing a node, a service, a secret,
+  // a config or a stack is destructive (REQ-55).
   it('has an action weight declared by the migrated screens', () => {
     expect(featureCallSites(/\bweight\s*[:=]/)).toEqual([
       'src/builders/BuildersScreen.tsx',
@@ -136,6 +156,10 @@ describe('the library layer is consumed only by the screens migrated onto it (RE
       'src/contexts/ContextsScreen.tsx',
       'src/plugins/PluginsScreen.tsx',
       'src/registries/RegistriesScreen.tsx',
+      'src/swarm/SwarmConfigsStacksPanel.tsx',
+      'src/swarm/SwarmNodesPanel.tsx',
+      'src/swarm/SwarmSecretsPanel.tsx',
+      'src/swarm/SwarmServicesPanel.tsx',
       'src/volumes-networks/NetworksPanel.tsx',
       'src/volumes-networks/VolumesPanel.tsx',
     ]);

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '../support/test.js';
+import { expect, test, type Locator, type Page } from '../support/test.js';
 import { CASE_LABEL, OWNER_LABEL, RUN_ID, openApp } from '../support/fixtures.js';
 import { execFileAsync } from '../../../server/test/support/docker-cli.js';
 
@@ -34,7 +34,27 @@ function screenContent(page: Page) {
 }
 
 function panel(page: Page, title: string) {
-  return screenContent(page).locator('.ui-surface').filter({ has: page.getByRole('heading', { level: 2, name: title }) });
+  return screenContent(page).locator('.ui-surface').filter({ has: page.getByRole('heading', { level: 2, name: title, exact: true }) });
+}
+
+/**
+ * The row an object is listed on, since batch 12 put these inventories on the
+ * object list (`plan-ui-coherence-optimisation/REQ-55`).
+ */
+function row(card: Locator, name: string): Locator {
+  return card.locator('.ui-data-table__row').filter({ hasText: name });
+}
+
+/**
+ * A real pointer at the visible control's own coordinates, never
+ * `element.click()`; a **row** is clicked on its first cell, because below the
+ * desktop breakpoint the row is wider than the box it is read in (CLAUDE.md,
+ * "What a check drives, and what it measures").
+ */
+async function clickAtItsOwnCentre(page: Page, target: Locator): Promise<void> {
+  await target.scrollIntoViewIfNeeded();
+  const box = (await target.boundingBox())!;
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 }
 
 test.beforeAll(async () => {
@@ -79,9 +99,11 @@ test('shows an active swarm with its cluster facts, and the node the daemon is',
 });
 
 // plan-docker_management_app/REQ-80 — the join tokens can be displayed. swarm-screen.md — "each
-// hidden until asked for, copyable, and each rotatable on the spot; the tokens are read when the
-// dialog opens and dropped when it closes". Nothing is rotated here: a rotation invalidates the
-// token for everyone, and the browser has nothing to add to what the server suite already proves.
+// hidden until asked for and each rotatable on the spot; the tokens are read when the dialog opens
+// and dropped when it closes"; the clause naming a copy affordance went with the affordance itself
+// on 2026-08-14 (`plan-docker_management_app-remove_copy_controls`/REQ-21). Nothing is rotated here:
+// a rotation invalidates the token for everyone, and the browser has nothing to add to what the
+// server suite already proves.
 test('shows the join tokens only after an explicit reveal, and drops them when the dialog closes', async ({ page }) => {
   await screenContent(page).getByRole('button', { name: 'Join tokens' }).click();
   const dialog = page.locator('.ui-modal');
@@ -125,12 +147,14 @@ test('creates a secret whose value is displayed by nothing, then removes it', as
     // Every fixture carries the ownership labels (CLAUDE.md), and the creation
     // form is where a swarm object gets them: typed here rather than added
     // behind the application's back.
+    // The label editor names its rows after the field they belong to, so the
+    // dialog holds no two controls with the same accessible name.
     await dialog.getByRole('button', { name: 'Add label' }).click();
-    await dialog.getByLabel('Key 1').fill(OWNER_LABEL);
-    await dialog.getByLabel('Value 1').fill(RUN_ID);
+    await dialog.getByLabel('Labels Key 1').fill(OWNER_LABEL);
+    await dialog.getByLabel('Labels Value 1').fill(RUN_ID);
     await dialog.getByRole('button', { name: 'Add label' }).click();
-    await dialog.getByLabel('Key 2').fill(CASE_LABEL);
-    await dialog.getByLabel('Value 2').fill('swarm-cluster-secret');
+    await dialog.getByLabel('Labels Key 2').fill(CASE_LABEL);
+    await dialog.getByLabel('Labels Value 2').fill('swarm-cluster-secret');
 
     await dialog.getByRole('button', { name: 'Create', exact: true }).click();
     await expect(dialog).toHaveCount(0);
@@ -143,9 +167,12 @@ test('creates a secret whose value is displayed by nothing, then removes it', as
     // invariant in swarm-endpoints.md, and CLAUDE.md's ownership rule).
     const { stdout: owned } = await execFileAsync('docker', ['secret', 'ls', '--filter', `label=${OWNER_LABEL}=${RUN_ID}`, '--format', '{{.Name}}']);
     expect(owned.split('\n').map((name) => name.trim())).toContain(SECRET_NAME);
-    // ...and opening it shows metadata, saying the value cannot be read back.
-    await secrets.getByText(SECRET_NAME).click();
-    await expect(secrets.getByText(/never displayed|cannot be read|not read/i)).toBeVisible();
+    // ...and opening it — on the row's first cell, with a real pointer — reveals
+    // its metadata in the detail panel, saying the value cannot be read back.
+    const secretRow = row(secrets, SECRET_NAME);
+    await clickAtItsOwnCentre(page, secretRow.locator('.ui-data-table__cell').first());
+    await expect(secrets.locator('.ui-detail-panel')).toHaveCount(1, { timeout: 20_000 });
+    await expect(secrets.locator('.ui-detail-panel').getByText(/never displayed|cannot be read|not read/i)).toBeVisible();
 
     // The value is nowhere: not on the page, not in any answer the browser got.
     expect(await page.content()).not.toContain(SECRET_VALUE);
@@ -154,8 +181,9 @@ test('creates a secret whose value is displayed by nothing, then removes it', as
       expect(body).not.toContain(SECRET_VALUE);
     }
 
-    // ...and it is removed through the interface, confirmation and all.
-    await secrets.getByRole('button', { name: 'Remove' }).click();
+    // ...and it is removed through the interface, from its own row's action
+    // cluster, confirmation and all.
+    await clickAtItsOwnCentre(page, secretRow.getByRole('button', { name: 'Remove' }));
     const confirmation = page.locator('.ui-modal');
     await expect(confirmation).toContainText(SECRET_NAME);
     await confirmation.getByRole('button', { name: /remove|confirm/i }).click();
