@@ -46,7 +46,7 @@ function stopPropagation(event: MouseEvent) {
  */
 export function GroupedRowsPanel({ groups, selectedGroupId, onSelectGroup, emptyState }: GroupedRowsPanelProps) {
   if (groups.length === 0) {
-    return <div className="ui-grouped-rows-panel__empty">{emptyState ?? <EmptyState title="Nothing to show." />}</div>;
+    return <div className="ui-grouped-rows-panel__empty">{emptyState ?? <EmptyState title="Nothing to show." description={null} action={null} />}</div>;
   }
   return (
     <div className="ui-grouped-rows-panel">

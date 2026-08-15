@@ -1,8 +1,18 @@
+/* The panel takes the whole width of what it is placed in, always: it is prose
+   and values to be read, so a raw payload block inside it gets the panel's
+   width rather than a column's leftover. `width: 100%` states it rather than
+   inheriting it from being a block box, so the guarantee survives the panel
+   being placed in a flex or inline context. Where the panel is placed remains
+   the caller's — what the component refuses is being narrow once it is there.
+   Above it, the list's own contract pins an open expansion to the box the list
+   is read in (`data-table.css`), so the panel is never panned either. */
 .ui-detail-panel {
   position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  width: 100%;
+  min-width: 0;
   padding: var(--space-1) 0 var(--space-4);
 }
 
@@ -55,4 +65,12 @@
 
 .ui-detail-panel__body {
   min-width: 0;
+}
+
+/* The step between the property grid and whatever the panel says after it. On
+   the grid itself rather than on the body, so a body that carries content alone
+   — every panel delivered before the grid became structural — keeps the block
+   flow it has always had. */
+.ui-detail-panel__properties:not(:last-child) {
+  margin-bottom: var(--space-3);
 }

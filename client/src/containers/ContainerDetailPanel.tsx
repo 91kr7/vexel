@@ -438,7 +438,7 @@ export function ContainerDetailPanel({ container, onClose, onContainerReplaced }
           <>
             {error ? <ErrorBanner title="Could not load container details" detail={error} onRetry={refresh} /> : null}
             {!inspect ? (
-              <EmptyState title={loaded ? 'No inspect data available' : 'Loading container details…'} />
+              <EmptyState title={loaded ? 'No inspect data available' : 'Loading container details…'}  description={null} action={null} />
             ) : activeTab === 'config' ? (
               renderConfigView(inspect)
             ) : (

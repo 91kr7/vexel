@@ -9,6 +9,16 @@ type: UI component
 **Purpose** → one card per group with a header carrying its own actions, over its indented child
 rows each carrying a trailing control — e.g. a compose project and its services.
 
+**Retiring.** It is not the answer to "how is a grouped list presented": `DataTable`'s comfortable
+variant is, with the group's children in `renderRowContent` as a nested `hideHeader` comfortable
+list. That composition shares the row rendering, the column contract, the action cluster and the
+truncation contract instead of duplicating them, and it exists today — no new API is needed to reach
+it. This component has one call site (compose), which migrates in batch 11 of
+`plan-ui-coherence-optimisation`; the component, its export, its stylesheet and this spec go with
+that migration. It is left rendering exactly as delivered until then, because rebuilding its
+internals in the foundation batch would move the one screen that uses it, which that batch forbids
+(REQ-30).
+
 ## Contract
 
 - `<GroupedRowsPanel groups selectedGroupId? onSelectGroup? emptyState? />`
@@ -35,3 +45,4 @@ Shows:
 
 - plan-docker_management_app/REQ-75
 - plan-docker_management_app/REQ-76
+- plan-ui-coherence-optimisation/REQ-22

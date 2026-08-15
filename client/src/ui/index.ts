@@ -48,7 +48,13 @@ export { TextField, type TextFieldProps } from './controls/TextField';
 export { SearchField, type SearchFieldProps } from './controls/SearchField';
 export { SecretField, type SecretFieldProps } from './controls/SecretField';
 export { FilterChips, type FilterChipsProps, type FilterChipOption } from './controls/FilterChips';
-export { ActionButtonGroup, type ActionButtonGroupProps, type ActionButtonGroupOverflow, type RowAction } from './controls/ActionButtonGroup';
+export {
+  ActionButtonGroup,
+  type ActionButtonGroupProps,
+  type ActionButtonGroupOverflow,
+  type ActionWeight,
+  type RowAction,
+} from './controls/ActionButtonGroup';
 export { Menu, type MenuProps, type MenuEntry } from './controls/Menu';
 export { BulkActionBar, type BulkActionBarProps, type BulkActionBarAction } from './controls/BulkActionBar';
 export { FilePicker, type FilePickerProps } from './controls/FilePicker';
@@ -81,7 +87,13 @@ export { TailSizeSelector, type TailSizeSelectorProps, type TailSize } from './c
 export { TimeRangeField, type TimeRangeFieldProps, type TimeRange } from './controls/TimeRangeField';
 export { StreamSearchField, type StreamSearchFieldProps } from './controls/StreamSearchField';
 
-export { DataTable, type DataTableProps, type DataTableColumn, type DataTableSelection } from './data/DataTable';
+export {
+  DataTable,
+  type DataTableProps,
+  type DataTableColumn,
+  type DataTableSelection,
+  type DataTableVariant,
+} from './data/DataTable';
 export {
   StatusDotCell,
   type StatusDotCellProps,

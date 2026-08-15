@@ -590,7 +590,7 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
           onRowSelect={toggleSelection}
           expandedRowKey={selectedId}
           renderExpanded={(image) => <ImageDetailPanel image={image} onClose={() => setSelectedId(undefined)} />}
-          emptyState={<EmptyState title={loaded ? 'No images match' : 'Loading images…'} description={loaded ? 'Try a different search.' : undefined} />}
+          emptyState={<EmptyState title={loaded ? 'No images match' : 'Loading images…'} description={loaded ? 'Try a different search.' : null}  action={null} />}
           selection={{
             selectedKeys: selectedIds,
             onToggle: toggleSelectImage,

@@ -209,7 +209,7 @@ export function ComposeScreen({ projects, loaded, error, onRefresh }: ComposeScr
           groups={groups}
           selectedGroupId={selectedName}
           onSelectGroup={(group) => selectProject(projects.find((project) => project.name === group.id) ?? projects[0])}
-          emptyState={<EmptyState title={loaded ? 'No compose projects' : 'Loading compose projects…'} />}
+          emptyState={<EmptyState title={loaded ? 'No compose projects' : 'Loading compose projects…'}  description={null} action={null} />}
         />
       </Stack>
       <Stack gap="var(--space-4)">
@@ -219,7 +219,7 @@ export function ComposeScreen({ projects, loaded, error, onRefresh }: ComposeScr
             trailing={composeFile.dirtyPaths.length > 0 ? <Badge tone="warning">Unsaved</Badge> : undefined}
           />
           {!selectedProject ? (
-            <EmptyState title="No project selected" />
+            <EmptyState title="No project selected"  description={null} action={null} />
           ) : composeFile.error && composeFile.files.length === 0 ? (
             <ErrorBanner title="Could not read the compose file" detail={composeFile.error} />
           ) : (
@@ -234,7 +234,7 @@ export function ComposeScreen({ projects, loaded, error, onRefresh }: ComposeScr
                   statusLine={validationSummary}
                 />
               ) : (
-                <EmptyState title={composeFile.loaded ? 'No compose file discovered' : 'Loading compose file…'} />
+                <EmptyState title={composeFile.loaded ? 'No compose file discovered' : 'Loading compose file…'}  description={null} action={null} />
               )}
               <Row justify="between" align="center">
                 <Button variant="secondary" onClick={() => void composeFile.validate()} disabled={!selectedProject || composeFile.validating}>

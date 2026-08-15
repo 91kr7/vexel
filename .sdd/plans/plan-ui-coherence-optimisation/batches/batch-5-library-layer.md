@@ -44,10 +44,62 @@ batches in which the component is still exported.
 | INT-12 | modify | `client/scripts/check-ui-conformance.mjs` | **The retirement guard**, and the one planned edit this plan makes to this file. Hold the **expected number of `CardList` call sites in feature code**, seeded with the count measured at the start of the programme, and fail when the actual count differs **in either direction** — higher means a screen acquired a new call site during the window in which the component is still exported, lower means a migration landed without the budget being lowered deliberately. Batches 6 to 12 each lower it; batch 13 requires **zero** and removes the check with the component. Touch **nothing** in the file's blur half: `blurAllowedOverlaySelectors` and every blur rule stay byte-identical. | REQ-94 | INT-1 |
 | INT-11 | modify | `.sdd/modules/ui-library/index.md` and the specs of every component touched | Record what each component now guarantees, and — the part that makes the programme stick — **which question each is the one answer to**. A later reader must be able to see that there is one list, one panel shape, one empty state, one section header and one action rule, and that choosing otherwise is not an option the library offers. English only. | REQ-22 … REQ-28 | INT-1 … INT-8 |
 
+## Measured at implementation — three of this batch's premises did not survive the code
+
+Recorded here, with figures, so that the batches downstream are scoped from a measurement rather
+than from a sentence written before the call sites were counted.
+
+**1. `EmptyState`'s incompleteness is an order of magnitude larger than INT-4 states.** INT-4 names
+compose and plugins. Counted over the tree: **49 call sites — 45 in feature code, 4 in the library —
+of which 26 pass no `description` and 42 pass no `action`.** The 26 without an explanation, by file:
+
+| Screen | Files |
+| --- | --- |
+| Volumes & networks | `VolumesPanel.tsx` ×2, `NetworksPanel.tsx` ×2 |
+| Images & layers | `LayerEfficiencyView.tsx` ×3, `LayerExplorer.tsx` ×2, `ImageDetailPanel.tsx`, `FilesystemBrowser.tsx` |
+| Compose | `ComposeScreen.tsx` ×3 |
+| Containers | `ContainerStatsView.tsx`, `ContainerProcessesView.tsx`, `ContainerDetailPanel.tsx` |
+| Contexts | `ContextsScreen.tsx` ×2 |
+| Builders & cache | `BuildersScreen.tsx` ×2 |
+| System & prune | `SystemScreen.tsx` ×2 |
+| Dashboard | `DashboardScreen.tsx` ×2 |
+| Registries | `RegistriesScreen.tsx` |
+
+So **REQ-48 and REQ-51 are not "fix two screens' empty states"**: they are the visible part of
+supplying copy nobody ever wrote. Every omission is now an explicit `null` in the source — `grep -rn
+"description={null}" client/src` finds all 26, and `action={null}` all 42 — so each batch scopes its
+share by grep rather than by a screen-by-screen audit.
+
+**2. The micro-caps treatment INT-5 attributes to `FormSection` is `FormField`'s.** `FormField`'s
+label is 12px / 600 / `0.04em` / uppercase / `--color-text-muted`; `SectionHeader`'s eyebrow is 12px
+/ 600 / `0.06em` / uppercase / `--color-text-secondary`. `FormSection`'s own title is 14px / 600 /
+sentence case / `--color-text-primary` — a *fifth* treatment, not the fourth. Unifying either with
+the eyebrow changes letter-spacing and colour in every dialog, which is REQ-79's work in F19; both
+are left as delivered here.
+
+**3. The right-aligned value REQ-34 reports on networks has a single source**, found here and left
+for batch 6 to remove: `.ui-definition-list__value { text-align: right }` in
+`client/src/ui/data/data-table.css`. It is inert for a value that fits and live for one that wraps.
+Batch 6 does not need to go looking for it.
+
+Two further corrections, without consequence for a later batch: INT-3's "within one list" would not
+have closed the case it names — volumes and networks are **two** lists in two cards, so the guarantee
+is enforced in `DetailPanel` (cross-list, cross-screen) instead; and neither of those panels uses
+`DetailPanel` today, so it is inert until batch 6 migrates them.
+
 ## Constraints on this batch
 
-- **No screen changes** (REQ-30). No feature file is in this diff at all. The only acceptable
-  feature-layer change would be a compile-forced one, and there is none: nothing is removed here.
+- **One screen change, and exactly one** (REQ-30, amended at implementation — see the acceptance in
+  `batches.md`): `EmptyState` gains the surface REQ-25 requires of it, which is visible in all 49
+  places at once because it is one component. Measured, in every container the product places it in,
+  at all three viewports: **width unchanged** (`box-sizing: border-box` is global), **height +2px**
+  (the hairline), **title +1px y**. The single `compact` call site
+  (`images/FilesystemBrowser.tsx:331`) additionally gains a `--space-4` horizontal inset: **+10px
+  height, +17px title x, +5px title y**, and **+28.85px height at 375×812**, where the inset costs
+  the description a line. Nothing else on any screen moves.
+- **Every other feature-layer change is compile-forced**, which this batch's own wording admits: the
+  `EmptyState` API tightening puts 24 feature files in the diff, each edit adding an explicit `null`
+  where a prop was absent, and each therefore render-identical.
 - **Domain-agnostic** (REQ-28): no Docker vocabulary in a name, prop or string; no fetching; data and
   callbacks arrive as props. `grep` the five components for `container`, `image`, `volume`,
   `network`, `daemon`, `swarm` and find nothing.

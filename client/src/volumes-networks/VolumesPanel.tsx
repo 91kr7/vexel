@@ -92,7 +92,7 @@ function VolumeDetail({ volume, onRemoved }: { volume: VolumeSummary; onRemoved:
     <Stack gap="var(--space-4)">
       {error ? <ErrorBanner title="Could not load volume details" detail={error} onRetry={refresh} /> : null}
       {!inspect ? (
-        <EmptyState title={loaded ? 'No inspect data available' : 'Loading volume details…'} />
+        <EmptyState title={loaded ? 'No inspect data available' : 'Loading volume details…'}  description={null} action={null} />
       ) : (
         <>
           <DefinitionList
@@ -214,7 +214,7 @@ export function VolumesPanel({ volumes, loaded, error, onRefresh }: VolumesPanel
           onSelect={handleSelect}
           expandedKey={selectedName}
           renderExpanded={(volume) => <VolumeDetail volume={volume} onRemoved={handleRemoved} />}
-          emptyState={<EmptyState title={loaded ? 'No volumes' : 'Loading volumes…'} />}
+          emptyState={<EmptyState title={loaded ? 'No volumes' : 'Loading volumes…'}  description={null} action={null} />}
         />
       </Stack>
 

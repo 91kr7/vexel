@@ -87,6 +87,44 @@
   overflow: visible;
 }
 
+/* The comfortable variant: each row on a card of its own, separated rather than
+   ruled. Everything that makes it a list — the tracks, their minimums, the pan
+   when they no longer fit, the cells and their truncation — is the dense
+   variant's, unchanged; what differs is the room a row is given and the surface
+   it is drawn on. That is why this is a variant and not a second component: a
+   screen choosing between them chooses a density, never a set of behaviours. */
+.ui-data-table--comfortable .ui-data-table__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* The card is the carrier (`Surface`), so the row inside it draws no border of
+   its own and rounds nothing: two rounded edges inside one card read as a box
+   in a box. */
+.ui-data-table__row--comfortable {
+  align-items: center;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: none;
+}
+
+/* Content the row always carries, below its cells and outside the selectable
+   row: chips with their own actions, or the nested list that makes this a
+   grouped list. It is inside the same card, so it is inset to the row's own
+   padding and adds no separation of its own. */
+.ui-data-table__row-content {
+  padding: 0 var(--space-5) var(--space-4);
+}
+
+/* Inside a card the expansion is separated from the row by a rule rather than
+   by the wash the dense variant uses: the card already sets it apart from the
+   list around it. */
+.ui-data-table--comfortable .ui-data-table__expanded {
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  border-top: var(--border-width-hairline) solid var(--color-border-subtle);
+  background: none;
+}
+
 .ui-data-table__row:hover {
   background: var(--color-surface-2);
 }

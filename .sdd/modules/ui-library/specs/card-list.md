@@ -11,6 +11,20 @@ dense table (images, builders, contexts, registries, plugins): title, monospace 
 trailing badge group and meta values, selectable, with an optional expanded content slot rendered
 inside the same card.
 
+**Retiring — this is the second list, and the product has one.** `DataTable`'s comfortable variant
+is the answer to "how is a list of objects presented" (`data-table.md`), and it presents everything
+this component does: the title and monospace subtitle as a `TwoLineCell`, the trailing badges and
+meta values as their own columns, the leading state dot as a `StatusDotCell`, the always-visible
+extra content as `renderRowContent`, the expansion as `renderExpanded` inside the same card, and an
+active-selection set as a marker column plus a `'primary'`-weight `use` action in the row's
+`ActionButtonGroup`. What the swap adds is the column contract: aligned columns down the list, no
+track collapsing to zero, and a pan instead of a wrap when the width runs out.
+
+It cannot be deleted while its call sites stand, so until they are gone the count is **pinned by a
+build check** (`ui-conformance-check.md`) that fails on a new call site as loudly as on an
+undeclared removal. Seventeen at the start of `plan-ui-coherence-optimisation`, zero at its batch 13,
+where this component, its export, its stylesheet, this spec and that check are removed together.
+
 ## Contract
 
 - `<CardList items itemKey renderRow selectedKey? onSelect? expandedKey? renderExpanded?
@@ -85,3 +99,4 @@ inside the same card.
 - plan-ui-coherence-optimisation/REQ-17
 - plan-ui-coherence-optimisation/REQ-18
 - plan-ui-coherence-optimisation/REQ-19
+- plan-ui-coherence-optimisation/REQ-94

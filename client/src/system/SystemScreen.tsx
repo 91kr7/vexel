@@ -181,7 +181,7 @@ export function SystemScreen() {
           {daemon.info ? (
             <DefinitionList items={daemonItems(daemon.info)} />
           ) : daemon.error ? null : (
-            <EmptyState title={daemon.loaded ? 'The daemon reported nothing' : 'Reading the daemon…'} />
+            <EmptyState title={daemon.loaded ? 'The daemon reported nothing' : 'Reading the daemon…'}  description={null} action={null} />
           )}
         </Stack>
       </Card>
@@ -204,7 +204,7 @@ export function SystemScreen() {
           ) : null}
 
           {categories.length === 0 ? (
-            <EmptyState title={diskUsage.loaded ? 'The daemon reported no disk usage' : 'Reading the disk usage…'} />
+            <EmptyState title={diskUsage.loaded ? 'The daemon reported no disk usage' : 'Reading the disk usage…'}  description={null} action={null} />
           ) : (
             <Stack gap="0">
               {categories.map((category) => (

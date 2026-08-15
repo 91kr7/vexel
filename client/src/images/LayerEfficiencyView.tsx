@@ -184,7 +184,7 @@ export function LayerEfficiencyView({ image, open, onClose, onNavigateToLayer, o
                     View layer {file.layerIndex + 1}
                   </Button>
                 )}
-                emptyState={<EmptyState title="No wasted files found" />}
+                emptyState={<EmptyState title="No wasted files found"  description={null} action={null} />}
               />
             </Stack>
 
@@ -206,7 +206,7 @@ export function LayerEfficiencyView({ image, open, onClose, onNavigateToLayer, o
                     ))}
                   </Stack>
                 )}
-                emptyState={<EmptyState title="No duplicated content found" />}
+                emptyState={<EmptyState title="No duplicated content found"  description={null} action={null} />}
               />
             </Stack>
 
@@ -224,7 +224,7 @@ export function LayerEfficiencyView({ image, open, onClose, onNavigateToLayer, o
                     View introducing layer {finding.introducedLayerIndex + 1}
                   </Button>
                 )}
-                emptyState={<EmptyState title="No flagged paths found" />}
+                emptyState={<EmptyState title="No flagged paths found"  description={null} action={null} />}
               />
             </Stack>
           </Stack>

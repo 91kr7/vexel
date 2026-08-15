@@ -145,8 +145,8 @@ export function SwarmNodesPanel({ nodes, loaded, canManage, onUpdate, onRemove }
         emptyState={
           <EmptyState
             title={nodes.unavailableReason ? 'No cluster to read' : loaded ? 'No nodes' : 'Reading nodes…'}
-            description={nodes.unavailableReason}
-          />
+            description={nodes.unavailableReason ?? null}
+           action={null} />
         }
       />
     </Card>

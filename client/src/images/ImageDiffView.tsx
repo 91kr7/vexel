@@ -228,7 +228,7 @@ export function ImageDiffView({ images, initialImageAId, initialImageBId, open, 
           <EmptyState
             title="No comparison yet"
             description="Pick two images and start a comparison to see their filesystem differences."
-          />
+           action={null} />
         ) : (
           <SplitPane
             startWidth="360px"
@@ -242,14 +242,14 @@ export function ImageDiffView({ images, initialImageAId, initialImageBId, open, 
                 selectedId={selectedPath}
                 onSelect={(node) => setSelectedPath(node.id)}
                 maxHeight="480px"
-                emptyState={<EmptyState title="No differences" description="These two images have identical filesystems." />}
+                emptyState={<EmptyState title="No differences" description="These two images have identical filesystems."  action={null} />}
                 statusFilter={statusFilter}
                 onStatusFilterChange={setStatusFilter}
               />
             }
             end={
               selectedPath === undefined ? (
-                <EmptyState title="No path selected" description="Select an added, removed or changed path to see what changed." />
+                <EmptyState title="No path selected" description="Select an added, removed or changed path to see what changed."  action={null} />
               ) : !selectedEntry ? (
                 <Spinner label="Loading entry" />
               ) : (

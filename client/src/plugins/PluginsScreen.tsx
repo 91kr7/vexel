@@ -227,8 +227,8 @@ export function PluginsScreen() {
               emptyState={
                 <EmptyState
                   title={plugins.loaded ? 'No CLI plugins' : 'Reading the installation…'}
-                  description={plugins.cli.unavailableReason}
-                />
+                  description={plugins.cli.unavailableReason ?? null}
+                 action={null} />
               }
             />
           </Stack>
@@ -258,8 +258,8 @@ export function PluginsScreen() {
               emptyState={
                 <EmptyState
                   title={plugins.loaded ? 'No daemon plugins' : 'Reading the daemon…'}
-                  description={plugins.daemon.unavailableReason}
-                />
+                  description={plugins.daemon.unavailableReason ?? null}
+                 action={null} />
               }
             />
           </Stack>

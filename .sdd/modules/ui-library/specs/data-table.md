@@ -6,14 +6,21 @@ type: UI component
 
 # DataTable
 
-**Purpose** → the dense, column-defined table used by every list screen (containers, images,
-volumes, networks, …), with hover/selected row states and virtualised scrolling so a long list
-stays smooth (REQ-109).
+**Purpose** → **the object list of the whole product**, in two densities: the column-defined table
+used by every list screen (containers, images, volumes, networks, …), with hover/selected row
+states and virtualised scrolling so a long list stays smooth (REQ-109).
+
+**The one question it answers** → *how is a list of objects presented?* There is one answer, and
+`variant` is a choice of density inside it, never a choice between two components. A screen that
+wants roomier rows asks for `variant="comfortable"`; there is no second list to reach for, and the
+list that used to be that second answer (`CardList`) is being retired against a pinned call-site
+budget in `ui-conformance-check.md`.
 
 ## Contract
 
-- `<DataTable columns rows rowKey rowHeight? maxHeight? selectedRowKey? onRowSelect? emptyState?
-  expandedRowKey? renderExpanded? selection? hideHeader? autoRowHeight? />`
+- `<DataTable columns rows rowKey variant? rowHeight? maxHeight? selectedRowKey? onRowSelect?
+  emptyState? expandedRowKey? renderExpanded? renderRowContent? selection? hideHeader?
+  autoRowHeight? />`
   - `columns: DataTableColumn<T>[]` — `{ id, header, width?, minWidth?, align?, render(row) }`;
     `width` is a `grid-template-columns` track (default `'1fr'`); `align`: `'start' | 'end'`
     (default `'start'`).
@@ -22,6 +29,16 @@ stays smooth (REQ-109).
     and any other `width` — a length, an already-written `minmax()` — is its own minimum and is
     used as given.
   - `rows: T[]`, `rowKey(row): string`.
+  - `variant?: 'dense' | 'comfortable'` (default `'dense'`) — how much room a row is given:
+    - `'dense'` — the delivered fixed-height row in a continuous ruled grid, virtualised.
+    - `'comfortable'` — each row on a flat glass card of its own, separated rather than ruled,
+      growing to fit its content. The shape for a list whose row is a title over a monospace
+      subtitle with trailing badges and meta values: those are the existing `TableCells`
+      (`TwoLineCell`, `StatusDotCell`, `BadgeListCell`, `MetaCell`) placed in columns, not a second
+      row model. An active-selection set — one row "in use" among several — is a status column
+      carrying the marker plus a `'primary'`-weight `use` action in the row's `ActionButtonGroup`;
+      the list offers no separate affordance for it, because a control that switches something is an
+      action and belongs where actions live.
   - `rowHeight?: number` — fixed row height in px (default `56`); every row is this tall (dense
     rows).
   - `maxHeight?: string` — caps the table body height; when set, the body scrolls and only the rows
@@ -33,6 +50,12 @@ stays smooth (REQ-109).
     that row is always kept mounted (even outside the naive virtualisation window) and
     `renderExpanded(row)`'s content is inserted in normal flow directly below it (e.g. a detail
     panel), pushing the rows after it down.
+  - `renderRowContent?(row)` — content rendered inside **every** row's card, below its cells and
+    outside the selectable row itself (chips with their own actions, a nested list). Comfortable
+    rows only; a dense row is a fixed-height line and ignores it. A **grouped list** is this slot
+    holding a nested `hideHeader` comfortable list of the group's children — one list rendering
+    both levels, sharing its rows, its action cluster and its truncation contract rather than a
+    grouped component duplicating them.
   - `selection?: { selectedKeys: string[], onToggle(row), onToggleAll?(), allSelected? }` — adds a
     leading checkbox column, independent of `onRowSelect`'s single-row selection: a row's checkbox
     calls `onToggle` and reflects membership in `selectedKeys`; the header checkbox calls
@@ -110,13 +133,33 @@ Description:
   the row below — unless `autoRowHeight` is set, which is exactly the trade this variant makes:
   rows of differing heights, and no virtualisation, in exchange for text shown in full.
 - `autoRowHeight` and virtualisation are never both in effect: with `autoRowHeight` set, `maxHeight`
-  scrolls the body but mounts every row.
+  scrolls the body but mounts every row. **`variant="comfortable"` makes the same trade for the same
+  reason** — a row that grows to fit its content has no height known before it is rendered — so a
+  comfortable list mounts every row and `maxHeight` still scrolls it.
+- **The two variants differ in the room a row is given and the surface it is drawn on, and in
+  nothing else.** Both resolve their columns through the same tracks and the same minimums, both pan
+  rather than starve a column, both draw their cells with the same `TableCells` and therefore the
+  same truncation contract, both expand one row at a time. A screen choosing a variant chooses a
+  density, never a set of behaviours — which is what makes the nine screens migrating onto the
+  comfortable variant inherit the column repair by construction, without any of them stating a
+  column minimum.
+- **A comfortable row, the content it always carries and the panel it expands into are one card**
+  (a flat `Surface`): the row inside it draws no rule and rounds nothing of its own, and the
+  expansion is set apart from the row by a hairline rather than by the wash the dense variant uses,
+  the card already setting it apart from the list around it.
+- **At most one row is expanded in one list**, by construction: `expandedRowKey` is one key, so a
+  list cannot present two open panels. The half of that guarantee spanning *several* lists on one
+  screen is `DetailPanel`'s, which closes the panel a previous list left open.
+- A comfortable row carries no pointer cursor of its own — the same as a dense row, which is also
+  clickable. One list, one affordance.
 
 ## Dependencies
 
 - ScrollArea
+- Surface (the card a comfortable row is drawn on)
 - Design tokens (`--data-table-column-min-width`, the two action-column widths)
 - Escape arbitration (the dismissal focus target attribute)
+- Truncation contract, through the `TableCells` a caller renders into its columns
 
 ## Requirements served
 
@@ -132,3 +175,7 @@ Description:
 - plan-ui-coherence-optimisation/REQ-9
 - plan-ui-coherence-optimisation/REQ-10
 - plan-ui-coherence-optimisation/REQ-11
+- plan-ui-coherence-optimisation/REQ-22
+- plan-ui-coherence-optimisation/REQ-24
+- plan-ui-coherence-optimisation/REQ-28
+- plan-ui-coherence-optimisation/REQ-30

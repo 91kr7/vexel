@@ -6,10 +6,11 @@ type: build check
 
 # UI conformance check
 
-**Purpose** → guards, at build time, the two rules feature code and the UI library cannot be trusted
+**Purpose** → guards, at build time, the rules feature code and the UI library cannot be trusted
 to keep on their own: the UI-library boundary (no raw DOM tag, no CSS, no `className`/`style` prop
-outside `client/src/ui/`) and the blur policy (a runtime blur only on the allow-listed overlay
-surfaces, only with the bounded blur token).
+outside `client/src/ui/`), the blur policy (a runtime blur only on the allow-listed overlay
+surfaces, only with the bounded blur token), and the call-site budget of a list component being
+retired.
 
 ## Contract
 
@@ -26,6 +27,18 @@ surfaces, only with the bounded blur token).
 - a `className` or a `style` prop on a JSX element → reported as `"className" prop` / `"style" prop`
 - an `import` of a `.css` file whose specifier does not target the UI library → reported as
   `CSS import outside client/src/ui/`
+
+### Retirement budget (feature code only)
+
+- the number of `<CardList` call sites in feature code is **pinned**, not bounded: the script holds
+  the expected count and reports a violation when the actual count differs **in either direction**
+  - more than expected → a screen acquired a new call site while the component is still exported
+  - fewer than expected → a migration landed without the budget being lowered on purpose
+- the violation line states both counts, which direction they differ in, and what to do about it; it
+  carries no file or line number, being a fact about the tree rather than about one file
+- the expected count is **17** at the start of `plan-ui-coherence-optimisation`, lowered by each
+  screen migration in its own commit, and **zero** at the deletion — at which point the check is
+  removed together with the component
 
 ### Blur policy (every stylesheet under `client/src/`, the UI library's own included)
 
@@ -67,6 +80,16 @@ surfaces, only with the bounded blur token).
   stylesheet neither hide a declaration nor shift the line a violation is reported on.
 - A violation of one rule never suppresses the reporting of another: every violation found in the
   pass is listed.
+- **The retirement budget is pinned rather than a ceiling**, and that is the point: the migrations
+  it runs alongside *remove* call sites, so a count that merely fell would look like progress and
+  hide a new one appearing beside it. Requiring the number to be lowered deliberately is what makes
+  each migration state how much it retired.
+- The budget counts feature code only. The component's own definition, its spec and its export are
+  not call sites, and the library removing it is what takes the count to zero — not the check.
+- **The budget lives in the boundary half of the script and touches nothing in the blur half.**
+  `blurAllowedOverlaySelectors` and every blur rule stay byte-identical across the plan that adds
+  this budget and the batch that removes it; an edit to the blur half is a signal that something
+  went wrong, to be reported rather than made.
 
 ## Requirements served
 
@@ -74,3 +97,5 @@ surfaces, only with the bounded blur token).
 - plan-docker_management_app/REQ-108
 - plan-liquid_glass_overlays/REQ-8
 - plan-liquid_glass_overlays/REQ-9
+- plan-ui-coherence-optimisation/REQ-84
+- plan-ui-coherence-optimisation/REQ-94

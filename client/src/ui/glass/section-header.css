@@ -12,6 +12,20 @@
   color: var(--color-text-primary);
 }
 
+/* Inline, so the header is exactly as tall with a sublabel as without one and a
+   neighbouring header's baseline never moves. Its own smaller, muted treatment
+   is what keeps it legible as a qualifier of the title rather than as part of
+   it; the space before it is a margin and not a text node, so it survives a
+   line break between the two. */
+.ui-section-header__sublabel {
+  margin-inline-start: var(--space-2);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--color-text-muted);
+}
+
 .ui-section-header__description {
   margin: var(--space-1) 0 0;
   font-size: var(--font-size-sm);

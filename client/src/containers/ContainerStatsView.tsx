@@ -45,14 +45,14 @@ export function ContainerStatsView({ container }: ContainerStatsViewProps) {
   const memoryHistory = useMemo(() => samples.map((sample) => sample.memoryUsageBytes), [samples]);
 
   if (!streamable) {
-    return <EmptyState title="No live statistics" description={`${container.name} is ${container.state}: the daemon reports resource usage only while a container is up.`} />;
+    return <EmptyState title="No live statistics" description={`${container.name} is ${container.state}: the daemon reports resource usage only while a container is up.`}  action={null} />;
   }
 
   return (
     <Stack gap="var(--space-4)">
       {error ? <ErrorBanner title="Could not stream the container statistics" detail={error} onRetry={restart} /> : null}
       {!latest ? (
-        <EmptyState title="Waiting for the first sample…" />
+        <EmptyState title="Waiting for the first sample…"  description={null} action={null} />
       ) : (
         <Grid columns="repeat(auto-fit, minmax(220px, 1fr))" gap="var(--space-5)">
           <MetricTile label="CPU" value={formatPercent(latest.cpuPercent)} subLabel="of all available cores" tone={loadTone(latest.cpuPercent)}>

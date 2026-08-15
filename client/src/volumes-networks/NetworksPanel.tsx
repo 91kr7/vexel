@@ -81,7 +81,7 @@ function NetworkDetail({ network, onRemoved }: { network: NetworkSummary; onRemo
     <Stack gap="var(--space-4)">
       {error ? <ErrorBanner title="Could not load network details" detail={error} onRetry={refresh} /> : null}
       {!inspect ? (
-        <EmptyState title={loaded ? 'No inspect data available' : 'Loading network details…'} />
+        <EmptyState title={loaded ? 'No inspect data available' : 'Loading network details…'}  description={null} action={null} />
       ) : (
         <>
           <DefinitionList
@@ -270,7 +270,7 @@ export function NetworksPanel({ networks, loaded, error, onRefresh }: NetworksPa
           onSelect={handleSelect}
           expandedKey={selectedId}
           renderExpanded={(network) => <NetworkDetail network={network} onRemoved={handleRemoved} />}
-          emptyState={<EmptyState title={loaded ? 'No networks' : 'Loading networks…'} />}
+          emptyState={<EmptyState title={loaded ? 'No networks' : 'Loading networks…'}  description={null} action={null} />}
         />
       </Stack>
 

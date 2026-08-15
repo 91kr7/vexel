@@ -323,12 +323,12 @@ export function FilesystemBrowser({ image, open, onClose }: FilesystemBrowserPro
                   onSelect={(node) => setSelectedId(node.id)}
                   matchedIds={matchedIds}
                   fill
-                  emptyState={<EmptyState title="Empty filesystem" />}
+                  emptyState={<EmptyState title="Empty filesystem"  description={null} action={null} />}
                 />
               }
               end={
                 selectedId === undefined ? (
-                  <EmptyState compact title="No entry selected" description="Select a file, directory or symlink to see its details." />
+                  <EmptyState compact title="No entry selected" description="Select a file, directory or symlink to see its details."  action={null} />
                 ) : metadataState.loading ? (
                   <Spinner label="Loading entry metadata" />
                 ) : metadataState.error ? (

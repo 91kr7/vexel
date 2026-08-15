@@ -1,6 +1,7 @@
 import { Fragment, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type UIEvent } from 'react';
 import { DISMISSAL_FOCUS_TARGET_ATTRIBUTE } from '../controls/escape-arbitration';
 import { ScrollArea } from '../glass/ScrollArea';
+import { Surface } from '../glass/Surface';
 import './data-table.css';
 
 export interface DataTableColumn<T> {
@@ -25,6 +26,25 @@ export interface DataTableSelection<T> {
   allSelected?: boolean;
 }
 
+/**
+ * How much room a row is given, and therefore what a list of objects looks
+ * like. **These are the only two, and they are variants of one component**: an
+ * object list is never a second component placed beside this one.
+ *
+ * - `dense` — the delivered fixed-height row, virtualised: a long list scanned
+ *   column by column.
+ * - `comfortable` — each row on a card of its own, growing to fit a title over
+ *   a monospace subtitle, with trailing badges and meta values, an
+ *   always-visible content slot and the expansion inside the same card. The
+ *   shape the hand-built card lists across the product were reaching for.
+ *
+ * Both resolve their columns through the same tracks, so the comfortable
+ * variant carries the column-minimum contract (no track reaches zero, the table
+ * pans instead) without restating it, and both draw their cells with the same
+ * `TableCells`, which carry the truncation contract.
+ */
+export type DataTableVariant = 'dense' | 'comfortable';
+
 export interface DataTableProps<T> {
   columns: DataTableColumn<T>[];
   rows: T[];
@@ -36,9 +56,21 @@ export interface DataTableProps<T> {
   selectedRowKey?: string;
   onRowSelect?: (row: T) => void;
   emptyState?: ReactNode;
-  /** Content rendered in normal flow directly below the row whose key matches `expandedRowKey`. */
+  /**
+   * Content rendered in normal flow directly below the row whose key matches
+   * `expandedRowKey`. **One key, so one expansion**: a list cannot present two
+   * open panels, and the cross-list half of that guarantee is `DetailPanel`'s.
+   */
   expandedRowKey?: string;
   renderExpanded?: (row: T) => ReactNode;
+  /**
+   * Content rendered inside every row, below its cells and outside the
+   * selectable row itself — chips with their own actions, a nested list. Unlike
+   * `renderExpanded` it is not conditional on a selection: a grouped list is
+   * this slot holding a nested `hideHeader` list of the group's children.
+   * Comfortable rows only; a dense row is a fixed-height line.
+   */
+  renderRowContent?: (row: T) => ReactNode;
   /** Adds a leading multi-select checkbox column, independent of `onRowSelect`'s single-row selection. */
   selection?: DataTableSelection<T>;
   /** Drops the column header row, for a short list whose columns need no naming. */
@@ -50,6 +82,13 @@ export interface DataTableProps<T> {
    * this mode: a row's height is only known once it is rendered.
    */
   autoRowHeight?: boolean;
+  /**
+   * How much room a row is given (default `'dense'`). See `DataTableVariant`:
+   * `'comfortable'` puts each row on a card of its own and lets it grow to fit
+   * its content, which turns off virtualisation exactly as `autoRowHeight`
+   * does.
+   */
+  variant?: DataTableVariant;
 }
 
 const OVERSCAN_ROWS = 6;
@@ -75,6 +114,15 @@ function columnTrack(column: { width?: string; minWidth?: string }): string {
   return `minmax(${minimum}, ${width})`;
 }
 
+/** The card a comfortable row, its content slot and its expansion share. */
+function ComfortableRowCarrier({ children }: { children?: ReactNode }) {
+  return (
+    <Surface elevation="flat" padding="none">
+      {children}
+    </Surface>
+  );
+}
+
 /**
  * Dense data table with column definitions, hover/selected row states, and
  * virtualised scrolling when `maxHeight` is set (REQ-109): only the rows in
@@ -96,9 +144,11 @@ export function DataTable<T>({
   emptyState,
   expandedRowKey,
   renderExpanded,
+  renderRowContent,
   selection,
   hideHeader = false,
   autoRowHeight = false,
+  variant = 'dense',
 }: DataTableProps<T>) {
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -164,7 +214,12 @@ export function DataTable<T>({
   const gridTemplateColumns = (selection ? ['36px', ...columnTracks] : columnTracks).join(' ');
   const headerRowStyle: CSSProperties = { gridTemplateColumns };
 
-  const virtualized = Boolean(maxHeight) && !autoRowHeight;
+  // A comfortable row grows to fit its content for the same reason
+  // `autoRowHeight` does — its height is not known before it is rendered — so it
+  // makes the same trade: every row mounted, `maxHeight` still scrolling.
+  const comfortable = variant === 'comfortable';
+  const contentSized = autoRowHeight || comfortable;
+  const virtualized = Boolean(maxHeight) && !contentSized;
   let startIndex = virtualized ? Math.max(0, Math.floor(scrollTop / rowHeight) - OVERSCAN_ROWS) : 0;
   let endIndex = virtualized
     ? Math.min(rows.length, Math.ceil((scrollTop + viewportHeight) / rowHeight) + OVERSCAN_ROWS)
@@ -195,7 +250,13 @@ export function DataTable<T>({
     // own. `tabIndex={-1}` and nothing more: it takes focus when it is handed
     // it, and adds no stop of its own to the tab order, which walks the screen
     // exactly as it did before.
-    <div className="ui-data-table" ref={panRef} onScroll={pinExpansion} tabIndex={-1} {...{ [DISMISSAL_FOCUS_TARGET_ATTRIBUTE]: '' }}>
+    <div
+      className={comfortable ? 'ui-data-table ui-data-table--comfortable' : 'ui-data-table'}
+      ref={panRef}
+      onScroll={pinExpansion}
+      tabIndex={-1}
+      {...{ [DISMISSAL_FOCUS_TARGET_ATTRIBUTE]: '' }}
+    >
       {hideHeader ? null : (
         <div className="ui-data-table__header" style={headerRowStyle}>
           {selection ? (
@@ -227,15 +288,25 @@ export function DataTable<T>({
             {topSpacerHeight > 0 ? <div style={{ height: topSpacerHeight }} /> : null}
             {visibleRows.map((row) => {
               const key = rowKey(row);
-              const rowStyle: CSSProperties = autoRowHeight
+              const rowStyle: CSSProperties = contentSized
                 ? { minHeight: rowHeight, gridTemplateColumns }
                 : { height: rowHeight, gridTemplateColumns };
               const selected = key === selectedRowKey;
-              const rowClasses = ['ui-data-table__row', autoRowHeight ? 'ui-data-table__row--auto-height' : '', selected ? 'ui-data-table__row--selected' : '']
+              const rowClasses = [
+                'ui-data-table__row',
+                contentSized ? 'ui-data-table__row--auto-height' : '',
+                comfortable ? 'ui-data-table__row--comfortable' : '',
+                selected ? 'ui-data-table__row--selected' : '',
+              ]
                 .filter(Boolean)
                 .join(' ');
+              // A comfortable row, the content it always carries and the panel it
+              // expands into are one card, exactly as the card lists this variant
+              // replaces drew them; a dense row is a line in a continuous grid and
+              // is wrapped in nothing.
+              const Carrier = comfortable ? ComfortableRowCarrier : Fragment;
               return (
-                <Fragment key={key}>
+                <Carrier key={key}>
                   <div
                     className={rowClasses}
                     style={rowStyle}
@@ -267,12 +338,13 @@ export function DataTable<T>({
                       </div>
                     ))}
                   </div>
+                  {comfortable && renderRowContent ? <div className="ui-data-table__row-content">{renderRowContent(row)}</div> : null}
                   {key === expandedRowKey && renderExpanded ? (
                     <div className="ui-data-table__expanded" ref={expansionRef}>
                       {renderExpanded(row)}
                     </div>
                   ) : null}
-                </Fragment>
+                </Carrier>
               );
             })}
             {bottomSpacerHeight > 0 ? <div style={{ height: bottomSpacerHeight }} /> : null}

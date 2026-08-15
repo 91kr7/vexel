@@ -49,7 +49,7 @@ export function ImageDetailPanel({ image, onClose }: ImageDetailPanelProps) {
       <Stack gap="var(--space-4)">
         {error ? <ErrorBanner title="Could not load image details" detail={error} onRetry={refresh} /> : null}
         {!inspect ? (
-          <EmptyState title={loaded ? 'No inspect data available' : 'Loading image details…'} />
+          <EmptyState title={loaded ? 'No inspect data available' : 'Loading image details…'}  description={null} action={null} />
         ) : (
           <>
             <DefinitionList

@@ -225,7 +225,7 @@ export function LayerExplorer({ image, open, onClose, initialSelectedLayerIndex,
           selectedRowKey={selectedIndex !== undefined ? String(selectedIndex) : undefined}
           onRowSelect={(layer) => setSelectedIndex(layer.index)}
           expandedRowKey={selectedIndex !== undefined ? String(selectedIndex) : undefined}
-          emptyState={<EmptyState title={loaded ? 'No layer data available' : 'Loading layer stack…'} />}
+          emptyState={<EmptyState title={loaded ? 'No layer data available' : 'Loading layer stack…'}  description={null} action={null} />}
           renderExpanded={() => (
             <Stack gap="var(--space-4)">
               <Stack gap="var(--space-2)">
@@ -252,7 +252,7 @@ export function LayerExplorer({ image, open, onClose, initialSelectedLayerIndex,
                   rows={selectedChangeset?.paths ?? []}
                   rowKey={(path) => path.path}
                   maxHeight="320px"
-                  emptyState={<EmptyState title="No changes recorded for this layer" />}
+                  emptyState={<EmptyState title="No changes recorded for this layer"  description={null} action={null} />}
                 />
               )}
             </Stack>

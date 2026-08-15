@@ -199,8 +199,8 @@ export function SwarmConfigsStacksPanel({
             emptyState={
               <EmptyState
                 title={configs.unavailableReason ? 'No cluster to read' : loaded ? 'No configs' : 'Reading configs…'}
-                description={configs.unavailableReason}
-              />
+                description={configs.unavailableReason ?? null}
+               action={null} />
             }
           />
         </Stack>
@@ -219,9 +219,9 @@ export function SwarmConfigsStacksPanel({
                 title={stacks.unavailableReason ? 'No cluster to read' : loaded ? 'No stacks' : 'Reading stacks…'}
                 description={
                   stacks.unavailableReason ??
-                  (loaded ? 'A stack deployed from a terminal appears here with its services, and can be removed.' : undefined)
+                  (loaded ? 'A stack deployed from a terminal appears here with its services, and can be removed.' : null)
                 }
-              />
+               action={null} />
             }
           />
         </Stack>

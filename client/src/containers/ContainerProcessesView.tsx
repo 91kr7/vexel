@@ -49,7 +49,7 @@ export function ContainerProcessesView({ container }: ContainerProcessesViewProp
           rowKey={(process) => String(process.pid)}
           rowHeight={40}
           maxHeight={MAX_TABLE_HEIGHT}
-          emptyState={<EmptyState title={loaded ? 'No process is running in this container' : 'Reading the process list…'} />}
+          emptyState={<EmptyState title={loaded ? 'No process is running in this container' : 'Reading the process list…'}  description={null} action={null} />}
         />
       ) : null}
     </Stack>

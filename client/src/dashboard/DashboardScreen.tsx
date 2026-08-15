@@ -229,7 +229,7 @@ export function DashboardScreen({ containers, containersLoaded, containersError,
                 maxHeight="320px"
                 hideHeader
                 onRowSelect={() => navigateTo({ screenId: 'containers' })}
-                emptyState={<EmptyState title={containersLoaded ? 'No container on this daemon' : 'Reading the containers…'} />}
+                emptyState={<EmptyState title={containersLoaded ? 'No container on this daemon' : 'Reading the containers…'}  description={null} action={null} />}
               />
             </Stack>
           </Card>
@@ -244,7 +244,7 @@ export function DashboardScreen({ containers, containersLoaded, containersError,
               <UsageBreakdown
                 items={diskUsageItems}
                 total={overview?.diskUsage.totalBytes}
-                emptyState={<EmptyState title={loaded ? 'The daemon reported no disk usage' : 'Reading the disk usage…'} />}
+                emptyState={<EmptyState title={loaded ? 'The daemon reported no disk usage' : 'Reading the disk usage…'}  description={null} action={null} />}
               />
             </Stack>
           </Card>

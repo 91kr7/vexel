@@ -25,6 +25,21 @@ const blurAllowedOverlaySelectors = new Set([
 ]);
 const blurTokenReference = /var\(\s*--blur-overlay\s*\)/;
 
+// The retirement guard for the second list component. `CardList` is being
+// replaced by the object-list primitive (`DataTable`'s comfortable variant) one
+// screen at a time, and it stays exported until the last of its call sites is
+// gone — which is exactly the window in which a screen being migrated could
+// quietly acquire a NEW one, since a count that merely fell would still look
+// like progress.
+//
+// So the count is pinned rather than bounded, and a mismatch in EITHER
+// direction fails: higher means a new call site appeared, lower means a
+// migration landed without the budget being lowered on purpose. Each migration
+// lowers this number in the same commit that removes the call sites; when it
+// reaches zero the component, its export and this check go together.
+const cardListBudget = { component: 'CardList', expectedCallSites: 17 };
+const cardListCallSite = /<CardList\b/g;
+
 /** @type {string[]} */
 const violations = [];
 
@@ -215,6 +230,8 @@ function checkFeatureFile(filePath, content) {
   visit(sourceFile);
 }
 
+let cardListCallSites = 0;
+
 for (const filePath of collectSourceFiles(srcRoot)) {
   const content = readFileSync(filePath, 'utf8');
   const inUi = isInsideUiLibrary(filePath);
@@ -224,7 +241,19 @@ for (const filePath of collectSourceFiles(srcRoot)) {
     continue;
   }
 
-  if (!inUi) checkFeatureFile(filePath, content);
+  if (!inUi) {
+    checkFeatureFile(filePath, content);
+    cardListCallSites += content.match(cardListCallSite)?.length ?? 0;
+  }
+}
+
+if (cardListCallSites !== cardListBudget.expectedCallSites) {
+  const direction = cardListCallSites > cardListBudget.expectedCallSites ? 'more' : 'fewer';
+  violations.push(
+    `${cardListBudget.component} call-site budget: ${cardListCallSites} in feature code, ${cardListBudget.expectedCallSites} expected — ` +
+      `${direction} than the budget. ${cardListBudget.component} is being retired onto the object-list primitive: a new call site is not ` +
+      `admitted, and a migration lowers "expectedCallSites" in check-ui-conformance.mjs in its own commit.`,
+  );
 }
 
 if (violations.length > 0) {

@@ -230,7 +230,7 @@ export function BuildersScreen() {
             items={builders.builders}
             itemKey={(builder) => builder.name}
             renderRow={builderRow}
-            emptyState={<EmptyState title={builders.loaded ? 'No builders' : 'Loading builders…'} />}
+            emptyState={<EmptyState title={builders.loaded ? 'No builders' : 'Loading builders…'}  description={null} action={null} />}
           />
         </Stack>
       </Card>
@@ -254,7 +254,7 @@ export function BuildersScreen() {
             onSelect={(record) => setSelectedRecordId((current) => (current === record.id ? undefined : record.id))}
             expandedKey={selectedRecordId}
             renderExpanded={renderCacheUsage}
-            emptyState={<EmptyState title={cache.loaded ? 'No build-cache records' : 'Loading build cache…'} />}
+            emptyState={<EmptyState title={cache.loaded ? 'No build-cache records' : 'Loading build cache…'}  description={null} action={null} />}
           />
         </Stack>
       </Card>

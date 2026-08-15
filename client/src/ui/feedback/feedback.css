@@ -240,12 +240,34 @@
   }
 }
 
+/*
+ * The empty state is drawn on a surface of the library's own, always — whatever
+ * the caller passes and wherever it is placed. An empty result was otherwise
+ * bare text floating in the layout, indistinguishable from a heading somebody
+ * forgot to follow with content, and it looked different on every screen only
+ * because each screen had put it somewhere different.
+ *
+ * The material is the nested wash and not `Surface`'s glass, and that is a
+ * decision rather than a shortcut: an empty state almost always sits *inside*
+ * glass already (a Card, a list region, a pane), and stacking a second glass
+ * panel at that depth reads as a box inside a box rather than as a surface of
+ * its own. `--color-wash-1` with a hairline and the medium radius is the
+ * library's existing answer for content living inside a surface that is already
+ * glass — the same treatment `.ui-form-section` and the property bands take.
+ *
+ * `box-sizing: border-box` is global, so the hairline costs no width; it adds
+ * its two pixels to the height, which is the whole of this change's geometry in
+ * the full-height presentation.
+ */
 .ui-empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-9) var(--space-6);
+  border: var(--border-width-hairline) solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-wash-1);
   text-align: center;
 }
 
@@ -253,10 +275,15 @@
  * Inside a pane rather than on a screen: the placeholder is the height of its
  * own two lines and sits where the content it stands in for would start, so an
  * idle pane reads as waiting rather than as empty.
+ *
+ * It carries the surface too — "whatever the caller passes" includes the
+ * compact presentation — and therefore gains a horizontal inset it did not
+ * have: the wash needs to hold its text off its own edge, and a panel whose
+ * content starts on its border reads as a clipping rather than as a panel.
  */
 .ui-empty-state--compact {
   align-items: flex-start;
-  padding: var(--space-2) 0;
+  padding: var(--space-3) var(--space-4);
   text-align: left;
 }
 

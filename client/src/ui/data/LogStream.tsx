@@ -121,7 +121,7 @@ export function LogStream({
         </div>
       ) : null}
       {lines.length === 0 ? (
-        <EmptyState title={emptyLabel} />
+        <EmptyState title={emptyLabel} description={null} action={null} />
       ) : (
         <div className="ui-log-stream__surface">
           <ScrollArea ref={scrollRef} maxHeight={maxHeight} onScroll={handleScroll}>

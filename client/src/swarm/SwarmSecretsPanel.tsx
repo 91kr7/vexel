@@ -138,8 +138,8 @@ export function SwarmSecretsPanel({ secrets, loaded, canManage, onCreate, onRemo
         emptyState={
           <EmptyState
             title={secrets.unavailableReason ? 'No cluster to read' : loaded ? 'No secrets' : 'Reading secrets…'}
-            description={secrets.unavailableReason}
-          />
+            description={secrets.unavailableReason ?? null}
+           action={null} />
         }
       />
 

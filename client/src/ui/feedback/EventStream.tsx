@@ -20,7 +20,7 @@ export interface EventStreamProps {
 /** Monospace, timestamped stream of daemon events with type/action emphasis. */
 export function EventStream({ entries, emptyLabel = 'No events yet.', maxHeight = '260px' }: EventStreamProps) {
   if (entries.length === 0) {
-    return <EmptyState title={emptyLabel} />;
+    return <EmptyState title={emptyLabel} description={null} action={null} />;
   }
   return (
     <ScrollArea maxHeight={maxHeight}>

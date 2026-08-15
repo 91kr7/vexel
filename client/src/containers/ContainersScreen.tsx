@@ -418,8 +418,8 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
           emptyState={
             <EmptyState
               title={loaded ? 'No containers match' : 'Loading containers…'}
-              description={loaded ? 'Try a different search or filter.' : undefined}
-            />
+              description={loaded ? 'Try a different search or filter.' : null}
+             action={null} />
           }
         />
       </Card>

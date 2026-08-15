@@ -232,7 +232,7 @@ export function RegistriesScreen() {
               renderRow={registryRow}
               selectedKey={selectedHost}
               onSelect={(registry) => setSelectedHost(registry.host)}
-              emptyState={<EmptyState title={registries.loaded ? 'No registries configured' : 'Reading registries…'} />}
+              emptyState={<EmptyState title={registries.loaded ? 'No registries configured' : 'Reading registries…'}  description={null} action={null} />}
             />
           </Stack>
         </Card>
@@ -265,8 +265,8 @@ export function RegistriesScreen() {
               emptyState={
                 <EmptyState
                   title={browserEmptyTitle(selected, search, repositories.searching, repositories.loaded)}
-                  description={browserEmptyDescription(selected, search)}
-                />
+                  description={browserEmptyDescription(selected, search) ?? null}
+                 action={null} />
               }
             />
           </Stack>

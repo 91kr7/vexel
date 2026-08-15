@@ -162,7 +162,7 @@ export function ContextsScreen() {
               items={contexts.contexts}
               itemKey={(context) => context.name}
               renderRow={contextRow}
-              emptyState={<EmptyState title={contexts.loaded ? 'No Docker contexts' : 'Loading contexts…'} />}
+              emptyState={<EmptyState title={contexts.loaded ? 'No Docker contexts' : 'Loading contexts…'}  description={null} action={null} />}
             />
           </Stack>
         </Card>
@@ -174,7 +174,7 @@ export function ContextsScreen() {
             {daemon.info ? (
               <DefinitionList items={daemonItems(daemon.info)} />
             ) : daemon.error ? null : (
-              <EmptyState title={daemon.loaded ? 'The daemon reported nothing' : 'Reading the daemon…'} />
+              <EmptyState title={daemon.loaded ? 'The daemon reported nothing' : 'Reading the daemon…'}  description={null} action={null} />
             )}
           </Stack>
         </Card>

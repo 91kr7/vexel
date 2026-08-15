@@ -269,8 +269,8 @@ export function SwarmServicesPanel({ services, loaded, canManage, onCreate, onUp
         emptyState={
           <EmptyState
             title={services.unavailableReason ? 'No cluster to read' : loaded ? 'No services' : 'Reading services…'}
-            description={services.unavailableReason}
-          />
+            description={services.unavailableReason ?? null}
+           action={null} />
         }
       />
 
