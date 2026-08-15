@@ -256,7 +256,7 @@ describe('the column minimum is the library’s, and every screen inherits it', 
   // `Command` column is the case this is written for — the only caller in the client that declares
   // one."
   //
-  // Pinned rather than bounded, as the `CardList` budget beside it is: it fails when another screen
+  // Pinned rather than bounded, as the retired list component's budget was: it fails when another screen
   // quietly acquires a floor of its own — which is how a hand-tuned width would arrive — and it
   // fails when this one loses it without the sentence above being changed with it.
   it('has a column floor declared by the one screen the contract names, and by no other', () => {

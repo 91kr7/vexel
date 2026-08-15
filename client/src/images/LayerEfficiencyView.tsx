@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import {
-  Badge,
+  BadgeListCell,
   Button,
   Callout,
-  CardList,
   ConfirmDialog,
+  DataTable,
   EmptyState,
   ErrorBanner,
   Grid,
@@ -15,7 +15,8 @@ import {
   SectionHeader,
   Stack,
   TransferProgressDialog,
-  type CardListRowContent,
+  TwoLineCell,
+  type DataTableColumn,
 } from '../ui';
 import type { ImageSummary } from '../data/images-client';
 import { imageSignalsStreamUrl, type DuplicateContentGroup, type LayerSignals, type SecretFinding, type WastedFile } from '../data/image-signals-client';
@@ -62,34 +63,55 @@ function countFindingsByLayer(signals: LayerSignals): Map<number, number> {
   return counts;
 }
 
-function wasteRow(file: WastedFile): CardListRowContent {
-  return {
-    title: file.path,
-    subtitle: `layer ${file.layerIndex + 1} → ${file.reason} at layer ${file.supersededByLayerIndex + 1}`,
-    badges: <Badge tone="warning">{file.reason}</Badge>,
-    meta: <MetaCell>{formatBytes(file.sizeBytes)}</MetaCell>,
-  };
-}
+/**
+ * The three finding lists, as columns of the one object list (REQ-82). Each was
+ * a card row built by hand, stating in a subtitle sentence what a column states
+ * in its own header: the layer that wrote a file, the layer that superseded it,
+ * the pattern a path matched. The reason and the pattern keep their tone, so a
+ * flagged path still reads as flagged.
+ */
+const wastedFileColumns: DataTableColumn<WastedFile>[] = [
+  { id: 'path', header: 'PATH', width: '2.4fr', render: (file) => <TwoLineCell title={file.path} /> },
+  { id: 'written', header: 'WRITTEN AT', width: '128px', render: (file) => <MetaCell>{`layer ${file.layerIndex + 1}`}</MetaCell> },
+  { id: 'reason', header: 'REASON', width: '132px', render: (file) => <BadgeListCell labels={[file.reason]} tone="warning" /> },
+  {
+    id: 'superseded',
+    header: 'SUPERSEDED AT',
+    width: '148px',
+    render: (file) => <MetaCell>{`layer ${file.supersededByLayerIndex + 1}`}</MetaCell>,
+  },
+  { id: 'size', header: 'SIZE', align: 'end', width: '0.8fr', render: (file) => <MetaCell>{formatBytes(file.sizeBytes)}</MetaCell> },
+];
 
-function duplicateRow(group: DuplicateContentGroup): CardListRowContent {
-  return {
-    title: `${group.paths.length} copies · ${formatBytes(group.sizeBytes)} each`,
-    subtitle: group.paths.map((path) => path.path).join(', '),
-    badges: <Badge tone="warning">duplicate</Badge>,
-    meta: <MetaCell>{formatBytes(group.wastedBytes)}</MetaCell>,
-  };
-}
+const duplicateColumns: DataTableColumn<DuplicateContentGroup>[] = [
+  {
+    id: 'duplicate',
+    header: 'DUPLICATE',
+    width: '1.2fr',
+    render: (group) => <TwoLineCell title={`${group.paths.length} copies · ${formatBytes(group.sizeBytes)} each`} />,
+  },
+  { id: 'paths', header: 'PATHS', width: '2.4fr', render: (group) => <MetaCell>{group.paths.map((path) => path.path).join(', ')}</MetaCell> },
+  { id: 'wasted', header: 'WASTED', align: 'end', width: '0.8fr', render: (group) => <MetaCell>{formatBytes(group.wastedBytes)}</MetaCell> },
+];
 
-function secretRow(finding: SecretFinding): CardListRowContent {
-  return {
-    title: finding.path,
-    subtitle:
-      finding.removedLayerIndex !== undefined
-        ? `${finding.patternName} · introduced at layer ${finding.introducedLayerIndex + 1}, removed at layer ${finding.removedLayerIndex + 1}`
-        : `${finding.patternName} · introduced at layer ${finding.introducedLayerIndex + 1}, still present`,
-    badges: <Badge tone="danger">secret pattern</Badge>,
-  };
-}
+const secretColumns: DataTableColumn<SecretFinding>[] = [
+  { id: 'path', header: 'PATH', width: '2.4fr', render: (finding) => <TwoLineCell title={finding.path} /> },
+  { id: 'pattern', header: 'PATTERN', width: '1.2fr', render: (finding) => <BadgeListCell labels={[finding.patternName]} tone="danger" /> },
+  {
+    id: 'introduced',
+    header: 'INTRODUCED AT',
+    width: '148px',
+    render: (finding) => <MetaCell>{`layer ${finding.introducedLayerIndex + 1}`}</MetaCell>,
+  },
+  {
+    id: 'removed',
+    header: 'REMOVED AT',
+    width: '148px',
+    // A finding that was never removed is still present, which is a fact about
+    // the image rather than a missing value: the column says so in words.
+    render: (finding) => <MetaCell>{finding.removedLayerIndex !== undefined ? `layer ${finding.removedLayerIndex + 1}` : 'still present'}</MetaCell>,
+  },
+];
 
 /**
  * Layer efficiency and secret-signal view (REQ-65, REQ-66, REQ-67): shares
@@ -172,13 +194,17 @@ export function LayerEfficiencyView({ image, open, onClose, onNavigateToLayer, o
 
             <Stack gap="var(--space-3)">
               <SectionHeader variant="eyebrow" title="Deleted-later / overwritten files" description="Bytes written by one layer, no longer reachable, still stored in the image." />
-              <CardList
-                items={signals.result.waste.wastedFiles}
-                itemKey={(file) => `${file.path}#${file.layerIndex}`}
-                renderRow={wasteRow}
-                selectedKey={selectedWasteKey}
-                onSelect={(file) => setSelectedWasteKey(`${file.path}#${file.layerIndex}`)}
-                expandedKey={selectedWasteKey}
+              <DataTable
+                variant="comfortable"
+                columns={wastedFileColumns}
+                rows={signals.result.waste.wastedFiles}
+                rowKey={(file) => `${file.path}#${file.layerIndex}`}
+                selectedRowKey={selectedWasteKey}
+                onRowSelect={(file) => {
+                  const key = `${file.path}#${file.layerIndex}`;
+                  setSelectedWasteKey((current) => (current === key ? undefined : key));
+                }}
+                expandedRowKey={selectedWasteKey}
                 renderExpanded={(file) => (
                   <Button variant="secondary" onClick={() => onNavigateToLayer(file.layerIndex)}>
                     View layer {file.layerIndex + 1}
@@ -190,13 +216,14 @@ export function LayerEfficiencyView({ image, open, onClose, onNavigateToLayer, o
 
             <Stack gap="var(--space-3)">
               <SectionHeader variant="eyebrow" title="Duplicated content" description="Identical file content stored at more than one path." />
-              <CardList
-                items={signals.result.duplicates.duplicates}
-                itemKey={(group) => group.contentHash}
-                renderRow={duplicateRow}
-                selectedKey={selectedDuplicateKey}
-                onSelect={(group) => setSelectedDuplicateKey(group.contentHash)}
-                expandedKey={selectedDuplicateKey}
+              <DataTable
+                variant="comfortable"
+                columns={duplicateColumns}
+                rows={signals.result.duplicates.duplicates}
+                rowKey={(group) => group.contentHash}
+                selectedRowKey={selectedDuplicateKey}
+                onRowSelect={(group) => setSelectedDuplicateKey((current) => (current === group.contentHash ? undefined : group.contentHash))}
+                expandedRowKey={selectedDuplicateKey}
                 renderExpanded={(group) => (
                   <Stack gap="var(--space-2)">
                     {group.paths.map((path) => (
@@ -212,13 +239,17 @@ export function LayerEfficiencyView({ image, open, onClose, onNavigateToLayer, o
 
             <Stack gap="var(--space-3)">
               <SectionHeader variant="eyebrow" title="Credential/secret-looking paths" description="Path and name patterns only; never a scan of file content." />
-              <CardList
-                items={signals.result.secrets.findings}
-                itemKey={(finding) => `${finding.path}#${finding.introducedLayerIndex}`}
-                renderRow={secretRow}
-                selectedKey={selectedSecretKey}
-                onSelect={(finding) => setSelectedSecretKey(`${finding.path}#${finding.introducedLayerIndex}`)}
-                expandedKey={selectedSecretKey}
+              <DataTable
+                variant="comfortable"
+                columns={secretColumns}
+                rows={signals.result.secrets.findings}
+                rowKey={(finding) => `${finding.path}#${finding.introducedLayerIndex}`}
+                selectedRowKey={selectedSecretKey}
+                onRowSelect={(finding) => {
+                  const key = `${finding.path}#${finding.introducedLayerIndex}`;
+                  setSelectedSecretKey((current) => (current === key ? undefined : key));
+                }}
+                expandedRowKey={selectedSecretKey}
                 renderExpanded={(finding) => (
                   <Button variant="secondary" onClick={() => onNavigateToLayer(finding.introducedLayerIndex)}>
                     View introducing layer {finding.introducedLayerIndex + 1}

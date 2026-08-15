@@ -8,9 +8,8 @@ type: build check
 
 **Purpose** → guards, at build time, the rules feature code and the UI library cannot be trusted
 to keep on their own: the UI-library boundary (no raw DOM tag, no CSS, no `className`/`style` prop
-outside `client/src/ui/`), the blur policy (a runtime blur only on the allow-listed overlay
-surfaces, only with the bounded blur token), and the call-site budget of a list component being
-retired.
+outside `client/src/ui/`), and the blur policy (a runtime blur only on the allow-listed overlay
+surfaces, only with the bounded blur token).
 
 ## Contract
 
@@ -27,28 +26,6 @@ retired.
 - a `className` or a `style` prop on a JSX element → reported as `"className" prop` / `"style" prop`
 - an `import` of a `.css` file whose specifier does not target the UI library → reported as
   `CSS import outside client/src/ui/`
-
-### Retirement budget (feature code only)
-
-- the number of `<CardList` call sites in feature code is **pinned**, not bounded: the script holds
-  the expected count and reports a violation when the actual count differs **in either direction**
-  - more than expected → a screen acquired a new call site while the component is still exported
-  - fewer than expected → a migration landed without the budget being lowered on purpose
-- the violation line states both counts, which direction they differ in, and what to do about it; it
-  carries no file or line number, being a fact about the tree rather than about one file
-- the expected count is **17** at the start of `plan-ui-coherence-optimisation`, lowered by each
-  screen migration in its own commit, and **zero** at the deletion — at which point the check is
-  removed together with the component. It went to **15** with the volumes and networks migration
-  (`plan-ui-coherence-optimisation/REQ-31`), which removed the two sites those panels held, to **13**
-  with the registries migration (`plan-ui-coherence-optimisation/REQ-36`), which removed the two that
-  screen held, to **11** with the builders and build-cache migration
-  (`plan-ui-coherence-optimisation/REQ-39`), which removed the two the Builders & cache screen held,
-  to **10** with the contexts migration (`plan-ui-coherence-optimisation/REQ-42`), which removed the
-  one that screen held, to **8** with the plugins migration
-  (`plan-ui-coherence-optimisation/REQ-46`), which removed the two that screen held, and stands at
-  **3** since the swarm migration (`plan-ui-coherence-optimisation/REQ-55`) removed the **five** the
-  four swarm panels held — the largest single drop of the programme. The three left are the layer
-  efficiency view's, which go with the component itself
 
 ### Blur policy (every stylesheet under `client/src/`, the UI library's own included)
 
@@ -90,16 +67,13 @@ retired.
   stylesheet neither hide a declaration nor shift the line a violation is reported on.
 - A violation of one rule never suppresses the reporting of another: every violation found in the
   pass is listed.
-- **The retirement budget is pinned rather than a ceiling**, and that is the point: the migrations
-  it runs alongside *remove* call sites, so a count that merely fell would look like progress and
-  hide a new one appearing beside it. Requiring the number to be lowered deliberately is what makes
-  each migration state how much it retired.
-- The budget counts feature code only. The component's own definition, its spec and its export are
-  not call sites, and the library removing it is what takes the count to zero — not the check.
-- **The budget lives in the boundary half of the script and touches nothing in the blur half.**
-  `blurAllowedOverlaySelectors` and every blur rule stay byte-identical across the plan that adds
-  this budget and the batch that removes it; an edit to the blur half is a signal that something
-  went wrong, to be reported rather than made.
+- **The script holds no third rule.** It carried one for the length of
+  `plan-ui-coherence-optimisation` — a pinned call-site budget over the retiring second list
+  component (`plan-ui-coherence-optimisation/REQ-94`), failing in either direction so that each
+  migration had to lower it deliberately. It reached zero when the last call site was migrated and
+  was removed with the component itself (`plan-ui-coherence-optimisation/REQ-82`), leaving the file
+  as it stood before that plan: an assertion of zero against a name nothing declares is not a guard.
+  Anything else added to this file remains the signal that something went where it should not have.
 
 ## Requirements served
 
@@ -108,4 +82,3 @@ retired.
 - plan-liquid_glass_overlays/REQ-8
 - plan-liquid_glass_overlays/REQ-9
 - plan-ui-coherence-optimisation/REQ-84
-- plan-ui-coherence-optimisation/REQ-94

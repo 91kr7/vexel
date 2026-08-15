@@ -30,11 +30,19 @@ function formatBytes(bytes: number): string {
 
 /**
  * Image inspect surface (REQ-40): config, entrypoint/cmd, env, labels,
- * exposed ports, digest, platform, size and recorded history, plus the raw
- * payload.
+ * exposed ports, digest, platform, content size and recorded history, plus the
+ * raw payload.
  */
 export function ImageDetailPanel({ image, onClose }: ImageDetailPanelProps) {
   const { inspect, loaded, error, refresh } = useImageInspect(image.id);
+
+  // The repository digest, and only when it is a digest of its own (REQ-58): a
+  // containerd-backed daemon reports the image id under `RepoDigests` too, and
+  // the delivered panel then printed the identical value under `Id` and under
+  // `Digest`. The server sends the two Engine fields as they are — this is the
+  // daemon stating one digest twice, not a payload defect — so the band with
+  // nothing of its own is simply not rendered.
+  const repositoryDigest = inspect?.digest !== undefined && !inspect.id.startsWith(inspect.digest) ? inspect.digest : undefined;
 
   return (
     // The close control leaves with `dismissal`: the row that opened the panel
@@ -45,44 +53,71 @@ export function ImageDetailPanel({ image, onClose }: ImageDetailPanelProps) {
     // exactly as the container panel does: the intended end state, not a region
     // waiting to be filled. The four analyses are the screen's own views now,
     // opened from the row's overflow menu (`images-screen.md`).
-    <DetailPanel dismissal="opening-gesture" onClose={onClose}>
+    <DetailPanel
+      dismissal="opening-gesture"
+      onClose={onClose}
+      // The properties are the panel primitive's own grid rather than a list
+      // this file lays out (REQ-61): same properties, same order, same content
+      // class, so the certified column rule
+      // (plan-docker_management_app-detail_property_columns) resolves exactly as
+      // it did. `Digest` is the one band that can be absent, and only when it
+      // has nothing of its own to state.
+      properties={
+        inspect
+          ? [
+              { label: 'Id', value: inspect.id.slice(0, 19) },
+              { label: 'Tags', value: inspect.tags.join(', ') || '<none>' },
+              ...(repositoryDigest ? [{ label: 'Digest', value: repositoryDigest }] : []),
+              { label: 'Platform(s)', value: inspect.platforms.join(', ') || '–' },
+              // The inspect endpoint's own `Size` — the image's content, which on
+              // a containerd-backed daemon excludes the unpacked snapshots the
+              // list's `DISK USAGE` column counts (`ImagesScreen.tsx`). Measured
+              // on this daemon, 2026-08-15, `alpine:3.20`: 4,103,199 here against
+              // 13,660,215 in the row. Two measurements, two names (REQ-59).
+              { label: 'Content size', value: formatBytes(inspect.sizeBytes) },
+              { label: 'Created', value: inspect.createdAt },
+              { label: 'Entrypoint', value: inspect.entrypoint.join(' ') || '–' },
+              { label: 'Command', value: inspect.command.join(' ') || '–' },
+              { label: 'Exposed ports', value: inspect.exposedPorts.join(', ') || '–' },
+            ]
+          : undefined
+      }
+    >
       <Stack gap="var(--space-4)">
         {error ? <ErrorBanner title="Could not load image details" detail={error} onRetry={refresh} /> : null}
         {!inspect ? (
           <EmptyState title={loaded ? 'No inspect data available' : 'Loading image details…'}  description={null} action={null} />
         ) : (
           <>
-            <DefinitionList
-              items={[
-                { label: 'Id', value: inspect.id.slice(0, 19) },
-                { label: 'Tags', value: inspect.tags.join(', ') || '<none>' },
-                { label: 'Digest', value: inspect.digest ?? '–' },
-                { label: 'Platform(s)', value: inspect.platforms.join(', ') || '–' },
-                { label: 'Size', value: formatBytes(inspect.sizeBytes) },
-                { label: 'Created', value: inspect.createdAt },
-                { label: 'Entrypoint', value: inspect.entrypoint.join(' ') || '–' },
-                { label: 'Command', value: inspect.command.join(' ') || '–' },
-                { label: 'Exposed ports', value: inspect.exposedPorts.join(', ') || '–' },
-              ]}
-            />
-            <CollapsibleSection title="Environment" summary={`${inspect.env.length}`}>
-              <DefinitionList
-                contentClass="long-single-line"
-                items={inspect.env.map((entry) => ({ label: entry.split('=')[0], value: entry.split('=').slice(1).join('=') }))}
-              />
-            </CollapsibleSection>
-            <CollapsibleSection title="Labels" summary={`${Object.keys(inspect.labels).length}`}>
-              <DefinitionList contentClass="long-single-line" items={Object.entries(inspect.labels).map(([key, value]) => ({ label: key, value }))} />
-            </CollapsibleSection>
-            <CollapsibleSection title="History" summary={`${inspect.history.length} layers`}>
-              <DefinitionList
-                contentClass="free-text"
-                items={inspect.history.map((entry, index) => ({
-                  label: `${index + 1}. ${entry.createdAt}`,
-                  value: `${entry.createdBy} (${formatBytes(entry.sizeBytes)})`,
-                }))}
-              />
-            </CollapsibleSection>
+            {/*
+              A section with a count of `0` is absent, not present and empty
+              (REQ-60): the delivered panel drew a `Labels` section headed `0` on
+              every image declaring none. A section with content is unchanged.
+            */}
+            {inspect.env.length > 0 ? (
+              <CollapsibleSection title="Environment" summary={`${inspect.env.length}`}>
+                <DefinitionList
+                  contentClass="long-single-line"
+                  items={inspect.env.map((entry) => ({ label: entry.split('=')[0], value: entry.split('=').slice(1).join('=') }))}
+                />
+              </CollapsibleSection>
+            ) : null}
+            {Object.keys(inspect.labels).length > 0 ? (
+              <CollapsibleSection title="Labels" summary={`${Object.keys(inspect.labels).length}`}>
+                <DefinitionList contentClass="long-single-line" items={Object.entries(inspect.labels).map(([key, value]) => ({ label: key, value }))} />
+              </CollapsibleSection>
+            ) : null}
+            {inspect.history.length > 0 ? (
+              <CollapsibleSection title="History" summary={`${inspect.history.length} layers`}>
+                <DefinitionList
+                  contentClass="free-text"
+                  items={inspect.history.map((entry, index) => ({
+                    label: `${index + 1}. ${entry.createdAt}`,
+                    value: `${entry.createdBy} (${formatBytes(entry.sizeBytes)})`,
+                  }))}
+                />
+              </CollapsibleSection>
+            ) : null}
             <SectionHeader variant="eyebrow" title="Raw payload" description="Exactly as received from the Engine API." />
             <CodeViewer code={JSON.stringify(inspect.raw, null, 2)} maxHeight="320px" />
           </>

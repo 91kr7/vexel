@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActionButtonGroup,
-  BadgeListCell,
   BulkActionBar,
   Card,
   DataTable,
@@ -114,9 +113,28 @@ function displayTitle(image: ImageSummary): string {
   return image.tags.length > 0 ? image.tags.join(', ') : `<none> (${image.shortId})`;
 }
 
-/** The reference shown as the row's primary line; a dangling image has none. */
-function primaryReference(image: ImageSummary): string {
-  return image.tags[0] ?? '<none>';
+/**
+ * The row's one reference line: every tag the image carries, stated once
+ * (REQ-57). The delivered row printed the first tag here and the whole tag list
+ * again as pills in a column beside it — the identical string on every
+ * single-tagged image, which is every row on an ordinary daemon. A dangling
+ * image has no reference at all; the leading status dot is what says so.
+ */
+function referenceLine(image: ImageSummary): string {
+  return image.tags.length > 0 ? image.tags.join(', ') : '<none>';
+}
+
+/**
+ * The repository digest, and only when it is one (REQ-58). Two things make the
+ * column repeat another field otherwise: an image with no `RepoDigests` at all,
+ * where the delivered code fell back to the image id, and a containerd-backed
+ * image store, where the daemon reports the *same* digest as `Id` and as
+ * `RepoDigests[0]` (measured on this daemon, 2026-08-15: `alpine:3.20`
+ * `sha256:d9e853e87e55…` under both). The row already states that value as the
+ * short id under the reference, so what is missing here is stated as missing.
+ */
+function repositoryDigest(image: ImageSummary): string | undefined {
+  return image.digest !== undefined && image.digest !== image.shortId ? image.digest : undefined;
 }
 
 function matchesSearch(image: ImageSummary, term: string): boolean {
@@ -495,24 +513,33 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
     },
     {
       id: 'repository',
+      // The width the tag pills held comes back to the reference itself, which
+      // now carries every tag of a multi-tagged image instead of the first one.
       header: 'REPOSITORY:TAG',
-      width: '1.8fr',
-      render: (image) => <TwoLineCell title={primaryReference(image)} subtitle={image.shortId} />,
+      width: '2.4fr',
+      render: (image) => <TwoLineCell title={referenceLine(image)} subtitle={image.shortId} />,
     },
-    {
-      id: 'tags',
-      header: 'TAGS',
-      width: '1.2fr',
-      render: (image) => <BadgeListCell labels={image.tags} maxVisible={2} emptyLabel="dangling" emptyTone="warning" />,
-    },
-    { id: 'digest', header: 'DIGEST', width: '1fr', render: (image) => <IdentifierCell value={image.digest ?? image.id} maxChars={19} /> },
+    { id: 'digest', header: 'DIGEST', width: '1fr', render: (image) => <IdentifierCell value={repositoryDigest(image)} maxChars={19} /> },
     {
       id: 'platform',
       header: 'PLATFORM',
       width: '1fr',
       render: (image) => <MetaCell>{image.platforms.length > 0 ? image.platforms.join(', ') : undefined}</MetaCell>,
     },
-    { id: 'size', header: 'SIZE', align: 'end', width: '0.6fr', render: (image) => <MetaCell>{formatBytes(image.sizeBytes)}</MetaCell> },
+    {
+      id: 'size',
+      // What the *listing* reports (`GET /images/json` → `Size`): on a
+      // containerd-backed daemon the image's content plus its unpacked
+      // snapshots, which is why it is larger than the panel's `Content size`
+      // (`GET /images/{id}/json` → `Size`). Measured on this daemon, 2026-08-15,
+      // `alpine:3.20`: 13,660,215 here, 4,103,199 in the panel, the difference
+      // being the 9,486,336-byte unpacked layer its own history reports. Two
+      // measurements, so two names — never one word over two numbers (REQ-59).
+      header: 'DISK USAGE',
+      align: 'end',
+      width: '0.8fr',
+      render: (image) => <MetaCell>{formatBytes(image.sizeBytes)}</MetaCell>,
+    },
     { id: 'created', header: 'CREATED', width: '1fr', render: (image) => <MetaCell>{formatAge(image.createdAt)}</MetaCell> },
     {
       id: 'actions',

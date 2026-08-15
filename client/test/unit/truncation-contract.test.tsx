@@ -2,12 +2,12 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { CardList, DefinitionList, MetaCell, StorageUsageRow, TwoLineCell } from '../../src/ui';
+import { DefinitionList, MetaCell, StorageUsageRow, TwoLineCell } from '../../src/ui';
 
 /**
  * The truncation contract at the component's own level
  * (plan-ui-coherence-optimisation/REQ-17, REQ-20; ui-library/specs/truncation-contract.md,
- * card-list.md, storage-usage-row.md, table-cells.md, definition-list.md).
+ * storage-usage-row.md, table-cells.md, definition-list.md).
  *
  * Two things are checked here, and neither of them is geometry. jsdom lays
  * nothing out, so whether a run really stops inking over its neighbour is
@@ -127,48 +127,6 @@ describe('the truncation contract is written once, in the library (REQ-17)', () 
 });
 
 describe('the components that carry the contract (REQ-17)', () => {
-  // card-list.md: "The header row honors the truncation contract: the
-  // title/subtitle run shrinks and each of its lines truncates with an ellipsis;
-  // the trailing badge group and meta values keep their natural width."
-  it('gives a CardList row a truncating run, truncating lines and an unshrinkable trailing group', () => {
-    render(
-      <CardList
-        items={[{ key: 'one' }]}
-        itemKey={(item) => item.key}
-        renderRow={() => ({ title: 'a-very-long-identifier', subtitle: '/var/lib/docker/volumes/…/_data', meta: '1.2GB' })}
-      />,
-    );
-
-    const row = screen.getByText('a-very-long-identifier').closest('.ui-card-list__item') as HTMLElement;
-    expect(row).toHaveClass('ui-truncating-row');
-    const run = row.querySelector('.ui-truncating-run');
-    expect(run, 'the row lays out no flexible run at all').not.toBeNull();
-    expect(run!.querySelectorAll('.ui-truncating-line')).toHaveLength(2);
-    expect(row.querySelectorAll(':scope > .ui-truncating-meta').length, 'the trailing group may shrink').toBeGreaterThan(0);
-    // The trailing group is not inside the run: a run that contained it could
-    // not shrink independently of it.
-    expect(run!.querySelector('.ui-truncating-meta')).toBeNull();
-  });
-
-  // card-list.md: "A subtitle is one line" — every subtitle line takes the line
-  // class, the wrap that used to survive on a subtitle with a break opportunity
-  // included.
-  it('keeps every subtitle line of a CardList row on the contract', () => {
-    render(
-      <CardList
-        items={[{ key: 'one' }]}
-        itemKey={(item) => item.key}
-        renderRow={() => ({ title: 'registry.example.com', subtitle: ['first line with spaces in it', 'second line'] })}
-      />,
-    );
-
-    const row = screen.getByText('registry.example.com').closest('.ui-card-list__item') as HTMLElement;
-    for (const line of ['first line with spaces in it', 'second line']) {
-      expect(screen.getByText(line), `the subtitle line "${line}" withholds the line class`).toHaveClass('ui-truncating-line');
-    }
-    expect(row.querySelectorAll('.ui-truncating-line')).toHaveLength(3);
-  });
-
   // storage-usage-row.md: "the description shrinks and truncates with an
   // ellipsis, while sizeLabel and the action keep their width", and "the label is
   // outside the contract, deliberately: it is a fixed caption in the product's

@@ -66,9 +66,9 @@ import {
  * and the hand-built card list inside it**. Batch 12 deleted both: the
  * inventories are stacked at the content column's full width, `QuadPanelLayout`
  * left the client with them, and a row's reveal is a `DetailPanel`. The
- * measurement could not stay where it was, and pointing it at the last remaining
- * `CardList` sites would have bought one batch — that component is deleted in
- * batch 13 — and cost the same work twice.
+ * measurement could not stay where it was, and pointing it at the card list's
+ * last remaining sites would have bought one batch — that component is deleted
+ * in batch 13 — and cost the same work twice.
  *
  * So the same rule is measured **where property columns now live**, on
  * `DetailPanel`'s own property section, and the amendment's figures are re-taken

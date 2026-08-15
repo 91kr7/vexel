@@ -15,14 +15,31 @@ type: UI component
   dismissed: by `Escape`, or by the screen when the owning row is selected again.
 
 Description:
-- A `DetailPanel` showing a `DefinitionList` of id, tags, digest, platform(s), size, created
-  timestamp, entrypoint, command and exposed ports, then collapsible `Environment`, `Labels` and
-  `History` sections, then the raw payload in a `CodeViewer` (REQ-40).
-- Each property section states **only its content class**, and nothing else about layout: the nine
+- A `DetailPanel` whose **property grid is the primitive's own** (`DetailPanel properties`, not a
+  property layout of this panel's) — id, tags, digest, platform(s), content size, created timestamp,
+  entrypoint, command and exposed ports, in that order — followed by the collapsible `Environment`,
+  `Labels` and `History` sections that have content, and the raw payload in a `CodeViewer` (REQ-40).
+- Each property section states **only its content class**, and nothing else about layout: the
   properties take the default short scalar, `Environment` and `Labels` declare long single-line, and
   `History` declares free text — a Dockerfile instruction against a timestamp label keeps one entry
   per line at full width. How many columns each shows follows from the section's own width
-  (`ui-library/content-columns.md`).
+  (`ui-library/content-columns.md`), and the count at a given measured section width is exactly the
+  one `plan-docker_management_app-detail_property_columns` certified.
+- **`Digest` is rendered only when it is a digest of its own.** The image id and the repository
+  digest are different things, and the daemon reports them equal on a containerd-backed image store
+  (`Id` and `RepoDigests[0]` carrying the same digest); the band is then absent rather than repeating
+  the value the `Id` band above it already states (`plan-ui-coherence-optimisation/REQ-58`). When the
+  daemon does report a repository digest of its own, both bands are present and differ.
+- **`Content size`, not `Size`**: the size the daemon reports for this image on **inspect**
+  (`GET /images/{id}/json` → `Size`) — the image's own content, which on a containerd-backed daemon
+  excludes the unpacked snapshots the list's `DISK USAGE` column counts (`images-screen.md`). Two
+  measurements, two names, so the row's number and the panel's number no longer contradict each
+  other under one word (`plan-ui-coherence-optimisation/REQ-59`). Measured on `alpine:3.20`, this
+  daemon, 2026-08-15: 4,103,199 bytes here against 13,660,215 in the row.
+- **A collapsible section with nothing in it is not drawn** (`plan-ui-coherence-optimisation/REQ-60`):
+  `Environment`, `Labels` and `History` each appear only when they hold at least one entry, so a
+  section headed with a count of `0` — which the delivered build drew for `Labels` on every image
+  declaring none — cannot occur. A section that has content is unchanged, count included.
 - **No close control and no actions at all.** The panel asks the shared `DetailPanel` for the
   presentation whose opening gesture also closes it (`dismissal="opening-gesture"`), so the `✕` is
   gone and nothing replaces it — no collapse link, no chevron, no rendered keyboard hint, and no
@@ -81,3 +98,7 @@ Actions (dismissal):
 - plan-docker_management_app-detail_property_columns/REQ-21
 - plan-docker_management_app-detail_property_columns/REQ-27
 - plan-docker_management_app-detail_property_columns/REQ-31
+- plan-ui-coherence-optimisation/REQ-58
+- plan-ui-coherence-optimisation/REQ-59
+- plan-ui-coherence-optimisation/REQ-60
+- plan-ui-coherence-optimisation/REQ-61

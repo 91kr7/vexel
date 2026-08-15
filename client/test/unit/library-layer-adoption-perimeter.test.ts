@@ -11,7 +11,7 @@
  *
  * So the claim becomes: **each new prop is stated only where a migrated screen
  * states it**, and the migrated screens are named. The expectation is pinned
- * rather than bounded, exactly as the `CardList` call-site budget beside it is:
+ * rather than bounded, exactly as the retired list component's call-site budget was:
  * it fails when an unmigrated screen acquires a prop, and it fails when a
  * migration lands without this file being widened in the same commit.
  */

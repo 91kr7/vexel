@@ -13,8 +13,8 @@ states and virtualised scrolling so a long list stays smooth (REQ-109).
 **The one question it answers** → *how is a list of objects presented?* There is one answer, and
 `variant` is a choice of density inside it, never a choice between two components. A screen that
 wants roomier rows asks for `variant="comfortable"`; there is no second list to reach for, and the
-list that used to be that second answer (`CardList`) is being retired against a pinned call-site
-budget in `ui-conformance-check.md`.
+list that used to be that second answer was retired onto this one and deleted, export, stylesheet
+and spec together (`plan-ui-coherence-optimisation/REQ-82`).
 
 ## Contract
 

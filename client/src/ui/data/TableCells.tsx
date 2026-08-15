@@ -175,7 +175,10 @@ export function BadgeListCell({ labels, tone = 'neutral', maxVisible = 3, emptyL
         </span>
       ))}
       {hidden.length > 0 ? (
-        <span className="ui-table-badge-list-cell__item" title={hidden.join(', ')}>
+        // The overflow indicator keeps its natural width while the labels
+        // shrink: how many entries are hidden is the one thing in the cell that
+        // must never be the part that gets cut.
+        <span className="ui-table-badge-list-cell__item ui-table-badge-list-cell__item--overflow" title={hidden.join(', ')}>
           <Badge>{`+${hidden.length}`}</Badge>
         </span>
       ) : null}

@@ -22,8 +22,19 @@ REQ-67).
 
 Description:
 - A large `Modal`: a `Callout` disclaimer, then — once analysed — a metrics row (efficiency score with
-  its gauge, duplicated-content bytes, flagged-path count) and three `CardList`s (wasted files,
-  duplicated content groups, flagged paths), each row expanding into a "View layer" action.
+  its gauge, duplicated-content bytes, flagged-path count) and three object lists in the comfortable
+  variant (wasted files, duplicated content groups, flagged paths), each row expanding into a "View
+  layer" action.
+- **The three lists are the one object list** (`ui-library/data-table.md`, `variant="comfortable"`),
+  never a second list component beside it (`plan-ui-coherence-optimisation/REQ-82`): these were the
+  last three call sites of the retired card list, and they are the reason a programme migrating "the
+  nine list screens" would have left it alive — this is a `DataTable` screen. Each fact a delivered
+  row carried in a subtitle is a **column** here, named in the header:
+  - wasted files → `PATH`, `WRITTEN AT`, `REASON` (`overwritten` / `deleted`), `SUPERSEDED AT`,
+    `SIZE`;
+  - duplicated content → `DUPLICATE` (how many copies, and the size of each), `PATHS`, `WASTED`;
+  - flagged paths → `PATH`, `PATTERN`, `INTRODUCED AT`, `REMOVED AT` (`still present` when it was
+    never removed).
 Shows:
 - Before analysis: an `EmptyState` inviting the operator to analyze, naming that it reuses the layer
   explorer's own changeset job.
@@ -45,7 +56,9 @@ Actions:
   (`autoCloseOnDone`), its result being rendered behind the dialog rather than in it. No completion
   wording, state or timer of this view's own; its `formatCaption` keeps describing the in-flight
   phase only. A failed analysis never dismisses itself.
-- Selecting a finding expands it in place; its "View layer" action calls `onNavigateToLayer`.
+- Selecting a finding expands it inside its own row; its "View layer" action calls
+  `onNavigateToLayer`. Selecting it again collapses it, and at most one finding is expanded per
+  list.
 
 ## Rules and invariants
 
@@ -58,8 +71,8 @@ Actions:
 
 ## Dependencies
 
-- ui-library: Modal, Callout, MetricTile, Meter, CardList, Badge, MetaCell, ConfirmDialog,
-  TransferProgressDialog, EmptyState, ErrorBanner, Button, Grid, SectionHeader, Stack
+- ui-library: Modal, Callout, MetricTile, Meter, DataTable, BadgeListCell, MetaCell, TwoLineCell,
+  ConfirmDialog, TransferProgressDialog, EmptyState, ErrorBanner, Button, Grid, SectionHeader, Stack
 - useImageSignalsStream, Image signals client
 
 ## Requirements served
@@ -71,3 +84,4 @@ Actions:
 - plan-docker_management_app-progress_completion_autoclose/REQ-12
 - plan-docker_management_app-progress_completion_autoclose/REQ-15
 - plan-docker_management_app-progress_completion_autoclose/REQ-16
+- plan-ui-coherence-optimisation/REQ-82

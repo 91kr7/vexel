@@ -70,7 +70,7 @@ export interface TruncatingRowGeometry {
   label: string;
   /** The whole row's text, as the row really carries it: what a caller matches a row of its own on. */
   rowText: string;
-  /** `card` for a `CardList` row, `storage` for a `StorageUsageRow`, `other` for any further adopter. */
+  /** `card` for a card row of the retired card list, `storage` for a `StorageUsageRow`, `other` for any further adopter. */
   kind: 'card' | 'storage' | 'other';
   rowBox: Rect;
   /**

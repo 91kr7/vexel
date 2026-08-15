@@ -311,6 +311,28 @@
   flex: 0 1 auto;
 }
 
+/* The wrapper shrinks; the pill inside it did not, and carried no truncation of
+   its own, so under width pressure a badge simply overflowed its wrapper and was
+   painted across the next one. Measured with seven platform strings in a 165px
+   column at 1440×1000: item boxes 65.1 / 67.4 / 24.8px against badge boxes 78 /
+   80.7 / 29.7px, each pill ending ~9px inside its neighbour's — twice per row,
+   at all three viewports. The badge is bounded by its wrapper and ellipsises
+   inside it; the wrapper's own `title` keeps the full label available. `block`
+   rather than the badge's own `inline-flex`, because `text-overflow` does not
+   apply to a flex container's anonymous item. */
+.ui-table-badge-list-cell__item > .ui-badge {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The count of what is hidden is never what gets cut. */
+.ui-table-badge-list-cell__item--overflow {
+  flex: none;
+}
+
 .ui-table-meta-cell--wrap {
   overflow-wrap: anywhere;
 }
@@ -428,92 +450,6 @@
    A rule left behind for an element nothing renders is the unused style REQ-10
    refuses, and an element left behind would still consume the block's own
    `gap` above six raw payload blocks (REQ-11). */
-
-.ui-card-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.ui-card-list__item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding: var(--space-4) var(--space-5);
-  cursor: pointer;
-}
-
-.ui-card-list__item:hover {
-  background: var(--color-surface-2);
-}
-
-.ui-card-list__item--selected {
-  background: var(--color-accent-tint);
-}
-
-/* The row's flexible run: the floor, the flex basis and the wrap that goes with
-   them are the contract's (`.ui-truncating-run` in truncation.css), carried by
-   this element. All that is left here is how the dot and the heading sit. */
-.ui-card-list__leading {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.ui-card-list__heading {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-.ui-card-list__title {
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-primary);
-}
-
-.ui-card-list__subtitle {
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
-}
-
-/* `flex: none` is the contract's (`.ui-truncating-meta`), not a second copy of
-   it written here: the badges and the meta values keep their natural width
-   however long the identifier beside them is. */
-.ui-card-list__trailing {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-.ui-card-list__badges {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.ui-card-list__meta {
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-  text-align: right;
-  min-width: 64px;
-}
-
-.ui-card-list__content {
-  padding: 0 var(--space-5) var(--space-4);
-}
-
-.ui-card-list__expanded {
-  padding: 0 var(--space-5) var(--space-5);
-  border-top: var(--border-width-hairline) solid var(--color-border-subtle);
-}
-
-.ui-card-list__empty {
-  padding: var(--space-6) var(--space-4);
-}
 
 .ui-code-viewer__code {
   margin: 0;

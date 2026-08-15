@@ -23,10 +23,27 @@ Description:
   typography, hover and selected treatment), with a leading multi-select checkbox column.
 Shows:
 - A header row and one row per matching image, in these columns: a leading status dot (green when
-  the image has at least one tag, amber when it is dangling), `REPOSITORY:TAG` — the first reference
-  (or `<none>`) over the short id, `TAGS` — one badge per tag (at most 2, then a `+N` badge) or a
-  single `dangling` warning badge when it has none, `DIGEST` — the digest (falling back to the id)
-  cut to a short identifier, `PLATFORM`, `SIZE` (right-aligned), `CREATED` — the age, and `ACTIONS`.
+  the image has at least one tag, amber when it is dangling), `REPOSITORY:TAG` — **every tag the
+  image carries, stated once**, over the short id, `DIGEST` — the repository digest, cut to a short
+  identifier, `PLATFORM`, `DISK USAGE` (right-aligned), `CREATED` — the age, and `ACTIONS`.
+- **A row prints its reference once.** The reference column and a second column of tag pills carried
+  the identical string on every row of the delivered build (`alpine:3.20` beside a pill reading
+  `alpine:3.20`); the pills are gone and the reference column carries the whole tag list, so a
+  multi-tagged image still shows all of its tags and a single-tagged one states its tag once
+  (`plan-ui-coherence-optimisation/REQ-57`). A dangling image reads `<none>` there, and is marked as
+  dangling by the leading status dot — which is where that fact already was.
+- **`DIGEST` shows a repository digest or nothing at all.** It never falls back to the image id, and
+  it is empty (the column's own `–`) when the daemon reports no repository digest, or reports one
+  that *is* the image id — which a containerd-backed daemon does, `RepoDigests` and `Id` carrying the
+  same digest there. A column showing one field's value under another field's name is the defect
+  `plan-ui-coherence-optimisation/REQ-58` names, and the row's short id already states that value.
+- **`DISK USAGE`, not `SIZE`**: the size the daemon reports for the image in its **listing**
+  (`GET /images/json` → `Size`), which on a containerd-backed daemon counts the image's content
+  *and* its unpacked snapshots. The panel states a different measurement under a different name
+  (`image-detail-panel.md`), so no single word carries two numbers
+  (`plan-ui-coherence-optimisation/REQ-59`). Measured on `alpine:3.20`, this daemon, 2026-08-15:
+  13,660,215 bytes here against 4,103,199 in the panel, the difference being the 9,486,336-byte
+  unpacked layer the image's own history reports.
 - **One overflow control and nothing else** in the `ACTIONS` area of every row, in the same final
   position in every state of the image (tagged, multi-tagged or dangling), never conditional and
   never revealed on hover. It is named `More actions for <the row's title>` — the tags joined, or
@@ -279,3 +296,6 @@ Navigation:
 - plan-docker_management_app-progress_completion_autoclose/REQ-12
 - plan-docker_management_app-progress_completion_autoclose/REQ-15
 - plan-docker_management_app-progress_completion_autoclose/REQ-16
+- plan-ui-coherence-optimisation/REQ-57
+- plan-ui-coherence-optimisation/REQ-58
+- plan-ui-coherence-optimisation/REQ-59

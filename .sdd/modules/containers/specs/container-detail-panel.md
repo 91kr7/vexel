@@ -73,6 +73,12 @@ Shows (Inspect tab):
   formatted JSON, shown in full as real selectable text in a scroll area (REQ-26, narrowed from
   *"copyable"* to *"selectable"* on 2026-08-14 by
   `plan-docker_management_app-remove_copy_controls`/REQ-23).
+- **A collapsible section with nothing in it is not drawn** (`plan-ui-coherence-optimisation/REQ-60`,
+  one rule shared with `images/specs/image-detail-panel.md`): `Networks` and `Labels` appear only
+  when they hold at least one entry, so a section headed with a count of `0` — which the delivered
+  build drew for `Labels` on every container declaring none — cannot occur. `Health` was already
+  conditional on the container defining one. A section that has content is unchanged, count
+  included.
 - Each property section states **only its content class**: the ten properties, `Networks`, `Health`
   and the Config tab's runtime configuration take the default short scalar, `Labels` declares long
   single-line. The number of columns each shows follows from that section's own width
@@ -147,3 +153,4 @@ Actions:
 - plan-docker_management_app-detail_property_columns/REQ-27
 - plan-docker_management_app-detail_property_columns/REQ-31
 - plan-docker_management_app-detail_property_columns/REQ-34
+- plan-ui-coherence-optimisation/REQ-60
