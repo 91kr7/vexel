@@ -35,9 +35,22 @@ component insists on it rather than rendering whichever subset a caller happened
   *inside* glass already (a Card, a list region, a pane), and a second glass panel at that depth
   reads as a box inside a box. It is the same treatment `FormSection` and the property bands take,
   for the same reason.
-- The surface costs **no width** (`box-sizing: border-box` is global) and **2px of height** — the
-  hairline — in the full-height presentation, measured identical in all five containers the product
-  places it in, at 1440×1000, 1280×800 and 375×812.
+- The surface costs **2px of height** — the hairline — in the full-height presentation, in every
+  container the product places it in, at 1440×1000, 1280×800 and 375×812.
+- **It costs no width where the container gives the box one, and 2px where the container does not.**
+  `box-sizing: border-box` is global, but it absorbs a border only into a width that has been
+  specified; on an **auto-width, shrink-to-fit** box the width is derived from the content and the
+  hairline adds its 2px outside it. Both cases are real here: a box filling a grid track, a flex item
+  with `min-width: 0`, or a block in normal flow is unaffected — which is every container but one —
+  while a box whose column resolves shrink-to-fit grows by 2px. Stated as an absolute ("the surface
+  costs no width") this was **false**, and it was measured false on the first narrow column anybody
+  pointed a harness at: `ComposeScreen.tsx:222` (`48×165.56 → 50×167.56`) and `:237`
+  (`48×142.38 → 50×144.38`) at 375×812, `x` unchanged.
+- Those two boxes are **48px wide**, which is exactly `2 × --space-6` — the component's own padding
+  around a content box of **zero** width, with the title wrapping one character per line. The 2px is
+  therefore a rounding error on a container that is already broken, and the fault is the caller's
+  fixed `Grid` template, not this component's border (see the batch-11 pin). Narrowing the hairline
+  to keep a width claim true about a 48px box would be cosmetics over a fracture.
 - **The explanation and the resolving action are required props, not optional ones.** This is the
   whole of the component's insistence and the reason it is written this way: the three empty-state
   treatments the product shipped were never three components — they were this one rendering
@@ -51,8 +64,19 @@ component insists on it rather than rendering whichever subset a caller happened
 - `compact` changes the presentation and nothing else: same wording, same structure, same API — and
   it carries the surface too, "whatever the caller passes" including this presentation. It therefore
   gains a horizontal inset it did not have (`--space-4`), because a panel whose text starts on its
-  own border reads as a clipping rather than as a panel: +10px of height and +17px of title offset,
-  and +28.85px of height at 375×812 alone, where the inset costs the description a line.
+  own border reads as a clipping rather than as a panel. Measured in its one call site's own
+  container chain (a large `Modal` → `BandStack` → the trailing pane of a filling `SplitPane`):
+  **+10px of height, +17px / +5px of title offset, no width change** at 1440×1000 and 1280×800 (pane
+  714px), and **+28.85px of height** at 375×812 (pane 295px), where the 32px of inset costs the
+  description its second line. That last figure is a **threshold effect of the pane's width**, not a
+  constant.
+- **How that one figure was obtained, since it differs from every other in this record**: the compact
+  presentation has a single call site (`images/FilesystemBrowser.tsx:331`) whose state — an image with
+  an extracted filesystem, the browser open, no entry selected — is **not reachable in a screen
+  sweep**, so it was never observed in the running application. It was measured in a headless browser
+  against the shipped stylesheet, in the container chain above reconstructed from source. That is
+  stronger than arithmetic from the tokens and weaker than an observation, and it is recorded as
+  exactly that.
 - Why that variant exists: in a pane that fills the height it is given, the centred presentation
   reads as a void the pane could not fill rather than as a pane waiting for a selection.
 - A `null` description renders nothing where the description would be, exactly as an omitted
