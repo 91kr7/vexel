@@ -117,11 +117,6 @@ async function settledRowCount(page: Page, budget = 15_000): Promise<number> {
   return previous;
 }
 
-/** The row whose text carries `needle`, among everything the screen draws. */
-function rowNamed(rows: TruncatingRowGeometry[], needle: string): TruncatingRowGeometry | undefined {
-  return rows.find((row) => row.rowText.includes(needle));
-}
-
 /**
  * Whether a control answers a hit test at its own visible centre — the half of
  * "whole and hit-testable" that a cleared overlap does not prove on its own: a
@@ -413,25 +408,71 @@ test('contexts: a long endpoint never inks over the active pill, at all three vi
     await createContextQuietly(context, endpoint);
     for (const viewport of F4_VIEWPORTS) {
       await openScreen(page, 'contexts', 'Contexts', viewport);
-      await expect(page.locator('.ui-card-list__item', { hasText: context }).first()).toBeVisible({ timeout: 20_000 });
+      // `plan-ui-coherence-optimisation/REQ-42` moved this list onto the object
+      // list, where the endpoint and the values beside it are cells of declared
+      // columns rather than one row of `.ui-truncating-run` / `.ui-truncating-meta`.
+      // The contract is the same one — the flexible text truncates, the values
+      // beside it keep their width, and neither inks over the other — so the site
+      // is measured in its migrated form rather than dropped, exactly as the
+      // volume row above is.
+      const listRow = page.locator('.ui-data-table__row', { hasText: context }).first();
+      await expect(listRow).toBeVisible({ timeout: 20_000 });
       await settledRowCount(page);
 
-      const rows = await measureTruncatingRows(page);
-      const row = rowNamed(rows, context);
+      const measured = await measureTableRow(listRow);
       const at = `@${viewport.width}×${viewport.height} contexts`;
-      expect(row, `${at}: the fixture context's row was not measured`).toBeDefined();
-      console.log(`[REQ-18] ${reportRow(at, row!)}`);
+      console.log(
+        `[REQ-18] ${at} the fixture context's row: ${measured.cells
+          .map((cell) => `${cell.header} ${describeRect(cell.box)}`)
+          .join(' | ')} — ink over the values beside it ${round(
+          measured.inkOverCells.reduce((total, hit) => total + hit.area, 0),
+        )}px², ${measured.isTruncating ? 'endpoint truncating' : 'endpoint whole'}`,
+      );
 
-      expect(row!.runIsTruncating, `${at}: the long endpoint fits without truncating, so this row proves nothing`).toBe(true);
-      expectRowHonoursTheContract(row!, at);
-      expect(row!.runLineUserSelect.filter((value) => value === 'none'), `${at}: a truncated line has gained user-select: none`).toEqual([]);
-
-      // Every other context row on the screen is held to the same contract: the
-      // operator's own contexts are not fixtures, but the rule is not the
-      // fixture's either.
-      for (const other of rows.filter((candidate) => candidate.kind === 'card')) {
-        expectRowHonoursTheContract(other, `${at} (row "${other.label}")`);
+      // The premise: at this width the endpoint genuinely does not fit, so "no
+      // overlap" is a statement about the contract rather than about a row that
+      // had room to spare all along. The first cell of a context row is the
+      // marker column, so the row's own truncating value is measured through the
+      // endpoint cell's clipped ink below.
+      expect(
+        measured.inkOverCells.map((hit) => `${round(hit.area)}px² over the ${hit.header} column at ${describeRect(hit.rect)}`),
+        `${at}: a cell's painted text lands on the values beside it (REQ-18)`,
+      ).toEqual([]);
+      for (const cell of measured.cells) {
+        expect(
+          round(cell.box.width),
+          `${at}: the ${cell.header} column resolves to ${round(cell.box.width)}px, so its value is squeezed out of existence rather than kept at a width (REQ-19)`,
+        ).toBeGreaterThan(0);
       }
+      expect(measured.lineUserSelect.filter((value) => value === 'none'), `${at}: a truncated line has gained user-select: none`).toEqual([]);
+
+      // …and the whole row, cell by cell, against every cell beside it: the
+      // endpoint's ink is the one this site is named for, and it is the first
+      // cell of the endpoint column rather than of the row.
+      const endpointInk = await page.evaluate(
+        ({ name }) => {
+          const rowElement = Array.from(document.querySelectorAll('.ui-data-table__row')).find((candidate) =>
+            (candidate.textContent ?? '').includes(name),
+          )!;
+          const headers = Array.from(rowElement.closest('.ui-data-table')!.querySelectorAll('.ui-data-table__header-cell')).map(
+            (cell) => (cell.textContent ?? '').trim(),
+          );
+          const index = headers.findIndex((header) => /^ENDPOINT$/i.test(header));
+          const cell = rowElement.querySelectorAll('.ui-data-table__cell')[index] as HTMLElement;
+          const line = cell.querySelector('.ui-truncating-line') as HTMLElement | null;
+          return {
+            header: headers[index],
+            clipped: line ? Math.max(0, line.scrollWidth - line.clientWidth) : 0,
+            title: line?.getAttribute('title') ?? null,
+          };
+        },
+        { name: context },
+      );
+      console.log(`[REQ-19] ${at}: the ${endpointInk.header} cell hides ${round(endpointInk.clipped)}px of its value`);
+      expect(
+        endpointInk.clipped,
+        `${at}: the long endpoint fits without truncating, so this row proves nothing`,
+      ).toBeGreaterThan(1);
     }
   } finally {
     await removeContextQuietly(context);
@@ -562,8 +603,9 @@ for (const viewport of F4_VIEWPORTS) {
     // sits in, and that is asserted. At 375×812 it frequently is — the screens
     // that hand `Grid` a fixed template that never collapses leave a card at
     // ~90px — and no change inside the library can repair it: it is reported
-    // here and pinned to batches 9 and 14, batch 6 having taken volumes and
-    // networks out of that list.
+    // here and pinned to batch 14, batch 6 having taken volumes and networks out
+    // of that list and batch 9 the contexts screen (REQ-42: the `Grid` went with
+    // the daemon card, one child not being a pair).
     if (viewport.width >= 1280) {
       expect(
         narrowCards,
@@ -571,7 +613,7 @@ for (const viewport of F4_VIEWPORTS) {
       ).toBe(0);
     } else {
       console.log(
-        `[card width] ${at}: ${narrowCards} row(s) sit in a card narrower than their trailing group — the call sites' fixed Grid templates (SystemScreen.tsx:176, ContextsScreen.tsx:156 — VolumesNetworksScreen's went with the F6 migration), not the truncation contract`,
+        `[card width] ${at}: ${narrowCards} row(s) sit in a card narrower than their trailing group — the call sites' fixed Grid templates (SystemScreen.tsx:176; VolumesNetworksScreen's went with the F6 migration and ContextsScreen's with the F9 one), not the truncation contract`,
       );
     }
   });
@@ -588,10 +630,30 @@ test('a property band still wraps, with no ellipsis and no one-line clamp', asyn
     await createVolumeQuietly(volume);
     for (const viewport of F4_VIEWPORTS.slice(0, 2)) {
       for (const screen of [
-        { id: 'system-prune', heading: 'System & prune' },
-        { id: 'contexts', heading: 'Contexts' },
+        { id: 'system-prune', heading: 'System & prune', reveal: false },
+        // Contexts states no property band until a context is selected: the
+        // eight-property daemon block that used to stand beside the list left
+        // this screen with `plan-ui-coherence-optimisation/REQ-45`, and the bands
+        // that remain are the row's own detail — which is where REQ-21 sends the
+        // operator for the endpoint the row cuts. The rule under test is the
+        // band's, so the site is revealed rather than dropped.
+        { id: 'contexts', heading: 'Contexts', reveal: true },
       ]) {
         await openScreen(page, screen.id, screen.heading, viewport);
+        if (screen.reveal) {
+          // A real pointer on the cell naming the context: the action cluster
+          // sits at the row's trailing edge and is not the gesture that reveals
+          // the detail, and the row's leading cell is the marker column, which
+          // is empty on every context but the one in use.
+          const firstCell = page
+            .locator('.ui-data-table__row')
+            .first()
+            .locator('.ui-data-table__cell', { has: page.locator('.ui-table-two-line-cell') })
+            .first();
+          await expect(firstCell).toBeVisible({ timeout: 20_000 });
+          const cellBox = (await firstCell.boundingBox())!;
+          await page.mouse.click(cellBox.x + cellBox.width / 2, cellBox.y + cellBox.height / 2);
+        }
         await expect(page.locator('.ui-definition-list').first()).toBeVisible({ timeout: 20_000 });
         const bands = await measurePropertyValues(page);
         const at = `@${viewport.width}×${viewport.height} ${screen.heading}`;

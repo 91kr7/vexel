@@ -130,12 +130,28 @@ function rail() {
   return within(screen.getByRole('navigation'));
 }
 
-/** The Contexts screen's own row for a context, by its `name (kind)` title. */
-function screenRow(title: string): HTMLElement {
-  const heading = screen
-    .getAllByText(title)
-    .find((element) => element.closest('.ui-card-list__item') !== null);
-  return heading!.closest('.ui-card-list__item') as HTMLElement;
+/**
+ * The Contexts screen's own row for a context, by the name its first column
+ * states.
+ *
+ * The screen lists its contexts on the object list since
+ * `plan-ui-coherence-optimisation/REQ-42`, and the name and the kind are two
+ * lines of one cell rather than one `name (kind)` title; the shell's footer
+ * still names the context that way, which is why the two are looked up
+ * differently.
+ */
+function screenRow(name: string): HTMLElement {
+  const row = screen
+    .getAllByText(name, { exact: true })
+    .map((element) => element.closest('.ui-data-table__row'))
+    .find((candidate): candidate is HTMLElement => candidate !== null);
+  expect(row, `no row of the Contexts screen states ${name}`).toBeDefined();
+  return row!;
+}
+
+/** The switch the Contexts screen offers on a row: an action of its cluster since REQ-43. */
+function switchControl(name: string): HTMLElement {
+  return within(screenRow(name)).getByRole('button', { name: 'Use' });
 }
 
 async function renderShellOnContexts() {
@@ -169,11 +185,11 @@ describe('the shell footer follows the active context (app-shell/specs/shell.md)
     await renderShellOnContexts();
     await waitFor(() => expect(rail().getByText('first (local)')).toBeInTheDocument());
 
-    await userEvent.click(screen.getAllByText('use', { exact: true })[0]!);
+    await userEvent.click(switchControl('second'));
 
     // The screen itself has taken the switch: it confirms it and its list marks the new context.
     await waitFor(() => expect(screen.getByText('Active context switched')).toBeInTheDocument());
-    await waitFor(() => expect(screenRow('second (ssh)')).toHaveTextContent('active'));
+    await waitFor(() => expect(screenRow('second')).toHaveTextContent('active'));
 
     await waitFor(() => expect(rail().getByText('second (ssh)')).toBeInTheDocument());
   });
@@ -183,7 +199,7 @@ describe('the shell footer follows the active context (app-shell/specs/shell.md)
     await renderShellOnContexts();
     await waitFor(() => expect(rail().getByText('first (local)')).toBeInTheDocument());
 
-    await userEvent.click(screen.getAllByText('use', { exact: true })[0]!);
+    await userEvent.click(switchControl('second'));
 
     await waitFor(() => expect(rail().queryByText('first (local)')).not.toBeInTheDocument());
   });

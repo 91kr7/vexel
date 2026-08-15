@@ -449,9 +449,16 @@ test('arranges Environment and Labels in columns of their own class, and History
 });
 
 // REQ-24, REQ-7, REQ-28 — the ~400px section, which is the width the requirement singles out and
-// which no viewport of the two reported panels produces. The daemon cards of `System & prune` and of
-// `Contexts` are that width at an ordinary window, and they hold a property section that states no
-// count — so they are where a minimum wider than its container would show.
+// which no viewport of the two reported panels produces. The daemon card of `System & prune` is that
+// width at an ordinary window, and it holds a property section that states no count — so it is where
+// a minimum wider than its container would show.
+//
+// `Contexts` was the second such card and is no longer one: its eight-property daemon block left the
+// screen with `plan-ui-coherence-optimisation/REQ-45` (batch 9), the properties describing the daemon
+// rather than a context. The screen's remaining bands are a row's detail panel at the content
+// column's full width — not a ~400px section, and not drawn until a context is selected — so the
+// site is removed here rather than neutered, and that panel is measured in
+// `contexts-row-geometry.spec.ts`.
 test('keeps a ~400px section inside its card, in one column, with nothing clipped', async ({ page }) => {
   const evidence: string[] = [];
   let narrowest = Number.POSITIVE_INFINITY;
@@ -460,10 +467,7 @@ test('keeps a ~400px section inside its card, in one column, with nothing clippe
     { width: 1280, height: 720 },
     { width: 1920, height: 1080 },
   ]) {
-    for (const [screenId, heading] of [
-      ['system-prune', 'System & prune'],
-      ['contexts', 'Contexts'],
-    ] as const) {
+    for (const [screenId, heading] of [['system-prune', 'System & prune']] as const) {
       await page.setViewportSize(viewport);
       await openApp(page, screenId);
       await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible({ timeout: 20_000 });

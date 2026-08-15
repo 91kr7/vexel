@@ -197,7 +197,58 @@ const DELIBERATELY_CHANGED: Record<string, string> = {
     'plan-ui-coherence-optimisation/REQ-36…REQ-38 — the two lists became the object list, and the fixed 1 : 1.2 template that never collapsed became the library’s pair arrangement: equal panels at desktop widths, one column at the phone breakpoint',
   'builders-cache':
     'plan-ui-coherence-optimisation/REQ-39…REQ-41 — the builder list and the build-cache list became the object list, the hand-built cards deleted, and each card’s page-level action moved from its header into the screen toolbar under it',
+  contexts:
+    'plan-ui-coherence-optimisation/REQ-42…REQ-45 — the context list became the object list, `use` became a primary action of the row’s cluster beside the `active` marker, and the second eight-property daemon card left the screen; with it went the `Grid` that had been halving the list, one child not being a pair',
 };
+
+/** The eight properties REQ-45 takes off the contexts screen, by the labels the delivered block used. */
+const DAEMON_PROPERTIES = [
+  'Docker version',
+  'Engine API',
+  'BuildKit',
+  'Storage driver',
+  'Cgroup driver',
+  'OS / Arch',
+  'Root directory',
+  'Containers (running)',
+];
+
+/**
+ * The contexts screen, as the change REQ-42…REQ-45 declares can be measured on
+ * both builds: what the list is made of, how many cards the screen draws, and
+ * whether the eight daemon properties are stated on it.
+ */
+async function measureContextsScreen(page: Page): Promise<{
+  columnWidth: number;
+  cards: { title: string; x: number; y: number; width: number }[];
+  cardLists: number;
+  objectLists: number;
+  toolbars: number;
+  daemonProperties: string[];
+}> {
+  return await page.evaluate((daemonLabels) => {
+    const content = document.querySelector('.ui-frame__content')! as HTMLElement;
+    const contentStyle = getComputedStyle(content);
+    const columnWidth = content.clientWidth - Number.parseFloat(contentStyle.paddingLeft) - Number.parseFloat(contentStyle.paddingRight);
+    // The element both builds draw for a card's title.
+    const cards = [...content.querySelectorAll('.ui-section-header__title')]
+      .map((node) => ({ title: (node.textContent ?? '').trim(), card: node.closest('.ui-surface') }))
+      .filter((entry): entry is { title: string; card: Element } => entry.card !== null)
+      .map(({ title, card }) => {
+        const rect = card.getBoundingClientRect();
+        return { title, x: rect.x, y: rect.y, width: rect.width };
+      });
+    const text = (content.textContent ?? '').replace(/\s+/g, ' ');
+    return {
+      columnWidth,
+      cards,
+      cardLists: content.querySelectorAll('.ui-card-list').length,
+      objectLists: content.querySelectorAll('.ui-data-table').length,
+      toolbars: content.querySelectorAll('.ui-screen-toolbar').length,
+      daemonProperties: daemonLabels.filter((label) => text.includes(label)),
+    };
+  }, DAEMON_PROPERTIES);
+}
 
 /** The builders screen, as the change REQ-39…REQ-41 declares can be measured on both builds. */
 async function measureBuildersScreen(page: Page): Promise<{
@@ -542,6 +593,61 @@ test.describe('F5 — the thirteen screens render as the delivered build does', 
                 `${at}: the ${card.title} card is ${round(card.width)}px of a ${round(currentScreen.columnWidth)}px content column`,
               ).toBeGreaterThanOrEqual(round(currentScreen.columnWidth) - 1);
             });
+
+            // The change is inside the screen: the shell's content column is where it was.
+            expect(round(currentScreen.columnWidth), `${at}: the shell's content column changed width`).toBe(round(deliveredScreen.columnWidth));
+            continue;
+          }
+
+          // The contexts screen, whose declared change is the list, the switch and a card that is
+          // gone: the eight-property daemon block described the daemon rather than the context
+          // (REQ-45), and the `Grid` that had been dividing the content column went with it —
+          // "one child is not a pair" — so the list is read at the column's full width and the
+          // detail it reveals is full width too.
+          if (screen.id === 'contexts') {
+            const deliveredScreen = await measureContextsScreen(before);
+            const currentScreen = await measureContextsScreen(page);
+            console.log(
+              `[REQ-42] ${at} ${screen.heading}: delivered ${deliveredScreen.cardLists} card list(s), ${deliveredScreen.objectLists} object list(s), ` +
+                `${deliveredScreen.toolbars} toolbar(s), ${deliveredScreen.daemonProperties.length}/8 daemon properties, ` +
+                `cards ${deliveredScreen.cards.map((card) => `${card.title} x=${round(card.x)} w=${round(card.width)}`).join(', ')} — ` +
+                `now ${currentScreen.cardLists} / ${currentScreen.objectLists} / ${currentScreen.toolbars}, ` +
+                `${currentScreen.daemonProperties.length}/8 daemon properties, ` +
+                `cards ${currentScreen.cards.map((card) => `${card.title} x=${round(card.x)} w=${round(card.width)}`).join(', ')} — ${
+                  DELIBERATELY_CHANGED[screen.id]
+                }`,
+            );
+
+            // The premise: the delivered build really did draw the hand-built list this batch
+            // deletes, no object list at all, and the daemon block beside the list.
+            expect(deliveredScreen.cardLists, `${at}: the delivered build drew no card list here, so this comparison shows nothing`).toBeGreaterThan(0);
+            expect(deliveredScreen.objectLists, `${at}: the delivered build already listed the contexts on the object list`).toBe(0);
+            expect(
+              deliveredScreen.daemonProperties.length,
+              `${at}: the delivered build stated ${deliveredScreen.daemonProperties.length} of the eight daemon properties, so REQ-45 has nothing to remove here`,
+            ).toBe(8);
+            expect(deliveredScreen.cards.length, `${at}: the delivered build drew one card, so the pair REQ-45 breaks up was not there`).toBe(2);
+
+            expect(currentScreen.cardLists, `${at}: a hand-built card list is still drawn on this screen`).toBe(0);
+            expect(currentScreen.objectLists, `${at}: the contexts are not on the object list`).toBe(1);
+            expect(currentScreen.toolbars, `${at}: the card does not carry a screen toolbar of its own`).toBe(1);
+            expect(
+              currentScreen.daemonProperties,
+              `${at}: the screen still states daemon properties of the active context (REQ-45)`,
+            ).toEqual([]);
+            expect(currentScreen.cards.map((card) => card.title), `${at}: a second card is still drawn beside the list`).toEqual(['Docker contexts']);
+
+            // The one card left is read at the content column's full width, which the half of a
+            // pair could not give the detail panel it now reveals (REQ-23).
+            const card = currentScreen.cards[0]!;
+            expect(
+              round(card.width),
+              `${at}: the card is ${round(card.width)}px of a ${round(currentScreen.columnWidth)}px content column`,
+            ).toBeGreaterThanOrEqual(round(currentScreen.columnWidth) - 1);
+            expect(
+              card.width,
+              `${at}: the migrated list is no wider than the card of the pair it replaces`,
+            ).toBeGreaterThan(deliveredScreen.cards[0]!.width);
 
             // The change is inside the screen: the shell's content column is where it was.
             expect(round(currentScreen.columnWidth), `${at}: the shell's content column changed width`).toBe(round(deliveredScreen.columnWidth));

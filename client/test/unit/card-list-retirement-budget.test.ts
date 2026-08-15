@@ -41,21 +41,27 @@ const script = readFileSync(scriptPath, 'utf8');
 const BUDGET_AT_THE_START_OF_THE_PLAN = 17;
 
 /**
- * What the budget stands at now: **11**, the volumes and networks migration
+ * What the budget stands at now: **10**, the volumes and networks migration
  * (`plan-ui-coherence-optimisation/REQ-31`) having removed the two call sites
  * those panels held, the registries migration (`REQ-36`) the two its own screen
- * held, and the builders migration (`REQ-39`) the two the builder list and the
- * build-cache list held — "lower the `CardList` call-site budget by the two
- * sites removed here", batch 8. Zero at the deletion (batch 13), at which point
- * the check goes with the component.
+ * held, the builders migration (`REQ-39`) the two the builder list and the
+ * build-cache list held, and the contexts migration (`REQ-42`) the one that
+ * screen held — "lower the `CardList` call-site budget by the one site removed
+ * here", batch 9. Zero at the deletion (batch 13), at which point the check goes
+ * with the component.
  */
-const BUDGET_NOW = 11;
+const BUDGET_NOW = 10;
 
 /** The call sites the migrations have removed so far, which is what "lowered deliberately" means. */
 const MIGRATED_AWAY = BUDGET_AT_THE_START_OF_THE_PLAN - BUDGET_NOW;
 
 /** The directories whose screens have been migrated, and which therefore hold no call site at all. */
-const MIGRATED_DIRECTORIES = [join('src', 'volumes-networks'), join('src', 'registries'), join('src', 'builders')];
+const MIGRATED_DIRECTORIES = [
+  join('src', 'volumes-networks'),
+  join('src', 'registries'),
+  join('src', 'builders'),
+  join('src', 'contexts'),
+];
 
 /**
  * The state of the conformance script **before this plan touched anything** —
@@ -132,9 +138,9 @@ function callSiteCount(files: string[]): number {
 
 describe('the retirement budget — the count it holds (REQ-94)', () => {
   // ui-conformance-check.md — "the expected count is 17 at the start of
-  // plan-ui-coherence-optimisation, lowered by each screen migration in its own commit"; batch 8 —
-  // "lower the CardList call-site budget by the two sites removed here", from the 13 the volumes,
-  // networks and registries migrations left
+  // plan-ui-coherence-optimisation, lowered by each screen migration in its own commit"; batch 9 —
+  // "lower the CardList call-site budget by the one site removed here", from the 11 the volumes,
+  // networks, registries and builders migrations left
   it('pins the expected count at the number the migrations so far have left', () => {
     const expected = /expectedCallSites:\s*(\d+)/.exec(script)?.[1];
 
@@ -150,11 +156,12 @@ describe('the retirement budget — the count it holds (REQ-94)', () => {
     expect(callSiteCount(featureFiles())).toBe(BUDGET_NOW);
   });
 
-  // REQ-31, REQ-36, REQ-39, REQ-82 — a migration **deletes** the arrangement it replaces: the six
-  // sites the drop from 17 to 11 accounts for are the two those panels held, the two the registries
-  // screen held and the two the builders screen held, and none of them is left standing
+  // REQ-31, REQ-36, REQ-39, REQ-42, REQ-82 — a migration **deletes** the arrangement it replaces:
+  // the seven sites the drop from 17 to 10 accounts for are the two those panels held, the two the
+  // registries screen held, the two the builders screen held and the one the contexts screen held,
+  // and none of them is left standing
   it('accounts for the drop by the sites the migrated screens no longer hold', () => {
-    expect(MIGRATED_AWAY).toBe(6);
+    expect(MIGRATED_AWAY).toBe(7);
 
     for (const directory of MIGRATED_DIRECTORIES) {
       const migratedScreen = featureFiles().filter((file) => file.includes(directory));

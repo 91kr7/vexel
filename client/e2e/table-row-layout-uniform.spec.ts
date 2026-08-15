@@ -54,6 +54,9 @@ const SCREENS: { id: string; heading: string }[] = [
   { id: 'volumes-networks', heading: 'Volumes & networks' },
   { id: 'registries', heading: 'Registries' },
   { id: 'builders-cache', heading: 'Builders & cache' },
+  // plan-ui-coherence-optimisation/REQ-42 — the contexts list joined the object list in batch 9,
+  // and this sweep is written to cover **every** table the operator can reach.
+  { id: 'contexts', heading: 'Contexts' },
 ];
 
 /** The widths a column may not state: each of them resolves against its own grid's content. */

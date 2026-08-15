@@ -68,3 +68,32 @@ Batch 8 did **not** fix it: changing a shared cell mid-migration was outside its
 it used `MetaCell` with the delivered joined list instead — which is also what the delivered builder
 row carried. The repair is this batch's (the badge must shrink and ellipsise inside its wrapper,
 with the label's full text staying in the wrapper's tooltip), and it needs its own unit coverage.
+
+## Recorded from batch 9 — `Badge.onClick` survives INT-8 unless it is named
+
+**Deleting `CardList` does not delete the affordance it was the last consumer of.** With the contexts
+migration, `CardList`'s active-selection variant lost its last call site in the whole client, and with
+it a **library prop** whose only call site anywhere is inside the component this batch removes:
+
+| what | where | goes with |
+| --- | --- | --- |
+| `Badge`'s `onClick` prop | `client/src/ui/controls/Badge.tsx` — sole call site in the client: `client/src/ui/data/CardList.tsx:116` | **nothing** — it outlives INT-8 unless removed by name |
+| `CardListRowSelection` (`active`, `onUse`, `activeLabel`, `useLabel`) and `selectionControl` | `client/src/ui/data/CardList.tsx:9`, `:114` | `CardList`, at INT-8 |
+| their coverage | `client/test/unit/card-list-selection.test.tsx` (whole file) | `CardList`, at INT-8 |
+| the lines stating the selection variant | `.sdd/modules/ui-library/specs/card-list.md:39-42`, `:55`, `:57-58` | `CardList`, at INT-9 |
+
+**Why this orphan is worse than `KeyHint` (REQ-93) or `ChipGroup.addLabel` (batch 6's pin), which are
+merely dead.** `Badge onClick` renders `<button class="ui-badge ui-badge--clickable">`: a badge that
+is a control, told from a badge that is a statement by a hover fill and nothing else. That is
+precisely the affordance REQ-27 forbids and precisely the defect batch 9 removed from Contexts — so
+leaving the prop exported is leaving the library able to manufacture, in one line and with no
+reviewer's objection, the thing three batches have been removing. A dead prop is untidy; a dead prop
+that manufactures a banned affordance is a trap.
+
+So **INT-8 removes the prop, not only the component**: `Badge`'s `onClick`, its `<button>` branch,
+`.ui-badge--clickable` and its `:hover` rule in `client/src/ui/controls/controls.css:223-231`, and the
+lines of `ui-library/specs/badge.md` that offer it (`:15` in the signature, `:23` "renders the badge
+as a click target … e.g. a selection", `:29` the propagation rule that only a clickable one has). After
+that, `Badge` renders a `<span>` and only a `<span>`, and a caller that wants a clickable pill has to
+ask `ActionButtonGroup` for an action with a weight — which is the whole point of REQ-27. `grep -n
+"onClick" client/src/ui/controls/Badge.tsx` must return nothing, alongside INT-8's `grep CardList`.

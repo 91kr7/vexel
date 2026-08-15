@@ -55,18 +55,48 @@ async function createTlsContextQuietly(name: string): Promise<string> {
   return dir;
 }
 
+/**
+ * A context's row.
+ *
+ * The list is the object list's comfortable variant since
+ * `plan-ui-coherence-optimisation/REQ-42`, so a row is a `.ui-data-table__row`
+ * and each value of a context is a cell of its own — the kind under the name,
+ * TLS and the state in columns rather than a `(kind)` suffix on the title and a
+ * `(tls)` one on the endpoint.
+ */
 function contextRow(page: Page, name: string) {
-  return page.locator('.ui-card-list > .ui-surface', { has: page.locator('.ui-card-list__item', { hasText: name }) });
+  return screenContent(page).locator('.ui-data-table__row', { hasText: name }).first();
+}
+
+/** The cell of a row belonging to the column whose header matches `header`, read through that header. */
+async function cellOf(page: Page, row: ReturnType<typeof contextRow>, header: RegExp) {
+  const headers = await screenContent(page).locator('.ui-data-table__header-cell').allInnerTexts();
+  const index = headers.findIndex((label) => header.test(label.trim()));
+  expect(index, `no column is headed ${header} — headers are ${JSON.stringify(headers)}`).toBeGreaterThanOrEqual(0);
+  return row.locator('.ui-data-table__cell').nth(index);
+}
+
+/** The switch a row offers: an action of its cluster, weighing primary, since REQ-43. */
+function switchControl(row: ReturnType<typeof contextRow>) {
+  return row.getByRole('button', { name: 'Use', exact: true });
+}
+
+/**
+ * Clicks a control with a **real pointer at its own visible coordinates**.
+ *
+ * A programmatic activation moves no focus and hit-tests nothing, so it cannot
+ * detect a defect only hit-testing can trigger (CLAUDE.md, "What a check drives,
+ * and what it measures") — and this is the most consequential click in the
+ * product.
+ */
+async function clickAtItsOwnCentre(page: Page, control: ReturnType<typeof switchControl>): Promise<void> {
+  await control.scrollIntoViewIfNeeded();
+  const box = (await control.boundingBox())!;
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 }
 
 function screenContent(page: Page) {
   return page.locator('.ui-frame__content');
-}
-
-function daemonPanel(page: Page) {
-  return screenContent(page).locator('.ui-surface', {
-    has: page.getByRole('heading', { level: 2, name: 'Daemon of active context' }),
-  });
 }
 
 /**
@@ -90,8 +120,9 @@ test.beforeEach(async ({ page }) => {
 });
 
 // plan-docker_management_app/REQ-92 — Docker contexts are listed with name, endpoint and which one
-// is active; contexts-screen.md — "name (kind) as title, its endpoint URL in monospace below ...
-// and its description on a further line when it has one"
+// is active; contexts-screen.md — "One row per context ... in aligned columns: a marker on the
+// context in use, the context's name over its kind, its endpoint, whether it carries TLS material,
+// its description, and the state Docker reports for it"
 test('lists a context with its name, kind, endpoint and description, and marks the active one', async ({ page }) => {
   const name = fixtureName('list');
   await createContextQuietly(name, 'ssh://operator@build-host', ['--description', 'an e2e fixture']);
@@ -99,16 +130,19 @@ test('lists a context with its name, kind, endpoint and description, and marks t
     await page.reload();
     const row = contextRow(page, name);
     await expect(row).toBeVisible({ timeout: 20_000 });
-    await expect(row).toContainText(`${name} (ssh)`);
-    await expect(row).toContainText('ssh://operator@build-host');
-    await expect(row).toContainText('an e2e fixture');
+    await expect(await cellOf(page, row, /^CONTEXT$/i)).toContainText(name);
+    await expect(await cellOf(page, row, /^CONTEXT$/i)).toContainText('ssh');
+    await expect(await cellOf(page, row, /^ENDPOINT$/i)).toHaveText('ssh://operator@build-host');
+    await expect(await cellOf(page, row, /^DESCRIPTION$/i)).toHaveText('an e2e fixture');
     // Not the active one: it offers the switch instead of the marker.
-    await expect(row.getByText('use', { exact: true })).toBeVisible();
+    await expect(switchControl(row)).toBeVisible();
     await expect(row.getByText('active', { exact: true })).toHaveCount(0);
 
-    // The context Docker itself has selected is the one carrying the marker.
+    // The context Docker itself has selected is the one carrying the marker, and is offered no
+    // switch to itself (contexts-screen.md).
     const activeRow = contextRow(page, await currentContextName());
     await expect(activeRow.getByText('active', { exact: true })).toBeVisible();
+    await expect(switchControl(activeRow)).toHaveCount(0);
   } finally {
     await removeContextQuietly(name);
   }
@@ -116,17 +150,19 @@ test('lists a context with its name, kind, endpoint and description, and marks t
 
 // plan-docker_management_app/REQ-92 — "whatever their endpoint kind"; contexts-screen.md — "A
 // TCP+TLS context created outside the application is shown exactly like the others: never filtered
-// out, never greyed out, never marked unsupported", its endpoint "suffixed with (tls)"
-test('shows an externally created TCP+TLS context like any other, suffixed (tls) and offering "use"', async ({ page }) => {
+// out, never greyed out, never marked unsupported", TLS being "a column rather than the delivered
+// `(tls)` suffix on the endpoint" — the suffix rode on the value the row truncates first
+test('shows an externally created TCP+TLS context like any other, its TLS in a column and its switch offered', async ({ page }) => {
   const name = fixtureName('tls');
   const certDir = await createTlsContextQuietly(name);
   try {
     await page.reload();
     const row = contextRow(page, name);
     await expect(row).toBeVisible({ timeout: 20_000 });
-    await expect(row).toContainText(`${name} (tcp)`);
-    await expect(row).toContainText('tcp://198.51.100.7:2376 (tls)');
-    await expect(row.getByText('use', { exact: true })).toBeVisible();
+    await expect(await cellOf(page, row, /^CONTEXT$/i)).toContainText('tcp');
+    await expect(await cellOf(page, row, /^ENDPOINT$/i)).toHaveText('tcp://198.51.100.7:2376');
+    await expect(await cellOf(page, row, /^TLS$/i)).toHaveText('tls');
+    await expect(switchControl(row)).toBeVisible();
     await expect(row).not.toContainText(/unsupported/i);
   } finally {
     await removeContextQuietly(name);
@@ -159,8 +195,8 @@ test('creates a local-socket context from a form that asks for no path and offer
 
     const row = contextRow(page, name);
     await expect(row).toBeVisible({ timeout: 20_000 });
-    await expect(row).toContainText(`${name} (local)`);
-    await expect(row).toContainText('unix://');
+    await expect(await cellOf(page, row, /^CONTEXT$/i)).toContainText('local');
+    await expect(await cellOf(page, row, /^ENDPOINT$/i)).toContainText('unix://');
   } finally {
     await removeContextQuietly(name);
   }
@@ -193,8 +229,8 @@ test('creates an SSH context, the destination appearing only once the SSH kind i
 
     const row = contextRow(page, name);
     await expect(row).toBeVisible({ timeout: 20_000 });
-    await expect(row).toContainText(`${name} (ssh)`);
-    await expect(row).toContainText('ssh://operator@build-host');
+    await expect(await cellOf(page, row, /^CONTEXT$/i)).toContainText('ssh');
+    await expect(await cellOf(page, row, /^ENDPOINT$/i)).toHaveText('ssh://operator@build-host');
   } finally {
     await removeContextQuietly(name);
   }
@@ -230,32 +266,12 @@ test('removing a context asks for confirmation naming it, then drops it from the
   }
 });
 
-// plan-docker_management_app/REQ-94 — the daemon of the active context reports its version, Engine
-// API version, BuildKit version, storage driver, cgroup driver, OS/architecture, root directory and
-// container counts; contexts-screen.md — the panel's rows, with "not reported" standing in for an
-// absent buildx plugin
-test('shows the daemon readings of the active context', async ({ page }) => {
-  const panel = daemonPanel(page);
-  await expect(panel).toBeVisible();
-
-  for (const label of ['Docker version', 'Engine API', 'BuildKit', 'Storage driver', 'Cgroup driver', 'OS / Arch', 'Root directory', 'Containers (running)']) {
-    await expect(panel.getByText(label, { exact: true })).toBeVisible({ timeout: 20_000 });
-  }
-
-  const { stdout: version } = await execFileAsync('docker', ['version', '--format', '{{.Server.Version}}|{{.Server.APIVersion}}']);
-  const [daemonVersion, daemonApiVersion] = version.trim().split('|');
-  const { stdout: info } = await execFileAsync('docker', ['info', '--format', '{{.Driver}}|{{.DockerRootDir}}|{{.Architecture}}']);
-  const [driver, rootDir, architecture] = info.trim().split('|');
-
-  await expect(panel).toContainText(daemonVersion!);
-  await expect(panel).toContainText(daemonApiVersion!);
-  await expect(panel).toContainText(driver!);
-  await expect(panel).toContainText(rootDir!);
-  await expect(panel).toContainText(architecture!);
-  // The buildx plugin's version, or the stated absence of one — never a blank row.
-  const buildx = await execFileAsync('docker', ['buildx', 'version']).catch(() => undefined);
-  if (!buildx) await expect(panel).toContainText('not reported');
-});
+// The daemon-readings test that stood here is **removed, not neutered**
+// (`plan-ui-coherence-optimisation/REQ-45`, batch 9 INT-6): the eight-property
+// block it covered is gone from this screen, having described the daemon rather
+// than a context, and the same eight readings are covered where they now live
+// alone — `system-prune.spec.ts`, on System & prune. `contexts-row-geometry.spec.ts`
+// asserts the other half, that none of the eight is stated here any longer.
 
 // plan-docker_management_app/REQ-93 — selecting another context re-points every screen at the newly
 // selected daemon, and the active-context indicator in the shell updates; contexts-screen.md — "A
@@ -273,12 +289,26 @@ test('switching the active context marks the row, confirms with a toast and rena
   // The kind the row and the footer name it by, derived from the endpoint URL as the contract does.
   const kind = endpoint.startsWith('ssh://') ? 'ssh' : /^(tcp|http|https):\/\//.test(endpoint) ? 'tcp' : 'local';
   await createContextQuietly(name, endpoint);
+  // When each read of the inventory was **issued**: the announcement's own effect is a read that
+  // starts after the switch, so the two are told apart by time. The window asserted below is the
+  // footer's own budget, an order of magnitude inside the 15s poll (use-contexts.ts), so a read
+  // landing in it is the announcement and not the poll.
+  const inventoryReads: number[] = [];
+  page.on('request', (request) => {
+    if (request.method() === 'GET' && new URL(request.url()).pathname === '/api/contexts') inventoryReads.push(Date.now());
+  });
   try {
     await page.reload();
     const row = contextRow(page, name);
     await expect(row).toBeVisible({ timeout: 20_000 });
 
-    await row.getByText('use', { exact: true }).click();
+    const switchedAt = Date.now();
+
+    // A **real pointer at the control's own coordinates** (CLAUDE.md): this is
+    // the most consequential click in the product — it re-points the whole
+    // application at another daemon — and a programmatic activation would
+    // neither move focus nor hit-test the box the operator aims at.
+    await clickAtItsOwnCentre(page, switchControl(row));
 
     // The toast is asserted first because it is the one of the two that expires:
     // it is pushed the instant the POST answers and lives five seconds, while
@@ -290,12 +320,20 @@ test('switching the active context marks the row, confirms with a toast and rena
     await expect(page.getByText('Active context switched')).toBeVisible({ timeout: 20_000 });
     await expect(row.getByText('active', { exact: true })).toBeVisible({ timeout: 20_000 });
     await expect(page.getByRole('navigation')).toContainText(`${name} (${kind})`, { timeout: footerBudget });
-    // The previously active context is no longer the one in use.
-    await expect(contextRow(page, originalActive).getByText('use', { exact: true })).toBeVisible();
+    // The previously active context is no longer the one in use: it is offered the switch again.
+    await expect(switchControl(contextRow(page, originalActive))).toBeVisible();
 
-    // The daemon panel keeps answering for the context now in use (REQ-93, REQ-94).
-    const { stdout: version } = await execFileAsync('docker', ['version', '--format', '{{.Server.Version}}']);
-    await expect(daemonPanel(page)).toContainText(version.trim(), { timeout: 20_000 });
+    // The announcement the switch carries is unchanged by the migration (batch 9's constraint:
+    // "nothing in this migration may change when that broadcast fires or what it carries"). What
+    // it does is stated in use-contexts.md — "whoever announces a switch, every instance re-reads"
+    // — so the observable is a fresh read of the inventory *after* the POST answered, not a
+    // same-tick reading of state the click had not yet produced.
+    await expect
+      .poll(() => inventoryReads.filter((at) => at > switchedAt).length, {
+        message: 'the switch announced nothing: no view re-read the inventory after it',
+        timeout: footerBudget,
+      })
+      .toBeGreaterThan(0);
 
     // Switching back through the application restores the operator's own context.
     // The switch is daemon-bound — some six CLI spawns, seconds of them under
@@ -307,7 +345,7 @@ test('switching the active context marks the row, confirms with a toast and rena
     const switchedBack = page.waitForResponse(
       (response) => response.request().method() === 'POST' && new URL(response.url()).pathname === `/api/contexts/${originalActive}/use`,
     );
-    await contextRow(page, originalActive).getByText('use', { exact: true }).click();
+    await clickAtItsOwnCentre(page, switchControl(contextRow(page, originalActive)));
     await switchedBack;
     await expect(page.getByRole('navigation')).toContainText(originalActive, { timeout: footerBudget });
   } finally {

@@ -128,14 +128,19 @@ test('volumes & networks: both panels arrange their inspect data without clippin
   }
 });
 
-// REQ-28 — system & prune and contexts, whose daemon cards are present whatever the daemon holds:
-// two sections in ~360px cards, which is the narrow case a too-high count clips in.
-test('system & prune and contexts: the daemon cards stay inside their ~360px cards', async ({ page }) => {
+// REQ-28 — system & prune, whose daemon card is present whatever the daemon holds: two sections in
+// a ~360px card, which is the narrow case a too-high count clips in.
+//
+// **Contexts stood beside it here and no longer does** (`plan-ui-coherence-optimisation/REQ-45`,
+// batch 9): the daemon card that made it a second ~360px site is gone from that screen — the eight
+// properties describe the daemon and not a context, and System & prune keeps them. What Contexts
+// draws now is the row's own detail panel, at the content column's full width, which is neither this
+// file's narrow case nor present until a context is selected; it is measured in
+// `contexts-row-geometry.spec.ts`. The site is removed rather than neutered: the behaviour it
+// covered here is removed.
+test('system & prune: the daemon card stays inside its ~360px card', async ({ page }) => {
   for (const viewport of SWEEP_VIEWPORTS) {
-    for (const [screenId, screenName, heading] of [
-      ['system-prune', 'system & prune', 'System & prune'],
-      ['contexts', 'contexts', 'Contexts'],
-    ] as const) {
+    for (const [screenId, screenName, heading] of [['system-prune', 'system & prune', 'System & prune']] as const) {
       await page.setViewportSize(viewport);
       await openApp(page, screenId);
       await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible({ timeout: 20_000 });

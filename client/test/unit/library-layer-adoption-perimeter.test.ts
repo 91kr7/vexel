@@ -28,9 +28,11 @@ const clientRoot = process.cwd();
  * - batch 6 — volumes and networks (`REQ-31` … `REQ-35`)
  * - batch 7 — registries (`REQ-36` … `REQ-38`)
  * - batch 8 — builders and build cache (`REQ-39` … `REQ-41`)
+ * - batch 9 — contexts (`REQ-42` … `REQ-45`)
  */
 const MIGRATED_FILES = [
   'src/builders/BuildersScreen.tsx',
+  'src/contexts/ContextsScreen.tsx',
   'src/registries/RegistriesScreen.tsx',
   'src/volumes-networks/NetworksPanel.tsx',
   'src/volumes-networks/VolumesPanel.tsx',
@@ -57,11 +59,12 @@ function featureCallSites(pattern: RegExp): string[] {
 
 describe('the library layer is consumed only by the screens migrated onto it (REQ-30, REQ-31)', () => {
   // data-table.md — `variant='comfortable'` is the object list the nine screens migrate onto, from
-  // batch 6; volumes, networks, the registries screen's two lists and the builders screen's two
-  // (`REQ-39`) are the ones that have
+  // batch 6; volumes, networks, the registries screen's two lists, the builders screen's two
+  // (`REQ-39`) and the contexts list (`REQ-42`) are the ones that have
   it('has the comfortable list asked for by the migrated lists and nowhere else', () => {
     expect(featureCallSites(/variant=(?:"comfortable"|\{'comfortable'\}|\{"comfortable"\})/)).toEqual([
       'src/builders/BuildersScreen.tsx',
+      'src/contexts/ContextsScreen.tsx',
       'src/registries/RegistriesScreen.tsx',
       'src/volumes-networks/NetworksPanel.tsx',
       'src/volumes-networks/VolumesPanel.tsx',
@@ -84,15 +87,18 @@ describe('the library layer is consumed only by the screens migrated onto it (RE
   });
 
   // detail-panel.md — properties as a structural prop rather than a hand-built grid; the
-  // build-cache record's panel is the third (builders-screen.md, REQ-39)
+  // build-cache record's panel is the third (builders-screen.md, REQ-39) and the context's the
+  // fourth, where it is the route out of the endpoint the row truncates (REQ-21, REQ-42)
   it('has the panel properties stated through the new props by the migrated panels', () => {
     expect(featureCallSites(/\bproperties=\{/)).toEqual([
       'src/builders/BuildersScreen.tsx',
+      'src/contexts/ContextsScreen.tsx',
       'src/volumes-networks/NetworksPanel.tsx',
       'src/volumes-networks/VolumesPanel.tsx',
     ]);
     expect(featureCallSites(/\bpropertiesContentClass=/)).toEqual([
       'src/builders/BuildersScreen.tsx',
+      'src/contexts/ContextsScreen.tsx',
       'src/volumes-networks/NetworksPanel.tsx',
       'src/volumes-networks/VolumesPanel.tsx',
     ]);
@@ -101,10 +107,12 @@ describe('the library layer is consumed only by the screens migrated onto it (RE
   // action-button-group.md — an action's weight is the only thing a caller says about it. The
   // registries screen states one because logging in weighs more than logging out (REQ-36); the
   // builders screen because switching the active builder is an action and removing one is
-  // destructive (REQ-27, REQ-39).
+  // destructive (REQ-27, REQ-39); the contexts screen because the switch is the most consequential
+  // click on it and must not read as the statement beside it (REQ-43).
   it('has an action weight declared by the migrated screens', () => {
     expect(featureCallSites(/\bweight\s*[:=]/)).toEqual([
       'src/builders/BuildersScreen.tsx',
+      'src/contexts/ContextsScreen.tsx',
       'src/registries/RegistriesScreen.tsx',
       'src/volumes-networks/NetworksPanel.tsx',
       'src/volumes-networks/VolumesPanel.tsx',
