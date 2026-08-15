@@ -195,7 +195,39 @@ const DELIBERATELY_CHANGED: Record<string, string> = {
     'plan-ui-coherence-optimisation/REQ-31…REQ-35 — the pair of half-width cards became one stacked full-width column, so a revealed detail is full width',
   registries:
     'plan-ui-coherence-optimisation/REQ-36…REQ-38 — the two lists became the object list, and the fixed 1 : 1.2 template that never collapsed became the library’s pair arrangement: equal panels at desktop widths, one column at the phone breakpoint',
+  'builders-cache':
+    'plan-ui-coherence-optimisation/REQ-39…REQ-41 — the builder list and the build-cache list became the object list, the hand-built cards deleted, and each card’s page-level action moved from its header into the screen toolbar under it',
 };
+
+/** The builders screen, as the change REQ-39…REQ-41 declares can be measured on both builds. */
+async function measureBuildersScreen(page: Page): Promise<{
+  columnWidth: number;
+  cards: { title: string; x: number; y: number; width: number }[];
+  cardLists: number;
+  objectLists: number;
+  toolbars: number;
+}> {
+  return await page.evaluate(() => {
+    const content = document.querySelector('.ui-frame__content')! as HTMLElement;
+    const contentStyle = getComputedStyle(content);
+    const columnWidth = content.clientWidth - Number.parseFloat(contentStyle.paddingLeft) - Number.parseFloat(contentStyle.paddingRight);
+    // The element both builds draw for a card's title.
+    const cards = [...document.querySelectorAll('.ui-section-header__title')]
+      .map((node) => ({ title: (node.textContent ?? '').trim(), card: node.closest('.ui-surface') }))
+      .filter((entry): entry is { title: string; card: Element } => entry.card !== null)
+      .map(({ title, card }) => {
+        const rect = card.getBoundingClientRect();
+        return { title, x: rect.x, y: rect.y, width: rect.width };
+      });
+    return {
+      columnWidth,
+      cards,
+      cardLists: content.querySelectorAll('.ui-card-list').length,
+      objectLists: content.querySelectorAll('.ui-data-table').length,
+      toolbars: content.querySelectorAll('.ui-screen-toolbar').length,
+    };
+  });
+}
 
 /** The two cards of the registries screen, by the section header each carries. */
 async function measureRegistryPanels(page: Page): Promise<{
@@ -470,6 +502,49 @@ test.describe('F5 — the thirteen screens render as the delivered build does', 
 
             // The change is inside the screen: the shell's content region is where it was.
             expect(round(currentPanels.columnWidth), `${at}: the shell's content column changed width`).toBe(round(deliveredPanels.columnWidth));
+            continue;
+          }
+
+          // The builders screen, whose declared change is what the two lists are made of rather
+          // than where the cards sit: the hand-built card lists are deleted for the object list,
+          // and each card's page-level action leaves its header for the toolbar under it. The
+          // cards themselves are where they were, at the content column's width, which is what is
+          // asserted on both builds.
+          if (screen.id === 'builders-cache') {
+            const deliveredScreen = await measureBuildersScreen(before);
+            const currentScreen = await measureBuildersScreen(page);
+            console.log(
+              `[REQ-39] ${at} ${screen.heading}: delivered ${deliveredScreen.cardLists} card list(s), ${deliveredScreen.objectLists} object list(s), ` +
+                `${deliveredScreen.toolbars} toolbar(s) — now ${currentScreen.cardLists} / ${currentScreen.objectLists} / ${currentScreen.toolbars}; ` +
+                `cards ${currentScreen.cards.map((card) => `${card.title} x=${round(card.x)} w=${round(card.width)}`).join(', ')} — ${
+                  DELIBERATELY_CHANGED[screen.id]
+                }`,
+            );
+
+            // The premise: the delivered build really did draw the hand-built list this batch
+            // deletes, and no object list at all.
+            expect(deliveredScreen.cardLists, `${at}: the delivered build drew no card list here, so this comparison shows nothing`).toBeGreaterThan(0);
+            expect(deliveredScreen.objectLists, `${at}: the delivered build already listed these on the object list`).toBe(0);
+
+            expect(currentScreen.cardLists, `${at}: a hand-built card list is still drawn on this screen`).toBe(0);
+            expect(currentScreen.objectLists, `${at}: the two lists are not both on the object list`).toBe(2);
+            expect(currentScreen.toolbars, `${at}: each card does not carry a screen toolbar of its own`).toBe(2);
+
+            // The cards are where they were: same left edge, same width, at the content column.
+            expect(currentScreen.cards.length, `${at}: this build draws a different number of cards`).toBe(deliveredScreen.cards.length);
+            currentScreen.cards.forEach((card, index) => {
+              const deliveredCard = deliveredScreen.cards[index];
+              expect(card.title, `${at}: the cards are drawn in a different order`).toBe(deliveredCard.title);
+              expect(round(card.x), `${at}: the ${card.title} card moved sideways`).toBe(round(deliveredCard.x));
+              expect(round(card.width), `${at}: the ${card.title} card changed width`).toBe(round(deliveredCard.width));
+              expect(
+                round(card.width),
+                `${at}: the ${card.title} card is ${round(card.width)}px of a ${round(currentScreen.columnWidth)}px content column`,
+              ).toBeGreaterThanOrEqual(round(currentScreen.columnWidth) - 1);
+            });
+
+            // The change is inside the screen: the shell's content column is where it was.
+            expect(round(currentScreen.columnWidth), `${at}: the shell's content column changed width`).toBe(round(deliveredScreen.columnWidth));
             continue;
           }
 

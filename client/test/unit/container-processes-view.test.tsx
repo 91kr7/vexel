@@ -72,6 +72,23 @@ describe('ContainerProcessesView (REQ-33)', () => {
     }
   });
 
+  // data-table.md — the command column used to declare `minmax(240px, 3fr)` itself, which the
+  // closed `DataTableColumnWidth` no longer admits; stated as a flexible width with a floor, "the
+  // component writes the `minmax()` itself". The claim is that the track is the same one, so it is
+  // compared against the string this view declared before the rewrite
+  // (`ContainerProcessesView.tsx` at 6b90bcb^), header and row alike.
+  it('lays its columns out on the track it declared before the minmax was rewritten', async () => {
+    const { container: dom } = render(<ContainerProcessesView container={container} />);
+    await screen.findByText('postgres: walwriter');
+
+    const delivered = '80px 140px minmax(240px, 3fr) 90px 90px';
+    const row = dom.querySelector<HTMLElement>('.ui-data-table__row');
+    const header = dom.querySelector<HTMLElement>('.ui-data-table__header');
+
+    expect(row?.style.gridTemplateColumns, 'the command column no longer resolves to the track it was delivered with').toBe(delivered);
+    expect(header?.style.gridTemplateColumns, 'the header is laid out on a different track from the rows').toBe(delivered);
+  });
+
   // container-processes-view.md — the number of processes is reported once a listing was read
   it('reports how many processes are running', async () => {
     const { container: dom } = render(<ContainerProcessesView container={container} />);

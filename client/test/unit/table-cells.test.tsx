@@ -11,9 +11,14 @@ afterEach(cleanup);
  * The declarations of a CSS rule. jsdom loads no stylesheet, so a contract the
  * library expresses in CSS — a line shown in full rather than ellipsis-cut — is
  * read from the stylesheet itself, as `design-tokens-contrast.test.ts` does.
+ *
+ * `stylesheet` names which one, because the cells' truncation is no longer
+ * declared beside them: `truncation-contract.md` puts the three properties that
+ * cut a line on `.ui-truncating-line`, in `src/ui/truncation.css`, and the cell
+ * carries or withholds that class.
  */
-function ruleBody(selector: string): string {
-  const css = readFileSync(join(process.cwd(), 'src/ui/data/data-table.css'), 'utf8');
+function ruleBody(selector: string, stylesheet = 'src/ui/data/data-table.css'): string {
+  const css = readFileSync(join(process.cwd(), stylesheet), 'utf8');
   // Anchored on the end of the previous rule, so a selector is never matched inside a longer
   // selector list (where it would return the wrong rule's declarations).
   const match = new RegExp(`(?:^|\\}|\\*/)\\s*${selector.replace(/[.\-]/g, '\\$&')}\\s*\\{([^}]*)\\}`).exec(css);
@@ -211,11 +216,25 @@ describe('TwoLineCell (plan-docker_management_app/REQ-3, REQ-105)', () => {
     expect(cell?.className).toContain('ui-table-two-line-cell--wrap');
     expect(cell?.textContent).toContain('Building an image from a Dockerfile.');
 
-    // jsdom loads no stylesheet, so the wrapping itself is read from the library's own CSS.
+    // truncation-contract.md — "A line that reads as a sentence and is expected in full **does not
+    // take the line class**, rather than taking it and overriding it. That is how the wrapping
+    // variants of `TwoLineCell` and `MetaCell` stay wrapping: they withhold the class." So what
+    // shows the lines in full is the **absence** of `.ui-truncating-line` on them, and that is
+    // where this assertion now looks: the rule that used to override `white-space` here was
+    // withdrawn when the three cutting properties moved onto that one class.
+    const lines = container.querySelectorAll('.ui-table-two-line-cell__title, .ui-table-two-line-cell__subtitle');
+    expect(lines, 'the wrapping cell draws neither of its two lines').toHaveLength(2);
+    for (const line of lines) {
+      expect(line.className, 'a wrapping line takes the class that cuts it at one line').not.toContain('ui-truncating-line');
+    }
+
+    // jsdom loads no stylesheet, so what the wrapping variant declares of its own is read from the
+    // library's own CSS: a long unbroken value breaks rather than overflowing, and nothing here
+    // reinstates the ellipsis.
     const wrappedLines = ruleBody(
       '.ui-table-two-line-cell--wrap .ui-table-two-line-cell__title,\\s*.ui-table-two-line-cell--wrap .ui-table-two-line-cell__subtitle',
     );
-    expect(wrappedLines).toMatch(/white-space:\s*normal/);
+    expect(wrappedLines).toMatch(/overflow-wrap:\s*anywhere/);
     expect(wrappedLines).not.toMatch(/text-overflow:\s*ellipsis/);
     expect(ruleBody('.ui-table-two-line-cell--wrap .ui-table-two-line-cell__subtitle')).toMatch(/font-family:\s*inherit/);
   });
@@ -226,7 +245,16 @@ describe('TwoLineCell (plan-docker_management_app/REQ-3, REQ-105)', () => {
     const { container } = render(<TwoLineCell title="web-nginx" subtitle="a1b2c3d4 · running" />);
 
     expect(container.querySelector('.ui-table-two-line-cell')?.className).not.toContain('--wrap');
-    expect(ruleBody('.ui-table-two-line-cell__title')).toMatch(/text-overflow:\s*ellipsis/);
-    expect(ruleBody('.ui-table-two-line-cell__subtitle')).toMatch(/text-overflow:\s*ellipsis/);
+
+    // The three properties that cut a line are the truncation contract's, on one class
+    // (`truncation-contract.md`: ".ui-truncating-line → one line of that run: a single line,
+    // truncated with an ellipsis at the run's edge"), which the cell puts on both of its lines.
+    // Asserted where they live rather than beside the cell, which is where they used to be.
+    expect(container.querySelector('.ui-table-two-line-cell__title')?.className).toContain('ui-truncating-line');
+    expect(container.querySelector('.ui-table-two-line-cell__subtitle')?.className).toContain('ui-truncating-line');
+
+    const truncatingLine = ruleBody('.ui-truncating-line', 'src/ui/truncation.css');
+    expect(truncatingLine).toMatch(/text-overflow:\s*ellipsis/);
+    expect(truncatingLine).toMatch(/white-space:\s*nowrap/);
   });
 });

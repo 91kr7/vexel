@@ -133,7 +133,21 @@ Description:
   below.
 - **An expansion is never wider than the box the table is read in, and never pans.** While the table
   pans, `renderExpanded`'s content keeps the width of the table's own visible box and stays in it as
-  the grid pans underneath: its left edge holds the table's left edge at every scroll offset.
+  the grid pans underneath: its left edge holds the table's left edge at every scroll offset. In the
+  comfortable variant that left edge is the row card's, one hairline in from the pan region's
+  (measured at 375×812: expansion `x=54` against a pan region at `x=53`), the expansion living inside
+  the card the row is drawn on; in the dense variant the two coincide (`x=21` against `x=21`).
+  - **The offset is written from the pan region's scroll event**, not declared as a sticky inset —
+    `position: sticky` resolves against the body's own region, which never scrolls horizontally, and
+    `transform` would make the expansion the containing block of any `position: fixed` descendant, a
+    dialog opened from a panel being rendered in place. The consequence is the same in **both**
+    variants and is a property of that choice: the pin is applied in the scroll event's own frame, so
+    a probe that reads the box in the same tick as a programmatic `scrollLeft =` assignment reads the
+    un-pinned position — measured at 375×812, `x=-199` on the build cache, `-170` on volumes and
+    `-369` on the dense images table, all three back at their resting `x` two frames later. Driven as
+    a pointer drives it, the box does not move at all: sampled through a real wheel scroll at
+    `scrollLeft` 80/160/240/253, the comfortable expansion held `x=54` and the dense one `x=21` at
+    every sample.
   A row is a grid to be scanned across; a panel is prose and values to be read, and a panel that has
   to be panned to be read is worse than a panel scrolled vertically. This is what keeps the property
   arrangement inside it (`ContentColumns`, `plan-docker_management_app-detail_property_columns`)
@@ -141,8 +155,17 @@ Description:
   component gained its minimums, at 375, 460, 640, 700, 720, 940, 1280 and 1440.
 - Where the columns fit, the expansion carries **no geometry of the component's own** and lays out
   as it always did — the delivered case, unchanged, at every desktop width.
-- The column minimums are the library's, so **every screen inherits them by construction**: no
-  screen declares a minimum, a breakpoint-conditional column set or a width to compensate.
+- **The column minimums are the library's, and no screen restates them or works around them.** The
+  default floor (`--data-table-column-min-width`) and its scaling by a column's flex factor are the
+  component's, applied by construction; no screen declares them again, states a
+  breakpoint-conditional column set, or writes a width to compensate for a column the component
+  failed to size. That is the line REQ-10 draws.
+  - **A caller may declare `minWidth` for a column whose content it knows**, and the component still
+    resolves the track (it writes the `minmax()`). A screen saying "this column holds a process
+    command, so it needs at least 240px" is domain knowledge the screen owns and the library cannot
+    have; it is not a hand-tuned width, and it is the prop's stated purpose since it was added.
+    `ContainerProcessesView`'s `Command` column is the case this is written for — the only caller in
+    the client that declares one.
 - Virtualisation only accounts for the fixed `rowHeight` of each row when reserving scroll-window
   space; an expanded row's extra height is not reserved (spacer heights stay an approximation).
   Acceptable for the moderate list sizes this table serves; a future batch revisits it if a screen

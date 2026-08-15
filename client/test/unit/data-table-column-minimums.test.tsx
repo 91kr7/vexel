@@ -122,15 +122,29 @@ describe('DataTable — a column carries a minimum it may not resolve below', ()
     }
   });
 
-  // data-table.md: "any other `width` — a length, an already-written `minmax()`
-  // — is its own minimum and is used as given". This is also REQ-9's half at
-  // this level: the action column's track is a fixed length, so it neither
-  // grows nor shrinks with the data columns beside it.
-  it('leaves a length and an already-written minmax exactly as the screen declared them', () => {
-    for (const width of ['20px', 'var(--data-table-action-column-width)', 'var(--data-table-menu-action-column-width)', 'minmax(240px, 3fr)']) {
+  // data-table.md: a `width` that is a length — a px value, or a token holding
+  // one — "is its own minimum and is used as given". The hand-written
+  // `minmax()` this list used to carry went out with the intrinsic widths: the
+  // admissible set is now closed to `'<n>fr'`, `'<n>px'` and `'var(--token)'`,
+  // "a hand-written `minmax()` (which could carry one)" among the forms that do
+  // not compile — see `data-table-column-width-refusal.test.ts`, and the
+  // reassembly of the one call site that declared one, below. This is also
+  // REQ-9's half at this level: the action column's track is a fixed length, so
+  // it neither grows nor shrinks with the data columns beside it.
+  it('leaves a length exactly as the screen declared it', () => {
+    for (const width of ['20px', 'var(--data-table-action-column-width)', 'var(--data-table-menu-action-column-width)'] as const) {
       expect(trackFor(cell('fixed', { width })), `the declared width ${width} was rewritten`).toBe(width);
       cleanup();
     }
+  });
+
+  // data-table.md: "Stated with a flexible `width`, it is the floor and the
+  // component writes the `minmax()` itself" — which is how a column that used
+  // to declare `minmax(240px, 3fr)` of its own states the same track now
+  // (`ContainerProcessesView`'s command column). The track must come back out
+  // identical, or the rewrite has changed a layout it only meant to restate.
+  it('reassembles a flexible width and its floor into the minmax a column used to write by hand', () => {
+    expect(trackFor(cell('command', { width: '3fr', minWidth: '240px' }))).toBe('minmax(240px, 3fr)');
   });
 
   // data-table.md: `minWidth` is "the width that column may never resolve
@@ -202,13 +216,10 @@ describe('the column minimum is the library’s, and every screen inherits it', 
     expect(tokens).toMatch(/--data-table-menu-action-column-width:\s*\d/);
   });
 
-  // REQ-10 — "No screen carries a local override, a breakpoint-conditional
-  // column set or a hand-tuned width to compensate": the repair is made once, in
-  // the library, and the screens say nothing about column minimums at all.
-  it('leaves no column minimum stated outside the library', () => {
+  /** Every `.ts`/`.tsx`/`.css` file of feature code — everything under `src/` except `src/ui/`. */
+  function featureFiles(): string[] {
     const sourceRoot = join(process.cwd(), 'src');
-    const offenders: string[] = [];
-
+    const found: string[] = [];
     const walk = (directory: string): void => {
       for (const entry of readdirSync(directory, { withFileTypes: true })) {
         const path = join(directory, entry.name);
@@ -217,14 +228,38 @@ describe('the column minimum is the library’s, and every screen inherits it', 
           continue;
         }
         if (!/\.(ts|tsx|css)$/.test(entry.name)) continue;
-        const inLibrary = relative(sourceRoot, path).split('/')[0] === 'ui';
-        if (inLibrary) continue;
-        const contents = readFileSync(path, 'utf8');
-        if (/minWidth|--data-table-column-min-width/.test(contents)) offenders.push(relative(sourceRoot, path));
+        if (relative(sourceRoot, path).split('/')[0] === 'ui') continue;
+        found.push(relative(sourceRoot, path));
       }
     };
     walk(sourceRoot);
+    return found;
+  }
 
-    expect(offenders, `these files outside the library state a column minimum of their own: ${offenders.join(', ')}`).toEqual([]);
+  function stating(pattern: RegExp): string[] {
+    const sourceRoot = join(process.cwd(), 'src');
+    return featureFiles().filter((file) => pattern.test(readFileSync(join(sourceRoot, file), 'utf8')));
+  }
+
+  // REQ-10, data-table.md — "The default floor (`--data-table-column-min-width`) and its scaling by
+  // a column's flex factor are the component's, applied by construction; no screen declares them
+  // again, states a breakpoint-conditional column set, or writes a width to compensate for a column
+  // the component failed to size. That is the line REQ-10 draws."
+  it('leaves the library’s own floor and its scaling unrestated outside the library', () => {
+    const offenders = stating(/--data-table-column-min-width/);
+
+    expect(offenders, `these files outside the library restate the library's own floor: ${offenders.join(', ')}`).toEqual([]);
+  });
+
+  // data-table.md — "**A caller may declare `minWidth` for a column whose content it knows**, and
+  // the component still resolves the track (it writes the `minmax()`) … `ContainerProcessesView`'s
+  // `Command` column is the case this is written for — the only caller in the client that declares
+  // one."
+  //
+  // Pinned rather than bounded, as the `CardList` budget beside it is: it fails when another screen
+  // quietly acquires a floor of its own — which is how a hand-tuned width would arrive — and it
+  // fails when this one loses it without the sentence above being changed with it.
+  it('has a column floor declared by the one screen the contract names, and by no other', () => {
+    expect(stating(/\bminWidth[=:]/)).toEqual([join('containers', 'ContainerProcessesView.tsx')]);
   });
 });
