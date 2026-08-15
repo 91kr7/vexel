@@ -48,6 +48,7 @@ import {
   metaInkSqueezed,
   reportRow,
   round,
+  type Rect,
   type TruncatingRowGeometry,
 } from './support/truncating-rows.js';
 
@@ -204,6 +205,105 @@ async function measurePropertyValues(page: Page): Promise<
   });
 }
 
+/**
+ * A **migrated** list row, measured the way `measureTruncatingRows` measures a
+ * card row.
+ *
+ * `plan-ui-coherence-optimisation/REQ-31` moved volumes and networks onto the
+ * object list, where the flexible text and the trailing values are no longer one
+ * row of `.ui-truncating-run` / `.ui-truncating-meta` but **cells of declared
+ * columns**. The contract they are held to is the same one — the flexible text
+ * truncates, the trailing values keep their width, and neither inks over the
+ * other — so the site is measured rather than dropped: the painted ink of the
+ * first cell, clipped by every ancestor that clips, against the boxes of the
+ * cells beside it.
+ *
+ * The clipping is the whole instrument, exactly as it is there: an ellipsised
+ * line is laid out at its full length and only painted clipped, so raw text
+ * rectangles would report a collision nobody can see.
+ */
+async function measureTableRow(row: Locator): Promise<{
+  headers: string[];
+  cells: { header: string; box: Rect }[];
+  inkOverCells: { header: string; area: number; rect: Rect }[];
+  isTruncating: boolean;
+  lineTitles: (string | null)[];
+  lineUserSelect: string[];
+}> {
+  return await row.evaluate((rowElement) => {
+    const table = rowElement.closest('.ui-data-table')!;
+    const headers = Array.from(table.querySelectorAll('.ui-data-table__header-cell')).map((cell) => cell.textContent?.trim() ?? '');
+    const rect = (box: { top: number; bottom: number; left: number; right: number }) => ({
+      top: box.top,
+      bottom: box.bottom,
+      left: box.left,
+      right: box.right,
+      width: box.right - box.left,
+      height: box.bottom - box.top,
+    });
+    const clip = (raw: DOMRect, from: Element | null) => {
+      let { top, bottom, left, right } = raw;
+      for (let node: Element | null = from; node !== null; node = node.parentElement) {
+        const style = getComputedStyle(node);
+        const nodeBox = node.getBoundingClientRect();
+        if (style.overflowX !== 'visible') {
+          left = Math.max(left, nodeBox.left);
+          right = Math.min(right, nodeBox.right);
+        }
+        if (style.overflowY !== 'visible') {
+          top = Math.max(top, nodeBox.top);
+          bottom = Math.min(bottom, nodeBox.bottom);
+        }
+      }
+      if (right - left <= 0.5 || bottom - top <= 0.5) return null;
+      return rect({ top, bottom, left, right });
+    };
+    const intersection = (a: ReturnType<typeof rect>, b: ReturnType<typeof rect>) => {
+      const left = Math.max(a.left, b.left);
+      const right = Math.min(a.right, b.right);
+      const top = Math.max(a.top, b.top);
+      const bottom = Math.min(a.bottom, b.bottom);
+      if (right - left <= 0.5 || bottom - top <= 0.5) return null;
+      return rect({ top, bottom, left, right });
+    };
+
+    const cellElements = Array.from(rowElement.querySelectorAll('.ui-data-table__cell'));
+    const cells = cellElements.map((cell, index) => ({ header: headers[index] ?? `column ${index}`, box: rect(cell.getBoundingClientRect()) }));
+    const flexible = cellElements[0]!;
+    const lines = Array.from(flexible.querySelectorAll('.ui-truncating-line'));
+
+    const flexibleInk: ReturnType<typeof rect>[] = [];
+    const range = document.createRange();
+    const walker = document.createTreeWalker(flexible, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      if (!node.nodeValue?.trim()) continue;
+      range.selectNodeContents(node);
+      for (const raw of Array.from(range.getClientRects())) {
+        const clipped = clip(raw, node.parentElement);
+        if (clipped) flexibleInk.push(clipped);
+      }
+    }
+
+    const inkOverCells: { header: string; area: number; rect: ReturnType<typeof rect> }[] = [];
+    for (const cell of cells.slice(1)) {
+      for (const piece of flexibleInk) {
+        const hit = intersection(piece, cell.box);
+        if (hit) inkOverCells.push({ header: cell.header, area: hit.width * hit.height, rect: hit });
+      }
+    }
+
+    return {
+      headers,
+      cells,
+      inkOverCells,
+      isTruncating: lines.some((line) => line.scrollWidth > line.clientWidth + 1),
+      lineTitles: lines.map((line) => line.getAttribute('title')),
+      lineUserSelect: lines.map((line) => getComputedStyle(line).userSelect),
+    };
+  });
+}
+
 async function createVolumeQuietly(name: string): Promise<void> {
   await execFileAsync('docker', ['volume', 'create', ...ownershipArgs('truncation-contract'), name]);
 }
@@ -236,7 +336,7 @@ test.afterAll(async () => {
 // REQ-18, REQ-19 — the first of the three sites the analysis named, with a
 // 64-character volume name, so its mount path is the arbitrary-length case
 // rather than whatever this daemon happens to hold.
-test('volumes: a 64-character mount path never inks over the size beside it, at all three viewports', async ({ page }) => {
+test('volumes: a 64-character mount path never inks over the values beside it, at all three viewports', async ({ page }) => {
   test.setTimeout(180_000);
   const volume = name64('vol');
   expect(volume, 'the fixture name is not the 64 characters REQ-19 is written about').toHaveLength(64);
@@ -245,27 +345,55 @@ test('volumes: a 64-character mount path never inks over the size beside it, at 
     await createVolumeQuietly(volume);
     for (const viewport of F4_VIEWPORTS) {
       await openScreen(page, 'volumes-networks', 'Volumes & networks', viewport);
-      await expect(page.locator('.ui-card-list__item', { hasText: volume }).first()).toBeVisible({ timeout: 20_000 });
+      const listRow = page.locator('.ui-data-table__row', { hasText: volume }).first();
+      await expect(listRow).toBeVisible({ timeout: 20_000 });
       await settledRowCount(page);
 
-      const rows = await measureTruncatingRows(page);
-      const row = rowNamed(rows, volume);
+      const measured = await measureTableRow(listRow);
       const at = `@${viewport.width}×${viewport.height} volumes`;
-      expect(row, `${at}: the fixture volume's row was not measured`).toBeDefined();
-      console.log(`[REQ-18] ${reportRow(at, row!)}`);
+      console.log(
+        `[REQ-18] ${at} the fixture volume's row: ${measured.cells
+          .map((cell) => `${cell.header} ${describeRect(cell.box)}`)
+          .join(' | ')} — ink over the values beside it ${round(
+          measured.inkOverCells.reduce((total, hit) => total + hit.area, 0),
+        )}px², ${measured.isTruncating ? 'mount path truncating' : 'mount path whole'}`,
+      );
 
       // The premise: at this width the mount path genuinely does not fit, so
       // "no overlap" is a statement about the contract rather than about a row
       // that had room to spare all along.
       if (viewport.width >= 1280) {
-        expect(row!.runIsTruncating, `${at}: the 64-character mount path fits without truncating, so this row proves nothing`).toBe(true);
+        expect(measured.isTruncating, `${at}: the 64-character mount path fits without truncating, so this row proves nothing`).toBe(true);
       }
-      expectRowHonoursTheContract(row!, at);
 
-      // The route out of a truncation is the detail surface, never a tooltip
-      // (truncation-contract.md), and nothing on either side loses selectability.
-      expect(row!.runLineTitles.filter((title) => title !== null), `${at}: a truncated line carries a title-attribute tooltip`).toEqual([]);
-      expect(row!.runLineUserSelect.filter((value) => value === 'none'), `${at}: a truncated line has gained user-select: none`).toEqual([]);
+      // The site the analysis named, restated for the column the value now sits
+      // in: the mount path's painted ink never lands on the driver, the mounting
+      // containers or the size (REQ-18, REQ-19).
+      expect(
+        measured.inkOverCells.map((hit) => `${round(hit.area)}px² over the ${hit.header} column at ${describeRect(hit.rect)}`),
+        `${at}: the mount path's painted ink lands on the values beside it (REQ-18)`,
+      ).toEqual([]);
+      for (const cell of measured.cells) {
+        expect(
+          round(cell.box.width),
+          `${at}: the ${cell.header} column resolves to ${round(cell.box.width)}px, so its value is squeezed out of existence rather than kept at a width (REQ-19)`,
+        ).toBeGreaterThan(0);
+      }
+
+      // The route out of a truncation is the detail surface, and nothing on either
+      // side loses selectability.
+      //
+      // The **tooltip** assertion that stood here belonged to the card row, which
+      // rendered none. The object list's cells carry a native `title` by design
+      // (`table-cells.md`), and what `truncation-contract.md` forbids is a tooltip
+      // being *a substitute for* the detail surface — not its existence. So what
+      // is checked is the substance of that clause: whatever the tooltip says, the
+      // value is also obtainable in full on the object's own detail surface, which
+      // is the REQ-21 test at the foot of this file, over this very fixture.
+      for (const title of measured.lineTitles.filter((value): value is string => value !== null)) {
+        expect(title.trim(), `${at}: a line carries an empty tooltip, which states nothing`).not.toBe('');
+      }
+      expect(measured.lineUserSelect.filter((value) => value === 'none'), `${at}: a truncated line has gained user-select: none`).toEqual([]);
     }
   } finally {
     await removeVolumeQuietly(volume);
@@ -431,10 +559,11 @@ for (const viewport of F4_VIEWPORTS) {
 
     // The other quantity, kept apart from the verdict on purpose. At the
     // delivered desktop widths a trailing group is never wider than the card it
-    // sits in, and that is asserted. At 375×812 it frequently is — the three
-    // screens hand `Grid` a fixed template that never collapses, so a card is
+    // sits in, and that is asserted. At 375×812 it frequently is — the screens
+    // that hand `Grid` a fixed template that never collapses leave a card at
     // ~90px — and no change inside the library can repair it: it is reported
-    // here and pinned to batches 6, 9 and 14.
+    // here and pinned to batches 9 and 14, batch 6 having taken volumes and
+    // networks out of that list.
     if (viewport.width >= 1280) {
       expect(
         narrowCards,
@@ -442,7 +571,7 @@ for (const viewport of F4_VIEWPORTS) {
       ).toBe(0);
     } else {
       console.log(
-        `[card width] ${at}: ${narrowCards} row(s) sit in a card narrower than their trailing group — the call sites' fixed Grid templates (VolumesNetworksScreen.tsx:17, SystemScreen.tsx:176, ContextsScreen.tsx:156), not the truncation contract`,
+        `[card width] ${at}: ${narrowCards} row(s) sit in a card narrower than their trailing group — the call sites' fixed Grid templates (SystemScreen.tsx:176, ContextsScreen.tsx:156 — VolumesNetworksScreen's went with the F6 migration), not the truncation contract`,
       );
     }
   });
@@ -486,9 +615,11 @@ test('a property band still wraps, with no ellipsis and no one-line clamp', asyn
       }
 
       // …and the same on the surface a truncated list row sends the operator to.
+      // A real pointer on the row's own first cell: the action cluster now sits
+      // at the row's trailing edge and is not the gesture that reveals the panel.
       await openScreen(page, 'volumes-networks', 'Volumes & networks', viewport);
-      await page.locator('.ui-card-list__item', { hasText: volume }).first().click();
-      await expect(page.locator('.ui-card-list__expanded .ui-definition-list').first()).toBeVisible({ timeout: 20_000 });
+      await page.locator('.ui-data-table__row', { hasText: volume }).first().locator('.ui-data-table__cell').first().click();
+      await expect(page.locator('.ui-detail-panel .ui-definition-list').first()).toBeVisible({ timeout: 20_000 });
       const detail = (await measurePropertyValues(page)).filter((band) => band.label === 'Mountpoint');
       const at = `@${viewport.width}×${viewport.height} volume detail`;
       expect(detail, `${at}: the volume's detail surface presents no Mountpoint band`).toHaveLength(1);
@@ -514,19 +645,18 @@ test('the mount path a volume row truncates is shown in full, wrapped and select
     expect(mountpoint.length, 'the daemon reported no mount path for the fixture volume').toBeGreaterThan(0);
 
     await openScreen(page, 'volumes-networks', 'Volumes & networks', F4_VIEWPORTS[0]!);
-    const row = page.locator('.ui-card-list__item', { hasText: volume }).first();
+    const row = page.locator('.ui-data-table__row', { hasText: volume }).first();
     await expect(row).toBeVisible({ timeout: 20_000 });
 
     // The premise: the row really does truncate this value, so the detail
     // surface is the route out of something rather than a second copy of a
     // value already wholly on screen.
-    const listRow = rowNamed(await measureTruncatingRows(page), volume);
-    expect(listRow, "the fixture volume's row was not measured").toBeDefined();
-    expect(listRow!.runIsTruncating, 'the list row shows the whole mount path, so REQ-21 has nothing to be the route out of').toBe(true);
+    const listRow = await measureTableRow(row);
+    expect(listRow.isTruncating, 'the list row shows the whole mount path, so REQ-21 has nothing to be the route out of').toBe(true);
 
-    // A real pointer on the row itself, at its visible centre.
-    await row.click();
-    await expect(page.locator('.ui-card-list__expanded .ui-definition-list').first()).toBeVisible({ timeout: 20_000 });
+    // A real pointer on the row's own first cell, at its visible centre.
+    await row.locator('.ui-data-table__cell').first().click();
+    await expect(page.locator('.ui-detail-panel .ui-definition-list').first()).toBeVisible({ timeout: 20_000 });
     const band = (await measurePropertyValues(page)).find((candidate) => candidate.label === 'Mountpoint');
     expect(band, "the volume's detail surface presents no Mountpoint band").toBeDefined();
     console.log(

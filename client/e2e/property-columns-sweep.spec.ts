@@ -89,8 +89,14 @@ async function sweepScreen(page: Page, screenName: string, viewport: { width: nu
   return count;
 }
 
-// REQ-28, REQ-24, REQ-31 — volumes & networks: both panels, each with a fixture of its own, expanded
-// with a real pointer on the row itself.
+// REQ-28, REQ-24, REQ-31 — volumes & networks: both panels, each with a fixture of its own, revealed
+// with a real pointer on the row's own first cell.
+//
+// The two are measured **one after the other rather than together**, which is not a convenience:
+// since `plan-ui-coherence-optimisation/REQ-33` at most one detail panel is open anywhere on this
+// screen, so revealing the network's closes the volume's. Both panels are still measured, and both
+// are still required to present a section — what changed is that the screen can no longer hold two
+// at once, which is the requirement rather than a loss of coverage.
 test('volumes & networks: both panels arrange their inspect data without clipping or overlap', async ({ page }) => {
   const volumeName = `vexel-e2e-bug4-vol-${Date.now()}`;
   const networkName = `vexel-e2e-bug4-net-${Date.now()}`;
@@ -103,15 +109,18 @@ test('volumes & networks: both panels arrange their inspect data without clippin
       await expect(page.getByRole('heading', { level: 1, name: 'Volumes & networks' })).toBeVisible({ timeout: 20_000 });
 
       const volumesPanel = page.locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Volumes' }) });
-      await volumesPanel.locator('.ui-card-list__item', { hasText: volumeName }).first().click();
-      await expect(volumesPanel.locator('.ui-card-list__expanded')).toBeVisible();
+      await volumesPanel.locator('.ui-data-table__row', { hasText: volumeName }).first().locator('.ui-data-table__cell').first().click();
+      await expect(volumesPanel.locator('.ui-detail-panel')).toBeVisible();
+      const volumeSections = await sweepScreen(page, 'volumes & networks — the volume panel', viewport, 1);
+      expect(volumeSections, "the volume's revealed panel presented no property section").toBeGreaterThanOrEqual(1);
 
       const networksPanel = page.locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Networks' }) });
-      await networksPanel.locator('.ui-card-list__item', { hasText: networkName }).first().click();
-      await expect(networksPanel.locator('.ui-card-list__expanded')).toBeVisible();
-
-      const found = await sweepScreen(page, 'volumes & networks', viewport, 2);
-      expect(found, 'the two expanded panels did not present two property sections between them').toBeGreaterThanOrEqual(2);
+      await networksPanel.locator('.ui-data-table__row', { hasText: networkName }).first().locator('.ui-data-table__cell').first().click();
+      await expect(networksPanel.locator('.ui-detail-panel')).toBeVisible();
+      // REQ-33 — and the volume's is gone, which is why the two are swept apart.
+      await expect(volumesPanel.locator('.ui-detail-panel')).toHaveCount(0);
+      const networkSections = await sweepScreen(page, 'volumes & networks — the network panel', viewport, 1);
+      expect(networkSections, "the network's revealed panel presented no property section").toBeGreaterThanOrEqual(1);
     }
   } finally {
     await execFileAsync('docker', ['volume', 'rm', '-f', volumeName]).catch(() => undefined);

@@ -425,9 +425,11 @@ test('volumes & networks: neither inline inspect offers a copy, on a band or abo
     await openApp(page, 'volumes-networks');
     await expect(page.getByRole('heading', { level: 1, name: 'Volumes & networks' })).toBeVisible({ timeout: 20_000 });
 
+    // Both lists are the object list's comfortable variant since REQ-31, and the surface each
+    // reveals is the library's detail panel: the sites are the same two, drawn by other components.
     const volumesPanel = page.locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Volumes' }) });
-    await volumesPanel.locator('.ui-card-list__item', { hasText: volumeName }).first().click();
-    const volumeExpanded = volumesPanel.locator('.ui-card-list__expanded');
+    await volumesPanel.locator('.ui-data-table__row', { hasText: volumeName }).first().locator('.ui-data-table__cell').first().click();
+    const volumeExpanded = volumesPanel.locator('.ui-detail-panel');
     await expect(volumeExpanded).toBeVisible({ timeout: 20_000 });
 
     // Sites 10 and 11.
@@ -437,8 +439,8 @@ test('volumes & networks: neither inline inspect offers a copy, on a band or abo
     await expectSelectable(mountpoint, 'Volumes → inline inspect, the `Mountpoint` value');
 
     const networksPanel = page.locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Networks' }) });
-    await networksPanel.locator('.ui-card-list__item', { hasText: networkName }).first().click();
-    const networkExpanded = networksPanel.locator('.ui-card-list__expanded');
+    await networksPanel.locator('.ui-data-table__row', { hasText: networkName }).first().locator('.ui-data-table__cell').first().click();
+    const networkExpanded = networksPanel.locator('.ui-detail-panel');
     await expect(networkExpanded).toBeVisible({ timeout: 20_000 });
 
     // Site 12 — the networks panel carries no band control of its own; its payload block is the site.

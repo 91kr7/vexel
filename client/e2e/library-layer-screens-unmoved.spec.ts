@@ -20,8 +20,15 @@
  * at once because it is one component. So the arithmetic is stated rather than
  * hoped:
  *
- * - no surface, anywhere, changes width or `x` — asserted whatever the daemon
- *   reported, since nothing the daemon says moves a surface sideways;
+ * - no surface, anywhere, changes `x`, and none changes width **but the empty
+ *   state's own box** — asserted whatever the daemon reported, since nothing the
+ *   daemon says moves a surface sideways. The exception is the hairline again,
+ *   on the other axis: where an empty state's box is content-sized rather than
+ *   stretched (at 375×812, two of Compose's), a border on all four sides is 2px
+ *   of width exactly as it is 2px of height. It is bounded to that component's
+ *   own box and to those 2px, and it was measured on the batch-5 build
+ *   (`VEXEL_DELIVERED_REF=56b0c90`: 318 surfaces, **0 moved**), which is what
+ *   places it with the hairline and not with a later batch;
  * - a surface grows in height by **the hairlines of the empty states it holds**,
  *   and by one where it merely shares a stretched row with a card that holds
  *   one; never by more, and never at all on a screen that draws none;
@@ -30,6 +37,17 @@
  * - an empty state's own height grows by exactly that hairline;
  * - and Raw console, which draws no empty state at all, is identical to the
  *   pixel.
+ *
+ * **One screen is now deliberately different, and it is restated rather than
+ * switched off.** `plan-ui-coherence-optimisation/REQ-31` … `REQ-35` migrated
+ * volumes and networks onto the object list and the detail panel, and the pair
+ * of half-width cards went with it: the two lists are stacked at the content
+ * column's full width so that the detail either reveals is full width too. For
+ * that screen the negative claim above is false by construction, so what is
+ * asserted instead is **the change this batch declares**, measured against the
+ * same delivered build — the pair on one side, one stacked full-width column on
+ * the other. Every other screen stays under the rule unchanged; the screen is
+ * excluded from nothing but the assertion it can no longer satisfy.
  *
  * Two things are read but not asserted, each for a stated reason: the live
  * daemon feed (below), and any surface whose **text** differs between the two
@@ -163,6 +181,52 @@ interface Surface {
  * measures the harness.
  */
 const LIVE_FEED = '.ui-event-stream';
+
+/**
+ * The screen whose shape this plan deliberately changes, and what it changed to.
+ *
+ * A screen listed here is not compared surface by surface against the delivered
+ * build — the comparison would be a statement that a migration did not happen —
+ * but it is not left unmeasured either: the batch's own declared geometry is
+ * asserted on both builds instead, below.
+ */
+const DELIBERATELY_CHANGED: Record<string, string> = {
+  'volumes-networks':
+    'plan-ui-coherence-optimisation/REQ-31…REQ-35 — the pair of half-width cards became one stacked full-width column, so a revealed detail is full width',
+};
+
+/** The two lists of the volumes & networks screen, by the section header each card carries. */
+async function measureStackedLists(page: Page): Promise<{
+  content: { x: number; width: number; columnWidth: number };
+  volumes: { x: number; y: number; width: number } | null;
+  networks: { x: number; y: number; width: number } | null;
+}> {
+  return await page.evaluate(() => {
+    const box = (element: Element) => {
+      const rect = element.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width };
+    };
+    const content = document.querySelector('.ui-frame__content')! as HTMLElement;
+    // The element both builds draw for a card's title: the delivered build and
+    // this one both put the panel's name in a section header.
+    const titles = [...document.querySelectorAll('.ui-section-header__title')];
+    const cardOf = (title: string) =>
+      titles.find((node) => node.textContent?.trim() === title)?.closest('.ui-surface') ?? null;
+    const volumes = cardOf('Volumes');
+    const networks = cardOf('Networks');
+    const contentBox = content.getBoundingClientRect();
+    // The content **column**, not the region: the shell's own padding is not
+    // width a screen has to lay anything out in.
+    const contentStyle = getComputedStyle(content);
+    const columnWidth =
+      content.clientWidth - Number.parseFloat(contentStyle.paddingLeft) - Number.parseFloat(contentStyle.paddingRight);
+    return {
+      content: { x: contentBox.x, width: contentBox.width, columnWidth },
+      volumes: volumes ? box(volumes) : null,
+      networks: networks ? box(networks) : null,
+    };
+  });
+}
 
 async function measure(page: Page): Promise<Surface[]> {
   return await page.evaluate(
@@ -311,6 +375,53 @@ test.describe('F5 — the thirteen screens render as the delivered build does', 
           // same as it can be made.
           const deliveredSurfaces = await openScreen(before, screen);
           const currentSurfaces = await openScreen(page, screen);
+
+          // The one screen this plan has deliberately redrawn: its own declared geometry is
+          // asserted here instead of the negative claim, and the surface-by-surface comparison is
+          // skipped **for this screen only**, with the reason stated.
+          if (DELIBERATELY_CHANGED[screen.id] !== undefined) {
+            const deliveredLists = await measureStackedLists(before);
+            const currentLists = await measureStackedLists(page);
+            console.log(
+              `[REQ-31] ${at} ${screen.heading}: delivered Volumes x=${round(deliveredLists.volumes?.x ?? Number.NaN)} w=${round(
+                deliveredLists.volumes?.width ?? Number.NaN,
+              )}, Networks x=${round(deliveredLists.networks?.x ?? Number.NaN)} w=${round(deliveredLists.networks?.width ?? Number.NaN)} — ` +
+                `now Volumes x=${round(currentLists.volumes?.x ?? Number.NaN)} w=${round(currentLists.volumes?.width ?? Number.NaN)}, ` +
+                `Networks x=${round(currentLists.networks?.x ?? Number.NaN)} w=${round(currentLists.networks?.width ?? Number.NaN)}, ` +
+                `content column ${round(currentLists.content.columnWidth)}px — ${DELIBERATELY_CHANGED[screen.id]}`,
+            );
+
+            expect(deliveredLists.volumes, `${at}: the delivered build draws no Volumes card`).not.toBeNull();
+            expect(deliveredLists.networks, `${at}: the delivered build draws no Networks card`).not.toBeNull();
+            expect(currentLists.volumes, `${at}: this build draws no Volumes card`).not.toBeNull();
+            expect(currentLists.networks, `${at}: this build draws no Networks card`).not.toBeNull();
+
+            // The premise, so that what follows is a change and not a coincidence: the delivered
+            // build really did lay the two lists side by side.
+            expect(
+              round(deliveredLists.networks!.x),
+              `${at}: the delivered build already stacked the two lists, so this comparison shows nothing`,
+            ).not.toBe(round(deliveredLists.volumes!.x));
+
+            // …and this one stacks them, at the content column's full width, the second under the
+            // first (volumes-networks-screen.md).
+            expect(round(currentLists.networks!.x), `${at}: the two lists are not on one left edge`).toBe(round(currentLists.volumes!.x));
+            expect(round(currentLists.networks!.width), `${at}: the two lists do not share one width`).toBe(round(currentLists.volumes!.width));
+            expect(currentLists.networks!.y, `${at}: the Networks card is not below the Volumes card`).toBeGreaterThan(currentLists.volumes!.y);
+            expect(
+              round(currentLists.volumes!.width),
+              `${at}: a list card is ${round(currentLists.volumes!.width)}px of a ${round(currentLists.content.columnWidth)}px content column`,
+            ).toBeGreaterThanOrEqual(round(currentLists.content.columnWidth) - 1);
+            expect(
+              currentLists.volumes!.width,
+              `${at}: the migrated list is no wider than the half-width card it replaces`,
+            ).toBeGreaterThan(deliveredLists.volumes!.width);
+
+            // The change is inside the screen: the shell's content region is where it was.
+            expect(round(currentLists.content.x), `${at}: the shell's content region moved`).toBe(round(deliveredLists.content.x));
+            expect(round(currentLists.content.width), `${at}: the shell's content region changed width`).toBe(round(deliveredLists.content.width));
+            continue;
+          }
           const deliveredByKey = new Map(deliveredSurfaces.map((surface) => [surface.key, surface]));
           const currentByKey = new Map(currentSurfaces.map((surface) => [surface.key, surface]));
 
@@ -354,9 +465,13 @@ test.describe('F5 — the thirteen screens render as the delivered build does', 
             };
 
             // The horizontal axis is compared whatever the content says: nothing the daemon reports
-            // moves a surface sideways, and "width unchanged everywhere" is this batch's own claim.
+            // moves a surface sideways. `x` is absolute; width is absolute everywhere except on the
+            // empty state's own box, which is entitled to its hairline on this axis too (see the
+            // header) — bounded to 2px, and to that component.
             if (after.x !== deliveredSurface.x) record('x', after.x - deliveredSurface.x);
-            if (after.width !== deliveredSurface.width) record('width', after.width - deliveredSurface.width);
+            const widthDelta = after.width - deliveredSurface.width;
+            const widthAllowance = after.isEmptyState ? 2 : 0;
+            if (widthDelta < 0 || widthDelta > widthAllowance) record('width', widthDelta);
 
             const sameContent = after.text === deliveredSurface.text;
 
@@ -427,6 +542,16 @@ test.describe('F5 — the thirteen screens render as the delivered build does', 
           expect(
             delta.delta,
             `${at} ${delta.screen} ${delta.key}: the empty state's surface costs more than the hairline's 2px`,
+          ).toBeLessThanOrEqual(2);
+        }
+        for (const delta of emptyStateDeltas.filter((state) => !state.compact)) {
+          expect(
+            delta.widthDelta,
+            `${at} ${delta.screen} ${delta.key}: the empty state's surface costs width beyond the hairline's 2px`,
+          ).toBeGreaterThanOrEqual(0);
+          expect(
+            delta.widthDelta,
+            `${at} ${delta.screen} ${delta.key}: the empty state's surface costs width beyond the hairline's 2px`,
           ).toBeLessThanOrEqual(2);
         }
         for (const delta of emptyStateDeltas.filter((state) => state.compact)) {

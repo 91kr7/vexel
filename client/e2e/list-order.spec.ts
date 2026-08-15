@@ -303,7 +303,8 @@ test.describe('Volumes and networks', () => {
     const names = fixtureNames(stem);
     try {
       for (const name of names) await execFileAsync('docker', ['volume', 'create', ...ownershipArgs('list-order'), name]);
-      const rows = panelTitled(page, 'Volumes').locator('.ui-card-list__item');
+      // The volumes list is the object list's comfortable variant (REQ-31), so a row is one of its rows.
+      const rows = panelTitled(page, 'Volumes').locator('.ui-data-table__row');
 
       const shown = await settledOrder(rows, names);
 
@@ -327,7 +328,7 @@ test.describe('Volumes and networks', () => {
     const names = fixtureNames(stem);
     try {
       for (const name of names) await execFileAsync('docker', ['network', 'create', ...ownershipArgs('list-order'), name]);
-      const rows = panelTitled(page, 'Networks').locator('.ui-card-list__item');
+      const rows = panelTitled(page, 'Networks').locator('.ui-data-table__row');
 
       const shown = await settledOrder(rows, names);
 

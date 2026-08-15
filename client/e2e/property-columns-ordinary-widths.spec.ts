@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from './support/test.js';
-import { openApp, ownershipArgs } from './support/fixtures.js';
+import { openApp } from './support/fixtures.js';
 import {
   COLUMN_GAP_PX,
   SHORT_SCALAR_RUN_MAX_PX,
@@ -8,7 +8,6 @@ import {
   measureSection,
   report,
 } from './support/property-bands.js';
-import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 /**
  * **The half of REQ-26 that is about the ordinary width, not the narrow one.**
@@ -132,32 +131,57 @@ function screenContent(page: Page): Locator {
 /**
  * The inset an expanded card puts between the width a card list is given and the
  * width the property section inside it actually gets. It is a property of the
- * library's card list, shared by every screen that uses one, so it is measured
- * where a card can be expanded on any daemon — the volumes panel — and applied
- * where one cannot.
+ * library's card list, shared by every screen that uses one.
+ *
+ * It used to be measured on the volumes panel, which was the one card list any
+ * daemon could be relied on to fill. `plan-ui-coherence-optimisation/REQ-31`
+ * migrated that panel onto the object list, and no remaining card list expands
+ * into a property section on a daemon that is not a swarm manager — which is
+ * exactly the daemon this measurement exists to work on.
+ *
+ * So the same component is measured **where it is used**, on the swarm screen
+ * itself, through a probe carrying the card list's own markup: the list, a row
+ * card, the expanded region and a property section, nested as the component
+ * nests them. It is laid out beside the panel's real card region, so it is given
+ * the same width, and it is removed inside the same evaluation. Nothing about
+ * the page outlives the measurement, and no fixture is created on the daemon.
  */
 async function measureExpandedCardInset(page: Page, viewport: { width: number; height: number }): Promise<number> {
-  const volumeName = `vexel-e2e-bug4-widths-${Date.now()}`;
-  await execFileAsync('docker', ['volume', 'create', ...ownershipArgs(volumeName), volumeName]);
-  try {
-    await page.setViewportSize(viewport);
-    await openApp(page, 'volumes-networks');
-    await expect(page.getByRole('heading', { level: 1, name: 'Volumes & networks' })).toBeVisible({ timeout: 20_000 });
-    const panel = page.locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Volumes' }) });
-    await panel.locator('.ui-card-list__item', { hasText: volumeName }).first().click();
-    await expect(panel.locator('.ui-card-list__expanded')).toBeVisible();
+  await page.setViewportSize(viewport);
+  await openApp(page, 'swarm');
+  await expect(page.getByRole('heading', { level: 1, name: 'Swarm' })).toBeVisible({ timeout: 20_000 });
+  const region = screenContent(page).locator('.ui-card-list, .ui-card-list__empty').first();
+  await expect(region, 'the swarm screen draws no card region to measure the expanded-card inset beside').toBeVisible({ timeout: 20_000 });
 
-    const listWidth = await panel.locator('.ui-card-list').first().evaluate((element) => element.getBoundingClientRect().width);
-    const section = await measureSection(panel.locator('.ui-definition-list').first(), 'the volumes panel property section');
-    const inset = listWidth - section.box.width;
-    console.log(
-      `[REQ-26] expanded-card inset @${viewport.width}×${viewport.height}: a card list of ${listWidth.toFixed(1)}px gives its property section ${section.box.width.toFixed(1)}px — inset ${inset.toFixed(1)}px`,
-    );
-    expect(inset, 'the expanded card takes no width at all from the section, which no measurement of this library component supports').toBeGreaterThan(0);
-    return inset;
-  } finally {
-    await execFileAsync('docker', ['volume', 'rm', '-f', volumeName]).catch(() => undefined);
-  }
+  const measured = await region.evaluate((element) => {
+    const probe = document.createElement('div');
+    probe.className = 'ui-card-list';
+    probe.setAttribute('aria-hidden', 'true');
+    probe.innerHTML =
+      '<div class="ui-surface ui-surface--flat ui-surface--pad-none">' +
+      '<div class="ui-card-list__expanded"><div class="ui-definition-list"></div></div>' +
+      '</div>';
+    element.parentElement!.insertBefore(probe, element);
+    try {
+      return {
+        listWidth: probe.getBoundingClientRect().width,
+        sectionWidth: probe.querySelector('.ui-definition-list')!.getBoundingClientRect().width,
+        regionWidth: element.getBoundingClientRect().width,
+      };
+    } finally {
+      probe.remove();
+    }
+  });
+  const inset = measured.listWidth - measured.sectionWidth;
+  console.log(
+    `[REQ-26] expanded-card inset @${viewport.width}\u00d7${viewport.height}: a card list of ${measured.listWidth.toFixed(1)}px gives its property section ${measured.sectionWidth.toFixed(1)}px — inset ${inset.toFixed(1)}px`,
+  );
+  expect(
+    measured.listWidth,
+    'the probe was not laid out at the same width as the panel\'s own card region, so the inset it reports is not the one the panel would apply',
+  ).toBeCloseTo(measured.regionWidth, 1);
+  expect(inset, 'the expanded card takes no width at all from the section, which no measurement of this library component supports').toBeGreaterThan(0);
+  return inset;
 }
 
 /**

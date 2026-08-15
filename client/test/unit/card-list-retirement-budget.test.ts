@@ -33,9 +33,23 @@ const script = readFileSync(scriptPath, 'utf8');
 
 /**
  * The count the requirement states: "seeded with the count measured at the start
- * of the programme", which `ui-conformance-check.md` records as **17**.
+ * of the programme", which `ui-conformance-check.md` records as **17**. It is
+ * kept as the figure every later budget is read against, not as a live
+ * expectation: the pin is lowered by each migration, in that migration's own
+ * commit.
  */
 const BUDGET_AT_THE_START_OF_THE_PLAN = 17;
+
+/**
+ * What the budget stands at now. `ui-conformance-check.md`: **15** since the
+ * volumes and networks migration (`plan-ui-coherence-optimisation/REQ-31`)
+ * removed the two call sites those panels held. Zero at the deletion (batch 13),
+ * at which point the check goes with the component.
+ */
+const BUDGET_NOW = 15;
+
+/** The call sites the migrations have removed so far, which is what "lowered deliberately" means. */
+const MIGRATED_AWAY = BUDGET_AT_THE_START_OF_THE_PLAN - BUDGET_NOW;
 
 /**
  * The state of the conformance script **before this plan touched anything** —
@@ -104,29 +118,45 @@ afterAll(() => {
   for (const root of sandboxes) rmSync(root, { recursive: true, force: true });
 });
 
+function callSiteCount(files: string[]): number {
+  return files
+    .map((file) => readFileSync(file, 'utf8').match(/<CardList\b/g)?.length ?? 0)
+    .reduce((total, count) => total + count, 0);
+}
+
 describe('the retirement budget — the count it holds (REQ-94)', () => {
   // ui-conformance-check.md — "the expected count is 17 at the start of
-  // plan-ui-coherence-optimisation, lowered by each screen migration in its own commit"
-  it('pins the expected count at the number measured at the start of the plan', () => {
+  // plan-ui-coherence-optimisation, lowered by each screen migration in its own commit ... It
+  // stands at 15 since the volumes and networks migration"
+  it('pins the expected count at the number the migrations so far have left', () => {
     const expected = /expectedCallSites:\s*(\d+)/.exec(script)?.[1];
 
     expect(expected, 'the script holds no expected call-site count').toBeDefined();
-    expect(Number(expected)).toBe(BUDGET_AT_THE_START_OF_THE_PLAN);
+    expect(Number(expected)).toBe(BUDGET_NOW);
+    expect(BUDGET_NOW, 'the budget rose above the count measured at the start of the plan').toBeLessThan(
+      BUDGET_AT_THE_START_OF_THE_PLAN,
+    );
   });
 
   // REQ-94 — the budget is only true of the tree if the tree actually holds that many
   it('is the number of call sites the feature code actually holds', () => {
-    const actual = featureFiles()
-      .map((file) => readFileSync(file, 'utf8').match(/<CardList\b/g)?.length ?? 0)
-      .reduce((total, count) => total + count, 0);
+    expect(callSiteCount(featureFiles())).toBe(BUDGET_NOW);
+  });
 
-    expect(actual).toBe(BUDGET_AT_THE_START_OF_THE_PLAN);
+  // REQ-31, REQ-82 — the migration **deletes** the arrangement it replaces: the two sites the drop
+  // from 17 to 15 accounts for are the two those panels held, and neither is left standing
+  it('accounts for the drop by the two sites the migrated screen no longer holds', () => {
+    expect(MIGRATED_AWAY).toBe(2);
+    const migratedScreen = featureFiles().filter((file) => file.includes(join('src', 'volumes-networks')));
+
+    expect(migratedScreen.length).toBeGreaterThan(0);
+    expect(callSiteCount(migratedScreen)).toBe(0);
   });
 
   // ui-conformance-check.md — "The budget counts feature code only. The component's own definition,
   // its spec and its export are not call sites."
   it('counts feature code only, and passes when the library holds call sites of its own', () => {
-    const result = runIn(sandboxWith({ feature: BUDGET_AT_THE_START_OF_THE_PLAN, library: 5 }));
+    const result = runIn(sandboxWith({ feature: BUDGET_NOW, library: 5 }));
 
     expect(result.stderr).not.toMatch(/call-site budget/);
     expect(result.status).toBe(0);
@@ -137,10 +167,10 @@ describe('the retirement budget — it fails in both directions (REQ-94)', () =>
   // ui-conformance-check.md — "more than expected → a screen acquired a new call site while the
   // component is still exported"
   it('fails when a screen has acquired a new call site', () => {
-    const result = runIn(sandboxWith({ feature: BUDGET_AT_THE_START_OF_THE_PLAN + 1 }));
+    const result = runIn(sandboxWith({ feature: BUDGET_NOW + 1 }));
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toMatch(/CardList call-site budget: 18 in feature code, 17 expected/);
+    expect(result.stderr).toMatch(new RegExp(`CardList call-site budget: ${BUDGET_NOW + 1} in feature code, ${BUDGET_NOW} expected`));
     expect(result.stderr).toMatch(/more than the budget/);
   });
 
@@ -148,10 +178,10 @@ describe('the retirement budget — it fails in both directions (REQ-94)', () =>
   // lowered on purpose". A ceiling would have let this through, which is the whole reason the count
   // is pinned rather than bounded.
   it('fails when a migration landed without the budget being lowered', () => {
-    const result = runIn(sandboxWith({ feature: BUDGET_AT_THE_START_OF_THE_PLAN - 1 }));
+    const result = runIn(sandboxWith({ feature: BUDGET_NOW - 1 }));
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toMatch(/CardList call-site budget: 16 in feature code, 17 expected/);
+    expect(result.stderr).toMatch(new RegExp(`CardList call-site budget: ${BUDGET_NOW - 1} in feature code, ${BUDGET_NOW} expected`));
     expect(result.stderr).toMatch(/fewer than the budget/);
   });
 
@@ -159,10 +189,10 @@ describe('the retirement budget — it fails in both directions (REQ-94)', () =>
   // in, and what to do about it; it carries no file or line number, being a fact about the tree
   // rather than about one file"
   it('states both counts and what to do, without naming a file or a line', () => {
-    const result = runIn(sandboxWith({ feature: BUDGET_AT_THE_START_OF_THE_PLAN + 3 }));
+    const result = runIn(sandboxWith({ feature: BUDGET_NOW + 3 }));
     const line = result.stderr.split('\n').find((text) => text.includes('call-site budget')) ?? '';
 
-    expect(line).toMatch(/20 in feature code, 17 expected/);
+    expect(line).toMatch(new RegExp(`${BUDGET_NOW + 3} in feature code, ${BUDGET_NOW} expected`));
     expect(line).toMatch(/expectedCallSites/);
     expect(line).not.toMatch(/\.tsx?:\d+/);
     expect(result.stderr).toMatch(/1 violation\(s\)/);
@@ -170,7 +200,7 @@ describe('the retirement budget — it fails in both directions (REQ-94)', () =>
 
   // ui-conformance-check.md — "A violation of one rule never suppresses the reporting of another"
   it('reports a boundary violation alongside a budget one', () => {
-    const root = sandboxWith({ feature: BUDGET_AT_THE_START_OF_THE_PLAN + 1 });
+    const root = sandboxWith({ feature: BUDGET_NOW + 1 });
     writeFileSync(join(root, 'src', 'RawTag.tsx'), 'export function R() { return <span>raw</span>; }\n', 'utf8');
 
     const result = runIn(root);
