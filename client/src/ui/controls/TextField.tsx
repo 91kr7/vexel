@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import './controls.css';
 
 export interface TextFieldProps {
@@ -10,9 +11,13 @@ export interface TextFieldProps {
 }
 
 /** Generic single-line text input (search boxes, inline rename, …). */
-export function TextField({ value, onChange, placeholder, ariaLabel, onSubmit, autoFocus = false }: TextFieldProps) {
+export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField(
+  { value, onChange, placeholder, ariaLabel, onSubmit, autoFocus = false },
+  ref,
+) {
   return (
     <input
+      ref={ref}
       type="text"
       className="ui-text-field"
       value={value}
@@ -25,4 +30,4 @@ export function TextField({ value, onChange, placeholder, ariaLabel, onSubmit, a
       }}
     />
   );
-}
+});

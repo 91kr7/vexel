@@ -16,6 +16,8 @@ actions, a trailing destructive action, and an optional filters row underneath.
   - `secondaryActions?: { label, onClick, disabled? }[]`.
   - `filters?: ReactNode` — rendered on its own row below the actions (e.g. a `SearchField` and
     `FilterChips`).
+  - a toolbar given no action draws no action row, and therefore no space where one would have
+    been: a screen whose only screen-level control is its filter gets the filter alone.
 
 ## Dependencies
 

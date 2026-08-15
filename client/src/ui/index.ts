@@ -45,7 +45,7 @@ export { PathInput, type PathInputProps, type PathInputValidationState } from '.
 export { StorageUsageRow, type StorageUsageRowProps, type StorageUsageRowAction } from './controls/StorageUsageRow';
 export { CheckboxGroup, type CheckboxGroupProps, type CheckboxOption } from './controls/CheckboxGroup';
 export { TextField, type TextFieldProps } from './controls/TextField';
-export { SearchField, type SearchFieldProps } from './controls/SearchField';
+export { SearchField, type SearchFieldProps, type SearchFieldHandle } from './controls/SearchField';
 export { SecretField, type SecretFieldProps } from './controls/SecretField';
 export { FilterChips, type FilterChipsProps, type FilterChipOption } from './controls/FilterChips';
 export {

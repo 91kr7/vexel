@@ -1,26 +1,32 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ActionButtonGroup,
   Button,
   Card,
-  CardList,
   ChipGroup,
+  DataTable,
   DefinitionList,
   EmptyState,
   ErrorBanner,
   FormDialog,
   FormField,
   Grid,
+  MetaCell,
+  ScreenToolbar,
   SearchField,
   SecretField,
   SectionHeader,
   Stack,
+  StatusDotCell,
   StatusPill,
   StepProgressList,
   TextField,
+  TwoLineCell,
   useToast,
-  type CardListRowContent,
   type ChipGroupItem,
+  type DataTableColumn,
   type ProgressStep,
+  type SearchFieldHandle,
 } from '../ui';
 import type { RegistrySummary, TagSummary } from '../data/registries-client';
 import type { RepositoryEntry } from '../data/use-registry-repositories';
@@ -52,14 +58,26 @@ function formatPullCount(pulls: number): string {
 }
 
 /**
- * The line under a registry's host, as drawn in the mockup: who the session is
- * authenticated as and which store holds it, or that it is not authenticated
- * and reached over plain http. It never carries a credential — only whether
- * there is one and in whose name (REQ-87).
+ * The store holding this registry's credential, as the row states it: the
+ * helper's name, "docker config file" when the credential sits in the
+ * configuration itself, and nothing at all for a registry with no credential.
+ * It never carries a credential — only whether there is one (REQ-87).
  */
-function registryLine(registry: RegistrySummary): string {
-  const parts: string[] = [registry.authenticated ? (registry.account ?? 'authenticated') : 'not authenticated'];
-  if (registry.authenticated) parts.push(`credential store: ${registry.credentialStore ?? 'docker config file'}`);
+function credentialStoreOf(registry: RegistrySummary): string | undefined {
+  if (!registry.authenticated) return undefined;
+  return registry.credentialStore ?? 'docker config file';
+}
+
+/**
+ * The line under a registry's host: who the session is authenticated as — or
+ * that it is not authenticated — and whether the registry is reached over plain
+ * http. **It is never empty**, whatever the registry's state, which is what
+ * makes every row the same height as every other (REQ-37): the credential
+ * store, the one part whose presence did depend on the state, is a column of
+ * its own now. It never carries a credential (REQ-87).
+ */
+function registryStateLine(registry: RegistrySummary): string {
+  const parts = [registry.authenticated ? (registry.account ?? 'authenticated') : 'not authenticated'];
   if (!registry.secure) parts.push('plain http');
   return parts.join(' · ');
 }
@@ -95,6 +113,9 @@ export function RegistriesScreen() {
 
   const [selectedHost, setSelectedHost] = useState<string | undefined>(undefined);
   const [search, setSearch] = useState('');
+  // The way out of the "type a term" empty state is the search box above it, so
+  // that state's action has to be able to put the cursor there.
+  const searchRef = useRef<SearchFieldHandle>(null);
 
   const [loginTarget, setLoginTarget] = useState<RegistrySummary | null>(null);
   const [username, setUsername] = useState('');
@@ -178,34 +199,64 @@ export function RegistriesScreen() {
     setPullStreamUrl(imagePullStreamUrl(pullReference));
   }
 
-  function registryRow(registry: RegistrySummary): CardListRowContent {
-    return {
-      status: registry.authenticated ? 'success' : 'neutral',
-      title: registry.host,
-      subtitle: registryLine(registry),
-      meta: registry.authenticated ? (
-        <Button onClick={() => handleLogout(registry)}>Log out</Button>
-      ) : (
-        <Button variant="primary" onClick={() => openLogin(registry)}>
-          Log in
-        </Button>
-      ),
-    };
-  }
-
-  function repositoryRow(entry: RepositoryEntry): CardListRowContent {
-    return {
-      title: entry.repository.name,
-      subtitle: entry.repository.description,
-      meta: entry.repository.pullCount === undefined ? undefined : formatPullCount(entry.repository.pullCount),
-      content: (
-        <ChipGroup
-          items={entry.tags.map((tag) => tagChip(tag, startPull))}
-          emptyLabel={entry.tagsLoading ? 'Reading tags…' : (entry.tagsError ?? 'No tags reachable')}
+  // The values of the delivered state line, in the same order, with the one
+  // that came and went — the credential store — lifted into a column of its
+  // own. Every cell here is a fixed number of lines whatever the registry's
+  // state, so no row can be taller than another (REQ-37).
+  const registryColumns: DataTableColumn<RegistrySummary>[] = [
+    {
+      id: 'state-dot',
+      header: '',
+      width: '20px',
+      render: (registry) => <StatusDotCell tone={registry.authenticated ? 'success' : 'neutral'} />,
+    },
+    {
+      id: 'registry',
+      header: 'REGISTRY',
+      width: '1.6fr',
+      render: (registry) => <TwoLineCell title={registry.host} subtitle={registryStateLine(registry)} />,
+    },
+    {
+      id: 'credential-store',
+      header: 'CREDENTIAL STORE',
+      // Wide enough for the longest value this column holds — "docker config
+      // file" — at the width the screen is normally read at.
+      width: '1.2fr',
+      render: (registry) => <MetaCell>{credentialStoreOf(registry)}</MetaCell>,
+    },
+    {
+      id: 'actions',
+      header: 'ACTIONS',
+      // The cluster's own width and no more: an intrinsic track, so the data
+      // columns keep the rest of a panel that is half the screen wide.
+      width: 'max-content',
+      render: (registry) => (
+        <ActionButtonGroup
+          actions={[
+            registry.authenticated
+              ? { id: 'log-out', label: 'Log out', weight: 'secondary', onClick: () => handleLogout(registry) }
+              : { id: 'log-in', label: 'Log in', weight: 'primary', onClick: () => openLogin(registry) },
+          ]}
         />
       ),
-    };
-  }
+    },
+  ];
+
+  const repositoryColumns: DataTableColumn<RepositoryEntry>[] = [
+    {
+      id: 'repository',
+      header: 'REPOSITORY',
+      width: '2fr',
+      render: (entry) => <TwoLineCell title={entry.repository.name} subtitle={entry.repository.description} />,
+    },
+    {
+      id: 'pulls',
+      header: 'PULLS',
+      width: 'max-content',
+      align: 'end',
+      render: (entry) => <MetaCell>{entry.repository.pullCount === undefined ? undefined : formatPullCount(entry.repository.pullCount)}</MetaCell>,
+    },
+  ];
 
   const pullSteps: ProgressStep[] = pullTransfer.steps.map((step) => ({
     id: step.id,
@@ -219,20 +270,33 @@ export function RegistriesScreen() {
 
   return (
     <Stack gap="var(--space-5)">
-      <Grid columns="1fr 1.2fr" gap="var(--space-5)">
+      {/* The pair collapses to one column when the screen is too narrow to
+          carry both panels, instead of dividing a phone's width between them. */}
+      <Grid arrangement="pair">
         <Card>
           <SectionHeader title="Registries & credentials" />
           <Stack gap="var(--space-3)">
             {registries.error ? (
               <ErrorBanner title="Could not read the configured registries" detail={registries.error} onRetry={registries.refresh} />
             ) : null}
-            <CardList
-              items={registries.registries}
-              itemKey={(registry) => registry.host}
-              renderRow={registryRow}
-              selectedKey={selectedHost}
-              onSelect={(registry) => setSelectedHost(registry.host)}
-              emptyState={<EmptyState title={registries.loaded ? 'No registries configured' : 'Reading registries…'}  description={null} action={null} />}
+            <DataTable
+              variant="comfortable"
+              columns={registryColumns}
+              rows={registries.registries}
+              rowKey={(registry) => registry.host}
+              selectedRowKey={selectedHost}
+              onRowSelect={(registry) => setSelectedHost(registry.host)}
+              emptyState={
+                registries.loaded ? (
+                  <EmptyState
+                    title="No registries configured"
+                    description="Registries come from the host's Docker configuration; logging in to one adds it there."
+                    action={null}
+                  />
+                ) : (
+                  <EmptyState title="Reading registries…" description={null} action={null} />
+                )
+              }
             />
           </Stack>
         </Card>
@@ -248,26 +312,40 @@ export function RegistriesScreen() {
               ) : undefined
             }
           />
+          <ScreenToolbar
+            filters={
+              <SearchField
+                ref={searchRef}
+                value={search}
+                onChange={setSearch}
+                ariaLabel="Search repositories"
+                placeholder={selected?.official ? 'Search Docker Hub…' : 'Filter repositories…'}
+              />
+            }
+          />
           <Stack gap="var(--space-3)">
-            <SearchField
-              value={search}
-              onChange={setSearch}
-              ariaLabel="Search repositories"
-              placeholder={selected?.official ? 'Search Docker Hub…' : 'Filter repositories…'}
-            />
             {repositories.error ? (
               <ErrorBanner title="Could not browse the registry" detail={repositories.error} onRetry={repositories.refresh} />
             ) : null}
-            <CardList
-              items={repositories.entries}
-              itemKey={(entry) => entry.repository.name}
-              renderRow={repositoryRow}
-              emptyState={
-                <EmptyState
-                  title={browserEmptyTitle(selected, search, repositories.searching, repositories.loaded)}
-                  description={browserEmptyDescription(selected, search) ?? null}
-                 action={null} />
-              }
+            <DataTable
+              variant="comfortable"
+              columns={repositoryColumns}
+              rows={repositories.entries}
+              rowKey={(entry) => entry.repository.name}
+              renderRowContent={(entry) => (
+                <ChipGroup
+                  items={entry.tags.map((tag) => tagChip(tag, startPull))}
+                  emptyLabel={entry.tagsLoading ? 'Reading tags…' : (entry.tagsError ?? 'No tags reachable')}
+                />
+              )}
+              emptyState={browserEmptyState({
+                selected,
+                search,
+                searching: repositories.searching,
+                loaded: repositories.loaded,
+                onSearch: () => searchRef.current?.focus(),
+                onClearSearch: () => setSearch(''),
+              })}
             />
           </Stack>
         </Card>
@@ -313,15 +391,56 @@ export function RegistriesScreen() {
   );
 }
 
-function browserEmptyTitle(selected: RegistrySummary | undefined, search: string, searching: boolean, loaded: boolean): string {
-  if (!selected) return 'Select a registry';
-  if (searching) return 'Searching…';
-  if (selected.official && search.trim() === '') return 'Search Docker Hub';
-  return loaded ? 'No repositories match' : 'Reading repositories…';
+interface BrowserEmptyStateInput {
+  selected: RegistrySummary | undefined;
+  search: string;
+  searching: boolean;
+  loaded: boolean;
+  /** Puts the cursor in the search box — the way out of "there is nothing to list until you ask". */
+  onSearch: () => void;
+  onClearSearch: () => void;
 }
 
-function browserEmptyDescription(selected: RegistrySummary | undefined, search: string): string | undefined {
-  if (!selected) return 'Pick one of the configured registries to browse its repositories.';
-  if (selected.official && search.trim() === '') return 'Docker Hub has no catalog to list: type a term to search it.';
-  return undefined;
+/**
+ * What the browser shows instead of repositories. Five states, each stating why
+ * it is empty and offering the control that resolves it where one exists: two
+ * of them are readings still in flight, where nothing the operator does from
+ * here would settle them any sooner.
+ *
+ * The default index's — `Search Docker Hub` with its explanatory line — is the
+ * one the analysis calls correct, preserved word for word (REQ-38).
+ */
+function browserEmptyState({ selected, search, searching, loaded, onSearch, onClearSearch }: BrowserEmptyStateInput) {
+  const term = search.trim();
+  if (!selected) {
+    return (
+      <EmptyState
+        title="Select a registry"
+        description="Pick one of the configured registries to browse its repositories."
+        action={null}
+      />
+    );
+  }
+  if (searching) return <EmptyState title="Searching…" description={null} action={null} />;
+  if (selected.official && term === '') {
+    return (
+      <EmptyState
+        title="Search Docker Hub"
+        description="Docker Hub has no catalog to list: type a term to search it."
+        action={
+          <Button variant="primary" onClick={onSearch}>
+            Type a search term
+          </Button>
+        }
+      />
+    );
+  }
+  if (!loaded) return <EmptyState title="Reading repositories…" description={null} action={null} />;
+  return (
+    <EmptyState
+      title="No repositories match"
+      description={term === '' ? `${selected.host} published no repository to list.` : `No repository of ${selected.host} matches “${term}”.`}
+      action={term === '' ? null : <Button onClick={onClearSearch}>Clear the search</Button>}
+    />
+  );
 }
