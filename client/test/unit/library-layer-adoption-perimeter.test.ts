@@ -30,9 +30,11 @@ const clientRoot = process.cwd();
  * - batch 8 — builders and build cache (`REQ-39` … `REQ-41`)
  * - batch 9 — contexts (`REQ-42` … `REQ-45`)
  * - batch 10 — plugins (`REQ-46` … `REQ-48`)
+ * - batch 11 — compose (`REQ-49` … `REQ-51`)
  */
 const MIGRATED_FILES = [
   'src/builders/BuildersScreen.tsx',
+  'src/compose/ComposeScreen.tsx',
   'src/contexts/ContextsScreen.tsx',
   'src/plugins/PluginsScreen.tsx',
   'src/registries/RegistriesScreen.tsx',
@@ -62,11 +64,13 @@ function featureCallSites(pattern: RegExp): string[] {
 describe('the library layer is consumed only by the screens migrated onto it (REQ-30, REQ-31)', () => {
   // data-table.md — `variant='comfortable'` is the object list the nine screens migrate onto, from
   // batch 6; volumes, networks, the registries screen's two lists, the builders screen's two
-  // (`REQ-39`), the contexts list (`REQ-42`) and the plugins screen's two (`REQ-46`) are the ones
-  // that have
+  // (`REQ-39`), the contexts list (`REQ-42`), the plugins screen's two (`REQ-46`) and the compose
+  // screen's project list with the nested service list inside every row (`REQ-49`) are the ones that
+  // have
   it('has the comfortable list asked for by the migrated lists and nowhere else', () => {
     expect(featureCallSites(/variant=(?:"comfortable"|\{'comfortable'\}|\{"comfortable"\})/)).toEqual([
       'src/builders/BuildersScreen.tsx',
+      'src/compose/ComposeScreen.tsx',
       'src/contexts/ContextsScreen.tsx',
       'src/plugins/PluginsScreen.tsx',
       'src/registries/RegistriesScreen.tsx',
@@ -76,9 +80,12 @@ describe('the library layer is consumed only by the screens migrated onto it (RE
   });
 
   // data-table.md — the always-present row content: the networks list carries its attached-container
-  // chips there, the repositories list its tag chips
-  it('has row content rendered by the networks list and the repositories list', () => {
+  // chips there, the repositories list its tag chips, and the compose list the nested header-less
+  // list of a project's services — which is the composition `GroupedRowsPanel` was retired against
+  // (`REQ-49`), so it is stated here rather than answered by a component of its own
+  it('has row content rendered by the networks list, the repositories list and the compose list', () => {
     expect(featureCallSites(/renderRowContent[=:]/)).toEqual([
+      'src/compose/ComposeScreen.tsx',
       'src/registries/RegistriesScreen.tsx',
       'src/volumes-networks/NetworksPanel.tsx',
     ]);
@@ -92,11 +99,13 @@ describe('the library layer is consumed only by the screens migrated onto it (RE
 
   // detail-panel.md — properties as a structural prop rather than a hand-built grid; the
   // build-cache record's panel is the third (builders-screen.md, REQ-39), the context's the fourth,
-  // where it is the route out of the endpoint the row truncates (REQ-21, REQ-42), and the daemon
-  // plugin's inspection the fifth (plugins-screen.md, REQ-46)
+  // where it is the route out of the endpoint the row truncates (REQ-21, REQ-42), the daemon
+  // plugin's inspection the fifth (plugins-screen.md, REQ-46) and the compose project's the sixth
+  // (compose-screen.md, REQ-50)
   it('has the panel properties stated through the new props by the migrated panels', () => {
     expect(featureCallSites(/\bproperties=\{/)).toEqual([
       'src/builders/BuildersScreen.tsx',
+      'src/compose/ComposeScreen.tsx',
       'src/contexts/ContextsScreen.tsx',
       'src/plugins/PluginsScreen.tsx',
       'src/volumes-networks/NetworksPanel.tsx',
@@ -104,6 +113,7 @@ describe('the library layer is consumed only by the screens migrated onto it (RE
     ]);
     expect(featureCallSites(/\bpropertiesContentClass=/)).toEqual([
       'src/builders/BuildersScreen.tsx',
+      'src/compose/ComposeScreen.tsx',
       'src/contexts/ContextsScreen.tsx',
       'src/plugins/PluginsScreen.tsx',
       'src/volumes-networks/NetworksPanel.tsx',
@@ -116,10 +126,13 @@ describe('the library layer is consumed only by the screens migrated onto it (RE
   // builders screen because switching the active builder is an action and removing one is
   // destructive (REQ-27, REQ-39); the contexts screen because the switch is the most consequential
   // click on it and must not read as the statement beside it (REQ-43); the plugins screen because
-  // removing a daemon plugin takes its data with it (REQ-46, plugins-screen.md).
+  // removing a daemon plugin takes its data with it (REQ-46, plugins-screen.md); the compose screen
+  // because bringing a stack down removes every container of it while bringing it up does not
+  // (REQ-49, compose-screen.md).
   it('has an action weight declared by the migrated screens', () => {
     expect(featureCallSites(/\bweight\s*[:=]/)).toEqual([
       'src/builders/BuildersScreen.tsx',
+      'src/compose/ComposeScreen.tsx',
       'src/contexts/ContextsScreen.tsx',
       'src/plugins/PluginsScreen.tsx',
       'src/registries/RegistriesScreen.tsx',

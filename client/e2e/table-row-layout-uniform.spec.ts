@@ -62,6 +62,12 @@ const SCREENS: { id: string; heading: string }[] = [
   // below, exactly as any other empty list is, while the CLI list is the fifteen-row column REQ-47
   // is measured on.
   { id: 'plugins', heading: 'Plugins' },
+  // plan-ui-coherence-optimisation/REQ-49 — the compose project list, and the nested header-less
+  // list every project row carries, joined the object list in batch 11. Both are swept, and the
+  // nested one is the first list in the product whose header is drawn nowhere: it therefore has no
+  // header to compare its rows against, and the sweep reports it and moves on, exactly as it does
+  // for a list with no row. On a machine running no compose project the outer list is empty too.
+  { id: 'compose', heading: 'Compose' },
 ];
 
 /** The widths a column may not state: each of them resolves against its own grid's content. */
@@ -77,6 +83,13 @@ interface TableGeometry {
   rowCount: number;
   /** One entry per distinct resolved row layout, with the rows reporting it. */
   layouts: { computed: string; rows: string[] }[];
+  /**
+   * The list draws no header at all — the nested service list a compose project
+   * row carries (`hideHeader`, compose-screen.md). Its rows still owe one set of
+   * resolved tracks; what it has no header to be compared against is the half of
+   * the guarantee that needs one.
+   */
+  headerless: boolean;
   /** Rows whose cell x differs from the header cell above it, with the figures. */
   misaligned: string[];
   clientWidth: number;
@@ -94,9 +107,15 @@ async function measureTables(page: Page): Promise<TableGeometry[]> {
       // left out of the header before the two are compared column by column.
       const headerCells = Array.from(
         table.querySelectorAll<HTMLElement>('.ui-data-table__header-cell:not(.ui-data-table__select-cell)'),
-      );
+      ).filter((cell) => cell.closest('.ui-data-table') === table);
       const headerElement = table.querySelector<HTMLElement>('.ui-data-table__header');
-      const rows = Array.from(table.querySelectorAll<HTMLElement>('.ui-data-table__row'));
+      // **A list's own rows, not the rows of a list inside it.** A compose project row carries a
+      // nested list of its services, whose rows are a grid of their own with a template of their
+      // own; counted into the outer list they would read as a second row layout — an offence
+      // reported against the guarantee rather than against the probe.
+      const rows = Array.from(table.querySelectorAll<HTMLElement>('.ui-data-table__row')).filter(
+        (row) => row.closest('.ui-data-table') === table,
+      );
 
       const layouts = new Map<string, string[]>();
       const misaligned: string[] = [];
@@ -105,7 +124,10 @@ async function measureTables(page: Page): Promise<TableGeometry[]> {
         const name = (row.querySelector('.ui-table-two-line-cell__title')?.textContent ?? row.textContent ?? '').trim().slice(0, 40);
         layouts.set(computed, [...(layouts.get(computed) ?? []), name]);
 
-        const cells = Array.from(row.querySelectorAll<HTMLElement>('.ui-data-table__cell'));
+        const cells = Array.from(row.querySelectorAll<HTMLElement>('.ui-data-table__cell')).filter(
+          (cell) => cell.closest('.ui-data-table__row') === row,
+        );
+        if (headerCells.length === 0) continue;
         if (cells.length !== headerCells.length) {
           misaligned.push(`${name || 'a row'} draws ${cells.length} cell(s) under ${headerCells.length} column header(s)`);
         }
@@ -132,6 +154,7 @@ async function measureTables(page: Page): Promise<TableGeometry[]> {
         declared: rows[0]?.style.gridTemplateColumns ?? headerElement?.style.gridTemplateColumns ?? '',
         rowCount: rows.length,
         layouts: [...layouts].map(([computed, names]) => ({ computed, rows: names })),
+        headerless: headerCells.length === 0,
         misaligned,
         clientWidth: table.clientWidth,
         scrollWidth: table.scrollWidth,
@@ -241,7 +264,12 @@ for (const viewport of VIEWPORTS) {
               .join(' against ')}`,
           );
         }
-        if (table.headerComputed !== table.layouts[0].computed) {
+        // A list drawing no header of its own — the nested service list of a compose project row —
+        // owes one row layout and has nothing to compare it against. Reported, and its half of the
+        // guarantee left alone rather than asserted against an empty string.
+        if (table.headerless) {
+          console.log(`[REQ-8] ${at} ${screen.heading} · ${table.label}: draws no header, so there is none to compare its rows against`);
+        } else if (table.headerComputed !== table.layouts[0].computed) {
           offences.push(`${screen.heading} · ${table.label}: the header resolves ${table.headerComputed} over rows resolving ${table.layouts[0].computed}`);
         }
         for (const misalignment of table.misaligned) {

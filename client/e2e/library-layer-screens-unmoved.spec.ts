@@ -120,6 +120,8 @@ const SURFACES = [
   '.ui-data-table',
   '.ui-data-table__header',
   '.ui-card-list',
+  // Retired by batch 11 (`plan-ui-coherence-optimisation/REQ-49`): it is matched on the delivered
+  // build alone now, and kept here so that the comparison keeps naming what that build drew.
   '.ui-grouped-rows-panel',
   '.ui-detail-panel',
   '.ui-definition-list',
@@ -201,6 +203,8 @@ const DELIBERATELY_CHANGED: Record<string, string> = {
     'plan-ui-coherence-optimisation/REQ-42…REQ-45 — the context list became the object list, `use` became a primary action of the row’s cluster beside the `active` marker, and the second eight-property daemon card left the screen; with it went the `Grid` that had been halving the list, one child not being a pair',
   plugins:
     'plan-ui-coherence-optimisation/REQ-46…REQ-48 — the two hand-built plugin lists became the object list, the `Grid` that laid them side by side at every width was deleted rather than collapsed, the install action moved from a card header into the screen toolbar, and both empty results became the empty-state primitive',
+  compose:
+    'plan-ui-coherence-optimisation/REQ-49…REQ-51 — the projects left `GroupedRowsPanel`, the product’s third answer to “how is an object listed”, for the object list, and the component was deleted with them; the fixed `2fr 1fr` template that never collapsed was deleted rather than collapsed, its two regions having become views of the selected project’s own panel; and `No compose projects`, a bare title, became the empty-state primitive with a line and the action that resolves it',
 };
 
 /** The eight properties REQ-45 takes off the contexts screen, by the labels the delivered block used. */
@@ -291,6 +295,67 @@ async function measurePluginsScreen(page: Page): Promise<{
         return {
           card: titleOf(state),
           title: (state.querySelector('.ui-empty-state__title')?.textContent ?? '').trim(),
+          description: state.querySelector('.ui-empty-state__description')?.textContent?.trim() ?? null,
+          controls: state.querySelectorAll('button, [role="button"], a').length,
+          x: rect.x,
+          width: rect.width,
+        };
+      }),
+    };
+  });
+}
+
+/**
+ * The compose screen, as the change REQ-49…REQ-51 declares can be measured on
+ * both builds: what the projects are listed with, how many regions the screen
+ * lays side by side, and what the empty result says and how wide it is drawn.
+ *
+ * The empty states are measured with the **lines their title paints**, which is
+ * the pin batch 5 left on this batch: the delivered `1fr` column resolved a 105px
+ * card in which an empty state's own box was 48px, its title wrapping to three
+ * and four lines. A width alone would not have shown that; a line count alone
+ * would not have shown the box.
+ */
+async function measureComposeScreen(page: Page): Promise<{
+  columnWidth: number;
+  cards: { title: string; x: number; y: number; width: number }[];
+  groupedRowsPanels: number;
+  objectLists: number;
+  grids: number;
+  detailPanels: number;
+  emptyStates: { title: string; titleLines: number; description: string | null; controls: number; x: number; width: number }[];
+}> {
+  return await page.evaluate(() => {
+    const content = document.querySelector('.ui-frame__content')! as HTMLElement;
+    const contentStyle = getComputedStyle(content);
+    const columnWidth = content.clientWidth - Number.parseFloat(contentStyle.paddingLeft) - Number.parseFloat(contentStyle.paddingRight);
+    // The element both builds draw for a card's title.
+    const cards = [...content.querySelectorAll('.ui-section-header__title')]
+      .map((node) => ({ title: (node.textContent ?? '').trim(), card: node.closest('.ui-surface') }))
+      .filter((entry): entry is { title: string; card: Element } => entry.card !== null)
+      .map(({ title, card }) => {
+        const rect = card.getBoundingClientRect();
+        return { title, x: rect.x, y: rect.y, width: rect.width };
+      });
+    return {
+      columnWidth,
+      cards,
+      groupedRowsPanels: content.querySelectorAll('.ui-grouped-rows-panel').length,
+      objectLists: content.querySelectorAll('.ui-data-table').length,
+      grids: content.querySelectorAll('.ui-grid').length,
+      detailPanels: content.querySelectorAll('.ui-detail-panel').length,
+      emptyStates: [...content.querySelectorAll('.ui-empty-state')].map((state) => {
+        const rect = state.getBoundingClientRect();
+        const title = state.querySelector('.ui-empty-state__title');
+        let titleLines = 0;
+        if (title) {
+          const range = document.createRange();
+          range.selectNodeContents(title);
+          titleLines = range.getClientRects().length;
+        }
+        return {
+          title: (title?.textContent ?? '').trim(),
+          titleLines,
           description: state.querySelector('.ui-empty-state__description')?.textContent?.trim() ?? null,
           controls: state.querySelectorAll('button, [role="button"], a').length,
           x: rect.x,
@@ -780,6 +845,79 @@ test.describe('F5 — the thirteen screens render as the delivered build does', 
             } else {
               console.log(`[REQ-48] ${at}: this daemon exposes a managed plugin, so no empty result is drawn to compare`);
             }
+
+            // The change is inside the screen: the shell's content column is where it was.
+            expect(round(currentScreen.columnWidth), `${at}: the shell's content column changed width`).toBe(round(deliveredScreen.columnWidth));
+            continue;
+          }
+
+          // The compose screen, whose declared change is the list component itself: the projects
+          // leave the product's third list paradigm for the object list, and `GroupedRowsPanel` is
+          // deleted with them. The pair that held the file and the logs beside the list goes too —
+          // not collapsed but deleted, its two regions now being views of the selected project's
+          // own panel — which is what lets the empty result be read as words at 375×812 instead of
+          // as a column of single characters in a 105px track.
+          if (screen.id === 'compose') {
+            const deliveredScreen = await measureComposeScreen(before);
+            const currentScreen = await measureComposeScreen(page);
+            console.log(
+              `[REQ-49] ${at} ${screen.heading}: delivered ${deliveredScreen.groupedRowsPanels} grouped-rows panel(s), ` +
+                `${deliveredScreen.objectLists} object list(s), ${deliveredScreen.grids} grid(s), ` +
+                `empty states ${JSON.stringify(deliveredScreen.emptyStates)} — ` +
+                `now ${currentScreen.groupedRowsPanels} / ${currentScreen.objectLists} / ${currentScreen.grids}, ` +
+                `empty states ${JSON.stringify(currentScreen.emptyStates)}, ` +
+                `cards ${currentScreen.cards.map((card) => `${card.title} x=${round(card.x)} w=${round(card.width)}`).join(', ')} — ${
+                  DELIBERATELY_CHANGED[screen.id]
+                }`,
+            );
+
+            // The premise: the delivered build really did lay two regions side by side here, and
+            // really did list nothing on the object list.
+            expect(deliveredScreen.grids, `${at}: the delivered build laid out no pair here, so this comparison shows nothing`).toBeGreaterThan(0);
+            expect(deliveredScreen.objectLists, `${at}: the delivered build already listed the projects on the object list`).toBe(0);
+
+            expect(currentScreen.groupedRowsPanels, `${at}: the retired grouped-rows panel is still drawn`).toBe(0);
+            expect(currentScreen.objectLists, `${at}: the projects are not listed on the object list`).toBe(1);
+            expect(currentScreen.grids, `${at}: a Grid still lays something out beside the list`).toBe(0);
+            expect(currentScreen.detailPanels, `${at}: a project's detail is open before anything was selected`).toBe(0);
+
+            // One card, at the content column's full width — which the 2fr of a pair could not give
+            // the detail panel it now reveals.
+            expect(currentScreen.cards.map((card) => card.title), `${at}: the screen draws a card the migration does not`).toEqual([
+              'Compose projects',
+            ]);
+            const card = currentScreen.cards[0]!;
+            expect(
+              round(card.width),
+              `${at}: the card is ${round(card.width)}px of a ${round(currentScreen.columnWidth)}px content column`,
+            ).toBeGreaterThanOrEqual(round(currentScreen.columnWidth) - 1);
+
+            // REQ-51 — the empty result, and the pin batch 5 left on this batch. What the delivered
+            // build drew in the second column is only there when that column is: on a daemon
+            // holding a compose project the reading differs, so the comparison is made on the one
+            // empty state both builds draw whatever the daemon says, and the rest is reported.
+            const deliveredEmpty = deliveredScreen.emptyStates.find((state) => state.title === 'No compose projects');
+            const currentEmpty = currentScreen.emptyStates.find((state) => state.title === 'No compose projects');
+            if (currentEmpty && deliveredEmpty) {
+              expect(
+                deliveredEmpty.description,
+                `${at}: the delivered build already explained the empty result, so REQ-51 has nothing to repair here`,
+              ).toBeNull();
+              expect(deliveredEmpty.controls, `${at}: the delivered empty result already offered an action`).toBe(0);
+              expect(currentEmpty.description, `${at}: the empty result states no line of explanation (REQ-51)`).not.toBeNull();
+              expect(currentEmpty.description!.length, `${at}: the empty result explains nothing (REQ-51)`).toBeGreaterThan(20);
+              expect(currentEmpty.controls, `${at}: the empty result offers no action that resolves it (REQ-51)`).toBe(1);
+              expect(currentEmpty.titleLines, `${at}: the empty result's title wraps over ${currentEmpty.titleLines} lines`).toBe(1);
+            } else {
+              console.log(`[REQ-51] ${at}: this daemon holds a compose project, so no empty result is drawn to compare`);
+            }
+
+            // The two empty states the deleted column produced — each of them a state a panel
+            // belonging to a project cannot be in — are gone outright, with the column.
+            expect(
+              currentScreen.emptyStates.map((state) => state.title),
+              `${at}: an empty state of the deleted column survives`,
+            ).not.toContain('No project selected');
 
             // The change is inside the screen: the shell's content column is where it was.
             expect(round(currentScreen.columnWidth), `${at}: the shell's content column changed width`).toBe(round(deliveredScreen.columnWidth));

@@ -608,9 +608,20 @@ test('registries: the pull dialog offers no copy on the reference it is about to
 
 // ─── screen 7 · compose (site 23) ────────────────────────────────────────────
 
-// REQ-1, REQ-12, REQ-20, REQ-25 — the aggregated log stream: no copy either way, no action row at
-// all with no project selected, and `Download` offered exactly while one is.
-test('compose: the aggregated log stream offers no copy, and no action row at all until a project is selected', async ({ page }) => {
+/**
+ * REQ-1, REQ-20, REQ-25 — the aggregated log stream: no copy either way, and
+ * `Download` offered exactly while a project is selected.
+ *
+ * **REQ-12's site on this screen is gone**
+ * (`plan-ui-coherence-optimisation/REQ-50`, batch 11): the stream lives inside
+ * the selected project's own detail panel now, so it is never offered without a
+ * download filename and, with no project selected, is not drawn at all. The
+ * component's behaviour — a row with nothing to hold is not rendered — is
+ * unchanged, still contracted in `ui-library/specs/log-stream.md` and still
+ * checked in `test/unit/copy-affordance-contract.test.tsx`. What is asserted
+ * here is the half that still has a site.
+ */
+test('compose: the aggregated log stream offers no copy, and holds Download exactly while a project is selected', async ({ page }) => {
   const caseName = 'nocopy';
   const dir = await mkdtemp(join(tmpdir(), 'vexel-e2e-nocopy-compose-'));
   const projectName = `vexel-e2e-nocopy-compose-${RUN_ID}`;
@@ -634,17 +645,22 @@ test('compose: the aggregated log stream offers no copy, and no action row at al
     await openApp(page, 'compose');
     await expect(page.getByRole('heading', { level: 1, name: 'Compose' })).toBeVisible({ timeout: 20_000 });
 
-    // REQ-12 — with no project selected the stream is offered without a download filename, so its
-    // action row would have no children at all: it must not be drawn.
+    // With no project selected the screen draws no stream at all — not an empty one, and not one
+    // stripped of its row.
     const stream = page.locator('.ui-log-stream');
-    await expect(stream).toBeVisible({ timeout: 20_000 });
-    await expect(stream.locator('.ui-log-stream__actions'), 'Compose → no project selected — an action row survives with nothing in it').toHaveCount(0);
+    await expect(page.locator('.ui-frame__content .ui-data-table__row').first()).toBeVisible({ timeout: 30_000 });
+    expect(await stream.count(), 'Compose → no project selected — a log stream is drawn for no project').toBe(0);
 
     // REQ-20 — and `Download` is offered exactly while a project is selected, which is delivered
     // behaviour named here so the gap is a known one rather than a later discovery.
-    const group = page.locator('.ui-grouped-rows-panel > .ui-surface', { has: page.locator('.ui-grouped-rows-panel__title', { hasText: projectName }) });
-    await expect(group).toBeVisible({ timeout: 30_000 });
-    await group.locator('.ui-grouped-rows-panel__title').click();
+    const row = page
+      .locator('.ui-frame__content .ui-data-table__body')
+      .first()
+      .locator(':scope > .ui-surface > .ui-data-table__row')
+      .filter({ hasText: projectName });
+    await expect(row).toBeVisible({ timeout: 30_000 });
+    await row.locator('.ui-data-table__cell').first().click();
+    await page.locator('.ui-detail-panel').getByRole('tab', { name: 'Aggregated logs', exact: true }).click();
 
     const actions = stream.locator('.ui-log-stream__actions');
     await expect(actions).toBeVisible({ timeout: 20_000 });

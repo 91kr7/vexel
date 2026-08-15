@@ -88,22 +88,49 @@ async function runningContainerCount(...filterLabels: string[]): Promise<number>
   return stdout.split('\n').filter((id) => id.length > 0).length;
 }
 
+/**
+ * A project's row of the one object list, with the nested list of its services
+ * inside it (plan-ui-coherence-optimisation/REQ-49, batch 11): the project row is
+ * a child of a carrier of the outer list's own body, which is what tells it from
+ * the service rows it carries.
+ */
+function projectRow(page: Page, name: string) {
+  return page
+    .locator('.ui-frame__content .ui-data-table__body')
+    .first()
+    .locator(':scope > .ui-surface > .ui-data-table__row')
+    .filter({ hasText: name });
+}
+
+/** A project row together with the services it carries — the group, in the new shape. */
 function projectGroup(page: Page, name: string) {
-  return page.locator('.ui-grouped-rows-panel > .ui-surface', { has: page.locator('.ui-grouped-rows-panel__title', { hasText: name }) });
+  return page
+    .locator('.ui-frame__content .ui-data-table__body')
+    .first()
+    .locator(':scope > .ui-surface')
+    .filter({ has: page.locator('.ui-data-table__row', { hasText: name }) });
 }
 
-function editorCard(page: Page) {
-  return page.locator('.ui-surface', { has: page.locator('.ui-code-editor') });
+/** The selected project's detail panel, which is where the file and the logs live now (REQ-50). */
+function detailPanel(page: Page) {
+  return page.locator('.ui-detail-panel');
 }
 
-function logsCard(page: Page) {
-  return page.locator('.ui-surface', { has: page.locator('.ui-log-stream') });
-}
-
+/**
+ * Selecting a project on its **first cell**, with a real pointer: below the
+ * desktop breakpoint the row is wider than the box it is read in, so its own
+ * centre can sit over another column.
+ */
 async function selectProject(page: Page, name: string): Promise<void> {
-  const group = projectGroup(page, name);
-  await expect(group).toBeVisible({ timeout: 15_000 });
-  await group.locator('.ui-grouped-rows-panel__title').click();
+  const cell = projectRow(page, name).locator('.ui-data-table__cell').first();
+  await expect(cell).toBeVisible({ timeout: 15_000 });
+  await cell.click();
+  await expect(detailPanel(page)).toBeVisible({ timeout: 15_000 });
+}
+
+/** One of the panel's two views of the project (REQ-50). */
+async function openProjectView(page: Page, label: 'Compose file' | 'Aggregated logs'): Promise<void> {
+  await detailPanel(page).getByRole('tab', { name: label, exact: true }).click();
 }
 
 test.beforeEach(async ({ page }) => {
@@ -135,8 +162,10 @@ test('lists a running project with its discovered file path and services, with n
     await expect(group).toContainText(BASE_IMAGE);
 
     // REQ-116 — the compose file path is discovered, never operator-typed: no
-    // input field exists anywhere on the Compose screen to type one.
-    await expect(page.locator('.ui-grid').locator('input')).toHaveCount(0);
+    // input field exists anywhere on the Compose screen to type one. Asserted
+    // over the screen's whole content region since batch 11, the `Grid` that used
+    // to bound it having been deleted with the second column.
+    await expect(page.locator('.ui-frame__content').locator('input')).toHaveCount(0);
   } finally {
     await removeComposeProjectQuietly(fixture);
   }
@@ -158,17 +187,19 @@ test('shows the compose file in a tabbed editor and validates it on demand', asy
     await page.reload();
     await selectProject(page, fixture.name);
 
-    const card = editorCard(page);
-    const tabs = card.getByRole('tab');
+    // The file lives in the project's own panel since batch 11, as one of its two
+    // views; the file tabs are the ones naming a file.
+    const panel = detailPanel(page);
+    const tabs = panel.getByRole('tab').filter({ hasText: /\.yml$/ });
     await expect(tabs).toHaveCount(2);
     await expect(tabs.first()).toHaveText('docker-compose.yml');
-    await expect(card.getByRole('textbox', { name: 'docker-compose.yml' })).toHaveValue(base);
+    await expect(panel.getByRole('textbox', { name: 'docker-compose.yml' })).toHaveValue(base);
 
     await tabs.nth(1).click();
-    await expect(card.getByRole('textbox', { name: 'docker-compose.override.yml' })).toHaveValue(override);
+    await expect(panel.getByRole('textbox', { name: 'docker-compose.override.yml' })).toHaveValue(override);
 
-    await card.getByRole('button', { name: 'Validate' }).click();
-    const statusLine = card.locator('.ui-code-editor__status');
+    await panel.getByRole('button', { name: 'Validate' }).click();
+    const statusLine = panel.locator('.ui-code-editor__status');
     await expect(statusLine).toBeVisible({ timeout: 10_000 });
     await expect(statusLine).toContainText(/valid/i);
     await expect(statusLine).toContainText('2 services');
@@ -189,14 +220,16 @@ test('editing the compose file and confirming Save writes it back to disk', asyn
     await page.reload();
     await selectProject(page, fixture.name);
 
-    const card = editorCard(page);
-    const editorTextbox = card.getByRole('textbox', { name: 'docker-compose.yml' });
+    const panel = detailPanel(page);
+    const editorTextbox = panel.getByRole('textbox', { name: 'docker-compose.yml' });
     await expect(editorTextbox).toHaveValue(yaml, { timeout: 10_000 });
     const updated = `${yaml}    hostname: e2e-marker\n`;
     await editorTextbox.fill(updated);
 
-    await expect(card.getByText('Unsaved', { exact: true })).toBeVisible();
-    await card.getByRole('button', { name: 'Save' }).click();
+    // The editor's own dirty indicator, the card header that carried the second
+    // `Unsaved` badge having gone with the column (compose-screen.md, batch 11).
+    await expect(panel.locator('.ui-code-editor__dirty')).toBeVisible();
+    await panel.getByRole('button', { name: 'Save' }).click();
 
     const confirmHeading = page.getByRole('heading', { name: 'Confirm: docker-compose.yml' });
     await expect(confirmHeading).toBeVisible();
@@ -205,7 +238,7 @@ test('editing the compose file and confirming Save writes it back to disk', asyn
     await expect(confirmDialog).toBeHidden();
 
     await expect.poll(() => readFile(fixture.filePaths[0]!, 'utf8'), { timeout: 10_000 }).toBe(updated);
-    await expect(card.getByText('Unsaved', { exact: true })).toHaveCount(0);
+    await expect(panel.locator('.ui-code-editor__dirty')).toHaveCount(0);
   } finally {
     await removeComposeProjectQuietly(fixture);
   }
@@ -222,15 +255,15 @@ test('bringing a stopped project up and back down asks for confirmation only on 
     await createOnly(fixture);
 
     await page.reload();
-    const group = projectGroup(page, fixture.name);
-    await expect(group).toBeVisible({ timeout: 15_000 });
-    await expect(group.getByRole('button', { name: 'Up' })).toBeVisible();
+    const row = projectRow(page, fixture.name);
+    await expect(row).toBeVisible({ timeout: 15_000 });
+    await expect(row.getByRole('button', { name: 'Up' })).toBeVisible();
 
-    await group.getByRole('button', { name: 'Up' }).click();
-    await expect(group.getByRole('button', { name: 'Down' })).toBeVisible({ timeout: 15_000 });
+    await row.getByRole('button', { name: 'Up' }).click();
+    await expect(row.getByRole('button', { name: 'Down' })).toBeVisible({ timeout: 15_000 });
     await expect.poll(() => runningContainerCount(`label=com.docker.compose.project=${fixture.name}`), { timeout: 15_000 }).toBe(2);
 
-    await group.getByRole('button', { name: 'Down' }).click();
+    await row.getByRole('button', { name: 'Down' }).click();
     const confirmHeading = page.getByRole('heading', { name: `Confirm: ${fixture.name}` });
     await expect(confirmHeading).toBeVisible();
     const confirmDialog = page.locator('.ui-modal').filter({ has: confirmHeading });
@@ -239,7 +272,7 @@ test('bringing a stopped project up and back down asks for confirmation only on 
     // Cancelling performs nothing: the stack stays up.
     await expect.poll(() => runningContainerCount(`label=com.docker.compose.project=${fixture.name}`)).toBe(2);
 
-    await group.getByRole('button', { name: 'Down' }).click();
+    await row.getByRole('button', { name: 'Down' }).click();
     await expect(confirmHeading).toBeVisible();
     await confirmDialog.getByRole('button', { name: 'Down' }).click();
     await expect.poll(() => runningContainerCount(`label=com.docker.compose.project=${fixture.name}`), { timeout: 15_000 }).toBe(0);
@@ -293,8 +326,11 @@ test('shows aggregated logs labelled with the service each line comes from', asy
 
     await page.reload();
     await selectProject(page, fixture.name);
+    // The aggregated stream is the panel's second view since batch 11, and is
+    // subscribed only while that panel is open (compose-screen.md).
+    await openProjectView(page, 'Aggregated logs');
 
-    const sources = logsCard(page).locator('.ui-log-stream__source');
+    const sources = detailPanel(page).locator('.ui-log-stream__source');
     await expect.poll(async () => {
       const texts = await sources.allTextContents();
       return new Set(texts);
