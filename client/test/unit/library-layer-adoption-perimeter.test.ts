@@ -26,8 +26,10 @@ const clientRoot = process.cwd();
  * per file, widened by the batch that migrates the next screen.
  *
  * - batch 6 — volumes and networks (`REQ-31` … `REQ-35`)
+ * - batch 7 — registries (`REQ-36` … `REQ-38`)
  */
 const MIGRATED_FILES = [
+  'src/registries/RegistriesScreen.tsx',
   'src/volumes-networks/NetworksPanel.tsx',
   'src/volumes-networks/VolumesPanel.tsx',
   'src/volumes-networks/VolumesNetworksScreen.tsx',
@@ -53,18 +55,22 @@ function featureCallSites(pattern: RegExp): string[] {
 
 describe('the library layer is consumed only by the screens migrated onto it (REQ-30, REQ-31)', () => {
   // data-table.md — `variant='comfortable'` is the object list the nine screens migrate onto, from
-  // batch 6; volumes and networks are the two lists that have
-  it('has the comfortable list asked for by the two migrated lists and nowhere else', () => {
+  // batch 6; volumes, networks and the registries screen's two lists are the ones that have
+  it('has the comfortable list asked for by the migrated lists and nowhere else', () => {
     expect(featureCallSites(/variant=(?:"comfortable"|\{'comfortable'\}|\{"comfortable"\})/)).toEqual([
+      'src/registries/RegistriesScreen.tsx',
       'src/volumes-networks/NetworksPanel.tsx',
       'src/volumes-networks/VolumesPanel.tsx',
     ]);
   });
 
   // data-table.md — the always-present row content: the networks list carries its attached-container
-  // chips there, below every row
-  it('has row content rendered by the networks list alone', () => {
-    expect(featureCallSites(/renderRowContent[=:]/)).toEqual(['src/volumes-networks/NetworksPanel.tsx']);
+  // chips there, the repositories list its tag chips
+  it('has row content rendered by the networks list and the repositories list', () => {
+    expect(featureCallSites(/renderRowContent[=:]/)).toEqual([
+      'src/registries/RegistriesScreen.tsx',
+      'src/volumes-networks/NetworksPanel.tsx',
+    ]);
   });
 
   // section-header.md — the same-baseline sublabel, whose first consumer is the swarm bottom row: no
@@ -85,9 +91,11 @@ describe('the library layer is consumed only by the screens migrated onto it (RE
     ]);
   });
 
-  // action-button-group.md — an action's weight is the only thing a caller says about it
-  it('has an action weight declared by the two migrated panels', () => {
+  // action-button-group.md — an action's weight is the only thing a caller says about it. The
+  // registries screen states one because logging in weighs more than logging out (REQ-36).
+  it('has an action weight declared by the migrated screens', () => {
     expect(featureCallSites(/\bweight\s*[:=]/)).toEqual([
+      'src/registries/RegistriesScreen.tsx',
       'src/volumes-networks/NetworksPanel.tsx',
       'src/volumes-networks/VolumesPanel.tsx',
     ]);

@@ -95,6 +95,34 @@ is why that budget fails on a number that is lower as well as higher.
 own — a full-size `Button` in the row's meta slot, 89×37 and 81×37 — and is now a cluster button,
 58×27 and 51×27, whose click cannot also select the row.
 
+### One observation left standing, for batch 19
+
+**The merge that makes REQ-37 work leaves "authenticated" said in a colour, for the rows that name an
+account.** Checked in the code rather than assumed: `StatusDotCell` (`client/src/ui/data/TableCells.tsx:13`)
+renders
+
+```
+<span className="ui-table-status-dot-cell">
+  <span className={`ui-table-status-dot ui-table-status-dot--tone-${tone}`} />
+  {label}
+</span>
+```
+
+— the dot is an **empty element**, its tone reaches the DOM only as a class name, and the class only
+sets `background` (`data-table.css:184`). There is no `aria-label`, no `role`, no `title` and no
+visually hidden text anywhere on it. So for `ghcr.io / octocat` the state is carried by colour alone;
+for `contososhared.azurecr.io / not authenticated` it is carried in words. The one textual trace of
+the authenticated case is the row action reading `Log out` — an inference from what one may do, not a
+statement of what is.
+
+Deliberately **not fixed here**: the fix is a library one — `StatusDotCell` is used by containers,
+images and the dashboard as well — and it is outside this batch's interventions. The library already
+holds the component that does state a tone in words (`StatusPill`, dot + label), which is what makes
+this a decision rather than an omission: either the dot names its tone, or a cell that carries state
+alone is required to be a pill. **Batch 19 owns it** (`REQ-81`, the cross-screen invariants): a
+product that says one half of a binary state in words and the other half in a colour has answered the
+question twice, which is the shape of defect that batch exists to remove.
+
 ### Accepted with the batch, so they are not revisited
 
 - **The desktop panels go from 1 : 1.2 to equal** — registries 500 → 548px, repositories 600 → 548px
@@ -111,8 +139,14 @@ own — a full-size `Button` in the row's meta slot, 89×37 and 81×37 — and i
 
 - Registries panel / list width: 500/434 → 548/482 at 1440, 427/361 → 468/402 at 1280, 143/77 →
   335/269 at 375.
-- Truncation after the migration: **nothing is cut at 1440**; at 1280 three hosts and the four
-  `docker config file` values are cut, each with its tooltip.
+- Truncation after the migration, **on the fixture described above and only on it**: nothing was cut
+  at 1440×1000; at 1280×800 three hosts and the four `docker config file` values were, each with its
+  tooltip. The zero is a property of that fixture, not of the screen — the tester's, with nine
+  registries including `localhost:5000 · not authenticated · plain http` and a longer store name,
+  still clips 26px and 39px at 1440. Truncation with a tooltip is the contract (batch 4), so neither
+  reading is a defect; what would be wrong is to read the zero as a guarantee. Against the delivered
+  build the comparison holds on either fixture: the joined line lost 129px at 1440 and 201px at 1280
+  where the split values lose tens of pixels or nothing.
 - The repositories list stays content-ragged — 125/146 before against 129/141/172 after at 1440,
   125/146/178 before against 160/172 after at 1280 — because a repository without a description
   genuinely holds less. That is not REQ-37's defect and INT-3 keeps that list as delivered.

@@ -41,15 +41,20 @@ const script = readFileSync(scriptPath, 'utf8');
 const BUDGET_AT_THE_START_OF_THE_PLAN = 17;
 
 /**
- * What the budget stands at now. `ui-conformance-check.md`: **15** since the
- * volumes and networks migration (`plan-ui-coherence-optimisation/REQ-31`)
- * removed the two call sites those panels held. Zero at the deletion (batch 13),
- * at which point the check goes with the component.
+ * What the budget stands at now: **13**, the volumes and networks migration
+ * (`plan-ui-coherence-optimisation/REQ-31`) having removed the two call sites
+ * those panels held and the registries migration (`REQ-36`) the two its own
+ * screen held — "lower the `CardList` call-site budget by the two sites removed
+ * here", batch 7. Zero at the deletion (batch 13), at which point the check goes
+ * with the component.
  */
-const BUDGET_NOW = 15;
+const BUDGET_NOW = 13;
 
 /** The call sites the migrations have removed so far, which is what "lowered deliberately" means. */
 const MIGRATED_AWAY = BUDGET_AT_THE_START_OF_THE_PLAN - BUDGET_NOW;
+
+/** The directories whose screens have been migrated, and which therefore hold no call site at all. */
+const MIGRATED_DIRECTORIES = [join('src', 'volumes-networks'), join('src', 'registries')];
 
 /**
  * The state of the conformance script **before this plan touched anything** —
@@ -126,8 +131,9 @@ function callSiteCount(files: string[]): number {
 
 describe('the retirement budget — the count it holds (REQ-94)', () => {
   // ui-conformance-check.md — "the expected count is 17 at the start of
-  // plan-ui-coherence-optimisation, lowered by each screen migration in its own commit ... It
-  // stands at 15 since the volumes and networks migration"
+  // plan-ui-coherence-optimisation, lowered by each screen migration in its own commit"; batch 7 —
+  // "lower the CardList call-site budget by the two sites removed here", from the 15 the volumes
+  // and networks migration left
   it('pins the expected count at the number the migrations so far have left', () => {
     const expected = /expectedCallSites:\s*(\d+)/.exec(script)?.[1];
 
@@ -143,14 +149,18 @@ describe('the retirement budget — the count it holds (REQ-94)', () => {
     expect(callSiteCount(featureFiles())).toBe(BUDGET_NOW);
   });
 
-  // REQ-31, REQ-82 — the migration **deletes** the arrangement it replaces: the two sites the drop
-  // from 17 to 15 accounts for are the two those panels held, and neither is left standing
-  it('accounts for the drop by the two sites the migrated screen no longer holds', () => {
-    expect(MIGRATED_AWAY).toBe(2);
-    const migratedScreen = featureFiles().filter((file) => file.includes(join('src', 'volumes-networks')));
+  // REQ-31, REQ-36, REQ-82 — a migration **deletes** the arrangement it replaces: the four sites
+  // the drop from 17 to 13 accounts for are the two those panels held and the two the registries
+  // screen held, and none of them is left standing
+  it('accounts for the drop by the sites the migrated screens no longer hold', () => {
+    expect(MIGRATED_AWAY).toBe(4);
 
-    expect(migratedScreen.length).toBeGreaterThan(0);
-    expect(callSiteCount(migratedScreen)).toBe(0);
+    for (const directory of MIGRATED_DIRECTORIES) {
+      const migratedScreen = featureFiles().filter((file) => file.includes(directory));
+
+      expect(migratedScreen.length, `no feature file lives under ${directory}`).toBeGreaterThan(0);
+      expect(callSiteCount(migratedScreen), `${directory} still holds a call site of the retiring component`).toBe(0);
+    }
   });
 
   // ui-conformance-check.md — "The budget counts feature code only. The component's own definition,

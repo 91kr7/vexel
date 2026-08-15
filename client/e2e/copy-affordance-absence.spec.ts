@@ -581,7 +581,10 @@ test('registries: the pull dialog offers no copy on the reference it is about to
   await expect(screenContent(page).getByRole('heading', { level: 2, name: 'Registries & credentials' })).toBeVisible({ timeout: 20_000 });
 
   const registriesPanel = screenContent(page).locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Registries & credentials' }) });
-  await registriesPanel.locator('.ui-card-list > .ui-surface').first().click();
+  // The registries list is the object list's comfortable variant since
+  // `plan-ui-coherence-optimisation/REQ-36`; a row is selected on its first cell, the row's own
+  // centre being over the action cluster once a table pans.
+  await registriesPanel.locator('.ui-data-table__row').first().locator('.ui-data-table__cell').first().click();
 
   const chip = screenContent(page).locator('.ui-chip', { hasText: '1.0' }).first();
   await expect(chip).toBeVisible({ timeout: 20_000 });

@@ -18,12 +18,16 @@ Description:
   a row of tag chips.
 
 Shows:
-- One row per configured registry, in columns: a leading dot — green when the session is
-  authenticated, muted when it is not; the host over the account the credential is in the name of
-  (nothing there when the store reports no name); the credential store — the helper's name, or
-  "docker config file" when the credential lives in the configuration file, and nothing at all when
-  the registry is not authenticated; and the state as labels: "authenticated" or "not
-  authenticated", followed by "plain http" for a registry reached over plain http.
+- One row per configured registry, in columns:
+  - a leading dot — green when the session is authenticated, muted when it is not;
+  - the host, over a second line that is **the account when there is one and the state in words when
+    there is not**: `octocat` for a named credential, "authenticated" when the store reports a
+    credential but no name, "not authenticated" when there is none — with "plain http" appended for
+    a registry reached without TLS. The two are one value, not two: which is what keeps the line
+    always present and always one line (see REQ-37 below);
+  - the credential store — the helper's name, or "docker config file" when the credential lives in
+    the configuration file, and nothing at all (the column's "–") when the registry is not
+    authenticated.
   **No column ever shows a credential**, only whether there is one and in whose name.
 - "Log out" on an authenticated registry's row, "Log in" on one that is not — actions of the row's
   cluster, the log in weighing more than the log out.
@@ -103,7 +107,15 @@ Actions:
 - **The state line became columns rather than a shorter line** (REQ-36, REQ-37). The delivered row
   joined four values into one monospace sentence, which is what made a row's height depend on what
   its registry happened to be. The values are the same and in the same order; what changed is that
-  each is a column of its own, so the number of lines a row occupies no longer depends on its state.
+  the one whose *presence* depends on the state — the credential store — is a column of its own,
+  where its absence is the column's "–" and costs no line. The account and the state word stay one
+  value on one line, for the same reason: two of them would be a line that comes and goes.
+- **Known, and left for batch 19 to decide** (`plan-ui-coherence-optimisation/REQ-81`): on a row
+  whose second line is an account, "authenticated" is said by the dot's colour alone —
+  `StatusDotCell` renders an empty `<span>` whose tone reaches the DOM only as a class setting a
+  `background`. A row that states "not authenticated" in words but states "authenticated" only in a
+  colour is an asymmetry the merge above makes visible; the only textual trace for the authenticated
+  case is the row action reading "Log out". It is a library-level question, not this screen's.
 - **The screen carries one toolbar** (the repositories panel's search), the registries panel having
   no page-level action of its own: everything an operator does to a registry is done to one
   registry, and therefore from that registry's row.

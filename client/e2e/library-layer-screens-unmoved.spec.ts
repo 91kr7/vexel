@@ -193,7 +193,37 @@ const LIVE_FEED = '.ui-event-stream';
 const DELIBERATELY_CHANGED: Record<string, string> = {
   'volumes-networks':
     'plan-ui-coherence-optimisation/REQ-31…REQ-35 — the pair of half-width cards became one stacked full-width column, so a revealed detail is full width',
+  registries:
+    'plan-ui-coherence-optimisation/REQ-36…REQ-38 — the two lists became the object list, and the fixed 1 : 1.2 template that never collapsed became the library’s pair arrangement: equal panels at desktop widths, one column at the phone breakpoint',
 };
+
+/** The two cards of the registries screen, by the section header each carries. */
+async function measureRegistryPanels(page: Page): Promise<{
+  columnWidth: number;
+  registries: { x: number; y: number; width: number } | null;
+  repositories: { x: number; y: number; width: number } | null;
+}> {
+  return await page.evaluate(() => {
+    const box = (element: Element) => {
+      const rect = element.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width };
+    };
+    const content = document.querySelector('.ui-frame__content')! as HTMLElement;
+    const contentStyle = getComputedStyle(content);
+    const columnWidth = content.clientWidth - Number.parseFloat(contentStyle.paddingLeft) - Number.parseFloat(contentStyle.paddingRight);
+    // The element both builds draw for a card's title.
+    const titles = [...document.querySelectorAll('.ui-section-header__title')];
+    const cardOf = (matches: (text: string) => boolean) =>
+      titles.find((node) => matches((node.textContent ?? '').trim()))?.closest('.ui-surface') ?? null;
+    const registries = cardOf((text) => text === 'Registries & credentials');
+    const repositories = cardOf((text) => text.startsWith('Repositories'));
+    return {
+      columnWidth,
+      registries: registries ? box(registries) : null,
+      repositories: repositories ? box(repositories) : null,
+    };
+  });
+}
 
 /** The two lists of the volumes & networks screen, by the section header each card carries. */
 async function measureStackedLists(page: Page): Promise<{
@@ -379,6 +409,70 @@ test.describe('F5 — the thirteen screens render as the delivered build does', 
           // The one screen this plan has deliberately redrawn: its own declared geometry is
           // asserted here instead of the negative claim, and the surface-by-surface comparison is
           // skipped **for this screen only**, with the reason stated.
+          // The registries screen, whose declared change is the panel pair rather than the stack:
+          // the fixed template it handed `Grid` divided every width in 1 : 1.2 and collapsed at
+          // none, which at 375×812 left a 143px panel; the pair arrangement makes the two equal at
+          // desktop widths and stacks them below the breakpoint.
+          if (screen.id === 'registries') {
+            const deliveredPanels = await measureRegistryPanels(before);
+            const currentPanels = await measureRegistryPanels(page);
+            console.log(
+              `[REQ-36] ${at} ${screen.heading}: delivered registries x=${round(deliveredPanels.registries?.x ?? Number.NaN)} w=${round(
+                deliveredPanels.registries?.width ?? Number.NaN,
+              )}, repositories x=${round(deliveredPanels.repositories?.x ?? Number.NaN)} w=${round(deliveredPanels.repositories?.width ?? Number.NaN)} — ` +
+                `now registries x=${round(currentPanels.registries?.x ?? Number.NaN)} w=${round(currentPanels.registries?.width ?? Number.NaN)}, ` +
+                `repositories x=${round(currentPanels.repositories?.x ?? Number.NaN)} w=${round(currentPanels.repositories?.width ?? Number.NaN)}, ` +
+                `content column ${round(currentPanels.columnWidth)}px — ${DELIBERATELY_CHANGED[screen.id]}`,
+            );
+
+            for (const [name, panels] of [
+              ['the delivered build', deliveredPanels],
+              ['this build', currentPanels],
+            ] as const) {
+              expect(panels.registries, `${at}: ${name} draws no registries card`).not.toBeNull();
+              expect(panels.repositories, `${at}: ${name} draws no repositories card`).not.toBeNull();
+            }
+
+            // The premise: the delivered build really did divide the width unequally, and really
+            // did keep the two side by side at every viewport.
+            expect(
+              round(deliveredPanels.registries!.width),
+              `${at}: the delivered build already gave the two panels one width, so this comparison shows nothing`,
+            ).not.toBe(round(deliveredPanels.repositories!.width));
+            expect(
+              round(deliveredPanels.repositories!.x),
+              `${at}: the delivered build already stacked the two panels, so this comparison shows nothing`,
+            ).not.toBe(round(deliveredPanels.registries!.x));
+
+            if (viewport.width >= 1280) {
+              expect(round(currentPanels.repositories!.y), `${at}: the two panels are no longer on one row`).toBe(round(currentPanels.registries!.y));
+              expect(
+                Math.abs(currentPanels.repositories!.width - currentPanels.registries!.width),
+                `${at}: the pair still divides the column unequally`,
+              ).toBeLessThanOrEqual(1);
+              expect(
+                currentPanels.registries!.width,
+                `${at}: the registries panel is no wider than the one the fixed template gave it`,
+              ).toBeGreaterThan(deliveredPanels.registries!.width);
+            } else {
+              expect(round(currentPanels.repositories!.x), `${at}: the panels are still side by side`).toBe(round(currentPanels.registries!.x));
+              expect(round(currentPanels.repositories!.width), `${at}: the stacked panels do not share one width`).toBe(
+                round(currentPanels.registries!.width),
+              );
+              expect(currentPanels.repositories!.y, `${at}: the repositories panel is not below the registries one`).toBeGreaterThan(
+                currentPanels.registries!.y,
+              );
+              expect(
+                round(currentPanels.registries!.width),
+                `${at}: the registries panel is ${round(currentPanels.registries!.width)}px of a ${round(currentPanels.columnWidth)}px content column`,
+              ).toBeGreaterThanOrEqual(round(currentPanels.columnWidth) - 1);
+            }
+
+            // The change is inside the screen: the shell's content region is where it was.
+            expect(round(currentPanels.columnWidth), `${at}: the shell's content column changed width`).toBe(round(deliveredPanels.columnWidth));
+            continue;
+          }
+
           if (DELIBERATELY_CHANGED[screen.id] !== undefined) {
             const deliveredLists = await measureStackedLists(before);
             const currentLists = await measureStackedLists(page);
