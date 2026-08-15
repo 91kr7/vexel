@@ -188,6 +188,11 @@ interface Surface {
  * server and not the reading order, and the feed's own empty state ("No daemon
  * events yet.") was what the delivered build drew in its place. Comparing it
  * measures the harness.
+ *
+ * It was written for the About screen's own card and now applies to the
+ * **Dashboard alone**: `plan-ui-coherence-optimisation/REQ-71` leaves the stream
+ * presented in one place, which is why the About entry below asserts that no
+ * such surface is drawn on that screen at all.
  */
 const LIVE_FEED = '.ui-event-stream';
 
@@ -216,6 +221,8 @@ const DELIBERATELY_CHANGED: Record<string, string> = {
     'plan-ui-coherence-optimisation/REQ-57, REQ-59 — the images list stopped printing one string twice per row: the `TAGS` pill column that repeated `REPOSITORY:TAG` on every row is gone, and `SIZE` — the word that carried two different numbers in one product — is now `DISK USAGE` (`images/specs/images-screen.md`). One column fewer, and a two-word label in its track, is the **shape** of those two requirements being met. This screen is therefore **not skipped**: it is compared surface by surface like the eight unchanged ones, with exactly one declared exemption — the images list’s own header row may be **narrower** where the table is wider than its card and is sized by its columns rather than by the card (375×812). It may not grow, it may not move sideways, and no other surface of the screen is exempt, so a further unintended move on it still fails. What the row *says* is checked in `images-one-fact-once.spec.ts`',
   'system-prune':
     'plan-ui-coherence-optimisation/REQ-73…REQ-75 — the fixed 1 : 1.2 template that never collapsed became the library’s pair arrangement: equal panels above the breakpoint, one column below, and `align-items: start`, so the two cards no longer share a height; the system prune left the section header for the screen toolbar under it, which puts the reclaim card’s rows one row lower; and the two empty results gained their explanation and their way out. What the batch states does **not** change is everything the screen says: the eight daemon properties, the five prune rows and the standing warning, which are compared word for word against this same delivered build in `system-prune-preserved.spec.ts`',
+  'coverage-matrix':
+    'plan-ui-coherence-optimisation/REQ-70…REQ-72 — the screen titled every section one way (REQ-70), and lost the `Daemon event stream` card that repeated the Dashboard’s stream verbatim (REQ-71). Two deltas, and nothing else is declared: **one card fewer**, and **each remaining card’s own header** costing whatever the one treatment costs it. So no card may move sideways or change width, no card may be added or lost besides that one, each card’s body must be the height it was, and each card must sit exactly where the removed card and the header deltas above it put it — which leaves a further unintended move failing. What the screen still **says** is `plan-ui-coherence-optimisation/REQ-72`’s, compared word for word against this same delivered build in `about-one-treatment.spec.ts`',
   swarm:
     'plan-ui-coherence-optimisation/REQ-52…REQ-55 — the condition of the swarm is stated **once**, on one surface, with `Initialise a swarm` and `Join an existing one` inside it, where the delivered build stated it in a banner and again in each of five lists; the state bar is not drawn where there is no state to qualify, the panels are not drawn where there is no cluster to read, and `QuadPanelLayout` is deleted with the two-by-two grid, the five inventories stacked at the content column’s full width',
 };
@@ -322,6 +329,104 @@ async function measureSwarmScreen(page: Page): Promise<{
       screenBottom,
     };
   }, SWARM_CONDITION.source);
+}
+
+/** The section the About screen drew that `plan-ui-coherence-optimisation/REQ-71` takes off it. */
+const REMOVED_ABOUT_SECTION = 'Daemon event stream';
+
+/**
+ * The About screen, as the change REQ-70…REQ-72 declares can be measured on both
+ * builds.
+ *
+ * A **treatment** is what the browser resolves rather than what the source says
+ * — the font, its size, its weight, its letter-spacing, the case it is drawn in
+ * and its colour — so nothing here reads a class name to decide how many there
+ * are. What each card costs its neighbours is measured beside it: the space
+ * between the card's own top edge and the top of its content is what a title's
+ * treatment is worth in pixels, and the rest of the card's height is content
+ * this batch does not touch.
+ */
+async function measureAboutScreen(page: Page): Promise<{
+  columnWidth: number;
+  cards: {
+    title: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    headerCost: number;
+    bodyHeight: number;
+    text: string;
+  }[];
+  cardTitles: number;
+  eyebrows: number;
+  eventStreams: number;
+  treatments: string[];
+}> {
+  return await page.evaluate(() => {
+    const content = document.querySelector('.ui-frame__content')! as HTMLElement;
+    const contentStyle = getComputedStyle(content);
+    const columnWidth = content.clientWidth - Number.parseFloat(contentStyle.paddingLeft) - Number.parseFloat(contentStyle.paddingRight);
+    const candidates = [...content.querySelectorAll('.ui-section-header__title, .ui-card__title')];
+    // A build whose card title *wraps* the header primitive matches both selectors
+    // on one title; the outer element is a box, the inner one carries the type.
+    const titles = candidates.filter((element) => !candidates.some((other) => other !== element && element.contains(other)));
+    const ownText = (element: Element) =>
+      [...element.childNodes]
+        .filter((node) => !(node instanceof Element && node.matches('.ui-section-header__sublabel')))
+        .map((node) => node.textContent ?? '')
+        .join('')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    return {
+      columnWidth,
+      cardTitles: content.querySelectorAll('.ui-card__title').length,
+      eyebrows: content.querySelectorAll('.ui-section-header--eyebrow').length,
+      eventStreams: content.querySelectorAll('.ui-event-stream').length,
+      treatments: titles.map((title) => {
+        const style = getComputedStyle(title);
+        const own = ownText(title);
+        const rendered = style.textTransform === 'uppercase' ? own.toUpperCase() : own;
+        return [
+          style.fontFamily,
+          style.fontSize,
+          style.fontWeight,
+          style.letterSpacing,
+          style.textTransform,
+          style.color,
+          /[a-z]/.test(rendered) ? 'mixed case' : 'upper case',
+        ].join(' | ');
+      }),
+      cards: titles
+        .map((title) => {
+          const card = title.closest('.ui-surface');
+          if (card === null) return null;
+          const header = title.closest('.ui-section-header') ?? title;
+          let node: Element | null = header;
+          let bodyTop: number | null = null;
+          while (node !== null && node !== card) {
+            if (node.nextElementSibling !== null) {
+              bodyTop = node.nextElementSibling.getBoundingClientRect().top;
+              break;
+            }
+            node = node.parentElement;
+          }
+          const rect = card.getBoundingClientRect();
+          return {
+            title: ownText(title),
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height,
+            headerCost: bodyTop === null ? Number.NaN : bodyTop - rect.top,
+            bodyHeight: bodyTop === null ? Number.NaN : rect.bottom - bodyTop,
+            text: (card.textContent ?? '').replace(/\s+/g, ' ').trim(),
+          };
+        })
+        .filter((card): card is NonNullable<typeof card> => card !== null),
+    };
+  });
 }
 
 /** The eight properties REQ-45 takes off the contexts screen, by the labels the delivered block used. */
@@ -1486,6 +1591,100 @@ test.describe('F5 — the thirteen screens render as the delivered build does', 
             );
             expect(currentScreen.storageRows, `${at}: the screen draws a different number of prune rows (REQ-73)`).toBe(deliveredScreen.storageRows);
             expect(currentScreen.callouts, `${at}: the standing warning is no longer stated as one callout (REQ-74)`).toBe(deliveredScreen.callouts);
+
+            // The change is inside the screen: the shell's content column is where it was.
+            expect(round(currentScreen.columnWidth), `${at}: the shell's content column changed width`).toBe(round(deliveredScreen.columnWidth));
+            continue;
+          }
+
+          // The About screen, whose declared change is one card fewer and one treatment for every
+          // section title: the `Daemon event stream` card repeated the Dashboard's own stream
+          // verbatim (REQ-71), and the uppercase micro-caps card title is gone from the screen
+          // (REQ-70). Everything else is asserted to be exactly where those two put it.
+          if (screen.id === 'coverage-matrix') {
+            const deliveredScreen = await measureAboutScreen(before);
+            const currentScreen = await measureAboutScreen(page);
+            console.log(
+              `[REQ-70] ${at} ${screen.heading}: delivered ${new Set(deliveredScreen.treatments).size} treatment(s) over ` +
+                `${deliveredScreen.cards.length} section(s) — ${JSON.stringify(
+                  deliveredScreen.cards.map((card, index) => `${card.title} → ${deliveredScreen.treatments[index]}`),
+                )}; ${deliveredScreen.cardTitles} card title(s), ${deliveredScreen.eyebrows} eyebrow header(s), ` +
+                `${deliveredScreen.eventStreams} event stream(s) — now ${new Set(currentScreen.treatments).size} treatment(s) over ` +
+                `${currentScreen.cards.length} section(s) — ${JSON.stringify(
+                  currentScreen.cards.map((card, index) => `${card.title} → ${currentScreen.treatments[index]}`),
+                )}; ${currentScreen.cardTitles} card title(s), ${currentScreen.eyebrows} eyebrow header(s), ` +
+                `${currentScreen.eventStreams} event stream(s) — ${DELIBERATELY_CHANGED[screen.id]}`,
+            );
+
+            // The premise: the delivered build really did title this screen in more than one way,
+            // and really did carry the card REQ-71 takes off it.
+            expect(
+              new Set(deliveredScreen.treatments).size,
+              `${at}: the delivered build already titled every section of this screen one way, so REQ-70 has nothing to repair here`,
+            ).toBeGreaterThan(1);
+            // The **panel**, not the surface: the stream draws no surface of its own until an event
+            // has arrived, and the delivered build's server process is minutes old, so a surface
+            // count is not evidence either way of the card REQ-71 removes.
+            expect(
+              deliveredScreen.cards.map((card) => card.title),
+              `${at}: the delivered build drew no ${REMOVED_ABOUT_SECTION} card, so REQ-71 has nothing to remove here`,
+            ).toContain(REMOVED_ABOUT_SECTION);
+
+            expect(new Set(currentScreen.treatments).size, `${at}: the screen carries more than one section-header treatment`).toBe(1);
+            expect(currentScreen.cardTitles, `${at}: a card title is still drawn on this screen`).toBe(0);
+            expect(currentScreen.eyebrows, `${at}: the uppercase micro-caps treatment is still drawn on this screen`).toBe(0);
+            expect(currentScreen.eventStreams, `${at}: a daemon event stream is still drawn on this screen`).toBe(0);
+
+            // One card fewer, and that one: the screen states everything else it stated, in the
+            // order it stated it (REQ-72).
+            expect(
+              currentScreen.cards.map((card) => card.title),
+              `${at}: the screen lost or gained a section beyond the stream REQ-71 removes`,
+            ).toEqual(deliveredScreen.cards.map((card) => card.title).filter((title) => title !== REMOVED_ABOUT_SECTION));
+
+            let offset = 0;
+            let comparableY = true;
+            for (const [index, deliveredCard] of deliveredScreen.cards.entries()) {
+              if (deliveredCard.title === REMOVED_ABOUT_SECTION) {
+                const next = deliveredScreen.cards[index + 1];
+                offset -= next ? next.y - deliveredCard.y : deliveredCard.height;
+                continue;
+              }
+              const card = currentScreen.cards.find((candidate) => candidate.title === deliveredCard.title)!;
+              expect(round(card.x), `${at}: the ${card.title} card moved sideways`).toBe(round(deliveredCard.x));
+              expect(round(card.width), `${at}: the ${card.title} card changed width`).toBe(round(deliveredCard.width));
+              expect(
+                round(card.width),
+                `${at}: the ${card.title} card is ${round(card.width)}px of a ${round(currentScreen.columnWidth)}px content column`,
+              ).toBeGreaterThanOrEqual(round(currentScreen.columnWidth) - 1);
+
+              const headerDelta = card.headerCost - deliveredCard.headerCost;
+              const heightDelta = card.height - deliveredCard.height;
+              console.log(
+                `[REQ-70] ${at} ${card.title}: header ${round(deliveredCard.headerCost)}px → ${round(card.headerCost)}px, ` +
+                  `card ${round(deliveredCard.height)}px → ${round(card.height)}px, y ${round(deliveredCard.y)} → ${round(card.y)} ` +
+                  `(expected ${round(deliveredCard.y + offset)})`,
+              );
+
+              if (card.text !== deliveredCard.text) {
+                console.log(`[REQ-72] ${at} ${card.title}: the daemon changed what this card says between the two reads, so its box is not comparable`);
+                comparableY = false;
+              } else if (comparableY) {
+                expect(
+                  Math.abs(card.y - (deliveredCard.y + offset)),
+                  `${at}: the ${card.title} card is not where the removed card and the titles above it put it`,
+                ).toBeLessThanOrEqual(1);
+                expect(
+                  Math.abs(card.bodyHeight - deliveredCard.bodyHeight),
+                  `${at}: the ${card.title} card's content changed height, which no requirement of this batch declares`,
+                ).toBeLessThanOrEqual(1);
+                expect(
+                  Math.abs(heightDelta - headerDelta),
+                  `${at}: the ${card.title} card changed height by ${round(heightDelta)}px, against the ${round(headerDelta)}px its own title costs`,
+                ).toBeLessThanOrEqual(1);
+              }
+              offset += heightDelta;
+            }
 
             // The change is inside the screen: the shell's content column is where it was.
             expect(round(currentScreen.columnWidth), `${at}: the shell's content column changed width`).toBe(round(deliveredScreen.columnWidth));

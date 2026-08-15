@@ -173,16 +173,16 @@ describe('Shell — daemon connectivity (app-shell/specs/shell.md)', () => {
     expect(screen.getAllByRole('button', { name: 'Retry' }).length).toBeGreaterThan(0);
 
     // The unreachable banner does not replace or hide the rest of the screen. The
-    // "CLI availability", "Daemon event stream" and "Local storage" cards are the
-    // shell's own surfaces of REQ-110, REQ-11/REQ-12 and REQ-113, and they sit
-    // above the last entry of the navigation — the screen now labelled "About"
-    // (shell.md). The screen is pinned rather than inherited: the landing
-    // screen is the Dashboard, which carries none of them.
+    // "CLI availability" and "Local storage" cards are the shell's own surfaces of
+    // REQ-110 and REQ-113, and they sit above the last entry of the navigation —
+    // the screen now labelled "About" (shell.md). The screen is pinned rather than
+    // inherited: the landing screen is the Dashboard, which carries neither of them.
+    // The shell draws no event stream there any more
+    // (plan-ui-coherence-optimisation/REQ-71).
     await userEvent.setup().click(screen.getByRole('button', { name: /About/ }));
-    // Scoped to the cards' own titles: the coverage matrix names a "Daemon event stream"
-    // capability area, so an unscoped locator matches the screen's content as well.
+    // Scoped to the cards' own titles: the coverage matrix names capability areas
+    // of its own, so an unscoped locator matches the screen's content as well.
     expect(cardTitles()).toContain('CLI availability');
-    expect(cardTitles()).toContain('Daemon event stream');
     expect(cardTitles()).toContain('Local storage');
     expect(screen.getByText(unreachableStatus.daemon.cause)).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
