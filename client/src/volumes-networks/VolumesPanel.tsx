@@ -1,22 +1,26 @@
 import { useState } from 'react';
 import {
+  ActionButtonGroup,
+  BadgeListCell,
   Button,
   Card,
-  CardList,
   CodeViewer,
   Combobox,
-  DefinitionList,
+  DataTable,
+  DetailPanel,
   EmptyState,
   ErrorBanner,
   FormDialog,
   FormField,
   KeyValueEditor,
-  Row,
+  MetaCell,
+  ScreenToolbar,
   SectionHeader,
   Stack,
   TextField,
+  TwoLineCell,
   useToast,
-  type CardListRowContent,
+  type DataTableColumn,
   type KeyValuePair,
 } from '../ui';
 import { createVolume, pruneVolumes, removeVolume, type VolumeSummary } from '../data/volumes-client';
@@ -55,48 +59,32 @@ function pairsToRecord(pairs: KeyValuePair[]): Record<string, string> {
   return record;
 }
 
-function volumeRow(volume: VolumeSummary): CardListRowContent {
-  return {
-    title: volume.name,
-    subtitle: [
-      volume.mountpoint,
-      `driver ${volume.driver} · mounted by ${volume.mountedBy.length > 0 ? volume.mountedBy.join(', ') : 'nothing'}`,
-    ],
-    meta: volume.sizeBytes !== undefined ? formatBytes(volume.sizeBytes) : '–',
-  };
-}
-
-/** The inline inspect surface for a selected volume's row, expanded in place by `CardList`. */
-function VolumeDetail({ volume, onRemoved }: { volume: VolumeSummary; onRemoved: () => void }) {
+/**
+ * The inspect surface for a selected volume, revealed by the library's detail
+ * panel in the row's expansion: full content width, properties in the two-column
+ * grid, and the raw payload at that same width rather than in a card column's
+ * leftover.
+ *
+ * `long-single-line` is what these properties actually hold — an absolute mount
+ * path, driver options, label strings — and the mountpoint is here in full,
+ * wrapped and selectable, which is the route out of the truncation the row
+ * applies to it.
+ */
+function VolumeDetail({ volume, onClose }: { volume: VolumeSummary; onClose: () => void }) {
   const { inspect, loaded, error, refresh } = useVolumeInspect(volume.name);
-  const { confirm } = useConfirmation();
-  const { run } = useProgress();
-  const { reportError } = useErrorReporter();
-
-  async function handleRemove() {
-    const confirmed = await confirm({
-      targetName: volume.name,
-      consequence: 'This will permanently remove the volume and its data.',
-      confirmLabel: 'Remove',
-    });
-    if (!confirmed) return;
-    try {
-      await run(`Remove ${volume.name}`, () => removeVolume(volume.name));
-      onRemoved();
-    } catch (cause) {
-      reportError(`Could not remove ${volume.name}`, (cause as Error).message);
-    }
-  }
 
   return (
-    <Stack gap="var(--space-4)">
-      {error ? <ErrorBanner title="Could not load volume details" detail={error} onRetry={refresh} /> : null}
-      {!inspect ? (
-        <EmptyState title={loaded ? 'No inspect data available' : 'Loading volume details…'}  description={null} action={null} />
-      ) : (
-        <>
-          <DefinitionList
-            items={[
+    // The row that opened the panel closes it, so it presents no close control
+    // of its own and `Escape` closes it from the keyboard. It is rendered
+    // whatever the inspect call has returned so far: the one-panel-open
+    // guarantee is the panel's, and a panel that only appears once its data
+    // arrives would leave a second one open until then.
+    <DetailPanel
+      dismissal="opening-gesture"
+      onClose={onClose}
+      properties={
+        inspect
+          ? [
               { label: 'Driver', value: inspect.driver },
               { label: 'Mountpoint', value: inspect.mountpoint },
               { label: 'Scope', value: inspect.scope },
@@ -104,23 +92,39 @@ function VolumeDetail({ volume, onRemoved }: { volume: VolumeSummary; onRemoved:
               { label: 'Mounted by', value: inspect.mountedBy.length > 0 ? inspect.mountedBy.join(', ') : 'nothing' },
               { label: 'Driver options', value: Object.entries(inspect.options).map(([key, value]) => `${key}=${value}`).join(', ') || '–' },
               { label: 'Labels', value: Object.entries(inspect.labels).map(([key, value]) => `${key}=${value}`).join(', ') || '–' },
-            ]}
-          />
-          <SectionHeader variant="eyebrow" title="Raw payload" description="Exactly as received from the Engine API." />
-          <CodeViewer code={JSON.stringify(inspect.raw, null, 2)} maxHeight="240px" />
-        </>
-      )}
-      <Row justify="between">
-        <Button variant="destructive" onClick={handleRemove}>Remove</Button>
-      </Row>
-    </Stack>
+            ]
+          : undefined
+      }
+      propertiesContentClass="long-single-line"
+    >
+      <Stack gap="var(--space-4)">
+        {error ? <ErrorBanner title="Could not load volume details" detail={error} onRetry={refresh} /> : null}
+        {!inspect ? (
+          loaded ? (
+            <EmptyState
+              title="No inspect data available"
+              description="The daemon returned no details for this volume."
+              action={null}
+            />
+          ) : (
+            <EmptyState title="Loading volume details…" description={null} action={null} />
+          )
+        ) : (
+          <>
+            <SectionHeader variant="eyebrow" title="Raw payload" description="Exactly as received from the Engine API." />
+            <CodeViewer code={JSON.stringify(inspect.raw, null, 2)} maxHeight="240px" />
+          </>
+        )}
+      </Stack>
+    </DetailPanel>
   );
 }
 
 /**
  * The Volumes panel of the Volumes & networks screen (REQ-70, REQ-71): every
- * local volume with its driver, mountpoint, size and mounting containers,
- * create/inspect/remove and prune of unused volumes.
+ * local volume with its driver, mountpoint, size and mounting containers, listed
+ * with the object list's comfortable variant, with create and prune in the
+ * toolbar under the section header and remove in the row's action cluster.
  */
 export function VolumesPanel({ volumes, loaded, error, onRefresh }: VolumesPanelProps) {
   const [selectedName, setSelectedName] = useState<string | undefined>(undefined);
@@ -184,37 +188,91 @@ export function VolumesPanel({ volumes, loaded, error, onRefresh }: VolumesPanel
     }
   }
 
+  async function handleRemove(volume: VolumeSummary) {
+    const confirmed = await confirm({
+      targetName: volume.name,
+      consequence: 'This will permanently remove the volume and its data.',
+      confirmLabel: 'Remove',
+    });
+    if (!confirmed) return;
+    try {
+      await run(`Remove ${volume.name}`, () => removeVolume(volume.name));
+      setSelectedName((current) => (current === volume.name ? undefined : current));
+      onRefresh();
+    } catch (cause) {
+      reportError(`Could not remove ${volume.name}`, (cause as Error).message);
+    }
+  }
+
   function handleSelect(volume: VolumeSummary) {
     setSelectedName((current) => (current === volume.name ? undefined : volume.name));
   }
 
-  function handleRemoved() {
-    setSelectedName(undefined);
-    onRefresh();
-  }
+  const columns: DataTableColumn<VolumeSummary>[] = [
+    {
+      id: 'name',
+      header: 'NAME',
+      width: '2fr',
+      render: (volume) => <TwoLineCell title={volume.name} subtitle={volume.mountpoint} />,
+    },
+    { id: 'driver', header: 'DRIVER', width: '0.8fr', render: (volume) => <MetaCell>{volume.driver}</MetaCell> },
+    {
+      id: 'mounted-by',
+      header: 'MOUNTED BY',
+      width: '1.2fr',
+      render: (volume) => <BadgeListCell labels={volume.mountedBy} maxVisible={2} emptyLabel="nothing" />,
+    },
+    {
+      id: 'size',
+      header: 'SIZE',
+      width: '0.6fr',
+      align: 'end',
+      render: (volume) => <MetaCell>{volume.sizeBytes !== undefined ? formatBytes(volume.sizeBytes) : undefined}</MetaCell>,
+    },
+    {
+      id: 'actions',
+      header: 'ACTIONS',
+      // The cluster's own width and no more (REQ-9): an intrinsic track rather
+      // than a length, so the column is exactly the buttons it holds and the
+      // data columns keep the rest.
+      width: 'max-content',
+      render: (volume) => (
+        <ActionButtonGroup
+          actions={[{ id: 'remove', label: 'Remove', weight: 'destructive', onClick: () => handleRemove(volume) }]}
+        />
+      ),
+    },
+  ];
 
   return (
     <Card>
-      <SectionHeader
-        title="Volumes"
-        trailing={
-          <Row gap="var(--space-2)">
-            <Button onClick={openCreate}>Create</Button>
-            <Button variant="destructive" onClick={handlePrune} disabled={volumes.length === 0}>Prune</Button>
-          </Row>
-        }
+      <SectionHeader title="Volumes" />
+      <ScreenToolbar
+        primaryAction={{ label: 'Create volume…', onClick: openCreate }}
+        destructiveAction={{ label: 'Prune', onClick: handlePrune, disabled: volumes.length === 0 }}
       />
       <Stack gap="var(--space-3)">
         {error ? <ErrorBanner title="Could not load volumes" detail={error} onRetry={onRefresh} /> : null}
-        <CardList
-          items={volumes}
-          itemKey={(volume) => volume.name}
-          renderRow={volumeRow}
-          selectedKey={selectedName}
-          onSelect={handleSelect}
-          expandedKey={selectedName}
-          renderExpanded={(volume) => <VolumeDetail volume={volume} onRemoved={handleRemoved} />}
-          emptyState={<EmptyState title={loaded ? 'No volumes' : 'Loading volumes…'}  description={null} action={null} />}
+        <DataTable
+          variant="comfortable"
+          columns={columns}
+          rows={volumes}
+          rowKey={(volume) => volume.name}
+          selectedRowKey={selectedName}
+          onRowSelect={handleSelect}
+          expandedRowKey={selectedName}
+          renderExpanded={(volume) => <VolumeDetail volume={volume} onClose={() => setSelectedName(undefined)} />}
+          emptyState={
+            loaded ? (
+              <EmptyState
+                title="No volumes"
+                description="A volume keeps data alive independently of the containers that mount it."
+                action={<Button onClick={openCreate}>Create volume…</Button>}
+              />
+            ) : (
+              <EmptyState title="Loading volumes…" description={null} action={null} />
+            )
+          }
         />
       </Stack>
 

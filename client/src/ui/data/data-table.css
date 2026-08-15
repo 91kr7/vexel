@@ -384,6 +384,12 @@
   flex: none;
 }
 
+/* No `text-align` of its own: a value reads from the left, like every other
+   value in the product. The declaration this rule used to carry (`right`) was
+   inert for a value that fits on one line — the box is sized to its content —
+   and live for one that wraps, which is how the network `Options` value came to
+   be the one right-aligned value in the interface. It was the only source of
+   that, and it is inherited, so nothing under it needs an override to undo it. */
 .ui-definition-list__value {
   display: inline-flex;
   align-items: center;
@@ -391,7 +397,6 @@
   font-family: var(--font-family-mono);
   font-size: var(--font-size-xs);
   color: var(--color-text-primary);
-  text-align: right;
   min-width: 0;
   overflow-wrap: anywhere;
 }
