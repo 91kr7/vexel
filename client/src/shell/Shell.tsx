@@ -3,7 +3,6 @@ import {
   Badge,
   Card,
   ErrorBanner,
-  EventStream,
   FooterStatus,
   Frame,
   NavBrand,
@@ -47,7 +46,6 @@ import { PlaceholderScreen } from './screens/PlaceholderScreen';
 import { ConfirmationProvider } from './services/ConfirmationService';
 import { useConnectionStatus } from './services/ConnectionStatusService';
 import { useCrossNavigation } from './services/CrossNavigationService';
-import { useDaemonEventStream } from './services/EventStreamService';
 import { useErrorReporter } from './services/ErrorReportingService';
 import { useProgress } from './services/ProgressService';
 
@@ -77,16 +75,19 @@ function formatBytes(bytes: number): string {
  * the content area is replaced by the active screen (REQ-1, REQ-2).
  *
  * Owns the toast and confirmation services itself (screen-local concerns);
- * error-reporting, progress, connection status and the event stream are
- * supplied by the caller (App), so other code can observe them independently
- * of the shell chrome.
+ * error-reporting, progress and connection status are supplied by the caller
+ * (App), so other code can observe them independently of the shell chrome.
+ *
+ * It subscribes to no daemon event stream: the stream is the Dashboard's, and
+ * the card that repeated it here is gone (plan-ui-coherence-optimisation/REQ-71).
+ * `DaemonEventStreamProvider` stays mounted in `App` for the Dashboard and the
+ * invalidation registry — one consumer stopped, nothing else moved.
  */
 export function Shell() {
   const [activeId, setActiveId] = useState(defaultScreenId);
   const { errors, dismissError } = useErrorReporter();
   const { pending } = useProgress();
   const connection = useConnectionStatus();
-  const { events } = useDaemonEventStream();
   const { preferences, loaded: preferencesLoaded, updatePreferences } = usePreferences();
   const { request: crossNavigationRequest } = useCrossNavigation();
   const containers = useContainers();
@@ -154,14 +155,6 @@ export function Shell() {
     : connection.daemon.reachable
       ? 'Live · daemon events'
       : 'Daemon unreachable';
-
-  const eventEntries = events.map((event) => ({
-    id: event.id,
-    timestamp: new Date(event.timestamp).toLocaleTimeString([], { hour12: false }),
-    type: event.type,
-    action: event.action,
-    summary: event.actor,
-  }));
 
   return (
     <ToastProvider>
@@ -276,12 +269,14 @@ export function Shell() {
             ) : activeScreen.id === 'raw-console' ? (
               <RawConsoleScreen />
             ) : activeScreen.id === 'coverage-matrix' ? (
-              // The shell's own three cards keep the home they have always had:
-              // the last entry of the navigation. Batch 30 replaces the
-              // placeholder that used to sit under them, not them — CLI
-              // availability (REQ-110), the daemon event stream (REQ-11,
-              // REQ-12) and the analysis cache's size and clear action
-              // (REQ-113) have no other surface in the application.
+              // The shell's own cards keep the home they have always had: the
+              // last entry of the navigation. CLI availability (REQ-110) and
+              // the analysis cache's size and clear action (REQ-113) have no
+              // other surface in the application. The daemon event stream had
+              // one — the Dashboard's, which it repeated verbatim — and it is
+              // stated there alone (plan-ui-coherence-optimisation/REQ-71).
+              // Every section here is titled by the one section-header
+              // treatment (plan-ui-coherence-optimisation/REQ-70).
               <>
                 <AboutNotice />
                 <Card>
@@ -299,10 +294,8 @@ export function Shell() {
                     <Badge tone={connection.cli.buildx.available ? 'success' : 'danger'}>{cliBadgeLabel('buildx', connection.cli.buildx)}</Badge>
                   </Row>
                 </Card>
-                <Card title="Daemon event stream">
-                  <EventStream entries={eventEntries} emptyLabel="No daemon events yet." />
-                </Card>
-                <Card title="Local storage">
+                <Card>
+                  <SectionHeader title="Local storage" />
                   <StorageUsageRow
                     label="Analysis cache"
                     description="Cached image extraction and layer-analysis results"

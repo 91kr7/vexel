@@ -64,6 +64,13 @@ Navigation:
 - The matrix always carries a heading of its own ("Docker capability coverage"): it shares its
   screen with content that is not about coverage, so it is named where it sits rather than relying
   on the screen's title to name it.
+- Both of its cards are titled by a `SectionHeader` in its default treatment — the one section-header
+  treatment the whole About screen carries, the shell's own cards included, and no title on this
+  screen is styled locally (plan-ui-coherence-optimisation/REQ-70).
+- The matrix's table states its columns through `DataTable`'s own closed width contract and
+  overrides nothing of it: no local track, no intrinsic width, no per-screen rule. A column resolves
+  to the same width in the header and in every row because the primitive guarantees it, not because
+  this screen arranged for it (plan-ui-coherence-optimisation/REQ-9).
 - Every screen a row names is named as the navigation names it at that moment, so relabelling a
   screen is one edit to the navigation data and never one here.
 
@@ -79,3 +86,4 @@ Navigation:
 - plan-docker_management_app/REQ-105
 - plan-docker_management_app/REQ-106
 - plan-docker_management_app-about_license_notice/REQ-4
+- plan-ui-coherence-optimisation/REQ-70

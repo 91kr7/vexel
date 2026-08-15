@@ -1,4 +1,4 @@
-import { Callout, Card, ExternalLink, Row, Stack } from '../ui';
+import { Callout, Card, ExternalLink, Row, SectionHeader, Stack } from '../ui';
 
 const sourceUrl = 'https://github.com/91kr7/vexel';
 // `HEAD` resolves to the repository's default branch, so neither document route
@@ -17,10 +17,15 @@ const additionalTermsUrl = `${sourceUrl}/blob/HEAD/LICENSE-ADDITIONAL-TERMS.md`;
  * shipped in `LICENSE`, `LICENSE-ADDITIONAL-TERMS.md` and `NOTICE` at the root
  * of the repository. Each paragraph sits in its own `Stack` — the library's
  * block wrapper — so two adjacent runs of prose never merge into one.
+ *
+ * Its title is the screen's one section-header treatment
+ * (plan-ui-coherence-optimisation/REQ-70); nothing the notice states is the
+ * titling's to change (REQ-72).
  */
 export function AboutNotice() {
   return (
-    <Card title="Identity and license">
+    <Card>
+      <SectionHeader title="Identity and license" />
       <Callout tone="info" title="Vexel — Copyright (C) 2026 Christian Mariani">
         <Stack gap="var(--space-3)">
           <Stack>
