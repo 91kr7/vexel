@@ -137,6 +137,10 @@ export function DashboardScreen({ containers, containersLoaded, containersError,
     label: DISK_USAGE_LABELS[entry.id],
     value: entry.sizeBytes,
     valueLabel: entry.unavailableDetail ? 'unavailable' : formatBytes(entry.sizeBytes),
+    // A category the daemon could not report is not a category holding nothing:
+    // the breakdown draws the two differently, and only the caller knows which
+    // of the two this row is (REQ-68).
+    unavailable: entry.unavailableDetail !== undefined,
     onActivate: () => navigateTo({ screenId: OWNER_SCREEN[entry.id] }),
     ariaLabel: `${DISK_USAGE_LABELS[entry.id]} — open the screen that owns it`,
   }));

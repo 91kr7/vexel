@@ -24,6 +24,9 @@ Description:
 
 - a row of five summary tiles above two panels side by side — container activity beside disk
   usage — with the daemon event stream across the full width underneath.
+- the two panels of that middle row **end at the same y**, whichever of them holds more
+  (`plan-ui-coherence-optimisation/REQ-66`). The screen states no height for either: it is the
+  arrangement's guarantee, taken from `DashboardLayout`.
 
 Shows:
 
@@ -49,7 +52,12 @@ Shows:
     the containers…".
 - **Disk usage** — one row per category, in the order images, containers, volumes, build cache,
   each with its absolute size and a bar as long as its share of the total; the panel's description
-  is the total. A category that could not be read reads `"unavailable"` in place of its size.
+  is the total, and a **legend under the rows names what each of the chart's colours means**
+  (`plan-ui-coherence-optimisation/REQ-67`).
+  - a category holding nothing reads `0B` and still draws a bar — the zero-length one — so that it
+    is told apart from a category that could not be read, which reads `"unavailable"` in place of
+    its size and draws the unmeasured track instead of a bar
+    (`plan-ui-coherence-optimisation/REQ-68`).
 - **Daemon event stream** — the most recent daemon events, newest first, timestamped in local time;
   with none yet, "No daemon events yet.".
 - a failed overview reading, and a failed container reading, each show their own error banner with
@@ -84,7 +92,15 @@ Navigation:
   object inside it was left out deliberately: of the destinations here, none reveals a named object
   today, and a request no screen acknowledges would sit pending forever.
 - Every visual element comes from the UI library; the screen holds no markup and no style of its
-  own.
+  own — including the row of two panels ending level, which is `DashboardLayout`'s answer and not a
+  height this screen writes (`plan-ui-coherence-optimisation/REQ-28`, `REQ-66`).
+- Every section of the screen is titled by the one section-header treatment, every empty result is
+  the empty-state primitive, and the activity list is the object list with **no column contract of
+  its own**: it declares its columns and nothing else — no minimum, no breakpoint-conditional set,
+  no width written to compensate for one (`plan-ui-coherence-optimisation/REQ-69`).
+- The daemon event stream is presented **here and nowhere else** in the application
+  (`plan-ui-coherence-optimisation/REQ-71`): this screen is the stream's one home, and the shell
+  provides the subscription it reads.
 
 ## Dependencies
 
@@ -97,8 +113,13 @@ Navigation:
 
 ## Requirements served
 
+- plan-docker_management_app/REQ-12
 - plan-docker_management_app/REQ-14
 - plan-docker_management_app/REQ-15
 - plan-docker_management_app/REQ-16
 - plan-docker_management_app/REQ-17
 - plan-docker_management_app/REQ-18
+- plan-ui-coherence-optimisation/REQ-66
+- plan-ui-coherence-optimisation/REQ-67
+- plan-ui-coherence-optimisation/REQ-68
+- plan-ui-coherence-optimisation/REQ-69

@@ -198,11 +198,21 @@
   display: grid;
   grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
   gap: var(--space-5);
-  align-items: start;
+  /* The two panels end at the same y: the row is as tall as the taller of them
+     and each panel fills the cell it is given, so the bottom edge is straight
+     however much either side holds. Stretching the cell is not enough on its
+     own — the panel inside it is what has to grow, which is the single row
+     track below. */
+  align-items: stretch;
 }
 
-.ui-dashboard-layout__tiles > *,
+.ui-dashboard-layout__tiles > * {
+  min-width: 0;
+}
+
 .ui-dashboard-layout__panels > * {
+  display: grid;
+  grid-template-rows: 1fr;
   min-width: 0;
 }
 
