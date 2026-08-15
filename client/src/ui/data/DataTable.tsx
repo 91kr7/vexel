@@ -4,17 +4,55 @@ import { ScrollArea } from '../glass/ScrollArea';
 import { Surface } from '../glass/Surface';
 import './data-table.css';
 
+/**
+ * A column's `grid-template-columns` track, as a **closed** set of forms: a flex
+ * factor, a length, or a token holding one. Everything else — and `max-content`,
+ * `min-content`, `auto` and `fit-content()` in particular — is refused, and the
+ * union is the refusal: an intrinsic width does not compile, so no screen can
+ * ask for one and no reviewer has to notice that it did.
+ *
+ * **Why an intrinsic track cannot work here, in either variant.** The table is
+ * not one grid: the header is a grid, and **every row is a grid of its own**,
+ * each handed the same template string. A `fr` or a length resolves identically
+ * in all of them, because the containers are the same width. An intrinsic track
+ * resolves against *its own container's content*, so it takes a different value
+ * in the header and in every row whose cell content differs — and since the
+ * remaining free space is what the flexible tracks divide, **every other column
+ * in that row moves with it**. Measured on the delivered build: the registries
+ * action column resolved 57.4px in its header, 50.7px on a `Log in` row and
+ * 58.0px on a `Log out` row, at all three viewports; the networks one 57.4px
+ * against 130.7px, carrying that row's `NAME` column 46px out of line with its
+ * header; and in the **dense** variant, one intrinsic track probed on the images
+ * table resolved 112.3px in the header, 136.8px on three rows and 164.0px on the
+ * `moby/buildkit:buildx-stable-1` row, moving the next column's left edge by
+ * 27.2px on that row alone. A column whose left edge depends on the row is not a
+ * column.
+ *
+ * **And it cannot be repaired by resolving the tracks once for the whole list.**
+ * That would need the header and every row to be items of a single grid
+ * (`subgrid`), and the scroll region between them is a scroll container, which
+ * establishes an independent formatting context and therefore cannot be a
+ * subgrid — the comfortable variant additionally puts each row inside its own
+ * card. Unifying them means rebuilding the variant, so the contract refuses the
+ * value instead of accepting one it cannot honour.
+ *
+ * A caller that wanted "as wide as its content" states the width it measured,
+ * which is also what stops an action cluster growing at the data columns'
+ * expense (REQ-9).
+ */
+export type DataTableColumnWidth = `${number}fr` | `${number}px` | `var(--${string})`;
+
 export interface DataTableColumn<T> {
   id: string;
   header: string;
   /** `grid-template-columns` track for this column (default `1fr`). */
-  width?: string;
+  width?: DataTableColumnWidth;
   /**
    * The width this column may never resolve below. Defaults, for a flexible
    * `width`, to the flex factor times `--data-table-column-min-width`; a length
-   * or an explicit `minmax()` `width` already states its own minimum.
+   * `width` already states its own minimum.
    */
-  minWidth?: string;
+  minWidth?: DataTableColumnWidth;
   align?: 'start' | 'end';
   render: (row: T) => ReactNode;
 }
@@ -101,10 +139,13 @@ const FLEXIBLE_WIDTH = /^\s*(\d*\.?\d+)fr\s*$/;
  * scaling the minimum by the flex factor is what keeps a compressed table's
  * columns in the proportions they were declared with rather than equalising
  * them, and what keeps the minimum inert at the widths where the fractions
- * already resolve wider. A width that is a length or an already-written
- * `minmax()` states its own minimum and is used as given.
+ * already resolve wider. A width that is a length states its own minimum and is
+ * used as given, unless a `minWidth` is stated with it.
+ *
+ * Every form it can be handed resolves to the same width in the header and in
+ * every row, which is what `DataTableColumnWidth` exists to guarantee.
  */
-function columnTrack(column: { width?: string; minWidth?: string }): string {
+function columnTrack(column: { width?: DataTableColumnWidth; minWidth?: DataTableColumnWidth }): string {
   const width = column.width ?? '1fr';
   const flexFactor = FLEXIBLE_WIDTH.exec(width)?.[1];
   if (flexFactor === undefined) return column.minWidth ? `minmax(${column.minWidth}, ${width})` : width;

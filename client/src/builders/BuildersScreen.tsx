@@ -1,25 +1,29 @@
 import { useEffect, useState } from 'react';
 import {
   ActionButtonGroup,
-  Badge,
   Button,
   Card,
-  CardList,
   ChipInput,
   Combobox,
   CrossReferenceList,
+  DataTable,
+  DetailPanel,
   EmptyState,
   ErrorBanner,
   FormDialog,
   FormField,
+  IdentifierCell,
   MetaCell,
-  Row,
+  ScreenToolbar,
   SectionHeader,
   Stack,
+  StatusDotCell,
+  StatusPill,
   TextField,
+  TwoLineCell,
   useToast,
-  type BadgeTone,
-  type CardListRowContent,
+  type DataTableColumn,
+  type StatusTone,
 } from '../ui';
 import type { BuildCacheRecord, BuildCacheUsageState, BuilderSummary } from '../data/builders-client';
 import { useBuildCache } from '../data/use-build-cache';
@@ -49,7 +53,7 @@ function formatBytes(bytes: number): string {
   return `${value.toFixed(1)}${units[unitIndex]}`;
 }
 
-function statusTone(status: string): BadgeTone {
+function statusTone(status: string): StatusTone {
   if (status === 'running') return 'success';
   if (status === 'unknown') return 'neutral';
   return 'warning';
@@ -61,23 +65,28 @@ const USAGE_LABELS: Record<BuildCacheUsageState, string> = {
   reclaimable: 'reclaimable',
 };
 
-const USAGE_TONES: Record<BuildCacheUsageState, BadgeTone> = {
+const USAGE_TONES: Record<BuildCacheUsageState, StatusTone> = {
   shared: 'success',
   'in-use': 'neutral',
   reclaimable: 'warning',
 };
 
-function truncateId(id: string): string {
-  return id.length > 20 ? `${id.slice(0, 20)}…` : id;
-}
+/** Characters of a cache record's identifier kept in its list cell; the panel states it in full. */
+const RECORD_ID_CHARS = 20;
 
-function cacheRow(record: BuildCacheRecord): CardListRowContent {
-  return {
-    title: truncateId(record.id),
-    subtitle: record.description ? [record.type, record.description] : record.type,
-    badges: <Badge tone={USAGE_TONES[record.usageState]}>{USAGE_LABELS[record.usageState]}</Badge>,
-    meta: formatBytes(record.sizeBytes),
-  };
+/** Why a builder's cache size is missing, as the inventory states it: it is read from the builder itself. */
+const CACHE_UNREADABLE = 'The builder did not report a cache size.';
+
+/**
+ * The endpoint a builder's node answers on — **unless that endpoint is the
+ * builder's own name**, which is what the `docker` driver reports: buildx names
+ * such a builder after the context it is bound to, and the node's endpoint is
+ * that same context. Printed as delivered it was the row's title said a second
+ * time (plan-ui-coherence-optimisation/REQ-40); the value is stated once, as
+ * the title, and the column carries the reason its cell is empty.
+ */
+function endpointOf(builder: BuilderSummary): string | undefined {
+  return builder.endpoint === builder.name ? undefined : builder.endpoint;
 }
 
 /**
@@ -178,83 +187,222 @@ export function BuildersScreen() {
     navigateTo({ screenId: 'images-layers', objectId: imageId, position: layerIndex });
   }
 
-  /** The images and layers the selected record relates to, or the stated reason none can be named (REQ-69). */
-  function renderCacheUsage() {
+  /**
+   * The selected record revealed by the library's detail panel: its identifier
+   * in full — the list cell cuts it at `RECORD_ID_CHARS`
+   * (plan-ui-coherence-optimisation/REQ-21) — and the images and layers it
+   * relates to, or the stated reason none can be named (REQ-69), which a
+   * migration may not turn back into an empty space.
+   */
+  function renderCacheUsage(record: BuildCacheRecord) {
     return (
-      <Stack gap="var(--space-2)">
-        <SectionHeader variant="eyebrow" title="Related images & layers" />
-        {usage.error ? <ErrorBanner title="Could not load the related images" detail={usage.error} onRetry={usage.refresh} /> : null}
-        {!usage.loaded && !usage.usage ? (
-          <MetaCell>Looking for the images this record relates to…</MetaCell>
-        ) : (
-          <CrossReferenceList
-            items={(usage.usage?.references ?? []).map((reference) => ({
-              key: `${reference.imageId}:${reference.layerIndex}`,
-              kind: reference.tags[0] ?? reference.imageShortId,
-              label: `layer ${String(reference.layerIndex + 1).padStart(2, '0')} · ${reference.instruction}`,
-              onNavigate: () => goToImageLayer(reference.imageId, reference.layerIndex),
-            }))}
-            unavailableReason={usage.usage?.unavailableDetail}
-          />
-        )}
-      </Stack>
+      <DetailPanel
+        dismissal="opening-gesture"
+        onClose={() => setSelectedRecordId(undefined)}
+        properties={[
+          { label: 'Id', value: record.id },
+          { label: 'Type', value: record.type },
+          { label: 'Size', value: formatBytes(record.sizeBytes) },
+          { label: 'Usage state', value: USAGE_LABELS[record.usageState] },
+          { label: 'Build step', value: record.description ?? '–' },
+        ]}
+        propertiesContentClass="long-single-line"
+      >
+        <Stack gap="var(--space-2)">
+          <SectionHeader variant="eyebrow" title="Related images & layers" />
+          {usage.error ? <ErrorBanner title="Could not load the related images" detail={usage.error} onRetry={usage.refresh} /> : null}
+          {!usage.loaded && !usage.usage ? (
+            <EmptyState title="Looking for the images this record relates to…" description={null} action={null} compact />
+          ) : (
+            <CrossReferenceList
+              items={(usage.usage?.references ?? []).map((reference) => ({
+                key: `${reference.imageId}:${reference.layerIndex}`,
+                kind: reference.tags[0] ?? reference.imageShortId,
+                label: `layer ${String(reference.layerIndex + 1).padStart(2, '0')} · ${reference.instruction}`,
+                onNavigate: () => goToImageLayer(reference.imageId, reference.layerIndex),
+              }))}
+              unavailableReason={usage.usage?.unavailableDetail}
+            />
+          )}
+        </Stack>
+      </DetailPanel>
     );
   }
 
-  function builderRow(builder: BuilderSummary): CardListRowContent {
-    return {
-      title: builder.name,
-      subtitle: [`${builder.driver} · ${builder.platforms.join(', ') || 'no platforms reported'}`, builder.endpoint],
-      badges: <Badge tone={statusTone(builder.status)}>{builder.status}</Badge>,
-      meta: (
-        <Row gap="var(--space-2)" align="center">
-          {builder.cacheBytes !== undefined ? `cache ${formatBytes(builder.cacheBytes)}` : 'cache unavailable'}
-          {builder.active ? (
-            <Badge tone="success">in use</Badge>
-          ) : (
-            <Badge onClick={() => handleUse(builder)}>use</Badge>
-          )}
-          <ActionButtonGroup actions={[{ id: 'remove', label: 'Remove', destructive: true, onClick: () => handleRemove(builder) }]} />
-        </Row>
+  /**
+   * A builder's row. Every value the delivered row carried is here, each in a
+   * column of its own: the run that mixed a status pill, a plain cache string, a
+   * state and a button on one line (plan-ui-coherence-optimisation/REQ-39) is
+   * now four named columns and one action cluster, so what can be clicked is
+   * what looks like a control.
+   *
+   * Every cell is the same number of lines whatever the builder's state — the
+   * two values whose presence depends on it, the endpoint and the cache size,
+   * are columns where an absence costs no height rather than lines that come and
+   * go.
+   *
+   * The trailing three were written with `max-content` first, which is how this
+   * screen found what `DataTableColumnWidth` now refuses: the cache column
+   * resolved 85.8px on the row reading `unavailable` and 47px on the one reading
+   * `15.4MB`, moving every left edge in the row with it.
+   */
+  const builderColumns: DataTableColumn<BuilderSummary>[] = [
+    {
+      id: 'active',
+      header: '',
+      // The marker for the one active builder, and nothing on the others: wide
+      // enough for the pill it carries (77px measured) and no wider.
+      width: '88px',
+      render: (builder) => (builder.active ? <StatusPill tone="success">in use</StatusPill> : null),
+    },
+    {
+      id: 'builder',
+      header: 'BUILDER',
+      width: '1.6fr',
+      render: (builder) => <TwoLineCell title={builder.name} subtitle={builder.driver} />,
+    },
+    {
+      id: 'endpoint',
+      header: 'ENDPOINT',
+      width: '1.2fr',
+      render: (builder) => {
+        const endpoint = endpointOf(builder);
+        // The tooltip is the value itself where there is one, and the reason the
+        // cell is empty where there is not.
+        return <MetaCell title={endpoint ?? `Its endpoint is the ${builder.name} context, which is this builder's name.`}>{endpoint}</MetaCell>;
+      },
+    },
+    {
+      id: 'platforms',
+      header: 'PLATFORMS',
+      width: '1.4fr',
+      // The joined list the delivered row carried, on one line, with the whole
+      // of it in the cell's tooltip. **Not `BadgeListCell`**, which is the
+      // natural reading of a list-valued column and is wrong here: its badges
+      // do not shrink with the wrapper that holds them, so at this column's
+      // width they paint over one another — measured on this row at all three
+      // viewports, `linux/arm64` ending 9px inside `linux/amd64`'s box. That is
+      // the library's to repair — reported with its figures rather than worked
+      // around in a second place.
+      render: (builder) => <MetaCell>{builder.platforms.join(', ')}</MetaCell>,
+    },
+    {
+      id: 'status',
+      header: 'STATUS',
+      width: '1fr',
+      render: (builder) => <StatusDotCell tone={statusTone(builder.status)} label={builder.status} />,
+    },
+    {
+      id: 'cache',
+      header: 'CACHE',
+      width: '1fr',
+      align: 'end',
+      render: (builder) => (
+        <MetaCell unavailableReason={CACHE_UNREADABLE}>{builder.cacheBytes === undefined ? undefined : formatBytes(builder.cacheBytes)}</MetaCell>
       ),
-    };
-  }
+    },
+    {
+      id: 'actions',
+      header: 'ACTIONS',
+      // The cluster's own width and no more: the two controls a builder row ever
+      // carries ink 106px of it, and it is the same track on every row.
+      width: '120px',
+      render: (builder) => (
+        <ActionButtonGroup
+          actions={[
+            // Switching the active builder is an action with a weight, never the
+            // bare word it shipped as (plan-ui-coherence-optimisation/REQ-27).
+            ...(builder.active ? [] : [{ id: 'use', label: 'Use', weight: 'primary' as const, onClick: () => handleUse(builder) }]),
+            { id: 'remove', label: 'Remove', weight: 'destructive' as const, onClick: () => handleRemove(builder) },
+          ]}
+        />
+      ),
+    },
+  ];
+
+  const cacheColumns: DataTableColumn<BuildCacheRecord>[] = [
+    {
+      id: 'record',
+      header: 'RECORD',
+      width: '1.2fr',
+      render: (record) => <IdentifierCell value={record.id} maxChars={RECORD_ID_CHARS} />,
+    },
+    { id: 'type', header: 'TYPE', width: '0.8fr', render: (record) => <MetaCell>{record.type}</MetaCell> },
+    {
+      id: 'step',
+      header: 'BUILD STEP',
+      width: '2fr',
+      render: (record) => <MetaCell>{record.description}</MetaCell>,
+    },
+    {
+      id: 'usage',
+      header: 'USAGE',
+      width: '1.2fr',
+      render: (record) => <StatusDotCell tone={USAGE_TONES[record.usageState]} label={USAGE_LABELS[record.usageState]} />,
+    },
+    {
+      id: 'size',
+      header: 'SIZE',
+      width: '0.8fr',
+      align: 'end',
+      render: (record) => <MetaCell>{formatBytes(record.sizeBytes)}</MetaCell>,
+    },
+  ];
 
   return (
     <Stack gap="var(--space-5)">
       <Card>
-        <SectionHeader title="buildx builders" trailing={<Button onClick={openCreate}>Create builder</Button>} />
+        <SectionHeader title="buildx builders" />
+        {/* The screen's page-level action, in the toolbar under the header
+            rather than in the card's header (plan-ui-coherence-optimisation/REQ-41). */}
+        <ScreenToolbar primaryAction={{ label: 'Create builder', onClick: openCreate }} />
         <Stack gap="var(--space-3)">
           {builders.error ? <ErrorBanner title="Could not load builders" detail={builders.error} onRetry={builders.refresh} /> : null}
-          <CardList
-            items={builders.builders}
-            itemKey={(builder) => builder.name}
-            renderRow={builderRow}
-            emptyState={<EmptyState title={builders.loaded ? 'No builders' : 'Loading builders…'}  description={null} action={null} />}
+          <DataTable
+            variant="comfortable"
+            columns={builderColumns}
+            rows={builders.builders}
+            rowKey={(builder) => builder.name}
+            emptyState={
+              builders.loaded ? (
+                <EmptyState
+                  title="No builders"
+                  description="buildx builds with an instance of a driver; creating one gives this daemon something to build with."
+                  action={<Button onClick={openCreate}>Create builder…</Button>}
+                />
+              ) : (
+                <EmptyState title="Loading builders…" description={null} action={null} />
+              )
+            }
           />
         </Stack>
       </Card>
 
       <Card>
-        <SectionHeader
-          title="Build cache"
-          trailing={
-            <Button variant="destructive" onClick={handlePrune} disabled={cache.records.length === 0}>
-              Prune
-            </Button>
-          }
-        />
+        <SectionHeader title="Build cache" />
+        <ScreenToolbar destructiveAction={{ label: 'Prune', onClick: handlePrune, disabled: cache.records.length === 0 }} />
         <Stack gap="var(--space-3)">
           {cache.error ? <ErrorBanner title="Could not load the build cache" detail={cache.error} onRetry={cache.refresh} /> : null}
-          <CardList
-            items={cache.records}
-            itemKey={(record) => record.id}
-            renderRow={cacheRow}
-            selectedKey={selectedRecordId}
-            onSelect={(record) => setSelectedRecordId((current) => (current === record.id ? undefined : record.id))}
-            expandedKey={selectedRecordId}
+          <DataTable
+            variant="comfortable"
+            columns={cacheColumns}
+            rows={cache.records}
+            rowKey={(record) => record.id}
+            selectedRowKey={selectedRecordId}
+            onRowSelect={(record) => setSelectedRecordId((current) => (current === record.id ? undefined : record.id))}
+            expandedRowKey={selectedRecordId}
             renderExpanded={renderCacheUsage}
-            emptyState={<EmptyState title={cache.loaded ? 'No build-cache records' : 'Loading build cache…'}  description={null} action={null} />}
+            emptyState={
+              cache.loaded ? (
+                <EmptyState
+                  title="No build-cache records"
+                  description="The cache fills as buildx builds: a record per layer, source and mount it keeps."
+                  action={null}
+                />
+              ) : (
+                <EmptyState title="Loading build cache…" description={null} action={null} />
+              )
+            }
           />
         </Stack>
       </Card>

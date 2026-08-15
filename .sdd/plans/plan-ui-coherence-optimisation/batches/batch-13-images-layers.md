@@ -44,3 +44,27 @@ is deleted (REQ-82). **This is the single most likely thing in the plan to be fo
 - The image's four analyses keep their behaviour: openable with no panel open, bound to the invoking
   row's image, one at a time, resolved when that image leaves the list.
 - Feature code composes library components and nothing else.
+
+## Recorded from batch 8 — a latent defect in a component this batch owns
+
+**`BadgeListCell` paints its badges over one another under width pressure**, and images is where it
+lives (`ImagesScreen.tsx:506`, the `TAGS` column; also `VolumesPanel`'s `MOUNTED BY`). The cell's
+`__item` wrapper is `flex: 0 1 auto` and shrinks; the `.ui-badge` inside it does not, and it carries
+no truncation of its own, so the pill simply overflows its wrapper and is drawn across the next
+badge.
+
+Measured at 1440×1000 with seven platform strings in a 165px column (the shape batch 8 first gave the
+builders row): item boxes **65.1 / 67.4 / 24.8px** against badge boxes **78 / 80.7 / 29.7px** —
+`linux/arm64` ending **9px inside** `linux/amd64`'s box, and `linux/amd64` the same distance inside
+`+5`'s — twice per row, at all three viewports. `REQ-18`'s "no text rectangle overlaps another" and
+`REQ-89`'s geometry rule both bite on it.
+
+**It shows nowhere today, and only because of the data**: on this daemon the images `TAGS` column
+holds one short tag per row and `MOUNTED BY` is usually empty — 0 overlapping pairs on both screens
+at 1440×1000 and 375×812. A defect that is invisible only because of the data is the kind that ships,
+and the first screen with several long labels in a narrow column meets it.
+
+Batch 8 did **not** fix it: changing a shared cell mid-migration was outside its interventions, and
+it used `MetaCell` with the delivered joined list instead — which is also what the delivered builder
+row carried. The repair is this batch's (the badge must shrink and ellipsise inside its wrapper,
+with the label's full text staying in the wrapper's tooltip), and it needs its own unit coverage.

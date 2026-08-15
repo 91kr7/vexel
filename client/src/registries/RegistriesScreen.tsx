@@ -227,9 +227,13 @@ export function RegistriesScreen() {
     {
       id: 'actions',
       header: 'ACTIONS',
-      // The cluster's own width and no more: an intrinsic track, so the data
-      // columns keep the rest of a panel that is half the screen wide.
-      width: 'max-content',
+      // The cluster's own width and no more, so the data columns keep the rest
+      // of a panel that is half the screen wide. A **length**, not the intrinsic
+      // track this was written as: the header and every row are grids of their
+      // own, so `max-content` resolved 57.4px in the header, 50.7px on a
+      // `Log in` row and 58.0px on a `Log out` row, moving this panel's other
+      // columns with it. 64px carries the wider of the two labels.
+      width: '64px',
       render: (registry) => (
         <ActionButtonGroup
           actions={[
@@ -252,7 +256,10 @@ export function RegistriesScreen() {
     {
       id: 'pulls',
       header: 'PULLS',
-      width: 'max-content',
+      // Wide enough for the longest count this column formats — `12.3k pulls`,
+      // `1.2B pulls` — and the same width on every row, which an intrinsic track
+      // is not (see the action column above).
+      width: '96px',
       align: 'end',
       render: (entry) => <MetaCell>{entry.repository.pullCount === undefined ? undefined : formatPullCount(entry.repository.pullCount)}</MetaCell>,
     },

@@ -39,9 +39,10 @@ retired.
 - the expected count is **17** at the start of `plan-ui-coherence-optimisation`, lowered by each
   screen migration in its own commit, and **zero** at the deletion — at which point the check is
   removed together with the component. It went to **15** with the volumes and networks migration
-  (`plan-ui-coherence-optimisation/REQ-31`), which removed the two sites those panels held, and
-  stands at **13** since the registries migration (`plan-ui-coherence-optimisation/REQ-36`) removed
-  the two that screen held
+  (`plan-ui-coherence-optimisation/REQ-31`), which removed the two sites those panels held, to **13**
+  with the registries migration (`plan-ui-coherence-optimisation/REQ-36`), which removed the two that
+  screen held, and stands at **11** since the builders and build-cache migration
+  (`plan-ui-coherence-optimisation/REQ-39`) removed the two the Builders & cache screen held
 
 ### Blur policy (every stylesheet under `client/src/`, the UI library's own included)
 

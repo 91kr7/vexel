@@ -57,8 +57,11 @@ Actions:
 - At most one network's detail is revealed at a time, and — the detail panel being the library's —
   revealing one closes any panel open elsewhere on the screen, the Volumes panel's included.
 - No value on this panel is right-aligned, `Options` included.
-- The list states no column minimum, no breakpoint-conditional column set and no width of its own:
-  the column contract and the truncation contract are the object list's, inherited by construction.
+- The list states no column minimum and no breakpoint-conditional column set: the column contract
+  and the truncation contract are the object list's, inherited by construction. The one width it
+  states is its action column's, a length covering the controls that column holds — the object
+  list's width contract admits no intrinsic track, which would resolve to a different width in the
+  header and in each row.
 - In the create dialog the option rows and the label rows carry distinct accessible names, so no two
   of its fields are announced alike.
 - Attach and detach are not routed through the confirmation service: neither is destructive to data.

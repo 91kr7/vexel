@@ -25,7 +25,11 @@ export function ContainerProcessesView({ container }: ContainerProcessesViewProp
     () => [
       { id: 'pid', header: 'PID', width: '80px', render: (process) => <MetaCell>{process.pid}</MetaCell> },
       { id: 'user', header: 'User', width: '140px', render: (process) => <MetaCell>{process.user || '–'}</MetaCell> },
-      { id: 'command', header: 'Command', width: 'minmax(240px, 3fr)', render: (process) => <MetaCell>{process.command || '–'}</MetaCell> },
+      // The same track as the `minmax(240px, 3fr)` written here before, in the
+      // two props the API states it with — the column contract builds the
+      // `minmax()` itself, so a hand-written one is a second way to say it and
+      // the only form that could smuggle an intrinsic bound past the type.
+      { id: 'command', header: 'Command', width: '3fr', minWidth: '240px', render: (process) => <MetaCell>{process.command || '–'}</MetaCell> },
       { id: 'cpu', header: '%CPU', width: '90px', align: 'end', render: (process) => <MetaCell>{formatPercent(process.cpuPercent)}</MetaCell> },
       { id: 'memory', header: '%MEM', width: '90px', align: 'end', render: (process) => <MetaCell>{formatPercent(process.memoryPercent)}</MetaCell> },
     ],

@@ -258,7 +258,11 @@ export function NetworksPanel({ networks, loaded, error, onRefresh }: NetworksPa
       header: 'ACTIONS',
       // Attaching a container is an action of this row, so it is a control of
       // the row's cluster and not the bare text it used to be beside the chips.
-      width: 'max-content',
+      // A **length**, not an intrinsic track: this cluster's two controls made
+      // the widest gap in the product between a header's track and its rows' —
+      // 57.4px against 130.7px, carrying this table's `NAME` column 46px out of
+      // line with its own header at 1440×1000.
+      width: '144px',
       render: (network) => (
         <ActionButtonGroup
           actions={[

@@ -48,8 +48,11 @@ Actions:
   revealing one closes any panel open elsewhere on the screen, the Networks panel's included.
 - The row truncates the mountpoint with an ellipsis; the detail panel is the route to it in full,
   wrapped, left-aligned and selectable. No value on this panel is right-aligned.
-- The list states no column minimum, no breakpoint-conditional column set and no width of its own:
-  the column contract and the truncation contract are the object list's, inherited by construction.
+- The list states no column minimum and no breakpoint-conditional column set: the column contract
+  and the truncation contract are the object list's, inherited by construction. The one width it
+  states is its action column's, a length covering the controls that column holds — the object
+  list's width contract admits no intrinsic track, which would resolve to a different width in the
+  header and in each row.
 - In the create dialog the driver-options rows and the label rows carry distinct accessible names,
   so no two of its fields are announced alike.
 

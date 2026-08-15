@@ -22,12 +22,16 @@ budget in `ui-conformance-check.md`.
   emptyState? expandedRowKey? renderExpanded? renderRowContent? selection? hideHeader?
   autoRowHeight? />`
   - `columns: DataTableColumn<T>[]` — `{ id, header, width?, minWidth?, align?, render(row) }`;
-    `width` is a `grid-template-columns` track (default `'1fr'`); `align`: `'start' | 'end'`
-    (default `'start'`).
-  - `minWidth?: string` — the width that column may never resolve below. Omitted, a **flexible**
-    `width` (`'1fr'`, `'1.8fr'`, …) takes the flex factor times `--data-table-column-min-width`,
-    and any other `width` — a length, an already-written `minmax()` — is its own minimum and is
-    used as given.
+    `align`: `'start' | 'end'` (default `'start'`).
+  - `width?: DataTableColumnWidth` (default `'1fr'`) — the column's track, as a **closed** set of
+    forms: `'<n>fr'`, `'<n>px'`, or `'var(--token)'` holding one of those. **An intrinsic width is
+    refused, and refused at the type**: `'max-content'`, `'min-content'`, `'auto'`,
+    `'fit-content()'` and a hand-written `'minmax()'` (which could carry one) do not compile. A
+    column that wants "as wide as its content" states the width it measured.
+  - `minWidth?: DataTableColumnWidth` — the width that column may never resolve below. Omitted, a
+    **flexible** `width` (`'1fr'`, `'1.8fr'`, …) takes the flex factor times
+    `--data-table-column-min-width`, and a length `width` is its own minimum and is used as given.
+    Stated with a flexible `width`, it is the floor and the component writes the `minmax()` itself.
   - `rows: T[]`, `rowKey(row): string`.
   - `variant?: 'dense' | 'comfortable'` (default `'dense'`) — how much room a row is given:
     - `'dense'` — the delivered fixed-height row in a continuous ruled grid, virtualised.
@@ -103,9 +107,26 @@ Description:
   table keep the proportions it was declared with rather than equalising every column.
 - **A row and the header share one width and one set of resolved tracks**, so a column and the label
   naming it are aligned at every pan offset — measured as identical `x` for every header cell and
-  its row cell, at `scrollLeft` 0 and at the end of the pan. Both grow to the width their columns
-  need; the body's own scroll region grows with them and therefore never scrolls horizontally itself
-  (it keeps `maxHeight`'s vertical scrolling, unchanged).
+  its row cell, on **every** row, at `scrollLeft` 0 and at the end of the pan. Both grow to the width
+  their columns need; the body's own scroll region grows with them and therefore never scrolls
+  horizontally itself (it keeps `maxHeight`'s vertical scrolling, unchanged).
+- **That is a guarantee, and it rests on two things, because the table is not one grid**: the header
+  is a grid and every row is a grid of its own, each handed the same template string.
+  - **Every admissible `width` resolves independently of content**, which is why the intrinsic ones
+    are refused above. An intrinsic track resolves against its own container's cell content, so it
+    takes one value in the header and another in every row whose content differs — and the free
+    space the flexible tracks divide moves with it, carrying every other column in that row.
+    Measured with the intrinsic tracks the migrations had written: the registries action column
+    57.4px in the header, 50.7px on a `Log in` row and 58.0px on a `Log out` row, putting
+    `CREDENTIAL STORE` at x 585.3 / 588.5 / 584.3 on one screen; the networks one 57.4px against
+    130.7px, carrying its `NAME` column 46px out of line; and, probed on the **dense** images table,
+    112.3px in the header against 136.8px and 164.0px on two kinds of row. All of them now resolve to
+    a single track string, header and rows alike.
+  - **The comfortable header takes the row's own inline inset** (`--space-5` plus the carrier
+    `Surface`'s hairline), the comfortable row being padded more than the dense one and sitting
+    inside a bordered card. Without it the two grids differ by 10px in width and every flexible track
+    with them: measured at 1440×1000, header cells at 349/449/652.5/808.1/987.6/1119.3/1251 against
+    row cells at 354/454/654.9/808.6/985.9/1115.9/1246.
 - **A row does not clip on the inline axis**: its overflow is the table's to scroll, not the row's
   to hide. It still clips on the block axis, which is what the delivered clipping was actually
   protecting — content taller than the fixed `rowHeight` is cut rather than spilling into the row

@@ -232,10 +232,11 @@ export function VolumesPanel({ volumes, loaded, error, onRefresh }: VolumesPanel
     {
       id: 'actions',
       header: 'ACTIONS',
-      // The cluster's own width and no more (REQ-9): an intrinsic track rather
-      // than a length, so the column is exactly the buttons it holds and the
-      // data columns keep the rest.
-      width: 'max-content',
+      // The cluster's own width and no more (REQ-9), stated as a **length**: an
+      // intrinsic track resolves separately in the header and in every row — it
+      // measured 57.4px in this table's header against 62.7px in its rows — so
+      // the column is the width its one control needs, on every row alike.
+      width: '72px',
       render: (volume) => (
         <ActionButtonGroup
           actions={[{ id: 'remove', label: 'Remove', weight: 'destructive', onClick: () => handleRemove(volume) }]}

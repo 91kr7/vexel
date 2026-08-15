@@ -87,6 +87,11 @@ Actions:
 - **No affordance of this screen is a one-off**: logging in and out are actions of the row's cluster
   and nothing else on a row is clickable but the row itself; the search is the screen's one toolbar;
   the empty results are the library's empty state.
+- **Every column starts at the same x on every row and under its own header label**, whichever
+  action that row carries. The action column and the pull count are stated as lengths, not as
+  intrinsic tracks: the object list's width contract admits no intrinsic width, because it resolves
+  against each row's own content — with one, `Log in` and `Log out` rows put `CREDENTIAL STORE` at
+  588.5 and 584.3 against a header at 585.3.
 
 ## Decisions recorded
 

@@ -108,6 +108,21 @@
   border-bottom: none;
 }
 
+/* The header takes the comfortable row's own inline inset, and that is the
+   contract rather than a nicety: the tracks are laid inside each grid's content
+   box, so a header padded to `--space-4` beside rows padded to `--space-5`
+   inside a bordered card is a grid 10px wider than theirs, in which every
+   flexible track resolves to a different width. Measured before this rule, at
+   1440x1000: header cells at 349/449/652.5/808.1/987.6/1119.3/1251 against row
+   cells at 354/454/654.9/808.6/985.9/1115.9/1246 — the label drifting from its
+   column by up to 5px, in both directions, over one row. The hairline is the
+   carrier `Surface`'s own border, which the row sits inside and the header does
+   not; without it the two land 1px apart. The dense variant never needed any of
+   this, its rows being padded exactly as the header is. */
+.ui-data-table--comfortable .ui-data-table__header {
+  padding-inline: calc(var(--space-5) + var(--border-width-hairline));
+}
+
 /* Content the row always carries, below its cells and outside the selectable
    row: chips with their own actions, or the nested list that makes this a
    grouped list. It is inside the same card, so it is inset to the row's own
