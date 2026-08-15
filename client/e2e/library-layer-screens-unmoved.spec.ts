@@ -212,6 +212,10 @@ const DELIBERATELY_CHANGED: Record<string, string> = {
     'plan-ui-coherence-optimisation/REQ-46…REQ-48 — the two hand-built plugin lists became the object list, the `Grid` that laid them side by side at every width was deleted rather than collapsed, the install action moved from a card header into the screen toolbar, and both empty results became the empty-state primitive',
   compose:
     'plan-ui-coherence-optimisation/REQ-49…REQ-51 — the projects left `GroupedRowsPanel`, the product’s third answer to “how is an object listed”, for the object list, and the component was deleted with them; the fixed `2fr 1fr` template that never collapsed was deleted rather than collapsed, its two regions having become views of the selected project’s own panel; and `No compose projects`, a bare title, became the empty-state primitive with a line and the action that resolves it',
+  'images-layers':
+    'plan-ui-coherence-optimisation/REQ-57, REQ-59 — the images list stopped printing one string twice per row: the `TAGS` pill column that repeated `REPOSITORY:TAG` on every row is gone, and `SIZE` — the word that carried two different numbers in one product — is now `DISK USAGE` (`images/specs/images-screen.md`). One column fewer, and a two-word label in its track, is the **shape** of those two requirements being met. This screen is therefore **not skipped**: it is compared surface by surface like the eight unchanged ones, with exactly one declared exemption — the images list’s own header row may be **narrower** where the table is wider than its card and is sized by its columns rather than by the card (375×812). It may not grow, it may not move sideways, and no other surface of the screen is exempt, so a further unintended move on it still fails. What the row *says* is checked in `images-one-fact-once.spec.ts`',
+  'system-prune':
+    'plan-ui-coherence-optimisation/REQ-73…REQ-75 — the fixed 1 : 1.2 template that never collapsed became the library’s pair arrangement: equal panels above the breakpoint, one column below, and `align-items: start`, so the two cards no longer share a height; the system prune left the section header for the screen toolbar under it, which puts the reclaim card’s rows one row lower; and the two empty results gained their explanation and their way out. What the batch states does **not** change is everything the screen says: the eight daemon properties, the five prune rows and the standing warning, which are compared word for word against this same delivered build in `system-prune-preserved.spec.ts`',
   swarm:
     'plan-ui-coherence-optimisation/REQ-52…REQ-55 — the condition of the swarm is stated **once**, on one surface, with `Initialise a swarm` and `Join an existing one` inside it, where the delivered build stated it in a banner and again in each of five lists; the state bar is not drawn where there is no state to qualify, the panels are not drawn where there is no cluster to read, and `QuadPanelLayout` is deleted with the two-by-two grid, the five inventories stacked at the content column’s full width',
 };
@@ -365,6 +369,158 @@ async function measureContextsScreen(page: Page): Promise<{
       objectLists: content.querySelectorAll('.ui-data-table').length,
       toolbars: content.querySelectorAll('.ui-screen-toolbar').length,
       daemonProperties: daemonLabels.filter((label) => text.includes(label)),
+    };
+  }, DAEMON_PROPERTIES);
+}
+
+/**
+ * The images list, as the change REQ-57 and REQ-59 declare can be measured on
+ * both builds: **which columns it has** and what that costs the header row's box.
+ *
+ * `images/specs/images-screen.md` fixes the column set — a leading status dot,
+ * `REPOSITORY:TAG` (every tag the image carries, stated once), `DIGEST`,
+ * `PLATFORM`, `DISK USAGE`, `CREATED` and `ACTIONS` — and states both changes in
+ * so many words: "the pills are gone and the reference column carries the whole
+ * tag list", and "`DISK USAGE`, not `SIZE`".
+ *
+ * The geometry follows from that and from nothing else. Where the table fits its
+ * card, the columns share the card's width and removing one moves no box at all —
+ * which is what the two desktop viewports measure. Where the table is **wider
+ * than its card** and is therefore sized by its own columns, one column fewer is
+ * one column narrower, and a two-word label in a narrow track is a header row of
+ * two lines instead of one.
+ */
+async function measureImagesList(page: Page): Promise<{
+  headers: string[];
+  header: { x: number; y: number; width: number; height: number } | null;
+  card: { x: number; width: number } | null;
+  rows: number;
+}> {
+  return await page.evaluate(() => {
+    const content = document.querySelector('.ui-frame__content')! as HTMLElement;
+    const table = content.querySelector('.ui-data-table');
+    const header = table?.querySelector('.ui-data-table__header') ?? null;
+    const card = table?.closest('.ui-surface') ?? null;
+    const box = (element: Element) => {
+      const rect = element.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    };
+    return {
+      headers: [...(header?.querySelectorAll('.ui-data-table__header-cell') ?? [])].map((cell) => (cell.textContent ?? '').replace(/\s+/g, ' ').trim()),
+      header: header ? box(header) : null,
+      card: card ? { x: card.getBoundingClientRect().x, width: card.getBoundingClientRect().width } : null,
+      rows: table?.querySelectorAll('.ui-data-table__row').length ?? 0,
+    };
+  });
+}
+
+/**
+ * The one surface of the images screen whose **width** REQ-57 and REQ-59 entitle
+ * to change, and in the one direction they entitle it to.
+ *
+ * Kept as narrow as the requirements are: this screen's own list header, only
+ * ever smaller. A header that grew, a header that moved sideways, and every
+ * other surface of the screen are compared exactly as the eight unchanged
+ * screens' are — which is what stops this entry from turning the images screen
+ * into an unmeasured one.
+ */
+function widthDeclaredBy(screenId: string, key: string, delta: number): boolean {
+  return screenId === 'images-layers' && key.endsWith('.ui-data-table__header#0') && delta < 0;
+}
+
+/**
+ * The system & prune screen, as the change REQ-73…REQ-75 declares can be
+ * measured on both builds.
+ *
+ * Three deltas, and each of them is a box:
+ *
+ * - the **pair**: the delivered build divided every width 1 : 1.2 and collapsed
+ *   at none; the arrangement gives two equal panels above its own breakpoint and
+ *   one full-width column below it;
+ * - the **toolbar**: the system prune left the section header for the action bar
+ *   under it, so the reclaim card's rows start one row lower — 30.84px lower at
+ *   both desktop widths, the 36.84px bar less the 6px the header gives back for
+ *   the control it no longer carries. **Where the delivered header wrapped, the
+ *   offsets are not comparable** and are reported instead: at the phone
+ *   breakpoint that card was 171.81px wide and its header 136.09px tall, starting
+ *   the rows 169.09px down a card this build starts them 115.88px down. Comparing
+ *   the two there would read the collapse as an action bar that costs nothing;
+ * - `align-items: start`: the two cards no longer stretch to a shared height,
+ *   which is measured as the **slack** each card carries below its own content —
+ *   a stretched card has more of it than its neighbour, an unstretched pair has
+ *   the same padding under both.
+ *
+ * What the batch preserves is read here too, but only as a count: the words are
+ * compared against this same delivered build in `system-prune-preserved.spec.ts`.
+ */
+async function measureSystemScreen(page: Page): Promise<{
+  columnWidth: number;
+  cards: { title: string; x: number; y: number; width: number; height: number; slack: number }[];
+  toolbars: number;
+  systemPrune: { insideToolbar: boolean; insideSectionHeader: boolean } | null;
+  /** How far under its card's own top edge the first prune row starts: what a toolbar row costs. */
+  rowsStartUnderTheCard: number | null;
+  /** The reclaim card's own header height, which decides whether that offset is comparable at all. */
+  reclaimHeaderHeight: number | null;
+  /** The action bar between the header and the rows, `null` on a build that draws none. */
+  toolbar: { y: number; height: number; underTheHeader: boolean; aboveTheRows: boolean } | null;
+  daemonProperties: string[];
+  storageRows: number;
+  callouts: number;
+}> {
+  return await page.evaluate((daemonLabels) => {
+    const content = document.querySelector('.ui-frame__content')! as HTMLElement;
+    const contentStyle = getComputedStyle(content);
+    const columnWidth = content.clientWidth - Number.parseFloat(contentStyle.paddingLeft) - Number.parseFloat(contentStyle.paddingRight);
+    // The element both builds draw for a card's title.
+    const cards = [...content.querySelectorAll('.ui-section-header__title')]
+      .map((node) => ({ title: (node.textContent ?? '').trim(), card: node.closest('.ui-surface') }))
+      .filter((entry): entry is { title: string; card: Element } => entry.card !== null)
+      .map(({ title, card }) => {
+        const rect = card.getBoundingClientRect();
+        const last = card.lastElementChild?.getBoundingClientRect();
+        return {
+          title,
+          x: rect.x,
+          y: rect.y,
+          width: rect.width,
+          height: rect.height,
+          // The empty space the card carries under its own content: a card
+          // stretched to its neighbour's height carries more of it than padding.
+          slack: last ? rect.bottom - last.bottom : Number.NaN,
+        };
+      });
+    const prune = [...content.querySelectorAll('button')].find((button) => (button.textContent ?? '').trim().startsWith('System prune'));
+    const firstRow = content.querySelector('.ui-storage-usage-row');
+    const reclaimCard = firstRow?.closest('.ui-surface') ?? null;
+    const reclaimHeader = reclaimCard?.querySelector('.ui-section-header') ?? null;
+    const reclaimToolbar = reclaimCard?.querySelector('.ui-screen-toolbar') ?? null;
+    const text = (content.textContent ?? '').replace(/\s+/g, ' ');
+    return {
+      columnWidth,
+      cards,
+      toolbars: content.querySelectorAll('.ui-screen-toolbar').length,
+      systemPrune: prune
+        ? {
+            insideToolbar: prune.closest('.ui-screen-toolbar') !== null,
+            insideSectionHeader: prune.closest('.ui-section-header') !== null,
+          }
+        : null,
+      rowsStartUnderTheCard:
+        firstRow && reclaimCard ? firstRow.getBoundingClientRect().y - reclaimCard.getBoundingClientRect().y : null,
+      reclaimHeaderHeight: reclaimHeader ? reclaimHeader.getBoundingClientRect().height : null,
+      toolbar:
+        reclaimToolbar && reclaimHeader && firstRow
+          ? {
+              y: reclaimToolbar.getBoundingClientRect().y,
+              height: reclaimToolbar.getBoundingClientRect().height,
+              underTheHeader: reclaimToolbar.getBoundingClientRect().top >= reclaimHeader.getBoundingClientRect().bottom - 1,
+              aboveTheRows: reclaimToolbar.getBoundingClientRect().bottom <= firstRow.getBoundingClientRect().top + 1,
+            }
+          : null,
+      daemonProperties: daemonLabels.filter((label) => text.includes(label)),
+      storageRows: content.querySelectorAll('.ui-storage-usage-row').length,
+      callouts: content.querySelectorAll('.ui-callout').length,
     };
   }, DAEMON_PROPERTIES);
 }
@@ -1139,7 +1295,208 @@ test.describe('F5 — the thirteen screens render as the delivered build does', 
             continue;
           }
 
-          if (DELIBERATELY_CHANGED[screen.id] !== undefined) {
+          // The images screen, whose declared change is **which columns the list has** (REQ-57,
+          // REQ-59). Unlike every other entry of `DELIBERATELY_CHANGED`, this one does not skip the
+          // surface-by-surface comparison: the column set is asserted here and the screen then falls
+          // through to it, carrying the single declared exemption `widthDeclaredBy` states.
+          if (screen.id === 'images-layers') {
+            const deliveredList = await measureImagesList(before);
+            const currentList = await measureImagesList(page);
+            console.log(
+              `[REQ-57] ${at} ${screen.heading}: delivered headers ${JSON.stringify(deliveredList.headers)}, header ${JSON.stringify(
+                deliveredList.header,
+              )}, card ${JSON.stringify(deliveredList.card)}, ${deliveredList.rows} row(s) — now headers ${JSON.stringify(currentList.headers)}, ` +
+                `header ${JSON.stringify(currentList.header)}, card ${JSON.stringify(currentList.card)}, ${currentList.rows} row(s) — ${
+                  DELIBERATELY_CHANGED[screen.id]
+                }`,
+            );
+
+            expect(deliveredList.header, `${at}: the delivered build draws no images list`).not.toBeNull();
+            expect(currentList.header, `${at}: this build draws no images list`).not.toBeNull();
+
+            // The premise: the delivered build really did carry both the repeated column and the
+            // word that named two different numbers.
+            expect(deliveredList.headers, `${at}: the delivered build drew no TAGS column, so REQ-57 has nothing to remove here`).toContain('TAGS');
+            expect(deliveredList.headers, `${at}: the delivered build did not call the row's number SIZE, so REQ-59 has nothing to rename`).toContain(
+              'SIZE',
+            );
+
+            // …and this build has neither, keeps the reference column, and names the row's number
+            // what it measures (images-screen.md).
+            expect(currentList.headers, `${at}: the repeated TAGS column is still drawn (REQ-57)`).not.toContain('TAGS');
+            expect(currentList.headers, `${at}: the row's number is still called SIZE (REQ-59)`).not.toContain('SIZE');
+            expect(currentList.headers, `${at}: the reference column is gone (REQ-57 keeps it)`).toContain('REPOSITORY:TAG');
+            expect(currentList.headers, `${at}: the row's number is not named what it measures (REQ-59)`).toContain('DISK USAGE');
+            expect(currentList.headers.length, `${at}: the list gained or lost more than the one column REQ-57 removes`).toBe(
+              deliveredList.headers.length - 1,
+            );
+
+            // The box that column cost. Where the table fits its card, the columns share the card's
+            // width and one fewer moves nothing; where the table is wider than its card, it is
+            // sized by its own columns and is narrower by that one.
+            const deliveredScrolls = deliveredList.header!.width > (deliveredList.card?.width ?? Number.POSITIVE_INFINITY) + 1;
+            expect(round(currentList.header!.x), `${at}: the images list header moved sideways`).toBe(round(deliveredList.header!.x));
+            expect(round(currentList.header!.y), `${at}: the images list header moved down the screen`).toBe(round(deliveredList.header!.y));
+            if (deliveredScrolls) {
+              expect(
+                currentList.header!.width,
+                `${at}: the table is sized by its own columns here and did not lose the width of the column REQ-57 removes`,
+              ).toBeLessThan(deliveredList.header!.width);
+              // `DISK USAGE` is two words in the track `SIZE` had (REQ-59), so the header row is
+              // allowed to take a second line — never to lose one.
+              expect(
+                currentList.header!.height,
+                `${at}: the renamed column left the header row shorter than the delivered one`,
+              ).toBeGreaterThanOrEqual(deliveredList.header!.height);
+            } else {
+              expect(
+                round(currentList.header!.width),
+                `${at}: the table fills its card here, so removing a column may move no box`,
+              ).toBe(round(deliveredList.header!.width));
+            }
+            // Deliberately no `continue`: the screen is compared surface by surface below.
+          }
+
+          // The system & prune screen, whose declared change is the pair, the toolbar and the two
+          // empty results — and whose whole point is what it does **not** change: the eight daemon
+          // properties it keeps (REQ-75), the five prune rows (REQ-73) and the standing warning
+          // (REQ-74) are counted here and compared word for word in `system-prune-preserved.spec.ts`.
+          if (screen.id === 'system-prune') {
+            const deliveredScreen = await measureSystemScreen(before);
+            const currentScreen = await measureSystemScreen(page);
+            console.log(
+              `[REQ-75] ${at} ${screen.heading}: delivered cards ${deliveredScreen.cards
+                .map((card) => `${card.title} x=${round(card.x)} y=${round(card.y)} ${round(card.width)}×${round(card.height)} slack=${round(card.slack)}`)
+                .join(', ')}, ${deliveredScreen.toolbars} toolbar(s), system prune ${JSON.stringify(deliveredScreen.systemPrune)}, ` +
+                `rows start ${round(deliveredScreen.rowsStartUnderTheCard ?? Number.NaN)}px under their card, ` +
+                `${deliveredScreen.daemonProperties.length}/8 daemon properties, ${deliveredScreen.storageRows} prune row(s), ${deliveredScreen.callouts} callout(s) — ` +
+                `now cards ${currentScreen.cards
+                  .map((card) => `${card.title} x=${round(card.x)} y=${round(card.y)} ${round(card.width)}×${round(card.height)} slack=${round(card.slack)}`)
+                  .join(', ')}, ${currentScreen.toolbars} toolbar(s), system prune ${JSON.stringify(currentScreen.systemPrune)}, ` +
+                `rows start ${round(currentScreen.rowsStartUnderTheCard ?? Number.NaN)}px under their card, ` +
+                `${currentScreen.daemonProperties.length}/8 daemon properties, ${currentScreen.storageRows} prune row(s), ${currentScreen.callouts} callout(s), ` +
+                `content column ${round(currentScreen.columnWidth)}px — ${DELIBERATELY_CHANGED[screen.id]}`,
+            );
+
+            const cardOf = (screenReading: typeof currentScreen, title: string) => screenReading.cards.find((card) => card.title === title);
+            const deliveredDaemon = cardOf(deliveredScreen, 'Daemon info');
+            const deliveredReclaim = cardOf(deliveredScreen, 'Reclaim disk space');
+            const daemon = cardOf(currentScreen, 'Daemon info');
+            const reclaim = cardOf(currentScreen, 'Reclaim disk space');
+            for (const [name, cards] of [
+              ['the delivered build', [deliveredDaemon, deliveredReclaim]],
+              ['this build', [daemon, reclaim]],
+            ] as const) {
+              expect(cards[0], `${at}: ${name} draws no daemon card`).toBeDefined();
+              expect(cards[1], `${at}: ${name} draws no reclaim card`).toBeDefined();
+            }
+
+            // The premise: the delivered build really did divide the column unequally, really did
+            // keep the two side by side at every viewport, really did stretch them to one height,
+            // and really did carry the system prune inside the section header.
+            expect(round(deliveredDaemon!.x), `${at}: the delivered build already stacked the two cards, so this comparison shows nothing`).not.toBe(
+              round(deliveredReclaim!.x),
+            );
+            expect(
+              round(deliveredDaemon!.width),
+              `${at}: the delivered build already gave the two cards one width, so this comparison shows nothing`,
+            ).not.toBe(round(deliveredReclaim!.width));
+            expect(
+              Math.abs(deliveredDaemon!.height - deliveredReclaim!.height),
+              `${at}: the delivered pair did not stretch to one height, so the align-items change has nothing to show`,
+            ).toBeLessThanOrEqual(1);
+            expect(deliveredScreen.systemPrune?.insideSectionHeader, `${at}: the delivered build did not carry the system prune in the section header`).toBe(
+              true,
+            );
+            expect(deliveredScreen.toolbars, `${at}: the delivered build already drew an action bar on this screen`).toBe(0);
+
+            // The pair: equal panels while the grid's own box carries both, one full-width column
+            // when it cannot (layout-primitives.md — intrinsic, not keyed to the viewport).
+            if (viewport.width >= 1280) {
+              expect(round(reclaim!.y), `${at}: the two cards are no longer on one row`).toBe(round(daemon!.y));
+              expect(Math.abs(reclaim!.width - daemon!.width), `${at}: the pair still divides the column unequally`).toBeLessThanOrEqual(1);
+              expect(daemon!.width, `${at}: the daemon card is no wider than the one the fixed template gave it`).toBeGreaterThan(deliveredDaemon!.width);
+              expect(reclaim!.width, `${at}: the reclaim card did not give up the width the fixed template gave it`).toBeLessThan(
+                deliveredReclaim!.width,
+              );
+            } else {
+              expect(round(reclaim!.x), `${at}: the two cards are still side by side`).toBe(round(daemon!.x));
+              expect(round(reclaim!.width), `${at}: the stacked cards do not share one width`).toBe(round(daemon!.width));
+              expect(reclaim!.y, `${at}: the reclaim card is not below the daemon card`).toBeGreaterThan(daemon!.y);
+              expect(
+                round(daemon!.width),
+                `${at}: the daemon card is ${round(daemon!.width)}px of a ${round(currentScreen.columnWidth)}px content column`,
+              ).toBeGreaterThanOrEqual(round(currentScreen.columnWidth) - 1);
+            }
+
+            // `align-items: start`: each card is its own content's height, so the empty space under
+            // the content is the same padding in both — where the delivered pair stretched one of
+            // them to the other's height.
+            expect(
+              Math.abs(deliveredDaemon!.slack - deliveredReclaim!.slack),
+              `${at}: the delivered cards already carried the same slack, so the stretch this batch removes was not there`,
+            ).toBeGreaterThan(1);
+            expect(
+              Math.abs(daemon!.slack - reclaim!.slack),
+              `${at}: the two cards still stretch to a shared height (slack ${round(daemon!.slack)}px against ${round(reclaim!.slack)}px)`,
+            ).toBeLessThanOrEqual(1);
+
+            // The toolbar: the screen's own action is a control of the action bar under the header,
+            // and the rows it pushes down sit lower for it.
+            expect(currentScreen.toolbars, `${at}: the screen does not carry exactly one action bar`).toBe(1);
+            expect(currentScreen.systemPrune?.insideToolbar, `${at}: the system prune is not a control of the action bar`).toBe(true);
+            expect(currentScreen.systemPrune?.insideSectionHeader, `${at}: the system prune is still inside the section header`).toBe(false);
+            expect(currentScreen.toolbar?.underTheHeader, `${at}: the action bar is not drawn under the panel's header`).toBe(true);
+            expect(currentScreen.toolbar?.aboveTheRows, `${at}: the action bar is not drawn above the prune rows`).toBe(true);
+
+            // What that row costs the rows below it — where the header above them is the header the
+            // delivered build drew and not a wrapped one. The delivered header **carried the system
+            // prune inside it**, so it is entitled to be one control taller than this one (52.03px
+            // against 46.03px at both desktop widths); a header taller than that has wrapped in a
+            // narrower card, which is what the phone breakpoint's 171.81px card did (136.09px), and
+            // comparing the offsets there would report the collapse as an action bar costing
+            // nothing.
+            const deliveredHeader = deliveredScreen.reclaimHeaderHeight ?? Number.NaN;
+            const currentHeader = currentScreen.reclaimHeaderHeight ?? Number.NaN;
+            const toolbarHeight = currentScreen.toolbar?.height ?? Number.NaN;
+            const rowsLowerBy = (currentScreen.rowsStartUnderTheCard ?? Number.NaN) - (deliveredScreen.rowsStartUnderTheCard ?? Number.NaN);
+            const headerComparable = deliveredHeader <= currentHeader + toolbarHeight + 1;
+            console.log(
+              `[REQ-75] ${at}: the reclaim header is ${round(deliveredHeader)}px on the delivered build and ${round(currentHeader)}px here; ` +
+                `the action bar is ${round(toolbarHeight)}px, and the rows start ${round(rowsLowerBy)}px lower — ${
+                  headerComparable ? 'comparable' : 'not comparable: the delivered header wrapped in a card this build no longer draws'
+                }`,
+            );
+            if (headerComparable) {
+              expect(
+                rowsLowerBy,
+                `${at}: the prune rows start ${round(currentScreen.rowsStartUnderTheCard ?? Number.NaN)}px under their card, against a delivered ${round(
+                  deliveredScreen.rowsStartUnderTheCard ?? Number.NaN,
+                )}px, so the action bar costs no row`,
+              ).toBeGreaterThan(0);
+              expect(
+                rowsLowerBy,
+                `${at}: the prune rows start ${round(rowsLowerBy)}px lower, which is more than the ${round(toolbarHeight)}px action bar above them`,
+              ).toBeLessThanOrEqual(toolbarHeight + 1);
+            }
+
+            // …and what the batch states it does not change is still all there.
+            expect(currentScreen.daemonProperties, `${at}: this screen no longer states the eight daemon properties it keeps (REQ-75)`).toEqual(
+              DAEMON_PROPERTIES,
+            );
+            expect(currentScreen.storageRows, `${at}: the screen draws a different number of prune rows (REQ-73)`).toBe(deliveredScreen.storageRows);
+            expect(currentScreen.callouts, `${at}: the standing warning is no longer stated as one callout (REQ-74)`).toBe(deliveredScreen.callouts);
+
+            // The change is inside the screen: the shell's content column is where it was.
+            expect(round(currentScreen.columnWidth), `${at}: the shell's content column changed width`).toBe(round(deliveredScreen.columnWidth));
+            continue;
+          }
+
+          // The volumes & networks screen — the first entry of `DELIBERATELY_CHANGED` and the only
+          // one still reached by name rather than by its own `if` above. (It was `DELIBERATELY_CHANGED[
+          // screen.id] !== undefined` while every entry skipped the comparison; `images-layers` is
+          // the first that does not, so the condition names the screen it has always meant.)
+          if (screen.id === 'volumes-networks') {
             const deliveredLists = await measureStackedLists(before);
             const currentLists = await measureStackedLists(page);
             console.log(
@@ -1231,7 +1588,17 @@ test.describe('F5 — the thirteen screens render as the delivered build does', 
             if (after.x !== deliveredSurface.x) record('x', after.x - deliveredSurface.x);
             const widthDelta = after.width - deliveredSurface.width;
             const widthAllowance = after.isEmptyState ? 2 : 0;
-            if (widthDelta < 0 || widthDelta > widthAllowance) record('width', widthDelta);
+            // …and except on the one surface a migration of this plan declares: the images list's
+            // own header row, narrower by the column REQ-57 removes, and only where the table is
+            // sized by its columns rather than by its card. Asserted positively in that screen's
+            // branch above; exempted here so that every other surface of it stays under the rule.
+            if (widthDelta < 0 || widthDelta > widthAllowance) {
+              if (widthDeclaredBy(screen.id, key, widthDelta)) {
+                console.log(`[REQ-57] declared: ${screen.heading} ${key}: width ${round(widthDelta)}px — the column the images list no longer draws`);
+              } else {
+                record('width', widthDelta);
+              }
+            }
 
             const sameContent = after.text === deliveredSurface.text;
 

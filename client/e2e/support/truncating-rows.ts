@@ -48,12 +48,13 @@ export interface InkRect {
    * The distance between this and `rect` is the whole reason the two are kept
    * apart: **ink lost inside the element is that element being squeezed**, which
    * is the contract's business, while **ink lost above it is the box the element
-   * was put in being too narrow**, which is the call site's. On the
-   * screens still handing `Grid` a fixed template at 375×812 the second is
-   * dominant and is not this batch's to repair (`SystemScreen.tsx:176`,
-   * `ContextsScreen.tsx:156`; `VolumesNetworksScreen`'s went with the F6
-   * migration), so a check that added the two together would fail on somebody
-   * else's defect and hide its own.
+   * was put in being too narrow**, which is the call site's. On a screen still
+   * handing `Grid` a fixed template at 375×812 the second is dominant and is not
+   * the contract's to repair — the F4 batch that wrote this named
+   * `SystemScreen.tsx:176` and `ContextsScreen.tsx:156`, each of which has since
+   * gone with its own migration (F6, F9, F10 and, last, F17) — so a check that
+   * added the two together would fail on somebody else's defect and hide its
+   * own.
    */
   withinOwner: Rect;
 }

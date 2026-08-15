@@ -57,6 +57,37 @@ function populatedBreakdown(): DiskUsageBreakdown {
   ]);
 }
 
+/**
+ * A daemon that answered every one of the eight properties the screen keeps
+ * (system-screen.md, plan-ui-coherence-optimisation/REQ-75). Each test that is
+ * about one of them overrides that one.
+ */
+function daemonInfo(overrides: Partial<DaemonInfo> = {}): DaemonInfo {
+  return {
+    version: '27.4.0',
+    apiVersion: '1.47',
+    buildkitVersion: '0.19.0',
+    storageDriver: 'overlay2',
+    cgroupDriver: 'systemd',
+    cgroupVersion: '2',
+    operatingSystem: 'Docker Desktop',
+    osType: 'linux',
+    kernelVersion: '6.10.14-linuxkit',
+    architecture: 'aarch64',
+    rootDirectory: '/var/lib/docker',
+    containers: { total: 12, running: 5, paused: 0, stopped: 7 },
+    ...overrides,
+  };
+}
+
+/** The label → value bands the screen draws, in the order it draws them. */
+function propertyBands(): { label: string; value: string }[] {
+  return Array.from(document.querySelectorAll<HTMLElement>('.ui-definition-list__row')).map((band) => ({
+    label: band.querySelector('.ui-definition-list__label')?.textContent ?? '',
+    value: band.querySelector('.ui-definition-list__value')?.textContent ?? '',
+  }));
+}
+
 /** Test harness: makes the errors the screen reports to the application observable, apart from the screen's own content. */
 function ReportedErrors() {
   const { errors } = useErrorReporter();
@@ -373,5 +404,160 @@ describe('SystemScreen — the scoped system prune (REQ-96, REQ-97)', () => {
 
     expect(within(dialog()).getByRole('button', { name: 'Prune selected' })).toBeDisabled();
     expect(prune).not.toHaveBeenCalled();
+  });
+});
+
+describe('SystemScreen — the daemon properties this screen keeps (plan-ui-coherence-optimisation/REQ-45, REQ-75)', () => {
+  // system-screen.md — "the eight properties this screen keeps … in the product's property grid:
+  // label → value bands". The labels are the delivered ones and are not this screen's to revise
+  // (REQ-75), so they are pinned here, in the order the spec lists them.
+  it('states the eight properties as label → value bands, in the words and the order the spec fixes', () => {
+    daemonState = { loaded: true, info: daemonInfo() };
+    renderScreen();
+
+    expect(document.querySelectorAll('.ui-definition-list')).toHaveLength(1);
+    expect(propertyBands().map((band) => band.label)).toEqual([
+      'Docker version',
+      'Engine API',
+      'BuildKit',
+      'Storage driver',
+      'Cgroup driver',
+      'OS / Arch',
+      'Root directory',
+      'Containers (running)',
+    ]);
+  });
+
+  // system-screen.md — each band states the daemon's own answer: the version, the API version, the
+  // storage driver, the cgroup driver **with its version**, OS / kernel / architecture, the root
+  // directory and the container count **with how many are running**.
+  it('states the daemon’s own answer in each band', () => {
+    daemonState = { loaded: true, info: daemonInfo() };
+    renderScreen();
+
+    const bands = new Map(propertyBands().map((band) => [band.label, band.value]));
+    expect(bands.get('Docker version')).toBe('27.4.0');
+    expect(bands.get('Engine API')).toBe('1.47');
+    expect(bands.get('BuildKit')).toBe('0.19.0');
+    expect(bands.get('Storage driver')).toBe('overlay2');
+    expect(bands.get('Cgroup driver')).toMatch(/systemd/);
+    expect(bands.get('Cgroup driver')).toMatch(/2/);
+    for (const fact of ['linux', '6.10.14-linuxkit', 'aarch64']) expect(bands.get('OS / Arch')).toContain(fact);
+    expect(bands.get('Root directory')).toBe('/var/lib/docker');
+    expect(bands.get('Containers (running)')).toMatch(/12/);
+    expect(bands.get('Containers (running)')).toMatch(/5/);
+  });
+
+  // system-screen.md — "BuildKit version (or 'not reported')": never a blank band.
+  it('says the BuildKit version is not reported rather than drawing a blank band', () => {
+    daemonState = { loaded: true, info: daemonInfo({ buildkitVersion: undefined }) };
+    renderScreen();
+
+    expect(new Map(propertyBands().map((band) => [band.label, band.value])).get('BuildKit')).toBe('not reported');
+  });
+
+  // system-screen.md — "While it is being read: a placeholder". A reading in flight is not a result
+  // the operator can resolve, so the placeholder offers nothing to click.
+  it('draws a placeholder while the daemon is being read, with nothing to act on', () => {
+    daemonState = { loaded: false, info: undefined };
+    renderScreen();
+
+    const placeholder = document.querySelector<HTMLElement>('.ui-empty-state')!;
+    expect(placeholder).toBeInTheDocument();
+    expect(placeholder.querySelector('.ui-definition-list')).toBeNull();
+    expect(within(placeholder).queryByRole('button')).toBeNull();
+    expect(daemonRefresh).not.toHaveBeenCalled();
+  });
+
+  // system-screen.md — "when the daemon answered but stated none of them: that, with a way to read
+  // it again", and "'Read again' … asks the daemon for that reading once more; nothing on the daemon
+  // is touched".
+  it('states an answer holding none of the properties, explains it, and reads the daemon again on request', async () => {
+    const user = userEvent.setup();
+    daemonState = { loaded: true, info: undefined };
+    renderScreen();
+
+    const empty = document.querySelector<HTMLElement>('.ui-empty-state')!;
+    expect(empty.querySelector('.ui-empty-state__title')?.textContent ?? '').not.toBe('');
+    expect((empty.querySelector('.ui-empty-state__description')?.textContent ?? '').length).toBeGreaterThan(20);
+
+    await user.click(within(empty).getByRole('button', { name: 'Read again' }));
+
+    expect(daemonRefresh).toHaveBeenCalledTimes(1);
+    expect(prune).not.toHaveBeenCalled();
+  });
+});
+
+describe('SystemScreen — the empty and in-flight readings of the breakdown (plan-ui-coherence-optimisation/REQ-75)', () => {
+  // system-screen.md — "When it succeeds and reports no category at all: that, with a way to read it
+  // again."
+  it('states a reading that reported no category, explains it, and reads it again on request', async () => {
+    const user = userEvent.setup();
+    diskUsageState = { breakdown: breakdownOf([]), loaded: true };
+    daemonState = { loaded: true, info: daemonInfo() };
+    renderScreen();
+
+    const empty = document.querySelector<HTMLElement>('.ui-empty-state')!;
+    expect(empty).toBeInTheDocument();
+    expect((empty.querySelector('.ui-empty-state__description')?.textContent ?? '').length).toBeGreaterThan(20);
+
+    await user.click(within(empty).getByRole('button', { name: 'Read again' }));
+
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(prune).not.toHaveBeenCalled();
+  });
+
+  // system-screen.md — the reading in flight is a placeholder, and a placeholder is not an empty
+  // result the operator can resolve.
+  it('draws a placeholder while the breakdown is being read, with nothing to act on', () => {
+    diskUsageState = { loaded: false };
+    daemonState = { loaded: true, info: daemonInfo() };
+    renderScreen();
+
+    const placeholder = document.querySelector<HTMLElement>('.ui-empty-state')!;
+    expect(placeholder).toBeInTheDocument();
+    expect(within(placeholder).queryByRole('button')).toBeNull();
+    expect(refresh).not.toHaveBeenCalled();
+  });
+});
+
+describe('SystemScreen — where the actions and the standing warning live (REQ-73, REQ-74, REQ-75)', () => {
+  // system-screen.md — "'System prune…' (red, in the action bar under the panel's header)": the
+  // screen's own action is a control of the action bar, not of the section header above it.
+  it('carries the system prune in the action bar under the header, in the destructive variant', () => {
+    renderScreen();
+
+    const action = screen.getByRole('button', { name: 'System prune…' });
+    expect(action.closest('.ui-screen-toolbar')).not.toBeNull();
+    expect(action.closest('.ui-section-header')).toBeNull();
+    expect(action.className).toContain('ui-button--destructive');
+  });
+
+  // REQ-73 — "their destructive actions are correctly red-tinted": every prune row's action keeps
+  // the destructive variant, whatever else the presentation does.
+  it('keeps every row’s Prune action in the destructive variant', () => {
+    renderScreen();
+
+    const actions = Array.from(document.querySelectorAll<HTMLElement>('.ui-storage-usage-row')).map((candidate) =>
+      within(candidate).getByRole('button', { name: 'Prune' }),
+    );
+    expect(actions).toHaveLength(5);
+    for (const action of actions) expect(action.className).toContain('ui-button--destructive');
+  });
+
+  // REQ-74 — the standing warning "is not restyled, not replaced by the empty-state primitive and
+  // not absorbed into the section header": it is the callout, and it is still the callout.
+  it('states the standing warning in the callout, neither absorbed into a header nor turned into an empty result', () => {
+    renderScreen();
+
+    const callout = document.querySelector<HTMLElement>('.ui-callout');
+    expect(callout).not.toBeNull();
+    expect(callout!.textContent).toMatch(/other tools sharing this daemon are affected/i);
+    expect(callout!.textContent).toMatch(/confirmed and marked in red/i);
+    expect(callout!.closest('.ui-section-header')).toBeNull();
+    expect(callout!.closest('.ui-empty-state')).toBeNull();
+    for (const empty of Array.from(document.querySelectorAll<HTMLElement>('.ui-empty-state'))) {
+      expect(empty.textContent).not.toMatch(/other tools sharing this daemon are affected/i);
+    }
   });
 });
