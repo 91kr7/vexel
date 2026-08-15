@@ -57,6 +57,11 @@ const SCREENS: { id: string; heading: string }[] = [
   // plan-ui-coherence-optimisation/REQ-42 — the contexts list joined the object list in batch 9,
   // and this sweep is written to cover **every** table the operator can reach.
   { id: 'contexts', heading: 'Contexts' },
+  // plan-ui-coherence-optimisation/REQ-46 — and the two plugin inventories in batch 10. The daemon
+  // list is empty on a machine running no managed plugin: it is reported and skipped by the sweep
+  // below, exactly as any other empty list is, while the CLI list is the fifteen-row column REQ-47
+  // is measured on.
+  { id: 'plugins', heading: 'Plugins' },
 ];
 
 /** The widths a column may not state: each of them resolves against its own grid's content. */

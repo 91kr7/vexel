@@ -573,7 +573,7 @@ for (const viewport of F4_VIEWPORTS) {
       collidingStressed += collidingStressedHere.length;
       // Reported, never asserted on: a trailing group at its natural width in a
       // card too narrow to hold it is the call site's fixed `Grid` template, not
-      // the contract — feature-code work pinned to batches 6, 9 and 14.
+      // the contract — feature-code work pinned to batches 6, 9, 10 and 14.
       const clippedByTheCard = asDrawn.filter((row) => metaInkClippedByTheCard(row) > 1);
       narrowCards += clippedByTheCard.length;
       console.log(
@@ -604,8 +604,9 @@ for (const viewport of F4_VIEWPORTS) {
     // that hand `Grid` a fixed template that never collapses leave a card at
     // ~90px — and no change inside the library can repair it: it is reported
     // here and pinned to batch 14, batch 6 having taken volumes and networks out
-    // of that list and batch 9 the contexts screen (REQ-42: the `Grid` went with
-    // the daemon card, one child not being a pair).
+    // of that list, batch 9 the contexts screen (REQ-42: the `Grid` went with
+    // the daemon card, one child not being a pair) and batch 10 the plugins
+    // screen (REQ-46: the pair of 157.5px cards deleted rather than collapsed).
     if (viewport.width >= 1280) {
       expect(
         narrowCards,
@@ -613,7 +614,7 @@ for (const viewport of F4_VIEWPORTS) {
       ).toBe(0);
     } else {
       console.log(
-        `[card width] ${at}: ${narrowCards} row(s) sit in a card narrower than their trailing group — the call sites' fixed Grid templates (SystemScreen.tsx:176; VolumesNetworksScreen's went with the F6 migration and ContextsScreen's with the F9 one), not the truncation contract`,
+        `[card width] ${at}: ${narrowCards} row(s) sit in a card narrower than their trailing group — the call sites' fixed Grid templates (SystemScreen.tsx:176; VolumesNetworksScreen's went with the F6 migration, ContextsScreen's with the F9 one and PluginsScreen's with the F10 one), not the truncation contract`,
       );
     }
   });

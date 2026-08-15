@@ -544,7 +544,9 @@ test('plugins: an inspected plugin offers no copy on its name or above its paylo
   await expect(panel).toBeVisible({ timeout: 20_000 });
 
   await panel.getByRole('button', { name: 'Inspect' }).first().click();
-  const expanded = panel.locator('.ui-card-list__expanded');
+  // The daemon list is the object list since batch 10 (plan-ui-coherence-optimisation/REQ-46), so
+  // the inspection is the row's own expansion on the table rather than on a hand-built card list.
+  const expanded = panel.locator('.ui-data-table__expanded');
   await expect(expanded).toBeVisible({ timeout: 20_000 });
 
   // Sites 20 and 21.

@@ -199,6 +199,8 @@ const DELIBERATELY_CHANGED: Record<string, string> = {
     'plan-ui-coherence-optimisation/REQ-39…REQ-41 — the builder list and the build-cache list became the object list, the hand-built cards deleted, and each card’s page-level action moved from its header into the screen toolbar under it',
   contexts:
     'plan-ui-coherence-optimisation/REQ-42…REQ-45 — the context list became the object list, `use` became a primary action of the row’s cluster beside the `active` marker, and the second eight-property daemon card left the screen; with it went the `Grid` that had been halving the list, one child not being a pair',
+  plugins:
+    'plan-ui-coherence-optimisation/REQ-46…REQ-48 — the two hand-built plugin lists became the object list, the `Grid` that laid them side by side at every width was deleted rather than collapsed, the install action moved from a card header into the screen toolbar, and both empty results became the empty-state primitive',
 };
 
 /** The eight properties REQ-45 takes off the contexts screen, by the labels the delivered block used. */
@@ -248,6 +250,55 @@ async function measureContextsScreen(page: Page): Promise<{
       daemonProperties: daemonLabels.filter((label) => text.includes(label)),
     };
   }, DAEMON_PROPERTIES);
+}
+
+/**
+ * The plugins screen, as the change REQ-46…REQ-48 declares can be measured on
+ * both builds: what the two lists are made of, where the cards sit, how many
+ * toolbars the screen draws, and how many empty results are stated on the
+ * primitive rather than as bare text.
+ */
+async function measurePluginsScreen(page: Page): Promise<{
+  columnWidth: number;
+  cards: { title: string; x: number; y: number; width: number }[];
+  cardLists: number;
+  objectLists: number;
+  toolbars: number;
+  emptyStates: { card: string; title: string; description: string | null; controls: number; x: number; width: number }[];
+}> {
+  return await page.evaluate(() => {
+    const content = document.querySelector('.ui-frame__content')! as HTMLElement;
+    const contentStyle = getComputedStyle(content);
+    const columnWidth = content.clientWidth - Number.parseFloat(contentStyle.paddingLeft) - Number.parseFloat(contentStyle.paddingRight);
+    // The element both builds draw for a card's title.
+    const titleOf = (element: Element) =>
+      (element.closest('.ui-surface')?.querySelector('.ui-section-header__title')?.textContent ?? '').trim();
+    const cards = [...content.querySelectorAll('.ui-section-header__title')]
+      .map((node) => ({ title: (node.textContent ?? '').trim(), card: node.closest('.ui-surface') }))
+      .filter((entry): entry is { title: string; card: Element } => entry.card !== null)
+      .map(({ title, card }) => {
+        const rect = card.getBoundingClientRect();
+        return { title, x: rect.x, y: rect.y, width: rect.width };
+      });
+    return {
+      columnWidth,
+      cards,
+      cardLists: content.querySelectorAll('.ui-card-list').length,
+      objectLists: content.querySelectorAll('.ui-data-table').length,
+      toolbars: content.querySelectorAll('.ui-screen-toolbar').length,
+      emptyStates: [...content.querySelectorAll('.ui-empty-state')].map((state) => {
+        const rect = state.getBoundingClientRect();
+        return {
+          card: titleOf(state),
+          title: (state.querySelector('.ui-empty-state__title')?.textContent ?? '').trim(),
+          description: state.querySelector('.ui-empty-state__description')?.textContent?.trim() ?? null,
+          controls: state.querySelectorAll('button, [role="button"], a').length,
+          x: rect.x,
+          width: rect.width,
+        };
+      }),
+    };
+  });
 }
 
 /** The builders screen, as the change REQ-39…REQ-41 declares can be measured on both builds. */
@@ -648,6 +699,87 @@ test.describe('F5 — the thirteen screens render as the delivered build does', 
               card.width,
               `${at}: the migrated list is no wider than the card of the pair it replaces`,
             ).toBeGreaterThan(deliveredScreen.cards[0]!.width);
+
+            // The change is inside the screen: the shell's content column is where it was.
+            expect(round(currentScreen.columnWidth), `${at}: the shell's content column changed width`).toBe(round(deliveredScreen.columnWidth));
+            continue;
+          }
+
+          // The plugins screen, whose declared change is the two lists, the pair that held them and
+          // the empty results: `Grid columns="1fr 1fr"` never collapsed, so at 375×812 each list
+          // drew in 157.5px; and the inspection is a row's own expansion, so a list's width is the
+          // panel's width. Stacked, the panel is read at the content column's full width.
+          if (screen.id === 'plugins') {
+            const deliveredScreen = await measurePluginsScreen(before);
+            const currentScreen = await measurePluginsScreen(page);
+            console.log(
+              `[REQ-46] ${at} ${screen.heading}: delivered ${deliveredScreen.cardLists} card list(s), ${deliveredScreen.objectLists} object list(s), ` +
+                `${deliveredScreen.toolbars} toolbar(s), empty states ${JSON.stringify(deliveredScreen.emptyStates)}, ` +
+                `cards ${deliveredScreen.cards.map((card) => `${card.title} x=${round(card.x)} y=${round(card.y)} w=${round(card.width)}`).join(', ')} — ` +
+                `now ${currentScreen.cardLists} / ${currentScreen.objectLists} / ${currentScreen.toolbars}, ` +
+                `empty states ${JSON.stringify(currentScreen.emptyStates)}, ` +
+                `cards ${currentScreen.cards.map((card) => `${card.title} x=${round(card.x)} y=${round(card.y)} w=${round(card.width)}`).join(', ')} — ${
+                  DELIBERATELY_CHANGED[screen.id]
+                }`,
+            );
+
+            // The premise: the delivered build really did draw the hand-built lists this batch
+            // deletes, no object list at all, and the two of them side by side at this viewport.
+            expect(deliveredScreen.cardLists, `${at}: the delivered build drew no card list here, so this comparison shows nothing`).toBeGreaterThan(0);
+            expect(deliveredScreen.objectLists, `${at}: the delivered build already listed the plugins on the object list`).toBe(0);
+            expect(deliveredScreen.cards.length, `${at}: the delivered build drew a different number of cards`).toBe(2);
+            expect(
+              round(deliveredScreen.cards[1]!.x),
+              `${at}: the delivered build already stacked the two lists, so the pair REQ-46 deletes was not there`,
+            ).not.toBe(round(deliveredScreen.cards[0]!.x));
+
+            expect(currentScreen.cardLists, `${at}: a hand-built card list is still drawn on this screen`).toBe(0);
+            expect(currentScreen.objectLists, `${at}: the two inventories are not both on the object list`).toBe(2);
+            expect(currentScreen.toolbars, `${at}: the screen does not carry exactly one page-level toolbar`).toBe(1);
+
+            // Stacked, each at the content column's full width, the daemon list under the CLI one.
+            const [cli, daemon] = currentScreen.cards;
+            expect(currentScreen.cards.map((card) => card.title), `${at}: the screen draws a different pair of cards`).toEqual([
+              'CLI plugins',
+              'Daemon plugins',
+            ]);
+            expect(round(daemon!.x), `${at}: the two lists are not on one left edge`).toBe(round(cli!.x));
+            expect(round(daemon!.width), `${at}: the two lists do not share one width`).toBe(round(cli!.width));
+            expect(daemon!.y, `${at}: the daemon list is not below the CLI list`).toBeGreaterThan(cli!.y);
+            for (const card of currentScreen.cards) {
+              expect(
+                round(card.width),
+                `${at}: the ${card.title} card is ${round(card.width)}px of a ${round(currentScreen.columnWidth)}px content column`,
+              ).toBeGreaterThanOrEqual(round(currentScreen.columnWidth) - 1);
+              expect(card.width, `${at}: the migrated ${card.title} list is no wider than the half it replaces`).toBeGreaterThan(
+                deliveredScreen.cards[0]!.width,
+              );
+            }
+
+            // REQ-48 — "a title, one line of explanation and, where one exists, the action that
+            // resolves it". The delivered build's empty result was a title and nothing else; what
+            // is compared is therefore what each of them **says**, not how many there are. Whether
+            // an action is offered depends on the daemon's own answer — it is withheld where the
+            // daemon states a reason installing a plugin would not resolve — so that half is
+            // measured against a stubbed reading in `plugins-row-geometry.spec.ts`, and only
+            // reported here.
+            const deliveredEmpty = deliveredScreen.emptyStates.find((state) => state.card === 'Daemon plugins');
+            const currentEmpty = currentScreen.emptyStates.find((state) => state.card === 'Daemon plugins');
+            if (currentEmpty) {
+              console.log(
+                `[REQ-48] ${at}: delivered "${deliveredEmpty?.title}" / "${deliveredEmpty?.description}" (${deliveredEmpty?.controls} control(s), ` +
+                  `${round(deliveredEmpty?.width ?? Number.NaN)}px) — now "${currentEmpty.title}" / "${currentEmpty.description}" ` +
+                  `(${currentEmpty.controls} control(s), ${round(currentEmpty.width)}px)`,
+              );
+              expect(
+                deliveredEmpty?.description ?? null,
+                `${at}: the delivered build already explained the empty daemon inventory, so REQ-48 has nothing to repair here`,
+              ).toBeNull();
+              expect(currentEmpty.description, `${at}: the empty daemon inventory states no line of explanation (REQ-48)`).not.toBeNull();
+              expect(currentEmpty.description!.length, `${at}: the empty daemon inventory explains nothing (REQ-48)`).toBeGreaterThan(20);
+            } else {
+              console.log(`[REQ-48] ${at}: this daemon exposes a managed plugin, so no empty result is drawn to compare`);
+            }
 
             // The change is inside the screen: the shell's content column is where it was.
             expect(round(currentScreen.columnWidth), `${at}: the shell's content column changed width`).toBe(round(deliveredScreen.columnWidth));

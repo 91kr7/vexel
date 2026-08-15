@@ -35,12 +35,25 @@ function daemonPanel(page: Page) {
   return screenContent(page).locator('.ui-surface').filter({ has: page.getByRole('heading', { level: 2, name: 'Daemon plugins' }) }).first();
 }
 
+/**
+ * The card a comfortable row, its content and the panel it expands into share
+ * (`data-table.md`): since batch 10 the daemon list is the object list
+ * (`plan-ui-coherence-optimisation/REQ-46`), so the plugin's row and its
+ * inspection are found through the table rather than through a hand-built card.
+ */
 function pluginCard(page: Page, name: string): Locator {
-  return daemonPanel(page).locator('.ui-card-list > .ui-surface', { has: page.locator('.ui-card-list__title', { hasText: name }) });
+  return daemonPanel(page)
+    .locator('.ui-data-table__body > .ui-surface')
+    .filter({ has: page.locator('.ui-table-two-line-cell__title', { hasText: name }) });
 }
 
 function pluginRow(page: Page, name: string): Locator {
-  return pluginCard(page, name).locator('.ui-card-list__item');
+  return pluginCard(page, name).locator('.ui-data-table__row');
+}
+
+/** The cell of the plugin's row stating what the daemon says its state is. */
+function pluginState(page: Page, name: string): Locator {
+  return pluginRow(page, name).locator('.ui-data-table__cell').filter({ has: page.locator('.ui-table-badge-list-cell') }).first();
 }
 
 /**
@@ -77,7 +90,8 @@ test('a plugin is installed only after its privileges are granted, then inspecte
 
   try {
     // --- Installed only after the grant (REQ-99) ---
-    await daemonPanel(page).getByRole('button', { name: 'Install plugin' }).click();
+    // The screen's page-level action lives in the daemon list's toolbar since batch 10 (REQ-46).
+    await daemonPanel(page).locator('.ui-screen-toolbar').getByRole('button', { name: 'Install plugin' }).click();
     const form = page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: 'Install daemon plugin' }) });
     await form.getByRole('textbox', { name: 'Plugin reference' }).fill(fixture.reference);
     // Left disabled on purpose: this fixture cannot come up, and enabling is the
@@ -97,13 +111,13 @@ test('a plugin is installed only after its privileges are granted, then inspecte
 
     // --- The state change is reflected in the list and on the daemon (REQ-111) ---
     await expect(pluginRow(page, installedAs)).toBeVisible({ timeout: 60_000 });
-    await expect(pluginRow(page, installedAs).locator('.ui-card-list__badges')).toHaveText('disabled');
+    await expect(pluginState(page, installedAs)).toHaveText('disabled');
     expect(await pluginIsInstalled(installedAs)).toBe(true);
     await expect(pluginRow(page, installedAs)).toContainText('volume driver');
 
     // --- Inspected in place ---
     await pluginRow(page, installedAs).getByRole('button', { name: 'Inspect' }).click();
-    const inspection = pluginCard(page, installedAs).locator('.ui-card-list__expanded');
+    const inspection = pluginCard(page, installedAs).locator('.ui-data-table__expanded');
     await expect(inspection).toBeVisible();
     await expect(inspection).toContainText('CAP_SYS_ADMIN');
     await expect(inspection).toContainText(installedAs);
@@ -113,7 +127,7 @@ test('a plugin is installed only after its privileges are granted, then inspecte
     // --- A state change the daemon refuses is reported, and nothing is forced ---
     await toggleTrack(pluginRow(page, installedAs)).click();
     await expect(screenContent(page).locator('.ui-error-banner').or(page.locator('.ui-toast'))).toBeVisible({ timeout: 30_000 });
-    await expect(pluginRow(page, installedAs).locator('.ui-card-list__badges')).toHaveText('disabled');
+    await expect(pluginState(page, installedAs)).toHaveText('disabled');
     expect(await pluginIsInstalled(installedAs)).toBe(true);
 
     // --- Removed, as a destructive action naming the plugin (REQ-6, REQ-111) ---

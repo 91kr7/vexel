@@ -8,10 +8,22 @@ import { ErrorReportingProvider, useErrorReporter } from '../../src/shell/servic
 import { ProgressProvider } from '../../src/shell/services/ProgressService';
 import { ToastProvider } from '../../src/ui';
 
-// The Plugins screen (plugins/specs/plugins-screen.md, REQ-98, REQ-99,
-// REQ-111). The hook is mocked so the screen's own decisions are what is under
-// test — above all the one REQ-99 turns on: nothing is installed by a single
-// click, the privileges are always shown, and only an explicit grant installs.
+/**
+ * The Plugins screen (`plugins/specs/plugins-screen.md`;
+ * `plan-docker_management_app/REQ-98`, `REQ-99`, `REQ-111`, and
+ * `plan-ui-coherence-optimisation/REQ-46`, `REQ-47`, `REQ-48`).
+ *
+ * The hook is mocked so the screen's own decisions are what is under test —
+ * above all the one REQ-99 turns on: nothing is installed by a single click, the
+ * privileges are always shown, and only an explicit grant installs.
+ *
+ * What a jsdom render can say about a row is **structural**: which column a
+ * value is stated in, how many lines a cell draws, what an empty result is made
+ * of. The boxes — the availability pill's left edge down the column (REQ-47),
+ * equal row heights, the stacked lists at the content column's width and the
+ * inspection panel's — are measured in a browser, in
+ * `e2e/plugins-row-geometry.spec.ts`. Neither replaces the other.
+ */
 
 const hook = {
   readPrivileges: vi.fn(),
@@ -95,19 +107,63 @@ function renderScreen() {
   );
 }
 
-function panel(title: string): HTMLElement {
+/** The card carrying one of the two inventories, by the section header naming it. */
+function card(title: string): HTMLElement {
   const heading = screen.getByRole('heading', { level: 2, name: title });
   return heading.closest('.ui-surface') as HTMLElement;
 }
 
+function list(title: string): HTMLElement {
+  return card(title).querySelector('.ui-data-table') as HTMLElement;
+}
+
 function rowsOf(title: string): HTMLElement[] {
-  return Array.from(panel(title).querySelectorAll<HTMLElement>('.ui-card-list__item'));
+  return Array.from(card(title).querySelectorAll<HTMLElement>('.ui-data-table__row'));
+}
+
+function headersOf(title: string): string[] {
+  return Array.from(list(title).querySelectorAll('.ui-data-table__header-cell')).map((cell) => (cell.textContent ?? '').trim());
+}
+
+function rowOf(title: string, name: string): HTMLElement {
+  const found = rowsOf(title).find((row) => (row.textContent ?? '').includes(name));
+  expect(found, `no row of the ${title} list states ${name}`).toBeDefined();
+  return found!;
 }
 
 function daemonRow(name: string): HTMLElement {
-  const row = rowsOf('Daemon plugins').find((candidate) => candidate.querySelector('.ui-card-list__title')?.textContent === name);
-  if (!row) throw new Error(`no daemon row named ${name}`);
-  return row;
+  return rowOf('Daemon plugins', name);
+}
+
+/**
+ * The cell of a row belonging to the column whose header matches `header`.
+ *
+ * Read through the header rather than by position: a value asserted this way is
+ * asserted to be **in its own column**, which is REQ-46's and REQ-47's
+ * structural claim (`data-table.md` — a row and its header share one template).
+ */
+function cellOf(title: string, row: HTMLElement, header: RegExp): HTMLElement {
+  const headers = headersOf(title);
+  const index = headers.findIndex((label) => header.test(label));
+  expect(index, `no column of the ${title} list is headed ${header} — headers are ${JSON.stringify(headers)}`).toBeGreaterThanOrEqual(0);
+  return row.querySelectorAll<HTMLElement>('.ui-data-table__cell')[index]!;
+}
+
+function textOf(element: HTMLElement): string {
+  return (element.textContent ?? '').replace(/\s+/g, ' ').trim();
+}
+
+/** The lines a cell draws, in order: a cell of these lists is the same number of lines whatever the state. */
+function linesOf(cell: HTMLElement): string[] {
+  return Array.from(
+    cell.querySelectorAll<HTMLElement>(
+      '.ui-table-two-line-cell__title, .ui-table-two-line-cell__subtitle, .ui-table-meta-cell, .ui-table-badge-list-cell',
+    ),
+  ).map(textOf);
+}
+
+function emptyStateOf(title: string): HTMLElement | null {
+  return card(title).querySelector('.ui-empty-state');
 }
 
 beforeEach(() => {
@@ -123,99 +179,250 @@ beforeEach(() => {
 
 afterEach(cleanup);
 
-describe('PluginsScreen — the two inventories (plugins/specs/plugins-screen.md)', () => {
-  // plan-docker_management_app/REQ-98 — CLI plugins listed with name, version and availability;
-  // plugins-screen.md — "the invocation (docker compose), its version and its availability as a
-  // badge reading enabled, available or unavailable"
-  it('shows each CLI plugin with its invocation, version and availability badge', () => {
+describe('PluginsScreen — the two inventories on the object list (REQ-46)', () => {
+  // plan-ui-coherence-optimisation/REQ-46 — "Plugins are listed with the object-list primitive,
+  // hand-built cards deleted"; plugins-screen.md — "two object lists, one under the other".
+  it('lists both inventories on the object list’s comfortable variant, and draws no card list', () => {
+    reading.cli = { items: [cliPlugin()] };
+    reading.daemon = { items: [daemonPlugin()] };
+    renderScreen();
+
+    expect(list('CLI plugins'), 'the CLI inventory is not on the object list').not.toBeNull();
+    expect(list('Daemon plugins'), 'the daemon inventory is not on the object list').not.toBeNull();
+    expect(list('CLI plugins').className).toMatch(/comfortable/);
+    expect(list('Daemon plugins').className).toMatch(/comfortable/);
+    expect(document.querySelectorAll('.ui-card-list'), 'the screen still draws a hand-built card list').toHaveLength(0);
+  });
+
+  // plugins-screen.md — "the Daemon list below it with the screen's only page-level action in its
+  // toolbar"; the CLI list "is read-only — those plugins are files the operator installs themselves".
+  it('states the screen’s only page-level action in the daemon list’s toolbar, and none on the CLI list', () => {
+    reading.cli = { items: [cliPlugin()] };
+    reading.daemon = { items: [daemonPlugin()] };
+    renderScreen();
+
+    const toolbars = document.querySelectorAll('.ui-screen-toolbar');
+    expect(toolbars, 'the screen draws more than one page-level toolbar').toHaveLength(1);
+    expect(card('Daemon plugins').contains(toolbars[0]!), 'the page-level action is not in the daemon list’s toolbar').toBe(true);
+    expect(within(toolbars[0] as HTMLElement).getByRole('button', { name: 'Install plugin' })).toBeInTheDocument();
+    expect(within(card('CLI plugins')).queryAllByRole('button'), 'the read-only CLI inventory offers a control').toHaveLength(0);
+  });
+
+  // plan-docker_management_app/REQ-98, plugins-screen.md — "the invocation (`docker compose`), its
+  // version, its availability as a badge … and the reason the installation refuses to run it", each
+  // in a column of its own.
+  it('states each value of a CLI plugin in a column of its own', () => {
+    reading.cli = {
+      items: [cliPlugin({ name: 'broken', command: 'docker broken', version: 'v0.36.0-desktop.1', availability: 'unavailable', unavailableReason: 'accessing plugin: permission denied' })],
+    };
+    renderScreen();
+
+    const row = rowOf('CLI plugins', 'docker broken');
+    expect(row.querySelectorAll('.ui-data-table__cell')).toHaveLength(headersOf('CLI plugins').length);
+    expect(textOf(cellOf('CLI plugins', row, /^PLUGIN$/i))).toBe('docker broken');
+    expect(textOf(cellOf('CLI plugins', row, /VERSION/i))).toBe('v0.36.0-desktop.1');
+    expect(textOf(cellOf('CLI plugins', row, /AVAILABILITY/i))).toBe('unavailable');
+    expect(textOf(cellOf('CLI plugins', row, /UNAVAILABLE$/i))).toBe('accessing plugin: permission denied');
+
+    // REQ-47 — the availability is its own column and not the tail of the version's cell, which is
+    // what made its left edge a function of that row's version string.
+    expect(textOf(cellOf('CLI plugins', row, /VERSION/i)), 'the availability still rides on the version cell').not.toContain('unavailable');
+  });
+
+  // plugins-screen.md — "every row is one line tall, whatever the plugin's state" and "a plugin the
+  // installation runs has nothing to explain, and its reason column reads '–'".
+  it('draws the same lines in a CLI column whether or not the installation refuses to run the plugin', () => {
     reading.cli = {
       items: [
         cliPlugin(),
-        cliPlugin({ name: 'sbom', command: 'docker sbom', version: 'v0.6.0', availability: 'available' }),
+        cliPlugin({ name: 'broken', command: 'docker broken', availability: 'unavailable', unavailableReason: 'accessing plugin: permission denied' }),
       ],
     };
     renderScreen();
 
-    const rows = rowsOf('CLI plugins');
-    expect(rows).toHaveLength(2);
-    expect(within(rows[0]!).getByText('docker compose')).toBeInTheDocument();
-    expect(within(rows[0]!).getByText('v2.40.0')).toBeInTheDocument();
-    expect(within(rows[0]!).getByText('enabled')).toBeInTheDocument();
-    expect(within(rows[1]!).getByText('available')).toBeInTheDocument();
-  });
+    const working = rowOf('CLI plugins', 'docker compose');
+    const refused = rowOf('CLI plugins', 'docker broken');
 
-  // plugins-screen.md — "a plugin the installation refuses to run states why on the row; a working
-  // one is a single line"
-  it('states on the row why the installation refuses to run a plugin, and says nothing extra about a working one', () => {
-    reading.cli = {
-      items: [cliPlugin(), cliPlugin({ name: 'broken', command: 'docker broken', availability: 'unavailable', unavailableReason: 'accessing plugin: permission denied' })],
-    };
-    renderScreen();
+    // The premise: the line probe really does see the lines of a cell.
+    expect(linesOf(cellOf('CLI plugins', working, /^PLUGIN$/i)), 'the line probe finds nothing in the name cell').toHaveLength(1);
 
-    const rows = rowsOf('CLI plugins');
-    expect(rows[0]!.querySelectorAll('.ui-card-list__subtitle')).toHaveLength(0);
-    expect(within(rows[1]!).getByText('accessing plugin: permission denied')).toBeInTheDocument();
-    expect(within(rows[1]!).getByText('unavailable')).toBeInTheDocument();
+    for (const header of headersOf('CLI plugins').filter((label) => label !== '')) {
+      const pattern = new RegExp(`^${header}$`, 'i');
+      expect(
+        linesOf(cellOf('CLI plugins', refused, pattern)).length,
+        `the ${header} column draws a different number of lines on a plugin the installation refuses to run`,
+      ).toBe(linesOf(cellOf('CLI plugins', working, pattern)).length);
+    }
+
+    // …and the working plugin's reason column states the column's own nothing.
+    expect(textOf(cellOf('CLI plugins', working, /UNAVAILABLE$/i))).toBe('–');
   });
 
   // plugins-screen.md — "a plugin the installation reports no version for reads 'unavailable' in the
-  // version's place, with the reason on hover"
+  // version's place, with the reason on hover".
   it('reads unavailable in the version place for a plugin the installation gives no version for', () => {
     reading.cli = { items: [cliPlugin({ version: undefined })] };
     renderScreen();
 
-    const version = rowsOf('CLI plugins')[0]!.querySelector('.ui-table-meta-cell') as HTMLElement;
-    expect(version.textContent).toBe('unavailable');
+    const version = cellOf('CLI plugins', rowOf('CLI plugins', 'docker compose'), /VERSION/i).querySelector('.ui-table-meta-cell') as HTMLElement;
+    expect(textOf(version)).toBe('unavailable');
     expect(version.getAttribute('title')).toBeTruthy();
   });
 
-  // plan-docker_management_app/REQ-99 — daemon plugins listed with name, type and enabled/disabled;
-  // plugins-screen.md — "the interface it implements in words ... and a badge reading
-  // enabled/disabled"
-  it('shows each daemon plugin with its name, its interface in words and its state', () => {
+  // plan-docker_management_app/REQ-99, plugins-screen.md — "the plugin's name, its description, the
+  // interface it implements in words …, a badge reading `enabled`/`disabled`, the switch that changes
+  // that state, and the row's actions".
+  it('states each value of a daemon plugin in a column of its own', () => {
     reading.daemon = {
-      items: [daemonPlugin(), daemonPlugin({ name: 'loki:latest', type: 'log driver', enabled: true })],
+      items: [daemonPlugin({ description: 'sshFS volume plugin for Docker' }), daemonPlugin({ name: 'loki:latest', type: 'log driver', enabled: true })],
     };
     renderScreen();
 
     const row = daemonRow('vieux/sshfs:latest');
-    expect(within(row).getByText('volume driver')).toBeInTheDocument();
-    expect(within(row).getByText('disabled')).toBeInTheDocument();
-    const enabledRow = daemonRow('loki:latest');
-    expect(within(enabledRow).getByText('log driver')).toBeInTheDocument();
-    expect(within(enabledRow).getByText('enabled')).toBeInTheDocument();
+    expect(row.querySelectorAll('.ui-data-table__cell')).toHaveLength(headersOf('Daemon plugins').length);
+    expect(textOf(cellOf('Daemon plugins', row, /^PLUGIN$/i))).toBe('vieux/sshfs:latest');
+    expect(textOf(cellOf('Daemon plugins', row, /DESCRIPTION/i))).toBe('sshFS volume plugin for Docker');
+    expect(textOf(cellOf('Daemon plugins', row, /INTERFACE/i))).toBe('volume driver');
+    expect(textOf(cellOf('Daemon plugins', row, /^STATE$/i))).toBe('disabled');
+    expect(textOf(cellOf('Daemon plugins', daemonRow('loki:latest'), /^STATE$/i))).toBe('enabled');
+
+    // plugins-screen.md — "The state is stated once per row as a badge and changed by the switch
+    // beside it": the statement and the control are two columns, not one.
+    const state = cellOf('Daemon plugins', row, /^STATE$/i);
+    expect(within(state).queryAllByRole('checkbox'), 'the state column holds the control that changes it').toHaveLength(0);
+    expect(within(cellOf('Daemon plugins', row, /ENABLED/i)).getByRole('checkbox', { name: 'Enable vieux/sshfs:latest' })).toBeInTheDocument();
   });
 
-  // plugins-screen.md — "Either panel with nothing to show says why when the reading came with a
-  // reason ... and otherwise simply states there is none."
-  it('says why a panel is empty when the reading came with a reason', () => {
-    reading.cli = { items: [], unavailableReason: 'This Docker installation does not expose a CLI plugin inventory.' };
-    reading.daemon = { items: [], unavailableReason: 'This daemon does not expose managed plugins.' };
+  // plugins-screen.md — "every row is one line tall here too: a plugin without a description costs
+  // the row no height" — the alternation the migration removed, stated structurally.
+  it('draws the same lines in a daemon column whether or not the plugin is described', () => {
+    reading.daemon = {
+      items: [daemonPlugin({ description: 'sshFS volume plugin for Docker' }), daemonPlugin({ name: 'loki:latest', type: 'log driver' })],
+    };
     renderScreen();
 
-    expect(screen.getByText('This Docker installation does not expose a CLI plugin inventory.')).toBeInTheDocument();
-    expect(screen.getByText('This daemon does not expose managed plugins.')).toBeInTheDocument();
+    const described = daemonRow('vieux/sshfs:latest');
+    const bare = daemonRow('loki:latest');
+    expect(linesOf(cellOf('Daemon plugins', described, /DESCRIPTION/i)), 'the described plugin states no description').toEqual([
+      'sshFS volume plugin for Docker',
+    ]);
+
+    for (const header of headersOf('Daemon plugins').filter((label) => label !== '' && !/^(ENABLED|ACTIONS)$/i.test(label))) {
+      const pattern = new RegExp(`^${header}$`, 'i');
+      expect(
+        linesOf(cellOf('Daemon plugins', bare, pattern)).length,
+        `the ${header} column draws a different number of lines on a plugin the daemon does not describe`,
+      ).toBe(linesOf(cellOf('Daemon plugins', described, pattern)).length);
+    }
   });
 
-  it('simply states there is none when a panel is empty for no stated reason', () => {
+  // plugins-screen.md — "The state is stated once per row as a badge": the availability of a CLI
+  // plugin and the state of a daemon one are readable **in words**, on every row, with no reliance
+  // on a colour or on a leading dot.
+  it('states availability and state in words on every row of both lists', () => {
+    reading.cli = {
+      items: [
+        cliPlugin(),
+        cliPlugin({ name: 'scout', command: 'docker scout', availability: 'available' }),
+        cliPlugin({ name: 'broken', command: 'docker broken', availability: 'unavailable' }),
+      ],
+    };
+    reading.daemon = { items: [daemonPlugin(), daemonPlugin({ name: 'loki:latest', enabled: true })] };
     renderScreen();
 
-    expect(within(panel('CLI plugins')).getByText('No CLI plugins')).toBeInTheDocument();
-    expect(within(panel('Daemon plugins')).getByText('No daemon plugins')).toBeInTheDocument();
+    for (const row of rowsOf('CLI plugins')) {
+      expect(textOf(cellOf('CLI plugins', row, /AVAILABILITY/i))).toMatch(/^(enabled|available|unavailable)$/);
+    }
+    for (const row of rowsOf('Daemon plugins')) {
+      expect(textOf(cellOf('Daemon plugins', row, /^STATE$/i))).toMatch(/^(enabled|disabled)$/);
+    }
   });
 
-  // plugins-screen.md — "A failed reading shows the failure with a retry, without hiding the panels."
-  it('shows a failed reading with a retry, keeping both panels', async () => {
+  // plugins-screen.md — "A failed reading shows the failure with a retry, without hiding the lists."
+  it('shows a failed reading with a retry, keeping both lists', async () => {
     reading.error = 'the daemon is unreachable';
     reading.cli = { items: [cliPlugin()] };
     renderScreen();
 
     expect(screen.getByText('the daemon is unreachable')).toBeInTheDocument();
-    expect(panel('CLI plugins')).toBeInTheDocument();
-    expect(panel('Daemon plugins')).toBeInTheDocument();
+    expect(list('CLI plugins')).not.toBeNull();
+    expect(card('Daemon plugins')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(hook.refresh).toHaveBeenCalled();
+  });
+});
+
+describe('PluginsScreen — an empty inventory (REQ-48)', () => {
+  // plan-ui-coherence-optimisation/REQ-48 — "`No daemon plugins` becomes a real empty state — the
+  // primitive, on a surface, with a title, one line of explanation and, where one exists, the action
+  // that resolves it — instead of bare text floating in the layout".
+  it('states an empty daemon inventory on the primitive, with a title, one line and the action that resolves it', async () => {
+    renderScreen();
+
+    const empty = emptyStateOf('Daemon plugins');
+    expect(empty, 'the empty daemon inventory is not stated on the empty-state primitive').not.toBeNull();
+    expect(textOf(empty!.querySelector('.ui-empty-state__title') as HTMLElement)).not.toBe('');
+    const description = empty!.querySelector('.ui-empty-state__description') as HTMLElement;
+    expect(description, 'the empty state states no reason at all').not.toBeNull();
+    expect(textOf(description)).not.toBe('');
+
+    // The action that resolves it, and it really does open the install.
+    const action = within(empty!).getByRole('button');
+    await userEvent.click(action);
+    expect(await screen.findByRole('heading', { name: 'Install daemon plugin' })).toBeInTheDocument();
+  });
+
+  // batch 10 — "The stated reason is content, and it must survive the change of container"; and
+  // plugins-screen.md — the empty daemon list "offers the same install as its resolving action —
+  // except where the daemon itself stated a reason, that reason being that it exposes no managed
+  // plugin at all, which installing one would not resolve".
+  it('keeps the daemon’s own reason as the explanation, and withholds the action that would not resolve it', () => {
+    reading.daemon = { items: [], unavailableReason: 'This daemon does not expose managed plugins.' };
+    renderScreen();
+
+    const empty = emptyStateOf('Daemon plugins')!;
+    expect(textOf(empty.querySelector('.ui-empty-state__description') as HTMLElement)).toBe('This daemon does not expose managed plugins.');
+    expect(within(empty).queryAllByRole('button'), 'an action is offered for a reason installing a plugin would not resolve').toHaveLength(0);
+  });
+
+  // plugins-screen.md — "the installation's … own reason where the reading came with one"; the CLI
+  // inventory "is read-only … Its empty state therefore offers no action."
+  it('keeps the installation’s own reason for the CLI inventory, and offers no action either way', () => {
+    reading.cli = { items: [], unavailableReason: 'This Docker installation does not expose a CLI plugin inventory.' };
+    renderScreen();
+
+    const empty = emptyStateOf('CLI plugins')!;
+    expect(textOf(empty.querySelector('.ui-empty-state__description') as HTMLElement)).toBe(
+      'This Docker installation does not expose a CLI plugin inventory.',
+    );
+    expect(within(empty).queryAllByRole('button'), 'the read-only inventory offers an action on its empty state').toHaveLength(0);
+
+    cleanup();
+    reading.cli = { items: [] };
+    renderScreen();
+    const generic = emptyStateOf('CLI plugins')!;
+    expect(textOf(generic.querySelector('.ui-empty-state__title') as HTMLElement)).not.toBe('');
+    expect(textOf(generic.querySelector('.ui-empty-state__description') as HTMLElement)).not.toBe('');
+    expect(within(generic).queryAllByRole('button')).toHaveLength(0);
+  });
+
+  // plugins-screen.md — an empty result is what "either list **with nothing to show**" states, which
+  // an inventory that has not been read yet is not: a reading still in flight is a different state
+  // and says so, rather than announcing an emptiness nobody has established.
+  it('does not state either inventory empty before the reading has arrived', () => {
+    reading.loaded = false;
+    renderScreen();
+
+    for (const title of ['CLI plugins', 'Daemon plugins']) {
+      const empty = emptyStateOf(title);
+      expect(empty, `${title} states no placeholder at all while the reading is in flight`).not.toBeNull();
+      expect(
+        textOf(empty!.querySelector('.ui-empty-state__title') as HTMLElement),
+        `${title} announces an empty inventory before the reading has arrived`,
+      ).not.toMatch(/^No /);
+      expect(within(empty!).queryAllByRole('button'), `${title} offers a resolving action for a state that has not been read`).toHaveLength(0);
+    }
   });
 });
 
@@ -411,35 +618,54 @@ describe('PluginsScreen — the row controls (REQ-111)', () => {
 
     expect(await screen.findByText(/failed to create shim task/)).toBeInTheDocument();
     expect(within(daemonRow('vieux/sshfs:latest')).getByRole('checkbox')).not.toBeChecked();
-    expect(within(daemonRow('vieux/sshfs:latest')).getByText('disabled')).toBeInTheDocument();
+    expect(textOf(cellOf('Daemon plugins', daemonRow('vieux/sshfs:latest'), /^STATE$/i))).toBe('disabled');
   });
 
-  // plugins-screen.md — "'Inspect' -> opens the plugin's full reading under its row ...; pressing it
-  // again closes it."
-  it('opens the full reading under the row and closes it when pressed again', async () => {
+  // plugins-screen.md — "'Inspect' -> opens the plugin's full reading under its row, on the detail
+  // panel …: its properties … and the daemon's own document below them. Pressing 'Hide' closes it".
+  it('opens the full reading under the row on the detail panel, and closes it when pressed again', async () => {
     const user = userEvent.setup();
     renderScreen();
 
     await user.click(within(daemonRow('vieux/sshfs:latest')).getByRole('button', { name: 'Inspect' }));
 
     const expanded = await waitFor(() => {
-      const region = daemonRow('vieux/sshfs:latest').parentElement?.querySelector('.ui-card-list__expanded');
+      const region = list('Daemon plugins').querySelector('.ui-data-table__expanded');
       if (!region) throw new Error('the inspection is not open');
       return region as HTMLElement;
     });
     expect(hook.inspect).toHaveBeenCalledWith('vieux/sshfs:latest');
+    expect(expanded.querySelector('.ui-detail-panel'), 'the inspection is not on the detail panel').not.toBeNull();
     expect(within(expanded).getByText('CAP_SYS_ADMIN')).toBeInTheDocument();
     expect(within(expanded).getByText('/dev/fuse')).toBeInTheDocument();
     expect(within(expanded).getByText('https://docs.docker.com/engine/extend/')).toBeInTheDocument();
 
+    // detail-panel.md — in the `opening-gesture` presentation the panel presents **no** close
+    // control of its own: the row's Inspect/Hide is the way out.
+    expect(within(expanded).queryByRole('button', { name: 'Close detail' })).not.toBeInTheDocument();
+
     await user.click(within(daemonRow('vieux/sshfs:latest')).getByRole('button', { name: 'Hide' }));
 
-    await waitFor(() =>
-      expect(daemonRow('vieux/sshfs:latest').parentElement?.querySelector('.ui-card-list__expanded')).toBeNull(),
-    );
+    await waitFor(() => expect(list('Daemon plugins').querySelector('.ui-data-table__expanded')).toBeNull());
   });
 
-  // plugins-screen.md — a failed inspection is reported, and no panel is hidden by it
+  // plugins-screen.md — "At most one inspection is open, in this list and in the interface, the
+  // detail panel holding that guarantee."
+  it('keeps at most one inspection open', async () => {
+    reading.daemon = { items: [daemonPlugin(), daemonPlugin({ name: 'loki:latest', id: 'loki-id', type: 'log driver' })] };
+    hook.inspect.mockImplementation((name: string) => Promise.resolve(inspection({ name })));
+    const user = userEvent.setup();
+    renderScreen();
+
+    await user.click(within(daemonRow('vieux/sshfs:latest')).getByRole('button', { name: 'Inspect' }));
+    await waitFor(() => expect(document.querySelectorAll('.ui-detail-panel')).toHaveLength(1));
+
+    await user.click(within(daemonRow('loki:latest')).getByRole('button', { name: 'Inspect' }));
+    await waitFor(() => expect(document.querySelector('.ui-detail-panel')?.textContent).toContain('loki:latest'));
+    expect(document.querySelectorAll('.ui-detail-panel'), 'a second inspection was opened beside the first').toHaveLength(1);
+  });
+
+  // plugins-screen.md — a failed inspection is reported, and no list is hidden by it
   it('reports a failed inspection without hiding the list', async () => {
     hook.inspect.mockRejectedValue(new Error('plugin not found'));
     const user = userEvent.setup();
@@ -499,7 +725,7 @@ describe('PluginsScreen — the row controls (REQ-111)', () => {
     expect(await screen.findByText(/plugin vieux\/sshfs:latest is enabled/)).toBeInTheDocument();
   });
 
-  // plugins-screen.md — "The CLI panel is read-only — those plugins are files the operator installs
+  // plugins-screen.md — "The CLI list is read-only — those plugins are files the operator installs
   // themselves."
   it('offers no control on a CLI plugin row', () => {
     reading.cli = { items: [cliPlugin()] };

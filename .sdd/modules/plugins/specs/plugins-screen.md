@@ -96,13 +96,25 @@ Actions:
   that list down by its own height: 1038px of CLI rows on a stock installation. The cap is the
   height containers and images already use for a long list, and it recovers 438px of that — the
   daemon card's heading lands at y=925 of a 1000px viewport at 1440×1000, and still below the fold
-  at 1280×800 (y=805) and 375×812 (y=924). The order is deliberate: a typical installation ships
-  fifteen CLI plugins and **no** daemon plugin, so leading with the daemon list would lead every
-  such screen with an empty state. Reversing it is a one-line change if that trade is judged the
-  wrong way round.
-- **The leading state dot is gone from both lists.** It said in colour what the badge column beside
-  it now says in colour and in words, on every row; the dot survived because the delivered card
-  carried the badge and the version in one trailing group, where a state column did not exist.
+  at 1280×800 (y=805) and 375×812 (y=924).
+
+  **The order was examined and kept, and the deciding argument is not the order.** The install lives
+  in the screen's toolbar, not in a row, so **the only thing an operator comes here to *do* is above
+  the fold at every viewport whatever order the lists take** — which leaves the daemon list's
+  position a question about *reading* rather than about reach. Read that way it settles itself: a
+  typical installation ships fifteen CLI plugins and **no** daemon plugin, so leading with the
+  daemon list would open the screen on an empty state, and a screen that opens on nothing reads as
+  broken. Reversing it is a one-line change, but it would be paid for by every operator on every
+  visit to buy back a scroll on the rarer act.
+- **The leading state dot is gone from both lists, and that is a decision rather than a tidy-up.**
+  It said in colour what the badge column beside it now says in colour **and** in words, on every
+  row; it survived only because the delivered card carried the badge and the version in one trailing
+  group, where a state column did not exist. Batch 7 found that `StatusDotCell`'s dot is an empty
+  element whose tone reaches the DOM as a class name setting a background — no `aria-label`, no
+  role, no hidden text — so a state carried by the dot alone is unreachable by assistive technology,
+  and left batch 19 the choice between *the dot names its tone* and *a cell carrying state alone
+  says it in words*. This screen takes the second, for its own reason (REQ-27's neighbourhood: what
+  states is drawn as a statement, and stating it twice is stating it once too often).
 
 ## Dependencies
 
