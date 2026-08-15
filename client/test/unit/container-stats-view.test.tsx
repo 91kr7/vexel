@@ -168,8 +168,9 @@ describe('ContainerStatsView (REQ-32)', () => {
     expect(new Set(markers).size).toBe(3);
   });
 
-  // container-stats-view.md — with no memory limit the sub-label says so and the meter is left unfilled
-  it('states that there is no memory limit and leaves the memory meter empty', async () => {
+  // container-stats-view.md — with no memory limit the sub-label says so and the meter is the
+  // no-measurable-maximum one (plan-ui-coherence-optimisation/REQ-64)
+  it('states that there is no memory limit and gives the memory meter the no-maximum state', async () => {
     const { container: dom } = render(<ContainerStatsView container={running} />);
     emit(sample({ memoryLimitBytes: 0, memoryPercent: 0 }));
 
@@ -179,6 +180,67 @@ describe('ContainerStatsView (REQ-32)', () => {
     const memoryMeter = screen.getAllByRole('meter').find((meter) => (meter.getAttribute('aria-label') ?? '').toLowerCase().includes('memory'));
     expect(memoryMeter).toBeDefined();
     expect(Number(memoryMeter!.getAttribute('aria-valuenow'))).toBe(0);
+    expect(memoryMeter!.getAttribute('aria-valuetext')).toMatch(/no.*maximum/i);
+  });
+
+  // container-stats-view.md — "The five tiles are built the same way: every one of them carries its
+  // label, its reading, its sub-label, a meter and a sparkline, in that order"
+  // (plan-ui-coherence-optimisation/REQ-64)
+  it('builds the five tiles the same way, each with its own meter and sparkline', async () => {
+    const { container: dom } = render(<ContainerStatsView container={running} />);
+    emit(sample(), sample({ at: '2026-08-06T10:00:02.000Z', cpuPercent: 44 }));
+
+    await waitFor(() => expect(dom.querySelectorAll('.ui-metric-tile').length).toBe(5), { timeout: 2000 });
+
+    for (const tile of dom.querySelectorAll('.ui-metric-tile')) {
+      const label = tile.querySelector('.ui-metric-tile__label')?.textContent ?? '(unnamed tile)';
+      expect(tile.querySelectorAll('[role="meter"]'), `${label} carries no meter, or more than one`).toHaveLength(1);
+      expect(tile.querySelectorAll('svg'), `${label} carries no sparkline, or more than one`).toHaveLength(1);
+      // A tile without a bar must not read as a tile whose bar failed: the meter is the last thing
+      // in the tile either way, and the sparkline under it.
+      const meter = tile.querySelector('[role="meter"]')!;
+      const sparkline = tile.querySelector('svg')!;
+      expect(
+        meter.compareDocumentPosition(sparkline) & Node.DOCUMENT_POSITION_FOLLOWING,
+        `${label} draws its sparkline above its meter`,
+      ).toBeGreaterThan(0);
+    }
+  });
+
+  // container-stats-view.md — "Three of the five metrics have no ceiling to be a percentage of, and
+  // their meter says so rather than being left out or left empty"
+  it('gives the three metrics with no ceiling the no-measurable-maximum meter', async () => {
+    const { container: dom } = render(<ContainerStatsView container={running} />);
+    emit(sample());
+
+    await waitFor(() => expect(dom.querySelectorAll('[role="meter"]').length).toBe(5), { timeout: 2000 });
+
+    const announced = [...dom.querySelectorAll('[role="meter"]')].map((meter) => ({
+      name: meter.getAttribute('aria-label'),
+      noMaximum: /no.*maximum/i.test(meter.getAttribute('aria-valuetext') ?? ''),
+    }));
+
+    expect(announced.filter((meter) => meter.noMaximum).map((meter) => meter.name).sort()).toEqual([
+      'Block I/O',
+      'Network I/O',
+      'PIDs',
+    ]);
+  });
+
+  // container-stats-view.md — "The five metric tiles in the library's `even-row` arrangement … The
+  // arrangement is stated as a shape and never as a count of columns or a width"
+  // (plan-ui-coherence-optimisation/REQ-63)
+  it('lays the tiles out in the named even-row arrangement, stating no column count of its own', async () => {
+    const { container: dom } = render(<ContainerStatsView container={running} />);
+    emit(sample());
+
+    await waitFor(() => expect(dom.querySelectorAll('.ui-metric-tile').length).toBe(5), { timeout: 2000 });
+
+    const grid = dom.querySelector('.ui-grid') as HTMLElement;
+    expect(grid, 'the tiles are not laid out by the library grid').not.toBeNull();
+    expect(grid.classList.contains('ui-grid--even-row')).toBe(true);
+    expect(grid.style.gridTemplateColumns, 'the view states a track template of its own').toBe('');
+    expect(grid.children).toHaveLength(5);
   });
 
   // container-stats-view.md — a container that is not up gets a placeholder, and no stream is opened at all

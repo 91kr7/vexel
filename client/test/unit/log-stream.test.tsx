@@ -204,6 +204,77 @@ describe('LogStream (REQ-30, REQ-31)', () => {
     expect(jump.querySelector('button')?.textContent).toBe('Jump to live');
   });
 
+  // log-stream.md — "toolbar? — controls belonging to the stream … placed on that **same** action
+  // row, before the download action" (plan-ui-coherence-optimisation/REQ-62)
+  it('places the toolbar on the same action row as the download, before it', () => {
+    const { container } = render(
+      <LogStream lines={lines(3)} downloadFileName="web-nginx-logs.txt" toolbar={<button type="button">Search</button>} />,
+    );
+
+    const rows = container.querySelectorAll('.ui-log-stream__actions');
+    expect(rows).toHaveLength(1);
+    const row = rows[0]!;
+    const search = screen.getByRole('button', { name: 'Search' });
+    const download = screen.getByRole('button', { name: 'Download' });
+    expect(row.contains(search), 'the toolbar is not on the stream\'s action row').toBe(true);
+    expect(row.contains(download), 'the download is not on the stream\'s action row').toBe(true);
+    expect(
+      search.compareDocumentPosition(download) & Node.DOCUMENT_POSITION_FOLLOWING,
+      'the download is not after the toolbar on the row',
+    ).toBeGreaterThan(0);
+  });
+
+  // log-stream.md — "the action row is rendered only when it has something to hold: with neither
+  // toolbar nor downloadFileName it is not drawn at all, so it consumes no height and no gap"
+  it('draws the action row for a toolbar alone, and not at all for neither', () => {
+    const { container, rerender } = render(<LogStream lines={lines(3)} />);
+    expect(container.querySelectorAll('.ui-log-stream__actions')).toHaveLength(0);
+
+    rerender(<LogStream lines={lines(3)} toolbar={<button type="button">Search</button>} />);
+    expect(container.querySelectorAll('.ui-log-stream__actions')).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Download' })).not.toBeInTheDocument();
+  });
+
+  // log-stream.md — "What toolbar holds changes nothing about the region: the same lines are
+  // mounted, the same buffer is downloaded"
+  it('changes nothing about the region when the toolbar slot is filled', async () => {
+    const user = userEvent.setup();
+    const buffer = lines(400);
+    const { container, rerender } = render(<LogStream lines={buffer} downloadFileName="web-nginx-logs.txt" />);
+    const withoutToolbar = container.querySelectorAll('.ui-log-stream__line').length;
+
+    rerender(
+      <LogStream lines={buffer} downloadFileName="web-nginx-logs.txt" toolbar={<button type="button">Search</button>} />,
+    );
+
+    expect(container.querySelectorAll('.ui-log-stream__line').length).toBe(withoutToolbar);
+
+    const created: Blob[] = [];
+    const originalCreate = Object.getOwnPropertyDescriptor(URL, 'createObjectURL');
+    const originalRevoke = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL');
+    Object.defineProperty(URL, 'createObjectURL', {
+      value: (blob: Blob) => {
+        created.push(blob);
+        return 'blob:log';
+      },
+      configurable: true,
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', { value: () => {}, configurable: true });
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+    try {
+      await user.click(screen.getByRole('button', { name: 'Download' }));
+
+      // The whole buffer, not the mounted window: the region is virtualised.
+      const saved = await created[0].text();
+      expect(saved.split('\n')).toHaveLength(buffer.length);
+      expect(saved.split('\n').length).toBeGreaterThan(withoutToolbar);
+    } finally {
+      if (originalCreate) Object.defineProperty(URL, 'createObjectURL', originalCreate);
+      if (originalRevoke) Object.defineProperty(URL, 'revokeObjectURL', originalRevoke);
+    }
+  });
+
   // log-stream.md — a change of activeMatchLineId brings that line into view without changing follow
   it('does not change follow when the active match changes', () => {
     const onFollowChange = vi.fn();

@@ -244,8 +244,19 @@ test('images: the detail panel offers no copy on its Id band or its raw payload,
 
   // The server-shortened `Digest` keeps exactly its delivered presentation; it never had a control
   // and is not attributable to this report (REQ-16, REQ-19).
-  const digestValue = section.locator('.ui-definition-list__row', { hasText: 'Digest' }).first().locator('.ui-definition-list__value');
-  await expectSelectable(digestValue, 'Images → detail panel, the `Digest` value');
+  //
+  // **The band is conditional since 2026-08-15.** `plan-ui-coherence-optimisation/REQ-58` stops the
+  // panel drawing `Digest` where the daemon reports the image's own id under `RepoDigests` — one
+  // value under two names — which is what a containerd-backed daemon does for an image restored
+  // from the run's own registry. So the presentation is asserted where the band exists, and its
+  // absence is reported rather than waited for: waiting for it made this test's outcome a property
+  // of the daemon's image store (`images/specs/image-detail-panel.md`).
+  const digestRow = section.locator('.ui-definition-list__row', { hasText: 'Digest' }).first();
+  if ((await digestRow.count()) > 0) {
+    await expectSelectable(digestRow.locator('.ui-definition-list__value'), 'Images → detail panel, the `Digest` value');
+  } else {
+    console.log(`[REQ-58] ${ALPINE_IMAGE} states no repository digest of its own on this daemon, so the panel draws no Digest band`);
+  }
 
   // Site 2 — the raw payload block above which the control sat (REQ-11).
   await expectCodeBlocksHoldNoControl(panel, 'Images → detail panel, raw payload', 1);
@@ -389,10 +400,22 @@ test('containers: the logs view offers no copy, and Download still delivers the 
     await detail.getByRole('tab', { name: 'Logs' }).click();
     await expect(detail.getByText('hello-from-stdout')).toBeVisible({ timeout: 20_000 });
 
-    // Site 9 — the stream's action row holds `Download` and nothing else at all (REQ-12, REQ-13).
+    // Site 9 — the stream's action row (REQ-12, REQ-13). It held `Download` and nothing else at all
+    // until 2026-08-15, when `plan-ui-coherence-optimisation/REQ-62` moved the stream's search onto
+    // it: the delivered third toolbar row was `Download` alone, and the search shares the row now
+    // (`ui-library/specs/log-stream.md`, its `toolbar` slot). What this report contracts is the
+    // absence of a **copy**, not the absence of every neighbour, so that is what is asserted —
+    // beside the clipboard check at the end of the test, which no rearrangement can satisfy by
+    // accident.
     const actions = detail.locator('.ui-log-stream__actions');
     await expect(actions).toBeVisible();
-    expect(await controlsOf(actions), 'Containers → Logs — the stream action row holds something besides `Download`').toEqual(['Download']);
+    const rowControls = await controlsOf(actions);
+    expect(rowControls, 'Containers → Logs — the stream action row lost `Download`').toContain('Download');
+    expect(
+      rowControls.filter((control) => /copy/i.test(control)),
+      'Containers → Logs — a copy affordance is back on the stream action row',
+    ).toEqual([]);
+    await expect(actions.getByRole('button', { name: /copy/i })).toHaveCount(0);
 
     // REQ-20 — verified, not assumed: the equivalent that remains still delivers the whole buffer.
     const downloadPromise = page.waitForEvent('download');

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -128,14 +130,55 @@ describe('Meter (REQ-32)', () => {
     expect(meterValueNow()).toBe(0);
   });
 
-  // metric-primitives.md — the bar stays empty when no limit is known
-  it('stays empty when the maximum is missing or not positive', () => {
+  // metric-primitives.md — a missing or non-positive maximum leaves the filled percentage at 0…
+  it('fills nothing when the maximum is missing or not positive', () => {
     const { unmount } = render(<Meter label="Memory" value={128} />);
     expect(meterValueNow()).toBe(0);
     unmount();
 
     render(<Meter label="Memory" value={128} max={0} />);
     expect(meterValueNow()).toBe(0);
+  });
+
+  // metric-primitives.md — "… the track is drawn in a distinct, deliberate treatment instead of as
+  // an empty one, so it does not read as a bar whose fill failed to render"
+  // (plan-ui-coherence-optimisation/REQ-64)
+  it('draws the track of a metric with no measurable maximum differently from an unfilled one', () => {
+    const { container: bounded, unmount } = render(<Meter label="Memory" value={0} max={512} />);
+    const boundedTrack = bounded.querySelector('.ui-meter__track')!.className;
+    unmount();
+
+    const { container: unbounded } = render(<Meter label="Net I/O" value={128} />);
+    const unboundedTrack = unbounded.querySelector('.ui-meter__track')!.className;
+
+    expect(unboundedTrack, 'a metric with no ceiling is drawn exactly as one whose fill is at zero').not.toBe(boundedTrack);
+  });
+
+  // metric-primitives.md — "with no measurable maximum … the meter additionally announces that
+  // there is no maximum to be a percentage of"
+  it('announces to assistive technology that there is no maximum, and says nothing of the sort when there is one', () => {
+    const { unmount } = render(<Meter label="Net I/O" value={128} />);
+    expect(screen.getByRole('meter').getAttribute('aria-valuetext')).toMatch(/no.*maximum/i);
+    unmount();
+
+    render(<Meter label="Memory" value={128} max={512} />);
+    expect(screen.getByRole('meter').getAttribute('aria-valuetext')).toBeNull();
+  });
+
+  // metric-primitives.md — "It occupies the same box as a filled bar, to the pixel, so a reading
+  // with a ceiling and a reading without one are the same height." jsdom performs no layout, so the
+  // box is read where it is declared: the state may repaint the track, never resize it.
+  it('gives the no-maximum state no box of its own', () => {
+    const css = readFileSync(join(process.cwd(), 'src/ui/metrics/metrics.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const declarations = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter((rule) => rule[1].trim() === '.ui-meter__track--unbounded')
+      .map((rule) => rule[2])
+      .join(' ');
+
+    expect(declarations, 'the library declares no treatment for a metric with no measurable maximum').not.toBe('');
+    expect(declarations, 'the no-maximum state resizes the track').not.toMatch(
+      /(^|;|\s)(height|min-height|max-height|padding|margin|border(-\w+)?)\s*:/,
+    );
   });
 
   // metric-primitives.md — with neither label nor reading, only the bar is rendered
