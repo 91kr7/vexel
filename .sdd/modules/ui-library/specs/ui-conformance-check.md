@@ -43,8 +43,9 @@ retired.
   with the registries migration (`plan-ui-coherence-optimisation/REQ-36`), which removed the two that
   screen held, to **11** with the builders and build-cache migration
   (`plan-ui-coherence-optimisation/REQ-39`), which removed the two the Builders & cache screen held,
-  and stands at **10** since the contexts migration (`plan-ui-coherence-optimisation/REQ-42`) removed
-  the one that screen held
+  to **10** with the contexts migration (`plan-ui-coherence-optimisation/REQ-42`), which removed the
+  one that screen held, and stands at **8** since the plugins migration
+  (`plan-ui-coherence-optimisation/REQ-46`) removed the two that screen held
 
 ### Blur policy (every stylesheet under `client/src/`, the UI library's own included)
 

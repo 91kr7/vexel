@@ -1,28 +1,26 @@
 import { useState } from 'react';
 import {
   ActionButtonGroup,
-  Badge,
+  BadgeListCell,
   Button,
   Card,
-  CardList,
   CodeViewer,
-  DefinitionList,
+  DataTable,
+  DetailPanel,
   EmptyState,
   ErrorBanner,
   FormDialog,
   FormField,
-  Grid,
   MetaCell,
-  Row,
+  ScreenToolbar,
   SectionHeader,
   Stack,
   TextField,
   Toggle,
+  TwoLineCell,
   useToast,
   type BadgeTone,
-  type CardListRowContent,
-  type DefinitionItem,
-  type StatusTone,
+  type DataTableColumn,
 } from '../ui';
 import type { CliPlugin, CliPluginAvailability, DaemonPlugin, PluginInspect } from '../data/plugins-client';
 import { usePlugins } from '../data/use-plugins';
@@ -36,25 +34,20 @@ const AVAILABILITY_TONES: Record<CliPluginAvailability, BadgeTone> = {
   unavailable: 'danger',
 };
 
-const AVAILABILITY_DOTS: Record<CliPluginAvailability, StatusTone> = {
-  enabled: 'success',
-  available: 'neutral',
-  unavailable: 'danger',
-};
+/** Why a CLI plugin's version cell is empty: the installation itself did not report one. */
+const VERSION_UNREADABLE = 'This installation reports no version for it.';
 
-function cliRow(plugin: CliPlugin): CardListRowContent {
-  return {
-    title: plugin.command,
-    status: AVAILABILITY_DOTS[plugin.availability],
-    // Only a plugin the installation refuses to run explains itself here: a
-    // working one is a single line, as the screen is drawn.
-    subtitle: plugin.unavailableReason,
-    badges: <Badge tone={AVAILABILITY_TONES[plugin.availability]}>{plugin.availability}</Badge>,
-    meta: <MetaCell unavailableReason="This installation reports no version for it.">{plugin.version}</MetaCell>,
-  };
-}
+/**
+ * What the two inventories say when they hold nothing and the reading gave no
+ * reason of its own. The reason, where there is one, is the installation's or
+ * the daemon's own words and always wins: an empty state that replaces a stated
+ * reason with a generic sentence has destroyed information
+ * (plan-ui-coherence-optimisation/REQ-48).
+ */
+const NO_CLI_PLUGINS = 'CLI plugins are executables the installation itself ships; this one exposes none to add sub-commands to `docker`.';
+const NO_DAEMON_PLUGINS = 'A daemon plugin is a driver the daemon runs — volume, network or log. Installing one from a reference adds it to this daemon.';
 
-function inspectItems(inspect: PluginInspect): DefinitionItem[] {
+function inspectItems(inspect: PluginInspect) {
   return [
     { label: 'Name', value: inspect.name },
     { label: 'Id', value: inspect.id },
@@ -75,6 +68,18 @@ function inspectItems(inspect: PluginInspect): DefinitionItem[] {
  * state — installed from a reference only after the privileges it asks for
  * have been read and granted, enabled and disabled from the row, inspected in
  * place, and removed under a destructive confirmation.
+ *
+ * **The two inventories are stacked, each at the full width of the content
+ * column, and the side-by-side pair is gone**
+ * (plan-ui-coherence-optimisation/REQ-46). Not a layout preference: the pair
+ * was a fixed `1fr 1fr` template that never collapsed, so at 375×812 each list
+ * had 157.5px to draw in and a version string ran 35.2px past its card; and the
+ * inspection is the row's own expansion, so a list's width **is** the panel's
+ * width — the pair capped the daemon plugin's raw document at 442px of a 1120px
+ * content column at 1440×1000, and at 375×812 drew it 12.5px off the left edge
+ * of the viewport, 89.5px wide. Collapsing the pair repairs the phone and
+ * leaves the panel at half the screen; stacking repairs both, and is what
+ * volumes & networks and builders & cache already do.
  */
 export function PluginsScreen() {
   const plugins = usePlugins();
@@ -187,84 +192,204 @@ export function PluginsScreen() {
     }
   }
 
-  function daemonRow(plugin: DaemonPlugin): CardListRowContent {
-    return {
-      title: plugin.name,
-      status: plugin.enabled ? 'success' : 'neutral',
-      subtitle: plugin.description,
-      badges: <Badge tone={plugin.enabled ? 'success' : 'neutral'}>{plugin.enabled ? 'enabled' : 'disabled'}</Badge>,
-      meta: (
-        <Row align="center" gap="var(--space-3)">
-          <MetaCell>{plugin.type}</MetaCell>
-          <Toggle
-            checked={plugin.enabled}
-            busy={switchingName === plugin.name}
-            ariaLabel={`${plugin.enabled ? 'Disable' : 'Enable'} ${plugin.name}`}
-            onChange={(next) => handleToggle(plugin, next)}
-          />
-          <ActionButtonGroup
-            actions={[
-              { id: 'inspect', label: inspected?.name === plugin.name ? 'Hide' : 'Inspect', onClick: () => handleInspect(plugin) },
-              { id: 'remove', label: 'Remove', destructive: true, onClick: () => handleRemove(plugin) },
-            ]}
-          />
-        </Row>
+  /**
+   * A CLI plugin's row. The version and the availability are columns, which is
+   * what makes the pill's left edge identical on every row by construction
+   * rather than by luck (plan-ui-coherence-optimisation/REQ-47): delivered, the
+   * pill sat beside the version string in one trailing group, so
+   * `v0.36.0-desktop.1` pushed that row's pill 68.6px left of its neighbours' —
+   * three distinct left edges down a column of fifteen rows.
+   *
+   * Every cell is the same number of lines whatever the plugin's state: the
+   * reason an installation refuses to run one was a second line of the card and
+   * is a column here, where its absence costs the row no height.
+   */
+  const cliColumns: DataTableColumn<CliPlugin>[] = [
+    {
+      id: 'plugin',
+      header: 'PLUGIN',
+      width: '1.4fr',
+      render: (plugin) => <TwoLineCell title={plugin.command} />,
+    },
+    {
+      id: 'version',
+      header: 'VERSION',
+      // The longest version this installation ships lays out at 132.6px, and the
+      // column is a length rather than a fraction so that it is the same track
+      // in the header and in every row.
+      width: '160px',
+      render: (plugin) => <MetaCell unavailableReason={VERSION_UNREADABLE}>{plugin.version}</MetaCell>,
+    },
+    {
+      id: 'availability',
+      header: 'AVAILABILITY',
+      // Wide enough for the widest of the three pills (63.4px measured) and for
+      // its own header, and no wider: the pill's column, not the version's
+      // leftovers.
+      width: '132px',
+      render: (plugin) => <BadgeListCell labels={[plugin.availability]} tone={AVAILABILITY_TONES[plugin.availability]} />,
+    },
+    {
+      id: 'reason',
+      header: 'WHY UNAVAILABLE',
+      width: '2fr',
+      // Only a plugin the installation refuses to run explains itself, and the
+      // column's own '–' is what a working one reads as.
+      render: (plugin) => <MetaCell>{plugin.unavailableReason}</MetaCell>,
+    },
+  ];
+
+  /**
+   * A daemon plugin's row. Same rule as above, and it catches the same defect:
+   * the plugin's description was a card line whose presence depends on the
+   * plugin, and it alternated the row height 117.1px against 95.7px down the
+   * column at all three viewports. It is a column now.
+   */
+  const daemonColumns: DataTableColumn<DaemonPlugin>[] = [
+    {
+      id: 'plugin',
+      header: 'PLUGIN',
+      width: '1.6fr',
+      render: (plugin) => <TwoLineCell title={plugin.name} />,
+    },
+    {
+      id: 'description',
+      header: 'DESCRIPTION',
+      width: '1.6fr',
+      render: (plugin) => <MetaCell>{plugin.description}</MetaCell>,
+    },
+    {
+      id: 'interface',
+      header: 'INTERFACE',
+      width: '1fr',
+      render: (plugin) => <MetaCell>{plugin.type}</MetaCell>,
+    },
+    {
+      id: 'state',
+      header: 'STATE',
+      // What the plugin *is*, in words and in a tone — a statement, drawn like
+      // a statement. What changes it is the switch in the next column, drawn
+      // like a control (plan-ui-coherence-optimisation/REQ-27).
+      width: '116px',
+      render: (plugin) => (
+        <BadgeListCell labels={[plugin.enabled ? 'enabled' : 'disabled']} tone={plugin.enabled ? 'success' : 'neutral'} />
       ),
-    };
-  }
+    },
+    {
+      id: 'switch',
+      header: 'ENABLED',
+      // The switch's own track: 34px of it, and room for the spinner it grows
+      // by while the daemon is answering, so a busy row moves no column.
+      width: '88px',
+      render: (plugin) => (
+        <Toggle
+          checked={plugin.enabled}
+          busy={switchingName === plugin.name}
+          ariaLabel={`${plugin.enabled ? 'Disable' : 'Enable'} ${plugin.name}`}
+          onChange={(next) => handleToggle(plugin, next)}
+        />
+      ),
+    },
+    {
+      id: 'actions',
+      header: 'ACTIONS',
+      // The cluster's own width and no more (plan-ui-coherence-optimisation/REQ-9),
+      // stated as a length: an intrinsic track resolves separately in the header
+      // and in every row.
+      width: '148px',
+      render: (plugin) => (
+        <ActionButtonGroup
+          actions={[
+            { id: 'inspect', label: inspected?.name === plugin.name ? 'Hide' : 'Inspect', onClick: () => handleInspect(plugin) },
+            { id: 'remove', label: 'Remove', weight: 'destructive' as const, onClick: () => handleRemove(plugin) },
+          ]}
+        />
+      ),
+    },
+  ];
 
   return (
     <Stack gap="var(--space-5)">
-      <Grid columns="1fr 1fr" gap="var(--space-5)">
-        <Card>
-          <SectionHeader title="CLI plugins" description="Sub-commands the local Docker installation ships" />
-          <Stack gap="var(--space-3)">
-            {plugins.error ? <ErrorBanner title="Could not read the plugins" detail={plugins.error} onRetry={plugins.refresh} /> : null}
-            <CardList
-              items={plugins.cli.items}
-              itemKey={(plugin) => plugin.name}
-              renderRow={cliRow}
-              emptyState={
+      <Card>
+        <SectionHeader title="CLI plugins" description="Sub-commands the local Docker installation ships" />
+        <Stack gap="var(--space-3)">
+          {plugins.error ? <ErrorBanner title="Could not read the plugins" detail={plugins.error} onRetry={plugins.refresh} /> : null}
+          <DataTable
+            variant="comfortable"
+            columns={cliColumns}
+            rows={plugins.cli.items}
+            rowKey={(plugin) => plugin.name}
+            // The read-only inventory is the longer of the two — fifteen rows,
+            // 1038px, on a stock installation — and stacking it above the list
+            // that carries every action on this screen puts that list as far
+            // down as its own height. It scrolls at the height containers and
+            // images already cap their lists at, which is the product's answer
+            // to a long list inside a screen rather than a number chosen here.
+            // What that buys is measured and stated in `plugins-screen.md`: 438px
+            // less burial, not the daemon card above the fold at every viewport.
+            maxHeight="60vh"
+            emptyState={
+              plugins.loaded ? (
                 <EmptyState
-                  title={plugins.loaded ? 'No CLI plugins' : 'Reading the installation…'}
-                  description={plugins.cli.unavailableReason ?? null}
-                 action={null} />
-              }
-            />
-          </Stack>
-        </Card>
-
-        <Card>
-          <SectionHeader
-            title="Daemon plugins"
-            description="Drivers the daemon itself runs"
-            trailing={<Button onClick={openInstall}>Install plugin</Button>}
+                  title="No CLI plugins"
+                  description={plugins.cli.unavailableReason ?? NO_CLI_PLUGINS}
+                  // Nothing here installs one: they are files the operator puts
+                  // in the installation themselves.
+                  action={null}
+                />
+              ) : (
+                <EmptyState title="Reading the installation…" description={null} action={null} />
+              )
+            }
           />
-          <Stack gap="var(--space-3)">
-            {inspectError ? <ErrorBanner title="Could not inspect the plugin" detail={inspectError} /> : null}
-            <CardList
-              items={plugins.daemon.items}
-              itemKey={(plugin) => plugin.name}
-              renderRow={daemonRow}
-              expandedKey={inspected?.name}
-              renderExpanded={() =>
-                inspected ? (
-                  <Stack gap="var(--space-3)">
-                    <DefinitionList items={inspectItems(inspected)} />
-                    <CodeViewer code={JSON.stringify(inspected.raw, null, 2)} />
-                  </Stack>
-                ) : null
-              }
-              emptyState={
+        </Stack>
+      </Card>
+
+      <Card>
+        <SectionHeader title="Daemon plugins" description="Drivers the daemon itself runs" />
+        {/* The screen's page-level action, in the toolbar under the header
+            rather than in the card's header. */}
+        <ScreenToolbar primaryAction={{ label: 'Install plugin', onClick: openInstall }} />
+        <Stack gap="var(--space-3)">
+          {inspectError ? <ErrorBanner title="Could not inspect the plugin" detail={inspectError} /> : null}
+          <DataTable
+            variant="comfortable"
+            columns={daemonColumns}
+            rows={plugins.daemon.items}
+            rowKey={(plugin) => plugin.name}
+            expandedRowKey={inspected?.name}
+            renderExpanded={() =>
+              inspected ? (
+                // The inspection is opened and closed by the row's own
+                // Inspect/Hide control, so the panel presents no second way out
+                // and `Escape` closes it from the keyboard.
+                <DetailPanel
+                  dismissal="opening-gesture"
+                  onClose={() => setInspected(undefined)}
+                  properties={inspectItems(inspected)}
+                  propertiesContentClass="long-single-line"
+                >
+                  <CodeViewer code={JSON.stringify(inspected.raw, null, 2)} />
+                </DetailPanel>
+              ) : null
+            }
+            emptyState={
+              plugins.loaded ? (
                 <EmptyState
-                  title={plugins.loaded ? 'No daemon plugins' : 'Reading the daemon…'}
-                  description={plugins.daemon.unavailableReason ?? null}
-                 action={null} />
-              }
-            />
-          </Stack>
-        </Card>
-      </Grid>
+                  title="No daemon plugins"
+                  description={plugins.daemon.unavailableReason ?? NO_DAEMON_PLUGINS}
+                  // Where the daemon states a reason of its own, it is that the
+                  // daemon exposes no managed plugin at all: installing one
+                  // would not resolve it, so no action is offered for it.
+                  action={plugins.daemon.unavailableReason ? null : <Button onClick={openInstall}>Install plugin…</Button>}
+                />
+              ) : (
+                <EmptyState title="Reading the daemon…" description={null} action={null} />
+              )
+            }
+          />
+        </Stack>
+      </Card>
 
       <FormDialog
         open={installOpen}
