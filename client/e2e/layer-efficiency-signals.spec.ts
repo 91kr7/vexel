@@ -55,7 +55,10 @@ function signalsModal(page: Page, title: RegExp) {
  * across the whole modal.
  */
 function findingsSection(modal: ReturnType<typeof signalsModal>, index: number) {
-  return modal.locator('.ui-card-list').nth(index);
+  // The three lists are the one object list (`layer-efficiency-view.md`,
+  // `plan-ui-coherence-optimisation/REQ-82`): these were the last three call sites of the retired
+  // card list, and locating them by its class would find nothing at all.
+  return modal.locator('.ui-data-table').nth(index);
 }
 
 // A small fixture image (built on the already-local `alpine:3.20`, no network pull needed) with,
@@ -139,6 +142,17 @@ test('analyzes layer efficiency and secret signals, then navigates from a findin
   const duplicatesSection = findingsSection(modal, 1);
   const secretsSection = findingsSection(modal, 2);
 
+  // plan-ui-coherence-optimisation/REQ-82 — the three lists are the object list and nothing beside
+  // it, and each fact a delivered row carried in a subtitle line is a column named in the header.
+  await expect(modal.locator('.ui-card-list'), 'a second list component is still drawn beside the object list').toHaveCount(0);
+  const headersOf = (section: ReturnType<typeof findingsSection>) => section.locator('.ui-data-table__header-cell');
+  await expect(headersOf(wasteSection)).toHaveText(['PATH', 'WRITTEN AT', 'REASON', 'SUPERSEDED AT', 'SIZE']);
+  await expect(headersOf(duplicatesSection)).toHaveText(['DUPLICATE', 'PATHS', 'WASTED']);
+  await expect(headersOf(secretsSection)).toHaveText(['PATH', 'PATTERN', 'INTRODUCED AT', 'REMOVED AT']);
+  // The fixture's second RUN layer overwrote data/waste.bin, and the reason is now a column of its
+  // own rather than a sentence in a subtitle.
+  await expect(wasteSection.getByText('overwritten').first()).toBeVisible();
+
   // plan-docker_management_app/REQ-65 — the overwritten data/waste.bin is reported wasted.
   await expect(wasteSection.getByText('data/waste.bin')).toBeVisible();
   // plan-docker_management_app/REQ-66 — dup1.bin and dup2.bin share identical content.
@@ -149,6 +163,9 @@ test('analyzes layer efficiency and secret signals, then navigates from a findin
   // counted among the wasted files above — expected, its bytes are gone too).
   await expect(secretsSection.getByText('root/.npmrc')).toBeVisible();
   await expect(secretsSection.getByText('root/.aws/credentials')).toBeVisible();
+  // layer-efficiency-view.md — `REMOVED AT` reads `still present` for the credential-looking path no
+  // later layer removed, which the delivered row stated by saying nothing (REQ-82).
+  await expect(secretsSection.locator('.ui-data-table__row', { hasText: 'root/.aws/credentials' })).toContainText('still present');
 
   // plan-docker_management_app-filesystem_browser_layout/REQ-20 — this dialog is deliberately out of
   // that report's scope: it states no height of its own and is simply the size of its content, so

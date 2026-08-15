@@ -122,6 +122,10 @@ const SURFACES = [
   '.ui-band-stack',
   '.ui-data-table',
   '.ui-data-table__header',
+  // Deleted by batch 13 (`plan-ui-coherence-optimisation/REQ-82`), its last three call sites being
+  // inside a modal rather than on any of the thirteen screens: like the two below, it is matched on
+  // the delivered build alone now, and kept here so that the comparison keeps naming what that
+  // build drew.
   '.ui-card-list',
   // Retired by batch 11 (`plan-ui-coherence-optimisation/REQ-49`): it is matched on the delivered
   // build alone now, and kept here so that the comparison keeps naming what that build drew.

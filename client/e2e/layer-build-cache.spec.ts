@@ -143,7 +143,7 @@ test('reaches the build step and the cache record behind a locally built layer, 
 
     await expect(modal).toBeHidden({ timeout: 15_000 });
     await expect(page.getByRole('heading', { level: 1, name: 'Builders & cache' })).toBeVisible({ timeout: 15_000 });
-    const selectedRecord = buildCacheCard(page).locator('.ui-card-list__item', { hasText: fixture.marker });
+    const selectedRecord = buildCacheCard(page).locator('.ui-data-table__row', { hasText: fixture.marker });
     await expect(selectedRecord).toBeVisible({ timeout: 20_000 });
     await expect(buildCacheCard(page)).toContainText('Related images & layers', { timeout: 20_000 });
   } finally {
@@ -183,7 +183,7 @@ test('reaches the images and layers a build-cache record relates to, and follows
 
     // builders-screen.md — the record's recorded build step is one of its subtitle lines, which is
     // what identifies this spec's own record among the host's.
-    const ownRecord = buildCacheCard(page).locator('.ui-card-list__item', { hasText: fixture.marker });
+    const ownRecord = buildCacheCard(page).locator('.ui-data-table__row', { hasText: fixture.marker });
     await expect(ownRecord).toBeVisible({ timeout: 20_000 });
 
     await ownRecord.click();

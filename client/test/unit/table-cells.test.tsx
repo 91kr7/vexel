@@ -177,6 +177,42 @@ describe('BadgeListCell (plan-docker_management_app/REQ-3, REQ-37)', () => {
     expect(screen.getByText('–')).toBeInTheDocument();
     expect(container.querySelectorAll('.ui-badge')).toHaveLength(0);
   });
+
+  /**
+   * table-cells.md — "a label badge shrinks and ellipsises inside its own
+   * wrapper … the `+N` badge keeps its natural width", and the invariant behind
+   * it: **no badge is ever painted over the badge next to it**
+   * (`plan-ui-coherence-optimisation/REQ-18`, `REQ-89`).
+   *
+   * The wrapper shrank and the pill inside it did not, so under width pressure a
+   * pill overflowed its wrapper and was drawn across its neighbour. Which box
+   * ends up inside which is geometry and is measured in the Playwright tree
+   * (`badge-list-pills.spec.ts`); what is checked here is the contract the
+   * geometry rests on — the tooltip that keeps the full label reachable once the
+   * pill is cut, and the two rules that decide which pill is allowed to shrink.
+   */
+  describe('a pill is bounded by its wrapper, and the count is not what gets cut', () => {
+    it('keeps each label’s full text in its own wrapper’s tooltip', () => {
+      render(<BadgeListCell labels={['linux/amd64', 'linux/arm64', 'linux/arm/v7']} />);
+
+      for (const label of ['linux/amd64', 'linux/arm64', 'linux/arm/v7']) {
+        expect(screen.getByText(label).closest('[title]')?.getAttribute('title'), `${label} is not recoverable once its pill is cut`).toBe(label);
+      }
+    });
+
+    it('bounds the pill by its wrapper and cuts it there, rather than letting it keep its natural width', () => {
+      const pill = ruleBody('.ui-table-badge-list-cell__item > .ui-badge');
+
+      expect(pill, 'the pill is not bounded by the wrapper that shrinks').toMatch(/max-width:\s*100%/);
+      expect(pill, 'the pill does not cut its own text, so it overflows the wrapper instead').toMatch(/overflow:\s*hidden/);
+      expect(pill, 'the cut is not marked, so a truncated label reads as a shorter one').toMatch(/text-overflow:\s*ellipsis/);
+    });
+
+    it('lets the label wrappers shrink while the overflow indicator keeps its natural width', () => {
+      expect(ruleBody('.ui-table-badge-list-cell__item'), 'the label wrapper does not shrink').toMatch(/flex:\s*0 1 auto/);
+      expect(ruleBody('.ui-table-badge-list-cell__item--overflow'), 'how many entries are hidden is allowed to be the part that is cut').toMatch(/flex:\s*none/);
+    });
+  });
 });
 
 // Contract: ui-library/specs/table-cells.md — <TwoLineCell title? subtitle? action? wrap? />

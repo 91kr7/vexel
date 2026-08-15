@@ -225,9 +225,13 @@ describe('the two reported call sites state no layout constant', () => {
     expect(section('Environment')).toMatch(/contentClass="long-single-line"/);
     expect(section('Labels')).toMatch(/contentClass="long-single-line"/);
     expect(section('History')).toMatch(/contentClass="free-text"/);
-    // The nine properties take the default deliberately: the first list of the file states nothing.
-    const nineProperties = text.slice(text.indexOf('<DefinitionList'), text.indexOf('CollapsibleSection'));
-    expect(nineProperties, 'the nine properties state a content class where they take the default').not.toMatch(/contentClass/);
+    // The properties take the default deliberately. They are the panel primitive's own grid now
+    // rather than a list this file lays out (plan-ui-coherence-optimisation/REQ-61), so the block
+    // read is the `properties` prop, and the default is expressed by stating no class at all.
+    const properties = text.slice(text.indexOf('properties={'), text.indexOf('<Stack'));
+    expect(properties.length, 'the image panel states no properties on the panel primitive').toBeGreaterThan(0);
+    expect(properties, 'the properties state a content class where they take the default').not.toMatch(/contentClass/);
+    expect(text, 'the image panel states a content class for its property grid where it takes the default').not.toMatch(/propertiesContentClass/);
   });
 
   it('the container panel declares long single-line for Labels and takes the default elsewhere', () => {
@@ -384,7 +388,12 @@ describe('the image panel still shows every property it showed', () => {
   const inspect = {
     id: 'sha256:d9e853e87e55f7a5b2f0f1e7c0c2b9a1d3c4e5f60718293a4b5c6d7e8f901234',
     tags: ['alpine:3.20'],
-    digest: 'sha256:d9e853e87e55',
+    // A repository digest **of its own**, deliberately: this file measures the property set, and
+    // `Digest` is drawn only when the daemon reports a digest that is not the image id
+    // (plan-ui-coherence-optimisation/REQ-58, whose two shapes are checked in
+    // `image-detail-panel.test.tsx`). The fixture's digest used to be a prefix of its own id, which
+    // after that change would have measured the set one band short of the one bug-4 certified.
+    digest: 'sha256:1f0c4a72b8e5',
     platforms: ['linux/arm64/v8'],
     sizeBytes: 4_089_446,
     createdAt: '2026-04-16T23:53:24.896953537Z',
@@ -423,7 +432,10 @@ describe('the image panel still shows every property it showed', () => {
 
     await waitFor(() => expect(screen.getByText('Exposed ports')).toBeTruthy());
     const labels = Array.from(document.querySelectorAll('.ui-definition-list__label')).map((label) => label.textContent);
-    expect(labels.slice(0, 9)).toEqual(['Id', 'Tags', 'Digest', 'Platform(s)', 'Size', 'Created', 'Entrypoint', 'Command', 'Exposed ports']);
+    // `Content size` names what this number measures — the image's own content, against the list's
+    // `DISK USAGE` (plan-ui-coherence-optimisation/REQ-59). The set, its order and its count are
+    // otherwise exactly the ones bug-4 certified.
+    expect(labels.slice(0, 9)).toEqual(['Id', 'Tags', 'Digest', 'Platform(s)', 'Content size', 'Created', 'Entrypoint', 'Command', 'Exposed ports']);
 
     const idBand = document.querySelector('.ui-definition-list__row')!;
     const idValue = idBand.querySelector('.ui-definition-list__value') as HTMLElement;

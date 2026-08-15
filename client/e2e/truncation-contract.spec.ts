@@ -551,8 +551,8 @@ for (const viewport of F4_VIEWPORTS) {
   test(`every truncating row of every screen honours the contract at ${viewport.width}×${viewport.height}`, async ({ page }) => {
     test.setTimeout(600_000);
     const at = `@${viewport.width}×${viewport.height}`;
-    let cards = 0;
     let storage = 0;
+    let others = 0;
     let colliding = 0;
     let collidingStressed = 0;
     let narrowCards = 0;
@@ -563,8 +563,8 @@ for (const viewport of F4_VIEWPORTS) {
 
       const asDrawn = await measureTruncatingRows(page);
       const stressed = await measureTruncatingRows(page, undefined, { inject: SYNTHETIC_64_CHAR_IDENTIFIER });
-      cards += asDrawn.filter((row) => row.kind === 'card').length;
       storage += asDrawn.filter((row) => row.kind === 'storage').length;
+      others += asDrawn.filter((row) => row.kind === 'other').length;
 
       const collides = (row: TruncatingRowGeometry) => row.overlaps.length > 0 || row.boxOverlaps.length > 0 || metaInkSqueezed(row) > 1;
       const collidingHere = asDrawn.filter(collides);
@@ -590,11 +590,11 @@ for (const viewport of F4_VIEWPORTS) {
     }
 
     console.log(
-      `[REQ-18] ${at} sweep total: ${cards} card row(s) and ${storage} storage row(s) over ${SCREENS.length} screens — ${colliding} colliding as drawn, ${collidingStressed} colliding under a 64-character identifier, ${narrowCards} in a card too narrow for the trailing group it holds`,
+      `[REQ-18] ${at} sweep total: ${storage} storage row(s) and ${others} further truncating row(s) over ${SCREENS.length} screens — ${colliding} colliding as drawn, ${collidingStressed} colliding under a 64-character identifier, ${narrowCards} in a card too narrow for the trailing group it holds`,
     );
     // A sweep that found nothing to measure is an environment fact, not a
     // verdict about the product, and it must not read as a pass.
-    expect(cards + storage, `${at}: this daemon put no truncating row on any screen, so the sweep asserts nothing`).toBeGreaterThan(0);
+    expect(storage + others, `${at}: this daemon put no truncating row on any screen, so the sweep asserts nothing`).toBeGreaterThan(0);
     expect(colliding, `${at}: ${colliding} row(s) drawn by the product still collide (REQ-18)`).toBe(0);
     expect(collidingStressed, `${at}: ${collidingStressed} row(s) collide once they carry a 64-character identifier (REQ-19)`).toBe(0);
 

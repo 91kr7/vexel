@@ -53,7 +53,10 @@ describe('the two-track rule is removed from the product, not merely unused', ()
   // REQ-25 — and the stylesheet that drew the property bands states no fixed track count for them.
   it('the property list stylesheet declares no fixed two-track template', () => {
     const stylesheet = source('src', 'ui', 'data', 'data-table.css');
-    const definitionListRules = stylesheet.slice(stylesheet.indexOf('.ui-definition-list'), stylesheet.indexOf('.ui-card-list'));
+    // The rules between the definition list's first one and the next component's. The upper bound
+    // used to be the card list's, which `plan-ui-coherence-optimisation/REQ-82` deleted from the
+    // stylesheet — an `indexOf` of -1 that silently widened the slice to the whole file.
+    const definitionListRules = stylesheet.slice(stylesheet.indexOf('.ui-definition-list'), stylesheet.indexOf('.ui-code-viewer'));
     expect(definitionListRules, 'a definition-list rule still states a track template of its own').not.toMatch(/grid-template-columns/);
   });
 });

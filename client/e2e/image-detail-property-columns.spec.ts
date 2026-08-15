@@ -309,12 +309,12 @@ test('arranges Environment by its own class and keeps History one entry per line
   expectNothingClippedOrOverlapped(environmentGeometry, environmentEvidence);
   expectNothingClippedOrOverlapped(historyGeometry, historyEvidence);
 
-  // `alpine:3.20` declares no labels of its own, so its Labels section is empty: it is opened and
-  // stated to be so, rather than measured as though it held bands (REQ-40). Its arrangement is
-  // measured on the container panel, whose fixture carries labels of the suite's own.
-  const labels = collapsibleSection(page, 'Labels');
-  await expect(labels, 'the Labels section is not on the panel').toBeVisible();
-  await labels.locator('.ui-collapsible-section__header').click();
+  // `alpine:3.20` declares no labels of its own, so the panel draws **no** Labels section at all
+  // (`plan-ui-coherence-optimisation/REQ-60`): a section with a count of `0` is absent rather than
+  // present-and-empty. **Inverted, not deleted** — this asserted the empty section was visible and
+  // opened it, which is what the delivered build drew until 2026-08-15. Its arrangement is measured
+  // on the container panel, whose fixture carries labels of the suite's own.
+  await expect(collapsibleSection(page, 'Labels'), 'an empty Labels section is still drawn on the panel').toHaveCount(0);
 });
 
 // (j) REQ-12, REQ-7 — the narrow end, where a columns fix breaks and nobody looks: below the

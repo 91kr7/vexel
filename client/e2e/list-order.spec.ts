@@ -416,7 +416,9 @@ test.describe('Builders', () => {
       // no builder image is needed and no registry is reached.
       for (const name of names) await execFileAsync('docker', ['buildx', 'create', '--name', name, '--driver', 'docker-container']);
       await page.reload();
-      const rows = panelTitled(page, 'buildx builders').locator('.ui-card-list__item');
+      // The builders panel is the object list since `plan-ui-coherence-optimisation/REQ-39`, and
+      // the card list it replaced was deleted at REQ-82: a row is a row of the object list.
+      const rows = panelTitled(page, 'buildx builders').locator('.ui-data-table__row');
 
       const shown = await settledOrder(rows, names);
 

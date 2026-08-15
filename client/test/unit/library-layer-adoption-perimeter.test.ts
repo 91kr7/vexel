@@ -32,11 +32,16 @@ const clientRoot = process.cwd();
  * - batch 10 — plugins (`REQ-46` … `REQ-48`)
  * - batch 11 — compose (`REQ-49` … `REQ-51`)
  * - batch 12 — swarm (`REQ-52` … `REQ-56`)
+ * - batch 13 — images and layers: the detail panel takes the primitive's own property grid
+ *   (`REQ-61`) and the efficiency view's three lists take the object list, which is what let the
+ *   retired list component be deleted (`REQ-82`)
  */
 const MIGRATED_FILES = [
   'src/builders/BuildersScreen.tsx',
   'src/compose/ComposeScreen.tsx',
   'src/contexts/ContextsScreen.tsx',
+  'src/images/ImageDetailPanel.tsx',
+  'src/images/LayerEfficiencyView.tsx',
   'src/plugins/PluginsScreen.tsx',
   'src/registries/RegistriesScreen.tsx',
   'src/swarm/SwarmConfigsStacksPanel.tsx',
@@ -71,12 +76,15 @@ describe('the library layer is consumed only by the screens migrated onto it (RE
   // batch 6; volumes, networks, the registries screen's two lists, the builders screen's two
   // (`REQ-39`), the contexts list (`REQ-42`), the plugins screen's two (`REQ-46`) and the compose
   // screen's project list with the nested service list inside every row (`REQ-49`) are the ones that
-  // have
+  // have — and, last, the efficiency view's three findings lists (`REQ-82`), which were the retired
+  // list component's final call sites and the reason a programme migrating "the nine list screens"
+  // would have left it alive: this is a `DataTable` screen
   it('has the comfortable list asked for by the migrated lists and nowhere else', () => {
     expect(featureCallSites(/variant=(?:"comfortable"|\{'comfortable'\}|\{"comfortable"\})/)).toEqual([
       'src/builders/BuildersScreen.tsx',
       'src/compose/ComposeScreen.tsx',
       'src/contexts/ContextsScreen.tsx',
+      'src/images/LayerEfficiencyView.tsx',
       'src/plugins/PluginsScreen.tsx',
       'src/registries/RegistriesScreen.tsx',
       'src/swarm/SwarmConfigsStacksPanel.tsx',
@@ -122,12 +130,14 @@ describe('the library layer is consumed only by the screens migrated onto it (RE
   // build-cache record's panel is the third (builders-screen.md, REQ-39), the context's the fourth,
   // where it is the route out of the endpoint the row truncates (REQ-21, REQ-42), the daemon
   // plugin's inspection the fifth (plugins-screen.md, REQ-46), the compose project's the sixth
-  // (compose-screen.md, REQ-50) and swarm's four panels the last of the migrations (REQ-55)
+  // (compose-screen.md, REQ-50), swarm's four panels the last of the list migrations (REQ-55) and
+  // the image detail panel the last of all (REQ-61)
   it('has the panel properties stated through the new props by the migrated panels', () => {
     const panelsWithProperties = [
       'src/builders/BuildersScreen.tsx',
       'src/compose/ComposeScreen.tsx',
       'src/contexts/ContextsScreen.tsx',
+      'src/images/ImageDetailPanel.tsx',
       'src/plugins/PluginsScreen.tsx',
       'src/swarm/SwarmConfigsStacksPanel.tsx',
       'src/swarm/SwarmNodesPanel.tsx',
@@ -137,7 +147,10 @@ describe('the library layer is consumed only by the screens migrated onto it (RE
       'src/volumes-networks/VolumesPanel.tsx',
     ];
     expect(featureCallSites(/\bproperties=\{/)).toEqual(panelsWithProperties);
-    expect(featureCallSites(/\bpropertiesContentClass=/)).toEqual(panelsWithProperties);
+    // The image panel is the one that states **no** content class: its properties take the default
+    // short scalar, which is how the certified column rule resolves exactly as it did
+    // (plan-docker_management_app-detail_property_columns, `image-detail-panel.md`).
+    expect(featureCallSites(/\bpropertiesContentClass=/)).toEqual(panelsWithProperties.filter((file) => file !== 'src/images/ImageDetailPanel.tsx'));
   });
 
   // action-button-group.md — an action's weight is the only thing a caller says about it. The

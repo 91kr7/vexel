@@ -70,8 +70,15 @@ export interface TruncatingRowGeometry {
   label: string;
   /** The whole row's text, as the row really carries it: what a caller matches a row of its own on. */
   rowText: string;
-  /** `card` for a card row of the retired card list, `storage` for a `StorageUsageRow`, `other` for any further adopter. */
-  kind: 'card' | 'storage' | 'other';
+  /**
+   * `storage` for a `StorageUsageRow`, `other` for any further adopter.
+   *
+   * The `card` kind left with the component that produced it: the retired card
+   * list was the only other carrier of `.ui-truncating-row`
+   * (`plan-ui-coherence-optimisation/REQ-82`), and a classification testing for a
+   * class nothing emits reports zero of something rather than nothing.
+   */
+  kind: 'storage' | 'other';
   rowBox: Rect;
   /**
    * The width the row actually offers its children: its border box less its own
@@ -266,7 +273,7 @@ export async function measureTruncatingRows(page: Page, within?: Locator, option
       return {
         label,
         rowText,
-        kind: row.classList.contains('ui-card-list__item') ? 'card' : row.classList.contains('ui-storage-usage-row') ? 'storage' : 'other',
+        kind: row.classList.contains('ui-storage-usage-row') ? 'storage' : 'other',
         rowBox,
         rowContentWidth,
         runBox,

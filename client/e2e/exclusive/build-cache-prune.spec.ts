@@ -67,7 +67,7 @@ async function ownCacheRecordIds(builderName: string): Promise<Set<string>> {
 }
 
 function builderRow(page: Page, name: string) {
-  return page.locator('.ui-card-list > .ui-surface', { has: page.locator('.ui-card-list__item', { hasText: name }) });
+  return page.locator('.ui-data-table__row', { hasText: name });
 }
 
 /** Scopes assertions to the screen's own content, excluding the nav rail — whose "Builders & cache" label itself contains the substring "Build". */
@@ -104,7 +104,9 @@ test('pruning the build cache reclaims space and reports it, after confirmation'
     const row = builderRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
 
-    await row.getByRole('button', { name: 'use' }).click();
+    // `Use` is an action of the row's own cluster since the builders migration
+    // (`plan-ui-coherence-optimisation/REQ-39`, REQ-27: bare text is never a control).
+    await row.getByRole('button', { name: 'Use', exact: true }).click();
     // The switch has to have landed before anything is pruned: prune reclaims the active
     // builder's cache, and the "in use" badge is how the screen says which builder that is.
     await expect(row.getByText('in use', { exact: true })).toBeVisible({ timeout: 15_000 });
@@ -119,7 +121,7 @@ test('pruning the build cache reclaims space and reports it, after confirmation'
     // The screen must be showing that cache before the operator prunes it (builders-screen.md,
     // "Shows: every build-cache record").
     const cacheCard = screenContent(page).locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Build cache' }) });
-    await expect(cacheCard.locator('.ui-card-list__item').first()).toBeVisible({ timeout: 15_000 });
+    await expect(cacheCard.locator('.ui-data-table__row').first()).toBeVisible({ timeout: 15_000 });
 
     await cacheCard.getByRole('button', { name: 'Prune' }).click();
     const confirmHeading = page.getByRole('heading', { name: /^Confirm:/ });
