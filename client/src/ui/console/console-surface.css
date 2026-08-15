@@ -65,6 +65,15 @@
   color: var(--color-text-muted);
 }
 
+/* The line wraps at the token boundaries it carries (`token-wrap.tsx`): a daemon
+   body is one line with no spaces in it, so without them the only wrap the
+   browser can find is an arbitrary one at the edge of the box, in the middle of
+   a value. `overflow-wrap` is the last resort and nothing else — it applies only
+   to a token that cannot be placed on a line of its own at any width, which is
+   the one case where staying inside the surface and staying whole cannot both
+   hold. `anywhere` rather than `break-word` so that such a token does not
+   dictate the block's minimum width, which is what it did before this rule
+   existed and what keeps the payload inside a narrow surface. */
 .ui-console-surface__line {
   margin: 0;
   white-space: pre-wrap;

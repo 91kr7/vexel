@@ -3,6 +3,7 @@ import { Badge, type BadgeTone } from '../controls/Badge';
 import { Button } from '../controls/Button';
 import { ScrollArea } from '../glass/ScrollArea';
 import { Spinner } from '../feedback/Spinner';
+import { TokenWrappedText } from '../data/token-wrap';
 import './console-surface.css';
 
 export interface ConsoleEntryLine {
@@ -149,7 +150,7 @@ export function ConsoleSurface({
                     line.stream === 'stderr' ? 'ui-console-surface__line ui-console-surface__line--stderr' : 'ui-console-surface__line'
                   }
                 >
-                  {line.text}
+                  <TokenWrappedText text={line.text} />
                 </p>
               ))}
             </div>

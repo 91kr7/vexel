@@ -460,8 +460,13 @@
   font-family: var(--font-family-mono);
   font-size: var(--font-size-xs);
   color: var(--color-text-wash-strong);
+  /* Wrapping as on `.ui-console-surface__line`: the block breaks at the token
+     boundaries the payload carries (`token-wrap.tsx`), and this declaration is
+     the last resort for a token no line can hold. Written as `overflow-wrap`,
+     which is what the deprecated `word-break: break-word` it replaces was
+     defined to mean, so the block's minimum width is unchanged. */
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .ui-privilege-list {
