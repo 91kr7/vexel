@@ -39,18 +39,28 @@ component insists on it rather than rendering whichever subset a caller happened
   container the product places it in, at 1440×1000, 1280×800 and 375×812.
 - **It costs no width where the container gives the box one, and 2px where the container does not.**
   `box-sizing: border-box` is global, but it absorbs a border only into a width that has been
-  specified; on an **auto-width, shrink-to-fit** box the width is derived from the content and the
-  hairline adds its 2px outside it. Both cases are real here: a box filling a grid track, a flex item
-  with `min-width: 0`, or a block in normal flow is unaffected — which is every container but one —
-  while a box whose column resolves shrink-to-fit grows by 2px. Stated as an absolute ("the surface
-  costs no width") this was **false**, and it was measured false on the first narrow column anybody
-  pointed a harness at: `ComposeScreen.tsx:222` (`48×165.56 → 50×167.56`) and `:237`
+  specified; on an **auto-width** box the width is derived from the content and the hairline adds its
+  2px outside it. A box filling a grid track, a flex item with `min-width: 0`, or a block in normal
+  flow is unaffected — which is every container the component is placed in today. Stated as an
+  absolute ("the surface costs no width") the claim was **false**, and it was measured false on
+  exactly two boxes: `ComposeScreen.tsx:222` (`48×165.56 → 50×167.56`) and `:237`
   (`48×142.38 → 50×144.38`) at 375×812, `x` unchanged.
-- Those two boxes are **48px wide**, which is exactly `2 × --space-6` — the component's own padding
-  around a content box of **zero** width, with the title wrapping one character per line. The 2px is
-  therefore a rounding error on a container that is already broken, and the fault is the caller's
-  fixed `Grid` template, not this component's border (see the batch-11 pin). Narrowing the hairline
-  to keep a width claim true about a 48px box would be cosmetics over a fracture.
+- **The mechanism first recorded for those two boxes was wrong, and this is the corrected reading.**
+  Batch 5 attributed the 48px to the caller's `1fr` column resolving **shrink-to-fit**. Batch 11
+  measured the delivered build again on the same fixture: at 375×812 that `Grid` laid its tracks at
+  **210px and 105px** of a 335px content column — a definite width, not shrink-to-fit — and the
+  48px was the empty state's **own auto-width box inside that 105px card**, `2 × --space-6` of
+  padding around a content box of **zero** width, with the title painting 64.05px wide at `x=276`
+  while the box itself sat at `x=283`, i.e. **overflowing its own box on both sides**. So the number
+  held and the explanation did not: the two boxes were narrow because their card was narrow, not
+  because a grid track was sized by them.
+- **The exception is therefore historical, not standing.** No other call site in the product has ever
+  been observed in it; the case was inferred from these two boxes alone, and batch 11 removed both
+  with the `Grid` that made their card 105px wide. Every empty state in the product is now given its
+  width by its container, and the border costs none of it. Keep the sentence, not as a rule to design
+  around, but so that a future measurement of `+2px` is recognised as this box shape returning — and
+  so that nobody chases the hairline again: narrowing it to keep a width claim true about a 48px box
+  would have been cosmetics over a fracture in the container.
 - **The explanation and the resolving action are required props, not optional ones.** This is the
   whole of the component's insistence and the reason it is written this way: the three empty-state
   treatments the product shipped were never three components — they were this one rendering

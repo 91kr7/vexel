@@ -113,7 +113,6 @@ export { DefinitionList, type DefinitionListProps, type DefinitionItem } from '.
 export { PrivilegeList, type PrivilegeListProps, type PrivilegeItem } from './data/PrivilegeList';
 export { CodeViewer, type CodeViewerProps } from './data/CodeViewer';
 export { CodeEditor, type CodeEditorProps } from './data/CodeEditor';
-export { GroupedRowsPanel, type GroupedRowsPanelProps, type GroupedRowsPanelGroup, type GroupedRowsPanelRow } from './data/GroupedRowsPanel';
 export { TextViewer, type TextViewerProps, HexDumpViewer, type HexDumpViewerProps } from './data/ContentViewer';
 export { LogStream, type LogStreamProps, type LogStreamLine } from './data/LogStream';
 export { CardList, type CardListProps, type CardListRowContent, type CardListRowSelection } from './data/CardList';
