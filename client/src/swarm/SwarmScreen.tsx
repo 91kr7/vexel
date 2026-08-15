@@ -1,10 +1,10 @@
 import { useCallback, useState } from 'react';
 import {
   Button,
+  EmptyState,
   ErrorBanner,
   FormDialog,
   FormField,
-  QuadPanelLayout,
   RevealableValue,
   Row,
   SecretField,
@@ -25,25 +25,33 @@ import { SwarmNodesPanel } from './SwarmNodesPanel';
 import { SwarmSecretsPanel } from './SwarmSecretsPanel';
 import { SwarmServicesPanel } from './SwarmServicesPanel';
 
-function stateTitle(state: SwarmState | undefined): string {
-  if (!state) return 'Reading swarm state…';
-  if (state.role === 'inactive') return 'Swarm inactive';
+/**
+ * The one statement of the condition, and what it takes to leave it. Every fact
+ * the daemon's own sentence carries is here — the two ways in, and what appears
+ * once one of them is taken — with the condition itself said by the title alone
+ * (plan-ui-coherence-optimisation/REQ-52).
+ */
+const NOT_IN_A_SWARM =
+  'Initialise one to make this daemon the first manager of a new swarm, or join an existing one with a token from one of its managers. Its nodes, services, stacks, secrets and configs are then listed here.';
+
+/** Why a worker shows no inventory, and why nothing on this screen resolves it. */
+const NOT_A_MANAGER =
+  'Only a manager answers for the cluster: its nodes, services, stacks, secrets and configs are read from a manager of this swarm, or from this daemon once a manager promotes it.';
+
+function stateTitle(state: SwarmState): string {
   if (state.localNodeState === 'active') return 'Swarm active';
   return `Swarm ${state.localNodeState}`;
 }
 
-function stateTone(state: SwarmState | undefined): StatusTone {
-  if (!state || state.role === 'inactive') return 'neutral';
+function stateTone(state: SwarmState): StatusTone {
   if (state.localNodeState !== 'active' || state.error) return 'warning';
   if (state.manager && state.raft.status === 'degraded') return 'warning';
   return 'success';
 }
 
-/** The mockup's monospace line under the state, saying what this daemon is. */
-function stateFacts(state: SwarmState | undefined): string[] {
-  if (!state) return [];
-  if (state.role === 'inactive') return ['not part of a swarm'];
-  if (!state.manager) return ['worker', 'only a manager can read the cluster'];
+/** The monospace line under the state, saying what this daemon is in the cluster. */
+function stateFacts(state: SwarmState): string[] {
+  if (!state.manager) return ['worker'];
   return [
     'manager',
     state.clusterId ? `cluster id ${state.clusterId.slice(0, 12)}` : 'cluster id unknown',
@@ -53,13 +61,27 @@ function stateFacts(state: SwarmState | undefined): string[] {
 }
 
 /**
- * The Swarm screen (REQ-79 to REQ-84): the cluster state with init / join /
- * leave and its join tokens, above the four panels of the mockup — nodes,
- * services & tasks, secrets, configs & stacks.
+ * The Swarm screen (REQ-79 to REQ-84): the cluster's state with join tokens and
+ * leave, above the inventories of the cluster — nodes, services & tasks,
+ * secrets, configs and stacks.
  *
- * The daemon not being a swarm manager is the common case, not an error: the
- * bar says what the daemon is and offers the way in, and every panel carries
- * the reason it has nothing to list.
+ * **One fact is stated once** (plan-ui-coherence-optimisation/REQ-52, REQ-53).
+ * The delivered screen said "this daemon is not part of a swarm" six times: in
+ * the state bar's own facts, and in the empty state of each of the five lists —
+ * while the two actions that resolve it sat in the bar, 239px above the first
+ * repetition and 883px above the last, at 1440×1000. Now the condition is one
+ * empty state, on one surface, carrying `Initialise a swarm` and `Join an
+ * existing one` **in it**; the state bar is drawn only where there is a state to
+ * qualify, and the panels only where there is a cluster to read, so neither can
+ * repeat it. The same holds for a worker, whose one statement replaces five
+ * copies of the daemon's "not a manager" reason.
+ *
+ * **The inventories are stacked, each at the content column's full width**
+ * (REQ-55). The two-by-two grid the screen shipped with capped a service's
+ * reveal at 482px of a 1120px column at 1440×1000 and 362px at 1280×800 — a
+ * one-column property grid, measured, where every migrated screen's panel
+ * carries two — which is REQ-23's own constraint and the argument batches 6, 10
+ * and 11 each recorded when their side-by-side pairs were deleted.
  *
  * The screen carries no deploy affordance, no compose-file path input and no
  * compose editor (departure Three, REQ-83).
@@ -87,6 +109,7 @@ export function SwarmScreen() {
 
   const state = swarm.state;
   const canManage = state?.manager === true;
+  const inSwarm = state !== undefined && state.role !== 'inactive';
 
   const loadTokens = useCallback(async () => {
     setTokensLoading(true);
@@ -204,71 +227,83 @@ export function SwarmScreen() {
     }
   }
 
-  const inSwarm = state !== undefined && state.role !== 'inactive';
+  /**
+   * What the screen holds: the cluster, or the one statement of why there is no
+   * cluster to hold. Never both, and never the statement more than once — the
+   * reason each panel used to carry its own copy is that each was asked to
+   * decide on its own.
+   */
+  function clusterView() {
+    if (!swarm.loaded) return <EmptyState title="Reading the swarm state…" description={null} action={null} />;
+    if (!inSwarm) {
+      return (
+        <EmptyState
+          title="This daemon is not part of a swarm"
+          description={NOT_IN_A_SWARM}
+          action={
+            <Row gap="var(--space-2)" align="center" wrap>
+              <Button variant="primary" onClick={openInit}>
+                Initialise a swarm
+              </Button>
+              <Button onClick={openJoin}>Join an existing one</Button>
+            </Row>
+          }
+        />
+      );
+    }
+    if (!canManage) {
+      // The daemon's own words where it gave any, this screen's where it did
+      // not — a reading that states a reason is never replaced by a generic one.
+      return <EmptyState title="No cluster to read from here" description={state?.unavailableReason ?? NOT_A_MANAGER} action={null} />;
+    }
+    return (
+      <Stack gap="var(--space-5)">
+        <SwarmNodesPanel nodes={swarm.nodes} onUpdate={swarm.updateNode} onRemove={swarm.removeNode} />
+        <SwarmServicesPanel
+          services={swarm.services}
+          onCreate={swarm.createService}
+          onUpdate={swarm.updateService}
+          onRemove={swarm.removeService}
+        />
+        <SwarmSecretsPanel
+          secrets={swarm.secrets}
+          onCreate={(input) => swarm.createData('secret', input)}
+          onRemove={(id) => swarm.removeData('secret', id)}
+        />
+        <SwarmConfigsStacksPanel
+          configs={swarm.configs}
+          stacks={swarm.stacks}
+          onCreateConfig={(input) => swarm.createData('config', input)}
+          onRemoveConfig={(id) => swarm.removeData('config', id)}
+          onRemoveStack={swarm.removeStack}
+        />
+      </Stack>
+    );
+  }
 
   return (
     <Stack gap="var(--space-5)">
       {swarm.error ? <ErrorBanner title="Could not read the swarm state" detail={swarm.error} onRetry={swarm.refresh} /> : null}
 
-      <StateSummaryBar
-        tone={stateTone(state)}
-        title={stateTitle(state)}
-        facts={stateFacts(state)}
-        actions={
-          <Row gap="var(--space-2)" align="center" wrap>
-            {!inSwarm && swarm.loaded ? (
-              <>
-                <Button variant="primary" onClick={openInit}>
-                  Initialise swarm
-                </Button>
-                <Button onClick={openJoin}>Join swarm</Button>
-              </>
-            ) : null}
-            {inSwarm && canManage ? <Button onClick={openTokens}>Join tokens</Button> : null}
-            {inSwarm ? (
+      {/* The bar qualifies a state; a daemon outside a swarm has none to
+          qualify, and its condition is stated once below instead. */}
+      {inSwarm && state ? (
+        <StateSummaryBar
+          tone={stateTone(state)}
+          title={stateTitle(state)}
+          facts={stateFacts(state)}
+          actions={
+            <Row gap="var(--space-2)" align="center" wrap>
+              {canManage ? <Button onClick={openTokens}>Join tokens</Button> : null}
               <Button variant="destructive" onClick={handleLeave}>
                 Leave swarm
               </Button>
-            ) : null}
-          </Row>
-        }
-      />
+            </Row>
+          }
+        />
+      ) : null}
 
-      <QuadPanelLayout
-        topStart={
-          <SwarmNodesPanel nodes={swarm.nodes} loaded={swarm.loaded} canManage={canManage} onUpdate={swarm.updateNode} onRemove={swarm.removeNode} />
-        }
-        topEnd={
-          <SwarmServicesPanel
-            services={swarm.services}
-            loaded={swarm.loaded}
-            canManage={canManage}
-            onCreate={swarm.createService}
-            onUpdate={swarm.updateService}
-            onRemove={swarm.removeService}
-          />
-        }
-        bottomStart={
-          <SwarmSecretsPanel
-            secrets={swarm.secrets}
-            loaded={swarm.loaded}
-            canManage={canManage}
-            onCreate={(input) => swarm.createData('secret', input)}
-            onRemove={(id) => swarm.removeData('secret', id)}
-          />
-        }
-        bottomEnd={
-          <SwarmConfigsStacksPanel
-            configs={swarm.configs}
-            stacks={swarm.stacks}
-            loaded={swarm.loaded}
-            canManage={canManage}
-            onCreateConfig={(input) => swarm.createData('config', input)}
-            onRemoveConfig={(id) => swarm.removeData('config', id)}
-            onRemoveStack={swarm.removeStack}
-          />
-        }
-      />
+      {clusterView()}
 
       <FormDialog
         open={initOpen}

@@ -44,8 +44,11 @@ retired.
   screen held, to **11** with the builders and build-cache migration
   (`plan-ui-coherence-optimisation/REQ-39`), which removed the two the Builders & cache screen held,
   to **10** with the contexts migration (`plan-ui-coherence-optimisation/REQ-42`), which removed the
-  one that screen held, and stands at **8** since the plugins migration
-  (`plan-ui-coherence-optimisation/REQ-46`) removed the two that screen held
+  one that screen held, to **8** with the plugins migration
+  (`plan-ui-coherence-optimisation/REQ-46`), which removed the two that screen held, and stands at
+  **3** since the swarm migration (`plan-ui-coherence-optimisation/REQ-55`) removed the **five** the
+  four swarm panels held — the largest single drop of the programme. The three left are the layer
+  efficiency view's, which go with the component itself
 
 ### Blur policy (every stylesheet under `client/src/`, the UI library's own included)
 
