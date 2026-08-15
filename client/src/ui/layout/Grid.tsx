@@ -7,8 +7,12 @@ import './layout.css';
  *
  * `pair` — two equal columns side by side, one column when the grid's own box
  * is too narrow to carry both.
+ *
+ * `even-row` — one track per child, all equal, on a single row: the track count
+ * is the child count, so nothing can be orphaned onto a row of its own. One
+ * stacked column below the phone breakpoint.
  */
-export type GridArrangement = 'pair';
+export type GridArrangement = 'pair' | 'even-row';
 
 export interface GridProps {
   children?: ReactNode;

@@ -113,6 +113,13 @@ Actions:
   the editing form is not part of that arrangement: it is exactly as delivered.
 - The save action is disabled while there is nothing to save (no field differs from the value edit
   mode was seeded with) and while a save is in flight.
+- **The panel is the primitive, and the three things it must not lose are named**
+  (`plan-ui-coherence-optimisation/REQ-65`): the seven tabs above, the two-column property grid
+  above, and the raw payload as real selectable text. What its Logs and Stats tabs draw was
+  rearranged by REQ-62…REQ-64 (`container-logs-view.md`, `container-stats-view.md`); the panel itself
+  is unchanged by that, and so are the certified behaviours reaching into it — bug-1's progress
+  dialog on a recreate, bug-4's rule that two property sections of the same measured width show the
+  same number of columns, and bug-5's absence of every copy affordance.
 
 ## Dependencies
 
@@ -154,3 +161,4 @@ Actions:
 - plan-docker_management_app-detail_property_columns/REQ-31
 - plan-docker_management_app-detail_property_columns/REQ-34
 - plan-ui-coherence-optimisation/REQ-60
+- plan-ui-coherence-optimisation/REQ-65

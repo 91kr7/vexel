@@ -28,12 +28,16 @@ window of recent samples.
     where activating leads; ignored when `onActivate` is absent.
 - `<Meter label? value max? reading? tone? ariaLabel? />`
   - draws a bar filled for `value / max`, clamped to the `0…1` range.
-  - `max` missing or not positive → the bar stays empty (no limit is known); `value` negative or
-    not finite → treated as `0`.
+  - `max` missing or not positive → **the metric has no measurable maximum**, and the bar says so:
+    the track is drawn in a distinct, deliberate treatment instead of as an empty one, so it does not
+    read as a bar whose fill failed to render. It occupies the same box as a filled bar, to the pixel,
+    so a reading with a ceiling and a reading without one are the same height.
+  - `value` negative or not finite → treated as `0`.
   - `label` (left) and `reading` (right, e.g. `"128MB / 512MB"`) form the line above the bar; with
     neither, only the bar is rendered.
   - exposes its filled percentage to assistive technology as a meter with an accessible name from
-    `ariaLabel`, falling back to `label`.
+    `ariaLabel`, falling back to `label`; with no measurable maximum the percentage stays `0` and the
+    meter additionally announces that there is no maximum to be a percentage of.
 - `<Sparkline values max? tone? height? ariaLabel? emptyLabel? />`
   - `values` — the sample window, oldest first; the caller owns the window's size.
   - draws one line (with a tinted area beneath it) spanning the full width, the horizontal step
@@ -51,6 +55,10 @@ window of recent samples.
   timer, and no transition — a live metric costs one repaint per sample.
 - Every color, radius and spacing comes from a design token; the tones map to the accent, success,
   warning, danger and muted roles.
+- A bar is never merely absent where a limit is unknown. The empty track was the delivered answer and
+  it is indistinguishable from a broken one (`plan-ui-coherence-optimisation/REQ-64`), so "no ceiling"
+  is a **drawn state** of the component rather than the caller's problem: a caller with no maximum to
+  give still asks for a `Meter`, and gets the state that says so.
 
 ## Dependencies
 
@@ -61,3 +69,4 @@ window of recent samples.
 - plan-docker_management_app/REQ-32
 - plan-docker_management_app/REQ-14
 - plan-docker_management_app/REQ-18
+- plan-ui-coherence-optimisation/REQ-64

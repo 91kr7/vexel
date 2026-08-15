@@ -14,8 +14,17 @@ log region, with in-surface search, highlighted matches and download of the buff
 Description:
 
 - `<ContainerLogsView container />` — `container` is the `ContainerSummary` whose logs are shown.
-- a controls row (stream selection, timestamps, tail size, since/until, search) above the log
-  region.
+- **Two** control rows above the log region, and no more:
+  - the first states what the daemon is asked for — stream selection, timestamps, tail size,
+    since/until;
+  - the second is the log region's own action row, holding the search box with its match count and
+    previous/next at the start and `Download` at its end.
+- The delivered arrangement was **three** stacked rows, the third holding `Download` alone,
+  right-aligned (`plan-ui-coherence-optimisation/REQ-62`). The search moved onto the region's action
+  row rather than the download moving up into a filter row: the search acts on what the region is
+  showing, and the download takes what the region is holding, so the row they share is the region's.
+- No row holds a single button. Nothing about which lines are streamed, buffered, rendered or
+  downloaded follows from this: it is an arrangement, and the controls are the delivered ones.
 
 Shows:
 
@@ -47,14 +56,19 @@ Actions:
 - Changing any control resets the buffer, since the daemon is re-queried from scratch.
 - Only the buffered lines are copied, downloaded and searched — never the container's full history
   on the daemon.
+- `Download` delivers the **whole** buffer, not the rendered window: the region is virtualised, and
+  which of its rows happen to be mounted is not a property of the file (`log-stream.md`).
+- Every control is where the operator can reach it: each is hit-testable at the centre of its own
+  visible box, and none of them is behind another (`plan-ui-coherence-optimisation/REQ-62`).
 
 ## Dependencies
 
 - useContainerLogs
-- ui-library: LogStream, SegmentedControl, TailSizeSelector, TimeRangeField, StreamSearchField,
-  Toggle, Row, Stack, ErrorBanner, SectionHeader
+- ui-library: LogStream (its `toolbar` slot), SegmentedControl, TailSizeSelector, TimeRangeField,
+  StreamSearchField, Toggle, Row, Stack, MetaCell, ErrorBanner
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-30
 - plan-docker_management_app/REQ-31
+- plan-ui-coherence-optimisation/REQ-62

@@ -1,7 +1,8 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type UIEvent } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type UIEvent } from 'react';
 import { Button } from '../controls/Button';
 import { EmptyState } from '../feedback/EmptyState';
 import { ScrollArea } from '../glass/ScrollArea';
+import { Row } from '../layout/Row';
 import '../glass/overlay-glass.css';
 import './log-stream.css';
 
@@ -29,6 +30,13 @@ export interface LogStreamProps {
   emptyLabel?: string;
   /** When set, a download action saving the buffer under this name is offered. */
   downloadFileName?: string;
+  /**
+   * The stream's own controls (a search box, filters), placed on the same action
+   * row as the download rather than on a row of their own — a row holding one
+   * button is what this slot exists to remove
+   * (plan-ui-coherence-optimisation/REQ-62).
+   */
+  toolbar?: ReactNode;
 }
 
 const OVERSCAN_LINES = 12;
@@ -50,6 +58,7 @@ export function LogStream({
   lineHeight = 20,
   emptyLabel = 'No log output.',
   downloadFileName,
+  toolbar,
 }: LogStreamProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
@@ -111,13 +120,21 @@ export function LogStream({
   return (
     <div className="ui-log-stream">
       {/* Not rendered at all when it would have no children — a stream offered
-          without a download filename, which is Compose whenever no project is
-          selected. An empty flex child still consumes its parent's gap. */}
-      {downloadFileName ? (
+          with neither controls nor a download filename, which is Compose
+          whenever no project is selected. An empty flex child still consumes
+          its parent's gap. */}
+      {toolbar || downloadFileName ? (
         <div className="ui-log-stream__actions">
-          <Button size="sm" onClick={download}>
-            Download
-          </Button>
+          {toolbar ? (
+            <Row align="center" gap="var(--space-2)" wrap>
+              {toolbar}
+            </Row>
+          ) : null}
+          {downloadFileName ? (
+            <Button size="sm" onClick={download}>
+              Download
+            </Button>
+          ) : null}
         </div>
       ) : null}
       {lines.length === 0 ? (
