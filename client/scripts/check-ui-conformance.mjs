@@ -37,7 +37,7 @@ const blurTokenReference = /var\(\s*--blur-overlay\s*\)/;
 // migration landed without the budget being lowered on purpose. Each migration
 // lowers this number in the same commit that removes the call sites; when it
 // reaches zero the component, its export and this check go together.
-const cardListBudget = { component: 'CardList', expectedCallSites: 11 };
+const cardListBudget = { component: 'CardList', expectedCallSites: 10 };
 const cardListCallSite = /<CardList\b/g;
 
 /** @type {string[]} */

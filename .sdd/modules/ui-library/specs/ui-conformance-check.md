@@ -41,8 +41,10 @@ retired.
   removed together with the component. It went to **15** with the volumes and networks migration
   (`plan-ui-coherence-optimisation/REQ-31`), which removed the two sites those panels held, to **13**
   with the registries migration (`plan-ui-coherence-optimisation/REQ-36`), which removed the two that
-  screen held, and stands at **11** since the builders and build-cache migration
-  (`plan-ui-coherence-optimisation/REQ-39`) removed the two the Builders & cache screen held
+  screen held, to **11** with the builders and build-cache migration
+  (`plan-ui-coherence-optimisation/REQ-39`), which removed the two the Builders & cache screen held,
+  and stands at **10** since the contexts migration (`plan-ui-coherence-optimisation/REQ-42`) removed
+  the one that screen held
 
 ### Blur policy (every stylesheet under `client/src/`, the UI library's own included)
 
