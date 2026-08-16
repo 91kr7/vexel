@@ -27,6 +27,9 @@ Actions:
 
 - A blank or already-present value is never appended; the draft is cleared either way.
 - The add action is disabled while the draft is blank.
+- **The add action is a control and is drawn as one**, the same rule the other add affordances
+  carry: it has the border and the surface of every other button, whatever the width of the entry
+  field beside it.
 
 ## Dependencies
 

@@ -1,63 +1,74 @@
 import { useState } from 'react';
 import {
   ActionButtonGroup,
+  BadgeListCell,
   Button,
   Card,
-  CardList,
   CodeEditor,
-  DefinitionList,
+  DataTable,
+  DetailPanel,
   EmptyState,
   FormDialog,
   FormField,
   KeyValueEditor,
+  MetaCell,
+  ScreenToolbar,
   SectionHeader,
   Stack,
   TextField,
+  TwoLineCell,
   useToast,
-  type CardListRowContent,
+  type DataTableColumn,
   type KeyValuePair,
 } from '../ui';
-import type { CreateSwarmDataInput, StackRemovalResult, SwarmDataItem, SwarmListing, SwarmStack } from '../data/swarm-client';
+import type { CreateSwarmDataInput, StackRemovalResult, SwarmDataItem, SwarmListing, SwarmStack, SwarmStackService } from '../data/swarm-client';
 import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
 import { useProgress } from '../shell/services/ProgressService';
 import { formatAge, formatReplicas, toLabels } from './swarm-formatting';
 
+/** What it takes for a config to appear here, for a cluster that holds none. */
+const NO_CONFIGS = 'A config is a file the cluster holds for the services that mount it, created here and replaced rather than edited.';
+
+/** What puts a stack there — and it is never this application (departure Three). */
+const NO_STACKS = 'A stack deployed from a terminal appears here with its services, and can be removed; nothing deploys one from this application.';
+
+/** Stated on every config, as a property of it: the contract, not an absence. */
+const CONTENT_NEVER_SHOWN = 'never displayed — a config can only be replaced, not read';
+
 export interface SwarmConfigsStacksPanelProps {
   configs: SwarmListing<SwarmDataItem>;
   stacks: SwarmListing<SwarmStack>;
-  loaded: boolean;
-  canManage: boolean;
   onCreateConfig: (input: CreateSwarmDataInput) => Promise<SwarmDataItem>;
   onRemoveConfig: (id: string) => Promise<void>;
   onRemoveStack: (name: string) => Promise<StackRemovalResult>;
 }
 
 /**
- * The Configs & stacks panel of the Swarm screen (REQ-83, REQ-84): the configs
+ * The configs and the stacks of the Swarm screen (REQ-83, REQ-84): the configs
  * with their age, created, inspected and removed, and the stacks listed with
  * their services and removable.
  *
  * There is deliberately no deploy affordance, no compose-file path input and
  * no compose editor here: stack deployment was withdrawn on 2026-08-07
  * (departure Three). Stacks are observed and removed.
+ *
+ * **The two inventories are two cards, where they were two labelled groups
+ * inside one** (plan-ui-coherence-optimisation/REQ-54). That card was the only
+ * one on the screen whose content started below its own header — it had to
+ * label its first group inside its own body — which is precisely what set its
+ * content 25.4px lower than its neighbour's, measured on the delivered build at
+ * 1440×1000 and 1280×800. One card per inventory removes the cause: every card
+ * on this screen now carries one section header and starts its content directly
+ * under it.
  */
-export function SwarmConfigsStacksPanel({
-  configs,
-  stacks,
-  loaded,
-  canManage,
-  onCreateConfig,
-  onRemoveConfig,
-  onRemoveStack,
-}: SwarmConfigsStacksPanelProps) {
+export function SwarmConfigsStacksPanel({ configs, stacks, onCreateConfig, onRemoveConfig, onRemoveStack }: SwarmConfigsStacksPanelProps) {
   const { confirm } = useConfirmation();
   const { push } = useToast();
   const { run } = useProgress();
   const { reportError } = useErrorReporter();
 
   const [openConfigId, setOpenConfigId] = useState<string | undefined>(undefined);
-  const [openStack, setOpenStack] = useState<string | undefined>(undefined);
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState('');
   const [content, setContent] = useState('');
@@ -116,7 +127,6 @@ export function SwarmConfigsStacksPanel({
     if (!confirmed) return;
     try {
       const result = await run(`Remove stack ${stack.name}`, () => onRemoveStack(stack.name));
-      setOpenStack(undefined);
       const counts = [
         `${result.removedServices.length} services`,
         `${result.removedSecrets.length} secrets`,
@@ -129,103 +139,210 @@ export function SwarmConfigsStacksPanel({
     }
   }
 
-  function configRow(config: SwarmDataItem): CardListRowContent {
-    return {
-      title: config.name,
-      subtitle: config.stack ? `stack: ${config.stack}` : undefined,
-      meta: formatAge(config.createdAt),
-    };
-  }
+  /**
+   * A config's row. The stack a config may belong to was a subtitle line whose
+   * presence depended on the config; it is a column here, where its absence is
+   * the column's own '–' and costs the row no height.
+   */
+  const configColumns: DataTableColumn<SwarmDataItem>[] = [
+    {
+      id: 'config',
+      header: 'CONFIG',
+      width: '1.6fr',
+      render: (config) => <TwoLineCell title={config.name} />,
+    },
+    {
+      id: 'stack',
+      header: 'STACK',
+      width: '1fr',
+      render: (config) => <MetaCell>{config.stack}</MetaCell>,
+    },
+    {
+      id: 'created',
+      header: 'CREATED',
+      width: '132px',
+      render: (config) => <MetaCell>{formatAge(config.createdAt)}</MetaCell>,
+    },
+    {
+      id: 'updated',
+      header: 'UPDATED',
+      width: '132px',
+      render: (config) => <MetaCell>{formatAge(config.updatedAt)}</MetaCell>,
+    },
+    {
+      id: 'actions',
+      header: 'ACTIONS',
+      width: '132px',
+      render: (config) => (
+        <ActionButtonGroup actions={[{ id: 'remove', label: 'Remove', weight: 'destructive' as const, onClick: () => void handleRemoveConfig(config) }]} />
+      ),
+    },
+  ];
 
+  /** The opened config: metadata, and only metadata, at the content column's full width. */
   function configDetail(config: SwarmDataItem) {
     return (
-      <Stack gap="var(--space-3)">
-        <DefinitionList
-          items={[
-            { label: 'Config id', value: config.id },
-            { label: 'Created', value: formatAge(config.createdAt) },
-            { label: 'Updated', value: formatAge(config.updatedAt) },
-            { label: 'Stack', value: config.stack ?? 'none' },
-            {
-              label: 'Labels',
-              value: Object.keys(config.labels).length === 0 ? 'none' : Object.entries(config.labels).map(([key, entry]) => `${key}=${entry}`).join(', '),
-            },
-          ]}
-        />
-        {canManage ? <ActionButtonGroup actions={[{ id: 'remove', label: 'Remove', destructive: true, onClick: () => handleRemoveConfig(config) }]} /> : null}
-      </Stack>
+      <DetailPanel
+        dismissal="opening-gesture"
+        onClose={() => setOpenConfigId(undefined)}
+        properties={[
+          { label: 'Config id', value: config.id },
+          { label: 'Name', value: config.name },
+          { label: 'Created', value: formatAge(config.createdAt) },
+          { label: 'Updated', value: formatAge(config.updatedAt) },
+          { label: 'Stack', value: config.stack ?? 'none' },
+          {
+            label: 'Labels',
+            value:
+              Object.keys(config.labels).length === 0
+                ? 'none'
+                : Object.entries(config.labels)
+                    .map(([key, entry]) => `${key}=${entry}`)
+                    .join(', '),
+          },
+          { label: 'Content', value: CONTENT_NEVER_SHOWN },
+        ]}
+        propertiesContentClass="long-single-line"
+      />
     );
   }
 
-  function stackRow(stack: SwarmStack): CardListRowContent {
-    return {
-      title: stack.name,
-      subtitle: `${stack.serviceCount} services · ${stack.secretCount} secrets · ${stack.configCount} configs · ${stack.networkCount} networks`,
-    };
-  }
+  /** A stack's service, in the nested list every stack row carries. */
+  const stackServiceColumns: DataTableColumn<SwarmStackService>[] = [
+    {
+      id: 'service',
+      header: 'SERVICE',
+      width: '1.4fr',
+      render: (service) => <TwoLineCell title={service.name} />,
+    },
+    {
+      id: 'image',
+      header: 'IMAGE',
+      width: '2fr',
+      render: (service) => <MetaCell>{service.image}</MetaCell>,
+    },
+    {
+      id: 'mode',
+      header: 'MODE',
+      width: '124px',
+      render: (service) => <BadgeListCell labels={[service.mode]} tone="info" />,
+    },
+    {
+      id: 'replicas',
+      header: 'REPLICAS',
+      width: '116px',
+      render: (service) => <MetaCell>{formatReplicas(service.replicasRunning, service.replicasDesired)}</MetaCell>,
+    },
+  ];
 
-  function stackDetail(stack: SwarmStack) {
-    return (
-      <Stack gap="var(--space-3)">
-        <DefinitionList
-          items={
-            stack.services.length === 0
-              ? [{ label: 'services', value: 'none left' }]
-              : stack.services.map((service) => ({
-                  label: service.name,
-                  value: `${service.image} · ${service.mode} · ${formatReplicas(service.replicasRunning, service.replicasDesired)}`,
-                }))
-          }
-        />
-        {canManage ? <ActionButtonGroup actions={[{ id: 'remove', label: 'Remove stack', destructive: true, onClick: () => handleRemoveStack(stack) }]} /> : null}
-      </Stack>
-    );
-  }
+  /**
+   * A stack's row. Its four counts were one subtitle line and are four columns,
+   * and its services are carried in the row itself rather than behind a
+   * selection: what a stack *is* is the services it holds.
+   */
+  const stackColumns: DataTableColumn<SwarmStack>[] = [
+    {
+      id: 'stack',
+      header: 'STACK',
+      width: '1.6fr',
+      render: (stack) => <TwoLineCell title={stack.name} />,
+    },
+    {
+      id: 'services',
+      header: 'SERVICES',
+      width: '116px',
+      render: (stack) => <MetaCell>{String(stack.serviceCount)}</MetaCell>,
+    },
+    {
+      id: 'secrets',
+      header: 'SECRETS',
+      width: '116px',
+      render: (stack) => <MetaCell>{String(stack.secretCount)}</MetaCell>,
+    },
+    {
+      id: 'configs',
+      header: 'CONFIGS',
+      width: '116px',
+      render: (stack) => <MetaCell>{String(stack.configCount)}</MetaCell>,
+    },
+    {
+      id: 'networks',
+      header: 'NETWORKS',
+      width: '116px',
+      render: (stack) => <MetaCell>{String(stack.networkCount)}</MetaCell>,
+    },
+    {
+      id: 'actions',
+      header: 'ACTIONS',
+      width: '132px',
+      render: (stack) => (
+        <ActionButtonGroup actions={[{ id: 'remove', label: 'Remove', weight: 'destructive' as const, onClick: () => void handleRemoveStack(stack) }]} />
+      ),
+    },
+  ];
 
   return (
-    <Card>
-      <SectionHeader title="Configs & stacks" trailing={canManage ? <Button onClick={openCreate}>New config</Button> : undefined} />
-      <Stack gap="var(--space-4)">
-        <Stack gap="var(--space-2)">
-          <SectionHeader variant="eyebrow" title="Configs" />
-          <CardList
-            items={configs.items}
-            itemKey={(config) => config.id}
-            renderRow={configRow}
-            selectedKey={openConfigId}
-            onSelect={(config) => setOpenConfigId((current) => (current === config.id ? undefined : config.id))}
-            expandedKey={openConfigId}
-            renderExpanded={configDetail}
-            emptyState={
-              <EmptyState
-                title={configs.unavailableReason ? 'No cluster to read' : loaded ? 'No configs' : 'Reading configs…'}
-                description={configs.unavailableReason}
-              />
-            }
-          />
-        </Stack>
-        <Stack gap="var(--space-2)">
-          <SectionHeader variant="eyebrow" title="Stacks" />
-          <CardList
-            items={stacks.items}
-            itemKey={(stack) => stack.name}
-            renderRow={stackRow}
-            selectedKey={openStack}
-            onSelect={(stack) => setOpenStack((current) => (current === stack.name ? undefined : stack.name))}
-            expandedKey={openStack}
-            renderExpanded={stackDetail}
-            emptyState={
-              <EmptyState
-                title={stacks.unavailableReason ? 'No cluster to read' : loaded ? 'No stacks' : 'Reading stacks…'}
-                description={
-                  stacks.unavailableReason ??
-                  (loaded ? 'A stack deployed from a terminal appears here with its services, and can be removed.' : undefined)
-                }
-              />
-            }
-          />
-        </Stack>
-      </Stack>
+    <Stack gap="var(--space-5)">
+      <Card>
+        <SectionHeader title="Configs" description="In name order; a content is never read back" />
+        {/* The page-level action, in the toolbar under the header rather than in
+            the card's header. */}
+        <ScreenToolbar primaryAction={{ label: 'New config', onClick: openCreate }} />
+        <DataTable
+          variant="comfortable"
+          columns={configColumns}
+          rows={configs.items}
+          rowKey={(config) => config.id}
+          selectedRowKey={openConfigId}
+          onRowSelect={(config) => setOpenConfigId((current) => (current === config.id ? undefined : config.id))}
+          expandedRowKey={openConfigId}
+          renderExpanded={configDetail}
+          emptyState={
+            <EmptyState
+              title="No configs"
+              description={configs.unavailableReason ?? NO_CONFIGS}
+              // Where the reading itself states a reason, creating a config is
+              // not what resolves it, so no action is offered for it.
+              // Its label is the invitation, never the toolbar's own word (DEF-2,
+              // `swarm-configs-stacks-panel.md`): one surface, one control per name.
+              action={configs.unavailableReason ? null : <Button onClick={openCreate}>Create the first config</Button>}
+            />
+          }
+        />
+      </Card>
+
+      <Card>
+        <SectionHeader title="Stacks" description="Read from the namespace label the stack's own objects carry" />
+        <DataTable
+          variant="comfortable"
+          columns={stackColumns}
+          rows={stacks.items}
+          rowKey={(stack) => stack.name}
+          // Every stack row carries its services, opened or not: the grouping is
+          // the object's own shape, not a detail of a selection.
+          renderRowContent={(stack) => (
+            <DataTable
+              variant="comfortable"
+              hideHeader
+              columns={stackServiceColumns}
+              rows={stack.services}
+              rowKey={(service) => service.id}
+              emptyState={
+                <EmptyState title="No services left" description="Every service of this stack has gone from the cluster." action={null} compact />
+              }
+            />
+          )}
+          emptyState={
+            <EmptyState
+              title="No stacks"
+              description={stacks.unavailableReason ?? NO_STACKS}
+              // Nothing here deploys a stack, so nothing here resolves it
+              // (departure Three).
+              action={null}
+            />
+          }
+        />
+      </Card>
 
       <FormDialog
         open={createOpen}
@@ -249,6 +366,6 @@ export function SwarmConfigsStacksPanel({
           </FormField>
         </Stack>
       </FormDialog>
-    </Card>
+    </Stack>
   );
 }

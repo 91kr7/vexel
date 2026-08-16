@@ -70,7 +70,7 @@ export function ContainerSessionView({ container, kind }: ContainerSessionViewPr
   }, []);
 
   if (container.state !== 'running') {
-    return <EmptyState title="Container is not running" description="Exec and attach sessions require a running container." />;
+    return <EmptyState title="Container is not running" description="Exec and attach sessions require a running container."  action={null} />;
   }
 
   if (!active) {

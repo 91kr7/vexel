@@ -172,8 +172,10 @@ test('shows a header row naming every image column', async ({ page }) => {
   const headers = page.locator('.ui-data-table__header-cell');
 
   // Two unnamed cells lead the row: the bulk-selection checkbox
-  // (ui-library/specs/data-table.md) and the status dot.
-  await expect(headers).toHaveText(['', '', 'REPOSITORY:TAG', 'TAGS', 'DIGEST', 'PLATFORM', 'SIZE', 'CREATED', 'ACTIONS']);
+  // (ui-library/specs/data-table.md) and the status dot. The column of tag pills left with the
+  // reference it repeated on every row (plan-ui-coherence-optimisation/REQ-57), and the size column
+  // is named for the measurement behind it, against the panel's own (REQ-59).
+  await expect(headers).toHaveText(['', '', 'REPOSITORY:TAG', 'DIGEST', 'PLATFORM', 'DISK USAGE', 'CREATED', 'ACTIONS']);
 });
 
 // plan-docker_management_app-image_row_actions/REQ-1, REQ-2, REQ-3 — the row's action area holds one control, the one
@@ -600,7 +602,7 @@ test('untagging a single-tag image drops its reference straight away', async ({ 
 });
 
 // plan-docker_management_app/REQ-37 — a dangling image is marked as such and has no reference to untag or push
-test('marks a dangling image with a dangling badge and disables its untag and push actions', async ({ page }) => {
+test('marks a dangling image with its status dot and disables its untag and push actions', async ({ page }) => {
   const containerName = `vexel-e2e-dangling-src-${Date.now()}`;
   const tag = `vexel-e2e-dangling-${Date.now()}:v1`;
   await createFromTinyImage(containerName);
@@ -613,8 +615,12 @@ test('marks a dangling image with a dangling badge and disables its untag and pu
     const row = page.locator('.ui-data-table__row').first();
     await expect(row).toBeVisible({ timeout: 10_000 });
 
-    await expect(row).toContainText('dangling');
+    // images-screen.md — the dangling image "is marked as dangling by the leading status dot, which
+    // is where that fact already was": the warning pill that repeated it sat in the column of tag
+    // pills, and left with it (plan-ui-coherence-optimisation/REQ-57).
+    await expect(row.locator('.ui-table-status-dot--tone-warning')).toHaveCount(1);
     await expect(row).toContainText('<none>');
+    await expect(row, 'the row still states in words a fact its status dot already carries').not.toContainText('dangling');
     // The row carries the same single control a tagged row does (REQ-2).
     await expect(row.locator('.ui-action-button-group').getByRole('button')).toHaveCount(1);
 

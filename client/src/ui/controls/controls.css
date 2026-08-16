@@ -220,16 +220,6 @@
   color: var(--color-danger-strong);
 }
 
-.ui-badge--clickable {
-  border: none;
-  font: inherit;
-  cursor: pointer;
-}
-
-.ui-badge--clickable:hover {
-  background: var(--color-wash-3);
-}
-
 .ui-path-input {
   display: flex;
   flex-direction: column;
@@ -321,11 +311,15 @@
   border-bottom: none;
 }
 
-.ui-storage-usage-row__text {
-  flex: 1 1 auto;
-  min-width: 0;
-}
+/* `.ui-storage-usage-row__text` carries no rule of its own: its basis, its
+   floor and the row's wrap are the truncation contract's, declared once in
+   truncation.css (`.ui-truncating-run`, `.ui-truncating-row`). A `min-width` of
+   its own here would be the same property declared twice at the same
+   specificity, decided by stylesheet order.
 
+   The label is left out of the contract on purpose — it is a fixed caption in
+   the product's own wording, not a machine value, so it wraps rather than
+   losing characters, and only the description below it truncates. */
 .ui-storage-usage-row__label {
   margin: 0;
   font-size: var(--font-size-sm);
@@ -699,18 +693,14 @@
   gap: var(--space-2);
 }
 
-.ui-form-footer__status {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
+/* The add affordance is a button and reads as one, so it is sized by its label
+   rather than stretched across the editor by the column it closes. */
+.ui-key-value-editor > .ui-button,
+.ui-repeatable-row-list > .ui-button {
+  align-self: flex-start;
 }
 
-.ui-key-hint {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px var(--space-1);
-  border-radius: var(--radius-sm);
-  border: var(--border-width-hairline) solid var(--color-border-strong);
-  font-family: var(--font-family-mono);
+.ui-form-footer__status {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
 }
@@ -810,11 +800,14 @@
   flex: 1 1 0;
 }
 
+/* The one label treatment, and deliberately **not** the section header's: a
+   field label used to be uppercase micro-caps a hair away from
+   `.ui-section-header--eyebrow`, so `IMAGE`, `ENTRYPOINT` and `COMMAND` read as
+   headings of sections that did not exist and competed with the heading of the
+   group actually holding them. A label names its control; it is small, quiet and
+   in its own case, exactly like the label of a property row. */
 .ui-form-field__label {
   font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
   color: var(--color-text-muted);
 }
 
@@ -825,34 +818,30 @@
   min-width: 0;
 }
 
+/* No padding, no border, no wash: a field group is a group, not a card. The
+   inset and the box this rule used to carry are what turned the create/run form
+   into ten boxes inside a box, each costing ~33px of chrome before a single
+   field was drawn. All that separates one group from the next now is its
+   heading — the one section header, in its group treatment — and the space the
+   form puts between them. */
 .ui-form-section {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  padding: var(--space-4);
-  border-radius: var(--radius-md);
-  border: var(--border-width-hairline) solid var(--color-border-subtle);
-  background: var(--color-wash-1);
 }
 
-.ui-form-section__title {
-  margin: 0;
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-primary);
-}
-
-.ui-form-section__description {
-  margin: 0;
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
+/* The one thing that still separates two groups: a step wider than the one
+   between two fields of the same group, so the sectioning survives the loss of
+   the boxes. Carried by the group rather than by the shell around it, so a short
+   dialog and a long sheet read the same. */
+.ui-form-section + .ui-form-section {
+  margin-top: var(--space-2);
 }
 
 .ui-form-section__body {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  margin-top: var(--space-1);
 }
 
 .ui-combobox {
@@ -1036,17 +1025,25 @@
   white-space: nowrap;
 }
 
+/* A chip's inline action is a control: it carries a surface and a shape of its
+   own, so `detach` and `pull` read as something to press rather than as the last
+   word of the chip's label. Bare text is never a control, wherever it sits.
+   Filled rather than outlined on purpose — a border would make the action taller
+   than the line it sits on and grow every chip, and with it the height of rows
+   two certified screens have pinned. The chip is exactly as tall as before. */
 .ui-chip__action {
   border: none;
-  background: transparent;
-  padding: 0;
+  border-radius: var(--radius-full);
+  background: var(--color-wash-3);
+  padding: 0 var(--space-2);
   font: inherit;
-  color: var(--color-text-muted);
+  color: var(--color-text-primary);
   cursor: pointer;
 }
 
 .ui-chip__action:hover {
-  color: var(--color-text-secondary);
+  background: var(--color-accent-tint);
+  color: var(--color-accent-strong);
 }
 
 .ui-chip-group {
@@ -1059,21 +1056,6 @@
 .ui-chip-group__empty {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
-}
-
-.ui-chip-group__add {
-  border: var(--border-width-hairline) dashed var(--color-border-subtle);
-  border-radius: var(--radius-full);
-  background: transparent;
-  padding: 2px var(--space-2);
-  font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
-  cursor: pointer;
-}
-
-.ui-chip-group__add:hover {
-  border-color: var(--color-accent);
-  color: var(--color-accent-strong);
 }
 
 .ui-bulk-action-bar {

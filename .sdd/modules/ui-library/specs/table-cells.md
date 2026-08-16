@@ -46,6 +46,9 @@ badges with an overflow indicator, and a magnitude bar sized relative to the col
   - `tone` applies to the label badges (default `neutral`); the `+N` badge is always `neutral`
   - empty `labels` → `emptyLabel` rendered as a single badge with `emptyTone` (default `neutral`)
     when given, otherwise `'–'`
+  - **a label badge shrinks and ellipsises inside its own wrapper** when the column is narrower than
+    the badges it holds, its full text staying in the wrapper's tooltip; the `+N` badge keeps its
+    natural width, so the count of what is hidden is never the thing that gets cut
 - `<ProportionBarCell fraction label tone? />` — a rounded bar filled to `fraction` (`0..1`, clamped;
   non-finite treated as `0`) of the cell's width, carrying `label` inside it.
   - `tone`: `BadgeTone` (default `'neutral'`), colors the fill the same way `Badge` colors a tag.
@@ -59,9 +62,31 @@ badges with an overflow indicator, and a magnitude bar sized relative to the col
   truncated or clipped, never wrapped. The two opt-in exceptions — `MetaCell wrap` and
   `TwoLineCell wrap` — are for a table that has given up fixed row heights (`DataTable
   autoRowHeight`), and are the only way text reads in full inside a cell.
+- **That one line is the library's truncation contract, not a second implementation of it**
+  (`truncation-contract.md`): `IdentifierCell`, `MetaCell` and both lines of `TwoLineCell` take the
+  contract's line class, and `TwoLineCell`'s inline action takes its meta class, so the rule a card
+  row obeys and the rule a table cell obeys are the same rule.
+- **The wrapping variants withhold that class rather than override it.** `MetaCell wrap` and
+  `TwoLineCell wrap` are not in the contract at all: they are the wrapping side of the boundary,
+  and are how a cell whose text reads as a sentence is shown in full.
+- **The floor under a cell is its column's track, not the contract's run floor**
+  (`--data-table-column-min-width`, see `data-table.md`): a cell sits in a grid whose tracks already
+  refuse to reach 0px, and a second floor inside a 72px track would push a cell's inline action out
+  of it.
+- **No badge is ever painted over the badge next to it.** The pills of a `BadgeListCell` are laid on
+  one line whose width they may exceed; each pill is therefore bounded by the wrapper that shrinks,
+  rather than keeping its natural width while its wrapper shrinks under it. Measured on the shape
+  that produced the defect — seven platform strings in a 165px column at 1440×1000 — the wrappers
+  resolved 65.1 / 67.4 / 24.8px against badge boxes of 78 / 80.7 / 29.7px, each pill ending ~9px
+  inside its neighbour's box, twice per row and at all three viewports
+  (`plan-ui-coherence-optimisation/REQ-18`, `REQ-89`).
 - A cell with nothing to show is never blank: it carries the dash (or `'unavailable'`), whichever
   way its caller expressed the absence. A blank cell would read as a rendering fault rather than as
   a value the source does not have.
+
+## Dependencies
+
+- Badge, Truncation contract
 
 ## Requirements served
 
@@ -72,3 +97,6 @@ badges with an overflow indicator, and a magnitude bar sized relative to the col
 - plan-docker_management_app/REQ-48
 - plan-docker_management_app/REQ-49
 - plan-docker_management_app/REQ-105
+- plan-ui-coherence-optimisation/REQ-17
+- plan-ui-coherence-optimisation/REQ-18
+- plan-ui-coherence-optimisation/REQ-19

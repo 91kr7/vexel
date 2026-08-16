@@ -244,8 +244,19 @@ test('images: the detail panel offers no copy on its Id band or its raw payload,
 
   // The server-shortened `Digest` keeps exactly its delivered presentation; it never had a control
   // and is not attributable to this report (REQ-16, REQ-19).
-  const digestValue = section.locator('.ui-definition-list__row', { hasText: 'Digest' }).first().locator('.ui-definition-list__value');
-  await expectSelectable(digestValue, 'Images → detail panel, the `Digest` value');
+  //
+  // **The band is conditional since 2026-08-15.** `plan-ui-coherence-optimisation/REQ-58` stops the
+  // panel drawing `Digest` where the daemon reports the image's own id under `RepoDigests` — one
+  // value under two names — which is what a containerd-backed daemon does for an image restored
+  // from the run's own registry. So the presentation is asserted where the band exists, and its
+  // absence is reported rather than waited for: waiting for it made this test's outcome a property
+  // of the daemon's image store (`images/specs/image-detail-panel.md`).
+  const digestRow = section.locator('.ui-definition-list__row', { hasText: 'Digest' }).first();
+  if ((await digestRow.count()) > 0) {
+    await expectSelectable(digestRow.locator('.ui-definition-list__value'), 'Images → detail panel, the `Digest` value');
+  } else {
+    console.log(`[REQ-58] ${ALPINE_IMAGE} states no repository digest of its own on this daemon, so the panel draws no Digest band`);
+  }
 
   // Site 2 — the raw payload block above which the control sat (REQ-11).
   await expectCodeBlocksHoldNoControl(panel, 'Images → detail panel, raw payload', 1);
@@ -389,10 +400,22 @@ test('containers: the logs view offers no copy, and Download still delivers the 
     await detail.getByRole('tab', { name: 'Logs' }).click();
     await expect(detail.getByText('hello-from-stdout')).toBeVisible({ timeout: 20_000 });
 
-    // Site 9 — the stream's action row holds `Download` and nothing else at all (REQ-12, REQ-13).
+    // Site 9 — the stream's action row (REQ-12, REQ-13). It held `Download` and nothing else at all
+    // until 2026-08-15, when `plan-ui-coherence-optimisation/REQ-62` moved the stream's search onto
+    // it: the delivered third toolbar row was `Download` alone, and the search shares the row now
+    // (`ui-library/specs/log-stream.md`, its `toolbar` slot). What this report contracts is the
+    // absence of a **copy**, not the absence of every neighbour, so that is what is asserted —
+    // beside the clipboard check at the end of the test, which no rearrangement can satisfy by
+    // accident.
     const actions = detail.locator('.ui-log-stream__actions');
     await expect(actions).toBeVisible();
-    expect(await controlsOf(actions), 'Containers → Logs — the stream action row holds something besides `Download`').toEqual(['Download']);
+    const rowControls = await controlsOf(actions);
+    expect(rowControls, 'Containers → Logs — the stream action row lost `Download`').toContain('Download');
+    expect(
+      rowControls.filter((control) => /copy/i.test(control)),
+      'Containers → Logs — a copy affordance is back on the stream action row',
+    ).toEqual([]);
+    await expect(actions.getByRole('button', { name: /copy/i })).toHaveCount(0);
 
     // REQ-20 — verified, not assumed: the equivalent that remains still delivers the whole buffer.
     const downloadPromise = page.waitForEvent('download');
@@ -425,9 +448,11 @@ test('volumes & networks: neither inline inspect offers a copy, on a band or abo
     await openApp(page, 'volumes-networks');
     await expect(page.getByRole('heading', { level: 1, name: 'Volumes & networks' })).toBeVisible({ timeout: 20_000 });
 
+    // Both lists are the object list's comfortable variant since REQ-31, and the surface each
+    // reveals is the library's detail panel: the sites are the same two, drawn by other components.
     const volumesPanel = page.locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Volumes' }) });
-    await volumesPanel.locator('.ui-card-list__item', { hasText: volumeName }).first().click();
-    const volumeExpanded = volumesPanel.locator('.ui-card-list__expanded');
+    await volumesPanel.locator('.ui-data-table__row', { hasText: volumeName }).first().locator('.ui-data-table__cell').first().click();
+    const volumeExpanded = volumesPanel.locator('.ui-detail-panel');
     await expect(volumeExpanded).toBeVisible({ timeout: 20_000 });
 
     // Sites 10 and 11.
@@ -437,8 +462,8 @@ test('volumes & networks: neither inline inspect offers a copy, on a band or abo
     await expectSelectable(mountpoint, 'Volumes → inline inspect, the `Mountpoint` value');
 
     const networksPanel = page.locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Networks' }) });
-    await networksPanel.locator('.ui-card-list__item', { hasText: networkName }).first().click();
-    const networkExpanded = networksPanel.locator('.ui-card-list__expanded');
+    await networksPanel.locator('.ui-data-table__row', { hasText: networkName }).first().locator('.ui-data-table__cell').first().click();
+    const networkExpanded = networksPanel.locator('.ui-detail-panel');
     await expect(networkExpanded).toBeVisible({ timeout: 20_000 });
 
     // Site 12 — the networks panel carries no band control of its own; its payload block is the site.
@@ -462,16 +487,34 @@ test('swarm: no panel offers a copy on an id, and a join token is reachable only
   await expect(page.getByRole('heading', { level: 1, name: 'Swarm' })).toBeVisible({ timeout: 20_000 });
 
   // Sites 13–17 — every band of every panel that lists an object, over every row present (REQ-26).
-  for (const title of ['Nodes', 'Services & tasks', 'Secrets', 'Configs & stacks']) {
-    const panel = screenContent(page).locator('.ui-surface').filter({ has: page.getByRole('heading', { level: 2, name: title }) });
+  //
+  // **The markup is the object list's since batch 12** (`plan-ui-coherence-optimisation/REQ-55`):
+  // the five inventories left the hand-built card list for `DataTable`, a row's reveal is a
+  // `DetailPanel`, and the single `Configs & stacks` card became two, `Configs` and `Stacks`. Every
+  // assertion below is the one it always was — REQ-87 keeps bug-5 certified across the batches that
+  // touch its surfaces — and only the locators and the list of cards move with the migration. A
+  // stack's services are carried by its row rather than by a selection, so `Stacks` reveals no
+  // property band and is not one of the sites.
+  for (const title of ['Nodes', 'Services & tasks', 'Secrets', 'Configs']) {
+    const panel = screenContent(page)
+      .locator('.ui-surface')
+      .filter({ has: page.getByRole('heading', { level: 2, name: title, exact: true }) })
+      .first();
     await expect(panel).toBeVisible({ timeout: 20_000 });
-    const rows = panel.locator('.ui-card-list__item');
+    const rows = panel.locator('.ui-data-table__row');
     const count = await rows.count();
     for (let index = 0; index < count; index += 1) {
-      await rows.nth(index).click();
-      const expanded = panel.locator('.ui-card-list__expanded');
+      // On its first cell, with a real pointer: below the desktop breakpoint a row is wider than the
+      // box it is read in, so its own centre can sit over another column.
+      const cell = rows.nth(index).locator('.ui-data-table__cell').first();
+      await cell.scrollIntoViewIfNeeded();
+      const box = (await cell.boundingBox())!;
+      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      const expanded = panel.locator('.ui-detail-panel');
       if ((await expanded.count()) === 0) continue;
       await expectBandsHoldNoControl(expanded.locator('.ui-definition-list').first(), `Swarm → ${title}, row ${index}`);
+      // One detail is open at a time, so the row is closed again before the next one is opened.
+      await page.keyboard.press('Escape');
     }
   }
 
@@ -542,7 +585,9 @@ test('plugins: an inspected plugin offers no copy on its name or above its paylo
   await expect(panel).toBeVisible({ timeout: 20_000 });
 
   await panel.getByRole('button', { name: 'Inspect' }).first().click();
-  const expanded = panel.locator('.ui-card-list__expanded');
+  // The daemon list is the object list since batch 10 (plan-ui-coherence-optimisation/REQ-46), so
+  // the inspection is the row's own expansion on the table rather than on a hand-built card list.
+  const expanded = panel.locator('.ui-data-table__expanded');
   await expect(expanded).toBeVisible({ timeout: 20_000 });
 
   // Sites 20 and 21.
@@ -579,7 +624,10 @@ test('registries: the pull dialog offers no copy on the reference it is about to
   await expect(screenContent(page).getByRole('heading', { level: 2, name: 'Registries & credentials' })).toBeVisible({ timeout: 20_000 });
 
   const registriesPanel = screenContent(page).locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Registries & credentials' }) });
-  await registriesPanel.locator('.ui-card-list > .ui-surface').first().click();
+  // The registries list is the object list's comfortable variant since
+  // `plan-ui-coherence-optimisation/REQ-36`; a row is selected on its first cell, the row's own
+  // centre being over the action cluster once a table pans.
+  await registriesPanel.locator('.ui-data-table__row').first().locator('.ui-data-table__cell').first().click();
 
   const chip = screenContent(page).locator('.ui-chip', { hasText: '1.0' }).first();
   await expect(chip).toBeVisible({ timeout: 20_000 });
@@ -601,9 +649,20 @@ test('registries: the pull dialog offers no copy on the reference it is about to
 
 // ─── screen 7 · compose (site 23) ────────────────────────────────────────────
 
-// REQ-1, REQ-12, REQ-20, REQ-25 — the aggregated log stream: no copy either way, no action row at
-// all with no project selected, and `Download` offered exactly while one is.
-test('compose: the aggregated log stream offers no copy, and no action row at all until a project is selected', async ({ page }) => {
+/**
+ * REQ-1, REQ-20, REQ-25 — the aggregated log stream: no copy either way, and
+ * `Download` offered exactly while a project is selected.
+ *
+ * **REQ-12's site on this screen is gone**
+ * (`plan-ui-coherence-optimisation/REQ-50`, batch 11): the stream lives inside
+ * the selected project's own detail panel now, so it is never offered without a
+ * download filename and, with no project selected, is not drawn at all. The
+ * component's behaviour — a row with nothing to hold is not rendered — is
+ * unchanged, still contracted in `ui-library/specs/log-stream.md` and still
+ * checked in `test/unit/copy-affordance-contract.test.tsx`. What is asserted
+ * here is the half that still has a site.
+ */
+test('compose: the aggregated log stream offers no copy, and holds Download exactly while a project is selected', async ({ page }) => {
   const caseName = 'nocopy';
   const dir = await mkdtemp(join(tmpdir(), 'vexel-e2e-nocopy-compose-'));
   const projectName = `vexel-e2e-nocopy-compose-${RUN_ID}`;
@@ -627,17 +686,22 @@ test('compose: the aggregated log stream offers no copy, and no action row at al
     await openApp(page, 'compose');
     await expect(page.getByRole('heading', { level: 1, name: 'Compose' })).toBeVisible({ timeout: 20_000 });
 
-    // REQ-12 — with no project selected the stream is offered without a download filename, so its
-    // action row would have no children at all: it must not be drawn.
+    // With no project selected the screen draws no stream at all — not an empty one, and not one
+    // stripped of its row.
     const stream = page.locator('.ui-log-stream');
-    await expect(stream).toBeVisible({ timeout: 20_000 });
-    await expect(stream.locator('.ui-log-stream__actions'), 'Compose → no project selected — an action row survives with nothing in it').toHaveCount(0);
+    await expect(page.locator('.ui-frame__content .ui-data-table__row').first()).toBeVisible({ timeout: 30_000 });
+    expect(await stream.count(), 'Compose → no project selected — a log stream is drawn for no project').toBe(0);
 
     // REQ-20 — and `Download` is offered exactly while a project is selected, which is delivered
     // behaviour named here so the gap is a known one rather than a later discovery.
-    const group = page.locator('.ui-grouped-rows-panel > .ui-surface', { has: page.locator('.ui-grouped-rows-panel__title', { hasText: projectName }) });
-    await expect(group).toBeVisible({ timeout: 30_000 });
-    await group.locator('.ui-grouped-rows-panel__title').click();
+    const row = page
+      .locator('.ui-frame__content .ui-data-table__body')
+      .first()
+      .locator(':scope > .ui-surface > .ui-data-table__row')
+      .filter({ hasText: projectName });
+    await expect(row).toBeVisible({ timeout: 30_000 });
+    await row.locator('.ui-data-table__cell').first().click();
+    await page.locator('.ui-detail-panel').getByRole('tab', { name: 'Aggregated logs', exact: true }).click();
 
     const actions = stream.locator('.ui-log-stream__actions');
     await expect(actions).toBeVisible({ timeout: 20_000 });

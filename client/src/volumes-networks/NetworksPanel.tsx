@@ -1,24 +1,27 @@
 import { useState } from 'react';
 import {
+  ActionButtonGroup,
   Button,
   Card,
-  CardList,
   ChipGroup,
   CodeViewer,
   Combobox,
-  DefinitionList,
+  DataTable,
+  DetailPanel,
   EmptyState,
   ErrorBanner,
   FormDialog,
   FormField,
   KeyValueEditor,
-  Row,
+  MetaCell,
+  ScreenToolbar,
   SectionHeader,
   Stack,
   TextField,
+  TwoLineCell,
   useToast,
-  type CardListRowContent,
   type ChipGroupItem,
+  type DataTableColumn,
   type KeyValuePair,
 } from '../ui';
 import { attachContainer, createNetwork, detachContainer, pruneNetworks, removeNetwork, type NetworkSummary } from '../data/networks-client';
@@ -55,37 +58,25 @@ function subnetLine(network: NetworkSummary): string {
   return network.gateway ? `${network.subnet} · gw ${network.gateway}` : network.subnet;
 }
 
-/** The inline inspect surface for a selected network's row, expanded in place by `CardList`. */
-function NetworkDetail({ network, onRemoved }: { network: NetworkSummary; onRemoved: () => void }) {
+/**
+ * The inspect surface for a selected network, revealed by the library's detail
+ * panel in the row's expansion: full content width, properties in the two-column
+ * grid — `Options` left-aligned like every other value — and the raw payload at
+ * that same width rather than in a card column's leftover.
+ */
+function NetworkDetail({ network, onClose }: { network: NetworkSummary; onClose: () => void }) {
   const { inspect, loaded, error, refresh } = useNetworkInspect(network.id);
-  const { confirm } = useConfirmation();
-  const { run } = useProgress();
-  const { reportError } = useErrorReporter();
-
-  async function handleRemove() {
-    const confirmed = await confirm({
-      targetName: network.name,
-      consequence: 'This will permanently remove the network.',
-      confirmLabel: 'Remove',
-    });
-    if (!confirmed) return;
-    try {
-      await run(`Remove ${network.name}`, () => removeNetwork(network.id));
-      onRemoved();
-    } catch (cause) {
-      reportError(`Could not remove ${network.name}`, (cause as Error).message);
-    }
-  }
 
   return (
-    <Stack gap="var(--space-4)">
-      {error ? <ErrorBanner title="Could not load network details" detail={error} onRetry={refresh} /> : null}
-      {!inspect ? (
-        <EmptyState title={loaded ? 'No inspect data available' : 'Loading network details…'} />
-      ) : (
-        <>
-          <DefinitionList
-            items={[
+    // As on volumes: no close control, the row that opened it closes it, and it
+    // is rendered whatever the inspect call has returned so far — the panel is
+    // what holds the one-open guarantee across the screen's two lists.
+    <DetailPanel
+      dismissal="opening-gesture"
+      onClose={onClose}
+      properties={
+        inspect
+          ? [
               { label: 'Driver', value: inspect.driver },
               { label: 'Scope', value: inspect.scope },
               { label: 'Subnet', value: inspect.subnet ?? '–' },
@@ -93,25 +84,40 @@ function NetworkDetail({ network, onRemoved }: { network: NetworkSummary; onRemo
               { label: 'IP range', value: inspect.ipRange ?? '–' },
               { label: 'Options', value: Object.entries(inspect.options).map(([key, value]) => `${key}=${value}`).join(', ') || '–' },
               { label: 'Labels', value: Object.entries(inspect.labels).map(([key, value]) => `${key}=${value}`).join(', ') || '–' },
-            ]}
-          />
-          <SectionHeader variant="eyebrow" title="Raw payload" description="Exactly as received from the Engine API." />
-          <CodeViewer code={JSON.stringify(inspect.raw, null, 2)} maxHeight="240px" />
-        </>
-      )}
-      <Row justify="between">
-        <Button variant="destructive" onClick={handleRemove}>Remove</Button>
-      </Row>
-    </Stack>
+            ]
+          : undefined
+      }
+      propertiesContentClass="long-single-line"
+    >
+      <Stack gap="var(--space-4)">
+        {error ? <ErrorBanner title="Could not load network details" detail={error} onRetry={refresh} /> : null}
+        {!inspect ? (
+          loaded ? (
+            <EmptyState
+              title="No inspect data available"
+              description="The daemon returned no details for this network."
+              action={null}
+            />
+          ) : (
+            <EmptyState title="Loading network details…" description={null} action={null} />
+          )
+        ) : (
+          <>
+            <SectionHeader variant="eyebrow" title="Raw payload" description="Exactly as received from the Engine API." />
+            <CodeViewer code={JSON.stringify(inspect.raw, null, 2)} maxHeight="240px" />
+          </>
+        )}
+      </Stack>
+    </DetailPanel>
   );
 }
 
 /**
- * The Networks panel of the Volumes & networks screen (REQ-72, REQ-73,
- * REQ-74): every network with its driver, scope, subnet/gateway and attached
- * containers as chips carrying a detach action, create/inspect/remove, prune
- * of unused networks, and attaching a container from a chip-group add
- * affordance.
+ * The Networks panel of the Volumes & networks screen (REQ-72, REQ-73, REQ-74):
+ * every network with its driver, scope and subnet/gateway, listed with the
+ * object list's comfortable variant, its attached containers as chips carrying
+ * their own detach action below each row, create and prune in the toolbar under
+ * the section header, and attach and remove in the row's action cluster.
  */
 export function NetworksPanel({ networks, loaded, error, onRefresh }: NetworksPanelProps) {
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
@@ -188,13 +194,24 @@ export function NetworksPanel({ networks, loaded, error, onRefresh }: NetworksPa
     }
   }
 
-  function handleSelect(network: NetworkSummary) {
-    setSelectedId((current) => (current === network.id ? undefined : network.id));
+  async function handleRemove(network: NetworkSummary) {
+    const confirmed = await confirm({
+      targetName: network.name,
+      consequence: 'This will permanently remove the network.',
+      confirmLabel: 'Remove',
+    });
+    if (!confirmed) return;
+    try {
+      await run(`Remove ${network.name}`, () => removeNetwork(network.id));
+      setSelectedId((current) => (current === network.id ? undefined : current));
+      onRefresh();
+    } catch (cause) {
+      reportError(`Could not remove ${network.name}`, (cause as Error).message);
+    }
   }
 
-  function handleRemoved() {
-    setSelectedId(undefined);
-    onRefresh();
+  function handleSelect(network: NetworkSummary) {
+    setSelectedId((current) => (current === network.id ? undefined : network.id));
   }
 
   async function handleDetach(network: NetworkSummary, containerName: string) {
@@ -225,52 +242,80 @@ export function NetworksPanel({ networks, loaded, error, onRefresh }: NetworksPa
     }
   }
 
-  function networkRow(network: NetworkSummary): CardListRowContent {
-    const chipItems: ChipGroupItem[] = network.attachedContainers.map((containerName) => ({
-      key: containerName,
-      label: containerName,
-      actionLabel: 'detach',
-      onAction: () => handleDetach(network, containerName),
-    }));
-    return {
-      title: network.name,
-      subtitle: [subnetLine(network)],
-      meta: `${network.driver} · ${network.scope}`,
-      content: (
-        <ChipGroup
-          items={chipItems}
-          addLabel="+ Attach"
-          onAdd={() => openAttach(network)}
-          emptyLabel="No attached containers"
+  const containerOptions = containers.map((container) => ({ value: container.name, label: container.name }));
+
+  const columns: DataTableColumn<NetworkSummary>[] = [
+    {
+      id: 'name',
+      header: 'NAME',
+      width: '2fr',
+      render: (network) => <TwoLineCell title={network.name} subtitle={subnetLine(network)} />,
+    },
+    { id: 'driver', header: 'DRIVER', width: '0.8fr', render: (network) => <MetaCell>{network.driver}</MetaCell> },
+    { id: 'scope', header: 'SCOPE', width: '0.8fr', render: (network) => <MetaCell>{network.scope}</MetaCell> },
+    {
+      id: 'actions',
+      header: 'ACTIONS',
+      // Attaching a container is an action of this row, so it is a control of
+      // the row's cluster and not the bare text it used to be beside the chips.
+      // A **length**, not an intrinsic track: this cluster's two controls made
+      // the widest gap in the product between a header's track and its rows' —
+      // 57.4px against 130.7px, carrying this table's `NAME` column 46px out of
+      // line with its own header at 1440×1000.
+      width: '144px',
+      render: (network) => (
+        <ActionButtonGroup
+          actions={[
+            { id: 'attach', label: 'Attach…', onClick: () => openAttach(network) },
+            { id: 'remove', label: 'Remove', weight: 'destructive', onClick: () => handleRemove(network) },
+          ]}
         />
       ),
-    };
-  }
-
-  const containerOptions = containers.map((container) => ({ value: container.name, label: container.name }));
+    },
+  ];
 
   return (
     <Card>
-      <SectionHeader
-        title="Networks"
-        trailing={
-          <Row gap="var(--space-2)">
-            <Button onClick={openCreate}>Create</Button>
-            <Button variant="destructive" onClick={handlePrune} disabled={networks.length === 0}>Prune</Button>
-          </Row>
-        }
+      <SectionHeader title="Networks" />
+      <ScreenToolbar
+        primaryAction={{ label: 'Create network…', onClick: openCreate }}
+        destructiveAction={{ label: 'Prune', onClick: handlePrune, disabled: networks.length === 0 }}
       />
       <Stack gap="var(--space-3)">
         {error ? <ErrorBanner title="Could not load networks" detail={error} onRetry={onRefresh} /> : null}
-        <CardList
-          items={networks}
-          itemKey={(network) => network.id}
-          renderRow={networkRow}
-          selectedKey={selectedId}
-          onSelect={handleSelect}
-          expandedKey={selectedId}
-          renderExpanded={(network) => <NetworkDetail network={network} onRemoved={handleRemoved} />}
-          emptyState={<EmptyState title={loaded ? 'No networks' : 'Loading networks…'} />}
+        <DataTable
+          variant="comfortable"
+          columns={columns}
+          rows={networks}
+          rowKey={(network) => network.id}
+          selectedRowKey={selectedId}
+          onRowSelect={handleSelect}
+          renderRowContent={(network) => (
+            <ChipGroup
+              items={network.attachedContainers.map<ChipGroupItem>((containerName) => ({
+                key: containerName,
+                label: containerName,
+                actionLabel: 'detach',
+                onAction: () => handleDetach(network, containerName),
+              }))}
+              emptyLabel="No attached containers"
+            />
+          )}
+          expandedRowKey={selectedId}
+          renderExpanded={(network) => <NetworkDetail network={network} onClose={() => setSelectedId(undefined)} />}
+          emptyState={
+            loaded ? (
+              <EmptyState
+                title="No networks"
+                description="A user-defined network lets the containers on it reach each other by name."
+                // Its label is the invitation, never the toolbar's own word
+                // (DEF-2, `networks-panel.md`): one surface, one control per name.
+                action={<Button onClick={openCreate}>Create the first network</Button>}
+              />
+            ) : (
+              <EmptyState title="Loading networks…" description={null} action={null} />
+            )
+          }
         />
       </Stack>
 

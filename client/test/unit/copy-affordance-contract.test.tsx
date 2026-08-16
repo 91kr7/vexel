@@ -371,7 +371,7 @@ describe('the swarm panels offer no control on the ids they list (REQ-1, REQ-9)'
   // The node's id band (REQ-1, one of the seven swarm sites).
   it('the nodes panel opens a node on its id alone', async () => {
     const user = userEvent.setup();
-    renderPanel(<SwarmNodesPanel nodes={listing([NODE])} loaded canManage onUpdate={noop} onRemove={async () => undefined} />);
+    renderPanel(<SwarmNodesPanel nodes={listing([NODE])} onUpdate={noop} onRemove={async () => undefined} />);
 
     await user.click(screen.getByText((content) => content.startsWith('manager-alpha')));
 
@@ -383,7 +383,7 @@ describe('the swarm panels offer no control on the ids they list (REQ-1, REQ-9)'
   // The service's id band and its image band — the two props one file carried (REQ-9).
   it('the services panel opens a service on its id and its image alone', async () => {
     const user = userEvent.setup();
-    renderPanel(<SwarmServicesPanel services={listing([SERVICE])} loaded canManage onCreate={noop} onUpdate={noop} onRemove={async () => undefined} />);
+    renderPanel(<SwarmServicesPanel services={listing([SERVICE])} onCreate={noop} onUpdate={noop} onRemove={async () => undefined} />);
 
     await user.click(screen.getByText((content) => content.startsWith('blog_api')));
 
@@ -395,7 +395,7 @@ describe('the swarm panels offer no control on the ids they list (REQ-1, REQ-9)'
 
   it('the secrets panel opens a secret on its id alone', async () => {
     const user = userEvent.setup();
-    renderPanel(<SwarmSecretsPanel secrets={listing([dataItem()])} loaded canManage onCreate={noop} onRemove={async () => undefined} />);
+    renderPanel(<SwarmSecretsPanel secrets={listing([dataItem()])} onCreate={noop} onRemove={async () => undefined} />);
 
     await user.click(screen.getByText('db_password'));
 
@@ -410,8 +410,6 @@ describe('the swarm panels offer no control on the ids they list (REQ-1, REQ-9)'
       <SwarmConfigsStacksPanel
         configs={listing([dataItem({ kind: 'config', id: 'cfg-1', name: 'nginx_conf' })])}
         stacks={listing([])}
-        loaded
-        canManage
         onCreateConfig={noop}
         onRemoveConfig={async () => undefined}
         onRemoveStack={noop}

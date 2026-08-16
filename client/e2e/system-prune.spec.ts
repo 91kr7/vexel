@@ -83,6 +83,35 @@ test('the screen breaks the reclaimable space down by category, beside the daemo
   await expect(reclaimPanel(page).locator('.ui-section-header__description').first()).toHaveText(/\d+(\.\d+)?(B|KB|MB|GB|TB)/);
 });
 
+// plan-ui-coherence-optimisation/REQ-45 — the eight daemon properties were listed on Contexts *and*
+// here; Contexts lost the block in batch 9 because they describe **the daemon**, not **a context**,
+// and "nothing is lost: every one of the eight remains readable on System & prune". This is that
+// half, moved here with the removal rather than deleted with it: the readings the contexts spec used
+// to make, made on the screen that keeps them. REQ-75 pins them again in batch 14.
+test('the eight daemon properties Contexts no longer lists are readable here, with the daemon’s own values', async ({ page }) => {
+  await openSystemScreen(page);
+  const panel = page.locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Daemon info' }) });
+  await expect(panel).toBeVisible();
+
+  for (const label of ['Docker version', 'Engine API', 'BuildKit', 'Storage driver', 'Cgroup driver', 'OS / Arch', 'Root directory', 'Containers (running)']) {
+    await expect(panel.getByText(label, { exact: true }), `System & prune states no ${label}`).toBeVisible({ timeout: 20_000 });
+  }
+
+  const { stdout: version } = await execFileAsync('docker', ['version', '--format', '{{.Server.Version}}|{{.Server.APIVersion}}']);
+  const [daemonVersion, daemonApiVersion] = version.trim().split('|');
+  const { stdout: info } = await execFileAsync('docker', ['info', '--format', '{{.Driver}}|{{.DockerRootDir}}|{{.Architecture}}']);
+  const [driver, rootDir, architecture] = info.trim().split('|');
+
+  await expect(panel).toContainText(daemonVersion!);
+  await expect(panel).toContainText(daemonApiVersion!);
+  await expect(panel).toContainText(driver!);
+  await expect(panel).toContainText(rootDir!);
+  await expect(panel).toContainText(architecture!);
+  // The buildx plugin's version, or the stated absence of one — never a blank row.
+  const buildx = await execFileAsync('docker', ['buildx', 'version']).catch(() => undefined);
+  if (!buildx) await expect(panel).toContainText('not reported');
+});
+
 // plan-docker_management_app/REQ-95 — what a category contains is what the daemon holds: a container
 // this spec stopped is part of what a prune of stopped containers would take
 test('a container this spec left stopped is counted among the stopped containers', async ({ page }) => {

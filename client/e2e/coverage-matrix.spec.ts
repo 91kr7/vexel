@@ -223,9 +223,11 @@ test('a screen persisted under its internal id reopens as "About", carrying ever
   // says the functional coverage matrix is on this screen.
   await expect(page.locator('.ui-page-header__description')).toContainText(/coverage matrix/i);
 
-  // REQ-3 — the rename took nothing off the screen: the three shell cards are still there, and so
-  // is the matrix under a heading of its own.
-  for (const title of ['CLI availability', 'Daemon event stream', 'Local storage']) {
+  // REQ-3 — the rename took nothing off the screen: the shell's cards are still there, and so is the
+  // matrix under a heading of its own. The daemon event stream is not among them any more:
+  // `plan-ui-coherence-optimisation/REQ-71` supersedes that clause of REQ-3 and leaves the stream on
+  // the Dashboard alone (app-shell/specs/shell.md).
+  for (const title of ['CLI availability', 'Local storage']) {
     await expect(shellCard(page, title), `the "${title}" card is no longer on the screen`).toBeVisible();
   }
   await expect(page.getByRole('heading', { name: 'Docker capability coverage' })).toBeVisible();

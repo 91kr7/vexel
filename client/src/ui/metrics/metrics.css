@@ -113,6 +113,18 @@
   overflow: hidden;
 }
 
+/* No measurable maximum: a dashed rule where the pill would be, so the missing
+   fill reads as "there is no ceiling here" rather than as a bar that failed.
+   Background only — the box, and therefore the tile's height, is the filled
+   bar's to the pixel. */
+.ui-meter__track--unbounded {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--color-wash-2) 0 var(--space-1),
+    transparent var(--space-1) var(--space-2)
+  );
+}
+
 .ui-meter__fill {
   height: 100%;
   border-radius: var(--radius-full);
@@ -201,6 +213,13 @@
   min-width: 0;
 }
 
+.ui-usage-breakdown__rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
 .ui-usage-breakdown__row {
   display: flex;
   flex-direction: column;
@@ -258,25 +277,90 @@
   overflow: hidden;
 }
 
+/* A magnitude nobody could read: the same dashed rule `Meter` draws where there
+   is no measurable maximum, and no mark of any series color — the one picture a
+   measured row never draws. */
+.ui-usage-breakdown__track--unmeasured {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--color-wash-2) 0 var(--space-1),
+    transparent var(--space-1) var(--space-2)
+  );
+}
+
 .ui-usage-breakdown__fill {
   height: 100%;
   border-radius: var(--radius-full);
   background: var(--color-series-1);
 }
 
-.ui-usage-breakdown__fill--series-1 {
+/* A measured zero: the bar has no length, so what is drawn is its origin — a
+   mark of the row's own color on the ordinary track. Nothing at all is what
+   "not measured" looks like, and the two must not be one picture. */
+.ui-usage-breakdown__zero {
+  width: var(--space-1);
+  height: 100%;
+  border-radius: var(--radius-full);
   background: var(--color-series-1);
 }
 
-.ui-usage-breakdown__fill--series-2 {
+.ui-usage-breakdown__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  min-width: 0;
+}
+
+.ui-usage-breakdown__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.ui-usage-breakdown__legend-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.ui-usage-breakdown__swatch {
+  flex: none;
+  width: var(--space-3);
+  height: var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--color-series-1);
+}
+
+.ui-usage-breakdown__swatch--unmeasured {
+  background: repeating-linear-gradient(
+    90deg,
+    var(--color-wash-2) 0 var(--space-1),
+    transparent var(--space-1) var(--space-2)
+  );
+}
+
+.ui-usage-breakdown__fill--series-1,
+.ui-usage-breakdown__zero--series-1,
+.ui-usage-breakdown__swatch--series-1 {
+  background: var(--color-series-1);
+}
+
+.ui-usage-breakdown__fill--series-2,
+.ui-usage-breakdown__zero--series-2,
+.ui-usage-breakdown__swatch--series-2 {
   background: var(--color-series-2);
 }
 
-.ui-usage-breakdown__fill--series-3 {
+.ui-usage-breakdown__fill--series-3,
+.ui-usage-breakdown__zero--series-3,
+.ui-usage-breakdown__swatch--series-3 {
   background: var(--color-series-3);
 }
 
-.ui-usage-breakdown__fill--series-4 {
+.ui-usage-breakdown__fill--series-4,
+.ui-usage-breakdown__zero--series-4,
+.ui-usage-breakdown__swatch--series-4 {
   background: var(--color-series-4);
 }
 

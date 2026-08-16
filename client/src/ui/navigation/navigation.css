@@ -3,6 +3,12 @@
   flex-direction: column;
   gap: var(--space-6);
   height: 100%;
+  /* The card bounds its own content: whatever the entry list measures, nothing
+     inside the rail is laid out or painted past this box, so the list can
+     never reach the footer card's place or the frame below it. `min-height: 0`
+     keeps that true when the rail is itself a flex item. */
+  min-height: 0;
+  overflow: hidden;
   padding: var(--space-5) var(--space-4);
   border-radius: var(--radius-xl);
   background-color: var(--color-surface-1);
@@ -41,17 +47,62 @@
   color: var(--color-text-muted);
 }
 
+/* The entry region takes whatever height the rail has left once the brand and
+   the footer card have theirs, and scrolls inside it. `min-height: 0` is what
+   makes that a guarantee rather than a coincidence: a flex item's automatic
+   minimum size is its content, so without it a list taller than the rail keeps
+   its intrinsic height and pushes past the card below it. */
 .ui-nav-rail__groups {
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
   flex: 1 1 auto;
-  overflow: auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
   /* The scrollbar renders flush against this box's own edge; without a
      reserved gutter it sits right on top of the nav items' hover/active
      highlight. This padding is the item's stopping point, not the
      scrollbar's — leaving clearance between the two. */
   padding-right: var(--space-2);
+}
+
+/* Thirteen entries want ~744px and a 1280x800 laptop's rail has ~555px to give
+   them, so the list scrolls — and on a platform whose scrollbars are overlays
+   (macOS) nothing on screen says so: the fold lands between two entries and the
+   list reads as a complete set of ten. The entry meeting the fold is therefore
+   faded into the rail's own surface, on whichever edge still has entries beyond
+   it (`NavRail` marks which). A mask rather than a gradient overlay because
+   every surface here is translucent — a gradient of one of them would tint the
+   backdrop instead of hiding what passes under the edge. It reads nothing
+   behind the rail and computes no filter, so the blur policy is untouched.
+   The black in these gradients is mask coverage, not a colour: none of it is
+   ever painted, so no design value is being written on the spot. */
+.ui-nav-rail__groups[data-fold-start='true'] {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--space-5));
+  mask-image: linear-gradient(to bottom, transparent, #000 var(--space-5));
+}
+
+.ui-nav-rail__groups[data-fold-end='true'] {
+  -webkit-mask-image: linear-gradient(to top, transparent, #000 var(--space-5));
+  mask-image: linear-gradient(to top, transparent, #000 var(--space-5));
+}
+
+.ui-nav-rail__groups[data-fold-start='true'][data-fold-end='true'] {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 var(--space-5),
+    #000 calc(100% - var(--space-5)),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 var(--space-5),
+    #000 calc(100% - var(--space-5)),
+    transparent
+  );
 }
 
 .ui-nav-group__label {

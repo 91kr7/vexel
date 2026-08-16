@@ -54,10 +54,7 @@ test('opens on the Vexel — Docker Control shell with the thirteen entries grou
   // The restored screen is the persisted one, and it is the one the rail marks active.
   await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible();
   await expect(page.locator('[aria-current="page"]')).toHaveAccessibleName(/Dashboard/);
-  const header = page.locator('header');
   await expect(page.getByText('Live · daemon events')).toBeVisible();
-  await expect(header.getByRole('button', { name: /Search/ })).toBeVisible();
-  await expect(header.getByRole('button', { name: 'Console' })).toBeVisible();
 
   // The footer names the context Docker itself reports as active, as `name (kind)`
   // (REQ-93, app-shell/specs/shell.md) — whichever context that is on this machine.

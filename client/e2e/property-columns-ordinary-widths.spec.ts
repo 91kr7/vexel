@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from './support/test.js';
-import { openApp, ownershipArgs } from './support/fixtures.js';
+import { openApp } from './support/fixtures.js';
+import { managerSwarmFixture, stubSwarmReading } from './support/swarm-reading.js';
 import {
   COLUMN_GAP_PX,
   SHORT_SCALAR_RUN_MAX_PX,
@@ -8,7 +9,6 @@ import {
   measureSection,
   report,
 } from './support/property-bands.js';
-import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 /**
  * **The half of REQ-26 that is about the ordinary width, not the narrow one.**
@@ -56,43 +56,109 @@ import { execFileAsync } from '../../server/test/support/docker-cli.js';
  * layout is noticed instead of being absorbed. What would have to change for the
  * recorded figures to move is named in each failure message.
  *
- * Its own fixture, labelled and removed in a `finally`; nothing assumes an empty
- * daemon; nothing initialises, joins or leaves a swarm; each test passes on its
- * own.
+ * ---
+ *
+ * **Relocated, and the figures re-taken, on 2026-08-15 — batch 12 of
+ * `plan-ui-coherence-optimisation` (REQ-52 … REQ-55) deleted the surface the
+ * original decision was measured on.**
+ *
+ * Everything above was measured on the swarm screen's **half-width quadrant card
+ * and the hand-built card list inside it**. Batch 12 deleted both: the
+ * inventories are stacked at the content column's full width, `QuadPanelLayout`
+ * left the client with them, and a row's reveal is a `DetailPanel`. The
+ * measurement could not stay where it was, and pointing it at the card list's
+ * last remaining sites would have bought one batch — that component is deleted
+ * in batch 13 — and cost the same work twice.
+ *
+ * So the same rule is measured **where property columns now live**, on
+ * `DetailPanel`'s own property section, and the amendment's figures are re-taken
+ * on the geometry that survives batch 13. Three things did **not** change, and
+ * they are what makes this a relocation rather than a loosening:
+ *
+ * - the rule — the count is derived from the section's own box against the
+ *   content class's stated minimum, and no caller states a count;
+ * - the method — the count is deduced from measured band positions, never from a
+ *   class name or a prop;
+ * - the discipline — the figures stay **pinned**, so a later change to a minimum,
+ *   to the panel's width or to the layout is noticed instead of absorbed.
+ *
+ * The 360px short-scalar minimum is no longer named in this file, and its absence
+ * is not a loosening: it was the minimum these swarm measurements were read
+ * against, no swarm section is short-scalar any more, and the figure is still
+ * stated and still certified where it belongs — `ui-library/specs/content-columns.md`
+ * and batch 1's own checks. The amendment's refusal of a minimum under 329px is
+ * untouched by everything below, which moves no minimum at all.
+ *
+ * Two things did change, both consequences of what the panels now hold:
+ *
+ * - **the class**, from short-scalar to `long-single-line`. The bands carry an
+ *   image reference, environment lines, an address and the "never displayed"
+ *   sentence — 56 to 60 character single-line values — and the class follows the
+ *   content (`ui-library/specs/content-columns.md`; see also
+ *   `test/unit/property-columns-contract.test.tsx`). So the minimum a column is
+ *   measured against here is **560px, not 360px**;
+ * - **the outcome at 1920**. The amendment recorded one column on a 682px
+ *   half-width card and named what it cost: *"a taller card between roughly
+ *   1920px and 2100px of viewport ... two columns return above it."* The card is
+ *   gone and the section is the content column's width, so that cost is
+ *   **repaid** rather than re-decided — the count at 1920 is what the rule derives
+ *   from the width the section now has, and it is measured below rather than
+ *   asserted from the old figure. The amendment's *reasoning* is untouched: it
+ *   refused a minimum under 329px, and no minimum moved here.
+ *
+ * The cluster is answered **in the browser** (`support/swarm-reading.ts`), which
+ * is what lets the real section be measured instead of predicted from a probe:
+ * nothing initialises, joins or leaves a swarm, and the daemon is not touched.
+ * Nothing assumes an empty daemon; each test passes on its own.
  */
 
 /**
- * The stated minimum of a short-scalar band (`--band-min-pair-short-scalar`),
- * derived from the content in `ui-library/specs/content-columns.md` and
- * certified in batch 1. It is one of the three figures the amendment to REQ-26
- * was decided on: a minimum of 329px or less would have restored two columns at
- * 1920 and was refused, because it would put every short-scalar band in the
- * product below the width its content needs.
+ * The stated minimum of a **long-single-line** pair band
+ * (`--band-min-pair-long-single-line`), derived from the content in
+ * `ui-library/specs/content-columns.md`: 435px of ink for a 60-character value,
+ * plus 24px of band padding, plus the ~100px label run — 559px, taken to 560px.
+ * It is the minimum the swarm sections are measured against since batch 12, for
+ * the reason recorded in this file's header.
  */
-const SHORT_SCALAR_MIN_PX = 360;
+const LONG_SINGLE_LINE_MIN_PX = 560;
 
-/**
- * What two short-scalar bands need side by side: two stated minima and the one
- * column gap between them. A section narrower than this carries one column, by
- * the rule itself.
- */
-const TWO_SHORT_SCALAR_BANDS_PX = 2 * SHORT_SCALAR_MIN_PX + COLUMN_GAP_PX;
+/** What two long-single-line bands need side by side, by the rule itself. */
+const TWO_LONG_SINGLE_LINE_BANDS_PX = 2 * LONG_SINGLE_LINE_MIN_PX + COLUMN_GAP_PX;
 
 /** What the five surfaces stated for themselves, at every width, before the count was derived. */
 const CALLER_STATED_COLUMNS = 2;
 
 /**
- * The figures the amendment to REQ-26 records and was decided on, measured in
- * this environment on 2026-08-14. They are pinned rather than recomputed: a
- * check that derived them from the same source as the product would move with
- * it and notice nothing.
+ * The swarm property section, **re-taken on `DetailPanel`** at the three
+ * viewports this plan is written against — the geometry that survives batch 13.
+ *
+ * Pinned rather than recomputed: a check that derived these from the same source
+ * as the product would move with it and notice nothing. What each figure's moving
+ * would mean is said in its own failure message.
  */
-const RECORDED_AT_1920 = {
-  cardRegionPx: 724,
-  insetPx: 42,
-  sectionPx: 682,
-  columns: 1,
-} as const;
+const RECORDED_ON_THE_PANEL: Record<number, { panelPx: number; sectionPx: number; columns: number }> = {
+  1440: { panelPx: 1012, sectionPx: 1012, columns: 1 },
+  1280: { panelPx: 852, sectionPx: 852, columns: 1 },
+  375: { panelPx: 229, sectionPx: 229, columns: 1 },
+};
+
+/**
+ * The ordinary widths the amendment to REQ-26 was argued at, re-taken on the same
+ * panel.
+ *
+ * **The count at 1920 is 2 where the amendment recorded 1, and that is the loss
+ * it named being repaid rather than its reasoning being overturned.** The
+ * amendment accepted one column on a **682px half-width quadrant card** and wrote
+ * down what it cost: *"a taller card between roughly 1920px and 2100px of
+ * viewport ... two columns return above it."* Batch 12 deleted the card; the
+ * section is the content column's width, 1492px at 1920, and the same rule
+ * derives two. No minimum moved, no caller states a count, and the refusal of a
+ * sub-329px minimum the amendment turned on is untouched.
+ */
+const RECORDED_AT_ORDINARY_WIDTHS: Record<number, { panelPx: number; sectionPx: number; columns: number }> = {
+  1920: { panelPx: 1492, sectionPx: 1492, columns: 2 },
+  2560: { panelPx: 2132, sectionPx: 2132, columns: 3 },
+};
 
 /**
  * How far a pinned figure may drift before it is a different measurement: a
@@ -100,20 +166,27 @@ const RECORDED_AT_1920 = {
  */
 const PIN_TOLERANCE_PX = 2;
 
-/** The count the layout engine derives at a measured width: `floor((W + gap) / (minimum + gap))`. */
-function derivedColumns(sectionWidth: number): number {
-  return Math.max(1, Math.floor((sectionWidth + COLUMN_GAP_PX) / (SHORT_SCALAR_MIN_PX + COLUMN_GAP_PX)));
+/**
+ * The count the layout engine derives at a measured width:
+ * `floor((W + gap) / (minimum + gap))`, bounded below at one.
+ *
+ * The minimum is a **parameter** since batch 12: the coverage baseline is short
+ * scalar and the swarm sections are long single-line, and one function that
+ * assumed the first would silently mis-predict the second.
+ */
+function derivedColumns(sectionWidth: number, minimum: number): number {
+  return Math.max(1, Math.floor((sectionWidth + COLUMN_GAP_PX) / (minimum + COLUMN_GAP_PX)));
 }
 
 /** A recorded figure, and what its moving would mean, said on the spot. */
 function expectPinned(measured: number, recorded: number, reason: string): void {
   expect(
     measured,
-    `${reason} — measured ${measured.toFixed(1)}px against the ${recorded}px on record in the amendment to REQ-26 (2026-08-14)`,
+    `${reason} — measured ${measured.toFixed(1)}px against the ${recorded}px on record (re-taken on DetailPanel, 2026-08-15)`,
   ).toBeGreaterThanOrEqual(recorded - PIN_TOLERANCE_PX);
   expect(
     measured,
-    `${reason} — measured ${measured.toFixed(1)}px against the ${recorded}px on record in the amendment to REQ-26 (2026-08-14)`,
+    `${reason} — measured ${measured.toFixed(1)}px against the ${recorded}px on record (re-taken on DetailPanel, 2026-08-15)`,
   ).toBeLessThanOrEqual(recorded + PIN_TOLERANCE_PX);
 }
 
@@ -122,42 +195,70 @@ const ORDINARY_VIEWPORTS = [
   { width: 1920, height: 1080 },
 ];
 
-/** The four quadrants of the swarm screen, each holding one of the four surfaces. */
-const SWARM_PANELS = ['Nodes', 'Services & tasks', 'Secrets', 'Configs & stacks'] as const;
+/**
+ * The four swarm surfaces that state a property section, and the row a section is
+ * opened from on each.
+ *
+ * `Stacks` is the fifth card and is deliberately absent: a stack's services are
+ * carried by its own row rather than by a selection, so it reveals no property
+ * section at all (`swarm/specs/swarm-configs-stacks-panel.md`).
+ */
+const SWARM_PANELS = ['Nodes', 'Services & tasks', 'Secrets', 'Configs'] as const;
 
 function screenContent(page: Page): Locator {
   return page.locator('.ui-frame__content');
 }
 
 /**
- * The inset an expanded card puts between the width a card list is given and the
- * width the property section inside it actually gets. It is a property of the
- * library's card list, shared by every screen that uses one, so it is measured
- * where a card can be expanded on any daemon — the volumes panel — and applied
- * where one cannot.
+ * The swarm screen at `viewport`, with a cluster answered in the browser.
+ *
+ * The reading is stubbed for the reason `support/swarm-reading.ts` records: swarm
+ * mode is a property of the whole daemon and this one is the operator's. What it
+ * buys this file is that the property section can be **measured** rather than
+ * predicted from a probe — the indirection the delivered version needed existed
+ * only because the section could not be reached on a non-manager daemon at all.
  */
-async function measureExpandedCardInset(page: Page, viewport: { width: number; height: number }): Promise<number> {
-  const volumeName = `vexel-e2e-bug4-widths-${Date.now()}`;
-  await execFileAsync('docker', ['volume', 'create', ...ownershipArgs(volumeName), volumeName]);
-  try {
-    await page.setViewportSize(viewport);
-    await openApp(page, 'volumes-networks');
-    await expect(page.getByRole('heading', { level: 1, name: 'Volumes & networks' })).toBeVisible({ timeout: 20_000 });
-    const panel = page.locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Volumes' }) });
-    await panel.locator('.ui-card-list__item', { hasText: volumeName }).first().click();
-    await expect(panel.locator('.ui-card-list__expanded')).toBeVisible();
+async function openSwarmScreen(page: Page, viewport: { width: number; height: number }): Promise<void> {
+  await page.setViewportSize(viewport);
+  await stubSwarmReading(page, managerSwarmFixture());
+  await openApp(page, 'swarm');
+  await expect(page.getByRole('heading', { level: 1, name: 'Swarm' })).toBeVisible({ timeout: 20_000 });
+  // The shell's own connection probe starts unreachable and settles asynchronously; a screen read
+  // before it settles is read under a banner that is about to go, and every box below it belongs to
+  // the runner's timing rather than to the layout.
+  await expect(
+    screenContent(page).locator('.ui-error-banner').filter({ hasText: 'Daemon unreachable' }),
+    'the application could not reach the daemon, so nothing below measures the screen',
+  ).toHaveCount(0, { timeout: 30_000 });
+  await expect(screenContent(page).getByRole('heading', { level: 2, name: 'Stacks' })).toBeVisible({ timeout: 20_000 });
+  await expect(screenContent(page).locator('.ui-data-table__row').first()).toBeVisible({ timeout: 20_000 });
+}
 
-    const listWidth = await panel.locator('.ui-card-list').first().evaluate((element) => element.getBoundingClientRect().width);
-    const section = await measureSection(panel.locator('.ui-definition-list').first(), 'the volumes panel property section');
-    const inset = listWidth - section.box.width;
-    console.log(
-      `[REQ-26] expanded-card inset @${viewport.width}×${viewport.height}: a card list of ${listWidth.toFixed(1)}px gives its property section ${section.box.width.toFixed(1)}px — inset ${inset.toFixed(1)}px`,
-    );
-    expect(inset, 'the expanded card takes no width at all from the section, which no measurement of this library component supports').toBeGreaterThan(0);
-    return inset;
-  } finally {
-    await execFileAsync('docker', ['volume', 'rm', '-f', volumeName]).catch(() => undefined);
-  }
+/**
+ * Opens the first row of one swarm inventory and returns the panel it reveals,
+ * with the property section inside it.
+ *
+ * A row is selected **on its first cell, with a real pointer**: below the desktop
+ * breakpoint the row is wider than the box it is read in, so its own centre can
+ * sit over another column — or over a control (CLAUDE.md, "What a check drives,
+ * and what it measures").
+ */
+async function openPropertySection(page: Page, title: string): Promise<{ panel: Locator; section: Locator }> {
+  const card = screenContent(page)
+    .locator('.ui-surface')
+    .filter({ has: page.getByRole('heading', { level: 2, name: title, exact: true }) })
+    .first();
+  const cell = card.locator('.ui-data-table__row').first().locator('.ui-data-table__cell').first();
+  await expect(cell, `the ${title} inventory lists nothing to open, so its property section cannot be measured`).toBeVisible({
+    timeout: 20_000,
+  });
+  await cell.scrollIntoViewIfNeeded();
+  const box = (await cell.boundingBox())!;
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+
+  const panel = card.locator('.ui-detail-panel');
+  await expect(panel, `the ${title} row opened no detail panel`).toHaveCount(1, { timeout: 20_000 });
+  return { panel, section: panel.locator('.ui-definition-list').first() };
 }
 
 /**
@@ -198,69 +299,143 @@ test('the coverage baseline list: no fewer columns than it stated, at 1280 and a
 });
 
 /**
- * **The accepted outcome at 1920, recorded.** This is the amendment's own
- * measurement, kept in the suite as the amendment asks: not a claim that one
- * column is what REQ-26's second clause wanted — it is not — but a pin on the
- * three figures the decision was taken on, so that the day one of them moves,
- * the decision is revisited rather than silently outgrown.
+ * **REQ-26's outcome on the swarm property section, re-taken on `DetailPanel` at
+ * the three viewports this plan is written against.**
  *
- * Each figure is pinned with the reason it could move stated in its own failure
- * message. **A failure here is not a defect on its own**: it means the geometry
- * the amendment was decided against has changed, and the amendment is what has
- * to be re-read.
+ * This replaces the amendment's measurement of a half-width quadrant card, which
+ * batch 12 deleted (see this file's header). It is the same rule on the surface
+ * that now carries it, and it is pinned for the same reason the old one was: so
+ * that the day the panel's width, the stated minimum or the layout moves, the
+ * decision is revisited rather than silently outgrown.
+ *
+ * **A failure here is not a defect on its own.** It means the geometry REQ-26's
+ * amendment is read against has changed again, and the amendment is what has to
+ * be re-read.
  */
-test('the four swarm panels: the recorded one-column outcome at 1920, and the figures it was decided on', async ({ page }) => {
-  const viewport = { width: 1920, height: 1080 };
-  const inset = await measureExpandedCardInset(page, viewport);
-  expectPinned(inset, RECORDED_AT_1920.insetPx, 'the expanded card takes a different width from the section than the amendment measured (`.ui-card-list__expanded` padding)');
-
-  await openApp(page, 'swarm');
-  await expect(page.getByRole('heading', { level: 1, name: 'Swarm' })).toBeVisible({ timeout: 20_000 });
-
+test('the four swarm panels: the property section on the detail panel, at 1440, 1280 and 375', async ({ page }) => {
+  test.setTimeout(180_000);
   const measured: string[] = [];
-  for (const title of SWARM_PANELS) {
-    const panel = screenContent(page).locator('.ui-surface').filter({ has: page.getByRole('heading', { level: 2, name: title }) }).first();
-    const region = panel.locator('.ui-card-list, .ui-card-list__empty').first();
-    await expect(region, `the ${title} panel draws no card region, so the width its property card gets cannot be measured`).toBeVisible({ timeout: 20_000 });
-    const regionWidth = await region.evaluate((element) => element.getBoundingClientRect().width);
-    const sectionWidth = regionWidth - inset;
-    const columns = derivedColumns(sectionWidth);
-    const evidence = `${title} @${viewport.width}×${viewport.height}: card region ${regionWidth.toFixed(1)}px → property section ${sectionWidth.toFixed(1)}px → ${columns} column(s) at the stated ${SHORT_SCALAR_MIN_PX}px minimum (two bands need ${TWO_SHORT_SCALAR_BANDS_PX}px)`;
-    measured.push(evidence);
 
-    expectPinned(regionWidth, RECORDED_AT_1920.cardRegionPx, `${evidence} — the quadrant layout gives a swarm panel's card region a different width from the one the amendment was decided on`);
-    expectPinned(sectionWidth, RECORDED_AT_1920.sectionPx, `${evidence} — the width a swarm property section is given has moved off the figure the amendment records`);
-    expect(
-      columns,
-      `${evidence} — the recorded outcome is ${RECORDED_AT_1920.columns} column, and the count derived from the measured width is no longer it: either the stated minimum, the card or the layout has changed, and the amendment to REQ-26 is what has to be re-read before this number is updated`,
-    ).toBe(RECORDED_AT_1920.columns);
+  for (const width of [1440, 1280, 375]) {
+    const viewport = { width, height: width === 375 ? 812 : width === 1280 ? 800 : 1000 };
+    const recorded = RECORDED_ON_THE_PANEL[width]!;
+    await openSwarmScreen(page, viewport);
+
+    for (const title of SWARM_PANELS) {
+      const { panel, section } = await openPropertySection(page, title);
+      const panelWidth = await panel.evaluate((element) => element.getBoundingClientRect().width);
+      const geometry = await measureSection(section, `the ${title} property section`);
+      const predicted = derivedColumns(geometry.box.width, LONG_SINGLE_LINE_MIN_PX);
+      const evidence = report(`${title} @${viewport.width}\u00d7${viewport.height}`, geometry);
+      measured.push(
+        `${evidence} — panel ${panelWidth.toFixed(1)}px — the rule derives ${predicted} column(s) at the ${LONG_SINGLE_LINE_MIN_PX}px long-single-line minimum (two bands need ${TWO_LONG_SINGLE_LINE_BANDS_PX}px)`,
+      );
+
+      // The panel is the width the stacked card gives it: the figure batch 12 bought, and the one
+      // the section's own width follows from.
+      expectPinned(
+        panelWidth,
+        recorded.panelPx,
+        `${title} @${viewport.width}\u00d7${viewport.height} — the stacked card gives a swarm detail panel a different width from the one on record`,
+      );
+      expectPinned(
+        geometry.box.width,
+        recorded.sectionPx,
+        `${title} @${viewport.width}\u00d7${viewport.height} — the width a swarm property section is given has moved off the figure on record`,
+      );
+
+      // **The count is what the rule derives from the measured width**, not a number written down:
+      // the pin above is what notices the width moving, and this is what notices the arrangement
+      // disagreeing with its own rule.
+      expect(
+        geometry.columns,
+        `${evidence} — ${geometry.columns} column(s) drawn where the rule derives ${predicted} from the measured ${geometry.box.width.toFixed(1)}px at the ${LONG_SINGLE_LINE_MIN_PX}px minimum`,
+      ).toBe(predicted);
+      expect(
+        geometry.columns,
+        `${evidence} — the recorded outcome is ${recorded.columns} column(s), and the count drawn is no longer it: either the stated minimum, the panel or the layout has changed, and REQ-26's amendment is what has to be re-read before this number is updated`,
+      ).toBe(recorded.columns);
+
+      // The invariants that hold at every width on every consuming surface.
+      expectLinesReadAsLines(geometry, evidence);
+      expect(geometry.positionalOrder, `${evidence} — the positions read in a different order from the markup`).toEqual(geometry.documentOrder);
+      expectNothingClippedOrOverlapped(geometry, evidence);
+
+      // One detail is open at a time, so the row is closed again before the next inventory.
+      await page.keyboard.press('Escape');
+      await expect(panel).toHaveCount(0, { timeout: 20_000 });
+    }
   }
   console.log(`[REQ-26] ${measured.join('\n[REQ-26] ')}`);
 });
 
-/** The same measurement at the width the batch's own swarm check would have used, for the record. */
-test('the four swarm panels: their property card has the width two columns need, at 2560', async ({ page }) => {
-  const viewport = { width: 2560, height: 1440 };
-  const inset = await measureExpandedCardInset(page, viewport);
-
-  await openApp(page, 'swarm');
-  await expect(page.getByRole('heading', { level: 1, name: 'Swarm' })).toBeVisible({ timeout: 20_000 });
-
+/**
+ * **The ordinary widths the amendment was argued at, re-taken on the same panel.**
+ *
+ * The amendment recorded one column at 1920 on a 682px half-width card, and named
+ * what it cost: *"a taller card between roughly 1920px and 2100px of viewport ...
+ * two columns return above it."* That card is gone. What is measured here is the
+ * count the **same rule** derives from the width the section now has, and whether
+ * the density the caller-stated count used to give is back — which is REQ-26's
+ * second clause, *"at ordinary widths their visible outcome is the same count or a
+ * better one"*, on the surface that now carries the section.
+ */
+test('the four swarm panels: the ordinary-width outcome, at 1920 and 2560', async ({ page }) => {
+  test.setTimeout(180_000);
   const measured: string[] = [];
-  const tooNarrow: string[] = [];
-  for (const title of SWARM_PANELS) {
-    const panel = screenContent(page).locator('.ui-surface').filter({ has: page.getByRole('heading', { level: 2, name: title }) }).first();
-    const region = panel.locator('.ui-card-list, .ui-card-list__empty').first();
-    await expect(region, `the ${title} panel draws no card region, so the width its property card gets cannot be measured`).toBeVisible({ timeout: 20_000 });
-    const regionWidth = await region.evaluate((element) => element.getBoundingClientRect().width);
-    const predicted = regionWidth - inset;
-    measured.push(`${title} @${viewport.width}×${viewport.height}: card region ${regionWidth.toFixed(1)}px → property section ${predicted.toFixed(1)}px`);
-    if (predicted < TWO_SHORT_SCALAR_BANDS_PX) tooNarrow.push(`${title} (${predicted.toFixed(1)}px)`);
+
+  for (const width of [1920, 2560]) {
+    const viewport = { width, height: width === 2560 ? 1440 : 1080 };
+    const recorded = RECORDED_AT_ORDINARY_WIDTHS[width]!;
+    await openSwarmScreen(page, viewport);
+
+    for (const title of SWARM_PANELS) {
+      const { panel, section } = await openPropertySection(page, title);
+      const panelWidth = await panel.evaluate((element) => element.getBoundingClientRect().width);
+      const geometry = await measureSection(section, `the ${title} property section`);
+      const predicted = derivedColumns(geometry.box.width, LONG_SINGLE_LINE_MIN_PX);
+      const evidence = report(`${title} @${viewport.width}\u00d7${viewport.height}`, geometry);
+      measured.push(
+        `${evidence} — panel ${panelWidth.toFixed(1)}px — the rule derives ${predicted} column(s) at the ${LONG_SINGLE_LINE_MIN_PX}px long-single-line minimum`,
+      );
+
+      expectPinned(
+        panelWidth,
+        recorded.panelPx,
+        `${title} @${viewport.width}\u00d7${viewport.height} — the stacked card gives a swarm detail panel a different width from the one on record`,
+      );
+      expectPinned(
+        geometry.box.width,
+        recorded.sectionPx,
+        `${title} @${viewport.width}\u00d7${viewport.height} — the width a swarm property section is given at an ordinary width has moved off the figure on record`,
+      );
+      expect(
+        geometry.columns,
+        `${evidence} — ${geometry.columns} column(s) drawn where the rule derives ${predicted} from the measured ${geometry.box.width.toFixed(1)}px`,
+      ).toBe(predicted);
+      expect(
+        geometry.columns,
+        `${evidence} — the recorded outcome is ${recorded.columns} column(s), and the count drawn is no longer it: REQ-26's amendment is what has to be re-read before this number is updated`,
+      ).toBe(recorded.columns);
+
+      // REQ-26's second clause, on the surface that carries the section now: the count the operator
+      // sees is the caller-stated two, or better. The amendment recorded this as the one place it
+      // was not, on a card the migration has since deleted.
+      expect(
+        geometry.columns,
+        `${evidence} — ${geometry.columns} column(s) at an ordinary width, fewer than the ${CALLER_STATED_COLUMNS} this surface stated for itself before the count was derived`,
+      ).toBeGreaterThanOrEqual(CALLER_STATED_COLUMNS);
+      expect(
+        geometry.box.width,
+        `${evidence} — the section is given less than the ${TWO_LONG_SINGLE_LINE_BANDS_PX}px two long-single-line bands need`,
+      ).toBeGreaterThanOrEqual(TWO_LONG_SINGLE_LINE_BANDS_PX);
+
+      expectLinesReadAsLines(geometry, evidence);
+      expectNothingClippedOrOverlapped(geometry, evidence);
+
+      await page.keyboard.press('Escape');
+      await expect(panel).toHaveCount(0, { timeout: 20_000 });
+    }
   }
   console.log(`[REQ-26] ${measured.join('\n[REQ-26] ')}`);
-
-  expect(
-    tooNarrow,
-    `at ${viewport.width}×${viewport.height} these panels give their property section less than the ${TWO_SHORT_SCALAR_BANDS_PX}px two short-scalar bands need`,
-  ).toEqual([]);
 });

@@ -1,6 +1,20 @@
+/* The table is the region that pans horizontally when its columns' minimums
+   exceed the width it was given. It has to be this element and not the body's
+   own scroll region, because the header row is laid out on the same tracks as
+   the rows and lives outside that region: whichever box scrolls has to carry
+   both, or a column would part company with the label naming it. */
 .ui-data-table {
   display: flex;
   flex-direction: column;
+  overflow-x: auto;
+}
+
+/* The body's scroll region is sized to the width its rows ask for, so it never
+   scrolls horizontally itself — it hands that overflow up to the table above,
+   where the header can follow it. Vertical scrolling (`maxHeight`) is untouched
+   and stays here. */
+.ui-data-table > .ui-scroll-area {
+  min-width: min-content;
 }
 
 /* The region is focusable only to receive the point of interaction back; a ring
@@ -17,6 +31,7 @@
 
 .ui-data-table__header {
   display: grid;
+  min-width: min-content;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-4);
   border-bottom: var(--border-width-hairline) solid var(--color-border-subtle);
@@ -39,12 +54,30 @@
   width: 100%;
 }
 
+/* `min-content` here is the sum of the tracks' own minimums (plus the gaps and
+   the padding): the row grows to the width its columns need instead of dividing
+   a width that is not enough between them, which is what the table above then
+   scrolls. The header carries the same rule and the same tracks, so the two
+   resolve to identical column widths and stay aligned however far it is
+   scrolled.
+
+   The row no longer clips on the inline axis: clipping there hid the overflow
+   from the scroll region instead of letting it be scrolled — `scrollWidth 432 /
+   clientWidth 333` on the row while the scroll area around it reported
+   `scrollWidth === clientWidth` and so offered nothing to drag. What that
+   clipping did protect is the block axis, and `clip` keeps exactly that: content
+   taller than the fixed `rowHeight` is still cut rather than spilling into the
+   row below. `visible` + `clip` is the one mixed pair the two properties keep as
+   written; `visible` beside `hidden` would compute back to `auto` and make the
+   row a scroll container again. */
 .ui-data-table__row {
   display: grid;
   align-items: center;
+  min-width: min-content;
   gap: var(--space-3);
   padding: 0 var(--space-4);
-  overflow: hidden;
+  overflow-x: visible;
+  overflow-y: clip;
   border-bottom: var(--border-width-hairline) solid var(--color-border-subtle);
 }
 
@@ -52,6 +85,59 @@
   align-items: start;
   padding: var(--space-3) var(--space-4);
   overflow: visible;
+}
+
+/* The comfortable variant: each row on a card of its own, separated rather than
+   ruled. Everything that makes it a list — the tracks, their minimums, the pan
+   when they no longer fit, the cells and their truncation — is the dense
+   variant's, unchanged; what differs is the room a row is given and the surface
+   it is drawn on. That is why this is a variant and not a second component: a
+   screen choosing between them chooses a density, never a set of behaviours. */
+.ui-data-table--comfortable .ui-data-table__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* The card is the carrier (`Surface`), so the row inside it draws no border of
+   its own and rounds nothing: two rounded edges inside one card read as a box
+   in a box. */
+.ui-data-table__row--comfortable {
+  align-items: center;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: none;
+}
+
+/* The header takes the comfortable row's own inline inset, and that is the
+   contract rather than a nicety: the tracks are laid inside each grid's content
+   box, so a header padded to `--space-4` beside rows padded to `--space-5`
+   inside a bordered card is a grid 10px wider than theirs, in which every
+   flexible track resolves to a different width. Measured before this rule, at
+   1440x1000: header cells at 349/449/652.5/808.1/987.6/1119.3/1251 against row
+   cells at 354/454/654.9/808.6/985.9/1115.9/1246 — the label drifting from its
+   column by up to 5px, in both directions, over one row. The hairline is the
+   carrier `Surface`'s own border, which the row sits inside and the header does
+   not; without it the two land 1px apart. The dense variant never needed any of
+   this, its rows being padded exactly as the header is. */
+.ui-data-table--comfortable .ui-data-table__header {
+  padding-inline: calc(var(--space-5) + var(--border-width-hairline));
+}
+
+/* Content the row always carries, below its cells and outside the selectable
+   row: chips with their own actions, or the nested list that makes this a
+   grouped list. It is inside the same card, so it is inset to the row's own
+   padding and adds no separation of its own. */
+.ui-data-table__row-content {
+  padding: 0 var(--space-5) var(--space-4);
+}
+
+/* Inside a card the expansion is separated from the row by a rule rather than
+   by the wash the dense variant uses: the card already sets it apart from the
+   list around it. */
+.ui-data-table--comfortable .ui-data-table__expanded {
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  border-top: var(--border-width-hairline) solid var(--color-border-subtle);
+  background: none;
 }
 
 .ui-data-table__row:hover {
@@ -62,6 +148,14 @@
   background: var(--color-accent-tint);
 }
 
+/* The cell keeps waiving its automatic minimum, and that is what makes the
+   track's minimum the one number in charge. Restored, the automatic minimum is
+   the cell's own min-content — for the single-line, `nowrap` values these cells
+   carry, the whole string — so a column would be as wide as its longest value,
+   at every width: a 64-character digest would demand ~500px, the ellipsis
+   truncation the delivered desktop layout is built on would never happen again,
+   and the row's width would follow the data rather than the design. The floor
+   under a column is declared, per track, in `DataTable`'s `columnTrack`. */
 .ui-data-table__cell {
   min-width: 0;
   font-size: var(--font-size-sm);
@@ -82,7 +176,16 @@
   min-width: 0;
 }
 
+/* Positioned so the component can hold it in the pan region's visible box while
+   the grid pans underneath (`DataTable`'s `pinExpansion`, which explains why the
+   offset is written rather than declared as a sticky inset). Relative and not
+   `transform`: a relatively positioned box is not the containing block of a
+   `position: fixed` descendant, and a dialog opened from a panel is rendered in
+   place. Below, `left` and `width` are the component's to write, and it writes
+   neither unless the table is actually panning. */
 .ui-data-table__expanded {
+  position: relative;
+  left: 0;
   padding: var(--space-4) var(--space-6) var(--space-5);
   background: var(--color-wash-1);
 }
@@ -128,8 +231,9 @@
   min-width: 0;
 }
 
+/* `flex: none` is the truncation contract's (`.ui-truncating-meta`): the inline
+   action keeps its width whatever the text beside it is. */
 .ui-table-two-line-cell__action {
-  flex: none;
   opacity: 0;
 }
 
@@ -138,21 +242,20 @@
   opacity: 1;
 }
 
+/* One line each, ellipsised: the three properties that do it are the truncation
+   contract's (`.ui-truncating-line`), which the component puts on both lines —
+   and withholds from both in the wrapping variant below, so the boundary
+   between the two is a class the cell does or does not carry rather than a set
+   of overrides fighting the same declarations. */
 .ui-table-two-line-cell__title {
   font-weight: var(--font-weight-medium);
   color: var(--color-text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .ui-table-two-line-cell__subtitle {
   font-family: var(--font-family-mono);
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* Wrapping variant: the lines read as sentences, so they are shown in full and
@@ -163,9 +266,6 @@
 
 .ui-table-two-line-cell--wrap .ui-table-two-line-cell__title,
 .ui-table-two-line-cell--wrap .ui-table-two-line-cell__subtitle {
-  overflow: visible;
-  text-overflow: clip;
-  white-space: normal;
   overflow-wrap: anywhere;
 }
 
@@ -174,12 +274,14 @@
   line-height: var(--line-height-normal);
 }
 
+/* Both carry `.ui-truncating-line` — the meta cell except in its wrapping
+   variant — so the one line and its ellipsis are the contract's, here as in a
+   card row. The floor under them is not the run floor but the column's own
+   track minimum (`--data-table-column-min-width`): a table cell already sits in
+   a grid whose tracks refuse to reach 0px. */
 .ui-table-meta-cell {
   display: block;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   font-family: var(--font-family-mono);
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
@@ -188,9 +290,6 @@
 .ui-table-identifier-cell {
   display: block;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   font-family: var(--font-family-mono);
   font-size: var(--font-size-sm);
   color: var(--color-text-muted);
@@ -212,10 +311,30 @@
   flex: 0 1 auto;
 }
 
+/* The wrapper shrinks; the pill inside it did not, and carried no truncation of
+   its own, so under width pressure a badge simply overflowed its wrapper and was
+   painted across the next one. Measured with seven platform strings in a 165px
+   column at 1440×1000: item boxes 65.1 / 67.4 / 24.8px against badge boxes 78 /
+   80.7 / 29.7px, each pill ending ~9px inside its neighbour's — twice per row,
+   at all three viewports. The badge is bounded by its wrapper and ellipsises
+   inside it; the wrapper's own `title` keeps the full label available. `block`
+   rather than the badge's own `inline-flex`, because `text-overflow` does not
+   apply to a flex container's anonymous item. */
+.ui-table-badge-list-cell__item > .ui-badge {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The count of what is hidden is never what gets cut. */
+.ui-table-badge-list-cell__item--overflow {
+  flex: none;
+}
+
 .ui-table-meta-cell--wrap {
-  white-space: normal;
   overflow-wrap: anywhere;
-  text-overflow: clip;
 }
 
 .ui-table-meta-cell--unavailable {
@@ -302,6 +421,12 @@
   flex: none;
 }
 
+/* No `text-align` of its own: a value reads from the left, like every other
+   value in the product. The declaration this rule used to carry (`right`) was
+   inert for a value that fits on one line — the box is sized to its content —
+   and live for one that wraps, which is how the network `Options` value came to
+   be the one right-aligned value in the interface. It was the only source of
+   that, and it is inherited, so nothing under it needs an override to undo it. */
 .ui-definition-list__value {
   display: inline-flex;
   align-items: center;
@@ -309,7 +434,6 @@
   font-family: var(--font-family-mono);
   font-size: var(--font-size-xs);
   color: var(--color-text-primary);
-  text-align: right;
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -327,88 +451,6 @@
    refuses, and an element left behind would still consume the block's own
    `gap` above six raw payload blocks (REQ-11). */
 
-.ui-card-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.ui-card-list__item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding: var(--space-4) var(--space-5);
-  cursor: pointer;
-}
-
-.ui-card-list__item:hover {
-  background: var(--color-surface-2);
-}
-
-.ui-card-list__item--selected {
-  background: var(--color-accent-tint);
-}
-
-.ui-card-list__leading {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-width: 0;
-}
-
-.ui-card-list__heading {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  min-width: 0;
-}
-
-.ui-card-list__title {
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-primary);
-}
-
-.ui-card-list__subtitle {
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
-}
-
-.ui-card-list__trailing {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  flex: none;
-}
-
-.ui-card-list__badges {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.ui-card-list__meta {
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-  text-align: right;
-  min-width: 64px;
-}
-
-.ui-card-list__content {
-  padding: 0 var(--space-5) var(--space-4);
-}
-
-.ui-card-list__expanded {
-  padding: 0 var(--space-5) var(--space-5);
-  border-top: var(--border-width-hairline) solid var(--color-border-subtle);
-}
-
-.ui-card-list__empty {
-  padding: var(--space-6) var(--space-4);
-}
-
 .ui-code-viewer__code {
   margin: 0;
   padding: var(--space-3);
@@ -418,8 +460,13 @@
   font-family: var(--font-family-mono);
   font-size: var(--font-size-xs);
   color: var(--color-text-wash-strong);
+  /* Wrapping as on `.ui-console-surface__line`: the block breaks at the token
+     boundaries the payload carries (`token-wrap.tsx`), and this declaration is
+     the last resort for a token no line can hold. Written as `overflow-wrap`,
+     which is what the deprecated `word-break: break-word` it replaces was
+     defined to mean, so the block's minimum width is unchanged. */
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .ui-privilege-list {

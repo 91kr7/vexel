@@ -137,6 +137,10 @@ export function DashboardScreen({ containers, containersLoaded, containersError,
     label: DISK_USAGE_LABELS[entry.id],
     value: entry.sizeBytes,
     valueLabel: entry.unavailableDetail ? 'unavailable' : formatBytes(entry.sizeBytes),
+    // A category the daemon could not report is not a category holding nothing:
+    // the breakdown draws the two differently, and only the caller knows which
+    // of the two this row is (REQ-68).
+    unavailable: entry.unavailableDetail !== undefined,
     onActivate: () => navigateTo({ screenId: OWNER_SCREEN[entry.id] }),
     ariaLabel: `${DISK_USAGE_LABELS[entry.id]} — open the screen that owns it`,
   }));
@@ -229,7 +233,7 @@ export function DashboardScreen({ containers, containersLoaded, containersError,
                 maxHeight="320px"
                 hideHeader
                 onRowSelect={() => navigateTo({ screenId: 'containers' })}
-                emptyState={<EmptyState title={containersLoaded ? 'No container on this daemon' : 'Reading the containers…'} />}
+                emptyState={<EmptyState title={containersLoaded ? 'No container on this daemon' : 'Reading the containers…'}  description={null} action={null} />}
               />
             </Stack>
           </Card>
@@ -244,7 +248,7 @@ export function DashboardScreen({ containers, containersLoaded, containersError,
               <UsageBreakdown
                 items={diskUsageItems}
                 total={overview?.diskUsage.totalBytes}
-                emptyState={<EmptyState title={loaded ? 'The daemon reported no disk usage' : 'Reading the disk usage…'} />}
+                emptyState={<EmptyState title={loaded ? 'The daemon reported no disk usage' : 'Reading the disk usage…'}  description={null} action={null} />}
               />
             </Stack>
           </Card>

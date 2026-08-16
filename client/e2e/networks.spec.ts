@@ -1,4 +1,4 @@
-import { expect, test, type Page } from './support/test.js';
+import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
@@ -20,16 +20,34 @@ async function removeContainerQuietly(name: string): Promise<void> {
   await execFileAsync('docker', ['rm', '-fv', name]).catch(() => undefined);
 }
 
-// The row's own header (`.ui-card-list__item`) and its attached-container
-// chips (`.ui-card-list__content`) are siblings inside the same card-list
-// Surface, not nested inside one another: scope to the Surface so assertions
-// can see both.
-function networkRow(page: Page, name: string) {
-  return page.locator('.ui-card-list > .ui-surface', { has: page.locator('.ui-card-list__item', { hasText: name }) });
+// The list is the object list's comfortable variant: the row itself
+// (`.ui-data-table__row`) and the attached-container chips
+// (`.ui-data-table__row-content`) are siblings inside the same row card, not
+// nested inside one another — so a locator that must see both is scoped to the
+// card (`networks-panel.md`).
+function networkRow(page: Page, name: string): Locator {
+  return networksPanel(page).locator('.ui-data-table__row', { hasText: name }).first();
 }
 
-// Scopes an action to the Networks panel specifically: the Volumes panel next
-// to it on the same screen carries a "Create" button of its own.
+function networkCard(page: Page, name: string): Locator {
+  return networksPanel(page)
+    .locator('.ui-data-table__body > .ui-surface', { has: page.locator('.ui-data-table__row', { hasText: name }) })
+    .first();
+}
+
+/** The value a row carries in the column the list names `header`. */
+async function cellText(row: Locator, header: string): Promise<string> {
+  return row.evaluate((element, columnHeader) => {
+    const table = element.closest('.ui-data-table')!;
+    const headers = Array.from(table.querySelectorAll('.ui-data-table__header-cell')).map((cell) => cell.textContent?.trim() ?? '');
+    const index = headers.indexOf(columnHeader);
+    if (index < 0) throw new Error(`the list carries no ${columnHeader} column — it names [${headers.join(', ')}]`);
+    return element.querySelectorAll('.ui-data-table__cell')[index]?.textContent?.trim() ?? '';
+  }, header);
+}
+
+// Scopes an action to the Networks panel specifically: the Volumes panel above
+// it on the same screen carries a create and a prune of its own.
 function networksPanel(page: Page) {
   return page.locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Networks' }) });
 }
@@ -50,8 +68,9 @@ test('lists a network with its subnet/gateway and driver/scope', async ({ page }
 
     const row = networkRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
-    await expect(row).toContainText('10.199.30.0/24 · gw 10.199.30.1');
-    await expect(row).toContainText('bridge · local');
+    expect(await cellText(row, 'NAME')).toContain('10.199.30.0/24 · gw 10.199.30.1');
+    expect(await cellText(row, 'DRIVER')).toBe('bridge');
+    expect(await cellText(row, 'SCOPE')).toBe('local');
   } finally {
     await removeNetworkQuietly(name);
   }
@@ -65,10 +84,11 @@ test('shows an attached container\'s name as a chip on its network\'s row', asyn
     await createTestNetwork(networkName);
     await createSleepingContainer(containerName, ['--network', networkName]);
 
-    const row = networkRow(page, networkName);
-    await expect(row).toBeVisible({ timeout: 15_000 });
-    await expect(row).toContainText(containerName, { timeout: 15_000 });
-    await expect(row.getByRole('button', { name: 'detach' })).toBeVisible();
+    const card = networkCard(page, networkName);
+    await expect(card).toBeVisible({ timeout: 15_000 });
+    const chips = card.locator('.ui-data-table__row-content');
+    await expect(chips).toContainText(containerName, { timeout: 15_000 });
+    await expect(chips.getByRole('button', { name: 'detach' })).toBeVisible();
   } finally {
     await removeContainerQuietly(containerName);
     await removeNetworkQuietly(networkName);
@@ -79,7 +99,7 @@ test('shows an attached container\'s name as a chip on its network\'s row', asyn
 test('creating a network through the dialog adds it to the list', async ({ page }) => {
   const name = `vexel-e2e-create-${Date.now()}`;
   try {
-    await networksPanel(page).getByRole('button', { name: 'Create' }).click();
+    await networksPanel(page).getByRole('button', { name: 'Create network…' }).click();
     const dialog = page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: 'Create network' }) });
     await dialog.getByRole('textbox', { name: 'Network name' }).fill(name);
     await dialog.getByRole('textbox', { name: 'Subnet' }).fill('10.199.31.0/24');
@@ -88,14 +108,15 @@ test('creating a network through the dialog adds it to the list', async ({ page 
 
     const row = networkRow(page, name);
     await expect(row).toBeVisible({ timeout: 10_000 });
-    await expect(row).toContainText('10.199.31.0/24 · gw 10.199.31.1');
+    expect(await cellText(row, 'NAME')).toContain('10.199.31.0/24 · gw 10.199.31.1');
   } finally {
     await removeNetworkQuietly(name);
   }
 });
 
 // plan-docker_management_app/REQ-73, REQ-6 — a network's full inspect data is viewable, and removing it
-// asks for confirmation naming it, performs nothing on cancel and applies once confirmed
+// asks for confirmation naming it, performs nothing on cancel and applies once confirmed.
+// plan-ui-coherence-optimisation/REQ-35 — remove is now a control of the row's own action cluster.
 test('inspecting and removing a network asks for confirmation naming it, and applies on confirm', async ({ page }) => {
   const name = `vexel-e2e-remove-${Date.now()}`;
   try {
@@ -103,21 +124,23 @@ test('inspecting and removing a network asks for confirmation naming it, and app
     const row = networkRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
 
-    await row.locator('.ui-card-list__item').click();
-    // The expanded region of this panel: the volumes panel next to it on the same
-    // screen expands its own rows in a region of the same kind.
-    const expanded = networksPanel(page).locator('.ui-card-list__expanded');
-    await expect(expanded).toBeVisible();
-    await expect(expanded.getByText('Driver', { exact: true })).toBeVisible();
+    // A real pointer on the row's own first cell: the action cluster sits at the
+    // row's trailing edge and is not the gesture that reveals the detail.
+    await row.locator('.ui-data-table__cell').first().click();
+    // The panel of this list: the volumes panel above it on the same screen
+    // reveals its own rows in a panel of the same kind.
+    const detail = networksPanel(page).locator('.ui-detail-panel');
+    await expect(detail).toBeVisible();
+    await expect(detail.getByText('Driver', { exact: true })).toBeVisible();
 
-    await expanded.getByRole('button', { name: 'Remove' }).click();
+    await row.getByRole('button', { name: 'Remove', exact: true }).click();
     const confirmHeading = page.getByRole('heading', { name: `Confirm: ${name}` });
     await expect(confirmHeading).toBeVisible();
     const confirmDialog = page.locator('.ui-modal').filter({ has: confirmHeading });
     await confirmDialog.getByRole('button', { name: 'Cancel' }).click();
     await expect(networkRow(page, name)).toBeVisible();
 
-    await expanded.getByRole('button', { name: 'Remove' }).click();
+    await row.getByRole('button', { name: 'Remove', exact: true }).click();
     await expect(confirmHeading).toBeVisible();
     await confirmDialog.getByRole('button', { name: 'Remove' }).click();
 
@@ -127,20 +150,23 @@ test('inspecting and removing a network asks for confirmation naming it, and app
   }
 });
 
-// plan-docker_management_app/REQ-74 — a container can be attached to a network from its row's "+ Attach"
-// affordance, and the attachment list updates accordingly, with no confirmation required
-test('attaching a container from the row\'s "+ Attach" affordance adds it as a chip, without confirmation', async ({ page }) => {
+// plan-docker_management_app/REQ-74 — a container can be attached to a network from its row, and the
+// attachment list updates accordingly, with no confirmation required.
+// plan-ui-coherence-optimisation/REQ-27, REQ-35 — attaching is a control of the row's action cluster,
+// not the bare text `+ Attach` beside the chips.
+test('attaching a container from the row\'s action cluster adds it as a chip, without confirmation', async ({ page }) => {
   const networkName = `vexel-e2e-attach-${Date.now()}`;
   const containerName = `vexel-e2e-attach-target-${Date.now()}`;
   try {
     await createTestNetwork(networkName);
     await createSleepingContainer(containerName);
 
-    const row = networkRow(page, networkName);
-    await expect(row).toBeVisible({ timeout: 15_000 });
-    await expect(row).not.toContainText(containerName);
+    const card = networkCard(page, networkName);
+    await expect(card).toBeVisible({ timeout: 15_000 });
+    await expect(card).not.toContainText(containerName);
+    await expect(card.getByText('+ Attach'), 'the bare-text attach affordance is still on the row (REQ-27)').toHaveCount(0);
 
-    await row.getByRole('button', { name: '+ Attach' }).click();
+    await networkRow(page, networkName).getByRole('button', { name: 'Attach…', exact: true }).click();
     const dialog = page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: `Attach a container to ${networkName}` }) });
     await expect(dialog).toBeVisible();
     await dialog.getByRole('combobox', { name: 'Container' }).fill(containerName);
@@ -148,7 +174,7 @@ test('attaching a container from the row\'s "+ Attach" affordance adds it as a c
     await dialog.getByRole('button', { name: 'Attach' }).click();
 
     await expect(dialog).toBeHidden();
-    await expect(row).toContainText(containerName, { timeout: 15_000 });
+    await expect(card.locator('.ui-data-table__row-content')).toContainText(containerName, { timeout: 15_000 });
   } finally {
     await removeContainerQuietly(containerName);
     await removeNetworkQuietly(networkName);
@@ -164,13 +190,14 @@ test("detaching a container from its chip's inline action removes it from the ro
     await createTestNetwork(networkName);
     await createSleepingContainer(containerName, ['--network', networkName]);
 
-    const row = networkRow(page, networkName);
-    await expect(row).toContainText(containerName, { timeout: 15_000 });
+    const card = networkCard(page, networkName);
+    const chips = card.locator('.ui-data-table__row-content');
+    await expect(chips).toContainText(containerName, { timeout: 15_000 });
 
-    await row.getByRole('button', { name: 'detach' }).click();
+    await chips.getByRole('button', { name: 'detach' }).click();
 
-    await expect(row).not.toContainText(containerName, { timeout: 10_000 });
-    await expect(row).toContainText('No attached containers');
+    await expect(chips).not.toContainText(containerName, { timeout: 10_000 });
+    await expect(chips).toContainText('No attached containers');
   } finally {
     await removeContainerQuietly(containerName);
     await removeNetworkQuietly(networkName);

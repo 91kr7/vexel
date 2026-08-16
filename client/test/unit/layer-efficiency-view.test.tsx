@@ -203,6 +203,53 @@ describe('LayerEfficiencyView — findings (plan-docker_management_app/REQ-65, p
     expect(onNavigateToLayer).toHaveBeenCalledWith(3);
   });
 
+  // layer-efficiency-view.md — "The three lists are the one object list, never a second list
+  // component beside it" (plan-ui-coherence-optimisation/REQ-82): each fact a row used to carry in
+  // a subtitle is a column here, named in the header.
+  describe('the three lists are the object list, each fact in a named column (plan-ui-coherence-optimisation/REQ-82)', () => {
+    function listHeaders(): string[][] {
+      return Array.from(document.querySelectorAll('.ui-data-table')).map((table) =>
+        Array.from(table.querySelectorAll('.ui-data-table__header-cell')).map((cell) => cell.textContent ?? ''),
+      );
+    }
+
+    it('draws the three findings lists as object lists and no list component beside them', async () => {
+      await analyzeAndDeliver(makeSignals());
+
+      expect(document.querySelectorAll('.ui-data-table')).toHaveLength(3);
+      expect(document.querySelectorAll('.ui-card-list'), 'a second list component is still drawn beside the object list').toHaveLength(0);
+    });
+
+    it('names every fact of a wasted file, a duplicate group and a flagged path in a column of its own', async () => {
+      await analyzeAndDeliver(makeSignals());
+
+      expect(listHeaders()).toEqual([
+        ['PATH', 'WRITTEN AT', 'REASON', 'SUPERSEDED AT', 'SIZE'],
+        ['DUPLICATE', 'PATHS', 'WASTED'],
+        ['PATH', 'PATTERN', 'INTRODUCED AT', 'REMOVED AT'],
+      ]);
+    });
+
+    it('states the reason a file was superseded, and the pattern a path was flagged by', async () => {
+      await analyzeAndDeliver(makeSignals());
+
+      expect(screen.getByText('overwritten')).toBeInTheDocument();
+      expect(screen.getByText('npm auth token')).toBeInTheDocument();
+    });
+
+    // layer-efficiency-view.md — `REMOVED AT` reads `still present` when the flagged path was never
+    // removed, which is the fact the delivered subtitle stated by omission.
+    it('reads "still present" for a flagged path no later layer removed', async () => {
+      const signals = makeSignals();
+      await analyzeAndDeliver({
+        ...signals,
+        secrets: { imageId: signals.imageId, findings: [{ path: 'root/.aws/credentials', patternName: 'aws credentials', introducedLayerIndex: 3 }] },
+      });
+
+      expect(screen.getByText('still present')).toBeInTheDocument();
+    });
+  });
+
   // layer-efficiency-view.md — onFindingsChange fires only once a result exists, carrying the layer
   // indices the findings concern, feeding LayerExplorer's layersWithFindings markers.
   it('calls onFindingsChange with the findings\' layer indices once a result exists, not before', async () => {

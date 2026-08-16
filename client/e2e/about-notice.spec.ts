@@ -72,8 +72,10 @@ test('the notice is one block at the top of the About screen, with everything el
   await expect(block).toContainText(/no warranty/i);
   await expect(block).toContainText(/rights in the name/i);
 
-  // plan-docker_management_app-about_license_notice/REQ-3 — the screen keeps what it showed before.
-  for (const title of ['CLI availability', 'Daemon event stream', 'Local storage']) {
+  // plan-docker_management_app-about_license_notice/REQ-3 — the screen keeps what it showed before,
+  // less the daemon event stream: `plan-ui-coherence-optimisation/REQ-71` supersedes that clause and
+  // leaves the stream on the Dashboard alone (app-shell/specs/shell.md).
+  for (const title of ['CLI availability', 'Local storage']) {
     await expect(shellCard(page, title), `the "${title}" card is no longer on the screen`).toBeVisible();
   }
   await expect(page.getByRole('heading', { name: 'Docker capability coverage' })).toBeVisible();

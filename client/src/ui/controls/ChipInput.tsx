@@ -54,7 +54,9 @@ export function ChipInput({ values, onChange, placeholder, ariaLabel, addLabel =
             commit();
           }}
         />
-        <Button variant="ghost" size="sm" onClick={commit} disabled={draft.trim() === ''}>
+        {/* The same rule as the other add affordances: a control that adds a value
+            is drawn as a control, whatever the width of the field beside it. */}
+        <Button size="sm" onClick={commit} disabled={draft.trim() === ''}>
           {addLabel}
         </Button>
       </div>

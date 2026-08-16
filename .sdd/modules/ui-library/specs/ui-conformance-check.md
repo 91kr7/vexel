@@ -6,9 +6,9 @@ type: build check
 
 # UI conformance check
 
-**Purpose** → guards, at build time, the two rules feature code and the UI library cannot be trusted
+**Purpose** → guards, at build time, the rules feature code and the UI library cannot be trusted
 to keep on their own: the UI-library boundary (no raw DOM tag, no CSS, no `className`/`style` prop
-outside `client/src/ui/`) and the blur policy (a runtime blur only on the allow-listed overlay
+outside `client/src/ui/`), and the blur policy (a runtime blur only on the allow-listed overlay
 surfaces, only with the bounded blur token).
 
 ## Contract
@@ -67,6 +67,13 @@ surfaces, only with the bounded blur token).
   stylesheet neither hide a declaration nor shift the line a violation is reported on.
 - A violation of one rule never suppresses the reporting of another: every violation found in the
   pass is listed.
+- **The script holds no third rule.** It carried one for the length of
+  `plan-ui-coherence-optimisation` — a pinned call-site budget over the retiring second list
+  component (`plan-ui-coherence-optimisation/REQ-94`), failing in either direction so that each
+  migration had to lower it deliberately. It reached zero when the last call site was migrated and
+  was removed with the component itself (`plan-ui-coherence-optimisation/REQ-82`), leaving the file
+  as it stood before that plan: an assertion of zero against a name nothing declares is not a guard.
+  Anything else added to this file remains the signal that something went where it should not have.
 
 ## Requirements served
 
@@ -74,3 +81,4 @@ surfaces, only with the bounded blur token).
 - plan-docker_management_app/REQ-108
 - plan-liquid_glass_overlays/REQ-8
 - plan-liquid_glass_overlays/REQ-9
+- plan-ui-coherence-optimisation/REQ-84

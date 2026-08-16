@@ -19,6 +19,12 @@ daemon refusal is shown with the daemon's own message while every entered value 
 
 Description:
 - A `FormSheet` whose body is a stack of `FormSection`s, with the two commit choices in its footer.
+  **One form, sectioned — not a stack of cards.** The groups draw no surface of their own, each
+  group is headed by the product's one section header and each field is labelled by the one label
+  treatment; the form states none of that itself, and holds no card, no heading and no label style
+  of its own. It gained the shorter reading by consuming the changed shell without a line of its own
+  changing, which is the evidence this screen contributes to
+  `plan-ui-coherence-optimisation/REQ-92`.
 Shows:
 - "Image and identity" → image (a `Combobox` over every local image's tag, or its short id when it
   has none; any other reference can be typed and is pulled), platform (used only when pulling),
@@ -61,6 +67,19 @@ Actions:
   banner appears, nothing is cleared and nothing is re-defaulted.
 - The form is reset to its initial values only when it opens, never in reaction to a refusal.
 - While the creation is in flight, the sheet is busy: the commit actions and cancel are disabled.
+- **No group of this form is a box, and no field label is a heading.** The sheet's content is
+  measurably shorter than the delivered build's at 1280×800 for the same field count, because each
+  of its ten groups stopped paying for a border, an inset and a wash; nothing was removed from the
+  form to achieve it — every field keeps its label, its association with its input and its
+  validation.
+- **Every affordance that adds a row is a control**: `Add variable`, `Add port mapping`, `Add mount`,
+  `Add label` and the capability/network entry's `Add` all carry a button's border and surface,
+  through the library rather than through anything stated here.
+- **Operating the privileged switch leaves the sheet where it was**, geometrically: the sheet's own
+  viewport box is unchanged by the interaction and the switch stays inside the viewport. That is the
+  half a content assertion cannot see — a surface dragged off screen keeps every character it had —
+  and it is checked with a real pointer click at the switch's own visible coordinates, never at the
+  input behind it, whose position is the very thing under examination.
 - **Operating the privileged switch leaves the sheet drawing its own content**, and that is held
   standing by `client/e2e/container-create-privileged.spec.ts`: after "Run privileged" is switched
   on, every section, field and action is still present and carrying its text — the sheet's rendered
@@ -90,3 +109,7 @@ Actions:
 - plan-docker_management_app/REQ-29
 - plan-docker_management_app-privileged_toggle_verification/REQ-22
 - plan-docker_management_app-privileged_toggle_verification/REQ-25
+- plan-ui-coherence-optimisation/REQ-78
+- plan-ui-coherence-optimisation/REQ-79
+- plan-ui-coherence-optimisation/REQ-80
+- plan-ui-coherence-optimisation/REQ-92

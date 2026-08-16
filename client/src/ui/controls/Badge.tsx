@@ -14,28 +14,23 @@ export interface BadgeProps {
   children?: ReactNode;
   tone?: BadgeTone;
   variant?: BadgeVariant;
-  /** Renders the badge as a click target (e.g. "use" to select an object as active) instead of a plain label. */
-  onClick?: () => void;
 }
 
-/** Small tag/count label; also used as a status/lifecycle indicator, or as a clickable selection action. */
-export function Badge({ children, tone = 'neutral', variant = 'solid', onClick }: BadgeProps) {
+/**
+ * Small tag/count label, also used as a status/lifecycle indicator — and a
+ * statement, never a control.
+ *
+ * It used to offer a click handler that rendered it as a `<button>`, told apart
+ * from a plain label by a hover fill and nothing else. That is precisely the
+ * affordance `plan-ui-coherence-optimisation/REQ-27` forbids, and its only call
+ * site anywhere was inside the retired card list, so it went with it (REQ-82):
+ * a dead prop is untidy, a dead prop that manufactures a banned affordance in
+ * one line is a trap. A caller that wants a pill the operator can press asks
+ * `ActionButtonGroup` for an action with a weight.
+ */
+export function Badge({ children, tone = 'neutral', variant = 'solid' }: BadgeProps) {
   const classes = ['ui-badge', variant === 'quiet' ? 'ui-badge--quiet' : '', tone === 'neutral' ? '' : `ui-badge--tone-${tone}`]
     .filter(Boolean)
     .join(' ');
-  if (onClick) {
-    return (
-      <button
-        type="button"
-        className={`${classes} ui-badge--clickable`}
-        onClick={(event) => {
-          event.stopPropagation();
-          onClick();
-        }}
-      >
-        {children}
-      </button>
-    );
-  }
   return <span className={classes}>{children}</span>;
 }

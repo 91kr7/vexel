@@ -41,13 +41,46 @@ async function useBuilderQuietly(name: string): Promise<void> {
   await execFileAsync('docker', ['buildx', 'use', name]).catch(() => undefined);
 }
 
+/** The card a list is drawn in, named by the section header it carries. */
+function panel(page: Page, title: 'buildx builders' | 'Build cache') {
+  return screenContent(page)
+    .locator('.ui-surface')
+    .filter({ has: page.getByRole('heading', { level: 2, name: title }) })
+    .first();
+}
+
+/**
+ * A builder's row of the object list — the whole card it is drawn on, so the
+ * assertions cover everything the row carries
+ * (`plan-ui-coherence-optimisation/REQ-39`; the hand-built card list this
+ * screen used is deleted).
+ */
 function builderRow(page: Page, name: string) {
-  return page.locator('.ui-card-list > .ui-surface', { has: page.locator('.ui-card-list__item', { hasText: name }) });
+  return panel(page, 'buildx builders').locator('.ui-data-table__row', { hasText: name }).first();
 }
 
 /** Scopes assertions to the screen's own content, excluding the nav rail — whose "Builders & cache" label itself contains the substring "Build". */
 function screenContent(page: Page) {
   return page.locator('.ui-frame__content');
+}
+
+/** The cell of a row belonging to the column whose header names it. */
+async function cellOf(page: Page, row: ReturnType<typeof builderRow>, header: RegExp): Promise<{ text: string; controls: number }> {
+  const headers = await panel(page, 'buildx builders').locator('.ui-data-table__header-cell').allTextContents();
+  const index = headers.findIndex((label) => header.test(label.trim()));
+  expect(index, `no column of the builders list is headed ${header} — headers are ${JSON.stringify(headers)}`).toBeGreaterThanOrEqual(0);
+  const cell = row.locator('.ui-data-table__cell').nth(index);
+  return { text: ((await cell.textContent()) ?? '').replace(/\s+/g, ' ').trim(), controls: await cell.locator('button, [role="button"], a').count() };
+}
+
+/** Clicks a control with a real pointer at its own coordinates, after checking the point belongs to it. */
+async function clickAtItsOwnCentre(page: Page, control: ReturnType<typeof builderRow>, expectedLabel: string): Promise<void> {
+  await control.scrollIntoViewIfNeeded();
+  const box = (await control.boundingBox())!;
+  const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const hit = await page.evaluate(({ x, y }) => (document.elementFromPoint(x, y)?.closest('button')?.textContent ?? '').trim(), centre);
+  expect(hit, `the point at the centre of "${expectedLabel}" belongs to something else`).toBe(expectedLabel);
+  await page.mouse.click(centre.x, centre.y);
 }
 
 // The last active screen survives by design (REQ-115), so the screen this suite
@@ -108,8 +141,11 @@ test('removing a builder asks for confirmation and then removes it from the list
 });
 
 // plan-docker_management_app/REQ-88 — another builder can be selected as the active one, marked
-// with an "in use" badge, the others offering a "use" action
-test('selecting a builder through its "use" badge marks it as the active one', async ({ page }) => {
+// "in use", the others offering the action that switches to them;
+// plan-ui-coherence-optimisation/REQ-27, REQ-39 — that action is an action of the row's cluster,
+// with the appearance of a control, and the marker is a reading in a column of its own. Driven with
+// a real pointer at the control's own coordinates.
+test('selecting a builder through its Use action marks it as the active one', async ({ page }) => {
   const name = fixtureName('use');
   await createBuilderQuietly(name);
   const originalActive = await currentActiveBuilder();
@@ -117,14 +153,72 @@ test('selecting a builder through its "use" badge marks it as the active one', a
     await page.reload();
     const row = builderRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
-    await expect(row.getByRole('button', { name: 'use' })).toBeVisible();
+    const useAction = row.getByRole('button', { name: 'Use', exact: true });
+    await expect(useAction).toBeVisible();
+    // The action lives in the cluster, and the cluster is a cell of the row.
+    await expect(row.locator('.ui-action-button-group').getByRole('button', { name: 'Use', exact: true })).toHaveCount(1);
 
-    await row.getByRole('button', { name: 'use' }).click();
+    await clickAtItsOwnCentre(page, useAction, 'Use');
 
     await expect(row.getByText('in use', { exact: true })).toBeVisible({ timeout: 15_000 });
+    // …and what marks the active builder is a reading, not a second control offering to re-select it.
+    await expect(row.getByRole('button', { name: 'Use', exact: true })).toHaveCount(0);
   } finally {
     if (originalActive) await useBuilderQuietly(originalActive);
     await removeBuilderQuietly(name);
+  }
+});
+
+// plan-ui-coherence-optimisation/REQ-40 — "A builder's name appears once per row"; REQ-39 — the
+// row's mixed trailing run becomes a status column plus an action cluster, so "a state is never a
+// control and a control never reads as a state" (builders-screen.md). Measured against the daemon's
+// own inventory, with one builder of this spec's making in it.
+test('a builder’s row states its name once, its status as a reading and its actions as controls', async ({ page }) => {
+  const name = fixtureName('shape');
+  await createBuilderQuietly(name);
+  try {
+    await page.reload();
+    const row = builderRow(page, name);
+    await expect(row).toBeVisible({ timeout: 15_000 });
+
+    const rowText = ((await row.textContent()) ?? '').replace(/\s+/g, ' ').trim();
+    console.log(`[REQ-40] the ${name} row reads: ${rowText}`);
+    expect(rowText.split(name).length - 1, 'the row states the builder’s name more than once').toBe(1);
+
+    // Every value in the column naming it, and no control in any of them.
+    const builderCell = await cellOf(page, row, /^BUILDER$/i);
+    expect(builderCell.text, 'the builder column does not lead with the builder').toContain(name);
+    const statusCell = await cellOf(page, row, /^STATUS$/i);
+    expect(statusCell.text, 'the status column states nothing').not.toBe('');
+    expect(statusCell.controls, 'the status reading is a control').toBe(0);
+    expect((await cellOf(page, row, /^CACHE$/i)).controls, 'the cache size is a control').toBe(0);
+    expect((await cellOf(page, row, /^ENDPOINT$/i)).controls, 'the endpoint is a control').toBe(0);
+
+    // …and every control the row carries is an action of its cluster.
+    const cluster = row.locator('.ui-action-button-group');
+    await expect(cluster, 'the row draws no action cluster').toHaveCount(1);
+    expect(await row.locator('button, [role="button"], a').count(), 'a control of the row sits outside its action cluster').toBe(
+      await cluster.locator('button, [role="button"], a').count(),
+    );
+    await expect(cluster.locator('xpath=ancestor::*[contains(@class, "ui-data-table__cell")]'), 'the cluster is not a cell of the row').toHaveCount(1);
+  } finally {
+    await removeBuilderQuietly(name);
+  }
+});
+
+// plan-ui-coherence-optimisation/REQ-41 — "Page-level actions exist where the screen has them, in
+// the toolbar under the header rather than in a card header, and every operation available on the
+// delivered build still performs the same operation."
+test('the screen’s page-level actions are in each card’s toolbar', async ({ page }) => {
+  for (const [title, label] of [
+    ['buildx builders', 'Create builder'],
+    ['Build cache', 'Prune'],
+  ] as const) {
+    const card = panel(page, title);
+    const toolbar = card.locator('.ui-screen-toolbar').first();
+    await expect(toolbar, `the ${title} card draws no screen toolbar`).toBeVisible();
+    await expect(toolbar.getByRole('button', { name: label }), `${label} is not a control of the ${title} toolbar`).toHaveCount(1);
+    expect(await card.getByRole('button', { name: label }).count(), `${label} is stated more than once on the ${title} card`).toBe(1);
   }
 });
 
@@ -162,7 +256,7 @@ test('lists a build-cache record with its type, size and usage state', async ({ 
     await openApp(page, 'builders-cache');
     const row = builderRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
-    await row.getByRole('button', { name: 'use' }).click();
+    await clickAtItsOwnCentre(page, row.getByRole('button', { name: 'Use', exact: true }), 'Use');
     await expect(row.getByText('in use', { exact: true })).toBeVisible({ timeout: 15_000 });
 
     // plan-docker_management_app/REQ-88 — now that this builder is running and has built
@@ -170,12 +264,13 @@ test('lists a build-cache record with its type, size and usage state', async ({ 
     await expect(row).toContainText('running', { timeout: 15_000 });
     await expect(row).toContainText(/\d+(\.\d+)?\s*(B|kB|KB|KiB|MB|MiB|GB|GiB)/, { timeout: 15_000 });
 
-    const cacheCard = screenContent(page).locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Build cache' }) });
-    const cacheRows = cacheCard.locator('.ui-card-list__item');
+    // The records are rows of the object list now (REQ-39), the hand-built card list deleted.
+    const cacheRows = panel(page, 'Build cache').locator('.ui-data-table__row');
     await expect.poll(() => cacheRows.count(), { timeout: 15_000 }).toBeGreaterThan(0);
     await expect(cacheRows.first()).toHaveText(/shared|in use|reclaimable/);
     // REQ-91 — each record carries its own size and type alongside that usage state.
     await expect(cacheRows.first()).toHaveText(/\d+(\.\d+)?\s*(B|kB|KB|KiB|MB|MiB|GB|GiB)/);
+    await expect(screenContent(page).locator('.ui-card-list'), 'the screen still draws a hand-built card list').toHaveCount(0);
   } finally {
     if (originalActive) await useBuilderQuietly(originalActive);
     await removeBuilderQuietly(name);

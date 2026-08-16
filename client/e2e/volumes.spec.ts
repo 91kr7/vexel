@@ -1,4 +1,4 @@
-import { expect, test, type Page } from './support/test.js';
+import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
@@ -20,12 +20,26 @@ async function removeContainerQuietly(name: string): Promise<void> {
   await execFileAsync('docker', ['rm', '-fv', name]).catch(() => undefined);
 }
 
+// The list is the object list's comfortable variant, so a volume is a row of it
+// (`volumes-panel.md`) and its values sit in named columns rather than in one
+// concatenated subtitle line.
 function volumeRow(page: Page, name: string) {
-  return page.locator('.ui-card-list__item', { hasText: name });
+  return volumesPanel(page).locator('.ui-data-table__row', { hasText: name });
 }
 
-// The volumes panel only. Its actions must be scoped to it: the networks panel next
-// to it on the same screen carries a "Create" button of its own.
+/** The value a row carries in the column the list names `header`. */
+async function cellText(row: Locator, header: string): Promise<string> {
+  return row.evaluate((element, columnHeader) => {
+    const table = element.closest('.ui-data-table')!;
+    const headers = Array.from(table.querySelectorAll('.ui-data-table__header-cell')).map((cell) => cell.textContent?.trim() ?? '');
+    const index = headers.indexOf(columnHeader);
+    if (index < 0) throw new Error(`the list carries no ${columnHeader} column — it names [${headers.join(', ')}]`);
+    return element.querySelectorAll('.ui-data-table__cell')[index]?.textContent?.trim() ?? '';
+  }, header);
+}
+
+// The volumes panel only. Its actions must be scoped to it: the networks panel
+// under it on the same screen carries a create and a prune of its own.
 function volumesPanel(page: Page) {
   return page.locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Volumes' }) });
 }
@@ -47,8 +61,9 @@ test('lists a volume with its driver and mountpoint, identifiable as unattached'
 
     const row = volumeRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
-    await expect(row).toContainText('driver local');
-    await expect(row).toContainText('mounted by nothing');
+    expect(await cellText(row, 'DRIVER')).toBe('local');
+    expect(await cellText(row, 'MOUNTED BY')).toContain('nothing');
+    expect(await cellText(row, 'NAME')).toContain('/volumes/');
   } finally {
     await removeVolumeQuietly(name);
   }
@@ -65,7 +80,8 @@ test('shows the mounting container\'s name once a container mounts the volume', 
 
     const row = volumeRow(page, volumeName);
     await expect(row).toBeVisible({ timeout: 15_000 });
-    await expect(row).toContainText(`mounted by ${containerName}`);
+    await expect(row).toContainText(containerName, { timeout: 15_000 });
+    expect(await cellText(row, 'MOUNTED BY')).toContain(containerName);
   } finally {
     await removeContainerQuietly(containerName);
     await removeVolumeQuietly(volumeName);
@@ -76,12 +92,12 @@ test('shows the mounting container\'s name once a container mounts the volume', 
 test('creating a volume through the dialog adds it to the list', async ({ page }) => {
   const name = `vexel-e2e-create-${Date.now()}`;
   try {
-    await volumesPanel(page).getByRole('button', { name: 'Create' }).click();
+    await volumesPanel(page).getByRole('button', { name: 'Create volume…' }).click();
     const dialog = page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: 'Create volume' }) });
     await dialog.getByRole('textbox', { name: 'Volume name' }).fill(name);
     await dialog.getByRole('button', { name: 'Add label' }).click();
-    await dialog.getByRole('textbox', { name: 'Key 1' }).fill('team');
-    await dialog.getByRole('textbox', { name: 'Value 1' }).fill('vexel');
+    await dialog.getByRole('textbox', { name: 'Labels Key 1' }).fill('team');
+    await dialog.getByRole('textbox', { name: 'Labels Value 1' }).fill('vexel');
     await dialog.getByRole('button', { name: 'Create' }).click();
 
     await expect(volumeRow(page, name)).toBeVisible({ timeout: 10_000 });
@@ -91,7 +107,8 @@ test('creating a volume through the dialog adds it to the list', async ({ page }
 });
 
 // plan-docker_management_app/REQ-71, REQ-6 — a volume's full inspect data is viewable, and removing it
-// asks for confirmation naming it, performs nothing on cancel and applies once confirmed
+// asks for confirmation naming it, performs nothing on cancel and applies once confirmed.
+// plan-ui-coherence-optimisation/REQ-35 — remove is now a control of the row's own action cluster.
 test('inspecting and removing a volume asks for confirmation naming it, and applies on confirm', async ({ page }) => {
   const name = `vexel-e2e-remove-${Date.now()}`;
   try {
@@ -99,21 +116,23 @@ test('inspecting and removing a volume asks for confirmation naming it, and appl
     const row = volumeRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
 
-    await row.click();
-    // The expanded region of this panel: the networks panel next to it on the same
-    // screen expands its own rows in a region of the same kind.
-    const expanded = volumesPanel(page).locator('.ui-card-list__expanded');
-    await expect(expanded).toBeVisible();
-    await expect(expanded.getByText('Mountpoint', { exact: true })).toBeVisible();
+    // A real pointer on the row's own first cell: the action cluster sits at the
+    // row's trailing edge and is not the gesture that reveals the detail.
+    await row.locator('.ui-data-table__cell').first().click();
+    // The panel of this list: the networks panel under it on the same screen
+    // reveals its own rows in a panel of the same kind.
+    const detail = volumesPanel(page).locator('.ui-detail-panel');
+    await expect(detail).toBeVisible();
+    await expect(detail.getByText('Mountpoint', { exact: true })).toBeVisible();
 
-    await expanded.getByRole('button', { name: 'Remove' }).click();
+    await row.getByRole('button', { name: 'Remove', exact: true }).click();
     const confirmHeading = page.getByRole('heading', { name: `Confirm: ${name}` });
     await expect(confirmHeading).toBeVisible();
     const dialog = page.locator('.ui-modal').filter({ has: confirmHeading });
     await dialog.getByRole('button', { name: 'Cancel' }).click();
     await expect(volumeRow(page, name)).toBeVisible();
 
-    await expanded.getByRole('button', { name: 'Remove' }).click();
+    await row.getByRole('button', { name: 'Remove', exact: true }).click();
     await expect(confirmHeading).toBeVisible();
     await dialog.getByRole('button', { name: 'Remove' }).click();
 

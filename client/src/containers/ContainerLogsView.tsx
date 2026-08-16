@@ -28,7 +28,12 @@ const STREAM_OPTIONS = [
 /**
  * A container's logs (REQ-30, REQ-31): stream selection, timestamps, tail size
  * and since/until above a live-tailing log surface with search, highlighted
- * matches and copy/download of the buffered output.
+ * matches and download of the buffered output.
+ *
+ * Two control rows, not the three delivered
+ * (plan-ui-coherence-optimisation/REQ-62): the first says what the daemon is
+ * asked for, and the second is the stream's own action row, which the search
+ * and `Download` share. The third row held `Download` alone.
  */
 export function ContainerLogsView({ container }: ContainerLogsViewProps) {
   const [streams, setStreams] = useState<string[]>(['stdout', 'stderr']);
@@ -80,19 +85,6 @@ export function ContainerLogsView({ container }: ContainerLogsViewProps) {
           }}
         />
       </Row>
-      <Row gap="var(--space-3)" wrap>
-        <StreamSearchField
-          value={search}
-          onChange={(value) => {
-            setSearch(value);
-            setMatchCursor(0);
-          }}
-          matchCount={matches.length}
-          activeMatchIndex={activeMatchIndex}
-          onNext={() => setMatchCursor((cursor) => cursor + 1)}
-          onPrevious={() => setMatchCursor((cursor) => cursor - 1)}
-        />
-      </Row>
       {error ? <ErrorBanner title="Could not stream the container logs" detail={error} onRetry={restart} /> : null}
       {ended && lines.length > 0 ? <MetaCell>Stream ended.</MetaCell> : null}
       <LogStream
@@ -104,6 +96,19 @@ export function ContainerLogsView({ container }: ContainerLogsViewProps) {
         activeMatchLineId={activeMatchLineId}
         downloadFileName={`${container.name}-logs.txt`}
         emptyLabel={ended ? 'The container produced no log output.' : 'Waiting for log output…'}
+        toolbar={
+          <StreamSearchField
+            value={search}
+            onChange={(value) => {
+              setSearch(value);
+              setMatchCursor(0);
+            }}
+            matchCount={matches.length}
+            activeMatchIndex={activeMatchIndex}
+            onNext={() => setMatchCursor((cursor) => cursor + 1)}
+            onPrevious={() => setMatchCursor((cursor) => cursor - 1)}
+          />
+        }
       />
     </Stack>
   );

@@ -44,7 +44,7 @@ export function SideBySideViewer({ left, right, maxHeight = '360px' }: SideBySid
 
   function renderSide(side: SideBySideSide, scrollRef: typeof leftRef, onScroll: (event: UIEvent<HTMLDivElement>) => void) {
     if (side.content === undefined) {
-      return <EmptyState title={side.emptyMessage ?? 'No content on this side'} />;
+      return <EmptyState title={side.emptyMessage ?? 'No content on this side'} description={null} action={null} />;
     }
     return side.mode === 'hex' ? (
       <HexDumpViewer content={side.content} truncated={side.truncated} totalSizeBytes={side.totalSizeBytes} maxHeight={maxHeight} scrollRef={scrollRef} onScroll={onScroll} />

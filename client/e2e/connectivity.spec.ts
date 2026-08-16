@@ -2,11 +2,16 @@ import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
-// These assertions read the three cards the shell keeps for itself. Batch 30
+// These assertions read the cards the shell keeps for itself. Batch 30
 // replaced the placeholder that used to sit under them with the coverage matrix,
 // so the screen hosting them is the one labelled "About" (app-shell/specs/shell.md),
 // addressed here by the internal id the rename did not touch. The screen is
 // pinned rather than inherited from a previous spec (REQ-115).
+//
+// The daemon event stream is no longer one of them: it is presented in one place
+// in the product and that place is the Dashboard
+// (plan-ui-coherence-optimisation/REQ-71), so the assertion of REQ-11 and REQ-12
+// below reads it there.
 const SCREEN_HOSTING_THE_SHELL_CARDS = 'coverage-matrix';
 
 /**
@@ -50,7 +55,10 @@ test('reports the local docker CLI availability with its version', async ({ page
 
 // plan-docker_management_app/REQ-11, plan-docker_management_app/REQ-12
 test('reflects a real daemon change in the live event stream panel without a manual refresh', async ({ page }) => {
-  const card = shellCard(page, 'Daemon event stream');
+  await openApp(page, 'dashboard');
+  await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible();
+
+  const card = page.locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Daemon event stream' }) });
   await expect(card).toBeVisible();
 
   const networkName = `vexel-e2e-net-${Date.now()}`;

@@ -33,10 +33,37 @@ function repositoriesPanel(page: Page) {
   return screenContent(page).locator('.ui-surface').filter({ has: page.getByRole('heading', { level: 2, name: /^Repositories · / }) });
 }
 
+// The rows are the object list's comfortable variant since
+// `plan-ui-coherence-optimisation/REQ-36`: a row is a `.ui-data-table__row`, its
+// host is the first line of the REGISTRY column, and the credential store is a
+// column of its own rather than part of the line under the host.
 function registryRow(page: Page, host: string): Locator {
-  return registriesPanel(page).locator('.ui-card-list > .ui-surface', {
-    has: page.locator('.ui-card-list__title', { hasText: host }),
+  return registriesPanel(page).locator('.ui-data-table__row', {
+    has: page.locator('.ui-table-two-line-cell__title', { hasText: host }),
   });
+}
+
+/** The line under the host: what the row says about its authentication state. */
+function stateLine(row: Locator): Locator {
+  return row.locator('.ui-table-two-line-cell__subtitle').first();
+}
+
+/**
+ * The text of the cell belonging to the column whose header matches `header`.
+ *
+ * Read through the header rather than by position, which is what `data-table.md`
+ * guarantees: "every column renders in the header and in every row, in the same
+ * order".
+ */
+async function cellText(row: Locator, header: RegExp): Promise<string> {
+  return row.evaluate((element, pattern) => {
+    const list = element.closest('.ui-data-table')!;
+    const headers = Array.from(list.querySelectorAll('.ui-data-table__header-cell')).map((cell) => (cell.textContent ?? '').trim());
+    const index = headers.findIndex((label) => new RegExp(pattern.source, pattern.flags).test(label));
+    if (index < 0) throw new Error(`no column headed ${pattern.source} — headers are ${JSON.stringify(headers)}`);
+    const cell = element.querySelectorAll('.ui-data-table__cell')[index];
+    return (cell?.textContent ?? '').replace(/\s+/g, ' ').trim();
+  }, { source: header.source, flags: header.flags });
 }
 
 function loginDialog(page: Page) {
@@ -58,22 +85,42 @@ test('lists the default index with its state line and the action its state calls
   const row = registryRow(page, 'docker.io');
   await expect(row).toBeVisible({ timeout: 20_000 });
 
-  // The row's leading dot says the state on its own (card-list.md, status variant).
-  await expect(row.locator('.ui-card-list__leading > *').first()).toBeVisible();
+  // The row's leading dot says the state on its own (registries-screen.md).
+  await expect(row.locator('.ui-table-status-dot').first()).toBeVisible();
 
   // Whether this machine is logged in to Docker Hub is the operator's business, not the spec's:
-  // what is asserted is that the row says one of the two things the contract allows, and offers the
-  // action that goes with it.
-  const line = (await row.locator('.ui-card-list__subtitle').first().innerText()).trim();
+  // what is asserted is that the row says one of the two things the contract allows, offers the
+  // action that goes with it, and states the credential store in the column of its own it now has
+  // (REQ-36, REQ-37) — nothing at all there when the registry is not authenticated.
+  const line = (await stateLine(row).innerText()).trim();
+  const store = await cellText(row, /^credential store$/i);
   if (line.startsWith('not authenticated')) {
     await expect(row.getByRole('button', { name: 'Log in' })).toBeVisible();
     await expect(row.getByRole('button', { name: 'Log out' })).toHaveCount(0);
-    expect(line).not.toContain('credential store');
+    expect(store, 'an unauthenticated registry names a credential store').toMatch(/^[-–—]?$/);
   } else {
     await expect(row.getByRole('button', { name: 'Log out' })).toBeVisible();
     await expect(row.getByRole('button', { name: 'Log in' })).toHaveCount(0);
-    expect(line).toContain('credential store:');
+    expect(store, 'an authenticated registry names no credential store').not.toMatch(/^[-–—]?$/);
   }
+  expect(line, 'the state line carries the credential store the column is now for').not.toContain('credential store');
+});
+
+// plan-ui-coherence-optimisation/REQ-36 — the row's `Log in` / `Log out` "is an action of the
+// cluster, not a trailing one-off button"; registries-screen.md — "nothing else on a row is
+// clickable but the row itself".
+test('offers the row its action inside the cluster, and no other control of its own', async ({ page }) => {
+  const row = registryRow(page, 'docker.io');
+  await expect(row).toBeVisible({ timeout: 20_000 });
+
+  const cluster = row.locator('.ui-action-button-group');
+  await expect(cluster).toHaveCount(1);
+  expect(await cluster.getByRole('button').count(), 'the cluster holds no action').toBeGreaterThan(0);
+  expect(await row.locator('button').count(), 'a control of the row sits outside its action cluster').toBe(
+    await cluster.locator('button').count(),
+  );
+  // And the screen draws no card list at all any more.
+  await expect(page.locator('.ui-card-list')).toHaveCount(0);
 });
 
 // plan-docker_management_app/REQ-87 — credentials are never displayed back in clear text.
@@ -83,12 +130,14 @@ test('never puts a credential on a registry row, only whether there is one', asy
   const row = registryRow(page, 'docker.io');
   await expect(row).toBeVisible({ timeout: 20_000 });
 
-  const line = (await row.locator('.ui-card-list__subtitle').first().innerText()).trim();
-  // Each part is one of the four the contract allows; nothing else may appear on that line.
+  const line = (await stateLine(row).innerText()).trim();
+  // Each part is one of the three the contract allows on that line; nothing else may appear on it.
   for (const part of line.split('·').map((value) => value.trim())) {
-    expect(part).toMatch(/^(not authenticated|authenticated|plain http|credential store: .+|[^\s:]+)$/);
+    expect(part).toMatch(/^(not authenticated|authenticated|plain http|[^\s:]+)$/);
   }
   expect(line).not.toMatch(/password|token=|secret|Bearer /i);
+  // The other column that could carry one names a store, never a credential.
+  expect(await cellText(row, /^credential store$/i)).not.toMatch(/password|token=|secret|Bearer /i);
 });
 
 // plan-docker_management_app/REQ-85, REQ-87 — a registry can be logged in to, and the form states
@@ -178,9 +227,11 @@ test('browses the selected registry, stating whether the browsing is authenticat
   await expect(panel.getByText(/^(anonymous|authenticated( as .+)?)$/)).toBeVisible();
 
   // registries-screen.md — "'Search Docker Hub' (with 'Docker Hub has no catalog to list: type a
-  // term to search it.') on the default index with no term"
+  // term to search it.') on the default index with no term", and — REQ-38 — the control that
+  // resolves it, which the migration keeps as a title, one line and one action.
   await expect(panel.getByText('Search Docker Hub')).toBeVisible();
   await expect(panel.getByText('Docker Hub has no catalog to list: type a term to search it.')).toBeVisible();
+  await expect(panel.locator('.ui-empty-state').getByRole('button')).toHaveCount(1);
 });
 
 // plan-docker_management_app/REQ-86 — repositories "can be browsed and searched";
@@ -197,6 +248,6 @@ test('searching the default index extends the title with the term and leaves the
   // term and reports an outcome — results, no match, or a failure it names — does not.
   await expect(panel.getByText('Docker Hub has no catalog to list: type a term to search it.')).toHaveCount(0, { timeout: 20_000 });
   await expect(
-    panel.locator('.ui-card-list__title').first().or(panel.getByText('No repositories match')).or(panel.getByText('Could not browse the registry')),
+    panel.locator('.ui-data-table__row').first().or(panel.getByText('No repositories match')).or(panel.getByText('Could not browse the registry')),
   ).toBeVisible({ timeout: 20_000 });
 });

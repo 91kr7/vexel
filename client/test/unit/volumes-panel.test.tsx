@@ -54,8 +54,42 @@ function renderPanel(volumes: VolumeSummary[], onRefresh = vi.fn()) {
   return { onRefresh };
 }
 
+// The list is the object list's comfortable variant, so a row is a
+// `.ui-data-table__row` and the panel it reveals is the library's detail panel
+// inside the row's expansion (volumes-panel.md).
 function listRows(): HTMLElement[] {
-  return Array.from(document.querySelectorAll<HTMLElement>('.ui-card-list__item'));
+  return Array.from(document.querySelectorAll<HTMLElement>('.ui-data-table__row'));
+}
+
+function columnHeaders(): string[] {
+  return Array.from(document.querySelectorAll('.ui-data-table__header-cell')).map((cell) => cell.textContent ?? '');
+}
+
+function detailPanels(): HTMLElement[] {
+  return Array.from(document.querySelectorAll<HTMLElement>('.ui-data-table__expanded .ui-detail-panel'));
+}
+
+function propertyValue(panel: HTMLElement, label: string): string | undefined {
+  const row = Array.from(panel.querySelectorAll<HTMLElement>('.ui-definition-list__row')).find(
+    (candidate) => candidate.querySelector('.ui-definition-list__label')?.textContent === label,
+  );
+  return row?.querySelector('.ui-definition-list__value')?.textContent ?? undefined;
+}
+
+function toolbar(): HTMLElement {
+  return document.querySelector<HTMLElement>('.ui-screen-toolbar')!;
+}
+
+function buttonNames(): string[] {
+  return screen.getAllByRole('button').map((button) => (button.getAttribute('aria-label') ?? button.textContent ?? '').trim());
+}
+
+// A name that is a prefix of another's is the same name to anything that finds a control by name
+// (empty-state.md), which is what `getByRole(..., { name })` does in Playwright.
+function namesShadowingEachOther(names: string[]): string[] {
+  return names.flatMap((name, index) =>
+    names.filter((other, otherIndex) => otherIndex !== index && other.includes(name)).map((other) => `"${name}" is found by "${other}"`),
+  );
 }
 
 // The inline inspect surface's useVolumeInspect subscribes to daemon events
@@ -98,23 +132,34 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-// volumes-panel.md — one row per volume: name, mountpoint and a "driver <driver> · mounted by
-// <names>" line as monospace subtitle lines, and the size trailing the row
-describe('VolumesPanel — list rows (plan-docker_management_app/REQ-70)', () => {
+// volumes-panel.md — one row per volume, in columns: NAME (the name over the mountpoint), DRIVER,
+// MOUNTED BY (badges, "nothing" when unattached), SIZE (or "–"), and the row's action cluster
+describe('VolumesPanel — list rows (plan-docker_management_app/REQ-70, plan-ui-coherence-optimisation/REQ-31)', () => {
+  it('lists every volume on the object list, with the columns the panel declares in order', () => {
+    renderPanel([makeVolume()]);
+
+    expect(document.querySelector('.ui-data-table--comfortable')).not.toBeNull();
+    expect(columnHeaders()).toEqual(['NAME', 'DRIVER', 'MOUNTED BY', 'SIZE', 'ACTIONS']);
+  });
+
   it('shows the volume name, mountpoint, driver, unattached state and size', () => {
     renderPanel([makeVolume({ name: 'pgdata', mountpoint: '/data/pgdata', driver: 'local', mountedBy: [], sizeBytes: 512 })]);
 
     const row = listRows()[0]!;
     expect(within(row).getByText('pgdata')).toBeInTheDocument();
     expect(row.textContent).toContain('/data/pgdata');
-    expect(row.textContent).toContain('driver local · mounted by nothing');
+    expect(row.textContent).toContain('local');
+    expect(row.textContent).toContain('nothing');
     expect(row.textContent).toContain('512B');
   });
 
   it('lists the mounting container names instead of "nothing" when the volume is attached', () => {
     renderPanel([makeVolume({ mountedBy: ['app-1', 'app-2'] })]);
 
-    expect(listRows()[0]!.textContent).toContain('driver local · mounted by app-1, app-2');
+    const row = listRows()[0]!;
+    expect(row.textContent).toContain('app-1');
+    expect(row.textContent).toContain('app-2');
+    expect(row.textContent).not.toContain('nothing');
   });
 
   it('shows a dash for the size while the daemon has not computed it yet', () => {
@@ -123,18 +168,62 @@ describe('VolumesPanel — list rows (plan-docker_management_app/REQ-70)', () =>
     expect(listRows()[0]!.textContent).toContain('–');
   });
 
-  it('shows an empty state when there are no volumes', () => {
+  // volumes-panel.md — once loaded, the empty state states a title, a line of explanation and the
+  // action that resolves it
+  it('shows an empty state explaining the absence and offering the action that resolves it', () => {
     renderPanel([]);
 
     expect(listRows()).toHaveLength(0);
-    expect(screen.getByText('No volumes')).toBeInTheDocument();
+    const emptyState = document.querySelector<HTMLElement>('.ui-empty-state')!;
+    expect(within(emptyState).getByText('No volumes')).toBeInTheDocument();
+    expect(emptyState.querySelector('.ui-empty-state__description')?.textContent ?? '').not.toBe('');
+    expect(within(emptyState).getByRole('button', { name: 'Create the first volume' })).toBeInTheDocument();
+  });
+
+  // volumes-panel.md — while the list is empty the toolbar's action and the empty state's are drawn
+  // at once, as two controls neither of whose names contains the other
+  // (plan-ui-coherence-optimisation/REQ-41, plan-docker_management_app/REQ-25)
+  it('draws both create controls on an empty list, under names that do not shadow each other', () => {
+    renderPanel([]);
+
+    const emptyState = document.querySelector<HTMLElement>('.ui-empty-state')!;
+    expect(within(toolbar()).getByRole('button', { name: 'Create volume…' })).toBeInTheDocument();
+    expect(within(emptyState).getByRole('button', { name: 'Create the first volume' })).toBeInTheDocument();
+    expect(namesShadowingEachOther(buttonNames())).toEqual([]);
   });
 });
 
-// volumes-panel.md — selecting a row expands its inline inspect surface; selecting it again collapses it;
-// only one volume's inspect surface is expanded at a time
-describe('VolumesPanel — inline inspect (plan-docker_management_app/REQ-71)', () => {
-  it('expands the inspect surface with driver, mountpoint, scope and mounted-by information on selection', async () => {
+// volumes-panel.md — the page-level actions sit in the toolbar under the section header rather than
+// in the header itself, and the row's own actions sit in the row's cluster
+// (plan-ui-coherence-optimisation/REQ-35)
+describe('VolumesPanel — where the actions live (plan-ui-coherence-optimisation/REQ-35)', () => {
+  it('carries create and prune in the toolbar under the section header', () => {
+    renderPanel([makeVolume()]);
+
+    expect(within(toolbar()).getByRole('button', { name: 'Create volume…' })).toBeInTheDocument();
+    expect(within(toolbar()).getByRole('button', { name: 'Prune' })).toBeInTheDocument();
+  });
+
+  it('leaves the section header carrying no action of its own', () => {
+    renderPanel([makeVolume()]);
+
+    const header = document.querySelector<HTMLElement>('.ui-section-header')!;
+    expect(header.querySelectorAll('button')).toHaveLength(0);
+  });
+
+  it('puts the row-level remove in the row itself, reachable without opening the detail', () => {
+    renderPanel([makeVolume({ name: 'pgdata' })]);
+
+    expect(detailPanels()).toHaveLength(0);
+    const row = listRows()[0]!;
+    expect(within(row).getByRole('button', { name: 'Remove' })).toBeInTheDocument();
+  });
+});
+
+// volumes-panel.md — selecting a row reveals its detail panel directly below the row; selecting the
+// same row again, or Escape, closes it; at most one volume's detail is revealed at a time
+describe('VolumesPanel — the revealed detail (plan-ui-coherence-optimisation/REQ-32, REQ-33)', () => {
+  it('reveals the detail panel with the volume\'s properties in the library\'s grid on selection', async () => {
     const user = userEvent.setup();
     const volume = makeVolume({ name: 'pgdata', mountedBy: ['app-1'] });
     fetchMock.mockImplementation((url: string) =>
@@ -148,48 +237,91 @@ describe('VolumesPanel — inline inspect (plan-docker_management_app/REQ-71)', 
 
     await user.click(listRows()[0]!);
 
-    const expanded = await screen.findByText('Mountpoint');
-    const detail = expanded.closest<HTMLElement>('.ui-card-list')!;
-    expect(within(detail).getByText('Driver')).toBeInTheDocument();
-    expect(within(detail).getByText('Scope')).toBeInTheDocument();
-    const mountedByValues = Array.from(detail.querySelectorAll('.ui-definition-list__value')).map((node) => node.textContent);
-    expect(mountedByValues).toContain('app-1');
-    expect(within(detail).getByRole('button', { name: 'Remove' })).toBeInTheDocument();
+    await waitFor(() => expect(detailPanels()).toHaveLength(1));
+    const panel = detailPanels()[0]!;
+    await waitFor(() => expect(propertyValue(panel, 'Driver')).toBe('local'));
+    expect(propertyValue(panel, 'Scope')).toBe('local');
+    expect(propertyValue(panel, 'Mounted by')).toBe('app-1');
+    expect(panel.querySelector('.ui-definition-list')).not.toBeNull();
   });
 
-  it('collapses the inspect surface when the same row is selected again', async () => {
+  // plan-ui-coherence-optimisation/REQ-21 (batch 4, certified) — the row truncates the mountpoint and
+  // the detail panel is the route to it in full, as selectable text
+  it('states the mountpoint in full in the detail panel, as text and not as a control', async () => {
+    const user = userEvent.setup();
+    const mountpoint = '/var/lib/docker/volumes/a-considerably-long-volume-name-for-this-check/_data';
+    const volume = makeVolume({ name: 'pgdata', mountpoint });
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(
+        String(url).includes('/inspect')
+          ? { ok: true, status: 200, json: () => Promise.resolve(inspectPayload(volume)) }
+          : { ok: true, status: 204, json: () => Promise.resolve({}) },
+      ),
+    );
+    renderPanel([volume]);
+
+    await user.click(listRows()[0]!);
+
+    const panel = await waitFor(() => {
+      const panels = detailPanels();
+      expect(panels).toHaveLength(1);
+      return panels[0]!;
+    });
+    await waitFor(() => expect(propertyValue(panel, 'Mountpoint')).toBe(mountpoint));
+    const value = Array.from(panel.querySelectorAll<HTMLElement>('.ui-definition-list__value')).find(
+      (node) => node.textContent === mountpoint,
+    )!;
+    expect(value.querySelectorAll('button')).toHaveLength(0);
+  });
+
+  it('closes the detail when the same row is selected again', async () => {
     const user = userEvent.setup();
     renderPanel([makeVolume()]);
 
     await user.click(listRows()[0]!);
-    await screen.findByText('Mountpoint');
+    await waitFor(() => expect(detailPanels()).toHaveLength(1));
     await user.click(listRows()[0]!);
 
-    await waitFor(() => expect(screen.queryByText('Mountpoint')).not.toBeInTheDocument());
+    await waitFor(() => expect(detailPanels()).toHaveLength(0));
   });
 
-  it('expands only one volume at a time', async () => {
+  // detail-panel.md — the panel opened by the row's own gesture presents no close control and claims
+  // Escape instead
+  it('closes the detail on Escape, and presents no close control of its own', async () => {
+    const user = userEvent.setup();
+    renderPanel([makeVolume()]);
+
+    await user.click(listRows()[0]!);
+    await waitFor(() => expect(detailPanels()).toHaveLength(1));
+    expect(screen.queryByRole('button', { name: 'Close detail' })).not.toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => expect(detailPanels()).toHaveLength(0));
+  });
+
+  it('reveals one volume\'s detail at a time', async () => {
     const user = userEvent.setup();
     renderPanel([makeVolume({ name: 'vol-a' }), makeVolume({ name: 'vol-b' })]);
 
     await user.click(listRows()[0]!);
-    await screen.findByText('Mountpoint');
+    await waitFor(() => expect(detailPanels()).toHaveLength(1));
     await user.click(listRows()[1]!);
 
-    await waitFor(() => expect(document.querySelectorAll('.ui-card-list__expanded')).toHaveLength(1));
+    await waitFor(() => expect(detailPanels()).toHaveLength(1));
+    expect(listRows().filter((row) => row.getAttribute('aria-selected') === 'true')).toHaveLength(1);
   });
 });
 
-// volumes-panel.md — a selected row's "Remove" action goes through useConfirmation().confirm() first;
-// cancelling performs nothing; on success it collapses the row and re-reads the list
-describe('VolumesPanel — remove (plan-docker_management_app/REQ-71)', () => {
+// volumes-panel.md — "Remove" (row cluster, destructive) goes through useConfirmation().confirm()
+// first; cancelling performs nothing; on success it closes any detail open on that volume and
+// re-reads the list
+describe('VolumesPanel — remove (plan-docker_management_app/REQ-71, plan-ui-coherence-optimisation/REQ-35)', () => {
   it('asks for confirmation naming the volume before removing it, and performs nothing on cancel', async () => {
     const user = userEvent.setup();
     const { onRefresh } = renderPanel([makeVolume({ name: 'pgdata' })]);
 
-    await user.click(listRows()[0]!);
-    await screen.findByText('Mountpoint');
-    await user.click(screen.getByRole('button', { name: 'Remove' }));
+    await user.click(within(listRows()[0]!).getByRole('button', { name: 'Remove' }));
 
     expect(screen.getByRole('heading', { name: 'Confirm: pgdata' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
@@ -202,9 +334,7 @@ describe('VolumesPanel — remove (plan-docker_management_app/REQ-71)', () => {
     const user = userEvent.setup();
     const { onRefresh } = renderPanel([makeVolume({ name: 'pgdata' })]);
 
-    await user.click(listRows()[0]!);
-    await screen.findByText('Mountpoint');
-    await user.click(screen.getByRole('button', { name: 'Remove' }));
+    await user.click(within(listRows()[0]!).getByRole('button', { name: 'Remove' }));
     const dialog = document.querySelector<HTMLElement>('.ui-modal')!;
     await user.click(within(dialog).getByRole('button', { name: 'Remove' }));
 
@@ -213,20 +343,45 @@ describe('VolumesPanel — remove (plan-docker_management_app/REQ-71)', () => {
     );
     await waitFor(() => expect(onRefresh).toHaveBeenCalled());
   });
+
+  it('closes the detail open on the volume it removed', async () => {
+    const user = userEvent.setup();
+    renderPanel([makeVolume({ name: 'pgdata' })]);
+
+    await user.click(listRows()[0]!);
+    await waitFor(() => expect(detailPanels()).toHaveLength(1));
+
+    await user.click(within(listRows()[0]!).getByRole('button', { name: 'Remove' }));
+    const dialog = document.querySelector<HTMLElement>('.ui-modal')!;
+    await user.click(within(dialog).getByRole('button', { name: 'Remove' }));
+
+    await waitFor(() => expect(detailPanels()).toHaveLength(0));
+  });
 });
 
-// volumes-panel.md — "Create" opens a FormDialog for a name, a driver, driver options and labels;
-// submitting creates the volume, closes the dialog and re-reads the list
+// volumes-panel.md — "Create volume…" opens a FormDialog for a name, a driver, driver options and
+// labels; submitting creates the volume, closes the dialog and re-reads the list
 describe('VolumesPanel — create (plan-docker_management_app/REQ-71)', () => {
   it('opens the create dialog with an optional name and a default driver of local', async () => {
     const user = userEvent.setup();
     renderPanel([]);
 
-    await user.click(screen.getByRole('button', { name: 'Create' }));
+    await user.click(within(toolbar()).getByRole('button', { name: 'Create volume…' }));
 
     expect(screen.getByRole('heading', { name: 'Create volume' })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Volume name' })).toHaveValue('');
     expect(screen.getByRole('combobox', { name: 'Driver' })).toHaveValue('local');
+  });
+
+  // volumes-panel.md — once loaded, the empty state offers the action that resolves it
+  it('opens the same dialog from the empty state\'s own action', async () => {
+    const user = userEvent.setup();
+    renderPanel([]);
+
+    const emptyState = document.querySelector<HTMLElement>('.ui-empty-state')!;
+    await user.click(within(emptyState).getByRole('button', { name: 'Create the first volume' }));
+
+    expect(screen.getByRole('heading', { name: 'Create volume' })).toBeInTheDocument();
   });
 
   // volumes-panel.md — the driver-options rows and the label rows carry distinct accessible names
@@ -234,7 +389,7 @@ describe('VolumesPanel — create (plan-docker_management_app/REQ-71)', () => {
     const user = userEvent.setup();
     renderPanel([]);
 
-    await user.click(screen.getByRole('button', { name: 'Create' }));
+    await user.click(within(toolbar()).getByRole('button', { name: 'Create volume…' }));
     const dialog = within(document.querySelector<HTMLElement>('.ui-modal')!);
     await user.click(dialog.getByRole('button', { name: 'Add option' }));
     await user.click(dialog.getByRole('button', { name: 'Add label' }));
@@ -253,7 +408,7 @@ describe('VolumesPanel — create (plan-docker_management_app/REQ-71)', () => {
     const user = userEvent.setup();
     const { onRefresh } = renderPanel([]);
 
-    await user.click(screen.getByRole('button', { name: 'Create' }));
+    await user.click(within(toolbar()).getByRole('button', { name: 'Create volume…' }));
     const dialog = document.querySelector<HTMLElement>('.ui-modal')!;
     await user.type(within(dialog).getByRole('textbox', { name: 'Volume name' }), 'pgdata');
 
@@ -284,7 +439,7 @@ describe('VolumesPanel — create (plan-docker_management_app/REQ-71)', () => {
     fetchMock.mockResolvedValue({ ok: false, status: 409, json: () => Promise.resolve({ error: 'volume name already in use' }) });
     renderPanel([]);
 
-    await user.click(screen.getByRole('button', { name: 'Create' }));
+    await user.click(within(toolbar()).getByRole('button', { name: 'Create volume…' }));
     const dialog = document.querySelector<HTMLElement>('.ui-modal')!;
     await user.type(within(dialog).getByRole('textbox', { name: 'Volume name' }), 'pgdata');
     await user.click(within(dialog).getByRole('button', { name: 'Create' }));
@@ -299,13 +454,13 @@ describe('VolumesPanel — prune (plan-docker_management_app/REQ-71)', () => {
   it('disables Prune when there is no volume', () => {
     renderPanel([]);
 
-    expect(screen.getByRole('button', { name: 'Prune' })).toBeDisabled();
+    expect(within(toolbar()).getByRole('button', { name: 'Prune' })).toBeDisabled();
   });
 
   it('enables Prune once at least one volume exists', () => {
     renderPanel([makeVolume()]);
 
-    expect(screen.getByRole('button', { name: 'Prune' })).toBeEnabled();
+    expect(within(toolbar()).getByRole('button', { name: 'Prune' })).toBeEnabled();
   });
 
   it('confirms before pruning, reports the outcome via a toast and re-reads the list', async () => {
@@ -319,7 +474,7 @@ describe('VolumesPanel — prune (plan-docker_management_app/REQ-71)', () => {
     );
     const { onRefresh } = renderPanel([makeVolume()]);
 
-    await user.click(screen.getByRole('button', { name: 'Prune' }));
+    await user.click(within(toolbar()).getByRole('button', { name: 'Prune' }));
     expect(screen.getByRole('heading', { name: 'Confirm: unused volumes' })).toBeInTheDocument();
     const dialog = document.querySelector<HTMLElement>('.ui-modal')!;
     await user.click(within(dialog).getByRole('button', { name: 'Prune' }));
@@ -334,7 +489,7 @@ describe('VolumesPanel — prune (plan-docker_management_app/REQ-71)', () => {
     const user = userEvent.setup();
     const { onRefresh } = renderPanel([makeVolume()]);
 
-    await user.click(screen.getByRole('button', { name: 'Prune' }));
+    await user.click(within(toolbar()).getByRole('button', { name: 'Prune' }));
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
 
     expect(fetchMock).not.toHaveBeenCalledWith('/api/volumes/prune', expect.anything());

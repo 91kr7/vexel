@@ -35,7 +35,9 @@ export function RepeatableRowList<T>({ items, onChange, renderRow, createItem, a
           </IconButton>
         </Row>
       ))}
-      <Button size="sm" variant="ghost" onClick={add}>
+      {/* A control, not bare text — the same rule as the key/value editor's own
+          add affordance: "Add port mapping" is a button and is drawn as one. */}
+      <Button size="sm" onClick={add}>
         {addLabel}
       </Button>
     </div>

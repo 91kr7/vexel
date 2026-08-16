@@ -54,8 +54,47 @@ function renderPanel(networks: NetworkSummary[], onRefresh = vi.fn()) {
   return { onRefresh };
 }
 
+// The list is the object list's comfortable variant: a row is a
+// `.ui-data-table__row`, the attached-container chips are the row content that
+// always accompanies it, and the panel it reveals is the library's detail panel
+// (networks-panel.md).
 function listRows(): HTMLElement[] {
-  return Array.from(document.querySelectorAll<HTMLElement>('.ui-card-list__item'));
+  return Array.from(document.querySelectorAll<HTMLElement>('.ui-data-table__row'));
+}
+
+function rowContents(): HTMLElement[] {
+  return Array.from(document.querySelectorAll<HTMLElement>('.ui-data-table__row-content'));
+}
+
+function columnHeaders(): string[] {
+  return Array.from(document.querySelectorAll('.ui-data-table__header-cell')).map((cell) => cell.textContent ?? '');
+}
+
+function detailPanels(): HTMLElement[] {
+  return Array.from(document.querySelectorAll<HTMLElement>('.ui-data-table__expanded .ui-detail-panel'));
+}
+
+function propertyValue(panel: HTMLElement, label: string): string | undefined {
+  const row = Array.from(panel.querySelectorAll<HTMLElement>('.ui-definition-list__row')).find(
+    (candidate) => candidate.querySelector('.ui-definition-list__label')?.textContent === label,
+  );
+  return row?.querySelector('.ui-definition-list__value')?.textContent ?? undefined;
+}
+
+function toolbar(): HTMLElement {
+  return document.querySelector<HTMLElement>('.ui-screen-toolbar')!;
+}
+
+function buttonNames(): string[] {
+  return screen.getAllByRole('button').map((button) => (button.getAttribute('aria-label') ?? button.textContent ?? '').trim());
+}
+
+// A name that is a prefix of another's is the same name to anything that finds a control by name
+// (empty-state.md), which is what `getByRole(..., { name })` does in Playwright.
+function namesShadowingEachOther(names: string[]): string[] {
+  return names.flatMap((name, index) =>
+    names.filter((other, otherIndex) => otherIndex !== index && other.includes(name)).map((other) => `"${name}" is found by "${other}"`),
+  );
 }
 
 // The row content (attached-container chips) and the inline inspect surface's
@@ -103,16 +142,25 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-// networks-panel.md — one row per network: name, a subnet/gateway monospace secondary line (or "no
-// subnet" when the network has none) and "driver · scope" trailing the row
-describe('NetworksPanel — list rows (plan-docker_management_app/REQ-72)', () => {
+// networks-panel.md — one row per network, in columns: NAME (the name over a "<subnet> · gw
+// <gateway>" second line, "no subnet" when the network has none), DRIVER, SCOPE, and the row's
+// action cluster
+describe('NetworksPanel — list rows (plan-docker_management_app/REQ-72, plan-ui-coherence-optimisation/REQ-31)', () => {
+  it('lists every network on the object list, with the columns the panel declares in order', () => {
+    renderPanel([makeNetwork()]);
+
+    expect(document.querySelector('.ui-data-table--comfortable')).not.toBeNull();
+    expect(columnHeaders()).toEqual(['NAME', 'DRIVER', 'SCOPE', 'ACTIONS']);
+  });
+
   it('shows the network name, subnet/gateway line and driver/scope', () => {
     renderPanel([makeNetwork({ name: 'app-net', subnet: '172.20.0.0/24', gateway: '172.20.0.1', driver: 'bridge', scope: 'local' })]);
 
     const row = listRows()[0]!;
     expect(within(row).getByText('app-net')).toBeInTheDocument();
     expect(row.textContent).toContain('172.20.0.0/24 · gw 172.20.0.1');
-    expect(row.textContent).toContain('bridge · local');
+    expect(row.textContent).toContain('bridge');
+    expect(row.textContent).toContain('local');
   });
 
   it('shows "no subnet" when the network carries no IPAM configuration', () => {
@@ -121,30 +169,48 @@ describe('NetworksPanel — list rows (plan-docker_management_app/REQ-72)', () =
     expect(listRows()[0]!.textContent).toContain('no subnet');
   });
 
-  it('shows an empty state when there are no networks', () => {
+  // networks-panel.md — once loaded, the empty state states a title, a line of explanation and the
+  // action that resolves it
+  it('shows an empty state explaining the absence and offering the action that resolves it', () => {
     renderPanel([]);
 
     expect(listRows()).toHaveLength(0);
-    expect(screen.getByText('No networks')).toBeInTheDocument();
+    const emptyState = document.querySelector<HTMLElement>('.ui-empty-state')!;
+    expect(within(emptyState).getByText('No networks')).toBeInTheDocument();
+    expect(emptyState.querySelector('.ui-empty-state__description')?.textContent ?? '').not.toBe('');
+    expect(within(emptyState).getByRole('button', { name: 'Create the first network' })).toBeInTheDocument();
+  });
+
+  // networks-panel.md — while the list is empty the toolbar's action and the empty state's are drawn
+  // at once, as two controls neither of whose names contains the other
+  // (plan-ui-coherence-optimisation/REQ-41, plan-docker_management_app/REQ-25)
+  it('draws both create controls on an empty list, under names that do not shadow each other', () => {
+    renderPanel([]);
+
+    const emptyState = document.querySelector<HTMLElement>('.ui-empty-state')!;
+    expect(within(toolbar()).getByRole('button', { name: 'Create network…' })).toBeInTheDocument();
+    expect(within(emptyState).getByRole('button', { name: 'Create the first network' })).toBeInTheDocument();
+    expect(namesShadowingEachOther(buttonNames())).toEqual([]);
   });
 });
 
-// networks-panel.md — below each row, a chip group of the network's attached containers, each chip
-// carrying a "detach" action, plus a trailing "+ Attach" affordance; "No attached containers" in place
+// networks-panel.md — below every row, inside the same card, the chip group of that network's
+// attached containers, each chip carrying its own "detach" action; "No attached containers" in place
 // of the chips when none are attached
 describe('NetworksPanel — attached-container chips (plan-docker_management_app/REQ-72, REQ-74)', () => {
-  it('shows a chip with a detach action for each attached container', () => {
+  it('shows a chip with a detach action for each attached container, below its own row', () => {
     renderPanel([makeNetwork({ attachedContainers: ['app-1', 'app-2'] })]);
 
-    expect(screen.getByText('app-1')).toBeInTheDocument();
-    expect(screen.getByText('app-2')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'detach' })).toHaveLength(2);
+    const content = rowContents()[0]!;
+    expect(within(content).getByText('app-1')).toBeInTheDocument();
+    expect(within(content).getByText('app-2')).toBeInTheDocument();
+    expect(within(content).getAllByRole('button', { name: 'detach' })).toHaveLength(2);
   });
 
   it('shows "No attached containers" in place of the chips when none are attached', () => {
     renderPanel([makeNetwork({ attachedContainers: [] })]);
 
-    expect(screen.getByText('No attached containers')).toBeInTheDocument();
+    expect(within(rowContents()[0]!).getByText('No attached containers')).toBeInTheDocument();
   });
 
   // networks-panel.md — a chip's "detach" action detaches that container immediately (no confirmation)
@@ -166,14 +232,52 @@ describe('NetworksPanel — attached-container chips (plan-docker_management_app
     expect(JSON.parse((init as RequestInit).body as string)).toEqual({ containerId: 'app-1' });
     await waitFor(() => expect(onRefresh).toHaveBeenCalled());
   });
+});
 
-  // networks-panel.md — a row's "+ Attach" affordance opens a FormDialog offering a Combobox of known
-  // container names; submitting attaches that container, closes the dialog and re-reads the list
-  it('attaches a chosen container from the row\'s "+ Attach" affordance, with no confirmation, and re-reads the list', async () => {
+// networks-panel.md — the page-level actions sit in the toolbar under the section header, and
+// attaching a container is an action of the row's cluster rather than bare text beside the chips
+// (plan-ui-coherence-optimisation/REQ-27, REQ-35)
+describe('NetworksPanel — where the actions live (plan-ui-coherence-optimisation/REQ-35)', () => {
+  it('carries create and prune in the toolbar under the section header', () => {
+    renderPanel([makeNetwork()]);
+
+    expect(within(toolbar()).getByRole('button', { name: 'Create network…' })).toBeInTheDocument();
+    expect(within(toolbar()).getByRole('button', { name: 'Prune' })).toBeInTheDocument();
+  });
+
+  it('leaves the section header carrying no action of its own', () => {
+    renderPanel([makeNetwork()]);
+
+    const header = document.querySelector<HTMLElement>('.ui-section-header')!;
+    expect(header.querySelectorAll('button')).toHaveLength(0);
+  });
+
+  it('offers attach and remove as controls of the row itself', () => {
+    renderPanel([makeNetwork()]);
+
+    const row = listRows()[0]!;
+    expect(within(row).getByRole('button', { name: 'Attach…' })).toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: 'Remove' })).toBeInTheDocument();
+  });
+
+  // plan-ui-coherence-optimisation/REQ-27 — bare text is never a control: the "+ Attach" text beside
+  // the chips is gone, and no chip group on this panel renders an add affordance of its own
+  it('offers no bare-text attach affordance beside the chips', () => {
+    renderPanel([makeNetwork({ attachedContainers: ['app-1'] })]);
+
+    expect(screen.queryByText('+ Attach')).not.toBeInTheDocument();
+    for (const content of rowContents()) {
+      expect(within(content).queryByRole('button', { name: /attach/i })).not.toBeInTheDocument();
+    }
+  });
+
+  // networks-panel.md — "Attach…" opens a FormDialog offering a Combobox of known container names;
+  // submitting attaches that container to that row's network, with no confirmation
+  it('attaches a chosen container from the row\'s cluster, with no confirmation, and re-reads the list', async () => {
     const user = userEvent.setup();
     const { onRefresh } = renderPanel([makeNetwork({ id: 'net-app', name: 'app-net' })]);
 
-    await user.click(screen.getByRole('button', { name: '+ Attach' }));
+    await user.click(within(listRows()[0]!).getByRole('button', { name: 'Attach…' }));
 
     expect(screen.getByRole('heading', { name: 'Attach a container to app-net' })).toBeInTheDocument();
     const dialog = document.querySelector<HTMLElement>('.ui-modal')!;
@@ -195,58 +299,75 @@ describe('NetworksPanel — attached-container chips (plan-docker_management_app
   });
 });
 
-// networks-panel.md — selecting a row expands its inline inspect surface; selecting it again collapses
-// it; only one network's inspect surface is expanded at a time
-describe('NetworksPanel — inline inspect (plan-docker_management_app/REQ-73)', () => {
-  it('expands the inspect surface with driver, scope, subnet, gateway and options on selection', async () => {
+// networks-panel.md — selecting a row reveals its detail panel directly below the row and its chips;
+// selecting the same row again, or Escape, closes it; at most one network's detail is revealed
+describe('NetworksPanel — the revealed detail (plan-ui-coherence-optimisation/REQ-32, REQ-33)', () => {
+  it('reveals the detail panel with the network\'s properties in the library\'s grid on selection', async () => {
     const user = userEvent.setup();
-    const network = makeNetwork({ name: 'app-net' });
+    const network = makeNetwork({ name: 'app-net', options: { 'com.docker.network.bridge.name': 'br-app' } });
     inspectedNetwork = network;
     renderPanel([network]);
 
     await user.click(listRows()[0]!);
 
-    const expanded = await screen.findByText('Driver');
-    const detail = expanded.closest<HTMLElement>('.ui-card-list')!;
-    expect(within(detail).getByText('Scope')).toBeInTheDocument();
-    expect(within(detail).getByText('Subnet')).toBeInTheDocument();
-    expect(within(detail).getByText('Gateway')).toBeInTheDocument();
-    expect(within(detail).getByRole('button', { name: 'Remove' })).toBeInTheDocument();
+    await waitFor(() => expect(detailPanels()).toHaveLength(1));
+    const panel = detailPanels()[0]!;
+    await waitFor(() => expect(propertyValue(panel, 'Driver')).toBe('bridge'));
+    expect(propertyValue(panel, 'Scope')).toBe('local');
+    expect(propertyValue(panel, 'Subnet')).toBe('172.20.0.0/24');
+    expect(propertyValue(panel, 'Gateway')).toBe('172.20.0.1');
+    expect(propertyValue(panel, 'Options')).toBe('com.docker.network.bridge.name=br-app');
+    expect(panel.querySelector('.ui-definition-list')).not.toBeNull();
   });
 
-  it('collapses the inspect surface when the same row is selected again', async () => {
+  it('closes the detail when the same row is selected again', async () => {
     const user = userEvent.setup();
     renderPanel([makeNetwork()]);
 
     await user.click(listRows()[0]!);
-    await screen.findByText('Driver');
+    await waitFor(() => expect(detailPanels()).toHaveLength(1));
     await user.click(listRows()[0]!);
 
-    await waitFor(() => expect(screen.queryByText('Driver')).not.toBeInTheDocument());
+    await waitFor(() => expect(detailPanels()).toHaveLength(0));
   });
 
-  it('expands only one network at a time', async () => {
+  // detail-panel.md — the panel opened by the row's own gesture presents no close control and claims
+  // Escape instead
+  it('closes the detail on Escape, and presents no close control of its own', async () => {
+    const user = userEvent.setup();
+    renderPanel([makeNetwork()]);
+
+    await user.click(listRows()[0]!);
+    await waitFor(() => expect(detailPanels()).toHaveLength(1));
+    expect(screen.queryByRole('button', { name: 'Close detail' })).not.toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => expect(detailPanels()).toHaveLength(0));
+  });
+
+  it('reveals one network\'s detail at a time', async () => {
     const user = userEvent.setup();
     renderPanel([makeNetwork({ id: 'net-a', name: 'net-a' }), makeNetwork({ id: 'net-b', name: 'net-b' })]);
 
     await user.click(listRows()[0]!);
-    await screen.findByText('Driver');
+    await waitFor(() => expect(detailPanels()).toHaveLength(1));
     await user.click(listRows()[1]!);
 
-    await waitFor(() => expect(document.querySelectorAll('.ui-card-list__expanded')).toHaveLength(1));
+    await waitFor(() => expect(detailPanels()).toHaveLength(1));
+    expect(listRows().filter((row) => row.getAttribute('aria-selected') === 'true')).toHaveLength(1);
   });
 });
 
-// networks-panel.md — a selected row's "Remove" action goes through useConfirmation().confirm() first;
-// cancelling performs nothing; on success it collapses the row and re-reads the list
-describe('NetworksPanel — remove (plan-docker_management_app/REQ-73)', () => {
+// networks-panel.md — "Remove" (row cluster, destructive) goes through useConfirmation().confirm()
+// first; cancelling performs nothing; on success it closes any detail open on that network and
+// re-reads the list
+describe('NetworksPanel — remove (plan-docker_management_app/REQ-73, plan-ui-coherence-optimisation/REQ-35)', () => {
   it('asks for confirmation naming the network before removing it, and performs nothing on cancel', async () => {
     const user = userEvent.setup();
     const { onRefresh } = renderPanel([makeNetwork({ id: 'net-app', name: 'app-net' })]);
 
-    await user.click(listRows()[0]!);
-    await screen.findByText('Driver');
-    await user.click(screen.getByRole('button', { name: 'Remove' }));
+    await user.click(within(listRows()[0]!).getByRole('button', { name: 'Remove' }));
 
     expect(screen.getByRole('heading', { name: 'Confirm: app-net' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
@@ -259,9 +380,7 @@ describe('NetworksPanel — remove (plan-docker_management_app/REQ-73)', () => {
     const user = userEvent.setup();
     const { onRefresh } = renderPanel([makeNetwork({ id: 'net-app', name: 'app-net' })]);
 
-    await user.click(listRows()[0]!);
-    await screen.findByText('Driver');
-    await user.click(screen.getByRole('button', { name: 'Remove' }));
+    await user.click(within(listRows()[0]!).getByRole('button', { name: 'Remove' }));
     const dialog = document.querySelector<HTMLElement>('.ui-modal')!;
     await user.click(within(dialog).getByRole('button', { name: 'Remove' }));
 
@@ -270,20 +389,45 @@ describe('NetworksPanel — remove (plan-docker_management_app/REQ-73)', () => {
     );
     await waitFor(() => expect(onRefresh).toHaveBeenCalled());
   });
+
+  it('closes the detail open on the network it removed', async () => {
+    const user = userEvent.setup();
+    renderPanel([makeNetwork({ id: 'net-app', name: 'app-net' })]);
+
+    await user.click(listRows()[0]!);
+    await waitFor(() => expect(detailPanels()).toHaveLength(1));
+
+    await user.click(within(listRows()[0]!).getByRole('button', { name: 'Remove' }));
+    const dialog = document.querySelector<HTMLElement>('.ui-modal')!;
+    await user.click(within(dialog).getByRole('button', { name: 'Remove' }));
+
+    await waitFor(() => expect(detailPanels()).toHaveLength(0));
+  });
 });
 
-// networks-panel.md — "Create" opens a FormDialog for a name, driver, subnet, gateway, IP range,
-// options and labels; submitting creates the network, closes the dialog and re-reads the list
+// networks-panel.md — "Create network…" opens a FormDialog for a name, driver, subnet, gateway, IP
+// range, options and labels; submitting creates the network, closes the dialog and re-reads the list
 describe('NetworksPanel — create (plan-docker_management_app/REQ-73)', () => {
   it('opens the create dialog with an empty name and a default driver of bridge', async () => {
     const user = userEvent.setup();
     renderPanel([]);
 
-    await user.click(screen.getByRole('button', { name: 'Create' }));
+    await user.click(within(toolbar()).getByRole('button', { name: 'Create network…' }));
 
     expect(screen.getByRole('heading', { name: 'Create network' })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Network name' })).toHaveValue('');
     expect(screen.getByRole('combobox', { name: 'Driver' })).toHaveValue('bridge');
+  });
+
+  // networks-panel.md — once loaded, the empty state offers the action that resolves it
+  it('opens the same dialog from the empty state\'s own action', async () => {
+    const user = userEvent.setup();
+    renderPanel([]);
+
+    const emptyState = document.querySelector<HTMLElement>('.ui-empty-state')!;
+    await user.click(within(emptyState).getByRole('button', { name: 'Create the first network' }));
+
+    expect(screen.getByRole('heading', { name: 'Create network' })).toBeInTheDocument();
   });
 
   // networks-panel.md — the option rows and the label rows carry distinct accessible names
@@ -291,7 +435,7 @@ describe('NetworksPanel — create (plan-docker_management_app/REQ-73)', () => {
     const user = userEvent.setup();
     renderPanel([]);
 
-    await user.click(screen.getByRole('button', { name: 'Create' }));
+    await user.click(within(toolbar()).getByRole('button', { name: 'Create network…' }));
     const dialog = within(document.querySelector<HTMLElement>('.ui-modal')!);
     await user.click(dialog.getByRole('button', { name: 'Add option' }));
     await user.click(dialog.getByRole('button', { name: 'Add label' }));
@@ -310,7 +454,7 @@ describe('NetworksPanel — create (plan-docker_management_app/REQ-73)', () => {
     const user = userEvent.setup();
     const { onRefresh } = renderPanel([]);
 
-    await user.click(screen.getByRole('button', { name: 'Create' }));
+    await user.click(within(toolbar()).getByRole('button', { name: 'Create network…' }));
     const dialog = document.querySelector<HTMLElement>('.ui-modal')!;
     await user.type(within(dialog).getByRole('textbox', { name: 'Network name' }), 'app-net');
     await user.type(within(dialog).getByRole('textbox', { name: 'Subnet' }), '172.20.0.0/24');
@@ -342,7 +486,7 @@ describe('NetworksPanel — create (plan-docker_management_app/REQ-73)', () => {
     fetchMock.mockResolvedValue({ ok: false, status: 409, json: () => Promise.resolve({ error: 'network name already in use' }) });
     renderPanel([]);
 
-    await user.click(screen.getByRole('button', { name: 'Create' }));
+    await user.click(within(toolbar()).getByRole('button', { name: 'Create network…' }));
     const dialog = document.querySelector<HTMLElement>('.ui-modal')!;
     await user.type(within(dialog).getByRole('textbox', { name: 'Network name' }), 'app-net');
     await user.click(within(dialog).getByRole('button', { name: 'Create' }));
@@ -357,13 +501,13 @@ describe('NetworksPanel — prune (plan-docker_management_app/REQ-73)', () => {
   it('disables Prune when there is no network', () => {
     renderPanel([]);
 
-    expect(screen.getByRole('button', { name: 'Prune' })).toBeDisabled();
+    expect(within(toolbar()).getByRole('button', { name: 'Prune' })).toBeDisabled();
   });
 
   it('enables Prune once at least one network exists', () => {
     renderPanel([makeNetwork()]);
 
-    expect(screen.getByRole('button', { name: 'Prune' })).toBeEnabled();
+    expect(within(toolbar()).getByRole('button', { name: 'Prune' })).toBeEnabled();
   });
 
   it('confirms before pruning, reports the outcome via a toast and re-reads the list', async () => {
@@ -376,7 +520,7 @@ describe('NetworksPanel — prune (plan-docker_management_app/REQ-73)', () => {
     });
     const { onRefresh } = renderPanel([makeNetwork()]);
 
-    await user.click(screen.getByRole('button', { name: 'Prune' }));
+    await user.click(within(toolbar()).getByRole('button', { name: 'Prune' }));
     expect(screen.getByRole('heading', { name: 'Confirm: unused networks' })).toBeInTheDocument();
     const dialog = document.querySelector<HTMLElement>('.ui-modal')!;
     await user.click(within(dialog).getByRole('button', { name: 'Prune' }));
@@ -390,7 +534,7 @@ describe('NetworksPanel — prune (plan-docker_management_app/REQ-73)', () => {
     const user = userEvent.setup();
     const { onRefresh } = renderPanel([makeNetwork()]);
 
-    await user.click(screen.getByRole('button', { name: 'Prune' }));
+    await user.click(within(toolbar()).getByRole('button', { name: 'Prune' }));
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
 
     expect(fetchMock).not.toHaveBeenCalledWith('/api/networks/prune', expect.anything());

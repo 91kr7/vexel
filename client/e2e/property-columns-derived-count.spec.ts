@@ -78,11 +78,18 @@ const NARROW_VIEWPORT = { width: 505, height: 900 };
 const WIDE_VIEWPORT = { width: 1920, height: 1080 };
 
 /**
- * The wide window for a **swarm** card, which is half the content width: the four
- * panels sit two per row above the 1024px breakpoint, so the card is ~1030px at
- * 2560 and ~700px at 1920. Two short-scalar bands need 744px, so 2560 is the
- * window at which "at least the count it used to state" is a statement about the
- * arrangement rather than about the panel being half a screen.
+ * The wide window for a **swarm** section.
+ *
+ * It used to be chosen for a card that was *half* the content width — the four
+ * panels sat two per row above the 1024px breakpoint, ~1030px at 2560 and ~700px
+ * at 1920 — so 2560 was the smallest width at which "at least the count it used
+ * to state" said something about the arrangement rather than about the panel
+ * being half a screen. `plan-ui-coherence-optimisation/REQ-55` stacked the
+ * inventories at the content column's full width and the reveal is a
+ * `DetailPanel`, so the section is 2132px here; 2560 is kept because the figures
+ * this file's sibling records were re-taken at it
+ * (`property-columns-ordinary-widths.spec.ts`) and a check that moved its own
+ * window would compare two different measurements.
  */
 const WIDE_SWARM_VIEWPORT = { width: 2560, height: 1440 };
 
@@ -192,8 +199,15 @@ test('the About screen’s baseline list: one column and nothing wrapped at ~400
   expectOneColumnNothingWrapped(narrow, narrowEvidence);
 });
 
-// REQ-26, REQ-2 — the four swarm panels: services, secrets, configs & stacks and nodes. Each is
-// expanded with a real pointer on the row itself (REQ-41) and measured at the same two widths.
+// REQ-26, REQ-2 — the four swarm panels: services, secrets, configs and nodes. Each is opened with a
+// real pointer on the row itself (REQ-41) and measured at the same two widths.
+//
+// **The markup is the object list's since batch 12** (`plan-ui-coherence-optimisation/REQ-55`): the
+// inventories left the hand-built card list for `DataTable`, a row's reveal is a `DetailPanel`, and
+// the single `Configs & stacks` card became two, `Configs` and `Stacks`. Every assertion is the one
+// it always was; only the locators and the card's name move with the migration. `Stacks` is not
+// among them — a stack's services are carried by its own row rather than by a selection, so it
+// reveals no property section at all.
 test('the four swarm panels: one column and nothing wrapped at ~400px, no fewer columns than they stated when wide', async ({ page }) => {
   test.skip(
     !MANAGES_A_SWARM,
@@ -229,7 +243,7 @@ test('the four swarm panels: one column and nothing wrapped at ~400px, no fewer 
     for (const [panelTitle, rowText] of [
       ['Services & tasks', serviceName],
       ['Secrets', secretName],
-      ['Configs & stacks', configName],
+      ['Configs', configName],
       ['Nodes', ''],
     ] as const) {
       for (const [viewport, expectation] of [
@@ -240,12 +254,20 @@ test('the four swarm panels: one column and nothing wrapped at ~400px, no fewer 
         await openApp(page, 'swarm');
         await expect(page.getByRole('heading', { level: 1, name: 'Swarm' })).toBeVisible({ timeout: 20_000 });
 
-        const panel = screenContent(page).locator('.ui-surface').filter({ has: page.getByRole('heading', { level: 2, name: panelTitle }) });
-        const row = rowText === '' ? panel.locator('.ui-card-list__item').first() : panel.locator('.ui-card-list__item', { hasText: rowText }).first();
-        await expect(row, `the ${panelTitle} panel lists nothing to expand, so its property card cannot be measured`).toBeVisible({ timeout: 20_000 });
-        await row.click();
+        const panel = screenContent(page)
+          .locator('.ui-surface')
+          .filter({ has: page.getByRole('heading', { level: 2, name: panelTitle, exact: true }) })
+          .first();
+        const row = rowText === '' ? panel.locator('.ui-data-table__row').first() : panel.locator('.ui-data-table__row', { hasText: rowText }).first();
+        await expect(row, `the ${panelTitle} panel lists nothing to open, so its property section cannot be measured`).toBeVisible({ timeout: 20_000 });
+        // On its first cell, with a real pointer: below the desktop breakpoint the row is wider than
+        // the box it is read in, so its own centre can sit over another column — or over a control.
+        const cell = row.locator('.ui-data-table__cell').first();
+        await cell.scrollIntoViewIfNeeded();
+        const cellBox = (await cell.boundingBox())!;
+        await page.mouse.click(cellBox.x + cellBox.width / 2, cellBox.y + cellBox.height / 2);
 
-        const section = panel.locator('.ui-card-list__expanded .ui-definition-list').first();
+        const section = panel.locator('.ui-detail-panel .ui-definition-list').first();
         const geometry = await measureSection(section, `the ${panelTitle} property card`);
         const evidence = describe(`${panelTitle} @${viewport.width}×${viewport.height}`, geometry);
         console.log(`[${expectation === 'narrow' ? 'REQ-26' : 'REQ-2'}] ${evidence}`);

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { VolumesNetworksScreen } from '../../src/volumes-networks/VolumesNetworksScreen';
 import { ConfirmationProvider } from '../../src/shell/services/ConfirmationService';
 import { ErrorReportingProvider } from '../../src/shell/services/ErrorReportingService';
@@ -30,21 +30,41 @@ function renderScreen(networksPanel?: ReactNode) {
   );
 }
 
-// volumes-networks-screen.md — a single column (the Volumes panel alone, full width) while
-// networksPanel is not supplied, and two equal columns once it is
-describe('VolumesNetworksScreen — layout (plan-docker_management_app/REQ-70)', () => {
-  it('renders a single column when no networks panel is supplied', () => {
-    renderScreen();
+// volumes-networks-screen.md — one column: the Volumes panel, then the Networks panel under it, each
+// at the screen's full content width, so that the detail either of them reveals is full width too
+describe('VolumesNetworksScreen — layout (plan-ui-coherence-optimisation/REQ-32)', () => {
+  it('lays the panels out in one column, stating no track template of its own', () => {
+    renderScreen(<p>networks placeholder</p>);
 
-    const grid = document.querySelector<HTMLElement>('.ui-grid');
-    expect(grid).not.toBeNull();
-    expect(grid!.style.gridTemplateColumns).toBe('1fr');
+    expect(document.querySelector('.ui-stack')).not.toBeNull();
+    // Neither list is confined to a column of half the screen: the pair could not
+    // have been kept in any form, since the list's width is the panel's width.
+    expect(document.querySelectorAll('.ui-grid')).toHaveLength(0);
   });
 
-  it('renders two equal columns once a networks panel is supplied', () => {
-    renderScreen(<div>networks placeholder</div>);
+  it('renders the Networks panel below the Volumes panel, not beside it', () => {
+    renderScreen(<p>networks placeholder</p>);
 
-    const grid = document.querySelector<HTMLElement>('.ui-grid');
-    expect(grid!.style.gridTemplateColumns).toBe('1fr 1fr');
+    const volumes = screen.getByRole('heading', { level: 2, name: 'Volumes' });
+    const networks = screen.getByText('networks placeholder');
+    expect(volumes.compareDocumentPosition(networks) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('renders the Volumes panel alone when no networks panel is supplied', () => {
+    renderScreen();
+
+    expect(screen.getByRole('heading', { level: 2, name: 'Volumes' })).toBeInTheDocument();
+    expect(document.querySelectorAll('.ui-grid')).toHaveLength(0);
+  });
+
+  // volumes-networks-screen.md — the screen carries no actions: each panel's page-level actions sit
+  // in that panel's own toolbar
+  it('carries no toolbar of its own beyond the panels\' own', () => {
+    renderScreen(<p>networks placeholder</p>);
+
+    const toolbars = Array.from(document.querySelectorAll('.ui-screen-toolbar'));
+    for (const toolbar of toolbars) {
+      expect(toolbar.closest('.ui-surface')).not.toBeNull();
+    }
   });
 });

@@ -52,6 +52,11 @@ Actions:
 - The header, the banner, the scrolling body and the footer's own washed strip all sit **on** that
   one blurred surface, not behind it: they keep reading as one sheet, never as a second box drawn
   over the first.
+- **The body holds one form, not a stack of cards.** The sections it is given draw no surface of
+  their own (see `form-section.md`), so the only box in the sheet is the sheet. What separates the
+  groups is the space this body puts between them. The sheet's own sizing is unchanged by that: same
+  positioner width, same maximum height, same scrolling body — only the content inside is shorter,
+  measurably so for a form with the delivered field count.
 - The dimmed overlay the sheet sits on stays a plain dim and declares no blur, for the reason given
   in `modal.md`.
 - `Escape` does not cancel the sheet — unchanged — and, while it is open, dismisses nothing on the

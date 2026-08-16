@@ -205,6 +205,55 @@ describe('ContainerLogsView (REQ-30, REQ-31)', () => {
     }
   });
 
+  // container-logs-view.md — "the second is the log region's own action row, holding the search box
+  // with its match count and previous/next at the start and `Download` at its end" / "No row holds
+  // a single button" (plan-ui-coherence-optimisation/REQ-62)
+  it('puts the search and the download on the log region\'s one action row', async () => {
+    const { container: dom } = render(<ContainerLogsView container={container} />);
+    emit([{ text: 'a line to search' }]);
+    await screen.findByText('a line to search');
+
+    const actionRows = dom.querySelectorAll('.ui-log-stream__actions');
+    expect(actionRows, 'the stream draws no action row, or more than one').toHaveLength(1);
+    const row = actionRows[0]!;
+
+    for (const control of [
+      screen.getByRole('textbox', { name: 'Search the stream' }),
+      screen.getByRole('button', { name: 'Previous' }),
+      screen.getByRole('button', { name: 'Next' }),
+      screen.getByRole('button', { name: 'Download' }),
+    ]) {
+      expect(row.contains(control), `${control.getAttribute('aria-label') ?? control.textContent} is not on the action row`).toBe(true);
+    }
+  });
+
+  // container-logs-view.md — "Two control rows above the log region, and no more"
+  // (plan-ui-coherence-optimisation/REQ-62): the delivered third row held `Download` alone.
+  it('draws one control row of its own above the stream, the stream carrying the other', async () => {
+    const { container: dom } = render(<ContainerLogsView container={container} />);
+    emit([{ text: 'a line' }]);
+    await screen.findByText('a line');
+
+    const stream = dom.querySelector('.ui-log-stream')!;
+    const ownRows = [...dom.querySelectorAll('.ui-row')].filter(
+      (row) => !stream.contains(row) && row.parentElement?.closest('.ui-row') == null,
+    );
+
+    expect(ownRows).toHaveLength(1);
+    // Every daemon-facing control is on it, and the download is not.
+    for (const control of [
+      screen.getByRole('button', { name: 'stdout' }),
+      screen.getByRole('button', { name: 'stderr' }),
+      screen.getByRole('checkbox', { name: 'Timestamps' }),
+      screen.getByRole('combobox', { name: 'Tail size' }),
+      screen.getByRole('textbox', { name: 'Since' }),
+      screen.getByRole('textbox', { name: 'Until' }),
+    ]) {
+      expect(ownRows[0]!.contains(control), `${control.getAttribute('aria-label') ?? control.textContent} left the first control row`).toBe(true);
+    }
+    expect(ownRows[0]!.contains(screen.getByRole('button', { name: 'Download' }))).toBe(false);
+  });
+
   // container-logs-view.md — a stream failure is shown verbatim with a retry that reopens the stream
   it('shows the stream failure verbatim and reopens the stream on retry', async () => {
     const user = userEvent.setup();

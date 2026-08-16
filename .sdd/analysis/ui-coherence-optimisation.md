@@ -75,14 +75,28 @@ Confirmed by interaction, not only by measurement: a **real pointer click at the
 coordinates** (1440×900, where About is also covered) left the application on the screen it was
 already showing. The click does not reach the control.
 
-Root cause, and it is one line's worth: `.ui-nav-rail` is `overflow-y: visible` and does not scroll.
-The nav list is top-anchored with an intrinsic height of ~849px regardless of viewport, while the
-footer card is bottom-anchored. Below roughly 964px of viewport height the two overlap, and because
-nothing scrolls and nothing clips, they simply paint over each other. Above ~1000px the opposite
-symptom appears: a large dead gap opens between the last entry and the footer card.
+> **Root cause corrected during batch 1.** This section first said `.ui-nav-rail` is
+> `overflow-y: visible`, that nothing scrolls or clips, and that the list and the footer card paint
+> over each other. That is wrong: it was measured on `.ui-nav-rail`, but the scrolling region is the
+> inner `.ui-nav-rail__groups`, which already carried `flex: 1 1 auto; overflow: auto` on the
+> delivered build. The defect and every measurement above stand — they were taken on the entries
+> themselves — but the mechanism is the one below.
 
-The same construction is used by the phone drawer, where the list measures 810px against an 812px
-viewport — it fits on the test device by two pixels and fails on anything shorter.
+Root cause: the entry region does scroll, and **nothing whatever says so**. Under macOS overlay
+scrollbars it reserves no gutter and paints no thumb while idle, and the cut falls between two
+groups, so a rail showing ten entries reads as a rail that has ten entries. The three missing ones
+are not overlapped, they are clipped away and never painted — which is why a hit test at their
+coordinates returns the footer card, the frame, or nothing at all, and why the operator reports a
+click that does nothing. `scrollbar-gutter: stable` reserves the gutter but still paints no thumb, so
+a scrollbar cannot be the affordance.
+
+Scrolling is also the only available answer, not a choice: at 1280×800 the rail needs 942px
+(40 padding + 36 brand + 48 gaps + 74 card + 744 entries) against 760px available. Deleting every
+group label and every gap still leaves it 26px short. The repair is therefore an affordance — the
+entry meeting the cut fades — not a reflow.
+
+The phone drawer failed differently and for its own reason: an over-constrained `height: 100%` made
+the card 824px against an 812px viewport, so its own bottom fell off screen.
 
 **Severity: highest.** Two whole screens (Raw console, About) are unreachable on a common window
 size, with no error and no other route to them.

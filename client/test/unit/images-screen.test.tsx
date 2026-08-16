@@ -123,6 +123,22 @@ function headerLabels(): string[] {
   return Array.from(document.querySelectorAll('.ui-data-table__header-cell')).map((cell) => cell.textContent ?? '');
 }
 
+/**
+ * The value a row carries in the column the table names `header`. The header row
+ * leads with the multi-select cell, which a row deliberately does not mark as a
+ * column cell (ui-library/specs/data-table.md), hence the one-cell offset.
+ */
+function cellText(row: HTMLElement, header: string): string {
+  const index = headerLabels().indexOf(header);
+  expect(index, `the table carries no ${header} column — it names [${headerLabels().join(', ')}]`).toBeGreaterThan(0);
+  return row.querySelectorAll('.ui-data-table__cell')[index - 1]?.textContent ?? '';
+}
+
+/** How many times `value` occurs in `text` — "the row prints its reference once" made countable. */
+function occurrences(text: string, value: string): number {
+  return text.split(value).length - 1;
+}
+
 function inspectPayload() {
   return {
     id: 'sha256:0123456789abcdef0123456789abcdef0123456789abcdef',
@@ -174,8 +190,11 @@ describe('ImagesScreen — image list columns (plan-docker_management_app/REQ-37
     renderScreen([makeImage()]);
 
     expect(document.querySelector('.ui-data-table')).not.toBeNull();
-    // images-screen.md — a leading multi-select checkbox column (REQ-42) precedes the status dot column.
-    expect(headerLabels()).toEqual(['', '', 'REPOSITORY:TAG', 'TAGS', 'DIGEST', 'PLATFORM', 'SIZE', 'CREATED', 'ACTIONS']);
+    // images-screen.md — a leading multi-select checkbox column (REQ-42) precedes the status dot
+    // column. The column of tag pills is gone with the reference it repeated
+    // (plan-ui-coherence-optimisation/REQ-57), and the size column is named for what it measures
+    // (plan-ui-coherence-optimisation/REQ-59).
+    expect(headerLabels()).toEqual(['', '', 'REPOSITORY:TAG', 'DIGEST', 'PLATFORM', 'DISK USAGE', 'CREATED', 'ACTIONS']);
   });
 
   it('shows the first reference over the short id, the tags, the digest, the platform, the size and the age', () => {
@@ -204,33 +223,111 @@ describe('ImagesScreen — image list columns (plan-docker_management_app/REQ-37
     expect(tableRows()[0]!.textContent).toContain('linux/arm64');
   });
 
-  it('falls back to the id in the digest column when the image has no digest', () => {
-    renderScreen([makeImage({ digest: undefined, id: 'sha256:0123456789abcdef0123456789abcdef' })]);
+  // images-screen.md — `DIGEST` shows a repository digest or nothing at all, and never falls back to
+  // the image id (plan-ui-coherence-optimisation/REQ-58). **Inverted, not deleted**: until
+  // 2026-08-15 this asserted that the id *was* the fallback, so the record of what changed lives in
+  // the check itself.
+  it('shows the column’s own dash, never the image id, when the daemon reports no repository digest', () => {
+    renderScreen([makeImage({ digest: undefined, id: 'sha256:0123456789abcdef0123456789abcdef', shortId: 'sha256:0123456789ab' })]);
 
-    expect(within(tableRows()[0]!).getByTitle('sha256:0123456789abcdef0123456789abcdef')).toBeInTheDocument();
+    const row = tableRows()[0]!;
+    expect(cellText(row, 'DIGEST')).toBe('–');
+    expect(within(row).queryByTitle('sha256:0123456789abcdef0123456789abcdef')).not.toBeInTheDocument();
   });
 
-  it('shows at most two tag badges and reports the remaining ones with a +N badge', () => {
+  // The containerd-backed image store, where `Id` and `RepoDigests[0]` carry the same digest and the
+  // server maps each Engine field faithfully: the column has nothing of its own to state.
+  it('shows the column’s own dash when the daemon reports the image id as the repository digest', () => {
+    renderScreen([makeImage({ shortId: 'sha256:0123456789ab', digest: 'sha256:0123456789ab' })]);
+
+    expect(cellText(tableRows()[0]!, 'DIGEST')).toBe('–');
+  });
+
+  it('shows the repository digest when the daemon reports one of its own', () => {
+    renderScreen([makeImage({ shortId: 'sha256:0123456789ab', digest: 'sha256:fedcba987654' })]);
+
+    const row = tableRows()[0]!;
+    expect(cellText(row, 'DIGEST')).toBe('sha256:fedcba987654');
+    expect(cellText(row, 'DIGEST')).not.toBe(primarySubtitle(row));
+  });
+
+  // images-screen.md — a row prints its reference once (plan-ui-coherence-optimisation/REQ-57): the
+  // second column of tag pills carried the identical string on every row, and is gone.
+  it('prints a single-tagged image’s reference exactly once on the row', () => {
+    renderScreen([makeImage({ tags: ['nginx:1.27'] })]);
+
+    const row = tableRows()[0]!;
+    expect(primaryReference(row)).toBe('nginx:1.27');
+    expect(occurrences(row.textContent ?? '', 'nginx:1.27')).toBe(1);
+  });
+
+  it('shows every tag of a multi-tagged image, each of them once', () => {
     renderScreen([makeImage({ tags: ['nginx:1.27', 'nginx:latest', 'nginx:stable'] })]);
 
-    const badges = Array.from(tableRows()[0]!.querySelectorAll('.ui-badge')).map((badge) => badge.textContent);
-    expect(badges).toEqual(['nginx:1.27', 'nginx:latest', '+1']);
+    const row = tableRows()[0]!;
+    for (const tag of ['nginx:1.27', 'nginx:latest', 'nginx:stable']) {
+      expect(primaryReference(row), `${tag} is not shown on the row`).toContain(tag);
+      expect(occurrences(row.textContent ?? '', tag), `${tag} is printed more than once on the row`).toBe(1);
+    }
   });
 
-  it('marks a dangling image with a warning status dot and a "dangling" badge, and shows <none> as its reference', () => {
+  it('marks a dangling image with a warning status dot alone, and shows <none> as its reference', () => {
     renderScreen([makeImage({ tags: [] })]);
 
     const row = tableRows()[0]!;
+    // The leading dot is where the fact already was, and the pill that repeated it left with the
+    // column that held it (REQ-57).
     expect(row.querySelector('.ui-table-status-dot--tone-warning')).not.toBeNull();
-    const danglingBadge = within(row).getByText('dangling');
-    expect(danglingBadge.className).toContain('ui-badge--tone-warning');
     expect(primaryReference(row)).toBe('<none>');
+    expect(within(row).queryByText('dangling')).not.toBeInTheDocument();
   });
 
   it('marks a tagged image with a success status dot', () => {
     renderScreen([makeImage({ tags: ['nginx:1.27'] })]);
 
     expect(tableRows()[0]!.querySelector('.ui-table-status-dot--tone-success')).not.toBeNull();
+  });
+});
+
+// images/specs/images-screen.md and images/specs/image-detail-panel.md — the two sizes are named
+// for what each measures, so that no single word carries two values. The defect was never that two
+// numbers exist (plan-ui-coherence-optimisation/REQ-59).
+describe('ImagesScreen — the row’s size and the panel’s size are two names (plan-ui-coherence-optimisation/REQ-59)', () => {
+  /**
+   * The daemon's own two answers about one image, as the specs record them for
+   * `alpine:3.20` on 2026-08-15: the listing's `Size` counts the unpacked
+   * snapshots the inspect's `Size` does not.
+   */
+  const LISTING_SIZE_BYTES = 13_660_215;
+  const INSPECT_SIZE_BYTES = 4_103_199;
+
+  function propertyValue(root: HTMLElement, label: string): string | undefined {
+    return Array.from(root.querySelectorAll('.ui-definition-list__row'))
+      .find((band) => band.querySelector('.ui-definition-list__label')?.textContent === label)
+      ?.querySelector('.ui-definition-list__value')?.textContent ?? undefined;
+  }
+
+  it('names the row’s number and the panel’s number differently, and leaves neither name carrying both', async () => {
+    const user = userEvent.setup();
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(
+        String(url).includes('/inspect')
+          ? { ok: true, status: 200, json: () => Promise.resolve({ ...inspectPayload(), sizeBytes: INSPECT_SIZE_BYTES }) }
+          : { ok: true, status: 200, json: () => Promise.resolve({ kept: false }) },
+      ),
+    );
+    renderScreen([makeImage({ sizeBytes: LISTING_SIZE_BYTES })]);
+
+    expect(headerLabels(), 'the table still names a column `SIZE`, the word the panel also uses').not.toContain('SIZE');
+    const rowSize = cellText(tableRows()[0]!, 'DISK USAGE');
+
+    await user.click(tableRows()[0]!);
+    const panel = document.querySelector<HTMLElement>('.ui-detail-panel')!;
+    await waitFor(() => expect(within(panel).getByText('Content size')).toBeInTheDocument());
+
+    expect(within(panel).queryByText('Size'), 'the panel still states a band named `Size`').not.toBeInTheDocument();
+    // Two measurements, two numbers, two names: what the requirement forbids is one word over both.
+    expect(propertyValue(panel, 'Content size')).not.toBe(rowSize);
   });
 });
 

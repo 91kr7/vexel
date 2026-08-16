@@ -8,6 +8,7 @@ import {
   ErrorBanner,
   Grid,
   ResultSummary,
+  ScreenToolbar,
   SectionHeader,
   Stack,
   StorageUsageRow,
@@ -79,6 +80,15 @@ function sizeLabel(category: DiskUsageCategory): string {
   return category.unavailableDetail ? '—' : formatBytes(category.sizeBytes);
 }
 
+/**
+ * The eight properties **this screen keeps**
+ * (plan-ui-coherence-optimisation/REQ-45, REQ-75): they were listed here and on
+ * Contexts, and they describe *the daemon* rather than *a context* — they do not
+ * change as the operator looks down a list of contexts, only when the active
+ * context switches. Contexts lost the block in batch 9; the words, the values
+ * and the order below are the delivered ones and are not this screen's to
+ * revise.
+ */
 function daemonItems(info: DaemonInfo): DefinitionItem[] {
   return [
     { label: 'Docker version', value: info.version },
@@ -106,6 +116,15 @@ function resultItems(result: PruneRunResult): ResultSummaryItem[] {
  * category and a system prune whose scope is chosen in the confirmation —
  * both stating that the daemon is shared, and both reporting the space the
  * daemon says was actually reclaimed.
+ *
+ * **This is the screen that keeps the daemon properties**
+ * (plan-ui-coherence-optimisation/REQ-45, REQ-75), and what changed here is how
+ * this screen states what it already stated: the pair collapses, the two empty
+ * results carry their explanation and their way out, and the system prune is a
+ * control of the toolbar under the header. **What no change may reach** is what
+ * each prune prunes, when it is enabled, the confirmation it demands or the
+ * figure it reports back (REQ-73) — and the standing warning below the rows,
+ * one style used twice in the product and correct as delivered (REQ-74).
  */
 export function SystemScreen() {
   const daemon = useDaemonInfo();
@@ -173,15 +192,33 @@ export function SystemScreen() {
   }
 
   return (
-    <Grid columns="1fr 1.2fr" gap="var(--space-5)">
+    // The pair collapses to one column when the content column cannot carry
+    // both cards, instead of dividing a phone's width between them: the fixed
+    // `1fr 1.2fr` template this call site used to hand `Grid` collapsed at no
+    // width, and at 375×812 it left the daemon card drawing its values one
+    // character per line — the pin batches 4 and 5 left here
+    // (plan-ui-coherence-optimisation/REQ-75).
+    <Grid arrangement="pair">
       <Card>
         <SectionHeader title="Daemon info" />
         <Stack gap="var(--space-3)">
           {daemon.error ? <ErrorBanner title="Could not read the daemon" detail={daemon.error} onRetry={daemon.refresh} /> : null}
           {daemon.info ? (
-            <DefinitionList items={daemonItems(daemon.info)} />
-          ) : daemon.error ? null : (
-            <EmptyState title={daemon.loaded ? 'The daemon reported nothing' : 'Reading the daemon…'} />
+            // The product's one property block, stated as every other property
+            // block states it: label → value bands whose column count the grid
+            // derives from the card's own width. `short-scalar` is what these
+            // eight values are — versions, driver names, a path, a count — and
+            // it is the class they already resolved under, so no count moves at
+            // any width.
+            <DefinitionList contentClass="short-scalar" items={daemonItems(daemon.info)} />
+          ) : daemon.error ? null : daemon.loaded ? (
+            <EmptyState
+              title="The daemon reported nothing"
+              description="The daemon answered without the version, driver and root directory this block states. Reading it again asks the active context's daemon once more."
+              action={<Button onClick={daemon.refresh}>Read again</Button>}
+            />
+          ) : (
+            <EmptyState title="Reading the daemon…" description={null} action={null} />
           )}
         </Stack>
       </Card>
@@ -192,11 +229,17 @@ export function SystemScreen() {
           description={
             diskUsage.breakdown ? `${formatBytes(diskUsage.breakdown.totalReclaimableBytes)} reclaimable in total` : undefined
           }
-          trailing={
-            <Button variant="destructive" onClick={handleSystemPrune} disabled={pruning || prunable.length === 0}>
-              System prune…
-            </Button>
-          }
+        />
+        {/* The screen's own action, in the action bar under the header rather
+            than inside it (plan-ui-coherence-optimisation/REQ-41's rule, adopted
+            here by REQ-75). Its label, its scope, its confirmation and the
+            conditions that disable it are the delivered ones (REQ-73). */}
+        <ScreenToolbar
+          destructiveAction={{
+            label: 'System prune…',
+            onClick: handleSystemPrune,
+            disabled: pruning || prunable.length === 0,
+          }}
         />
         <Stack gap="var(--space-3)">
           {diskUsage.error ? (
@@ -204,7 +247,15 @@ export function SystemScreen() {
           ) : null}
 
           {categories.length === 0 ? (
-            <EmptyState title={diskUsage.loaded ? 'The daemon reported no disk usage' : 'Reading the disk usage…'} />
+            diskUsage.loaded ? (
+              <EmptyState
+                title="The daemon reported no disk usage"
+                description="Docker breaks the reclaimable space into the five categories this panel prunes; with none of them reported there is nothing here to reclaim."
+                action={<Button onClick={diskUsage.refresh}>Read again</Button>}
+              />
+            ) : (
+              <EmptyState title="Reading the disk usage…" description={null} action={null} />
+            )
           ) : (
             <Stack gap="0">
               {categories.map((category) => (

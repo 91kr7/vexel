@@ -35,7 +35,30 @@ token by name, never a literal value.
     `--data-table-menu-action-column-width` (64px) — the same column once its action set has come
     down to the overflow control alone, sized for that one trigger plus the cell's own breathing
     room and its column header. A screen picks the one that matches what its rows carry; neither
-    value is ever written on a screen.
+    value is ever written on a screen. Both are **fixed**, which is also what keeps an action
+    column out of the width pressure the column minimum below answers: it holds these pixels at
+    every width and neither grows nor shrinks with the data columns beside it.
+  - DataTable column minimum: `--data-table-column-min-width` (72px) — the floor under a
+    **flexible** column, scaled by its flex factor (a `1fr` track never resolves below 72px, a
+    `1.8fr` track never below 1.8 × 72px), so a table narrower than its columns need keeps the
+    proportions it was declared with instead of equalising them, and no track reaches 0px. It is
+    the smaller of two figures: what a dense cell's content needs (~7.8px per character at the 13px
+    monospace, so 72px carries `128.4MB`, `443/tcp` or `0%` plus the ellipsis that says there is
+    more) and what the delivered desktop allows — it must bind **nowhere** at 1440×1000 or
+    1280×800, and the narrowest per-`fr` share any shipped table resolves at 1280×800 is 79.7px
+    (containers; images 107.6px, coverage 123.2px, the dashboard's list 121.8px, the layer explorer
+    ~100px). Never written at a call site; a column that needs a different floor states it through
+    `DataTable`'s own `minWidth`.
+  - Truncating-run minimum: `--truncating-run-min-width` (120px) — the floor under the flexible text
+    of a row that also carries trailing metadata (`truncation-contract.md`). The same idea as the
+    column minimum above, for the row shapes that are not a grid, and the smaller of the same two
+    figures: what the content needs (~7.2px per character at the 12px monospace these subtitles and
+    descriptions are drawn in, so 120px carries ~16 characters plus the ellipsis — more than the
+    12-character short form Docker itself abbreviates a 64-character digest to, ~87px) and what the
+    delivered desktop allows — it must bind **nowhere** at 1440×1000 or 1280×800, and the narrowest
+    run any shipped row is offered at 1280×800 is 138.7px (Plugins, the `docker buildx` row, whose
+    trailing cluster is 207.3px of a 402px card; 218.7px at 1440×1000), measured over all 111 card
+    rows and 6 storage rows the product renders. Never written at a call site.
   - Property-band sizing by content class: `--band-min-pair-{short-scalar,long-single-line}`
     (360px / 560px), `--band-min-value-{short-scalar,long-single-line}` (240px / 460px) and
     `--band-run-max-{short-scalar,long-single-line}` (500px / 700px). The minima decide how many
@@ -83,6 +106,10 @@ token by name, never a literal value.
   content-based one: a track sized narrower than the controls it holds clips them past the row's
   edge, silently. The wider of the two is shared by every screen whose rows still carry buttons, so
   a screen whose action set shrinks moves to the narrower token instead of narrowing the shared one.
+- A fixed action track never consumes the row: what made it look as though it did at 375px was the
+  other side of the same grid — six flexible tracks resolving to 0px each — not the fixed track
+  growing. Measured on the delivered build, the containers cluster's four controls and its menu
+  trigger ink 189px of the 296px, and the track is 296px at 1440, at 1280 and at 375 alike.
 - `--blur-overlay` (20px) is the **only** blur value in the codebase and is documented as the
   **maximum** any surface may use: no component declares a blur length of its own, and none asks
   for a larger radius. The three overlay fills are the same hue as `--color-surface-raised`
@@ -99,3 +126,5 @@ token by name, never a literal value.
 - plan-liquid_glass_overlays/REQ-6
 - plan-docker_management_app-image_row_actions/REQ-18
 - plan-docker_management_app-image_row_actions/REQ-34
+- plan-ui-coherence-optimisation/REQ-7
+- plan-ui-coherence-optimisation/REQ-9

@@ -225,9 +225,13 @@ describe('the two reported call sites state no layout constant', () => {
     expect(section('Environment')).toMatch(/contentClass="long-single-line"/);
     expect(section('Labels')).toMatch(/contentClass="long-single-line"/);
     expect(section('History')).toMatch(/contentClass="free-text"/);
-    // The nine properties take the default deliberately: the first list of the file states nothing.
-    const nineProperties = text.slice(text.indexOf('<DefinitionList'), text.indexOf('CollapsibleSection'));
-    expect(nineProperties, 'the nine properties state a content class where they take the default').not.toMatch(/contentClass/);
+    // The properties take the default deliberately. They are the panel primitive's own grid now
+    // rather than a list this file lays out (plan-ui-coherence-optimisation/REQ-61), so the block
+    // read is the `properties` prop, and the default is expressed by stating no class at all.
+    const properties = text.slice(text.indexOf('properties={'), text.indexOf('<Stack'));
+    expect(properties.length, 'the image panel states no properties on the panel primitive').toBeGreaterThan(0);
+    expect(properties, 'the properties state a content class where they take the default').not.toMatch(/contentClass/);
+    expect(text, 'the image panel states a content class for its property grid where it takes the default').not.toMatch(/propertiesContentClass/);
   });
 
   it('the container panel declares long single-line for Labels and takes the default elsewhere', () => {
@@ -257,18 +261,53 @@ describe('no feature file anywhere states a count, a template or a width for a p
    */
   const featureRoot = join(process.cwd(), 'src');
 
+  /**
+   * The five surfaces, and **how each one states its property section now**.
+   *
+   * The four swarm panels used to render `<DefinitionList>` themselves. Since
+   * `plan-ui-coherence-optimisation/REQ-55` (batch 12) they hand their properties
+   * to `DetailPanel`, which renders the list for them: the props to read are
+   * `properties` and `propertiesContentClass` on that component. The coverage
+   * baseline still renders the list directly.
+   *
+   * **The content class each surface takes, and why the four swarm ones changed.**
+   * The certified rule is that the caller states the class and **never** the
+   * count, and that the class follows the content. When this check was written the
+   * four swarm sections held "ids, versions, dates and state words" — short
+   * scalars — and taking the long class would have cost them columns for nothing.
+   * Batch 12 changed what they hold: an image reference, environment lines, an
+   * address, a platform, and the sentence saying a secret's value is never
+   * displayed — single-line values of 56 to 60 characters, which is the content
+   * `long-single-line` was sized for (`ui-library/specs/content-columns.md`: "an
+   * environment or label value routinely passes 60 characters"). So the class
+   * moves with the content, which is the rule working rather than being broken.
+   * The predecessor's reasoning was not overturned; it was outgrown.
+   */
   const THE_FIVE = [
-    'swarm/SwarmServicesPanel.tsx',
-    'swarm/SwarmSecretsPanel.tsx',
-    'swarm/SwarmConfigsStacksPanel.tsx',
-    'swarm/SwarmNodesPanel.tsx',
-    'coverage/CoverageMatrixScreen.tsx',
+    { path: 'swarm/SwarmServicesPanel.tsx', tag: 'DetailPanel', contentClass: 'long-single-line' },
+    { path: 'swarm/SwarmSecretsPanel.tsx', tag: 'DetailPanel', contentClass: 'long-single-line' },
+    { path: 'swarm/SwarmConfigsStacksPanel.tsx', tag: 'DetailPanel', contentClass: 'long-single-line' },
+    { path: 'swarm/SwarmNodesPanel.tsx', tag: 'DetailPanel', contentClass: 'long-single-line' },
+    { path: 'coverage/CoverageMatrixScreen.tsx', tag: 'DefinitionList', contentClass: null },
   ] as const;
 
-  /** Every `.tsx` under `src` that is not the library itself: the feature layer. */
+  /**
+   * Every `.tsx` under `src` that is not the library itself: the feature layer.
+   *
+   * `__conformance-fixture__` is skipped, exactly as `blur-policy.test.ts`,
+   * `overlay-glass.test.tsx` and `truncation-contract.test.tsx` skip it:
+   * `ui-conformance-check.test.ts` writes deliberately illegal sources there for
+   * the length of its own run and removes them afterwards, so a scan of the live
+   * tree that picked one up would be reading **another test's fixture** as
+   * feature code — and, this scan being an `it.each` that enumerates at
+   * collection time and reads at run time, would fail with `ENOENT` on a file
+   * that had been correctly cleaned up in between (CLAUDE.md, "Tests" — a test
+   * depends on nothing another test did). Observed exactly so in a full run.
+   */
   function featureFiles(directory = featureRoot): string[] {
     return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
       const path = join(directory, entry.name);
+      if (entry.name === '__conformance-fixture__') return [];
       if (entry.isDirectory()) return entry.name === 'ui' ? [] : featureFiles(path);
       return entry.name.endsWith('.tsx') ? [path] : [];
     });
@@ -297,17 +336,28 @@ describe('no feature file anywhere states a count, a template or a width for a p
     return found;
   }
 
-  it('the five surfaces that stated a count state none, and take the short-scalar default', () => {
-    for (const path of THE_FIVE) {
-      const lists = propsOf(source(path), 'DefinitionList');
-      expect(lists.length, `${path} no longer renders a property list at all`).toBeGreaterThan(0);
-      for (const props of lists) {
-        expect(props, `${path} still states a column count`).not.toMatch(/columns/);
-        // Short scalar, taken deliberately and recorded in `ui-library/specs/content-columns.md`:
-        // these lists hold ids, versions, dates and state words. Declaring the long class for the
-        // one joined label set among them would cost the section the columns this work exists to
-        // give it, at every width the operator has.
-        expect(props, `${path} declares a content class where it takes the short-scalar default`).not.toMatch(/contentClass/);
+  it('the five surfaces that stated a count state none, and take the class their content calls for', () => {
+    for (const { path, tag, contentClass } of THE_FIVE) {
+      const sections = propsOf(source(path), tag);
+      expect(sections.length, `${path} no longer states a property section through <${tag}> at all`).toBeGreaterThan(0);
+      const stating = sections.filter((props) => /\bproperties=\{|\bitems=\{/.test(props));
+      expect(stating.length, `${path} renders <${tag}> but hands it no properties`).toBeGreaterThan(0);
+
+      for (const props of stating) {
+        // The half that has never moved and never may: **no count, at any width.**
+        expect(props, `${path} states a column count`).not.toMatch(/\bcolumns\s*=/);
+        expect(props, `${path} states a track template`).not.toMatch(/1fr|repeat\(auto-|grid-template/);
+
+        if (contentClass === null) {
+          // Short scalar, taken deliberately: this list holds versions and API numbers.
+          expect(props, `${path} declares a content class where it takes the short-scalar default`).not.toMatch(/[cC]ontentClass/);
+        } else {
+          // …and the half that follows the content. See THE_FIVE's own note: these sections now
+          // hold 56–60 character single-line values, which is the content this class is sized for.
+          expect(props, `${path} no longer states the class its content calls for`).toMatch(
+            new RegExp(`[cC]ontentClass="${contentClass}"`),
+          );
+        }
       }
     }
   });
@@ -351,7 +401,12 @@ describe('the image panel still shows every property it showed', () => {
   const inspect = {
     id: 'sha256:d9e853e87e55f7a5b2f0f1e7c0c2b9a1d3c4e5f60718293a4b5c6d7e8f901234',
     tags: ['alpine:3.20'],
-    digest: 'sha256:d9e853e87e55',
+    // A repository digest **of its own**, deliberately: this file measures the property set, and
+    // `Digest` is drawn only when the daemon reports a digest that is not the image id
+    // (plan-ui-coherence-optimisation/REQ-58, whose two shapes are checked in
+    // `image-detail-panel.test.tsx`). The fixture's digest used to be a prefix of its own id, which
+    // after that change would have measured the set one band short of the one bug-4 certified.
+    digest: 'sha256:1f0c4a72b8e5',
     platforms: ['linux/arm64/v8'],
     sizeBytes: 4_089_446,
     createdAt: '2026-04-16T23:53:24.896953537Z',
@@ -390,7 +445,10 @@ describe('the image panel still shows every property it showed', () => {
 
     await waitFor(() => expect(screen.getByText('Exposed ports')).toBeTruthy());
     const labels = Array.from(document.querySelectorAll('.ui-definition-list__label')).map((label) => label.textContent);
-    expect(labels.slice(0, 9)).toEqual(['Id', 'Tags', 'Digest', 'Platform(s)', 'Size', 'Created', 'Entrypoint', 'Command', 'Exposed ports']);
+    // `Content size` names what this number measures — the image's own content, against the list's
+    // `DISK USAGE` (plan-ui-coherence-optimisation/REQ-59). The set, its order and its count are
+    // otherwise exactly the ones bug-4 certified.
+    expect(labels.slice(0, 9)).toEqual(['Id', 'Tags', 'Digest', 'Platform(s)', 'Content size', 'Created', 'Entrypoint', 'Command', 'Exposed ports']);
 
     const idBand = document.querySelector('.ui-definition-list__row')!;
     const idValue = idBand.querySelector('.ui-definition-list__value') as HTMLElement;

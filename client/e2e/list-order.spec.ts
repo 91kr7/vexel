@@ -303,7 +303,8 @@ test.describe('Volumes and networks', () => {
     const names = fixtureNames(stem);
     try {
       for (const name of names) await execFileAsync('docker', ['volume', 'create', ...ownershipArgs('list-order'), name]);
-      const rows = panelTitled(page, 'Volumes').locator('.ui-card-list__item');
+      // The volumes list is the object list's comfortable variant (REQ-31), so a row is one of its rows.
+      const rows = panelTitled(page, 'Volumes').locator('.ui-data-table__row');
 
       const shown = await settledOrder(rows, names);
 
@@ -327,7 +328,7 @@ test.describe('Volumes and networks', () => {
     const names = fixtureNames(stem);
     try {
       for (const name of names) await execFileAsync('docker', ['network', 'create', ...ownershipArgs('list-order'), name]);
-      const rows = panelTitled(page, 'Networks').locator('.ui-card-list__item');
+      const rows = panelTitled(page, 'Networks').locator('.ui-data-table__row');
 
       const shown = await settledOrder(rows, names);
 
@@ -369,7 +370,9 @@ test.describe('Contexts', () => {
         await execFileAsync('docker', ['context', 'create', name, '--docker', 'host=ssh://operator@build-host']);
       }
       await page.reload();
-      const rows = panelTitled(page, 'Docker contexts').locator('.ui-card-list__item');
+      // The list is the object list's comfortable variant since
+      // plan-ui-coherence-optimisation/REQ-42; the order it is served in is unchanged by that.
+      const rows = panelTitled(page, 'Docker contexts').locator('.ui-data-table__row');
 
       const shown = await settledOrder(rows, names);
 
@@ -413,7 +416,9 @@ test.describe('Builders', () => {
       // no builder image is needed and no registry is reached.
       for (const name of names) await execFileAsync('docker', ['buildx', 'create', '--name', name, '--driver', 'docker-container']);
       await page.reload();
-      const rows = panelTitled(page, 'buildx builders').locator('.ui-card-list__item');
+      // The builders panel is the object list since `plan-ui-coherence-optimisation/REQ-39`, and
+      // the card list it replaced was deleted at REQ-82: a row is a row of the object list.
+      const rows = panelTitled(page, 'buildx builders').locator('.ui-data-table__row');
 
       const shown = await settledOrder(rows, names);
 

@@ -1,0 +1,260 @@
+/**
+ * F5 — one action cluster, and the rule is in the API
+ * (`plan-ui-coherence-optimisation/REQ-27`, `REQ-28`).
+ *
+ * A caller declares **actions and their weight**; what each becomes — a filled
+ * control, a quiet one, a red one, an entry of the trailing menu — is the
+ * cluster's decision. The requirement is that a screen cannot re-answer it, so
+ * what is asserted here is as much what the API refuses as what it renders:
+ * there is no weight that produces unadorned text (a type-level check, caught
+ * by `npm run test:typecheck -w client`), and an action too quiet for a button
+ * becomes a menu entry rather than losing its affordance.
+ */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { ActionButtonGroup, type RowAction } from '../../src/ui';
+
+afterEach(cleanup);
+
+const OVERFLOW_LABEL = 'More actions for web-1';
+
+function button(name: string): HTMLElement {
+  return screen.getByRole('button', { name });
+}
+
+/**
+ * The labels of the cluster's buttons, the overflow trigger excluded: the
+ * trigger is named rather than labelled, so it is recognised by its accessible
+ * name and not by the text it draws.
+ */
+function buttonNames(): string[] {
+  const trigger = screen.queryByRole('button', { name: OVERFLOW_LABEL });
+  return screen
+    .getAllByRole('button')
+    .filter((control) => control !== trigger)
+    .map((control) => control.textContent ?? '');
+}
+
+async function menuEntryNames(): Promise<string[]> {
+  const user = userEvent.setup();
+  await user.click(screen.getByRole('button', { name: OVERFLOW_LABEL }));
+  return screen.getAllByRole('menuitem').map((entry) => entry.textContent ?? '');
+}
+
+describe('ActionButtonGroup — a weight, never an appearance (REQ-27)', () => {
+  // action-button-group.md — `'primary'` is the filled control of the cluster
+  it('renders a primary-weight action as the filled control', () => {
+    render(<ActionButtonGroup actions={[{ id: 'use', label: 'use', weight: 'primary', onClick: vi.fn() }]} />);
+
+    expect(button('use').className).toContain('ui-button--primary');
+  });
+
+  // action-button-group.md — `'secondary'` is the quiet control, and the default
+  it('renders a secondary-weight action as the quiet control, which is also the default', () => {
+    const { unmount } = render(
+      <ActionButtonGroup actions={[{ id: 'stop', label: 'Stop', weight: 'secondary', onClick: vi.fn() }]} />,
+    );
+    const stated = button('Stop').className;
+    unmount();
+
+    render(<ActionButtonGroup actions={[{ id: 'stop', label: 'Stop', onClick: vi.fn() }]} />);
+
+    expect(button('Stop').className).toBe(stated);
+    expect(stated).not.toContain('ui-button--primary');
+    expect(stated).not.toContain('ui-button--destructive');
+  });
+
+  // action-button-group.md — `'destructive'` is the red-tinted control
+  it('renders a destructive-weight action as the red-tinted control', () => {
+    render(<ActionButtonGroup actions={[{ id: 'remove', label: 'Remove', weight: 'destructive', onClick: vi.fn() }]} />);
+
+    expect(button('Remove').className).toContain('ui-button--destructive');
+  });
+
+  // action-button-group.md — "`destructive?: boolean` — the same statement in the shape the
+  // delivered call sites use; equivalent to `weight: 'destructive'`"
+  it('treats the destructive flag as that same weight', () => {
+    const { unmount } = render(
+      <ActionButtonGroup actions={[{ id: 'remove', label: 'Remove', weight: 'destructive', onClick: vi.fn() }]} />,
+    );
+    const byWeight = button('Remove').className;
+    unmount();
+
+    render(<ActionButtonGroup actions={[{ id: 'remove', label: 'Remove', destructive: true, onClick: vi.fn() }]} />);
+
+    expect(button('Remove').className).toBe(byWeight);
+  });
+
+  // action-button-group.md — "and ignored when `weight` is given"
+  it('lets the stated weight win over the destructive flag', () => {
+    render(
+      <ActionButtonGroup
+        actions={[{ id: 'use', label: 'use', weight: 'primary', destructive: true, onClick: vi.fn() }]}
+      />,
+    );
+
+    expect(button('use').className).toContain('ui-button--primary');
+    expect(button('use').className).not.toContain('ui-button--destructive');
+  });
+
+  // action-button-group.md — "Bare text is never a control. There is no weight that renders as
+  // unadorned text": every weight above produces a Button or a Menu entry
+  it('makes a control of every action it renders', async () => {
+    render(
+      <ActionButtonGroup
+        actions={[
+          { id: 'use', label: 'use', weight: 'primary', onClick: vi.fn() },
+          { id: 'attach', label: '+ Attach', weight: 'secondary', onClick: vi.fn() },
+          { id: 'remove', label: 'Remove', weight: 'destructive', onClick: vi.fn() },
+          { id: 'rename', label: 'Rename…', weight: 'overflow', onClick: vi.fn() },
+        ]}
+        overflow={{ label: OVERFLOW_LABEL }}
+      />,
+    );
+
+    expect(buttonNames()).toEqual(['use', '+ Attach', 'Remove']);
+    expect(await menuEntryNames()).toEqual(['Rename…']);
+  });
+
+  // action-button-group.md — there is no weight that renders as unadorned text, and the type is
+  // where that is stated: `'text'` is not one of the four
+  it('offers no weight that renders as unadorned text', () => {
+    const action: RowAction = {
+      id: 'add-variable',
+      label: 'Add variable',
+      onClick: vi.fn(),
+      // @ts-expect-error — the weights are primary, secondary, destructive and overflow: an action
+      // too quiet for a button becomes an overflow entry, never bare text.
+      weight: 'text',
+    };
+
+    expect(action.weight).toBe('text');
+  });
+});
+
+describe('ActionButtonGroup — the overflow menu (REQ-27)', () => {
+  const overflowAction: RowAction = { id: 'rename', label: 'Rename…', weight: 'overflow', onClick: vi.fn() };
+
+  // action-button-group.md — an overflow-weight action is "not a button at all: an entry of the
+  // trailing overflow menu"
+  it('renders an overflow-weight action as a menu entry rather than a button', async () => {
+    render(<ActionButtonGroup actions={[overflowAction]} overflow={{ label: OVERFLOW_LABEL }} />);
+
+    expect(buttonNames()).toEqual([]);
+    expect(await menuEntryNames()).toEqual(['Rename…']);
+  });
+
+  // action-button-group.md — "appended after any entries stated directly in `overflow.entries`"
+  it('appends the demoted actions after the entries stated directly', async () => {
+    render(
+      <ActionButtonGroup
+        actions={[overflowAction]}
+        overflow={{
+          label: OVERFLOW_LABEL,
+          entries: [{ id: 'export', label: 'Export filesystem…', onSelect: vi.fn() }],
+        }}
+      />,
+    );
+
+    expect(await menuEntryNames()).toEqual(['Export filesystem…', 'Rename…']);
+  });
+
+  // action-button-group.md — the demoted entry carries "its own disabled state and reason"
+  it('carries the demoted action’s disabled state into the menu', async () => {
+    const onClick = vi.fn();
+    render(
+      <ActionButtonGroup
+        actions={[
+          { id: 'rename', label: 'Rename…', weight: 'overflow', disabled: true, disabledReason: 'not while running', onClick },
+        ]}
+        overflow={{ label: OVERFLOW_LABEL }}
+      />,
+    );
+    await menuEntryNames();
+
+    // menu.md — a disabled entry is inert and stated as disabled, its reason shown on the entry.
+    const entry = screen.getByRole('menuitem');
+    expect(entry.getAttribute('aria-disabled')).toBe('true');
+    expect(entry.getAttribute('title')).toBe('not while running');
+    await userEvent.setup().click(entry);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  // action-button-group.md — "An `'overflow'`-weight action with no `overflow` menu to go to is not
+  // rendered, rather than being silently promoted back to a button: a trigger needs an accessible
+  // name, and inventing one would be the component deciding an appearance the caller declined."
+  it('renders nothing at all for an overflow-weight action with no menu to go to', () => {
+    render(
+      <ActionButtonGroup
+        actions={[{ id: 'stop', label: 'Stop', onClick: vi.fn() }, overflowAction]}
+      />,
+    );
+
+    expect(buttonNames()).toEqual(['Stop']);
+    expect(screen.queryByText('Rename…')).toBeNull();
+    expect(screen.queryByRole('menuitem')).toBeNull();
+  });
+
+  // action-button-group.md — "The overflow control, when present, is always the trailing slot: it
+  // is never the control that moves as the actions before it change."
+  it('keeps the overflow trigger the trailing slot whatever precedes it', () => {
+    render(
+      <ActionButtonGroup
+        actions={[
+          { id: 'start', label: 'Start', onClick: vi.fn() },
+          { id: 'stop', label: 'Stop', onClick: vi.fn() },
+        ]}
+        overflow={{ label: OVERFLOW_LABEL }}
+      />,
+    );
+
+    const group = document.querySelector('.ui-action-button-group') as HTMLElement;
+    const trigger = screen.getByRole('button', { name: OVERFLOW_LABEL });
+    expect(group.lastElementChild?.contains(trigger)).toBe(true);
+  });
+
+  // action-button-group.md — "omitting it leaves the group exactly as it was"
+  it('renders no trigger when no overflow menu is stated', () => {
+    render(<ActionButtonGroup actions={[{ id: 'stop', label: 'Stop', onClick: vi.fn() }]} />);
+
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+  });
+});
+
+describe('ActionButtonGroup — the cluster’s own behaviour (REQ-27)', () => {
+  // action-button-group.md — "Stops click-event propagation, so a click on any action button — or
+  // on the overflow trigger — never also triggers a containing `DataTable` row's `onRowSelect`."
+  it('never lets an action’s click reach the row containing it', async () => {
+    const user = userEvent.setup();
+    const onRowSelect = vi.fn();
+    const onClick = vi.fn();
+    render(
+      // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+      <div onClick={onRowSelect}>
+        <ActionButtonGroup actions={[{ id: 'stop', label: 'Stop', onClick }]} overflow={{ label: OVERFLOW_LABEL }} />
+      </div>,
+    );
+
+    await user.click(button('Stop'));
+    await user.click(screen.getByRole('button', { name: OVERFLOW_LABEL }));
+
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(onRowSelect).not.toHaveBeenCalled();
+  });
+
+  // action-button-group.md — "Never wraps to a second line: the group stays on a single row
+  // regardless of how many actions it holds, clipped by its containing cell rather than
+  // overflowing it."
+  it('states, in its own stylesheet, that it never wraps to a second line', () => {
+    const css = readFileSync(join(process.cwd(), 'src', 'ui', 'controls', 'controls.css'), 'utf8').replace(
+      /\/\*[\s\S]*?\*\//g,
+      '',
+    );
+    const body = new RegExp('(?:^|\\}|\\*/)\\s*\\.ui-action-button-group\\s*\\{([^}]*)\\}').exec(css)?.[1] ?? '';
+
+    expect(body).toMatch(/flex-wrap:\s*nowrap/);
+  });
+});

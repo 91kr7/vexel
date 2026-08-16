@@ -14,14 +14,15 @@ per-line stream tagging, match highlighting, and download of the displayed buffe
 
 Description:
 
-- a dark, sunken monospace region with an actions row above it (the download action, when one is
-  offered — the row is not drawn at all otherwise) and, when
+- a dark, sunken monospace region with an actions row above it (the caller's own stream controls at
+  the start and the download action at the end, when either is offered — the row is not drawn at all
+  when neither is) and, when
   follow is off, a floating "Jump to live" control over the bottom of the region, through whose
   frame the lines it sits over show blurred.
 
 Props:
 
-- `<LogStream lines showTimestamps? follow? onFollowChange? highlight? activeMatchLineId? maxHeight? lineHeight? emptyLabel? downloadFileName? />`
+- `<LogStream lines showTimestamps? follow? onFollowChange? highlight? activeMatchLineId? maxHeight? lineHeight? emptyLabel? downloadFileName? toolbar? />`
   - `lines: { id, text, timestamp?, stream?, source? }[]` — `timestamp` is display-ready text
     supplied by the caller; `stream` is `'stdout' | 'stderr'`; `source?` is an origin label (e.g. a
     compose service name) shown before the timestamp, for an aggregated stream.
@@ -31,9 +32,14 @@ Props:
   - `activeMatchLineId?: string` — the line to bring into view and emphasize as the current match.
   - `maxHeight?: string` (default `"320px"`), `lineHeight?: number` in px (default `20`).
   - `emptyLabel?: string` — title shown when `lines` is empty (default `"No log output."`).
-  - `downloadFileName?: string` — when given, an action row appears above the region holding a
-    download action producing a plain-text file with that name. When it is **not** given the row has
-    nothing to hold and is not rendered at all, so it consumes no height and no gap.
+  - `downloadFileName?: string` — when given, the action row above the region holds a download action
+    producing a plain-text file with that name.
+  - `toolbar?: ReactNode` — controls belonging to the stream (a search box, filters) placed on that
+    **same** action row, before the download action, taking the width the download action does not.
+    They wrap among themselves at a width that cannot carry them; the download action stays at the
+    row's end.
+  - the action row is rendered only when it has something to hold: with neither `toolbar` nor
+    `downloadFileName` it is not drawn at all, so it consumes no height and no gap.
 
 Shows:
 
@@ -58,6 +64,12 @@ Actions:
 
 ## Rules and invariants
 
+- The action row exists so that a stream's controls and its download share **one** row rather than
+  taking one each (`plan-ui-coherence-optimisation/REQ-62`): a row holding the download action alone
+  is what the delivered container logs surface drew as its third stacked row.
+- What `toolbar` holds changes nothing about the region: the same lines are mounted, the same buffer
+  is downloaded, and the slot's content is rendered where it is placed rather than re-mounting the
+  stream.
 - While `follow` is true, the region stays scrolled to the last line as new lines arrive.
 - Scrolling away from the bottom by hand calls `onFollowChange(false)`; scrolling back to the
   bottom by hand calls `onFollowChange(true)`.
@@ -82,10 +94,11 @@ Actions:
 
 ## Dependencies
 
-- ScrollArea, Button, EmptyState, Overlay glass material
+- ScrollArea, Button, EmptyState, Row, Overlay glass material
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-30
 - plan-docker_management_app/REQ-31
 - plan-liquid_glass_overlays/REQ-17
+- plan-ui-coherence-optimisation/REQ-62

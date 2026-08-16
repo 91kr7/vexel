@@ -16,9 +16,9 @@ Description:
   any screen it renders can call `useToast()`/`useConfirmation()` without the caller wiring them).
   Inside, renders a `Frame` whose rail is a `NavRail` built from the navigation data (one
   `NavGroup` per group, one `NavItem` per screen), whose header is a `PageHeader` for the active
-  screen (with a live-events `StatusPill`, an "Engine API v…" `Badge` when the daemon is reachable,
-  a search `Button` with a `KeyHint`, and a console `Button`), and whose footer status (active
-  Docker context) is shown inside the rail.
+  screen (with a live-events `StatusPill` and an "Engine API v…" `Badge` when the daemon is
+  reachable — and nothing else: the header states what is true of the connection and offers no
+  control of its own), and whose footer status (active Docker context) is shown inside the rail.
 Shows:
 - The active screen's title and description in the header; in the content area: any active
   `ErrorBanner`s (REQ-7), an unreachable-daemon `ErrorBanner` with cause and retry when the daemon
@@ -26,9 +26,9 @@ Shows:
   (`coverage-matrix`), above everything else that screen carries
   (plan-docker_management_app-about_license_notice/REQ-6,
   plan-docker_management_app-about_license_notice/REQ-7), a "CLI availability" `Card` listing docker/compose/buildx presence
-  and version (REQ-110), a "Daemon event stream" `Card` with the live `EventStream` (REQ-11,
-  REQ-12), a "Local storage" `Card` with a `StorageUsageRow` for the analysis cache's size and a
-  "Clear" action (REQ-113, REQ-115), then the active screen's real content: `DashboardScreen` for
+  and version (REQ-110), a "Local storage" `Card` with a `StorageUsageRow` for the analysis cache's
+  size and a "Clear" action (REQ-113, REQ-115) — and **no event stream**, the shell having stopped
+  subscribing to one (see the invariants below) —, then the active screen's real content: `DashboardScreen` for
   the `dashboard` screen (REQ-14–REQ-18) — fed the live container list from `useContainers()`, so
   its activity panel and the rail's own count come from one reading —, `ContainersScreen` for
   the `containers` screen (REQ-19–REQ-23, REQ-109) — which also receives the live image list from
@@ -70,8 +70,9 @@ Actions:
   `useConnectionStatus().retry()` to re-probe the daemon immediately (REQ-10).
 - The "Local storage" card's "Clear" action calls `clearAnalysisCache()` then refreshes the shown
   size; it is disabled while the cache is empty or its size has not loaded yet.
-- The header's "Console" button makes the `raw-console` screen active, by the same path as
-  selecting its `NavItem` — so it is persisted as `lastScreenId` too (REQ-100).
+- The `raw-console` screen is reached by its own `NavItem`, in the rail and in the phone drawer, and
+  by nothing else: the header carries no second route to it
+  (plan-ui-coherence-optimisation/REQ-15, REQ-100).
 Navigation:
 - No URL routing in this batch: the active screen is local component state, defaulting to
   `defaultScreenId` until preferences restore it (see below).
@@ -84,28 +85,55 @@ Navigation:
   capability is unavailable, success otherwise) so connectivity is visible without blocking
   navigation to another screen (REQ-8, REQ-9).
 - The unreachable-daemon banner never replaces or hides the rest of the screen: the CLI
-  availability card, the event stream, the local-storage card and the active screen's content
-  remain visible (REQ-10).
-- The "CLI availability", "Daemon event stream" and "Local storage" cards are the shell's own
-  surfaces of REQ-110, REQ-11/REQ-12 and REQ-113, and they keep the place they have always had —
-  the last entry of the navigation, the screen now labelled "About". Batch 30 replaced the
-  placeholder that used to sit under them, not them: they have no other home in the application, and
-  the analysis cache's size and clear action exist nowhere else. Relabelling that screen took
-  nothing off it either — the three cards and the coverage matrix under them are all still there
-  (plan-docker_management_app-about_license_notice/REQ-3).
-- The About screen's content is `AboutNotice` first, then those three cards, then the coverage
-  matrix. The notice going on top adds a card and reorders nothing: reaching the About entry of the
+  availability card, the local-storage card and the active screen's content remain visible (REQ-10).
+- The "CLI availability" and "Local storage" cards are the shell's own surfaces of REQ-110 and
+  REQ-113, and they keep the place they have always had — the last entry of the navigation, the
+  screen now labelled "About". Batch 30 replaced the placeholder that used to sit under them, not
+  them: they have no other home in the application, and the analysis cache's size and clear action
+  exist nowhere else.
+- **The shell renders no daemon event stream, and that absence is a decision, not a gap.** The
+  "Daemon event stream" card it drew on the About screen repeated the Dashboard's own stream
+  verbatim — the same provider, the same events, the same empty label — and one fact stated in two
+  places is the duplication this plan exists to remove. The gate decided which of the two keeps it:
+  **the Dashboard**, About being an identity and licence screen. So the Shell no longer subscribes
+  (`useDaemonEventStream` is not called here) and REQ-11/REQ-12 are served on the Dashboard alone
+  (`dashboard/specs/dashboard-screen.md`). This **supersedes**
+  `plan-docker_management_app-about_license_notice/REQ-3`'s clause that the About screen keeps the
+  daemon event stream: it is not to be restored here as a missing feature
+  (plan-ui-coherence-optimisation/REQ-71).
+- The `DaemonEventStreamProvider` stays mounted in `App`, above the Shell: the Dashboard and the
+  invalidation registry read it, so one consumer stopping is the whole of the change — the service
+  itself, its connection handling and its content are untouched.
+- The About screen's content is `AboutNotice` first, then those two cards, then the coverage matrix.
+  The notice going on top adds a card and reorders nothing: reaching the About entry of the
   permanent navigation is the single step that shows it, and no dialog, acknowledgement or first-run
   gate stands between the operator and their work
   (plan-docker_management_app-about_license_notice/REQ-6,
   plan-docker_management_app-about_license_notice/REQ-7).
-- `errors` (REQ-7), `pending` (REQ-8), `connection` (REQ-9/REQ-10/REQ-13/REQ-110) and `events`
-  (REQ-11/REQ-12) come from providers supplied by the caller (`App`), so they can be
-  observed/driven independently of the shell chrome; `ToastProvider` and `ConfirmationProvider`
-  (REQ-6/REQ-8) are supplied by the Shell itself.
+- **Every section of the About screen is titled the same way**: a `SectionHeader` in its default
+  treatment inside the card it titles — the notice's `Identity and license`, `CLI availability`,
+  `Local storage` and the coverage half's two. The uppercase micro-caps `Card title` treatment is
+  gone from this screen, and no section title on it is styled locally
+  (plan-ui-coherence-optimisation/REQ-70, plan-ui-coherence-optimisation/REQ-26). This screen having
+  held its last three call sites, that treatment is now gone from the library too: `Card` has no
+  title prop at all (plan-ui-coherence-optimisation/REQ-81, `ui-library/specs/card.md`).
+- `errors` (REQ-7), `pending` (REQ-8) and `connection` (REQ-9/REQ-10/REQ-13/REQ-110) come from
+  providers supplied by the caller (`App`), so they can be observed/driven independently of the
+  shell chrome; `ToastProvider` and `ConfirmationProvider` (REQ-6/REQ-8) are supplied by the Shell
+  itself.
 - The header's action group is a wrapping `Row` (`wrap`): PageHeader only wraps at its own top
   level, so a non-wrapping action row would overflow the header card once the viewport is narrow
-  enough that the pill, version badge, search and console no longer fit on one line.
+  enough that the pill and the version badge no longer fit on one line.
+- Every control the header renders answers a real click, and the header advertises no keyboard
+  shortcut: it carries no control without a handler, no keyboard hint for a keystroke nothing
+  answers, and no second route to a destination the rail already offers. On a reachable daemon that
+  leaves the header with **no interactive control at all** — the status pill grows its inline
+  "Retry" only while the daemon is unreachable, and the version badge is a label. Removing the
+  search control and the console action closed the space they occupied; the remaining two keep the
+  order, spacing and height they were delivered with, and nothing replaced either — no disabled
+  control, no tooltip, no placeholder field (plan-ui-coherence-optimisation/REQ-12,
+  plan-ui-coherence-optimisation/REQ-13, plan-ui-coherence-optimisation/REQ-14,
+  plan-ui-coherence-optimisation/REQ-15, plan-ui-coherence-optimisation/REQ-16).
 - Once `usePreferences()` reports `loaded`, the active screen is set to `preferences.lastScreenId`
   if it names a known screen; this restore runs at most once per mount and only while the operator
   has not yet selected a screen themselves. A preferences read that settles after the operator has
@@ -121,10 +149,9 @@ Navigation:
 ## Dependencies
 
 - ui-library: Frame, NavRail, NavBrand, NavGroup, NavItem, FooterStatus, PageHeader, StatusPill,
-  Badge, Button, KeyHint, Row, Stack, Card, SectionHeader, ErrorBanner, EventStream,
-  StorageUsageRow, ToastProvider
+  Badge, Row, Stack, Card, SectionHeader, ErrorBanner, StorageUsageRow, ToastProvider
 - Navigation data, AboutNotice, PlaceholderScreen, ConfirmationService, ErrorReportingService, ProgressService,
-  ConnectionStatusService, EventStreamService
+  ConnectionStatusService
 - local-persistence: usePreferences, fetchAnalysisCacheUsage, clearAnalysisCache
 - dashboard: DashboardScreen
 - containers: useContainers, ContainersScreen
@@ -144,8 +171,6 @@ Navigation:
 - plan-docker_management_app/REQ-2
 - plan-docker_management_app/REQ-9
 - plan-docker_management_app/REQ-10
-- plan-docker_management_app/REQ-11
-- plan-docker_management_app/REQ-12
 - plan-docker_management_app/REQ-13
 - plan-docker_management_app/REQ-14
 - plan-docker_management_app/REQ-19
@@ -172,3 +197,11 @@ Navigation:
 - plan-docker_management_app/REQ-105
 - plan-docker_management_app-about_license_notice/REQ-6
 - plan-docker_management_app-about_license_notice/REQ-7
+- plan-ui-coherence-optimisation/REQ-12
+- plan-ui-coherence-optimisation/REQ-13
+- plan-ui-coherence-optimisation/REQ-14
+- plan-ui-coherence-optimisation/REQ-15
+- plan-ui-coherence-optimisation/REQ-16
+- plan-ui-coherence-optimisation/REQ-70
+- plan-ui-coherence-optimisation/REQ-71
+- plan-ui-coherence-optimisation/REQ-72

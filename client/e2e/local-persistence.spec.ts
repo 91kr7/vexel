@@ -170,7 +170,9 @@ test('the Local storage card shows the analysis-cache size and clearing it disab
 
   // Scoped to the card: the coverage matrix under it names screens and
   // capabilities in its own rows, so a page-wide text locator is ambiguous here.
-  const localStorageCard = page.locator('.ui-surface', { has: page.locator('.ui-card__title', { hasText: 'Local storage' }) });
+  const localStorageCard = page.locator('.ui-surface', {
+    has: page.locator('.ui-card__title, .ui-section-header__title', { hasText: 'Local storage' }),
+  });
   await expect(localStorageCard).toBeVisible();
   await expect(localStorageCard.getByText('Analysis cache')).toBeVisible();
 

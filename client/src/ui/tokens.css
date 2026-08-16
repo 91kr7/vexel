@@ -128,7 +128,16 @@
      use a fixed (not fractional/content-based) track, sized for the widest
      action set that column can ever hold, or the buttons silently clip past
      the row's edge. Sized for up to 4 dense (`size="sm"`) action controls on
-     one line, with slack for a slightly wider label. */
+     one line, with slack for a slightly wider label.
+
+     Fixed is also what keeps this column **out of** the width pressure the
+     column minimum below answers: a fixed track neither grows nor shrinks with
+     the data columns beside it, so the cluster holds these pixels and no more.
+     What made it look as though it were eating the row at 375px was the other
+     side of that grid — six flexible tracks with nothing under them, resolving
+     to 0px each — not this track growing. Measured on the delivered build: the
+     containers cluster's four controls plus its menu trigger ink 189px of the
+     296px, and the track is 296px at 1440, at 1280 and at 375 alike. */
   --data-table-action-column-width: 296px;
 
   /* The same track for a column whose action set has come down to the overflow
@@ -136,6 +145,52 @@
      column header above it. Everything the six buttons used to hold goes back to
      the data columns beside it. */
   --data-table-menu-action-column-width: 64px;
+
+  /* The floor under a **flexible** DataTable column: a `1fr` track never
+     resolves below this, a `1.8fr` track never below 1.8 times it, so a table
+     squeezed narrower than its columns need keeps the proportions it was
+     declared with instead of equalising them — and none of them reaches 0px,
+     which is what the delivered build did to six of the containers row's eight
+     tracks at 375px (`20px 0px 0px 0px 0px 0px 0px 296px`).
+
+     Two figures decide the value, and it is the smaller of them:
+     - what the content needs: at the 13px monospace a dense cell draws its
+       values in, a character inks ~7.8px, so 72px carries a short machine value
+       — `128.4MB`, `443/tcp`, `0%` — plus the ellipsis that says there is more.
+     - what the delivered desktop allows: this minimum must bind **nowhere** at
+       1440x1000 or 1280x800, or it would redraw a delivered layout instead of
+       repairing a broken one. The narrowest per-`fr` share any shipped table
+       resolves at 1280x800 is 79.7px (containers; images 107.6px, coverage
+       123.2px, the dashboard's list 121.8px, the layer explorer ~100px), so
+       anything up to 79px is inert there. 72px keeps ~10% of margin.
+     Below those widths the minimums exceed the table's box, and the table pans
+     horizontally rather than starving its columns. */
+  --data-table-column-min-width: 72px;
+
+  /* The floor under a **truncating run** — the flexible text of a row that also
+     carries trailing metadata (`truncation.css`). The run may shrink and
+     ellipsises; below this width it stops shrinking and the trailing group takes
+     a line of its own instead. The same reasoning as the column minimum above,
+     for the row shapes that are not a grid: an explicit floor plus an ellipsis,
+     never the automatic minimum, which would size the run to a 64-character
+     digest (~500px) and end the truncation the desktop layout is built on.
+
+     Two figures decide the value, and it is the smaller of them:
+     - what the content needs: at the 12px monospace these subtitles and
+       descriptions draw in, a character inks ~7.2px, so 120px carries ~16
+       characters plus the ellipsis — more than the 12-character short form
+       Docker itself abbreviates a 64-character digest to (~87px), so a
+       truncated row still identifies the object it names.
+     - what the delivered desktop allows: this minimum must bind **nowhere** at
+       1440x1000 or 1280x800, or it would redraw a delivered layout instead of
+       repairing a broken one. Measured over all 111 card rows and every storage
+       row the product renders: the narrowest run any of them is offered at
+       1280x800 is 138.7px (Plugins, the `docker buildx` row, whose trailing
+       cluster is 207.3px of a 402px card) and at 1440x1000 it is 218.7px. 120px
+       keeps ~13% of margin under the 138.7.
+     Below those widths the floor binds and the trailing group wraps under the
+     run, which is the row's answer to a width that cannot hold both. */
+  --truncating-run-min-width: 120px;
 
   /* Property-band sizing, by content class. A property section lays its bands
      out as "as many bands of at least this minimum as fit" against its own box

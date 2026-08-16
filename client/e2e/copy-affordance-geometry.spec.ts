@@ -154,9 +154,27 @@ test('no code block draws anything above its payload, and none consumes a gap fo
 
 // ─── REQ-12 · no action row at all on a stream that would have none ──────────
 
-// REQ-12 — the case of a log stream offered **without** a download filename, which is Compose
-// whenever no project is selected: the row would have no children, so it is not drawn at all.
-test('the compose log stream draws no action row while no project is selected, and one holding only Download once one is', async ({ page }) => {
+/**
+ * REQ-12's case on this screen was a log stream offered **without** a download
+ * filename — Compose with no project selected — whose action row would have had
+ * no children and was therefore not drawn at all.
+ *
+ * **That site left the product with batch 11**
+ * (`plan-ui-coherence-optimisation/REQ-50`): the stream now exists only inside a
+ * project's own detail panel, so it always has a project to name its download
+ * after, and with no project selected there is no stream at all. The component's
+ * behaviour is unchanged and still contracted in `ui-library/specs/log-stream.md`
+ * — "when it is not given the row has nothing to hold and is not rendered at
+ * all" — and still checked, at the level it now lives at:
+ * `test/unit/copy-affordance-contract.test.tsx`, "draws no action row at all when
+ * no download file name is given".
+ *
+ * So what is asserted here is the half that still has a site: with no project
+ * selected the screen draws **no stream whatever** (not an empty one, not a
+ * stripped one), and once a project is selected the row is there, holds
+ * `Download` alone, and `Download` sits at the row's own right edge.
+ */
+test('the compose log stream exists only inside a project’s panel, and its row holds only Download', async ({ page }) => {
   const caseName = 'geometry';
   const dir = await mkdtemp(join(tmpdir(), 'vexel-e2e-nocopy-geom-'));
   const projectName = `vexel-e2e-nocopy-geom-${RUN_ID}`;
@@ -179,25 +197,34 @@ test('the compose log stream draws no action row while no project is selected, a
 
     await openApp(page, 'compose');
     await expect(page.getByRole('heading', { level: 1, name: 'Compose' })).toBeVisible({ timeout: 20_000 });
-    const stream = page.locator('.ui-log-stream');
-    await expect(stream).toBeVisible({ timeout: 20_000 });
 
-    // Measured, not counted: the stream's first child starts at the stream's own top edge, so
-    // nothing is drawn above it and no gap is consumed for it.
+    // No project selected: no stream at all, so no action row to draw wrong.
+    const stream = page.locator('.ui-log-stream');
+    await expect(page.locator('.ui-frame__content .ui-data-table__row').first()).toBeVisible({ timeout: 30_000 });
+    console.log(`[REQ-12] compose, no project selected — ${await stream.count()} log stream(s) on screen`);
+    expect(await stream.count(), 'a log stream is drawn on Compose with no project selected').toBe(0);
+
+    // REQ-12, REQ-13 — inside the project's panel the filename *is* given, so the row is there,
+    // holds `Download`, and `Download` sits where it does today: at the row's own right edge.
+    const row = page
+      .locator('.ui-frame__content .ui-data-table__body')
+      .first()
+      .locator(':scope > .ui-surface > .ui-data-table__row')
+      .filter({ hasText: projectName });
+    await expect(row).toBeVisible({ timeout: 30_000 });
+    await row.locator('.ui-data-table__cell').first().click();
+    await page.locator('.ui-detail-panel').getByRole('tab', { name: 'Aggregated logs', exact: true }).click();
+
+    // Measured, not counted: the row's first child starts at the row's own top edge, so nothing is
+    // drawn above it and no gap is consumed for one that is empty.
+    await expect(stream).toBeVisible({ timeout: 20_000 });
     const deadSpace = await stream.evaluate((element) => {
       const first = element.firstElementChild;
       if (!first) throw new Error('the log stream draws nothing at all');
       return { offset: first.getBoundingClientRect().top - element.getBoundingClientRect().top, className: first.className };
     });
-    console.log(`[REQ-12] compose stream, no project selected — first child \`${deadSpace.className}\` at +${deadSpace.offset}px`);
-    expect(deadSpace.offset, 'the compose log stream draws a strip above its first real child while no project is selected').toBeLessThanOrEqual(0.5);
-    await expect(stream.locator('.ui-log-stream__actions'), 'an empty action row survives on the compose log stream').toHaveCount(0);
-
-    // REQ-12, REQ-13 — where a download filename *is* given, the row is there, holds `Download`, and
-    // `Download` sits where it does today: at the row's own right edge.
-    const group = page.locator('.ui-grouped-rows-panel > .ui-surface', { has: page.locator('.ui-grouped-rows-panel__title', { hasText: projectName }) });
-    await expect(group).toBeVisible({ timeout: 30_000 });
-    await group.locator('.ui-grouped-rows-panel__title').click();
+    console.log(`[REQ-12] compose stream, a project selected — first child \`${deadSpace.className}\` at +${deadSpace.offset}px`);
+    expect(deadSpace.offset, 'the compose log stream draws a strip above its first real child').toBeLessThanOrEqual(0.5);
 
     const actions = stream.locator('.ui-log-stream__actions');
     await expect(actions).toBeVisible({ timeout: 20_000 });

@@ -105,10 +105,12 @@ test('logs no duplicate-key error while the feed takes events of one container i
     await execFileAsync('docker', ['stop', '-t', '0', name]);
     await expect(feedLines(page, name).filter({ hasText: 'die' })).toHaveCount(2, { timeout: 15_000 });
 
-    // The shell's own feed reads the same provider: leaving the screen and
-    // coming back remounts the list over the events already held.
+    // The provider outlives the screen: leaving it and coming back remounts the
+    // list over the events already held. The screen left for is About, which
+    // draws no stream of its own any more (plan-ui-coherence-optimisation/REQ-71),
+    // so the landmark waited on is that screen's own first section.
     await navigateTo(page, 'About');
-    await expect(page.locator('.ui-card__title', { hasText: 'Daemon event stream' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 2, name: 'Identity and license' })).toBeVisible();
     await navigateTo(page, 'Dashboard');
     await expect(feedLines(page, name).filter({ hasText: 'start' })).toHaveCount(2, { timeout: 15_000 });
 

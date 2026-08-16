@@ -11,13 +11,25 @@
 
 /* Kept, unlike the code viewer's: this row still has a child whenever a download
    filename is given, and `Download` sits exactly where it did. The empty case —
-   a stream offered without one, which is Compose with no project selected — is
-   resolved by not rendering the row at all rather than by a rule keyed on
-   emptiness, so it consumes no gap from the stream either (REQ-12). */
+   a stream offered with neither controls nor a filename, which is Compose with
+   no project selected — is resolved by not rendering the row at all rather than
+   by a rule keyed on emptiness, so it consumes no gap from the stream either
+   (REQ-12).
+   The row is also where a caller's own stream controls go, so that they and the
+   download share one row instead of taking one each
+   (plan-ui-coherence-optimisation/REQ-62). With no controls given there is one
+   child and the row is what it always was. */
 .ui-log-stream__actions {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
   gap: var(--space-2);
+}
+
+/* The controls take the width the download does not, which is what keeps
+   `Download` at the row's end. */
+.ui-log-stream__actions > .ui-row {
+  flex: 1 1 auto;
 }
 
 .ui-log-stream__surface {

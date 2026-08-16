@@ -29,6 +29,10 @@ Shows:
   command as it was typed, the channel it ran on, its output, and how it ended (`exit 0`,
   `HTTP 404`, `cancelled`, `failed`) — green for a success, red for a failure, amber for a
   cancellation.
+- the output of an Engine API entry — a body the daemon sends as one line with no spaces in it —
+  laid over as many lines as it needs, breaking at the payload's own token boundaries: at every
+  viewport the block stays inside its surface, no value is cut in half, and the text is the
+  daemon's own, complete and selectable (`ui-library/payload-wrapping.md`).
 - "not kept in history" on an entry whose command could carry a credential.
 - the prompt, its placeholder being an example in the selected channel's own grammar.
 - the starting points for the selected channel: the long tail the console exists for (manifest,
@@ -64,6 +68,13 @@ Actions:
 - Nothing runs while another entry is running.
 - The history is read once when the screen opens and survives a restart; a read that fails is
   reported without emptying what is already shown.
+- The transcript is otherwise exactly as delivered: every entry — not only the first — carries its
+  channel badge, its status badge and `Re-run`, with the spacing they were delivered with, and **no
+  copy affordance**, the one that used to sit on each entry having been removed by
+  `plan-docker_management_app-remove_copy_controls/REQ-7`. Obtaining an entry's output is the
+  browser's own selection.
+- **This screen has no empty state.** An empty transcript is a console that has not been used yet
+  and says so on its own prompt line; nothing on the screen is drawn on an empty-state surface.
 
 ## Dependencies
 
@@ -82,3 +93,5 @@ Actions:
 - plan-docker_management_app/REQ-104
 - plan-docker_management_app/REQ-112
 - plan-docker_management_app/REQ-114
+- plan-ui-coherence-optimisation/REQ-76
+- plan-ui-coherence-optimisation/REQ-77

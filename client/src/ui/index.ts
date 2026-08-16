@@ -40,16 +40,21 @@ export { StatusPill, type StatusPillProps, type StatusTone, type StatusPillActio
 export { Button, type ButtonProps, type ButtonVariant, type ButtonSize } from './controls/Button';
 export { IconButton, type IconButtonProps } from './controls/IconButton';
 export { Badge, type BadgeProps, type BadgeTone, type BadgeVariant } from './controls/Badge';
-export { KeyHint, type KeyHintProps } from './controls/KeyHint';
 export { ExternalLink, type ExternalLinkProps } from './controls/ExternalLink';
 export { PathInput, type PathInputProps, type PathInputValidationState } from './controls/PathInput';
 export { StorageUsageRow, type StorageUsageRowProps, type StorageUsageRowAction } from './controls/StorageUsageRow';
 export { CheckboxGroup, type CheckboxGroupProps, type CheckboxOption } from './controls/CheckboxGroup';
 export { TextField, type TextFieldProps } from './controls/TextField';
-export { SearchField, type SearchFieldProps } from './controls/SearchField';
+export { SearchField, type SearchFieldProps, type SearchFieldHandle } from './controls/SearchField';
 export { SecretField, type SecretFieldProps } from './controls/SecretField';
 export { FilterChips, type FilterChipsProps, type FilterChipOption } from './controls/FilterChips';
-export { ActionButtonGroup, type ActionButtonGroupProps, type ActionButtonGroupOverflow, type RowAction } from './controls/ActionButtonGroup';
+export {
+  ActionButtonGroup,
+  type ActionButtonGroupProps,
+  type ActionButtonGroupOverflow,
+  type ActionWeight,
+  type RowAction,
+} from './controls/ActionButtonGroup';
 export { Menu, type MenuProps, type MenuEntry } from './controls/Menu';
 export { BulkActionBar, type BulkActionBarProps, type BulkActionBarAction } from './controls/BulkActionBar';
 export { FilePicker, type FilePickerProps } from './controls/FilePicker';
@@ -82,7 +87,14 @@ export { TailSizeSelector, type TailSizeSelectorProps, type TailSize } from './c
 export { TimeRangeField, type TimeRangeFieldProps, type TimeRange } from './controls/TimeRangeField';
 export { StreamSearchField, type StreamSearchFieldProps } from './controls/StreamSearchField';
 
-export { DataTable, type DataTableProps, type DataTableColumn, type DataTableSelection } from './data/DataTable';
+export {
+  DataTable,
+  type DataTableProps,
+  type DataTableColumn,
+  type DataTableColumnWidth,
+  type DataTableSelection,
+  type DataTableVariant,
+} from './data/DataTable';
 export {
   StatusDotCell,
   type StatusDotCellProps,
@@ -101,10 +113,8 @@ export { DefinitionList, type DefinitionListProps, type DefinitionItem } from '.
 export { PrivilegeList, type PrivilegeListProps, type PrivilegeItem } from './data/PrivilegeList';
 export { CodeViewer, type CodeViewerProps } from './data/CodeViewer';
 export { CodeEditor, type CodeEditorProps } from './data/CodeEditor';
-export { GroupedRowsPanel, type GroupedRowsPanelProps, type GroupedRowsPanelGroup, type GroupedRowsPanelRow } from './data/GroupedRowsPanel';
 export { TextViewer, type TextViewerProps, HexDumpViewer, type HexDumpViewerProps } from './data/ContentViewer';
 export { LogStream, type LogStreamProps, type LogStreamLine } from './data/LogStream';
-export { CardList, type CardListProps, type CardListRowContent, type CardListRowSelection } from './data/CardList';
 export { TreeView, type TreeViewProps, type TreeNode, type TreeEntryKind } from './data/TreeView';
 export { DiffTreeView, type DiffTreeViewProps, type DiffTreeNode, type DiffStatus, type DiffStatusFilter } from './data/DiffTreeView';
 export { SideBySideViewer, type SideBySideViewerProps, type SideBySideSide } from './data/SideBySideViewer';

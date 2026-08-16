@@ -12,7 +12,9 @@ in full as selectable text.
 ## Contract
 
 - `<CodeViewer code maxHeight? />`
-  - `code: string` — shown verbatim in a monospace, wrapped block.
+  - `code: string` — shown verbatim in a monospace block, wrapped by the library's payload-wrapping
+    rule: the block breaks at the payload's own token boundaries, so no value is cut in half at the
+    edge of the box, and the text stays complete and selectable (see `payload-wrapping.md`).
   - `maxHeight?: string` — caps the block's height with a scrollbar (default `'360px'`).
   - The block draws **nothing above the payload**. It used to carry a copy affordance in an action
     row of its own; that affordance was removed on 2026-08-14 by
@@ -22,8 +24,9 @@ in full as selectable text.
 
 ## Dependencies
 
-- ScrollArea
+- ScrollArea, Payload wrapping
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-26
+- plan-ui-coherence-optimisation/REQ-76

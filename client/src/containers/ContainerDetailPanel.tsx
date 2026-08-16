@@ -382,12 +382,23 @@ export function ContainerDetailPanel({ container, onClose, onContainerReplaced }
             { label: 'Exit code', value: data.state.exitCode ?? '–' },
           ]}
         />
-        <CollapsibleSection title="Networks" summary={`${data.networks.length}`}>
-          <DefinitionList items={data.networks.map((network) => ({ label: network.name, value: network.ipAddress ?? '–' }))} />
-        </CollapsibleSection>
-        <CollapsibleSection title="Labels" summary={`${Object.keys(data.labels).length}`}>
-          <DefinitionList contentClass="long-single-line" items={Object.entries(data.labels).map(([key, value]) => ({ label: key, value }))} />
-        </CollapsibleSection>
+        {/*
+          A section with a count of `0` is absent, not present and empty
+          (plan-ui-coherence-optimisation/REQ-60) — one rule, shared with the
+          image panel: the delivered panel drew a `Labels` section headed `0` on
+          every container declaring none. `Health` was already conditional on the
+          container defining one, which is the same rule stated a third way.
+        */}
+        {data.networks.length > 0 ? (
+          <CollapsibleSection title="Networks" summary={`${data.networks.length}`}>
+            <DefinitionList items={data.networks.map((network) => ({ label: network.name, value: network.ipAddress ?? '–' }))} />
+          </CollapsibleSection>
+        ) : null}
+        {Object.keys(data.labels).length > 0 ? (
+          <CollapsibleSection title="Labels" summary={`${Object.keys(data.labels).length}`}>
+            <DefinitionList contentClass="long-single-line" items={Object.entries(data.labels).map(([key, value]) => ({ label: key, value }))} />
+          </CollapsibleSection>
+        ) : null}
         {data.health ? (
           <CollapsibleSection title="Health" summary={data.health.status}>
             <DefinitionList items={[{ label: 'Status', value: data.health.status }, { label: 'Failing streak', value: data.health.failingStreak ?? 0 }]} />
@@ -438,7 +449,7 @@ export function ContainerDetailPanel({ container, onClose, onContainerReplaced }
           <>
             {error ? <ErrorBanner title="Could not load container details" detail={error} onRetry={refresh} /> : null}
             {!inspect ? (
-              <EmptyState title={loaded ? 'No inspect data available' : 'Loading container details…'} />
+              <EmptyState title={loaded ? 'No inspect data available' : 'Loading container details…'}  description={null} action={null} />
             ) : activeTab === 'config' ? (
               renderConfigView(inspect)
             ) : (

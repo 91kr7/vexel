@@ -49,7 +49,10 @@ export function KeyValueEditor({ pairs, onChange, name, keyPlaceholder = 'KEY', 
           </IconButton>
         </Row>
       ))}
-      <Button size="sm" variant="ghost" onClick={add}>
+      {/* A control, not bare text: the add affordance carries the border and the
+          surface every other button carries. `ghost` painted neither, which is how
+          "Add variable" came to be a word at the end of a list. */}
+      <Button size="sm" onClick={add}>
         {addLabel}
       </Button>
     </div>

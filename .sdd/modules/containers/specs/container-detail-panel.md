@@ -73,6 +73,12 @@ Shows (Inspect tab):
   formatted JSON, shown in full as real selectable text in a scroll area (REQ-26, narrowed from
   *"copyable"* to *"selectable"* on 2026-08-14 by
   `plan-docker_management_app-remove_copy_controls`/REQ-23).
+- **A collapsible section with nothing in it is not drawn** (`plan-ui-coherence-optimisation/REQ-60`,
+  one rule shared with `images/specs/image-detail-panel.md`): `Networks` and `Labels` appear only
+  when they hold at least one entry, so a section headed with a count of `0` — which the delivered
+  build drew for `Labels` on every container declaring none — cannot occur. `Health` was already
+  conditional on the container defining one. A section that has content is unchanged, count
+  included.
 - Each property section states **only its content class**: the ten properties, `Networks`, `Health`
   and the Config tab's runtime configuration take the default short scalar, `Labels` declares long
   single-line. The number of columns each shows follows from that section's own width
@@ -107,6 +113,13 @@ Actions:
   the editing form is not part of that arrangement: it is exactly as delivered.
 - The save action is disabled while there is nothing to save (no field differs from the value edit
   mode was seeded with) and while a save is in flight.
+- **The panel is the primitive, and the three things it must not lose are named**
+  (`plan-ui-coherence-optimisation/REQ-65`): the seven tabs above, the two-column property grid
+  above, and the raw payload as real selectable text. What its Logs and Stats tabs draw was
+  rearranged by REQ-62…REQ-64 (`container-logs-view.md`, `container-stats-view.md`); the panel itself
+  is unchanged by that, and so are the certified behaviours reaching into it — bug-1's progress
+  dialog on a recreate, bug-4's rule that two property sections of the same measured width show the
+  same number of columns, and bug-5's absence of every copy affordance.
 
 ## Dependencies
 
@@ -147,3 +160,5 @@ Actions:
 - plan-docker_management_app-detail_property_columns/REQ-27
 - plan-docker_management_app-detail_property_columns/REQ-31
 - plan-docker_management_app-detail_property_columns/REQ-34
+- plan-ui-coherence-optimisation/REQ-60
+- plan-ui-coherence-optimisation/REQ-65

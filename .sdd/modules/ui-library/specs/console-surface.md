@@ -41,8 +41,11 @@ Shows:
 - one block per entry, in the given order: the prompt symbol and the command exactly as given, its
   channel label when present, then its status — a pending indicator while `running` is true, the
   status badge once it is not — and its note when present.
-- the entry's output lines under it, in order, wrapped rather than clipped; a line tagged `stderr`
-  is visually distinguished from an `stdout` one.
+- the entry's output lines under it, in order, wrapped rather than clipped, and wrapped at the
+  payload's own token boundaries rather than wherever the edge of the box falls (see
+  `payload-wrapping.md`): a raw daemon body is one line with no spaces in it, and it must stay
+  inside the surface without a value being cut in half. A line tagged `stderr` is visually
+  distinguished from an `stdout` one.
 - the empty-state label instead of any entry when `entries` is empty.
 - the prompt line: the prompt symbol, the editable value, the placeholder while it is empty.
 
@@ -59,6 +62,9 @@ Actions:
 ## Rules and invariants
 
 - The region stays scrolled to the last entry as entries and their lines arrive.
+- An output line is shown in full: never clamped, never ellipsised, never held in a region that has
+  to be scrolled sideways to be read. It is the daemon's own text, complete and selectable, however
+  long it is.
 - A command is displayed exactly as it was given: the surface never rewrites, trims or re-quotes it.
 - Editing the prompt by hand ends the recall walk, so the next `ArrowUp` starts again from the most
   recent command and the operator's own text is what a walk back down restores.
@@ -66,10 +72,11 @@ Actions:
 
 ## Dependencies
 
-- ScrollArea, Badge, Button, Spinner
+- ScrollArea, Badge, Button, Spinner, Payload wrapping
 
 ## Requirements served
 
+- plan-ui-coherence-optimisation/REQ-76
 - plan-docker_management_app/REQ-100
 - plan-docker_management_app/REQ-101
 - plan-docker_management_app/REQ-102

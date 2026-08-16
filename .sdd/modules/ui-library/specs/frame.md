@@ -70,6 +70,13 @@ footer regions so feature code never writes a layout wrapper element itself.
   alone: the content it covers is out of focus through it, the rest of the screen is not.
 - The rail's sizing wrapper carries no material of any kind, blurred or not: it is a plain box, and
   a blurred rectangle behind the card's rounded corners is exactly what it would produce.
+- **The wrapper bounds the rail to the viewport at every breakpoint**, so the scroll region inside the
+  card (`navigation-primitives.md`) has a height to resolve against and the card is wholly on screen:
+  docked, it is the frame's own height less the shell inset; as the phone drawer, it is what its two
+  insets leave — the drawer is sized by those insets and not by a height of its own, an
+  over-constrained fixed box dropping its bottom inset and hanging that much of the card, entries
+  included, below the viewport (plan-ui-coherence-optimisation/REQ-4). The drawer's open/closed
+  transform, its scrim and its blur are unaffected by that sizing.
 
 ## Dependencies
 
@@ -84,3 +91,5 @@ footer regions so feature code never writes a layout wrapper element itself.
 - plan-docker_management_app/REQ-117
 - plan-liquid_glass_overlays/REQ-5
 - plan-liquid_glass_overlays/REQ-7
+- plan-ui-coherence-optimisation/REQ-2
+- plan-ui-coherence-optimisation/REQ-4

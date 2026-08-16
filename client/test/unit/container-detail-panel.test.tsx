@@ -275,6 +275,51 @@ describe('ContainerDetailPanel — Inspect tab (REQ-26)', () => {
   });
 });
 
+// container-detail-panel.md — "A collapsible section with nothing in it is not drawn", one rule
+// shared with the image panel: `Networks` and `Labels` appear only when they hold at least one
+// entry, so a section headed with a count of `0` cannot occur.
+describe('ContainerDetailPanel — an empty section is absent (plan-ui-coherence-optimisation/REQ-60)', () => {
+  function withInspect(overrides: Partial<ContainerInspect>): void {
+    fetchMock.mockImplementation((url: string) =>
+      url.includes('/inspect')
+        ? Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ...baseInspect(), ...overrides }) })
+        : Promise.resolve({ ok: configResponse.ok, status: configResponse.status, json: () => Promise.resolve(configResponse.body) }),
+    );
+  }
+
+  async function inspectTabSections(): Promise<{ title: string; summary: string }[]> {
+    const user = userEvent.setup();
+    renderPanel();
+    await user.click(await screen.findByRole('tab', { name: 'Inspect' }));
+    await screen.findByText(/raw-container-1-id/);
+    return Array.from(document.querySelectorAll('.ui-collapsible-section')).map((section) => ({
+      title: section.querySelector('.ui-collapsible-section__title')?.textContent ?? '',
+      summary: section.querySelector('.ui-collapsible-section__summary')?.textContent ?? '',
+    }));
+  }
+
+  it('draws no section at all for a container attached to no network and declaring no label', async () => {
+    withInspect({ networks: [], labels: {} });
+
+    expect(await inspectTabSections()).toEqual([]);
+  });
+
+  it('draws no Labels section for a container declaring none, while Networks keeps its own', async () => {
+    withInspect({ networks: [{ name: 'bridge' }], labels: {} });
+
+    expect(await inspectTabSections()).toEqual([{ title: 'Networks', summary: '1' }]);
+  });
+
+  it('draws both sections, each headed with its own count, when both have content', async () => {
+    withInspect({ networks: [{ name: 'bridge' }], labels: { 'com.docker.compose.project': 'shop', team: 'platform' } });
+
+    expect(await inspectTabSections()).toEqual([
+      { title: 'Networks', summary: '1' },
+      { title: 'Labels', summary: '2' },
+    ]);
+  });
+});
+
 // Stands in for the browser's WebSocket underneath useContainerSession, so the
 // Exec/Attach tabs' session lifecycle is driven directly from the test.
 class FakeWebSocket {

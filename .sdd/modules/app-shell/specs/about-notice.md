@@ -15,9 +15,12 @@ an interactive network application to display.
 - `<AboutNotice />` — takes no props.
 
 Description:
-- one self-contained block: a titled card holding a single callout, whose body is a column of short
-  paragraphs and two rows of routes.
+- one self-contained block: a card holding the screen's section header `Identity and license` over a
+  single callout, whose body is a column of short paragraphs and two rows of routes.
 Shows:
+- the section title `Identity and license`, in the screen's one section-header treatment — the
+  primitive's own, the same one every other section of the About screen carries
+  (plan-ui-coherence-optimisation/REQ-70).
 - the heading `Vexel — Copyright (C) 2026 Christian Mariani`, naming the product and the natural
   person holding the copyright with the year.
 - that Vexel is free software licensed under the GNU Affero General Public License, version 3
@@ -60,6 +63,12 @@ Navigation:
 - Every clause above is stated separately, so removing any one of them is visible: the copyright,
   the absence of warranty, the right to convey and the route to the licence are what make this a
   display of Appropriate Legal Notices at all.
+- **Only the titling treatment is this plan's to change.** Not one word of the notice moves: the
+  product name, the copyright, the licence with a route to each of its two documents, the absence of
+  warranty, the right to convey, the repository with the running version, the network-modification
+  duty and the reservation of the name read exactly as
+  `plan-docker_management_app-about_license_notice` delivered them
+  (plan-ui-coherence-optimisation/REQ-72).
 - It carries no feature list, no release date and no claim depending on the current state of the
   product: the running version is the only part of it that changes over time
   (plan-docker_management_app-about_license_notice/REQ-22).
@@ -72,11 +81,13 @@ Navigation:
 
 ## Dependencies
 
-- ui-library: Card, Callout, Stack, Row, ExternalLink
+- ui-library: Card, SectionHeader, Callout, Stack, Row, ExternalLink
 - app-shell: Build-time version constant
 
 ## Requirements served
 
+- plan-ui-coherence-optimisation/REQ-70
+- plan-ui-coherence-optimisation/REQ-72
 - plan-docker_management_app-about_license_notice/REQ-6
 - plan-docker_management_app-about_license_notice/REQ-8
 - plan-docker_management_app-about_license_notice/REQ-9

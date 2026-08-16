@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Badge, type BadgeTone } from '../controls/Badge';
 import type { StatusTone } from '../controls/StatusPill';
+import '../truncation.css';
 import './data-table.css';
 
 export interface StatusDotCellProps {
@@ -48,21 +49,24 @@ export interface TwoLineCellProps {
 export function TwoLineCell({ title, subtitle, action, wrap = false }: TwoLineCellProps) {
   const titleTooltip = typeof title === 'string' ? title : undefined;
   const subtitleTooltip = typeof subtitle === 'string' ? subtitle : undefined;
+  // The truncation contract is carried by a class the lines do or do not have:
+  // the wrapping variant simply does not take it, rather than overriding it.
+  const line = wrap ? '' : ' ui-truncating-line';
   return (
     <span className={wrap ? 'ui-table-two-line-cell ui-table-two-line-cell--wrap' : 'ui-table-two-line-cell'}>
       <span className="ui-table-two-line-cell__text">
         {title === undefined ? null : (
-          <span className="ui-table-two-line-cell__title" title={titleTooltip}>
+          <span className={`ui-table-two-line-cell__title${line}`} title={titleTooltip}>
             {title}
           </span>
         )}
         {subtitle ? (
-          <span className="ui-table-two-line-cell__subtitle" title={subtitleTooltip}>
+          <span className={`ui-table-two-line-cell__subtitle${line}`} title={subtitleTooltip}>
             {subtitle}
           </span>
         ) : null}
       </span>
-      {action ? <span className="ui-table-two-line-cell__action">{action}</span> : null}
+      {action ? <span className="ui-table-two-line-cell__action ui-truncating-meta">{action}</span> : null}
     </span>
   );
 }
@@ -89,7 +93,7 @@ export interface MetaCellProps {
  * height regardless of content length.
  */
 export function MetaCell({ children, wrap = false, title, unavailableReason }: MetaCellProps) {
-  const className = wrap ? 'ui-table-meta-cell ui-table-meta-cell--wrap' : 'ui-table-meta-cell';
+  const className = wrap ? 'ui-table-meta-cell ui-table-meta-cell--wrap' : 'ui-table-meta-cell ui-truncating-line';
   // An empty string is as absent as `undefined` here: a caller that has no
   // value to show writes one or the other depending on how it computed it, and
   // both must read as the same "nothing" in the column.
@@ -129,10 +133,10 @@ export interface IdentifierCellProps {
  * native tooltip.
  */
 export function IdentifierCell({ value, maxChars }: IdentifierCellProps) {
-  if (!value) return <span className="ui-table-identifier-cell">–</span>;
+  if (!value) return <span className="ui-table-identifier-cell ui-truncating-line">–</span>;
   const shortened = maxChars !== undefined && value.length > maxChars ? `${value.slice(0, maxChars)}…` : value;
   return (
-    <span className="ui-table-identifier-cell" title={value}>
+    <span className="ui-table-identifier-cell ui-truncating-line" title={value}>
       {shortened}
     </span>
   );
@@ -171,7 +175,10 @@ export function BadgeListCell({ labels, tone = 'neutral', maxVisible = 3, emptyL
         </span>
       ))}
       {hidden.length > 0 ? (
-        <span className="ui-table-badge-list-cell__item" title={hidden.join(', ')}>
+        // The overflow indicator keeps its natural width while the labels
+        // shrink: how many entries are hidden is the one thing in the cell that
+        // must never be the part that gets cut.
+        <span className="ui-table-badge-list-cell__item ui-table-badge-list-cell__item--overflow" title={hidden.join(', ')}>
           <Badge>{`+${hidden.length}`}</Badge>
         </span>
       ) : null}
