@@ -16,6 +16,20 @@ desktop` wraps to two lines while `not authenticated` occupies one.
 explanatory line. It is preserved, in the primitive's form, and is the model for the ones repaired
 elsewhere.
 
+## Recorded 2026-08-17 — the presentation this batch migrated onto was retired afterwards
+
+**Nothing in this file is edited, and that is deliberate**: it is the record of what was built and
+what it was accepted on. The **comfortable** variant `INT-2` and `INT-3` migrate the registries and
+repositories lists onto — each row on a card of its own, under a floating column header — was
+**retired on 2026-08-16**, prop, carrier surface, stylesheet rules and header-inset compensation
+together, and both lists were converted again, onto the one table presentation containers and images
+already shipped; the repositories list's per-row content survived that conversion unchanged. This
+batch's acceptance and its measured figures were taken against the card row and are read as of their
+own date, not as a description of what ships. Where the decision is written:
+`.sdd/plans/plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/` (REQ-15,
+REQ-22, REQ-26), on
+`.sdd/analysis/ui-coherence-optimisation-comfortable_variant_retired-classic_table.md`.
+
 | ID | Type | Where | What | REQ | Depends |
 | --- | --- | --- | --- | --- | --- |
 | INT-1 | create | client e2e suite, registries area | The check, written and run **first**: with an authenticated and an unauthenticated registry both present, assert their **row boxes are equal in height** at 1440×1000 and 1280×800; assert the empty state renders a title, one line and its action; drive `Log in` / `Log out` with a **real pointer click**. Report the row heights before and after. | REQ-36, REQ-37, REQ-38 | — |

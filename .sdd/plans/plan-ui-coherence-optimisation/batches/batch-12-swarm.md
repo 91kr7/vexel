@@ -19,6 +19,20 @@ not, so the two empty states in that row sit at different heights.
 Five `CardList` call sites across the four panels (`SwarmNodesPanel:137`, `SwarmSecretsPanel:130`,
 `SwarmServicesPanel:261`, `SwarmConfigsStacksPanel` for configs and for stacks).
 
+## Recorded 2026-08-17 — the presentation this batch migrated onto was retired afterwards
+
+**Nothing in this file is edited, and that is deliberate**: it is the record of what was built and
+what it was accepted on. The **comfortable** variant `INT-3` migrates all five list call sites onto —
+each row on a card of its own, under a floating column header — was **retired on 2026-08-16**, prop,
+carrier surface, stylesheet rules and header-inset compensation together, and the five lists were
+converted again, onto the one table presentation containers and images already shipped; the stacks
+list keeps its per-stack services as row content, indented inside the stacks list's own surface rather
+than on a card. This batch's acceptance and its measured figures were taken against the card row and
+are read as of their own date, not as a description of what ships. Where the decision is written:
+`.sdd/plans/plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/` (REQ-7, REQ-20,
+REQ-22, REQ-26), on
+`.sdd/analysis/ui-coherence-optimisation-comfortable_variant_retired-classic_table.md`.
+
 | ID | Type | Where | What | REQ | Depends |
 | --- | --- | --- | --- | --- | --- |
 | INT-1 | create | client e2e suite, swarm area | The check, written and run **first**, on a daemon that is **not** a swarm — the state the analysis measured, and the one every machine can reach. Count the statements of the inactive condition on screen: **exactly one**. Assert the two resolving actions are inside that statement's surface. Assert the two bottom-row cards' contents **start at the same y**. Report the count and the two y values before and after. | REQ-52, REQ-53, REQ-54 | — |

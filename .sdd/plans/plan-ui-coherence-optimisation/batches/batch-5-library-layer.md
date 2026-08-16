@@ -33,6 +33,21 @@ goes in batch 13, once the last of them is migrated. Deleting it now does not co
 seeds a call-site budget instead, which is what catches an eighteenth being added during the eight
 batches in which the component is still exported.
 
+## Recorded 2026-08-17 — the presentation this batch introduced was retired afterwards
+
+**Nothing in this file is edited, and that is deliberate**: it is the record of what was built and
+what it was accepted on. The **comfortable** variant `INT-1` adds, `INT-8` exports, `INT-9` covers and
+`INT-11` documents — each row on a card of its own, under a floating column header — was **retired on
+2026-08-16**, prop, carrier surface, stylesheet rules and header-inset compensation together. The nine
+screens migrated onto it were converted to the one table presentation containers and images already
+shipped, and both routes back — asking the library for it, or a feature file drawing a surface per row
+— now fail `npm run lint`. This batch's acceptance and every figure in its "Measured at
+implementation" section were taken against that presentation and are read as of their own date, not
+as a description of what ships. Where the decision is written:
+`.sdd/plans/plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/` (REQ-1, REQ-22,
+REQ-23, REQ-26), on
+`.sdd/analysis/ui-coherence-optimisation-comfortable_variant_retired-classic_table.md`.
+
 | ID | Type | Where | What | REQ | Depends |
 | --- | --- | --- | --- | --- | --- |
 | INT-1 | modify | `client/src/ui/data/DataTable.tsx` and `data-table.css` | Extend it with a **comfortable** variant beside its dense one, absorbing what `CardList` presents today so that seventeen call sites lose nothing in the swap: title, monospace subtitle, trailing badge group, meta values, optional leading state dot, active-selection row (active marker plus a "use" action), and the expansion slot inside the row. One component, one variant prop — not a second list. It carries batch 2's column contract and batch 4's truncation contract by construction. | REQ-22, REQ-28 | — |

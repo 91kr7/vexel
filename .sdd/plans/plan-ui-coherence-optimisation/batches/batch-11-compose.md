@@ -14,6 +14,22 @@ grouped variant of it. Its empty result, `No compose projects`, is bare text on 
 
 The grouping is real and must survive: a project holds its services, each with its own state.
 
+## Recorded 2026-08-17 — the presentation this batch migrated onto was retired afterwards
+
+**Nothing in this file is edited, and that is deliberate**: it is the record of what was built and
+what it was accepted on. The **comfortable** variant this batch migrates the projects list onto, and
+that the nested `hideHeader` service list recorded further down was drawn in — each row on a card of
+its own, under a floating column header — was **retired on 2026-08-16**, prop, carrier surface,
+stylesheet rules and header-inset compensation together. Both levels were converted again, onto the
+one table presentation containers and images already shipped: the grouping survives as row content
+holding a nested list, and what says a service belongs to a project is now its **indentation inside
+the projects list's own surface**, never a card. This batch's acceptance and its measured figures were
+taken against the card row and are read as of their own date, not as a description of what ships.
+Where the decision is written:
+`.sdd/plans/plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/` (REQ-7, REQ-19,
+REQ-22, REQ-26), on
+`.sdd/analysis/ui-coherence-optimisation-comfortable_variant_retired-classic_table.md`.
+
 | ID | Type | Where | What | REQ | Depends |
 | --- | --- | --- | --- | --- | --- |
 | INT-1 | create | client e2e suite, compose area | The check, written and run **first**: each project is a row of the one list; **each of its services is still visible with its own state**; opening a project's detail with a **real pointer click** gives a full-width panel with the two-column grid; and with no project present the empty result renders on a surface with a title, one line and its action. Report what was drawn before and after. | REQ-49, REQ-50, REQ-51 | — |

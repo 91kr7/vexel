@@ -34,7 +34,7 @@ Guarantees, at any viewport and for an identifier of any length:
 ## Rules and invariants
 
 - **A list row truncates, a property band wraps.** This is the boundary a later reader gets wrong.
-  The contract governs rows: a card row, a storage-usage row, a table cell. It does not reach the
+  The contract governs rows: a storage-usage row, a table cell. It does not reach the
   two-column property grid (`definition-list.md`), where a value continues to wrap and be readable
   in full — there a one-line clamp would turn a layout defect into a data loss.
 - **The floor is explicit, never the automatic minimum.** Restoring `min-width: auto` would size a

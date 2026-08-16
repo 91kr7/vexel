@@ -15,6 +15,20 @@ the screen two parallel long scrolls.
 The lists are **not hand-built**: both panels consume `CardList` (`VolumesPanel.tsx:209`,
 `NetworksPanel.tsx:265`), so this is a call-site migration.
 
+## Recorded 2026-08-17 — the presentation this batch migrated onto was retired afterwards
+
+**Nothing in this file is edited, and that is deliberate**: it is the record of what was built and
+what it was accepted on. The **comfortable** variant `INT-2` and `INT-3` migrate these two lists onto
+— each row on a card of its own, under a floating column header — was **retired on 2026-08-16**,
+prop, carrier surface, stylesheet rules and header-inset compensation together, and both lists were
+converted again, onto the one table presentation containers and images already shipped. Volumes is
+the screen that triggered that decision: a volume's name over its mount path. This batch's acceptance
+and the figures in its "Measured at implementation" section were taken against the card row and are
+read as of their own date, not as a description of what ships. Where the decision is written:
+`.sdd/plans/plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/` (REQ-14,
+REQ-22, REQ-26), on
+`.sdd/analysis/ui-coherence-optimisation-comfortable_variant_retired-classic_table.md`.
+
 | ID | Type | Where | What | REQ | Depends |
 | --- | --- | --- | --- | --- | --- |
 | INT-1 | create | client e2e suite, volumes-networks area | The check, written and run **first**. Open a volume's detail with a **real pointer click** and assert its box spans the screen's content column, not the card column; assert the raw payload block's width; assert every property value is left-aligned. Then open a network's detail while the volume's is open and assert **the volume's has closed**. At 1440×1000, 1280×800 and 375×812. Report the panel and payload widths before and after. | REQ-32, REQ-33, REQ-34 | — |

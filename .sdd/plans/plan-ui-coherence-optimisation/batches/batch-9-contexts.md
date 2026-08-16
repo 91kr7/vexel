@@ -18,6 +18,21 @@ repaired in batch 4 and verified here in its migrated form.
 describe *the daemon*, not *a context* — they do not change as you look down this list, only when the
 active context changes — so **System & prune keeps them** and this screen loses the full block.
 
+## Recorded 2026-08-17 — the presentation this batch migrated onto was retired afterwards
+
+**Nothing in this file is edited, and that is deliberate**: it is the record of what was built and
+what it was accepted on. The **comfortable** variant `INT-2` migrates the contexts list onto —
+including the active-selection row this screen was the case for, each row on a card of its own under
+a floating column header — was **retired on 2026-08-16**, prop, carrier surface, stylesheet rules and
+header-inset compensation together, and the list was converted again, onto the one table presentation
+containers and images already shipped; the active marker and `use` as a control of the cluster
+survived that conversion unchanged. This batch's acceptance and its measured figures were taken
+against the card row and are read as of their own date, not as a description of what ships. Where the
+decision is written:
+`.sdd/plans/plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/` (REQ-17,
+REQ-22, REQ-26), on
+`.sdd/analysis/ui-coherence-optimisation-comfortable_variant_retired-classic_table.md`.
+
 | ID | Type | Where | What | REQ | Depends |
 | --- | --- | --- | --- | --- | --- |
 | INT-1 | create | client e2e suite, contexts area | The check, written and run **first**: `use` is hit-testable as a control at its own centre and a **real pointer click** switches the active context, with every cached view dropping the previous daemon's data; the endpoint's box does not intersect the `active` pill's at any of the three viewports; and **no eight-property daemon block is rendered on this screen**. Report what was on the screen before and after. | REQ-43, REQ-44, REQ-45 | — |

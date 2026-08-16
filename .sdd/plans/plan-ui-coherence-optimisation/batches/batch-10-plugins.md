@@ -13,6 +13,21 @@ string, so a row with a longer version such as `v0.36.0-desktop.1` pushes its pi
 neighbours' and the column reads ragged; and `No daemon plugins` is **bare text on no surface**,
 floating in the layout with no card, no title treatment and no suggested action.
 
+## Recorded 2026-08-17 — the presentation this batch migrated onto was retired afterwards
+
+**Nothing in this file is edited, and that is deliberate**: it is the record of what was built and
+what it was accepted on. The **comfortable** variant `INT-2` and `INT-3` migrate the CLI and daemon
+plugin lists onto — each row on a card of its own, under a floating column header — was **retired on
+2026-08-16**, prop, carrier surface, stylesheet rules and header-inset compensation together, and both
+lists were converted again, onto the one table presentation containers and images already shipped.
+This screen carries the case the later analysis measured: the CLI plugins list's `WHY UNAVAILABLE`
+column, whose run from its label to its last value was cut by 15 surfaces and 14 gaps on the build
+this batch delivered. This batch's acceptance and its measured figures were taken against the card
+row and are read as of their own date, not as a description of what ships. Where the decision is
+written: `.sdd/plans/plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/`
+(REQ-18, REQ-22, REQ-26, and that plan's amendment to its own REQ-18), on
+`.sdd/analysis/ui-coherence-optimisation-comfortable_variant_retired-classic_table.md`.
+
 | ID | Type | Where | What | REQ | Depends |
 | --- | --- | --- | --- | --- | --- |
 | INT-1 | create | client e2e suite, plugins area | The check, written and run **first**: with plugins of differing version-string lengths present, assert **every `enabled` pill has the same left edge** — the measurement, not the impression. Then assert the empty result renders on a surface with a title and one line. Report the pills' left edges before and after. | REQ-47, REQ-48 | — |

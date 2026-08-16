@@ -21,6 +21,25 @@ The screen where the product repeats itself and, once, contradicts itself:
 that migrates "the nine screens" and stops leaves the component alive. Once they are gone, `CardList`
 is deleted (REQ-82). **This is the single most likely thing in the plan to be forgotten.**
 
+## Recorded 2026-08-17 — the presentation this batch migrated onto was retired afterwards
+
+**Nothing in this file is edited, and that is deliberate**: it is the record of what was built and
+what it was accepted on. The **comfortable** variant `INT-7` migrates layer efficiency's last three
+`CardList` call sites onto — each row on a card of its own, under a floating column header — was
+**retired on 2026-08-16**, prop, carrier surface, stylesheet rules and header-inset compensation
+together, and those three lists were converted again, onto the one table presentation containers and
+images already shipped, each keeping its per-row expansion inside the dialog that holds them. The
+deletion of `CardList` that this batch closes stands: it was not reversed, and nothing was moved back
+onto it.
+
+**`INT-7` is annotated rather than retargeted, on purpose.** By the time the retirement was planned
+this batch had already run, so its intervention is a record of work done and not an instruction to
+anyone; editing it to name today's destination would rewrite what was actually built, which is the
+practice the amending plan exists to correct. Where the decision is written:
+`.sdd/plans/plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/` (REQ-21,
+REQ-22, REQ-26), on
+`.sdd/analysis/ui-coherence-optimisation-comfortable_variant_retired-classic_table.md`.
+
 | ID | Type | Where | What | REQ | Depends |
 | --- | --- | --- | --- | --- | --- |
 | INT-1 | create | client e2e suite, images area | The check, written and run **first**: a row prints its reference **once**, and an image with several tags still shows all of them; the panel's `Id` and `Digest` **differ**, or the one with nothing of its own is absent; the row's size label and the panel's size label are **different words**; no `Labels` section is rendered when its count is `0`. Report each pair of values before and after. | REQ-57, REQ-58, REQ-59, REQ-60 | — |

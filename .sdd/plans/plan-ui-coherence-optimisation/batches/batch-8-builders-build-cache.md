@@ -13,6 +13,19 @@ the row's trailing run — `running` · `cache 14.6MB` · `in use` · `Remove` �
 string, a state and a button in one undifferentiated line, so a control's appearance no longer
 predicts that it is a control. Its page-level actions live in a card header rather than in a toolbar.
 
+## Recorded 2026-08-17 — the presentation this batch migrated onto was retired afterwards
+
+**Nothing in this file is edited, and that is deliberate**: it is the record of what was built and
+what it was accepted on. The **comfortable** variant `INT-2` and `INT-3` migrate the builders and
+build-cache lists onto — each row on a card of its own, under a floating column header — was
+**retired on 2026-08-16**, prop, carrier surface, stylesheet rules and header-inset compensation
+together, and both lists were converted again, onto the one table presentation containers and images
+already shipped. This batch's acceptance and its measured figures were taken against the card row and
+are read as of their own date, not as a description of what ships. Where the decision is written:
+`.sdd/plans/plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/` (REQ-16,
+REQ-22, REQ-26), on
+`.sdd/analysis/ui-coherence-optimisation-comfortable_variant_retired-classic_table.md`.
+
 | ID | Type | Where | What | REQ | Depends |
 | --- | --- | --- | --- | --- | --- |
 | INT-1 | create | client e2e suite, builders area | The check, written and run **first**: assert a builder's name appears **once** in its row; assert the status reading and the actions are separately addressable (a status is not clickable, an action is, and each action is hit-testable at its own centre with a **real pointer**); assert the page-level actions are in the screen toolbar. Report what the row contained before and after. | REQ-39, REQ-40, REQ-41 | — |

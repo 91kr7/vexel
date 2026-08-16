@@ -26,6 +26,21 @@ The three observed sites, and where each is drawn:
 screen. The work here is not thrown away by that absorption: it is the contract the comfortable
 variant carries.
 
+## Recorded 2026-08-17 — the variant named above, and the card rows measured below, were retired
+
+**Nothing in this file is edited, and that is deliberate**: it is the record of what was built and
+what it was accepted on. This batch neither introduced nor adopted the card-per-row presentation, and
+is annotated only because it **names** it: the paragraph above says the truncation contract is *"the
+contract the comfortable variant carries"*, and the delivery record below counts colliding **card
+rows** on the build of 2026-08-15. That variant was **retired on 2026-08-16**, prop, carrier surface,
+stylesheet rules and header-inset compensation together, and every list it drew was converted onto the
+one table presentation containers and images already shipped. **The contract this batch delivered was
+not retired with it**: it is carried today by `StorageUsageRow` and by the table cells, and the rule
+it exists for — a list row truncates, a property band wraps — is unchanged. Where the decision is
+written: `.sdd/plans/plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/`
+(REQ-11, REQ-22, REQ-26), on
+`.sdd/analysis/ui-coherence-optimisation-comfortable_variant_retired-classic_table.md`.
+
 | ID | Type | Where | What | REQ | Depends |
 | --- | --- | --- | --- | --- | --- |
 | INT-1 | create | client e2e suite, volumes-networks / system / contexts areas | The check, written and run **first**, on all three sites at 1440×1000, 1280×800 and 375×812: the bounding box of the flexible text and the bounding box of each trailing value **do not intersect**, the trailing value is at its natural width, and the `Prune` button is whole and hit-testable at its own centre. Then the same with a **synthetic 64-character name** to prove the contract holds at arbitrary length. Report the intersections measured before and after. | REQ-18, REQ-19 | — |

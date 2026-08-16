@@ -53,6 +53,26 @@ knowable once the removal is complete.
   the analysis's scope).
 - No server file (REQ-37). English only; kebab-case for any new file (REQ-38).
 
+## Departure recorded 2026-08-17 — two feature files changed, against this batch's own constraint
+
+**The constraint above reads "no feature file changes in this batch at all", and two feature files
+were changed**: `client/src/volumes-networks/VolumesPanel.tsx:126` and
+`NetworksPanel.tsx:118`. Both changes are **comment-only** — a doc comment on each panel that
+described its list as *"listed with the object list's comfortable variant"*, now *"listed in the
+object list"*. No statement, no prop, no markup and no style moved; the compiled output is identical.
+
+**Who decided, when, and why.** The human's delegate authorised it at this batch's dispatch, on
+2026-08-16, under the human's standing delegation — not taken by the developer on the spot. Batch 4's
+developer had found the two comments and deliberately left them, the constraint being what it is.
+The judgement that put them here: the prose names the very thing this batch **deletes**, so leaving
+two feature files explaining a variant no longer in the library would be this plan's own record
+problem one altitude lower — the failure the whole plan exists to close, on the screens the plan
+opened with. The constraint's purpose is served either way: it exists so that a conversion batch's
+omission is reported rather than folded in, and nothing was converted here.
+
+**The interventions above are not edited**, and this note is not an amendment of them: it records a
+departure from a constraint, at the date it was taken, with the authority that took it.
+
 ## Verification for this batch — targeted, never the full suite
 
 - `npm run lint -w client` (which runs the conformance script, new half included) and
