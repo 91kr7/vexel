@@ -31,9 +31,10 @@ Shows:
 
 Actions:
 
-- "New secret" (toolbar, and the empty state's own action) → a form asking for a name, a value and
-  optional labels; the value is entered in a masked field with no reveal control and is dropped from
-  the form the moment it closes, whichever way it closed.
+- "New secret" (toolbar) and "Create the first secret" (the empty state's own action) → the same
+  form, asking for a name, a value and optional labels; the value is entered in a masked field with
+  no reveal control and is dropped from the form the moment it closes, whichever way it closed.
+  **Two controls, two names, and neither name contains the other** — see the rule below.
 - selecting a row → reveals that secret's metadata; selecting it again, or `Escape`, closes it.
 - "Remove" (row) → asks the confirmation service, naming the secret and stating that a service still
   using it keeps the daemon from removing it; only then is it removed.
@@ -47,6 +48,27 @@ Actions:
   client offers none anywhere.
 - The value lives in the form's state only while the form is open, and is cleared on submit, on
   cancel and on failure.
+- **The toolbar's action and the empty state's are two controls, and no name here contains
+  another's.** Both open the same form, and while the list is empty both are on screen at once —
+  the toolbar because a page-level action lives there
+  (plan-ui-coherence-optimisation/REQ-41), the empty state's because an empty result states the way
+  out of it (plan-docker_management_app/REQ-25, `ui-library/specs/empty-state.md`). They therefore
+  have to be told apart *by name*, and "New secret" against "New secret…" did not manage it: a name
+  that is a prefix of another's is the same name to anything that finds a control by its name, which
+  is how one surface came to hold two controls answering to "New secret" (DEF-2, found by
+  `client/e2e/exclusive/swarm-cluster.spec.ts` on a cluster with no secret in it — the state the
+  empty state exists for, and the only one in which the two are ever drawn together).
+  **Making the two labels identical is not the repair**: two controls with the same name are the
+  same collision, and the delivered volumes and networks panels — identical on both controls since
+  they were written — carry it latently to this day. The empty state's label is the invitation
+  ("Create the first secret"); the toolbar keeps the standing action's word.
+- **Deferred, deliberately, and named here so it is not mistaken for an oversight**: the product's
+  ten toolbar primary actions are split on the ellipsis — four carry it (`Pull image…`,
+  `Create volume…`, `Run container…`, `Create network…`) and six do not (`New secret`, `New config`,
+  `Create service`, `Create builder`, `Create context`, `Install plugin`). Which of the two is right
+  is a question no requirement of `plan-ui-coherence-optimisation` states, and settling it renames
+  six controls that checks locate by name; it belongs to a report of its own, not to the closing
+  batch of this plan.
 - **The panel is drawn only where there is a cluster to read**: the screen states the swarm's
   condition once and renders this panel on a manager alone
   (plan-ui-coherence-optimisation/REQ-52), so the panel repeats none of it.

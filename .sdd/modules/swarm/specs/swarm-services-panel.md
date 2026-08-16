@@ -38,8 +38,13 @@ Shows:
 
 Actions:
 
-- "Create service" (toolbar) → a form asking for the name, image, mode, replica count, environment
-  variables, published ports and labels; submitting creates the service and reports it.
+- "Create service" (toolbar) and "Create the first service" (the empty state's own action) → the
+  same form, asking for the name, image, mode, replica count, environment variables, published ports
+  and labels; submitting creates the service and reports it. **Two controls, two names, and neither
+  contains the other**, for the reason recorded in full in `swarm-secrets-panel.md` (DEF-2): while
+  the list is empty both are on screen, and a name that is a prefix of another's is the same name to
+  anything that finds a control by name. Identical labels are not the repair — they are the same
+  collision.
 - selecting a row → reveals that service's detail panel and reads its tasks; selecting it again, or
   `Escape`, closes it.
 - "Update" (row) → the same form, filled with what the service currently is; only the fields that

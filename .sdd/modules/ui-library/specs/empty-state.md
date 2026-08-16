@@ -40,6 +40,27 @@ component insists on it rather than rendering whichever subset a caller happened
   described by its own values and by nothing else.)
 - The surface costs **2px of height** — the hairline — in the full-height presentation, in every
   container the product places it in, at 1440×1000, 1280×800 and 375×812.
+- **Where the surface's toolbar already offers the resolving action, one action is offered through
+  two controls — and the two must be tellable apart by their accessible names, with neither name
+  containing the other.** Both controls are legitimate and both are drawn at the same time: a
+  page-level action lives in the toolbar (plan-ui-coherence-optimisation/REQ-41), and an empty result
+  states the way out of itself, which is why `action` is a required prop at all. So the caller gives
+  this one the **invitation** — "Create the first secret" — and never the toolbar's own word with a
+  suffix.
+
+  **A suffix is not a different name**, and that clause is the whole of the finding: anything that
+  finds a control *by name* — a screen reader's list of controls, a check, an operator saying "the
+  New secret button" — matches on the name it is given, and "New secret…" answers to "New secret".
+  Two identical names are the same collision rather than its repair. Written down here because it is
+  otherwise rediscovered only from the error a check throws when it finds two controls where the
+  contract promised one.
+
+  Eight panels shipped one action under two names that shadowed each other, four of them colliding
+  outright, and only one ever surfaced: `client/e2e/exclusive/swarm-cluster.spec.ts` drives a swarm
+  that has just been initialised and therefore holds no secret, so it is the one check that met the
+  empty state at all. Every other instance was hidden by the daemon happening to hold data — which is
+  the mirror of the suite's own rule that no test may assume an empty daemon: it may not assume a
+  populated one either (DEF-2, reasoned out in `swarm/specs/swarm-secrets-panel.md`).
 - **It costs no width where the container gives the box one, and 2px where the container does not.**
   `box-sizing: border-box` is global, but it absorbs a border only into a width that has been
   specified; on an **auto-width** box the width is derived from the content and the hairline adds its

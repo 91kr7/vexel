@@ -25,13 +25,14 @@ Shows:
   nothing there for one it reads; the row stays listed either way, and Docker's own message is in the
   row's detail.
 - "Loading contexts…" before the first read has settled; "No Docker contexts" with its explanation
-  and a "Create context…" action when the installation has none; an error banner with retry when the
-  inventory cannot be read.
+  and a "Create the first context" action when the installation has none; an error banner with retry
+  when the inventory cannot be read.
 - A selected row's detail: name, kind, **the endpoint in full**, TLS, description, whether it is in
   use, and Docker's message where there is one.
 
 Actions:
-- "Create context" → opens a form: name, the endpoint group (kind, and the SSH destination when the
+- "Create context" (toolbar) and "Create the first context" (the empty state's own action) → the
+  same form: name, the endpoint group (kind, and the SSH destination when the
   SSH kind is chosen), and an optional description. Submitting creates the context and closes the
   form; a refusal is reported and the form stays open with what was typed.
 - A row's "Use" → makes that context active; every screen then follows the new daemon and the shell
@@ -51,6 +52,15 @@ Does not:
 
 - The creation form offers exactly two endpoint kinds, local socket and SSH, and cannot be submitted
   without a name, nor with the SSH kind and no destination.
+- **The toolbar's action and the empty state's are two controls, and neither name contains the
+  other.** Both open that form, and while the list is empty both are on screen at once — the toolbar
+  because a page-level action lives there (plan-ui-coherence-optimisation/REQ-41), the empty state's
+  because an empty result states the way out of it (plan-docker_management_app/REQ-25). A name that
+  is a prefix of another's is the same name to anything that finds a control by name, so "Create
+  context…" beside "Create context" was one control under two labels; identical labels are not the
+  repair, they are the same collision. The reasoning is recorded in full, once, in
+  `swarm/specs/swarm-secrets-panel.md` (DEF-2), together with the ellipsis question this deliberately
+  leaves open.
 - The endpoint kinds a context can be *created* with are a subset of the kinds that can be *listed
   and used*: the list and the "Use" action treat every kind alike.
 - **Every cell of a row is the same number of lines whatever the context's state.** The description

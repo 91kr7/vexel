@@ -270,7 +270,9 @@ export function ContextsScreen() {
                 <EmptyState
                   title="No Docker contexts"
                   description="A context is how Docker records which daemon to talk to; creating one points Vexel at another."
-                  action={<Button onClick={openCreate}>Create context…</Button>}
+                  // Its label is the invitation, never the toolbar's own word
+                  // (DEF-2, `contexts-screen.md`): one surface, one control per name.
+                  action={<Button onClick={openCreate}>Create the first context</Button>}
                 />
               ) : (
                 <EmptyState title="Loading contexts…" description={null} action={null} />

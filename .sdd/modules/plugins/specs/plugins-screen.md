@@ -37,7 +37,9 @@ Shows:
 - A failed reading shows the failure with a retry, without hiding the lists.
 
 Actions:
-- "Install plugin" → a form asking for the reference and an optional alias, plus a switch for
+- "Install plugin" (daemon-plugins toolbar) and "Install the first plugin" (the empty state's own
+  action, offered only where the daemon states no reason of its own) → the same form, asking for the
+  reference and an optional alias, plus a switch for
   enabling it once installed (on by default). Submitting **installs nothing**: it reads the
   privileges the reference asks for and opens the confirmation that shows them.
 - The privilege confirmation lists every privilege with its value and asks for an explicit grant;
@@ -64,6 +66,15 @@ Actions:
 
 ## Rules and invariants
 
+- **The toolbar's action and the empty state's are two controls, and neither name contains the
+  other.** Both open the same flow, and while the list is empty both are on screen at once — the
+  toolbar because a page-level action lives there (plan-ui-coherence-optimisation/REQ-41), the empty
+  state's because an empty result states the way out of itself
+  (plan-docker_management_app/REQ-25). A name that is a prefix of another's is the same name to
+  anything that finds a control by name, so the empty state takes the invitation and never the
+  toolbar's own word with a suffix; identical labels are not the repair, they are the same collision.
+  Reasoned out once, with the deferred ellipsis question, in `swarm/specs/swarm-secrets-panel.md`
+  (DEF-2).
 - Nothing is installed by a single click: the privileges are always shown, and only an explicit
   grant installs (REQ-99). Cancelling the grant installs nothing.
 - Removal is the only destructive action here and always goes through the confirmation; enabling

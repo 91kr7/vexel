@@ -375,7 +375,9 @@ export function SwarmServicesPanel({ services, onCreate, onUpdate, onRemove }: S
             description={services.unavailableReason ?? NO_SERVICES}
             // Where the reading itself states a reason, creating a service is
             // not what resolves it, so no action is offered for it.
-            action={services.unavailableReason ? null : <Button onClick={openCreate}>Create service…</Button>}
+            // Its label is the invitation, never the toolbar's own word (DEF-2,
+            // `swarm-services-panel.md`): one surface holds one control per name.
+            action={services.unavailableReason ? null : <Button onClick={openCreate}>Create the first service</Button>}
           />
         }
       />

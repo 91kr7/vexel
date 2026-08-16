@@ -381,7 +381,10 @@ export function PluginsScreen() {
                   // Where the daemon states a reason of its own, it is that the
                   // daemon exposes no managed plugin at all: installing one
                   // would not resolve it, so no action is offered for it.
-                  action={plugins.daemon.unavailableReason ? null : <Button onClick={openInstall}>Install plugin…</Button>}
+                  //
+                  // Its label is the invitation, never the toolbar's own word
+                  // (DEF-2, `plugins-screen.md`): one surface, one control per name.
+                  action={plugins.daemon.unavailableReason ? null : <Button onClick={openInstall}>Install the first plugin</Button>}
                 />
               ) : (
                 <EmptyState title="Reading the daemon…" description={null} action={null} />

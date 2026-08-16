@@ -200,7 +200,12 @@ export function SwarmSecretsPanel({ secrets, onCreate, onRemove }: SwarmSecretsP
             description={secrets.unavailableReason ?? NO_SECRETS}
             // Where the reading itself states a reason, creating a secret is not
             // what resolves it, so no action is offered for it.
-            action={secrets.unavailableReason ? null : <Button onClick={openCreate}>New secret…</Button>}
+            //
+            // Its label is the invitation, never the toolbar's own word: two
+            // controls on one surface whose names contain one another are one
+            // control to anything that finds a control by name — the defect
+            // `swarm-secrets-panel.md` records under DEF-2.
+            action={secrets.unavailableReason ? null : <Button onClick={openCreate}>Create the first secret</Button>}
           />
         }
       />

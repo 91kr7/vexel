@@ -303,7 +303,9 @@ export function SwarmConfigsStacksPanel({ configs, stacks, onCreateConfig, onRem
               description={configs.unavailableReason ?? NO_CONFIGS}
               // Where the reading itself states a reason, creating a config is
               // not what resolves it, so no action is offered for it.
-              action={configs.unavailableReason ? null : <Button onClick={openCreate}>New config…</Button>}
+              // Its label is the invitation, never the toolbar's own word (DEF-2,
+              // `swarm-configs-stacks-panel.md`): one surface, one control per name.
+              action={configs.unavailableReason ? null : <Button onClick={openCreate}>Create the first config</Button>}
             />
           }
         />

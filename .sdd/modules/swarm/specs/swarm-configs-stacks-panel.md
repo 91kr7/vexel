@@ -38,8 +38,11 @@ Shows:
 
 Actions:
 
-- "New config" (toolbar, and the configs empty state's own action) → a form asking for a name, the
-  config's content (entered in a multi-line editor) and optional labels.
+- "New config" (toolbar) and "Create the first config" (the configs empty state's own action) → the
+  same form, asking for a name, the config's content (entered in a multi-line editor) and optional
+  labels. **Two controls, two names, and neither contains the other**, for the reason recorded in
+  full in `swarm-secrets-panel.md` (DEF-2); identical labels are not the repair, they are the same
+  collision.
 - selecting a config's row → reveals its metadata; selecting it again, or `Escape`, closes it.
 - "Remove" on a config → asks the confirmation service; a service still using it keeps the daemon
   from removing it, and the confirmation says so.

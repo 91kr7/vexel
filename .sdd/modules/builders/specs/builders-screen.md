@@ -48,8 +48,9 @@ Shows:
   separately from the "still reading" state it used to share an element with.
 
 Actions:
-- "Create builder" (builders toolbar) → opens a form (name, driver, endpoint, platforms) and creates
-  the builder on submit.
+- "Create builder" (builders toolbar) and "Create the first builder" (the empty state's own action)
+  → the same form (name, driver, endpoint, platforms), creating the builder on submit. **Two
+  controls, two names, and neither contains the other** — see the rule below.
 - a builder's "Use" action → sets that builder as active. It is an action of the row's cluster, with
   a weight and the appearance of a control, never a bare word
   (`plan-ui-coherence-optimisation/REQ-27`); it is offered only on the builders that are not already
@@ -72,6 +73,15 @@ Does not:
 
 ## Rules and invariants
 
+- **The toolbar's action and the empty state's are two controls, and neither name contains the
+  other.** Both open the same flow, and while the list is empty both are on screen at once — the
+  toolbar because a page-level action lives there (plan-ui-coherence-optimisation/REQ-41), the empty
+  state's because an empty result states the way out of itself
+  (plan-docker_management_app/REQ-25). A name that is a prefix of another's is the same name to
+  anything that finds a control by name, so the empty state takes the invitation and never the
+  toolbar's own word with a suffix; identical labels are not the repair, they are the same collision.
+  Reasoned out once, with the deferred ellipsis question, in `swarm/specs/swarm-secrets-panel.md`
+  (DEF-2).
 - **A builder's name is rendered once per row**, whatever the driver reports as its endpoint.
 - **Every row of a list is the same height as every other row of that list**, at every viewport: no
   value's presence adds or removes a line, the two that come and go — the endpoint and the cache

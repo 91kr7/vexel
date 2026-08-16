@@ -368,7 +368,9 @@ export function BuildersScreen() {
                 <EmptyState
                   title="No builders"
                   description="buildx builds with an instance of a driver; creating one gives this daemon something to build with."
-                  action={<Button onClick={openCreate}>Create builder…</Button>}
+                  // Its label is the invitation, never the toolbar's own word
+                  // (DEF-2, `builders-screen.md`): one surface, one control per name.
+                  action={<Button onClick={openCreate}>Create the first builder</Button>}
                 />
               ) : (
                 <EmptyState title="Loading builders…" description={null} action={null} />
