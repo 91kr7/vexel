@@ -71,11 +71,21 @@ that happens before the programme is closed.
 This batch touches no file any test reads, so a failure in those runs belongs to batches 1–5 and is
 attributed to whichever one owns the surface that failed.
 
-**Two specs are exercised here for the first time**, and both are expected green rather than
-discovered: `client/e2e/exclusive/volumes-prune.spec.ts`, restated in batch 1 for the locator change
-REQ-40 forced but never run, the exclusive project being outside every batch's own set; and
-`client/e2e/library-layer-screens-unmoved.spec.ts`, red by design from batch 1 and settled by
-`b4/INT-6`. If either fails, it belongs to the batch that restated it.
+**These runs start from a tree with no known reds, and that is arranged rather than hoped for.**
+Batch 4 clears both of the failures that would otherwise land here — `b4/INT-6`, the spec this plan
+supersedes, and `b4/INT-7`, a compose fixture race that **predates the plan entirely** (it reproduces
+at `d17e1df`) — precisely so that batch 6 is never asked to absorb a red it did not cause. A failure
+in these runs therefore belongs to batches 1–5 and is attributed to whichever one owns the surface
+that failed.
+
+**Three specs are exercised here for the first time or for the first time since being repaired**, all
+expected green rather than discovered: `client/e2e/exclusive/volumes-prune.spec.ts`, restated in
+batch 1 for the locator change REQ-40 forced but never run, the exclusive project being outside every
+batch's own set; `client/e2e/library-layer-screens-unmoved.spec.ts`, red by design from batch 1 and
+settled by `b4/INT-6`; and `client/test/unit/programme-constraints.test.ts`, whose empty-premise
+assertion is re-pinned by `b5/INT-5` and whose whole point is to be **loud when it has nothing to
+check** — if it is green here, confirm from batch 5's report that it is walking a non-empty set of
+revisions.
 
 ## What is reported back
 
