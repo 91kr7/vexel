@@ -33,8 +33,11 @@ component insists on it rather than rendering whichever subset a caller happened
 - The material is the **nested wash** (`--color-wash-1`, a hairline, the medium radius), not
   `Surface`'s glass, and that is a decision rather than a shortcut: an empty state almost always sits
   *inside* glass already (a Card, a list region, a pane), and a second glass panel at that depth
-  reads as a box inside a box. It is the same treatment `FormSection` and the property bands take,
-  for the same reason.
+  reads as a box inside a box. The three values are stated here and are the whole of the material:
+  the wash fill, one hairline of the subtle border colour, and the medium radius. (A form's field
+  group once took the same treatment for the same reason; it now draws no surface at all — a dialog
+  of them was the boxes-inside-boxes this reasoning warns of — so the empty state's material is
+  described by its own values and by nothing else.)
 - The surface costs **2px of height** — the hairline — in the full-height presentation, in every
   container the product places it in, at 1440×1000, 1280×800 and 375×812.
 - **It costs no width where the container gives the box one, and 2px where the container does not.**

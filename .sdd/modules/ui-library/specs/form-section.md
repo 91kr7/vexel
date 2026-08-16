@@ -28,6 +28,12 @@ sectioned form.
 - **The heading is the product's one section header**, not a treatment this component declares:
   there is no rule anywhere carrying a form-section title type. A form does not add a fourth way of
   titling something.
+- **The heading is whatever element `SectionHeader` states, and this component claims no level of
+  its own.** In practice that flattens the dialog's outline: a group's heading is now a sibling of
+  the sheet's own title rather than a step below it, where the form's local heading used to be one.
+  The trade is deliberate — one heading treatment in the product, at the cost of a level of nesting a
+  screen reader can no longer infer — and it is the group's *name* that carries the grouping, not its
+  depth. A check about a form's headings therefore asserts what they say, never what level they are.
 - A group's heading and a field's label are two different things and read as two different things:
   the heading is the group treatment (small, uppercase, spaced), the label is the label treatment
   (small, quiet, its own case) — see `form-field.md`.
