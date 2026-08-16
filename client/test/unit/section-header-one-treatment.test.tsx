@@ -10,16 +10,35 @@
  * node, and it declares no `display` that would turn it into a block. The
  * measured half belongs to the screen that first carries one (REQ-54).
  *
- * The second half is `Card`: its title is this component rather than a
- * treatment of the card's, which is what leaves one way to title a section.
+ * The second half is `Card`, and it has moved on: the card's title was this
+ * component for the length of the migrations, and by their end no screen passed
+ * one, so the prop went too (`plan-ui-coherence-optimisation/REQ-81`). What is
+ * checked below is therefore the stronger claim — a card titles nothing, and no
+ * rule outside `section-header.css` declares a section heading's type.
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import { Card, SectionHeader } from '../../src/ui';
 
 afterEach(cleanup);
+
+/** Every source file of the library, which is the only place a treatment may be declared at all. */
+function libraryFiles(directory = join(process.cwd(), 'src', 'ui')): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name);
+    return entry.isDirectory() ? libraryFiles(path) : /\.(tsx?|css)$/.test(entry.name) ? [path] : [];
+  });
+}
+
+/** The library files naming a class, by their path relative to the client workspace. */
+function libraryFilesNaming(className: string): string[] {
+  return libraryFiles()
+    .filter((path) => readFileSync(path, 'utf8').includes(className))
+    .map((path) => path.slice(process.cwd().length + 1).split('\\').join('/'))
+    .sort();
+}
 
 function rules(area: string, file: string): Map<string, string> {
   const css = readFileSync(join(process.cwd(), 'src', 'ui', area, file), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
@@ -137,34 +156,51 @@ describe('SectionHeader — the sublabel that moves no baseline (REQ-26)', () =>
   });
 });
 
-describe('Card — the title is the header primitive (REQ-26)', () => {
-  // card.md / section-header.md — "`Card` renders its title through this component; there is no
-  // second element and no second rule carrying a card-title treatment."
-  it('renders its title through SectionHeader, in the eyebrow treatment', () => {
-    render(<Card title="Identity and license">body</Card>);
-
-    const header = document.querySelector('.ui-section-header') as HTMLElement;
-    expect(header).not.toBeNull();
-    expect(header.className).toContain('ui-section-header--eyebrow');
-    expect(title().textContent).toBe('Identity and license');
-  });
-
-  // section-header.md — "The step between the heading and the card's content stays the card's,
-  // being the card's spacing rather than the header's": the card's own rule carries no type at all
-  it('declares no type treatment of its own for a card title', () => {
-    const body = ruleBody('glass', 'card.css', '.ui-card__title');
-
-    for (const property of ['font-size', 'font-weight', 'letter-spacing', 'text-transform', 'color']) {
-      expect(declaration(body, property), `.ui-card__title still declares ${property}`).toBeUndefined();
-    }
-    expect(declaration(body, 'margin')).toBeDefined();
-  });
-
-  // section-header.md — a card with no title states no header at all
-  it('renders no header when the card has no title', () => {
+/**
+ * The successor of `Card — the title is the header primitive`, whose subject —
+ * a `title` prop rendered through this component — `plan-ui-coherence-optimisation/REQ-81`
+ * retires. The block is rewritten rather than deleted: a retirement with no
+ * check is how a prop comes back, and what has to hold now is the stronger
+ * claim, that the card titles **nothing**.
+ */
+describe('Card — a card titles nothing (REQ-26, REQ-81)', () => {
+  // card.md — "There is no `title` prop, no title element and no card stylesheet: a card that could
+  // title itself was a second way of asking the one question `SectionHeader` answers."
+  it('renders no header of any kind, only its own content', () => {
     render(<Card>body</Card>);
 
     expect(document.querySelector('.ui-section-header')).toBeNull();
+    expect(document.querySelector('.ui-card__title')).toBeNull();
     expect(screen.getByText('body')).toBeInTheDocument();
+  });
+
+  // card.md — the prop is retired, not merely unused: a component still accepting one would title
+  // itself again the moment a screen passed one, which is the second answer this closes.
+  it('draws nothing at all from a title handed to it', () => {
+    // Untyped on purpose: the compiler already refuses the prop, and what is under test here is
+    // what the component *does* with one — a call site written in JavaScript, or a spread of a
+    // wider object, reaches it without the compiler ever being asked.
+    const withRetiredProp = { title: 'Identity and license' } as Record<string, unknown>;
+    render(<Card {...withRetiredProp}>body</Card>);
+
+    expect(screen.queryByText('Identity and license')).not.toBeInTheDocument();
+    expect(document.querySelector('.ui-section-header')).toBeNull();
+    expect(document.querySelector('.ui-card__title')).toBeNull();
+  });
+
+  // card.md — "no card stylesheet", section-header.md — "there is no element and no rule anywhere
+  // else declaring a heading's type". The retired treatments, by name, across the whole library.
+  it('leaves no stylesheet and no component declaring a card or field-group heading', () => {
+    expect(existsSync(join(process.cwd(), 'src', 'ui', 'glass', 'card.css')), 'the card stylesheet is still there').toBe(
+      false,
+    );
+
+    const retired = ['.ui-card__title', '.ui-form-section__title', '.ui-form-section__description'];
+    for (const selector of retired) {
+      expect(
+        libraryFilesNaming(selector.slice(1)),
+        `${selector} — a retired heading treatment is still declared or emitted`,
+      ).toEqual([]);
+    }
   });
 });

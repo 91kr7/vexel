@@ -148,9 +148,17 @@ async function sheetContentLength(page: Page): Promise<number> {
     'the sheet is drawing no title',
   ).toBeVisible({ timeout: CONTENT_TIMEOUT });
 
+  // The **level is deliberately not stated**, and it used to be `3`.
+  // `plan-ui-coherence-optimisation/REQ-78` made a field group's heading the product's one section
+  // header (`form-section.md`, "the heading is the product's one section header, not a treatment
+  // this component declares"), and that primitive paints an `h2` — so the ten group headings inside
+  // this sheet became siblings of the sheet's own title rather than children of it. Nothing in
+  // `form-section.md`, `section-header.md` or `form-sheet.md` states a heading level, so this
+  // assertion holds what the contracts actually state: the sheet draws a heading naming each of its
+  // groups. The level change itself is reported to the human rather than pinned here.
   for (const title of SHEET_SECTIONS) {
     await expect(
-      sheet.getByRole('heading', { level: 3, name: title, exact: true }),
+      sheet.getByRole('heading', { name: title, exact: true }),
       `the sheet is not drawing its "${title}" section`,
     ).toBeVisible({ timeout: CONTENT_TIMEOUT });
   }
@@ -390,7 +398,18 @@ test('creates the same privileged container from an image row on the images scre
     const imageRow = page.locator('.ui-data-table__row', { hasText: TINY_IMAGE }).first();
     await expect(imageRow).toBeVisible({ timeout: 15_000 });
 
-    await imageRow.getByRole('button', { name: /^More actions for / }).click();
+    // The row's overflow menu is opened the way the rest of the suite opens it — a click, and the
+    // menu asserted open, retried. Measured on this machine, on **both** this build and the one
+    // before it (batch 18): the first click leaves the menu closed and the second opens it, every
+    // time. That is why `copy-affordance-absence`, `copy-affordance-geometry`, `dialog-sizing` and
+    // `filesystem-browser-layout` all wrap this same gesture in `toPass`; this site and
+    // `container-create-run.spec.ts`'s were the two that did not, and clicking once here made the
+    // whole test fail on something that has nothing to do with the privileged path. The behaviour
+    // itself is reported to the human rather than accommodated silently.
+    await expect(async () => {
+      await imageRow.getByRole('button', { name: /^More actions for / }).click();
+      await expect(page.getByRole('menu')).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await page.getByRole('menuitem', { name: 'Run…', exact: true }).click();
 
     // The form opens from another screen with the row's reference already in it.

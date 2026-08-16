@@ -51,16 +51,32 @@ function git(...args: string[]): string {
 }
 
 /**
+ * What a caller may name instead of the defaults.
+ *
+ * A "delivered build" is whatever revision the check comparing against it is
+ * about, and the plan's later batches are each measured against **their own**
+ * predecessor rather than against batch 4's: a batch's claim is that it changed
+ * something, and the build that has to lack the change is the one immediately
+ * before it. The port travels with it so that two comparisons can be run in one
+ * pass without contending for a listener.
+ */
+export interface DeliveredBuildOptions {
+  revision?: string;
+  port?: number;
+}
+
+/**
  * Builds the delivered client and serves it, returning once it answers on
  * `/health`.
  */
-export async function startDeliveredBuild(): Promise<DeliveredBuild> {
+export async function startDeliveredBuild(options: DeliveredBuildOptions = {}): Promise<DeliveredBuild> {
   const serverEntry = join(repositoryRoot, 'server', 'dist', 'index.js');
   if (!existsSync(serverEntry)) {
     throw new Error(`no built server at ${serverEntry}: the suite's web server builds it, so this ran too early`);
   }
 
-  const revision = git('rev-parse', DELIVERED_REF);
+  const port = options.port ?? DELIVERED_PORT;
+  const revision = git('rev-parse', options.revision ?? DELIVERED_REF);
   // The one thing that would invalidate serving both interfaces from the same
   // process: a server that is not the same server.
   const serverDiff = git('diff', '--name-only', revision, 'HEAD', '--', 'server');
@@ -91,14 +107,14 @@ export async function startDeliveredBuild(): Promise<DeliveredBuild> {
     cwd: repositoryRoot,
     env: {
       ...process.env,
-      PORT: String(DELIVERED_PORT),
+      PORT: String(port),
       VEXEL_CLIENT_DIST: join(worktree, 'client', 'dist'),
       VEXEL_DATA_DIR: dataDir,
     },
     stdio: 'ignore',
   });
 
-  const origin = `http://localhost:${DELIVERED_PORT}`;
+  const origin = `http://localhost:${port}`;
   const stop = async () => {
     server.kill('SIGTERM');
     await new Promise((resolve) => {

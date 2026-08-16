@@ -57,19 +57,36 @@ describe('EmptyState — the surface it always renders on (REQ-25)', () => {
   });
 
   // empty-state.md — the material is the nested wash (`--color-wash-1`, a hairline, the medium
-  // radius), "the same treatment `FormSection` and the property bands take", and deliberately not
-  // `Surface`'s glass
-  it('carries the nested wash, a hairline and the medium radius, exactly as FormSection does', () => {
+  // radius), and deliberately not `Surface`'s glass.
+  //
+  // **The comparison this test used to make is gone, and deliberately.** It read the material off
+  // `.ui-form-section` and asserted the two were the same rule, on the strength of the spec's "the
+  // same treatment `FormSection` and the property bands take". `plan-ui-coherence-optimisation/REQ-78`
+  // has since taken that treatment off the field group entirely — `form-section.md`: "it draws no
+  // border, no background, no radius and no inset of its own" — so the cross-reference now compares
+  // this component against nothing at all. The material is asserted by its own values instead, which
+  // is what the spec states about *this* component, and the property band is the neighbour left to
+  // compare it with.
+  it('carries the nested wash, a hairline and the medium radius', () => {
     const emptyState = ruleBody('feedback', 'feedback.css', '.ui-empty-state');
-    const formSection = ruleBody('controls', 'controls.css', '.ui-form-section');
 
     for (const property of ['background', 'border', 'border-radius']) {
       expect(declaration(emptyState, property), `.ui-empty-state declares no ${property}`).toBeDefined();
-      expect(declaration(emptyState, property)).toBe(declaration(formSection, property));
     }
     expect(declaration(emptyState, 'background')).toBe('var(--color-wash-1)');
     expect(declaration(emptyState, 'border-radius')).toBe('var(--radius-md)');
     expect(declaration(emptyState, 'border')).toMatch(/var\(--border-width-hairline\)/);
+  });
+
+  // form-section.md — and the other half of the same sentence: the field group the material used to
+  // be shared with states none of it, so a dialog of groups is one form rather than a stack of
+  // cards. Asserted here because this is the file that carried the old cross-reference.
+  it('shares that material with no field group any more', () => {
+    const formSection = ruleBody('controls', 'controls.css', '.ui-form-section');
+
+    for (const property of ['background', 'border', 'border-radius', 'padding']) {
+      expect(declaration(formSection, property), `.ui-form-section still declares ${property}`).toBeUndefined();
+    }
   });
 
   // empty-state.md — the surface costs no width and two pixels of height: `box-sizing: border-box`

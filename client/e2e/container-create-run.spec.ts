@@ -263,8 +263,14 @@ test('running an image from its row opens the same form pre-filled with that ref
     await expect(row).toBeVisible({ timeout: 15_000 });
 
     // The row carries one control now: the create-and-run form is opened from its `Run…` entry
-    // (images/specs/images-screen.md).
-    await row.getByRole('button', { name: /^More actions for / }).click();
+    // (images/specs/images-screen.md). The menu is opened with the retry the rest of the suite uses
+    // for this gesture — measured on this machine, on this build and on the one before it, the
+    // first click leaves the menu closed and the second opens it — so that a test about the create
+    // form fails on the create form.
+    await expect(async () => {
+      await row.getByRole('button', { name: /^More actions for / }).click();
+      await expect(page.getByRole('menu')).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await page.getByRole('menuitem', { name: 'Run…', exact: true }).click();
 
     await expect(imageField(page)).toHaveValue('alpine:3.20');

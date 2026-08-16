@@ -598,33 +598,27 @@ for (const viewport of F4_VIEWPORTS) {
     expect(colliding, `${at}: ${colliding} row(s) drawn by the product still collide (REQ-18)`).toBe(0);
     expect(collidingStressed, `${at}: ${collidingStressed} row(s) collide once they carry a 64-character identifier (REQ-19)`).toBe(0);
 
-    // The other quantity, kept apart from the verdict on purpose. At the
-    // delivered desktop widths a trailing group is never wider than the card it
-    // sits in, and that is asserted. At 375×812 it frequently was — the screens
-    // that hand `Grid` a fixed template that never collapses leave a card at
-    // ~90px — and no change inside the library could repair it, so it is
-    // reported here rather than asserted: batch 6 took volumes and networks out
-    // of that list, batch 9 the contexts screen (REQ-42: the `Grid` went with
-    // the daemon card, one child not being a pair), batch 10 the plugins screen
-    // (REQ-46: the pair of 157.5px cards deleted rather than collapsed) and
-    // batch 14 the last of them, System & prune (REQ-75: the fixed 1 : 1.2
-    // template became the library's pair arrangement, which collapses).
+    // **Promoted to an assertion at every viewport by batch 19**, the plan's
+    // closing-invariants batch. It stood as a report for the length of the
+    // programme, and for a stated reason: at 375×812 a trailing group was
+    // frequently wider than the card holding it — the screens that handed `Grid`
+    // a fixed template that never collapses left a card at ~90px — and no change
+    // inside the library could repair a call site's own template. The four
+    // remaining ones went with their migrations: batch 6 took volumes and
+    // networks out of that list, batch 9 the contexts screen (REQ-42: the `Grid`
+    // went with the daemon card, one child not being a pair), batch 10 the
+    // plugins screen (REQ-46: the pair of 157.5px cards deleted rather than
+    // collapsed) and batch 14 the last of them, System & prune (REQ-75: the fixed
+    // 1 : 1.2 template became the library's pair arrangement, which collapses).
     //
-    // **No call site re-answers the layout question any more, so the figure below
-    // is ready to become an assertion — and that promotion belongs to batch 19**,
-    // the plan's closing-invariants batch (`REQ-81`, `REQ-92`), which walks all
-    // thirteen screens at all three viewports for reasons of its own. Promoting it
-    // here would buy the same sweep twice.
-    if (viewport.width >= 1280) {
-      expect(
-        narrowCards,
-        `${at}: ${narrowCards} row(s) sit in a card narrower than the trailing group at its natural width, so a value is clipped away by the card`,
-      ).toBe(0);
-    } else {
-      console.log(
-        `[card width] ${at}: ${narrowCards} row(s) sit in a card narrower than their trailing group — the call sites' fixed Grid templates, not the truncation contract (VolumesNetworksScreen's went with the F6 migration, ContextsScreen's with the F9 one, PluginsScreen's with the F10 one and SystemScreen's with the F17 one)`,
-      );
-    }
+    // With no call site re-answering the layout question, the figure is a
+    // property of the product again, so it is asserted at the phone breakpoint
+    // too rather than reported there (`plan-ui-coherence-optimisation/REQ-81`).
+    // A screen that fails it is a defect, not a reason to go back to reporting.
+    expect(
+      narrowCards,
+      `${at}: ${narrowCards} row(s) sit in a card narrower than the trailing group at its natural width, so a value is clipped away by the card`,
+    ).toBe(0);
   });
 }
 
