@@ -14,9 +14,11 @@ tokens, above the cluster's inventories — nodes, services & tasks, secrets, co
 
 Description:
 
-- one column of full-width cards, one inventory per card, and **nothing laid out beside anything
-  else**. Above them, on a daemon that is in a swarm, the state bar. Every card is fed from the same
-  reading of the cluster, so they never show two different moments of it.
+- one column of full-width sections, one inventory per section, and **nothing laid out beside
+  anything else**. Each section is its own section header (and toolbar, where it has one) over one
+  unpadded card holding that inventory's list and nothing else. Above them, on a daemon that is in a
+  swarm, the state bar. Every inventory is fed from the same reading of the cluster, so they never
+  show two different moments of it.
 
 Shows:
 
@@ -37,7 +39,7 @@ Shows:
   errored state.
 - a failed read of the cluster (an unreachable daemon) as an error banner with a retry, above
   everything.
-- on a manager, the five inventories in this order, each in a card of its own: Nodes, Services &
+- on a manager, the five inventories in this order, each in a section of its own: Nodes, Services &
   tasks, Secrets, Configs, Stacks.
 
 Actions:
@@ -103,8 +105,8 @@ Navigation:
 - **The state bar is not drawn outside a swarm.** It exists to qualify a state with facts; a daemon
   that is not in a swarm has none to qualify, and drawing it there is what made the condition's fifth
   and sixth statements. Nothing else about the bar changes.
-- **Each list's page-level action sits in that list's own `ScreenToolbar`**, under its card's header
-  rather than in it: `Create service`, `New secret`, `New config`. Three toolbars on one screen, for
+- **Each list's page-level action sits in that list's own `ScreenToolbar`**, under that section's
+  header rather than in it: `Create service`, `New secret`, `New config`. Three toolbars on one screen, for
   the reason batch 6 recorded when volumes & networks kept two — each action opens a dialog owned by
   its own panel, and lifting the three through the screen is a rewrite this migration does not need.
   Nodes and Stacks have no page-level action: a node is not created from here and a stack is never

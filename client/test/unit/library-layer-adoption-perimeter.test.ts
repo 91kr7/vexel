@@ -85,18 +85,15 @@ describe('the library layer is consumed only by the screens migrated onto it (RE
    * commit — which is the whole point of pinning it rather than bounding it.
    *
    * - batch 1 — volumes, networks and the registries screen's two lists (`REQ-14`, `REQ-15`)
+   * - batch 2 — the plain lists: builders & build cache, contexts, both plugin lists, and swarm's
+   *   nodes, services (with the nested tasks list) and secrets (`REQ-16`, `REQ-17`, `REQ-18`,
+   *   `REQ-20` in part — swarm's configs & stacks carries row content and is batch 3's)
    */
   it('has the retired presentation asked for by the lists not yet converted and nowhere else', () => {
     expect(featureCallSites(/variant=(?:"comfortable"|\{'comfortable'\}|\{"comfortable"\})/)).toEqual([
-      'src/builders/BuildersScreen.tsx',
       'src/compose/ComposeScreen.tsx',
-      'src/contexts/ContextsScreen.tsx',
       'src/images/LayerEfficiencyView.tsx',
-      'src/plugins/PluginsScreen.tsx',
       'src/swarm/SwarmConfigsStacksPanel.tsx',
-      'src/swarm/SwarmNodesPanel.tsx',
-      'src/swarm/SwarmSecretsPanel.tsx',
-      'src/swarm/SwarmServicesPanel.tsx',
     ]);
   });
 

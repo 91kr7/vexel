@@ -180,35 +180,39 @@ export function SwarmSecretsPanel({ secrets, onCreate, onRemove }: SwarmSecretsP
   }
 
   return (
-    <Card>
+    // The composition containers and images ship: the header and the toolbar
+    // above, and the list alone in a card of its own that it fills edge to edge.
+    // The list's one enclosing surface is that card, so the panel has none.
+    <Stack gap="var(--space-4)">
       <SectionHeader title="Secrets" description="In name order; a value is never read back" />
-      {/* The page-level action, in the toolbar under the header rather than in
-          the card's header. */}
+      {/* The page-level action, in the toolbar under the section header rather
+          than in the header itself. */}
       <ScreenToolbar primaryAction={{ label: 'New secret', onClick: openCreate }} />
-      <DataTable
-        variant="comfortable"
-        columns={columns}
-        rows={secrets.items}
-        rowKey={(secret) => secret.id}
-        selectedRowKey={openId}
-        onRowSelect={(secret) => setOpenId((current) => (current === secret.id ? undefined : secret.id))}
-        expandedRowKey={openId}
-        renderExpanded={secretDetail}
-        emptyState={
-          <EmptyState
-            title="No secrets"
-            description={secrets.unavailableReason ?? NO_SECRETS}
-            // Where the reading itself states a reason, creating a secret is not
-            // what resolves it, so no action is offered for it.
-            //
-            // Its label is the invitation, never the toolbar's own word: two
-            // controls on one surface whose names contain one another are one
-            // control to anything that finds a control by name — the defect
-            // `swarm-secrets-panel.md` records under DEF-2.
-            action={secrets.unavailableReason ? null : <Button onClick={openCreate}>Create the first secret</Button>}
-          />
-        }
-      />
+      <Card padding="none">
+        <DataTable
+          columns={columns}
+          rows={secrets.items}
+          rowKey={(secret) => secret.id}
+          selectedRowKey={openId}
+          onRowSelect={(secret) => setOpenId((current) => (current === secret.id ? undefined : secret.id))}
+          expandedRowKey={openId}
+          renderExpanded={secretDetail}
+          emptyState={
+            <EmptyState
+              title="No secrets"
+              description={secrets.unavailableReason ?? NO_SECRETS}
+              // Where the reading itself states a reason, creating a secret is not
+              // what resolves it, so no action is offered for it.
+              //
+              // Its label is the invitation, never the toolbar's own word: two
+              // controls on one surface whose names contain one another are one
+              // control to anything that finds a control by name — the defect
+              // `swarm-secrets-panel.md` records under DEF-2.
+              action={secrets.unavailableReason ? null : <Button onClick={openCreate}>Create the first secret</Button>}
+            />
+          }
+        />
+      </Card>
 
       <FormDialog
         open={createOpen}
@@ -232,6 +236,6 @@ export function SwarmSecretsPanel({ secrets, onCreate, onRemove }: SwarmSecretsP
           </FormField>
         </Stack>
       </FormDialog>
-    </Card>
+    </Stack>
   );
 }

@@ -45,8 +45,12 @@ and spec together (`plan-ui-coherence-optimisation/REQ-82`).
       action and belongs where actions live.
   - `rowHeight?: number` — fixed row height in px (default `56`); every row is this tall (dense
     rows).
-  - `maxHeight?: string` — caps the table body height; when set, the body scrolls and only the rows
-    in and around the visible window are mounted (virtualised scrolling). Unset renders every row.
+  - `maxHeight?: string` — caps the height of the **list**, the column header and the rows together;
+    when set, the list scrolls and only the rows in and around the visible window are mounted
+    (virtualised scrolling). Unset renders every row. **Corrected 2026-08-16**: it bounded the rows
+    alone, the header standing above the cap, so a list stated at `60vh` was 60vh plus a header
+    tall. The header is now inside the box that scrolls — see "A row and the header share one width"
+    below, which is why — and the cap covers both.
   - `selectedRowKey?: string`, `onRowSelect?(row)` — clicking a row calls `onRowSelect`; the row
     whose key matches `selectedRowKey` renders in its selected state.
   - `emptyState?: ReactNode` — shown instead of the header/body rows when `rows` is empty.
@@ -106,12 +110,30 @@ Description:
   existence. Scaling a flexible column's minimum by its own flex factor is what makes a compressed
   table keep the proportions it was declared with rather than equalising every column.
 - **A row and the header share one width and one set of resolved tracks**, so a column and the label
-  naming it are aligned at every pan offset — measured as identical `x` for every header cell and
-  its row cell, on **every** row, at `scrollLeft` 0 and at the end of the pan. Both grow to the width
-  their columns need; the body's own scroll region grows with them and therefore never scrolls
-  horizontally itself (it keeps `maxHeight`'s vertical scrolling, unchanged).
-- **That is a guarantee, and it rests on two things, because the table is not one grid**: the header
-  is a grid and every row is a grid of its own, each handed the same template string.
+  naming it are aligned at every pan offset **and at every scroll position** — measured as identical
+  `x` for every header cell and its row cell, on **every** row, at `scrollLeft` 0 and at the end of
+  the pan, on a list that scrolls vertically and on one that does not. Both grow to the width their
+  columns need; the list's scroll region grows with them and therefore never scrolls horizontally
+  itself (it keeps `maxHeight`'s vertical scrolling, unchanged).
+- **That is a guarantee, and it rests on three things, because the table is not one grid**: the
+  header is a grid and every row is a grid of its own, each handed the same template string.
+  - **The header and the rows are inside one scrolling box**, the header sticky at its top. A
+    vertical scrollbar takes real layout space out of its scroll container's content box, so a
+    header drawn as a *sibling* of that container resolves its tracks in a wider box than the rows
+    do, and the flexible tracks redistribute the difference across every column after the first.
+    Measured at 1440×1000 before this: header box 1118px against body box 1107px, and header-to-body
+    left edges `PLUGIN 0 · VERSION 4.53 · AVAILABILITY 4.53 · WHY UNAVAILABLE 4.53`; on the images
+    list, `REPOSITORY:TAG 0 · DIGEST 4.25 · PLATFORM 6.03 · DISK USAGE 7.80 · CREATED 9.22 ·
+    ACTIONS 10.98`. One code path, so the lists every other list is held equal to carried it too,
+    and looked clean only where the operator had too few objects to make a list scroll. Inside one
+    box the scrollbar is outside both grids and both read 1107px. **Padding the header by the
+    scrollbar's width is refused**: a compensating inset is the retired presentation's own signature.
+    `scrollbar-gutter: stable` cannot do it either — it applies to scroll containers, and a sibling
+    header is not one.
+  - The sticky header is **opaque only while the list is scrolled away from its top**, carrying a
+    state class for it: its own wash is 4% white and hides nothing, and a list that never scrolls is
+    drawn exactly as before. It paints above the rows *and* above the expansion, which is positioned
+    and comes later in the DOM.
   - **Every admissible `width` resolves independently of content**, which is why the intrinsic ones
     are refused above. An intrinsic track resolves against its own container's cell content, so it
     takes one value in the header and another in every row whose content differs — and the free
@@ -229,4 +251,5 @@ Description:
 - plan-ui-coherence-optimisation/REQ-24
 - plan-ui-coherence-optimisation/REQ-28
 - plan-ui-coherence-optimisation/REQ-30
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-5
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-6

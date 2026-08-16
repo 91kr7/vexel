@@ -13,8 +13,11 @@ daemon one.
 ## Contract
 
 Description:
-- two object lists, one under the other, each at the full width of the content column: "CLI plugins"
-  first, "Daemon plugins" below it with the screen's only page-level action in its toolbar.
+- two object lists, one under the other, each at the full width of the content column and each
+  composed as containers and images are: the section header (and, for the daemon list, the screen's
+  only page-level action in the toolbar under it) **above**, and then the list (`DataTable`) alone in
+  an **unpadded card it fills edge to edge**. "CLI plugins" first, "Daemon plugins" below it. Neither
+  header is on a surface: each list's only enclosing surface is its own card.
 - the CLI list scrolls within the screen once it is taller than 60% of the viewport; the daemon list
   is as tall as its rows.
 
@@ -83,9 +86,20 @@ Actions:
   installation.
 - The CLI list is read-only — those plugins are files the operator installs themselves — and it
   keeps answering while the daemon is unreachable. Its empty state therefore offers no action.
+- **Both lists are the containers list**, not merely table-like: one header row over a continuous
+  run of rows, a single hairline between each pair, no gap between two rows and no surface, corner
+  or outline of any row's own — and the **same row**, of the reference's own fixed height and
+  vertical alignment, stating no row modifier of its own. There is no per-screen choice of
+  presentation to be made here.
+- **`WHY UNAVAILABLE` and the values under it share one left edge**, as every other column and its
+  header do: the header row and the body rows are laid on the same tracks, inside one surface, so
+  the alignment holds by construction rather than by a compensating inset. This is the case the
+  reference analysis measured on the delivered build; it is repaired by the rows ceasing to be
+  cards, and **not** by moving, renaming or reordering a column.
 - A value whose presence depends on the plugin's state is a column, never a second line of a row: a
   row is one line tall whether or not the installation refuses to run the plugin and whether or not
-  the daemon describes it.
+  the daemon describes it — and one line of the reference's fixed-height row, which no cell on
+  either list asks for more than.
 - The state is stated once per row as a badge and changed by the switch beside it: what states is
   drawn as a statement, what changes is drawn as a control.
 - At most one inspection is open, in this list and in the interface, the detail panel holding that
@@ -106,7 +120,7 @@ Actions:
   the longer, read-only inventory above the list that carries every action on this screen pushes
   that list down by its own height: 1038px of CLI rows on a stock installation. The cap is the
   height containers and images already use for a long list, and it recovers 438px of that — the
-  daemon card's heading lands at y=925 of a 1000px viewport at 1440×1000, and still below the fold
+  daemon list's heading lands at y=925 of a 1000px viewport at 1440×1000, and still below the fold
   at 1280×800 (y=805) and 375×812 (y=924).
 
   **The order was examined and kept, and the deciding argument is not the order.** The install lives
@@ -129,9 +143,9 @@ Actions:
 
 ## Dependencies
 
-- ui-library: Card, SectionHeader, ScreenToolbar, DataTable (comfortable variant) with TwoLineCell,
-  MetaCell and BadgeListCell, DetailPanel, CodeViewer, Button, Toggle, ActionButtonGroup, FormDialog,
-  FormField, TextField, ErrorBanner, EmptyState, Stack, useToast
+- ui-library: Card (unpadded, holding the list alone), SectionHeader, ScreenToolbar, DataTable with
+  TwoLineCell, MetaCell and BadgeListCell, DetailPanel, CodeViewer, Button, Toggle,
+  ActionButtonGroup, FormDialog, FormField, TextField, ErrorBanner, EmptyState, Stack, useToast
 - plugins: usePlugins
 - app-shell: ConfirmationService (`confirm`, `confirmPrivileges`), ErrorReportingService,
   ProgressService
@@ -144,3 +158,6 @@ Actions:
 - plan-ui-coherence-optimisation/REQ-46
 - plan-ui-coherence-optimisation/REQ-47
 - plan-ui-coherence-optimisation/REQ-48
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-18
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-39
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40

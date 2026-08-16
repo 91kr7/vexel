@@ -351,15 +351,19 @@ export function BuildersScreen() {
 
   return (
     <Stack gap="var(--space-5)">
-      <Card>
+      {/* The composition containers and images ship: the header and the toolbar
+          above, and the list alone in a card of its own that it fills edge to
+          edge. Each list's one enclosing surface is that card, so the section
+          around it has none. */}
+      <Stack gap="var(--space-4)">
         <SectionHeader title="buildx builders" />
-        {/* The screen's page-level action, in the toolbar under the header
-            rather than in the card's header (plan-ui-coherence-optimisation/REQ-41). */}
+        {/* The screen's page-level action, in the toolbar under the section
+            header rather than in the header itself
+            (plan-ui-coherence-optimisation/REQ-41). */}
         <ScreenToolbar primaryAction={{ label: 'Create builder', onClick: openCreate }} />
-        <Stack gap="var(--space-3)">
-          {builders.error ? <ErrorBanner title="Could not load builders" detail={builders.error} onRetry={builders.refresh} /> : null}
+        {builders.error ? <ErrorBanner title="Could not load builders" detail={builders.error} onRetry={builders.refresh} /> : null}
+        <Card padding="none">
           <DataTable
-            variant="comfortable"
             columns={builderColumns}
             rows={builders.builders}
             rowKey={(builder) => builder.name}
@@ -377,16 +381,15 @@ export function BuildersScreen() {
               )
             }
           />
-        </Stack>
-      </Card>
+        </Card>
+      </Stack>
 
-      <Card>
+      <Stack gap="var(--space-4)">
         <SectionHeader title="Build cache" />
         <ScreenToolbar destructiveAction={{ label: 'Prune', onClick: handlePrune, disabled: cache.records.length === 0 }} />
-        <Stack gap="var(--space-3)">
-          {cache.error ? <ErrorBanner title="Could not load the build cache" detail={cache.error} onRetry={cache.refresh} /> : null}
+        {cache.error ? <ErrorBanner title="Could not load the build cache" detail={cache.error} onRetry={cache.refresh} /> : null}
+        <Card padding="none">
           <DataTable
-            variant="comfortable"
             columns={cacheColumns}
             rows={cache.records}
             rowKey={(record) => record.id}
@@ -406,8 +409,8 @@ export function BuildersScreen() {
               )
             }
           />
-        </Stack>
-      </Card>
+        </Card>
+      </Stack>
 
       <FormDialog
         open={createOpen}

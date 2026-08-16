@@ -9,10 +9,11 @@
   overflow-x: auto;
 }
 
-/* The body's scroll region is sized to the width its rows ask for, so it never
+/* The list's scroll region is sized to the width its rows ask for, so it never
    scrolls horizontally itself — it hands that overflow up to the table above,
-   where the header can follow it. Vertical scrolling (`maxHeight`) is untouched
-   and stays here. */
+   where the header follows it because the header is inside this same box.
+   Vertical scrolling (`maxHeight`) is this element's, and it now caps the header
+   and the rows together. */
 .ui-data-table > .ui-scroll-area {
   min-width: min-content;
 }
@@ -29,13 +30,61 @@
   outline-offset: 2px;
 }
 
+/* The header is a **child of the box that scrolls**, sticky at its top, and
+   that is structural rather than cosmetic.
+
+   A vertical scrollbar takes real layout space out of its scroll container's
+   content box (`--scrollbar-width`, and the platform's own `thin` width where
+   that is wider). Drawn as a *sibling* of that container, the header therefore
+   laid its tracks in a box wider than the rows' by exactly that width, the
+   flexible tracks redistributed the difference, and every column after the first
+   parted company with its label — silently, and only once a list was long enough
+   to scroll. Measured before this rule, at 1440x1000 on the CLI plugins list:
+   header box 1118px against body box 1107px, header-to-body left edges
+   `PLUGIN 0 · VERSION 4.53 · AVAILABILITY 4.53 · WHY UNAVAILABLE 4.53`; and on
+   the images list at 1440x300, `REPOSITORY:TAG 0 · DIGEST 4.26 · PLATFORM 6.03 ·
+   DISK USAGE 7.80 · CREATED 9.22 · ACTIONS 10.99`. One code path, so containers
+   and images carried it too and looked clean only on a machine with few enough
+   objects not to scroll.
+
+   Inside the same box, the scrollbar is outside both grids and the alignment
+   holds by construction. **Padding the header by the scrollbar's width is the
+   other repair and is refused**: a compensating inset is the retired
+   presentation's own signature, which the classic-table plan deletes rather than
+   generalises (`.../classic-table/REQ-5`). `scrollbar-gutter: stable` cannot do
+   it either — it applies to scroll containers, and a sibling header is not one.
+
+   `z-index` is load-bearing: the expansion below is positioned and comes later
+   in the DOM, so with `z-index: auto` a tall expanded panel would paint over the
+   header it is scrolling under. */
 .ui-data-table__header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   display: grid;
   min-width: min-content;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-4);
   border-bottom: var(--border-width-hairline) solid var(--color-border-subtle);
   background: var(--color-wash-1);
+}
+
+/* Opaque only while there is something behind it to hide. The header's own wash
+   is 4% white — nothing whatever in front of a row's text — so a sticky header
+   needs a floor under it the moment rows begin passing beneath. Carried by a
+   state class rather than declared always, so that every list that does not
+   scroll (which is all of them but the few stating `maxHeight`) is drawn exactly
+   as it was: the appearance changes only while a list is scrolled away from its
+   own top.
+
+   The base is the library's existing answer to "opaque, same hue, no blur to do
+   the hiding" — the same colour as `--color-surface-raised` composited over
+   `--color-void` — with the header's wash kept above it as an image layer, so
+   the band keeps the colour it had. No blur is involved and none is admissible:
+   this is main view. */
+.ui-data-table__header--stuck {
+  background-color: var(--color-surface-overlay-opaque);
+  background-image: linear-gradient(var(--color-wash-1), var(--color-wash-1));
 }
 
 .ui-data-table__header-cell {
@@ -57,9 +106,12 @@
 /* `min-content` here is the sum of the tracks' own minimums (plus the gaps and
    the padding): the row grows to the width its columns need instead of dividing
    a width that is not enough between them, which is what the table above then
-   scrolls. The header carries the same rule and the same tracks, so the two
-   resolve to identical column widths and stay aligned however far it is
-   scrolled.
+   scrolls. The header carries the same rule and the same tracks **inside the
+   same scrolling box**, so the two resolve to identical column widths and stay
+   aligned however far it is scrolled, on either axis. The last four words were
+   missing and were not a detail: the same tracks in two boxes of different
+   widths are not the same widths, which is exactly what a vertical scrollbar
+   used to make of them (see `.ui-data-table__header`).
 
    The row no longer clips on the inline axis: clipping there hid the overflow
    from the scroll region instead of letting it be scrolled — `scrollWidth 432 /

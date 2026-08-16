@@ -89,7 +89,16 @@ export interface DataTableProps<T> {
   rowKey: (row: T) => string;
   /** Fixed row height in px; every row is this tall (dense rows). Default 56. */
   rowHeight?: number;
-  /** Caps the table body height and enables virtualised scrolling; unset renders every row. */
+  /**
+   * Caps the height of the list — the column header and the rows together — and
+   * enables virtualised scrolling; unset renders every row.
+   *
+   * **The header is inside the cap because it is inside the box that scrolls**,
+   * which is what keeps a column's label over its column: see the stylesheet's
+   * note on `.ui-data-table__header`. Before that, this bounded the rows alone
+   * and the header stood above the cap, so a list drawn at `60vh` was 60vh plus
+   * a header tall.
+   */
   maxHeight?: string;
   selectedRowKey?: string;
   onRowSelect?: (row: T) => void;
@@ -199,13 +208,27 @@ export function DataTable<T>({
 }: DataTableProps<T>) {
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
+  const [headerHeight, setHeaderHeight] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<HTMLDivElement>(null);
   const expansionRef = useRef<HTMLDivElement>(null);
 
-  useLayoutEffect(() => {
+  /**
+   * The scrolling box's own height, and the height of the sticky header inside
+   * it. The header is a child of that box rather than a sibling of it (see the
+   * stylesheet), so `scrollTop` is measured from the top of the header and not
+   * from the first row: the virtualised window takes that offset off before it
+   * indexes anything.
+   */
+  function measureViewport() {
     if (scrollRef.current) setViewportHeight(scrollRef.current.clientHeight);
-  }, [maxHeight, rows.length]);
+    setHeaderHeight(headerRef.current?.offsetHeight ?? 0);
+  }
+
+  useLayoutEffect(() => {
+    measureViewport();
+  }, [maxHeight, rows.length, hideHeader]);
 
   function handleScroll(event: UIEvent<HTMLDivElement>) {
     setScrollTop(event.currentTarget.scrollTop);
@@ -246,13 +269,18 @@ export function DataTable<T>({
   }
 
   // The pan region's box changes with the window, and nothing renders when it
-  // does, so it is observed rather than measured once. (jsdom provides no
-  // `ResizeObserver`; there is no layout to observe there either.)
+  // does, so it is observed rather than measured once. The header's height goes
+  // with it: its cells wrap at a narrow enough width, and the virtualised window
+  // subtracts that height. (jsdom provides no `ResizeObserver`; there is no
+  // layout to observe there either.)
   useLayoutEffect(() => {
     pinExpansion();
     const pan = panRef.current;
     if (!pan || typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(() => pinExpansion());
+    const observer = new ResizeObserver(() => {
+      pinExpansion();
+      measureViewport();
+    });
     observer.observe(pan);
     return () => observer.disconnect();
   }, [expandedRowKey, rows.length, columns.length, maxHeight, autoRowHeight]);
@@ -267,9 +295,15 @@ export function DataTable<T>({
   const comfortable = variant === 'comfortable';
   const contentSized = autoRowHeight || comfortable;
   const virtualized = Boolean(maxHeight) && !contentSized;
-  let startIndex = virtualized ? Math.max(0, Math.floor(scrollTop / rowHeight) - OVERSCAN_ROWS) : 0;
+  // The rows begin one header down the scrolling box, so the offset the window
+  // is computed from is the scroll position minus that header. The window is
+  // still measured over the whole viewport rather than over the part the sticky
+  // header leaves uncovered: mounting the few rows drawn behind it costs
+  // nothing and keeps this one subtraction the only correction.
+  const bodyScrollTop = Math.max(0, scrollTop - headerHeight);
+  let startIndex = virtualized ? Math.max(0, Math.floor(bodyScrollTop / rowHeight) - OVERSCAN_ROWS) : 0;
   let endIndex = virtualized
-    ? Math.min(rows.length, Math.ceil((scrollTop + viewportHeight) / rowHeight) + OVERSCAN_ROWS)
+    ? Math.min(rows.length, Math.ceil((bodyScrollTop + viewportHeight) / rowHeight) + OVERSCAN_ROWS)
     : rows.length;
   // The expanded row's actual height diverges from `rowHeight` (its
   // `renderExpanded` content can be much taller), so the naive scrollTop-based
@@ -304,33 +338,43 @@ export function DataTable<T>({
       tabIndex={-1}
       {...{ [DISMISSAL_FOCUS_TARGET_ATTRIBUTE]: '' }}
     >
-      {hideHeader ? null : (
-        <div className="ui-data-table__header" style={headerRowStyle}>
-          {selection ? (
-            <span className="ui-data-table__header-cell ui-data-table__select-cell">
-              <input
-                type="checkbox"
-                aria-label="Select all"
-                checked={Boolean(selection.allSelected)}
-                onChange={() => selection.onToggleAll?.()}
-                disabled={!selection.onToggleAll}
-              />
-            </span>
-          ) : null}
-          {columns.map((column) => (
-            <span
-              key={column.id}
-              className={column.align === 'end' ? 'ui-data-table__header-cell ui-data-table__header-cell--end' : 'ui-data-table__header-cell'}
-            >
-              {column.header}
-            </span>
-          ))}
-        </div>
-      )}
-      {rows.length === 0 ? (
-        <div className="ui-data-table__empty">{emptyState}</div>
-      ) : (
-        <ScrollArea ref={scrollRef} maxHeight={maxHeight} onScroll={handleScroll}>
+      {/* The header and the rows share **one** scrolling box, the header sticky
+          at its top. It is what keeps a label over its column: a vertical
+          scrollbar takes real width out of its scroll container's content box,
+          so a header drawn outside that container lays its tracks in a wider box
+          than the rows do and every column after the first parts company with
+          its label. The stylesheet records the measurements. */}
+      <ScrollArea ref={scrollRef} maxHeight={maxHeight} onScroll={handleScroll}>
+        {hideHeader ? null : (
+          <div
+            className={scrollTop > 0 ? 'ui-data-table__header ui-data-table__header--stuck' : 'ui-data-table__header'}
+            ref={headerRef}
+            style={headerRowStyle}
+          >
+            {selection ? (
+              <span className="ui-data-table__header-cell ui-data-table__select-cell">
+                <input
+                  type="checkbox"
+                  aria-label="Select all"
+                  checked={Boolean(selection.allSelected)}
+                  onChange={() => selection.onToggleAll?.()}
+                  disabled={!selection.onToggleAll}
+                />
+              </span>
+            ) : null}
+            {columns.map((column) => (
+              <span
+                key={column.id}
+                className={column.align === 'end' ? 'ui-data-table__header-cell ui-data-table__header-cell--end' : 'ui-data-table__header-cell'}
+              >
+                {column.header}
+              </span>
+            ))}
+          </div>
+        )}
+        {rows.length === 0 ? (
+          <div className="ui-data-table__empty">{emptyState}</div>
+        ) : (
           <div className="ui-data-table__body">
             {topSpacerHeight > 0 ? <div style={{ height: topSpacerHeight }} /> : null}
             {visibleRows.map((row) => {
@@ -396,8 +440,8 @@ export function DataTable<T>({
             })}
             {bottomSpacerHeight > 0 ? <div style={{ height: bottomSpacerHeight }} /> : null}
           </div>
-        </ScrollArea>
-      )}
+        )}
+      </ScrollArea>
     </div>
   );
 }

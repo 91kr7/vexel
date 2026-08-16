@@ -6,8 +6,8 @@ type: UI component
 
 # SwarmSecretsPanel
 
-**Purpose** → the "Secrets" card of the Swarm screen: the cluster's secrets with their name and age,
-created, inspected as metadata and removed. **A secret's value is never displayed** (REQ-84).
+**Purpose** → the "Secrets" section of the Swarm screen: the cluster's secrets with their name and
+age, created, inspected as metadata and removed. **A secret's value is never displayed** (REQ-84).
 
 ## Contract
 
@@ -15,9 +15,11 @@ created, inspected as metadata and removed. **A secret's value is never displaye
 
 Description:
 
-- one card titled "Secrets", with the page-level action in the toolbar under its header and the
-  object list's comfortable variant at the content column's full width; the selected secret's
-  metadata is revealed below its row, at that same width.
+- composed as containers and images are: the section header "Secrets" and the page-level action in
+  the toolbar under it **above**, and then the object list (`DataTable`) alone in an **unpadded card
+  it fills edge to edge**, at the content column's full width. The header is not on a surface: the
+  panel's only surface is the list's own card. The selected secret's metadata is revealed below its
+  row, inside the same table, at that same width.
 
 Shows:
 
@@ -72,18 +74,25 @@ Actions:
 - **The panel is drawn only where there is a cluster to read**: the screen states the swarm's
   condition once and renders this panel on a manager alone
   (plan-ui-coherence-optimisation/REQ-52), so the panel repeats none of it.
+- **The list is the containers list**, not merely table-like: one header row over a continuous run
+  of rows, a single hairline between each pair, no gap between two rows and no surface, corner or
+  outline of any row's own — and the **same row**, of the reference's own fixed height and vertical
+  alignment, stating no row modifier of its own. There is no per-panel choice of presentation to be
+  made here.
 - Every cell of a row is a fixed number of lines whatever the secret is: the stack a secret may
-  belong to was a subtitle whose presence depended on the secret, and it is a column here. Measured:
-  59.39px on every row at all three viewports.
+  belong to was a subtitle whose presence depended on the secret, and it is a column here — and the
+  row is the reference's own height, no cell asking for more room than it gives. (The 59.39px
+  recorded before this list became the one presentation was the retired presentation's row and is
+  superseded by the reference's, whatever value that reads in the tree.)
 - Labels are offered at creation, as a key/value editor: a secret created through the application can
   be marked as its own by whoever created it. A row with an empty key is dropped.
 - One detail is open at a time, on this list and across the screen.
 
 ## Dependencies
 
-- ui-library: Card, SectionHeader, ScreenToolbar, DataTable, DetailPanel, ActionButtonGroup,
-  TwoLineCell, MetaCell, EmptyState, Button, FormDialog, FormField, TextField, SecretField,
-  KeyValueEditor, Stack
+- ui-library: Card (unpadded, holding the list alone), SectionHeader, ScreenToolbar, DataTable,
+  DetailPanel, ActionButtonGroup, TwoLineCell, MetaCell, EmptyState, Button, FormDialog, FormField,
+  TextField, SecretField, KeyValueEditor, Stack
 - swarm: Swarm formatting
 - app-shell: confirmation service, error reporting, progress
 
@@ -92,3 +101,6 @@ Actions:
 - plan-docker_management_app/REQ-84
 - plan-ui-coherence-optimisation/REQ-52
 - plan-ui-coherence-optimisation/REQ-55
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-20
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-39
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40

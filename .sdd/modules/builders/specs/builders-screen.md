@@ -11,8 +11,10 @@ create/remove, and the build-cache inventory with usage state, prune, and — pe
 and layers it relates to (REQ-69).
 
 Description:
-- Two stacked, full-width cards, each a section header with the screen-level action under it in the
-  toolbar (`plan-ui-coherence-optimisation/REQ-41`) and the object list's comfortable variant below.
+- Two stacked, full-width sections, each composed as containers and images are: the section header,
+  the screen-level action under it in the toolbar (`plan-ui-coherence-optimisation/REQ-41`), and
+  then the object list (`DataTable`) alone in an **unpadded card it fills edge to edge**. Neither
+  header is on a surface: each list's only enclosing surface is its own card.
 - "buildx builders" lists every builder as a row of seven columns: the active marker, the builder
   (name over its driver), its endpoint, its platforms, its status, its cache size, and its actions.
   Every cell is one line high whatever the builder's state, so every row is the same height as every
@@ -20,7 +22,8 @@ Description:
 - "Build cache" lists every record as a row of five columns: the record's identifier, its type, the
   build step it was recorded from, its usage state and its size — in identifier order as the service
   delivers it, deliberately not ranked by size. Selecting a row reveals that record in the library's
-  detail panel, inside the same card, at the full width of the content column.
+  detail panel, inside the same table, directly below the row, at the full width of the content
+  column.
 
 Shows:
 - Every builder currently known to buildx, with its driver, endpoint, platforms, status, cache size
@@ -83,9 +86,15 @@ Does not:
   Reasoned out once, with the deferred ellipsis question, in `swarm/specs/swarm-secrets-panel.md`
   (DEF-2).
 - **A builder's name is rendered once per row**, whatever the driver reports as its endpoint.
+- **Both lists are the containers list**, not merely table-like: one header row over a continuous
+  run of rows, a single hairline between each pair, no gap between two rows and no surface, corner
+  or outline of any row's own — and the **same row**, of the reference's own fixed height and
+  vertical alignment, stating no row modifier of its own. There is no per-screen choice of
+  presentation to be made here.
 - **Every row of a list is the same height as every other row of that list**, at every viewport: no
   value's presence adds or removes a line, the two that come and go — the endpoint and the cache
-  size — being columns of their own.
+  size — being columns of their own. That height is the reference's own: no cell on either list
+  asks for more room than the fixed-height row gives it.
 - **Every column starts at the same x on every row and under its own header label**, whichever
   actions that row carries — the object list's guarantee, which this screen inherits by stating each
   track as a length or a flex factor (the contract admits nothing else).
@@ -94,8 +103,8 @@ Does not:
 
 ## Dependencies
 
-- ui-library: Card, SectionHeader, ScreenToolbar, DataTable (comfortable), DetailPanel,
-  TwoLineCell, MetaCell, IdentifierCell, StatusDotCell, StatusPill, ActionButtonGroup,
+- ui-library: Card (unpadded, holding the list alone), SectionHeader, ScreenToolbar, DataTable,
+  DetailPanel, TwoLineCell, MetaCell, IdentifierCell, StatusDotCell, StatusPill, ActionButtonGroup,
   CrossReferenceList, EmptyState, ErrorBanner, FormDialog, FormField, TextField, Combobox,
   ChipInput, Button, Stack, useToast
 - builders: useBuilders, useBuildCache, useBuildCacheUsage
@@ -110,3 +119,6 @@ Does not:
 - plan-ui-coherence-optimisation/REQ-39
 - plan-ui-coherence-optimisation/REQ-40
 - plan-ui-coherence-optimisation/REQ-41
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-16
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-39
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40

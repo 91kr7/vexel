@@ -331,8 +331,12 @@ export function SwarmServicesPanel({ services, onCreate, onUpdate, onRemove }: S
         <Stack gap="var(--space-3)">
           {detail.error ? <ErrorBanner title="Could not read the service" detail={detail.error} onRetry={detail.refresh} /> : null}
           <SectionHeader variant="eyebrow" title="Tasks" />
+          {/* The nested list takes no card of its own: it is read inside the
+              panel the row expanded into, which is already inside the services
+              list's card, and a card in a card is two surfaces where the
+              contract asks for one. This is how the reference nests a list in a
+              panel (`ContainerProcessesView`). */}
           <DataTable
-            variant="comfortable"
             columns={taskColumns}
             rows={opened?.tasks ?? []}
             rowKey={(task) => task.id}
@@ -355,32 +359,36 @@ export function SwarmServicesPanel({ services, onCreate, onUpdate, onRemove }: S
   }
 
   return (
-    <Card>
+    // The composition containers and images ship: the header and the toolbar
+    // above, and the list alone in a card of its own that it fills edge to edge.
+    // The list's one enclosing surface is that card, so the panel has none.
+    <Stack gap="var(--space-4)">
       <SectionHeader title="Services & tasks" description="In name order, with the tasks of the opened service" />
-      {/* The page-level action, in the toolbar under the header rather than in
-          the card's header. */}
+      {/* The page-level action, in the toolbar under the section header rather
+          than in the header itself. */}
       <ScreenToolbar primaryAction={{ label: 'Create service', onClick: openCreate }} />
-      <DataTable
-        variant="comfortable"
-        columns={columns}
-        rows={services.items}
-        rowKey={(service) => service.id}
-        selectedRowKey={openId}
-        onRowSelect={(service) => setOpenId((current) => (current === service.id ? undefined : service.id))}
-        expandedRowKey={openId}
-        renderExpanded={serviceDetail}
-        emptyState={
-          <EmptyState
-            title="No services"
-            description={services.unavailableReason ?? NO_SERVICES}
-            // Where the reading itself states a reason, creating a service is
-            // not what resolves it, so no action is offered for it.
-            // Its label is the invitation, never the toolbar's own word (DEF-2,
-            // `swarm-services-panel.md`): one surface holds one control per name.
-            action={services.unavailableReason ? null : <Button onClick={openCreate}>Create the first service</Button>}
-          />
-        }
-      />
+      <Card padding="none">
+        <DataTable
+          columns={columns}
+          rows={services.items}
+          rowKey={(service) => service.id}
+          selectedRowKey={openId}
+          onRowSelect={(service) => setOpenId((current) => (current === service.id ? undefined : service.id))}
+          expandedRowKey={openId}
+          renderExpanded={serviceDetail}
+          emptyState={
+            <EmptyState
+              title="No services"
+              description={services.unavailableReason ?? NO_SERVICES}
+              // Where the reading itself states a reason, creating a service is
+              // not what resolves it, so no action is offered for it.
+              // Its label is the invitation, never the toolbar's own word (DEF-2,
+              // `swarm-services-panel.md`): one surface holds one control per name.
+              action={services.unavailableReason ? null : <Button onClick={openCreate}>Create the first service</Button>}
+            />
+          }
+        />
+      </Card>
 
       <FormDialog
         open={formOpen}
@@ -447,6 +455,6 @@ export function SwarmServicesPanel({ services, onCreate, onUpdate, onRemove }: S
           </FormField>
         </Stack>
       </FormDialog>
-    </Card>
+    </Stack>
   );
 }

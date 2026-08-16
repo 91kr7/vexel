@@ -251,13 +251,16 @@ export function ContextsScreen() {
 
   return (
     <Stack gap="var(--space-5)">
-      <Card>
+      {/* The composition containers and images ship: the header and the toolbar
+          above, and the list alone in a card of its own that it fills edge to
+          edge. The list's one enclosing surface is that card, so the screen has
+          none. */}
+      <Stack gap="var(--space-4)">
         <SectionHeader title="Docker contexts" />
         <ScreenToolbar primaryAction={{ label: 'Create context', onClick: openCreate }} />
-        <Stack gap="var(--space-3)">
-          {contexts.error ? <ErrorBanner title="Could not load the contexts" detail={contexts.error} onRetry={contexts.refresh} /> : null}
+        {contexts.error ? <ErrorBanner title="Could not load the contexts" detail={contexts.error} onRetry={contexts.refresh} /> : null}
+        <Card padding="none">
           <DataTable
-            variant="comfortable"
             columns={columns}
             rows={contexts.contexts}
             rowKey={(context) => context.name}
@@ -279,8 +282,8 @@ export function ContextsScreen() {
               )
             }
           />
-        </Stack>
-      </Card>
+        </Card>
+      </Stack>
 
       <FormDialog
         open={createOpen}

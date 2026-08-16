@@ -10,10 +10,12 @@ type: UI component
 creating a local-socket or SSH context, switching the active one and removing one (REQ-92, REQ-93).
 
 Description:
-- One full-width card holding one list: "Docker contexts", its "Create context" action in the screen
-  toolbar under the section header, and the contexts in the object list's comfortable variant — one
-  row per context, aligned columns, and the selected row's detail revealed inside the same card at
-  the content column's full width.
+- One full-width list, composed as containers and images are: the section header "Docker contexts",
+  the "Create context" action in the screen toolbar under it, and then the object list (`DataTable`)
+  of every context alone in an **unpadded card it fills edge to edge** — one row per context,
+  aligned columns, and the selected row's detail revealed inside the same table, directly below its
+  row, at the content column's full width. The header is not on a surface: the screen's only surface
+  is the list's own card.
 
 Shows:
 - One row per context, **whatever its endpoint kind**, in aligned columns: a marker on the context in
@@ -63,9 +65,15 @@ Does not:
   leaves open.
 - The endpoint kinds a context can be *created* with are a subset of the kinds that can be *listed
   and used*: the list and the "Use" action treat every kind alike.
+- **The list is the containers list**, not merely table-like: one header row over a continuous run
+  of rows, a single hairline between each pair, no gap between two rows and no surface, corner or
+  outline of any row's own — and the **same row**, of the reference's own fixed height and vertical
+  alignment, stating no row modifier of its own. There is no per-screen choice of presentation to be
+  made here.
 - **Every cell of a row is the same number of lines whatever the context's state.** The description
   and Docker's error are the two values whose presence depends on it, and each is a column, where an
-  absence costs the row no height.
+  absence costs the row no height. The name over its kind is the reference's own two-line cell and
+  sits unclipped inside that fixed-height row; a second line is not a reason for a taller row.
 - **A row's endpoint is truncated; the row's detail holds it in full**, wrapped and selectable
   (plan-ui-coherence-optimisation/REQ-21). Truncation is a presentation of the list, never the only
   presentation of the value.
@@ -106,9 +114,9 @@ Does not:
 
 ## Dependencies
 
-- ui-library: Card, SectionHeader, ScreenToolbar, DataTable (comfortable variant), TwoLineCell,
-  MetaCell, BadgeListCell, StatusPill, ActionButtonGroup, DetailPanel, FormDialog, FormField,
-  EndpointField, TextField, Button, Stack, EmptyState, ErrorBanner, useToast
+- ui-library: Card (unpadded, holding the list alone), SectionHeader, ScreenToolbar, DataTable,
+  TwoLineCell, MetaCell, BadgeListCell, StatusPill, ActionButtonGroup, DetailPanel, FormDialog,
+  FormField, EndpointField, TextField, Button, Stack, EmptyState, ErrorBanner, useToast
 - contexts: useContexts
 - app-shell: useConfirmation, useProgress, useErrorReporter
 
@@ -121,3 +129,6 @@ Does not:
 - plan-ui-coherence-optimisation/REQ-44
 - plan-ui-coherence-optimisation/REQ-45
 - plan-ui-coherence-optimisation/REQ-21
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-17
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-39
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40

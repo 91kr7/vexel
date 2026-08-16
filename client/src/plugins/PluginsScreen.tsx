@@ -310,12 +310,15 @@ export function PluginsScreen() {
 
   return (
     <Stack gap="var(--space-5)">
-      <Card>
+      {/* The composition containers and images ship: the header (and, below it,
+          the toolbar where there is one) above, and the list alone in a card of
+          its own that it fills edge to edge. Each list's one enclosing surface
+          is that card, so the screen has none. */}
+      <Stack gap="var(--space-4)">
         <SectionHeader title="CLI plugins" description="Sub-commands the local Docker installation ships" />
-        <Stack gap="var(--space-3)">
-          {plugins.error ? <ErrorBanner title="Could not read the plugins" detail={plugins.error} onRetry={plugins.refresh} /> : null}
+        {plugins.error ? <ErrorBanner title="Could not read the plugins" detail={plugins.error} onRetry={plugins.refresh} /> : null}
+        <Card padding="none">
           <DataTable
-            variant="comfortable"
             columns={cliColumns}
             rows={plugins.cli.items}
             rowKey={(plugin) => plugin.name}
@@ -326,7 +329,7 @@ export function PluginsScreen() {
             // images already cap their lists at, which is the product's answer
             // to a long list inside a screen rather than a number chosen here.
             // What that buys is measured and stated in `plugins-screen.md`: 438px
-            // less burial, not the daemon card above the fold at every viewport.
+            // less burial, not the daemon list above the fold at every viewport.
             maxHeight="60vh"
             emptyState={
               plugins.loaded ? (
@@ -342,18 +345,17 @@ export function PluginsScreen() {
               )
             }
           />
-        </Stack>
-      </Card>
+        </Card>
+      </Stack>
 
-      <Card>
+      <Stack gap="var(--space-4)">
         <SectionHeader title="Daemon plugins" description="Drivers the daemon itself runs" />
-        {/* The screen's page-level action, in the toolbar under the header
-            rather than in the card's header. */}
+        {/* The screen's page-level action, in the toolbar under the section
+            header rather than in the header itself. */}
         <ScreenToolbar primaryAction={{ label: 'Install plugin', onClick: openInstall }} />
-        <Stack gap="var(--space-3)">
-          {inspectError ? <ErrorBanner title="Could not inspect the plugin" detail={inspectError} /> : null}
+        {inspectError ? <ErrorBanner title="Could not inspect the plugin" detail={inspectError} /> : null}
+        <Card padding="none">
           <DataTable
-            variant="comfortable"
             columns={daemonColumns}
             rows={plugins.daemon.items}
             rowKey={(plugin) => plugin.name}
@@ -391,8 +393,8 @@ export function PluginsScreen() {
               )
             }
           />
-        </Stack>
-      </Card>
+        </Card>
+      </Stack>
 
       <FormDialog
         open={installOpen}

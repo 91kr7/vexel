@@ -11,6 +11,7 @@ import {
   Row,
   SectionHeader,
   Select,
+  Stack,
   StatusDotCell,
   TwoLineCell,
   useToast,
@@ -94,7 +95,7 @@ export function SwarmNodesPanel({ nodes, onUpdate, onRemove }: SwarmNodesPanelPr
    * its own here, so a healthy node's row is exactly as tall as an unhealthy
    * one's. The engine version and the address left the row for the panel, where
    * a node that reports neither costs nothing at all — six columns and their
-   * gaps already resolve to 808px of the 854px a 1280×800 card offers, and a
+   * gaps already resolve to 808px of the 854px a 1280×800 surface offers, and a
    * seventh would make every desktop width pan.
    */
   const columns: DataTableColumn<SwarmNode>[] = [
@@ -204,19 +205,23 @@ export function SwarmNodesPanel({ nodes, onUpdate, onRemove }: SwarmNodesPanelPr
   }
 
   return (
-    <Card>
+    // The composition containers and images ship: the header above, and the list
+    // alone in a card of its own that it fills edge to edge. The list's one
+    // enclosing surface is that card, so the panel has none.
+    <Stack gap="var(--space-4)">
       <SectionHeader title="Nodes" description="Managers first, then in hostname order" />
-      <DataTable
-        variant="comfortable"
-        columns={columns}
-        rows={nodes.items}
-        rowKey={(node) => node.id}
-        selectedRowKey={openId}
-        onRowSelect={(node) => setOpenId((current) => (current === node.id ? undefined : node.id))}
-        expandedRowKey={openId}
-        renderExpanded={nodeDetail}
-        emptyState={<EmptyState title="No nodes" description={nodes.unavailableReason ?? NO_NODES} action={null} />}
-      />
-    </Card>
+      <Card padding="none">
+        <DataTable
+          columns={columns}
+          rows={nodes.items}
+          rowKey={(node) => node.id}
+          selectedRowKey={openId}
+          onRowSelect={(node) => setOpenId((current) => (current === node.id ? undefined : node.id))}
+          expandedRowKey={openId}
+          renderExpanded={nodeDetail}
+          emptyState={<EmptyState title="No nodes" description={nodes.unavailableReason ?? NO_NODES} action={null} />}
+        />
+      </Card>
+    </Stack>
   );
 }
