@@ -90,25 +90,33 @@ async function runningContainerCount(...filterLabels: string[]): Promise<number>
 
 /**
  * A project's row of the one object list, with the nested list of its services
- * inside it (plan-ui-coherence-optimisation/REQ-49, batch 11): the project row is
- * a child of a carrier of the outer list's own body, which is what tells it from
- * the service rows it carries.
+ * below it (plan-ui-coherence-optimisation/REQ-49, batch 11).
+ *
+ * A project row is a **direct child of the outer list's own body**, which is what
+ * tells it from the service rows it carries: those are rows of the nested list
+ * inside its content slot. The carrier surface each row used to be wrapped in is
+ * gone with the presentation it belonged to
+ * (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-3`),
+ * so the row and its services are now siblings in that body rather than two
+ * children of one card.
  */
 function projectRow(page: Page, name: string) {
   return page
     .locator('.ui-frame__content .ui-data-table__body')
     .first()
-    .locator(':scope > .ui-surface > .ui-data-table__row')
+    .locator(':scope > .ui-data-table__row')
     .filter({ hasText: name });
 }
 
-/** A project row together with the services it carries — the group, in the new shape. */
-function projectGroup(page: Page, name: string) {
-  return page
-    .locator('.ui-frame__content .ui-data-table__body')
-    .first()
-    .locator(':scope > .ui-surface')
-    .filter({ has: page.locator('.ui-data-table__row', { hasText: name }) });
+/**
+ * The services a project row carries: its own content slot, which is that row's
+ * next sibling in the body. Reached from the row itself rather than from the
+ * body, so it is *this* project's services and never the first project's.
+ */
+function projectServices(page: Page, name: string) {
+  return projectRow(page, name).locator(
+    'xpath=following-sibling::*[contains(@class, "ui-data-table__row-content")][1]',
+  );
 }
 
 /** The selected project's detail panel, which is where the file and the logs live now (REQ-50). */
@@ -153,13 +161,17 @@ test('lists a running project with its discovered file path and services, with n
     await bringUp(fixture);
 
     await page.reload();
-    const group = projectGroup(page, fixture.name);
-    await expect(group).toBeVisible({ timeout: 15_000 });
-    await expect(group).toContainText(fixture.filePaths[0]!);
-    await expect(group.getByText('Up', { exact: true })).toBeVisible();
-    await expect(group).toContainText('web');
-    await expect(group).toContainText('worker');
-    await expect(group).toContainText(BASE_IMAGE);
+    // The project's own values on its row, its services in the list that row
+    // carries: the two levels are separate elements now, so each assertion says
+    // which level it is about.
+    const row = projectRow(page, fixture.name);
+    const services = projectServices(page, fixture.name);
+    await expect(row).toBeVisible({ timeout: 15_000 });
+    await expect(row).toContainText(fixture.filePaths[0]!);
+    await expect(row.getByText('Up', { exact: true })).toBeVisible();
+    await expect(services).toContainText('web');
+    await expect(services).toContainText('worker');
+    await expect(services).toContainText(BASE_IMAGE);
 
     // REQ-116 — the compose file path is discovered, never operator-typed: no
     // input field exists anywhere on the Compose screen to type one. Asserted
@@ -292,11 +304,11 @@ test("scaling a service's replicas through its stepper changes its running conta
     await bringUp(fixture);
 
     await page.reload();
-    const group = projectGroup(page, fixture.name);
-    await expect(group).toBeVisible({ timeout: 15_000 });
-    await expect(group).toContainText('web');
+    const services = projectServices(page, fixture.name);
+    await expect(services).toBeVisible({ timeout: 15_000 });
+    await expect(services).toContainText('web');
 
-    await group.getByRole('button', { name: 'Increase web replicas' }).click();
+    await services.getByRole('button', { name: 'Increase web replicas' }).click();
 
     await expect
       .poll(() => runningContainerCount(`label=com.docker.compose.service=web`, `label=com.docker.compose.project=${fixture.name}`), { timeout: 15_000 })

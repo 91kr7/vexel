@@ -159,17 +159,27 @@ interface PinnedWidths {
 }
 
 /**
- * **Two pins per width, for as long as this screen carries two compositions.**
- * `Nodes`, `Services & tasks` and `Secrets` are converted; `Configs` and `Stacks`
- * are that plan's batch 3 and still put their header inside a padded card. When
- * the last two convert, the second column of figures becomes unreachable and is
- * deleted with the composition it records — the reading that chooses between them
- * is measured, so nothing here has to be edited for the check to keep holding.
+ * **One pin per width again, the screen carrying one composition once more.**
+ *
+ * It carried two while the migration was half done: `Nodes`, `Services & tasks`
+ * and `Secrets` converted in that plan's batch 2, `Configs` and `Stacks` in its
+ * **batch 3 (2026-08-16)**, and until then the second of them still put its
+ * header inside a padded card. The second column of figures is now unreachable
+ * and is deleted with the composition it recorded, exactly as this table said it
+ * would be — and the reading that used to choose between them is asserted below
+ * instead: **every** inventory is expected to be the converted one, so a panel
+ * regressing to the old composition fails here rather than quietly switching
+ * pins.
+ *
+ * `Configs` therefore moves from 1012/852/229px to 1070/910/287px at the three
+ * viewports — a **figure** re-recorded with its reason, the list's card no longer
+ * padding what it holds (REQ-40), and the **rule** it feeds untouched: one column
+ * at each of these widths, before and after.
  */
-const RECORDED_ON_THE_PANEL: Record<number, { converted: PinnedWidths; stillOnTheRetiredPresentation: PinnedWidths }> = {
-  1440: { converted: { panelPx: 1070, sectionPx: 1070, columns: 1 }, stillOnTheRetiredPresentation: { panelPx: 1012, sectionPx: 1012, columns: 1 } },
-  1280: { converted: { panelPx: 910, sectionPx: 910, columns: 1 }, stillOnTheRetiredPresentation: { panelPx: 852, sectionPx: 852, columns: 1 } },
-  375: { converted: { panelPx: 287, sectionPx: 287, columns: 1 }, stillOnTheRetiredPresentation: { panelPx: 229, sectionPx: 229, columns: 1 } },
+const RECORDED_ON_THE_PANEL: Record<number, PinnedWidths> = {
+  1440: { panelPx: 1070, sectionPx: 1070, columns: 1 },
+  1280: { panelPx: 910, sectionPx: 910, columns: 1 },
+  375: { panelPx: 287, sectionPx: 287, columns: 1 },
 };
 
 /**
@@ -185,13 +195,15 @@ const RECORDED_ON_THE_PANEL: Record<number, { converted: PinnedWidths; stillOnTh
  * derives two. No minimum moved, no caller states a count, and the refusal of a
  * sub-329px minimum the amendment turned on is untouched.
  */
-const RECORDED_AT_ORDINARY_WIDTHS: Record<number, { converted: PinnedWidths; stillOnTheRetiredPresentation: PinnedWidths }> = {
-  // Re-taken 2026-08-16, +58px on the converted inventories and for the one
-  // reason given above the previous table: their list's card no longer pads what
-  // it holds (REQ-40). Every count is the one on record — 1550px still derives 2,
+const RECORDED_AT_ORDINARY_WIDTHS: Record<number, PinnedWidths> = {
+  // Re-taken 2026-08-16, +58px on every inventory and for the one reason given
+  // above the previous table: their list's card no longer pads what it holds
+  // (REQ-40). Taken on three inventories in batch 2 and on the last two in batch
+  // 3, which is when the second set of figures — 1492px and 2132px — became
+  // unreachable. Every count is the one on record — 1550px still derives 2,
   // 2190px still 3 — so the amendment's outcome is untouched by the widening.
-  1920: { converted: { panelPx: 1550, sectionPx: 1550, columns: 2 }, stillOnTheRetiredPresentation: { panelPx: 1492, sectionPx: 1492, columns: 2 } },
-  2560: { converted: { panelPx: 2190, sectionPx: 2190, columns: 3 }, stillOnTheRetiredPresentation: { panelPx: 2132, sectionPx: 2132, columns: 3 } },
+  1920: { panelPx: 1550, sectionPx: 1550, columns: 2 },
+  2560: { panelPx: 2190, sectionPx: 2190, columns: 3 },
 };
 
 /**
@@ -283,8 +295,9 @@ async function openPropertySection(page: Page, title: string): Promise<{ panel: 
   // holding its list
   // (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`),
   // so a card can no longer be found by the heading it used to hold. The
-  // innermost region carrying both the heading and the list resolves to the same
-  // region on an inventory still drawn the old way, its card.
+  // innermost region carrying both the heading and the list resolved to the same
+  // region on an inventory still drawn the old way, its card — which is how this
+  // locator held while the screen carried both compositions.
   const card = screenContent(page)
     .locator('.ui-stack, .ui-surface')
     .filter({ has: page.getByRole('heading', { level: 2, name: title, exact: true }) })
@@ -300,16 +313,19 @@ async function openPropertySection(page: Page, title: string): Promise<{ panel: 
 
   const panel = card.locator('.ui-detail-panel');
   await expect(panel, `the ${title} row opened no detail panel`).toHaveCount(1, { timeout: 20_000 });
-  // Which of the two compositions this screen carries at once drew this panel,
-  // read from the tree rather than from a list of panel names: a converted
-  // inventory's heading is above its card, one still drawn the old way is inside
-  // it. The pinned widths below differ by exactly the card padding the first no
-  // longer applies, so the pin has to know which it is looking at — and when the
-  // last two inventories convert, both pins become one and the reading here
-  // simply stops distinguishing anything.
+  // Which composition drew this panel, read from the tree rather than from a list
+  // of panel names: a converted inventory's heading is above its card, one still
+  // drawn the old way is inside it. While the screen carried both, this chose
+  // between two sets of pinned widths differing by exactly the card padding the
+  // first no longer applies; since batch 3 converted the last two it is an
+  // **assertion** instead — one composition, and the pins are its own.
   const converted = await card.evaluate(
     (region) => region.querySelector('.ui-section-header')?.closest('.ui-surface') === null,
   );
+  expect(
+    converted,
+    `the ${title} inventory draws its section header inside its list's card, which is the composition REQ-40 retired`,
+  ).toBe(true);
   return { panel, section: panel.locator('.ui-definition-list').first(), converted };
 }
 
@@ -374,8 +390,8 @@ test('the four swarm panels: the property section on the detail panel, at 1440, 
     await openSwarmScreen(page, viewport);
 
     for (const title of SWARM_PANELS) {
-      const { panel, section, converted } = await openPropertySection(page, title);
-      const pinned = converted ? recorded.converted : recorded.stillOnTheRetiredPresentation;
+      const { panel, section } = await openPropertySection(page, title);
+      const pinned = recorded;
       const panelWidth = await panel.evaluate((element) => element.getBoundingClientRect().width);
       const geometry = await measureSection(section, `the ${title} property section`);
       const predicted = derivedColumns(geometry.box.width, LONG_SINGLE_LINE_MIN_PX);
@@ -443,8 +459,8 @@ test('the four swarm panels: the ordinary-width outcome, at 1920 and 2560', asyn
     await openSwarmScreen(page, viewport);
 
     for (const title of SWARM_PANELS) {
-      const { panel, section, converted } = await openPropertySection(page, title);
-      const pinned = converted ? recorded.converted : recorded.stillOnTheRetiredPresentation;
+      const { panel, section } = await openPropertySection(page, title);
+      const pinned = recorded;
       const panelWidth = await panel.evaluate((element) => element.getBoundingClientRect().width);
       const geometry = await measureSection(section, `the ${title} property section`);
       const predicted = derivedColumns(geometry.box.width, LONG_SINGLE_LINE_MIN_PX);

@@ -204,10 +204,12 @@ test('the About screen’s baseline list: one column and nothing wrapped at ~400
 //
 // **The markup is the object list's since batch 12** (`plan-ui-coherence-optimisation/REQ-55`): the
 // inventories left the hand-built card list for `DataTable`, a row's reveal is a `DetailPanel`, and
-// the single `Configs & stacks` card became two, `Configs` and `Stacks`. Every assertion is the one
-// it always was; only the locators and the card's name move with the migration. `Stacks` is not
-// among them — a stack's services are carried by its own row rather than by a selection, so it
-// reveals no property section at all.
+// the single `Configs & stacks` card became two, `Configs` and `Stacks`. Each of them is now the
+// one presentation — its section header above one unpadded card holding its list
+// (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`, batches 2 and
+// 3) — and every assertion is the one it always was; only the locators and the card's name move
+// with the migration. `Stacks` is not among them — a stack's services are carried by its own row
+// rather than by a selection, so it reveals no property section at all.
 test('the four swarm panels: one column and nothing wrapped at ~400px, no fewer columns than they stated when wide', async ({ page }) => {
   test.skip(
     !MANAGES_A_SWARM,
@@ -254,12 +256,13 @@ test('the four swarm panels: one column and nothing wrapped at ~400px, no fewer 
         await openApp(page, 'swarm');
         await expect(page.getByRole('heading', { level: 1, name: 'Swarm' })).toBeVisible({ timeout: 20_000 });
 
-        // The panel is named by **what it holds** rather than by the surface it used to be: a
-        // converted inventory's section header sits above the one unpadded card holding its list
+        // The panel is named by **what it holds** rather than by the surface it used to be: an
+        // inventory's section header sits above the one unpadded card holding its list
         // (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`), so a
         // card can no longer be found by the heading it used to hold. The innermost region carrying
-        // both the heading and the list resolves to the same region on an inventory still drawn the
-        // old way, its card.
+        // both the heading and the list is that region on every one of the four since that plan's
+        // batch 3 converted the last two, and resolved to the card itself on the ones still drawn
+        // the old way before it — which is how this locator held across the migration.
         const panel = screenContent(page)
           .locator('.ui-stack, .ui-surface')
           .filter({ has: page.getByRole('heading', { level: 2, name: panelTitle, exact: true }) })

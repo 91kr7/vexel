@@ -222,14 +222,13 @@ function projectList(page: Page): Locator {
  *
  * A service row is a row of the **nested** list a project row carries in its own
  * content slot, and both carry `.ui-data-table__row`. What tells them apart is
- * depth: a project row is a child of a carrier that is a child of the outer
- * list's own body.
+ * depth: a project row is a **direct child of the outer list's own body**, the
+ * carrier surface each row used to be wrapped in having gone with the
+ * presentation it belonged to
+ * (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-3`).
  */
 function projectRows(page: Page): Locator {
-  return content(page)
-    .locator('.ui-data-table__body')
-    .first()
-    .locator(':scope > .ui-surface > .ui-data-table__row');
+  return content(page).locator('.ui-data-table__body').first().locator(':scope > .ui-data-table__row');
 }
 
 function round(value: number): number {
@@ -600,9 +599,14 @@ test.describe('F11 — the compose screen against a reading holding every projec
 
     // REQ-49 — "Compose lists its projects with the object-list primitive. The screen that has no
     // list at all acquires the one every other screen uses; each project is a row, with its actions
-    // in the cluster." compose-screen.md — "one full-width list of projects, in the object list's
-    // comfortable variant, and nothing beside it. Each project row carries its services as a nested
-    // header-less list of the same component."
+    // in the cluster." compose-screen.md — "one full-width list of projects … alone in an unpadded
+    // card it fills edge to edge, and nothing beside it. Each project row carries its services as a
+    // nested header-less list of the same component", drawn inside the projects list's own card and
+    // indented under the row it belongs to
+    // (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-7`, `REQ-40`).
+    // The subject is the one it always was; the qualifier naming the retired presentation is gone,
+    // and nothing here is weakened for it — the indentation and the surfaces are measured in
+    // `classic-table-criteria-nested-lists.spec.ts`, beside these figures.
     test(`every project is a row of the one list, carrying its services opened or not — ${at}`, async ({ page }) => {
       test.setTimeout(120_000);
       await openScreen(page, viewport);
@@ -667,8 +671,15 @@ test.describe('F11 — the compose screen against a reading holding every projec
     // compose-screen.md — "Every cell of a project row is the same number of lines whatever the
     // project's state: the discovered file paths and the daemon's refusal to read the project are
     // columns of their own, not a shared subtitle line, so a project that carries neither costs its
-    // row no height. Measured: 59.4px on every project row and 56px on every service row."
-    test(`every project row is one height and every service row another, with nothing painted past a row — ${at}`, async ({
+    // row no height. Both levels' rows are the reference's own height."
+    //
+    // **The two heights became one on 2026-08-16** — the 59.4px recorded for a project row was the
+    // retired presentation's, the service row's 56px was already the reference's, and REQ-39 makes
+    // the first the second. Asserted per level rather than across the screen, which is the stronger
+    // reading of the same claim ("a row's height does not depend on what that row carries"), with
+    // the equality between the two levels and against containers and images measured where the
+    // reference is read in the same run: `classic-table-criteria-nested-lists.spec.ts`.
+    test(`every row of each level is one height, with nothing painted past a row — ${at}`, async ({
       page,
     }) => {
       test.setTimeout(120_000);

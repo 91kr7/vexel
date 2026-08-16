@@ -379,3 +379,125 @@ describe('DataTable — the header and the rows share one scrolling box', () => 
     expect(css.slice(css.indexOf('.ui-data-table__header'))).not.toMatch(/backdrop-filter|filter:\s*blur/);
   });
 });
+
+/**
+ * `nested` — a list drawn **inside a row of another list**
+ * (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-7`,
+ * `ui-library/specs/data-table.md`).
+ *
+ * **Contract and state only** (that plan's REQ-31): every box is zero in jsdom, so the indentation
+ * itself, the one enclosing surface and the group's closing hairline are measured in a browser by
+ * `e2e/classic-table-criteria-nested-lists.spec.ts`. What is asserted here is what a call site
+ * states, what the tree therefore holds, and what the stylesheet declares — the last of which no
+ * browser check can distinguish: a 16px inset written on the spot and one taken from the spacing
+ * token measure identically, and only one of them is what REQ-33 admits.
+ */
+describe('DataTable — a list drawn inside a row of another list (`nested`)', () => {
+  const childColumns: DataTableColumn<Row>[] = [
+    { id: 'child', header: 'CHILD', width: '2fr', render: (row) => row.id },
+    { id: 'trailing', header: 'TRAILING', width: '90px', align: 'end', render: (row) => row.id.toUpperCase() },
+  ];
+
+  // data-table.md — "`nested?: boolean` (default `false`) — this list is drawn **inside a row of
+  // another list** … It takes **no surface, corner, outline or shadow of its own**."
+  it('states the nesting on the list itself, and states it only when asked for', () => {
+    const { container } = render(
+      <DataTable
+        columns={columns}
+        rows={makeRows(2)}
+        rowKey={(row) => row.id}
+        renderRowContent={(group) => (
+          <DataTable
+            nested
+            hideHeader
+            columns={childColumns}
+            rows={makeRows(2).map((child) => ({ id: `${group.id}/${child.id}` }))}
+            rowKey={(child) => child.id}
+          />
+        )}
+      />,
+    );
+
+    const tables = [...container.querySelectorAll<HTMLElement>('.ui-data-table')];
+    expect(tables, 'the outer list does not draw one nested list per row').toHaveLength(3);
+    expect(tables[0].className, 'the list that was not asked to nest states the nesting anyway').not.toContain(
+      'ui-data-table--nested',
+    );
+    for (const nested of tables.slice(1)) {
+      expect(nested.className, 'a list asked to nest does not say so').toContain('ui-data-table--nested');
+      // The nesting is the one list's own property: no wrapper, and no surface anywhere inside.
+      expect(nested.parentElement?.className, 'the nested list is not the row content slot’s own child').toContain(
+        'ui-data-table__row-content',
+      );
+    }
+    expect(container.querySelectorAll('.ui-surface'), 'a surface is drawn inside a list that states the nesting').toHaveLength(0);
+    expect(
+      [...container.querySelectorAll('.ui-data-table__row')]
+        .flatMap((row) => [...row.classList])
+        .filter((name) => name !== 'ui-data-table__row'),
+      'a row of either level states a modifier of its own',
+    ).toEqual([]);
+  });
+
+  // data-table.md — "It keeps the columns it declares — what is shared is the surface, the pan
+  // region and the ruled treatment, never the tracks."
+  it('keeps the columns the child declares rather than taking its parent’s tracks', () => {
+    const { container } = render(
+      <DataTable
+        columns={[
+          { id: 'id', header: 'ID', width: '1.4fr', render: (row) => row.id },
+          { id: 'extra', header: 'EXTRA', width: '120px', render: () => 'x' },
+        ]}
+        rows={makeRows(1)}
+        rowKey={(row) => row.id}
+        renderRowContent={() => (
+          <DataTable nested hideHeader columns={childColumns} rows={makeRows(1)} rowKey={(child) => `child-${child.id}`} />
+        )}
+      />,
+    );
+
+    const rows = [...container.querySelectorAll<HTMLElement>('.ui-data-table__row')];
+    expect(rows.length, 'neither level drew a row').toBe(2);
+    expect(rows[1].style.gridTemplateColumns, 'the child was handed its parent’s tracks').not.toBe(
+      rows[0].style.gridTemplateColumns,
+    );
+    // …and they are its own: the tracks it declared, in the order it declared them.
+    expect(rows[1].style.gridTemplateColumns).toContain('90px');
+    expect(screen.queryByText('TRAILING'), 'the child list draws a header of its own').toBeNull();
+  });
+
+  /**
+   * The indentation itself is a stylesheet rule, and jsdom loads none — but **what it is written
+   * with** is exactly what a browser cannot tell apart, so it is read from the file, as
+   * `design-tokens-contrast.test.ts` does. Three things the plan requires of it: the inset is a
+   * spacing **token** and not a length written on the spot (REQ-33), it introduces **no** surface,
+   * radius, outline or shadow (REQ-3, REQ-7), and the child computes no pan region of its own so
+   * that parent and child move together (REQ-12).
+   */
+  it('declares the indentation from a spacing token, introducing no surface and no pan region of its own', () => {
+    const css = readFileSync(join(process.cwd(), 'src/ui/data/data-table.css'), 'utf8');
+    const nested = ruleBody(css, '.ui-data-table--nested');
+
+    expect(nested, 'the nested list is inset by a length written on the spot instead of a spacing token').toMatch(
+      /padding-inline-start:\s*var\(--space-\d\)/,
+    );
+    expect(nested, 'the nested list computes a horizontal overflow of its own, so it is a second pan region').toMatch(
+      /overflow-x:\s*visible/,
+    );
+    expect(nested, 'the indentation introduces a surface of its own').not.toMatch(
+      /border-radius|outline|box-shadow|background/,
+    );
+    // …and the wrapper gives up its block-end padding to it, so the last child is as flush with
+    // what follows as any other row is (REQ-2). Matched directly rather than through `ruleBody`,
+    // whose escaping covers a class selector and not the `:has()` this one is written with.
+    expect(
+      /\.ui-data-table__row-content:has\(>\s*\.ui-data-table--nested\)\s*\{[^}]*padding-bottom:\s*0/.test(css),
+      'the wrapper keeps its block-end padding under a nested list, which is a gap between two levels of one list',
+    ).toBe(true);
+    // …and the last child gives up its own rule, the group's closing hairline being the wrapper's.
+    expect(
+      /\.ui-data-table--nested\s+\.ui-data-table__body\s*>\s*\.ui-data-table__row:last-child\s*\{[^}]*border-bottom:\s*none/.test(css),
+      'the last child of a group draws a rule of its own under the wrapper’s, so the two are drawn one above the other',
+    ).toBe(true);
+  });
+});

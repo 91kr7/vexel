@@ -766,17 +766,20 @@ test.describe('F12 — the cluster’s inventories, on a stubbed manager (REQ-55
       // What REQ-54 protects is that no inventory's content sits at a different
       // distance under its heading from its neighbours' *for a reason of its own*
       // — the cause it was written against being a `SectionHeader
-      // variant="eyebrow"` inside one card's body, asserted absent above. Since
+      // variant="eyebrow"` inside one card's body, asserted absent above. This
+      // screen carried **two compositions at once** while
       // `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`
-      // this screen carries **two compositions at once**, and will until that
-      // plan's batch 3 converts `Configs` and `Stacks`: a converted inventory's
-      // heading sits above the card holding its list, which is a different
-      // rhythm from a heading inside one, and 0px was the second's value. So the
-      // equality is asserted **within each composition**, which is where "the
-      // same distance" is a statement about layout rather than about how far the
-      // migration has got. The grouping is read from the tree, not from a list of
-      // panel names: when the last two convert, both groups become one and this
-      // assertion needs no edit at all.
+      // was half delivered — three inventories converted in that plan's batch 2
+      // and the last two, `Configs` and `Stacks`, in its batch 3 — a converted
+      // inventory's heading sitting above the card holding its list, which is a
+      // different rhythm from a heading inside one, 0px having been the second's
+      // value. So the equality is asserted **within each composition**, which is
+      // where "the same distance" is a statement about layout rather than about
+      // how far the migration has got. The grouping is read from the tree and not
+      // from a list of panel names, so the two groups became one with batch 3 and
+      // this assertion needed no edit for it; the one below, which held the
+      // retired composition to the value it was certified at, is now unreachable
+      // and states so rather than being deleted with the cover it gave.
       const compositions = [
         { name: 'header above its card', members: gaps.filter((gap) => gap.converted) },
         { name: 'header inside its card', members: gaps.filter((gap) => !gap.converted) },
@@ -791,16 +794,15 @@ test.describe('F12 — the cluster’s inventories, on a stubbed manager (REQ-55
           )} under their headers`,
         ).toBe(1);
       }
-      // …and the one still-unconverted composition keeps the value it was
-      // certified at, so nothing has moved under the panels this batch leaves
-      // alone.
-      const unconverted = compositions.find((composition) => composition.name === 'header inside its card');
-      if (unconverted !== undefined) {
-        expect(
-          unconverted.members[0]!.gap,
-          `${at}: an inventory still drawn the old way starts its content ${unconverted.members[0]!.gap}px under its header`,
-        ).toBe(0);
-      }
+      // …and there is one composition on this screen, which is what the last two
+      // inventories converting means. The branch that held the retired one to the
+      // value it was certified at is kept and made an assertion of: an inventory
+      // reverting to a header inside its card is a failure here, where it used to
+      // be a second population.
+      expect(
+        compositions.map((composition) => composition.name),
+        `${at}: the inventories are drawn in ${compositions.length} compositions at once, where REQ-40 leaves one`,
+      ).toEqual(['header above its card']);
 
       // …and every header is one height, which is what "side-by-side headers share a baseline"
       // becomes once the row itself is a stack — **at the two desktop widths**, which is where
@@ -817,8 +819,14 @@ test.describe('F12 — the cluster’s inventories, on a stubbed manager (REQ-55
     });
 
     // The four panel specs — "Every cell of a row is a fixed number of lines whatever the object is
-    // ... Measured: 59.39px on every row at 1440×1000, 1280×800 and 375×812", and 56px on every
-    // nested row (a stack's services).
+    // ... Every row of both levels is the reference's own height."
+    //
+    // **The 59.39px recorded for a row was the retired presentation's and is superseded** (batches 2
+    // and 3 of `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table`, REQ-39);
+    // the nested row's 56px was already the reference's. What is asserted here is the claim itself —
+    // one height per list, whatever a row carries — and the equality with the containers and images
+    // rows is measured where those are read in the same run
+    // (`classic-table-criteria-nested-lists.spec.ts`), never against a figure copied into a spec.
     test(`every row of every list is one height, with nothing painted past a row — ${at}`, async ({ page }) => {
       test.setTimeout(120_000);
       await openScreen(page, viewport, managerSwarmFixture());
@@ -834,13 +842,14 @@ test.describe('F12 — the cluster’s inventories, on a stubbed manager (REQ-55
       // **The claim is "a row's height does not depend on what that row carries",
       // and it is a claim about one list.** It used to be asserted over every row
       // on the screen at once, which was the same thing while all five
-      // inventories were drawn one way. Since
+      // inventories were drawn one way. It became a statement about how far the
+      // migration had got while
       // `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-20`
-      // three of them are the containers row and two are not yet, and will not be
-      // until that plan's batch 3 — so a single height across the screen would now
-      // be a statement about how far the migration has got rather than about a
-      // row's content. Per list it is the stronger reading of the two: it fails on
-      // one list whose rows disagree even if the screen's other four agree.
+      // was half delivered — three inventories the containers row, two not yet —
+      // and per list it is in any case the stronger reading of the two: it fails
+      // on one list whose rows disagree even if the screen's other four agree.
+      // The **equality across the lists** is asserted below, over the population
+      // read from the tree, which since that plan's batch 3 is all five of them.
       for (const kind of ['row', 'nested'] as const) {
         const rows = screen.rows.filter((row) => row.kind === kind);
         expect(rows.length, `${at}: no ${kind} row was measured, so this comparison shows nothing`).toBeGreaterThan(1);

@@ -11,6 +11,14 @@
  * than by a second one that can drift from it. A criterion restated twice is a
  * criterion that will one day be two.
  *
+ * **Batch 3 extended it rather than copying it** (REQ-7): a list drawn inside a
+ * *row* of another list states `hideHeader`, so it carries no column to be named
+ * by and owes no header assertion — it is reached through its parent's column
+ * (`{ nestedInside }`), measured in the same pass as the row that carries it, and
+ * judged by `expectFlushRuledRows` plus `expectNestedByIndentationAlone` instead
+ * of by `expectClassicTable`. The header half of the criteria is not weakened
+ * for it; it does not apply to it, and this says so on the spot.
+ *
  * Three things it insists on, none of them negotiable:
  *
  * - **Boxes, not content.** Every character on these screens is identical before
@@ -60,6 +68,8 @@ export interface RowGeometry {
   modifiers: string[];
   height: number;
   alignItems: string;
+  /** The left edge of each of this row's own cells, so one row's inset can be read against another's. */
+  cellXs: number[];
   /** The largest of the four corner radii, in px. */
   radius: number;
   /**
@@ -121,6 +131,35 @@ export interface ListGeometry {
    * its parent list's, and a card inside a card is two surfaces (REQ-40).
    */
   nestedInAnExpansion: boolean;
+  /**
+   * The table's own `overflow-x`. A list drawn inside a row of another one
+   * computes **no** horizontal overflow of its own (`visible`), so its columns'
+   * minimums reach its parent's scroller and the pair pans together; `auto`
+   * would make it a scroll container that hands nothing upward (REQ-7, REQ-12).
+   */
+  overflowX: string;
+  /**
+   * For a list drawn in a row's **content slot** — a group's children: the row
+   * that carries it and the wrapper it is drawn in, measured in the same pass,
+   * so the child's inset is read against its own parent's cells rather than
+   * against another layout's.
+   */
+  carrier: {
+    rowLabel: string;
+    rowBox: Box;
+    /** The left edge of each of the parent row's own cells. */
+    rowCellXs: number[];
+    /** The `.ui-data-table__row-content` the nested list is drawn in. */
+    contentBox: Box;
+    /** The wrapper's own closing rule — the group's, the last child having given up its own. */
+    contentBorderBottom: number;
+    contentPaddingBottom: number;
+    /** The last child row's own bottom rule, which the group's closing hairline replaces. */
+    lastChildBorderBottom: number;
+    /** The block drawn after the group, and the distance from the wrapper's bottom edge to it. */
+    nextBlockLabel: string | null;
+    nextBlockGap: number | null;
+  } | null;
   rows: RowGeometry[];
   rowContentBlocks: number;
   /** Junctions between one row's group and the next row: REQ-2 and REQ-3. */
@@ -141,6 +180,18 @@ export function describeBox(box: Box): string {
 }
 
 /**
+ * Which list is being measured.
+ *
+ * A screen list is named by a column only it carries. A list drawn **inside a
+ * row of another list** — compose's per-project services, swarm's per-stack ones
+ * — states `hideHeader` and therefore carries no column to be named by, so it is
+ * named by its parent's column and by which group it belongs to. Its figures are
+ * read in the same pass as that parent's row, which is what makes "inset from
+ * its parent's cells" a measurement rather than two.
+ */
+export type ListTarget = string | { nestedInside: string; group?: number; underRow?: string };
+
+/**
  * Every figure of one list, in a single pass, so that no two numbers come from
  * two layouts.
  *
@@ -149,8 +200,11 @@ export function describeBox(box: Box): string {
  * measurement, except where the class *is* the contract (REQ-39's "the same set
  * of row modifiers").
  */
-export async function measureList(page: Page, column: string): Promise<ListGeometry> {
-  return await page.evaluate((wantedHeader) => {
+export async function measureList(page: Page, target: ListTarget): Promise<ListGeometry> {
+  return await page.evaluate((wanted) => {
+    const wantedHeader = typeof wanted === 'string' ? wanted : wanted.nestedInside;
+    const wantedGroup = typeof wanted === 'string' ? null : (wanted.group ?? 0);
+    const wantedRow = typeof wanted === 'string' ? undefined : wanted.underRow;
     const empty: ListGeometry = {
       found: false,
       headers: [],
@@ -166,6 +220,8 @@ export async function measureList(page: Page, column: string): Promise<ListGeome
       headerInsideCard: false,
       sectionHeaderInsideCard: false,
       nestedInAnExpansion: false,
+      overflowX: '',
+      carrier: null,
       rows: [],
       rowContentBlocks: 0,
       rowJunctions: [],
@@ -202,11 +258,26 @@ export async function measureList(page: Page, column: string): Promise<ListGeome
     // in the panel one of its rows opened carries its own header, and a probe
     // that did not scope the match would hand back the outer table for the
     // inner one's column name.
-    const table = tables.find((candidate) =>
+    const named = tables.find((candidate) =>
       Array.from(candidate.querySelectorAll('.ui-data-table__header-cell')).some(
         (cell) => cell.closest('.ui-data-table') === candidate && (cell.textContent ?? '').trim() === wantedHeader,
       ),
     );
+    // A nested list draws no header of its own, so it is reached through its
+    // parent's: the list in the content slot of that parent's `group`-th row, or
+    // of the row naming `underRow` — which is how a fixture's own group is found
+    // on a daemon that lists the operator's objects beside it.
+    const nestedLists = Array.from(
+      named?.querySelectorAll<HTMLElement>('.ui-data-table__row-content > .ui-data-table') ?? [],
+    ).filter((candidate) => candidate.parentElement?.closest('.ui-data-table') === named);
+    const table =
+      wantedGroup === null
+        ? named
+        : (wantedRow === undefined
+            ? nestedLists[wantedGroup]
+            : nestedLists.find((candidate) =>
+                (candidate.parentElement?.previousElementSibling?.textContent ?? '').includes(wantedRow),
+              )) ?? undefined;
     if (!table) return empty;
 
     const headerCells = Array.from(
@@ -256,6 +327,12 @@ export async function measureList(page: Page, column: string): Promise<ListGeome
 
     const rowElements = blocks.filter((block) => block.matches('.ui-data-table__row'));
 
+    /** A row's own cells — never one belonging to a list nested inside it. */
+    const cellsOf = (row: Element): HTMLElement[] =>
+      Array.from(row.querySelectorAll<HTMLElement>('.ui-data-table__cell')).filter(
+        (cell) => cell.closest('.ui-data-table__row') === row,
+      );
+
     const rows: RowGeometry[] = rowElements.map((row) => {
       const style = getComputedStyle(row);
       const title = row.querySelector('.ui-table-two-line-cell__title');
@@ -271,6 +348,7 @@ export async function measureList(page: Page, column: string): Promise<ListGeome
         ),
         height: row.getBoundingClientRect().height,
         alignItems: style.alignItems,
+        cellXs: cellsOf(row).map((cell) => cell.getBoundingClientRect().x),
         radius: largestRadius(row),
         carrierRadius: Math.max(largestRadius(row), carrier ? largestRadius(carrier) : 0),
         // An outline is drawn or it is not: a `none` outline still computes a
@@ -356,6 +434,18 @@ export async function measureList(page: Page, column: string): Promise<ListGeome
       });
     }
 
+    // The row this list is drawn under, where it is drawn under one at all. The
+    // group's own junctions are read **here** and not on the last child row: the
+    // wrapper carries the closing hairline and the last child gives up its own,
+    // so a probe reading that row alone measures a missing rule and is wrong
+    // about it.
+    const wrapper = table.parentElement?.closest('.ui-data-table__row-content') ?? null;
+    const carrierRow = wrapper?.previousElementSibling?.matches('.ui-data-table__row')
+      ? (wrapper.previousElementSibling as HTMLElement)
+      : null;
+    const afterTheGroup = wrapper?.nextElementSibling ?? null;
+    const lastChild = rowElements[rowElements.length - 1] ?? null;
+
     return {
       found: true,
       headers: headerCells.map((cell) => (cell.textContent ?? '').trim()),
@@ -373,6 +463,25 @@ export async function measureList(page: Page, column: string): Promise<ListGeome
       headerInsideCard: card !== null && headerElement !== null && card.contains(headerElement),
       sectionHeaderInsideCard: card !== null && card.querySelector('.ui-section-header') !== null,
       nestedInAnExpansion: table.closest('.ui-data-table__expanded') !== null,
+      overflowX: getComputedStyle(table).overflowX,
+      carrier:
+        wrapper !== null && carrierRow !== null
+          ? {
+              rowLabel: labelOf(carrierRow),
+              rowBox: box(carrierRow),
+              rowCellXs: cellsOf(carrierRow).map((cell) => cell.getBoundingClientRect().x),
+              contentBox: box(wrapper),
+              contentBorderBottom: Number.parseFloat(getComputedStyle(wrapper).borderBottomWidth) || 0,
+              contentPaddingBottom: Number.parseFloat(getComputedStyle(wrapper).paddingBottom) || 0,
+              lastChildBorderBottom: lastChild
+                ? Number.parseFloat(getComputedStyle(lastChild).borderBottomWidth) || 0
+                : 0,
+              nextBlockLabel: afterTheGroup ? labelOf(afterTheGroup) || afterTheGroup.className : null,
+              nextBlockGap: afterTheGroup
+                ? afterTheGroup.getBoundingClientRect().top - wrapper.getBoundingClientRect().bottom
+                : null,
+            }
+          : null,
       rows,
       rowContentBlocks: blocks.filter((block) => block.matches('.ui-data-table__row-content')).length,
       rowJunctions,
@@ -380,7 +489,7 @@ export async function measureList(page: Page, column: string): Promise<ListGeome
       columnEdges,
       zeroWidthCells,
     };
-  }, column);
+  }, target);
 }
 
 /**
@@ -393,22 +502,19 @@ export async function measureList(page: Page, column: string): Promise<ListGeome
  * nothing, which would be read as a clipped line rather than as a page waiting to
  * be scrolled.
  */
-export async function settledList(page: Page, column: string, budget = 20_000): Promise<ListGeometry> {
-  const table = page
-    .locator('.ui-frame__content .ui-data-table')
-    .filter({ has: page.locator('.ui-data-table__header-cell', { hasText: column }) })
-    .first();
+export async function settledList(page: Page, target: ListTarget, budget = 20_000): Promise<ListGeometry> {
+  const table = tableWithColumn(page, typeof target === 'string' ? target : target.nestedInside);
   if ((await table.count()) > 0) await table.scrollIntoViewIfNeeded().catch(() => undefined);
 
   const deadline = Date.now() + budget;
   let previous = '';
-  let current = await measureList(page, column);
+  let current = await measureList(page, target);
   while (Date.now() < deadline) {
     const serialised = JSON.stringify(current);
     if (serialised === previous && current.found && current.rows.length > 0) return current;
     previous = serialised;
     await page.waitForTimeout(400);
-    current = await measureList(page, column);
+    current = await measureList(page, target);
   }
   return current;
 }
@@ -465,6 +571,37 @@ export function expectClassicTable(at: string, name: string, list: ListGeometry)
   // The premise every junction assertion rests on: one row cannot be flush with anything.
   expect(list.rows.length, `${at} ${name}: fewer than two rows, so there is no junction to measure`).toBeGreaterThan(1);
 
+  expectFlushRuledRows(at, name, list);
+
+  // REQ-4 — one enclosing surface, with the header inside it and the rows continuous beneath it.
+  expect(
+    list.enclosingSurfaces,
+    `${at} ${name}: the list sits inside ${list.enclosingSurfaces} surfaces`,
+  ).toBe(1);
+  expect(list.headerInsideCard, `${at} ${name}: the column header is not inside the list's own surface`).toBe(true);
+
+  // REQ-5 — every header cell's left edge is its column's, at rest and at every pan offset.
+  for (const column of list.columnEdges) {
+    expect(
+      column.worstDelta,
+      `${at} ${name}: the ${column.header || 'unnamed'} column drifts ${round(column.worstDelta)}px from its header on "${column.worstRow}"`,
+    ).toBeLessThanOrEqual(0.5);
+  }
+}
+
+/**
+ * REQ-2 and REQ-3 alone — rows flush, rows not cards, one hairline between two
+ * of them.
+ *
+ * Stated apart from `expectClassicTable` because a **nested** list owes exactly
+ * this half and cannot owe the other: it draws no header (`hideHeader`), so
+ * there is no header to be inside a surface and no column edge to hold, and a
+ * probe demanding them of it would fail on the contract rather than on the
+ * build. What it does owe beyond this is `expectNestedByIndentationAlone`.
+ */
+export function expectFlushRuledRows(at: string, name: string, list: ListGeometry): void {
+  expect(list.found, `${at} ${name}: the list is not on screen at all`).toBe(true);
+
   // REQ-2 — no inter-row gap, at any of the three viewports.
   for (const junction of list.rowJunctions) {
     expect(
@@ -494,21 +631,6 @@ export function expectClassicTable(at: string, name: string, list: ListGeometry)
       Math.max(...junction.widths),
       `${at} ${name}: the rule between ${junction.label} is ${Math.max(...junction.widths)}px and not a hairline`,
     ).toBeLessThanOrEqual(2);
-  }
-
-  // REQ-4 — one enclosing surface, with the header inside it and the rows continuous beneath it.
-  expect(
-    list.enclosingSurfaces,
-    `${at} ${name}: the list sits inside ${list.enclosingSurfaces} surfaces`,
-  ).toBe(1);
-  expect(list.headerInsideCard, `${at} ${name}: the column header is not inside the list's own surface`).toBe(true);
-
-  // REQ-5 — every header cell's left edge is its column's, at rest and at every pan offset.
-  for (const column of list.columnEdges) {
-    expect(
-      column.worstDelta,
-      `${at} ${name}: the ${column.header || 'unnamed'} column drifts ${round(column.worstDelta)}px from its header on "${column.worstRow}"`,
-    ).toBeLessThanOrEqual(0.5);
   }
 }
 
@@ -640,6 +762,198 @@ export function expectNestedWithoutACardOfItsOwn(at: string, name: string, list:
   // true here by construction and is deliberately not asserted against — saying
   // it must be false would demand of a nested list the screen composition that
   // only a screen list owes.
+}
+
+/**
+ * The library's own spacing step, read from the running build in the same run.
+ *
+ * REQ-7's indentation is "one spacing step from the tokens", so the check asks
+ * the tokens what that is instead of carrying 16 as a figure of its own: a
+ * number written into a spec rots the day the token legitimately changes, and
+ * what has to hold is that the inset **is** the step, whatever it becomes.
+ *
+ * **It refuses to answer zero**, and that is not defensiveness: a page that has
+ * not loaded the application states no token at all, so the probe would hand
+ * back `0` and every "is the child inset by one step?" assertion below would
+ * become "is the child inset by nothing?" — an assertion that passes on a build
+ * with no indentation whatever. Asked too early it says so, naming the cause,
+ * instead of quietly inverting what it is asked.
+ */
+export async function spacingStep(page: Page, token = '--space-4'): Promise<number> {
+  const step = await page.evaluate(
+    (name) => Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || 0,
+    token,
+  );
+  expect(
+    step,
+    `the page states no ${token}: the application is not loaded here, so a spacing step read from it would be 0`,
+  ).toBeGreaterThan(0);
+  return step;
+}
+
+/**
+ * REQ-7 — a list drawn **inside a row of another list**, in that row's content
+ * slot, is a child by its **indentation** and by nothing else.
+ *
+ * Everything here is read against the row that carries this very list, in the
+ * same pass, so "one step past its parent's cells" is a measurement and not two.
+ * What it asserts, in the order the requirement states it:
+ *
+ * - it is inside the **same** surface as its parent and takes none of its own;
+ * - a child row's box begins one spacing step inside a parent **cell's** left
+ *   edge, and a child cell sits one further step in — the parent's own row→cell
+ *   inset, read from the parent, so the child differs by the indentation and by
+ *   nothing else;
+ * - the child rows are **not** on the parent's tracks at the parent's inset,
+ *   which is what makes two levels legible at a glance rather than one run of
+ *   rows (REQ-7's substance);
+ * - the parent row and its first child are flush, as any two rows are (REQ-2);
+ * - and the group is closed by **one** full-width hairline, the wrapper's, the
+ *   last child having given up its own. **That junction is read on the wrapper
+ *   and never on that last child row**: a probe reading the row measures a
+ *   missing rule and is wrong about it.
+ */
+export function expectNestedByIndentationAlone(at: string, name: string, list: ListGeometry, step: number): void {
+  expect(list.found, `${at} ${name}: the nested list is not on screen at all`).toBe(true);
+  expect(
+    list.carrier,
+    `${at} ${name}: it is not drawn in the content slot of a row of another list at all`,
+  ).not.toBeNull();
+  const carrier = list.carrier!;
+  expect(list.rows.length, `${at} ${name}: the nested list draws no row to measure`).toBeGreaterThan(0);
+  expect(carrier.rowCellXs.length, `${at} ${name}: the row carrying it draws no cell to be inset from`).toBeGreaterThan(0);
+
+  // The one surface is the parent list's card; the nested list takes none.
+  expect(
+    list.enclosingSurfaces,
+    `${at} ${name}: it sits inside ${list.enclosingSurfaces} surfaces where its parent list's own card is the only one admitted`,
+  ).toBe(1);
+  expect(
+    list.surfacesInside,
+    `${at} ${name}: the nested list holds ${list.surfacesInside} surface(s) of its own`,
+  ).toBe(0);
+
+  const parentCellX = carrier.rowCellXs[0];
+  const parentRowToCell = parentCellX - carrier.rowBox.x;
+  for (const row of list.rows) {
+    expect(
+      round(row.box.x - parentCellX),
+      `${at} ${name}: the child row "${row.label}" begins ${round(row.box.x - parentCellX)}px inside the "${
+        carrier.rowLabel
+      }" row's own cells, where the library's one spacing step is ${round(step)}px`,
+    ).toBe(round(step));
+    expect(row.cellXs.length, `${at} ${name}: the child row "${row.label}" draws no cell`).toBeGreaterThan(0);
+    expect(
+      round(row.cellXs[0] - row.box.x),
+      `${at} ${name}: the child row "${row.label}" insets its own cells by ${round(
+        row.cellXs[0] - row.box.x,
+      )}px against the parent row's ${round(parentRowToCell)}px — a child differs by its indentation and by nothing else`,
+    ).toBe(round(parentRowToCell));
+    // REQ-7's substance: standing back, this is not one more row of the parent list.
+    expect(
+      row.cellXs[0] - parentCellX,
+      `${at} ${name}: the child row "${row.label}" draws its first cell on the parent's own track, so the two levels read as one run of rows`,
+    ).toBeGreaterThan(step / 2);
+  }
+
+  // REQ-2 across the junction the card used to make: the parent row and its first child are flush.
+  const first = list.rows[0];
+  expect(
+    Math.abs(first.box.y - carrier.rowBox.bottom),
+    `${at} ${name}: ${round(first.box.y - carrier.rowBox.bottom)}px of gap between the "${carrier.rowLabel}" row and the first of its children`,
+  ).toBeLessThanOrEqual(0.5);
+
+  // The group's closing hairline is the wrapper's, full width, and it is the only one there.
+  expect(
+    carrier.contentBorderBottom,
+    `${at} ${name}: the group under "${carrier.rowLabel}" is closed by a ${round(carrier.contentBorderBottom)}px rule`,
+  ).toBeGreaterThan(0);
+  expect(
+    carrier.contentBorderBottom,
+    `${at} ${name}: the rule closing the group under "${carrier.rowLabel}" is ${round(
+      carrier.contentBorderBottom,
+    )}px and not a hairline`,
+  ).toBeLessThanOrEqual(2);
+  expect(
+    carrier.lastChildBorderBottom,
+    `${at} ${name}: the last child of "${carrier.rowLabel}" draws a rule of its own under the group's, so the two are drawn one above the other`,
+  ).toBe(0);
+  expect(
+    round(carrier.contentPaddingBottom),
+    `${at} ${name}: the wrapper under "${carrier.rowLabel}" keeps ${round(
+      carrier.contentPaddingBottom,
+    )}px of padding below its last child, which is a gap between two levels of one list`,
+  ).toBe(0);
+  expect(
+    round(carrier.contentBox.x),
+    `${at} ${name}: the group's closing rule starts at x=${round(carrier.contentBox.x)} against the "${
+      carrier.rowLabel
+    }" row's own ${round(carrier.rowBox.x)} — it is the group's, so it runs the row's full width`,
+  ).toBe(round(carrier.rowBox.x));
+  expect(
+    round(carrier.contentBox.right),
+    `${at} ${name}: the group's closing rule ends at x=${round(carrier.contentBox.right)} against the "${
+      carrier.rowLabel
+    }" row's own ${round(carrier.rowBox.right)}`,
+  ).toBe(round(carrier.rowBox.right));
+  if (carrier.nextBlockGap !== null) {
+    expect(
+      Math.abs(carrier.nextBlockGap),
+      `${at} ${name}: ${round(carrier.nextBlockGap)}px of gap between the group under "${carrier.rowLabel}" and the ${
+        carrier.nextBlockLabel
+      } drawn after it`,
+    ).toBeLessThanOrEqual(0.5);
+  }
+}
+
+/**
+ * REQ-7, REQ-12 — parent and child are **one** pan region, under one scrollbar.
+ *
+ * `overflow-x: visible` on the nested list is what makes that true, and it is
+ * asserted as the property it is: `auto` would make the child a scroll container
+ * of its own, and a scroll container hands none of its minimums upward — at a
+ * width neither fits, the parent would pan while the child sat still on a
+ * scrollbar of its own.
+ */
+export function expectOnePanRegionWithItsParent(at: string, name: string, list: ListGeometry): void {
+  expect(list.found, `${at} ${name}: the nested list is not on screen at all`).toBe(true);
+  expect(
+    list.overflowX,
+    `${at} ${name}: the nested list computes \`overflow-x: ${list.overflowX}\`, so it is a pan region of its own`,
+  ).toBe('visible');
+  expect(
+    list.scrollWidth,
+    `${at} ${name}: it holds ${list.scrollWidth}px of row in ${list.clientWidth}px of its own, so it is scrolling something its parent cannot`,
+  ).toBeLessThanOrEqual(list.clientWidth + 0.5);
+  expect(list.zeroWidthCells, `${at} ${name}: a cell is in the DOM and nowhere on screen`).toEqual([]);
+}
+
+/** A nested list's figures, in one line, so the report is a comparison and not a pair of numbers. */
+export function reportNestedList(at: string, name: string, list: ListGeometry, step: number, tag = 'b3'): void {
+  if (!list.found || list.carrier === null) {
+    console.log(`[${tag}/REQ-7] ${at} ${name}: no nested list drawn in a row's content slot`);
+    return;
+  }
+  const carrier = list.carrier;
+  const parentCellX = carrier.rowCellXs[0] ?? Number.NaN;
+  console.log(
+    `[${tag}/REQ-7] ${at} ${name} under "${carrier.rowLabel}": ${list.rows.length} child row(s); ` +
+      `child row x=${round(list.rows[0]?.box.x ?? Number.NaN)} against the parent cell's ${round(parentCellX)} ` +
+      `(+${round((list.rows[0]?.box.x ?? Number.NaN) - parentCellX)}px, one spacing step being ${round(step)}px), ` +
+      `child cell +${round((list.rows[0]?.cellXs[0] ?? Number.NaN) - parentCellX)}px inside it; ` +
+      `${list.enclosingSurfaces} enclosing surface(s), ${list.surfacesInside} inside; ` +
+      `overflow-x ${list.overflowX}, ${list.scrollWidth}px of row in ${list.clientWidth}px`,
+  );
+  console.log(
+    `[${tag}/REQ-2] ${at} ${name} under "${carrier.rowLabel}": parent→first child ${round(
+      (list.rows[0]?.box.y ?? Number.NaN) - carrier.rowBox.bottom,
+    )}px, child→child ${JSON.stringify(list.rowJunctions.map((junction) => round(junction.gap)))}; ` +
+      `the group closed by the wrapper's ${round(carrier.contentBorderBottom)}px rule over the last child's own ${round(
+        carrier.lastChildBorderBottom,
+      )}px, ${round(carrier.contentPaddingBottom)}px of padding under it, ${
+        carrier.nextBlockGap === null ? 'nothing' : `${round(carrier.nextBlockGap)}px`
+      } to the ${carrier.nextBlockLabel ?? 'next block'}`,
+  );
 }
 
 /**

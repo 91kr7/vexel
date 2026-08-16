@@ -680,16 +680,57 @@ describe('SwarmConfigsStacksPanel (swarm/specs/swarm-configs-stacks-panel.md)', 
   });
 
   // "a stack's services are carried by the row, not by a selection: ... a nested header-less list in
-  // the row's own content" — so they are on screen with nothing selected at all.
-  it('carries a stack’s services in the row itself, opened or not', () => {
+  // the row's own content" — so they are on screen with nothing selected at all — and that list
+  // "takes no surface of its own: it is drawn inside the stacks list's card, indented under the row
+  // it belongs to" (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-7`,
+  // `REQ-20`, `REQ-40`).
+  //
+  // **Contract and state only** (that plan's REQ-31): the indentation itself, the row heights and
+  // the group's closing hairline are every one of them zero in jsdom and are measured in a browser
+  // by `e2e/classic-table-criteria-nested-lists.spec.ts`. What is asserted here is which props the
+  // call site states and what the tree therefore holds.
+  it('carries a stack’s services in the row itself, opened or not, on no surface of their own', () => {
     renderConfigsStacks();
 
     expect(document.querySelectorAll('.ui-detail-panel'), 'a stack was opened before anything was clicked').toHaveLength(0);
-    const nested = document.querySelectorAll('.ui-data-table__row-content .ui-data-table');
+    const nested = document.querySelectorAll<HTMLElement>('.ui-data-table__row-content > .ui-data-table');
     expect(nested, 'a stack row carries no nested list of its services').toHaveLength(1);
+    expect(nested[0].className, 'the stack’s services are not stated as a nested list of the same component').toContain(
+      'ui-data-table--nested',
+    );
+    expect(nested[0].querySelectorAll('.ui-data-table__header'), 'the nested service list draws a header of its own').toHaveLength(0);
     expect(visibleText()).toContain('blog_api');
     expect(visibleText()).toContain('alpine:3.20');
     expect(visibleText()).toContain('2/3');
+
+    // Neither list asks for the retired presentation, no row of either level states a modifier of
+    // its own, and no surface is drawn inside either table.
+    expect(document.querySelectorAll('.ui-data-table--comfortable'), 'a list on this panel still asks for the retired presentation').toHaveLength(0);
+    expect(
+      [...document.querySelectorAll('.ui-data-table__row')]
+        .flatMap((row) => [...row.classList])
+        .filter((name) => name !== 'ui-data-table__row' && name !== 'ui-data-table__row--selected'),
+      'a row of either level states a modifier the reference row does not',
+    ).toEqual([]);
+    for (const table of document.querySelectorAll('.ui-data-table')) {
+      expect(table.querySelectorAll('.ui-surface'), 'a surface is drawn inside one of these lists').toHaveLength(0);
+    }
+
+    // REQ-40 — each inventory's section header is **above** the one card holding its list, and that
+    // card holds the table and nothing else.
+    for (const title of ['Configs', 'Stacks']) {
+      const heading = screen.getByRole('heading', { name: title });
+      // The section this heading names: the innermost region holding both it and a list.
+      let section: HTMLElement | null = heading.parentElement;
+      while (section !== null && section.querySelector('.ui-data-table') === null) section = section.parentElement;
+      expect(section, `the ${title} heading names no list at all`).not.toBeNull();
+      const card = section!.querySelector('.ui-data-table')!.closest('.ui-surface');
+      expect(card, `the ${title} list sits in no surface at all`).not.toBeNull();
+      expect(card!.contains(heading), `the ${title} section header is inside its list’s own card`).toBe(false);
+      expect(Array.from(card!.children).map((child) => child.className), `the ${title} card holds something besides its table`).toEqual([
+        expect.stringContaining('ui-data-table'),
+      ]);
+    }
   });
 
   // "'Remove' on a stack -> asks the confirmation service, naming the stack and stating that its

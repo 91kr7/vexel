@@ -507,11 +507,12 @@ test('swarm: no panel offers a copy on an id, and a join token is reachable only
   // stack's services are carried by its row rather than by a selection, so `Stacks` reveals no
   // property band and is not one of the sites.
   //
-  // A panel is now the innermost region carrying both its heading and its list: on the three
-  // converted here the section header sits above the card rather than inside it
-  // (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`), and on the
-  // two still drawn the old way that region is the card itself. The sites and the assertions are
-  // the ones they always were.
+  // A panel is now the innermost region carrying both its heading and its list: on every converted
+  // inventory the section header sits above the card rather than inside it
+  // (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`), which since
+  // that plan's batch 3 is all five of them — `Configs` and `Stacks` were the last two. The locator
+  // resolved to the card itself while an inventory was still drawn the old way and resolves to the
+  // section around it now; the sites and the assertions are the ones they always were.
   for (const title of ['Nodes', 'Services & tasks', 'Secrets', 'Configs']) {
     const panel = screenContent(page)
       .locator('.ui-stack, .ui-surface')
@@ -723,10 +724,14 @@ test('compose: the aggregated log stream offers no copy, and holds Download exac
 
     // REQ-20 — and `Download` is offered exactly while a project is selected, which is delivered
     // behaviour named here so the gap is a known one rather than a later discovery.
+    // A project row is a **direct child** of the outer list's body: the carrier
+    // surface each row used to be wrapped in went with the presentation it
+    // belonged to
+    // (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-3`).
     const row = page
       .locator('.ui-frame__content .ui-data-table__body')
       .first()
-      .locator(':scope > .ui-surface > .ui-data-table__row')
+      .locator(':scope > .ui-data-table__row')
       .filter({ hasText: projectName });
     await expect(row).toBeVisible({ timeout: 30_000 });
     await row.locator('.ui-data-table__cell').first().click();

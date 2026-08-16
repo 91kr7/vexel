@@ -206,10 +206,14 @@ test('the compose log stream exists only inside a project’s panel, and its row
 
     // REQ-12, REQ-13 — inside the project's panel the filename *is* given, so the row is there,
     // holds `Download`, and `Download` sits where it does today: at the row's own right edge.
+    // A project row is a **direct child** of the outer list's body: the carrier
+    // surface each row used to be wrapped in went with the presentation it
+    // belonged to
+    // (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-3`).
     const row = page
       .locator('.ui-frame__content .ui-data-table__body')
       .first()
-      .locator(':scope > .ui-surface > .ui-data-table__row')
+      .locator(':scope > .ui-data-table__row')
       .filter({ hasText: projectName });
     await expect(row).toBeVisible({ timeout: 30_000 });
     await row.locator('.ui-data-table__cell').first().click();

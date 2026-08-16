@@ -119,13 +119,23 @@ function renderScreen(projects: ComposeProjectSummary[], loaded = true, error?: 
   );
 }
 
-function card(): HTMLElement {
-  return screen.getByRole('heading', { name: 'Compose projects' }).closest('.ui-surface') as HTMLElement;
+/**
+ * The screen's one list: the outer object list, the projects' own.
+ *
+ * Found by the table itself and not through the heading naming the screen: since
+ * `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`
+ * the section header sits **above** the one unpadded card holding the list, so a
+ * card can no longer be found by the heading it used to hold.
+ */
+function list(): HTMLElement {
+  const found = document.querySelector('.ui-data-table');
+  expect(found, 'the screen draws no object list').not.toBeNull();
+  return found as HTMLElement;
 }
 
-/** The screen's one list: the outer object list, the projects' own. */
-function list(): HTMLElement {
-  return card().querySelector('.ui-data-table') as HTMLElement;
+/** The list's own card — the one surface on this screen, holding the table and nothing else. */
+function card(): HTMLElement {
+  return list().closest('.ui-surface') as HTMLElement;
 }
 
 /** A project row is a row of the outer list; a service row lives in a project row's content slot. */
@@ -136,9 +146,14 @@ function projectRows(): HTMLElement[] {
 }
 
 function serviceRowsOf(projectName: string): HTMLElement[] {
-  const carrier = rowOf(projectName).parentElement as HTMLElement;
-  const nested = carrier.querySelector('.ui-data-table__row-content');
-  return nested ? Array.from(nested.querySelectorAll<HTMLElement>('.ui-data-table__row')) : [];
+  // The row's **own** content slot: its next sibling in the list's body. A row and
+  // the content it carries are siblings there, one presentation having no carrier
+  // element around them, so a probe reading the body would find the first project's
+  // services whichever project it was asked about.
+  const content = rowOf(projectName).nextElementSibling;
+  return content?.matches('.ui-data-table__row-content') === true
+    ? Array.from(content.querySelectorAll<HTMLElement>('.ui-data-table__row'))
+    : [];
 }
 
 function headers(): string[] {
@@ -229,14 +244,30 @@ afterEach(cleanup);
 
 describe('ComposeScreen — one list, projects and their services (REQ-49)', () => {
   // REQ-49 — "Compose lists its projects with the object-list primitive … each project is a row,
-  // with its actions in the cluster"; compose-screen.md — "one full-width list of projects, in the
-  // object list's comfortable variant, and nothing beside it. Each project row carries its services
-  // as a nested header-less list of the same component."
-  it('lists the projects on one comfortable object list, each row carrying its services as a nested list', () => {
+  // with its actions in the cluster"; compose-screen.md — "one full-width list of projects … alone
+  // in an unpadded card it fills edge to edge, and nothing beside it. Each project row carries its
+  // services as a nested header-less list of the same component", which takes no surface of its own.
+  //
+  // **Contract and state only, and that is deliberate** (`.../classic-table/REQ-31`): every box is
+  // zero in jsdom, so "the rows are flush" or "the child is indented" would pass here on any build,
+  // the rejected one included. The indentation, the row heights, the one enclosing surface and the
+  // group's closing hairline are measured in a browser, by
+  // `e2e/classic-table-criteria-nested-lists.spec.ts`. What is asserted here is which props the call
+  // site states and what the tree therefore holds.
+  it('lists the projects on one object list, each row carrying its services as a nested list of the same component', () => {
     renderScreen([project({ name: 'alpha' }), project({ name: 'beta', services: [] })]);
 
     expect(list(), 'the screen draws no object list').not.toBeNull();
-    expect(list().className).toMatch(/comfortable/);
+    // The retired presentation is not asked for anywhere on this screen — neither on the projects
+    // list nor on the nested one — and no row of either carries a modifier of its own
+    // (`.../classic-table/REQ-39`).
+    expect(document.querySelectorAll('.ui-data-table--comfortable'), 'a list on this screen still asks for the retired presentation').toHaveLength(0);
+    expect(
+      Array.from(document.querySelectorAll('.ui-data-table__row'))
+        .flatMap((row) => Array.from(row.classList))
+        .filter((name) => name !== 'ui-data-table__row' && name !== 'ui-data-table__row--selected'),
+      'a row of this screen states a modifier the reference row does not',
+    ).toEqual([]);
     expect(projectRows()).toHaveLength(2);
 
     // The three components this migration refuses: the retired grouped-rows panel, the hand-built
@@ -245,10 +276,33 @@ describe('ComposeScreen — one list, projects and their services (REQ-49)', () 
     expect(document.querySelectorAll('.ui-card-list'), 'the screen draws a hand-built card list').toHaveLength(0);
     expect(document.querySelectorAll('.ui-grid'), 'a Grid still lays something out beside the list').toHaveLength(0);
 
-    // The nested list is the same component, drawing no header of its own.
-    const nested = rowOf('alpha').parentElement!.querySelector('.ui-data-table') as HTMLElement;
-    expect(nested, 'the project row carries no nested list at all').not.toBeNull();
-    expect(nested.querySelectorAll('.ui-data-table__header'), 'the nested service list draws a header of its own').toHaveLength(0);
+    // REQ-40 — the composition containers and images ship: the section header **above** the card,
+    // and one card holding the table and nothing else. The header is still drawn; what changed is
+    // which side of the surface it is on.
+    const sectionHeader = screen.getByRole('heading', { name: 'Compose projects' });
+    expect(card(), 'the list sits in no surface at all').not.toBeNull();
+    expect(card().contains(sectionHeader), 'the section header is inside the list’s own card').toBe(false);
+    expect(Array.from(card().children).map((child) => child.className), 'the list’s card holds something besides the table').toEqual([
+      expect.stringContaining('ui-data-table'),
+    ]);
+    expect(
+      card().parentElement?.closest('.ui-surface') ?? null,
+      'the list’s card sits inside another surface, so the list has two',
+    ).toBeNull();
+
+    // REQ-7 — every project row states its services through the library's own prop: one nested list
+    // per row, drawing no header, and **no wrapper of its own** between it and the row's content
+    // slot. A surface anywhere inside the table would be the retired presentation under another name.
+    for (const name of ['alpha', 'beta']) {
+      const content = rowOf(name).nextElementSibling as HTMLElement | null;
+      expect(content?.className, `the ${name} row carries no content slot below its cells`).toContain('ui-data-table__row-content');
+      const nested = content!.firstElementChild as HTMLElement | null;
+      expect(nested?.className, `the ${name} row's services are not stated as a nested list of the same component`).toContain(
+        'ui-data-table--nested',
+      );
+      expect(nested!.querySelectorAll('.ui-data-table__header'), `the ${name} row's service list draws a header of its own`).toHaveLength(0);
+    }
+    expect(list().querySelectorAll('.ui-surface'), 'a surface is drawn inside the projects table').toHaveLength(0);
   });
 
   // compose-screen.md — "inside every project row, **opened or not**: one row per service (name
