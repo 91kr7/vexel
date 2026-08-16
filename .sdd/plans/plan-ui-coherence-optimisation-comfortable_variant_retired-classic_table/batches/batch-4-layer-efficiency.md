@@ -77,9 +77,17 @@ unpadded surface holding the table and nothing else, inside the dialog.
 - The e2e specs this batch changed or added, **each also run on its own**: the criteria check, the
   new sweep, and `library-layer-screens-unmoved.spec.ts` (`INT-6`) — which has been red since batch 1
   by design and is green from here.
-- **The locator class batch 1 uncovered is enumerated for on this screen too**: a spec reaching a
-  panel through its heading, or otherwise assuming the table and its header share one surface, breaks
+- **The locator class batches 1 and 2 uncovered is enumerated for on this screen too**: a spec
+  reaching a panel through its heading, or a `.ui-surface` filtered by the heading it contains, breaks
   on REQ-40 without ever naming the presentation. Grep for the locator shape as well as for the name.
+- **A pinned figure may be re-recorded, with its value, reason and date; a pinned rule may not** — a
+  moved rule is reported, being either a defect of this batch or a decision for the human (REQ-36).
+  Batch 2 met this first, on the swarm detail panel's 58px.
+- **Every check written here is observed failing on the delivered build before the fix exists**
+  (REQ-29), and that is not a formality: a criterion that cannot be seen red on the build that caused
+  the report is not yet a criterion. Two requirements of this plan have already had to be amended for
+  exactly that — REQ-18, whose original left-edge wording is **green on the rejected build**, and the
+  batch-1 criteria that REQ-39 and REQ-40 completed.
 - Test discipline (REQ-32): the efficiency analysis runs against an image the suite owns and labels —
   the mirrored multi-layer image the layer analyses already use, never a pull from Docker Hub — with
   the run's own data directory, so the analysis cache does not hand the check a result some earlier

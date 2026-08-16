@@ -29,6 +29,17 @@ particular **none of them asks for content-sized rows**: containers' own two-lin
 finds themselves adding a prop, a variant or a rule to `client/src/ui/` here, something has been
 misread — report it rather than build it.
 
+> **Note added 2026-08-16, after this batch was certified — annotated, not rewritten.** `REQ-18` has
+> since been amended: its original wording named the Plugins defect by **one measurable consequence**
+> — the `WHY UNAVAILABLE` header and its values sharing a left edge — and that consequence is
+> **already true of the build the human rejected** (0px, because the retired presentation carried a
+> compensating header inset written for exactly that column, `data-table.css:122`). What reproduces
+> is the column's **run**: 1037px on the delivered build against 840px converted, crossed by 15
+> surfaces and 14 inter-value gaps against 0 and 0. **This batch's coverage already asserts both
+> halves**, which is why nothing here is reopened and the interventions below stand exactly as they
+> were delivered; what was wrong was the wording of the requirement they cite. The reasoning is in
+> `requirements.md`, *Amendment to REQ-18*.
+
 ## Interventions
 
 | ID | Type | Where | What | REQ | Depends |

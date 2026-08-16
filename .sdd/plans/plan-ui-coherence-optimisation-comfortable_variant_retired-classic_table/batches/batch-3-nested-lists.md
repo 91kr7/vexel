@@ -72,11 +72,20 @@ never by a surface. Neither list asks for content-sized rows.
   plus the object list's own unit file if `INT-1` added behaviour to it.
 - The e2e specs this batch changed, **each also run on its own**: the criteria check,
   `compose-row-geometry.spec.ts`, `swarm-row-geometry.spec.ts`.
-- **Enumerate for the locator class batch 1 uncovered, not only for the presentation's name**: a spec
-  reaching a panel through its heading (`.ui-section-header__title → closest('.ui-surface')` and
-  equivalents) assumes the table and its header share one surface, which REQ-40 ends, and breaks
-  without ever naming the presentation. Grep the locator shape across compose and swarm before
-  starting.
+- **Enumerate for the locator class batches 1 and 2 uncovered, not only for the presentation's
+  name**: a spec reaching a panel through its heading (`.ui-section-header__title →
+  closest('.ui-surface')`, or a `.ui-surface` filtered by the heading it contains) assumes the table
+  and its header share one surface, which REQ-40 ends, and breaks without ever naming the
+  presentation. **Two are known in advance and are met again here when Configs & Stacks converts** —
+  `client/e2e/property-columns-ordinary-widths.spec.ts` and
+  `client/e2e/property-columns-derived-count.spec.ts`, both reaching the swarm panels that way. Grep
+  the locator shape across compose and swarm for the rest before starting.
+- **A pinned figure may be re-recorded; a pinned rule may not.** Batch 2 met this on the swarm detail
+  panel, which widened by exactly 58px at every viewport once the list's card stopped padding what it
+  holds, while the certified property-column rule's outcome was unchanged at every width. A moved
+  **figure** is re-recorded here, with its new value, its reason and its date. A moved **rule** — an
+  outcome, a count, a threshold, a behaviour — is **reported, not re-recorded**: it is either a defect
+  of this batch or a decision for the human (REQ-36).
 - Test discipline (REQ-32): the compose fixture is the suite's own project, torn down in a `finally`;
   swarm is stubbed in the browser and the daemon is not put into swarm mode.
 - The complete runs are the programme's closing step, not this batch's.

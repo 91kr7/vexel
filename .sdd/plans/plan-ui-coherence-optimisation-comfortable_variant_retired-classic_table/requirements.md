@@ -122,10 +122,46 @@ action, expansion and piece of row content they show today, at 1440×1000, 1280�
 | REQ-15 | **Registries** — the registries list and the repositories list, whose per-repository row content survives per REQ-6. |
 | REQ-16 | **Builders & build cache** — both lists. |
 | REQ-17 | **Contexts** — the contexts list. |
-| REQ-18 | **Plugins** — both lists, including the case the reference analysis measured: on the CLI plugins list, the `WHY UNAVAILABLE` value and the header naming it share one left edge, **measured as boxes**, against the roughly 1100px of drift the human read on the delivered build. |
+| REQ-18 | **Plugins** — both lists, including the case the reference analysis measured. **Amended 2026-08-16, see below**: the named case is the CLI plugins list's `WHY UNAVAILABLE` column **read as a column** — the run from the header to the values beneath it is crossed by **no surface boundary, no inter-value gap and no rounded corner**, and the run is no longer stretched the width of the screen. The header and its values sharing one left edge is **one clause of that, not the whole of it**. |
 | REQ-19 | **Compose** — the projects list and its nested per-project service list, whose nesting stays legible per REQ-7. |
 | REQ-20 | **Swarm** — nodes, services (two lists), secrets and configs & stacks (three lists, one of them the nested stacks list of REQ-7 with its row content of REQ-6). |
 | REQ-21 | **Images — layer efficiency** — the three lists (deleted-later/overwritten files, duplicated content, flagged paths), each keeping the per-row expansion of REQ-10 while drawn inside the dialog that holds them. This screen was excluded on 2026-08-15 and migrated onto the condemned presentation the next day; it is in scope and is named, not implied. |
+
+### Amendment to REQ-18, 2026-08-16 — the named case was specified by one consequence of the defect
+
+**The original wording was satisfied by the build the human rejected.** It read: *"on the CLI plugins
+list, the `WHY UNAVAILABLE` value and the header naming it share one left edge, measured as boxes,
+against the roughly 1100px of drift the human read on the delivered build."* Measured on `d17e1df` by
+batch 2's tester, that left-edge drift is **0px** — not ~1100px — because the retired presentation
+carried a **compensating header inset written for exactly this** (`data-table.css:122`, the rule the
+reference analysis itself calls *"the hybrid's own confession"*). A check asserting REQ-18 as written
+is therefore **green on the defect it exists to catch**.
+
+**What actually reproduces is the case as the analysis states it**: the value separated from its
+label by a surface boundary, a gap and two rounded corners cutting the line of sight. Measured on the
+delivered build against the converted one:
+
+| Reading | Delivered | Converted |
+| --- | --- | --- |
+| Left edge, header against its values | 0px | 0px |
+| The column's run, from its label to its last value | **1037px** | 840px |
+| Surfaces cutting across that run | 15 | 0 |
+| Gaps between one value and the next | 14 | 0 |
+
+1037px against the human's *"roughly 1100"* is the figure his complaint was about; the left edge
+never was.
+
+**The enumeration was carried out over the sibling requirements and stops here.** REQ-14 to REQ-17,
+REQ-19, REQ-20 and REQ-21 name **screens** and inherit F3's blanket claim, so none of them rests on a
+single symptom. REQ-5 carries the same left-edge criterion and is the closest call — but it is stated
+with the clause *"with no compensating inset anywhere, the existence of such a compensation being the
+defect's own signature"*, and that clause is precisely what is **red** on the delivered build. REQ-18
+was the only requirement in this plan that named a defect by one of its measurable consequences.
+
+**Nothing is unverified today**: batch 2's coverage already asserts both halves, and batches 1 and 2
+are certified. What was wrong was **the record** — and a later reader taking a green left-edge
+assertion for the repair of what was reported is exactly the inheritance failure this plan exists to
+close. Validated by the human's delegate under his standing delegation, 2026-08-16.
 
 ## F4 — The retirement is enforced, not remembered
 
