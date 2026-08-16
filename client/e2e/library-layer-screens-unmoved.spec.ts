@@ -53,6 +53,49 @@
  * daemon feed (below), and any surface whose **text** differs between the two
  * reads — the daemon is the operator's own and moves under both builds.
  *
+ * ---
+ *
+ * **Restated 2026-08-16, by
+ * `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table`
+ * (batch 4, `INT-6`).** That plan converts every object
+ * list in the product to the presentation containers and images ship, and
+ * **REQ-40** moves each list's section header and toolbar *out* of the card, so
+ * that the card holds the table and nothing else. This file reached a panel
+ * through `.ui-section-header__title → closest('.ui-surface')`, which on a
+ * converted screen now resolves to `null`: it was red from that plan's batch 1
+ * onwards, and no locator repair settles it, because what a panel *is* has
+ * changed. The disposition is stated here so a later reader can tell a
+ * re-expression from a deletion:
+ *
+ * - **Re-expressed** (the assertions, which are normative — they govern what is
+ *   believed true of these screens today): a panel is now located by the rule in
+ *   `panelOf` below — the surface holding the title where a build draws the title
+ *   inside the card, the region holding the title and the list's card where it
+ *   draws it above. Every claim those assertions made — stacked or paired, one
+ *   left edge, one width, the content column's full width, wider than the half
+ *   it replaced — is asserted exactly as before, on that panel.
+ * - **Re-expressed** likewise: "how many object lists does this screen draw".
+ *   `REQ-7` of the same plan draws a nested list **inside its parent's table**,
+ *   so `.ui-data-table` now matches a child list too; the counts below name the
+ *   screen's own lists (`:not(.ui-data-table--nested)`) and report the children
+ *   beside them, which is the same claim about the same thing.
+ * - **Declared**, with its own accounting rather than an allowance: that plan's
+ *   `REQ-5` put the column header **inside the box that scrolls** (batch 2), so on
+ *   every list the header is drawn one level deeper than the delivered build drew
+ *   it, a capped list is shorter by exactly its own header, and a header inside a
+ *   scrolled box is narrower by exactly its scrollbar. That reaches containers and
+ *   images — the two screens this file still compares surface by surface — and is
+ *   asserted as those three exact figures, never as slack.
+ * - **Annotated, not overwritten**: every recorded before/after reading of the
+ *   *previous* programme (the 25.4px swarm offset, the 1 : 1.2 templates, the
+ *   157.5px plugin lists, `VEXEL_DELIVERED_REF=56b0c90`'s 318 surfaces) was
+ *   measured against a build that no longer exists. The readings stay as written,
+ *   with a note where this plan superseded what they described.
+ * - **Removed with the claim it covered**: nothing. No assertion of this file
+ *   lost its subject — the panels, the lists, the empty states and the toolbars
+ *   all still exist; what changed is where their boxes are and which element
+ *   carries them.
+ *
  * Nothing here creates a fixture on the daemon: the screens are read as the
  * operator's own daemon fills them, and both builds read the same one. The
  * worktree, the build, the data directory and the process the comparison needs
@@ -174,6 +217,32 @@ interface Surface {
    * so text equality is a safe gate to put in front of the geometry.
    */
   text: string;
+  /**
+   * **What this surface may have lost in height, to the pixel** — the height of
+   * the sticky column headers it is or holds whose own list is at its cap.
+   *
+   * `.../classic-table/REQ-5` (batch 2, 2026-08-16) put the column header inside
+   * the box that scrolls, because a vertical scrollbar narrows that box's content
+   * box and not a sibling header's, so every column after the first parted
+   * company with its label. One consequence reaches the boxes measured here: a
+   * list stating `maxHeight` used to be *header + cap* tall and is now *cap* tall,
+   * the header having moved inside it — so the list, and the card holding it, are
+   * shorter by exactly that header. Zero for every list that is not capped, which
+   * is all of them but containers, images and the CLI plugins list, and zero for
+   * every surface that holds none.
+   */
+  cappedHeader: number;
+  /**
+   * **What this header may have lost in width, to the pixel** — the width its own
+   * scroll box's vertical scrollbar takes, on a build that draws the header
+   * inside that box, and 0 on one that draws it outside (the delivered build) or
+   * on any surface that is not a column header.
+   *
+   * The same change as above, on the other axis, and the *point* of it: the
+   * header now lays its tracks in the box the rows lay theirs in. Narrower by
+   * exactly the scrollbar is the repair; anything else is a regression.
+   */
+  scrollbar: number;
 }
 
 /**
@@ -197,28 +266,76 @@ interface Surface {
 const LIVE_FEED = '.ui-event-stream';
 
 /**
+ * **The panel rule** — how a screen's panel is reached, on either build
+ * (restated 2026-08-16, see the file header).
+ *
+ * A panel used to be one box: a card with its title, its action bar and its list
+ * inside it, so `title.closest('.ui-surface')` was the panel and the card at
+ * once. `.../classic-table/REQ-40` splits that into the composition containers
+ * and images ship — the title and the toolbar **above**, and one unpadded card
+ * holding the table and nothing else — so on a converted screen that `closest`
+ * resolves to `null` and every claim written on it silently measures nothing.
+ *
+ * The rule below names the same thing on both builds: **the panel is what the
+ * screen draws for that inventory** — the surface holding the title where a
+ * build draws the title inside the card, and the innermost region holding the
+ * title and the list's own card where it draws it above. Written into each
+ * `page.evaluate` rather than shared, because a page function is serialised
+ * alone; the wording is the same in every copy and this is its one statement.
+ *
+ * It is deliberately **not** "the card the list is in": the claims here are
+ * about what the *screen* lays out — stacked or paired, one left edge, one
+ * width, the content column's full width — and after REQ-40 the card is one of
+ * three boxes that answer to it.
+ *
+ * ```js
+ * const panelOf = (title) => {
+ *   const own = title.closest('.ui-surface');          // the title is inside the card
+ *   if (own !== null) return own;
+ *   let region = title.parentElement;                  // REQ-40: the title is above it
+ *   while (region !== null && region.querySelector('.ui-surface') === null) region = region.parentElement;
+ *   return region;
+ * };
+ * ```
+ */
+
+/**
  * The screen whose shape this plan deliberately changes, and what it changed to.
  *
  * A screen listed here is not compared surface by surface against the delivered
  * build — the comparison would be a statement that a migration did not happen —
  * but it is not left unmeasured either: the batch's own declared geometry is
  * asserted on both builds instead, below.
+ *
+ * **Each entry names one plan, and where a second plan has since changed the
+ * same screen it is appended with its date rather than folded into the first.**
+ * The readings the earlier text quotes were taken against a build that no longer
+ * exists, and rewriting them would lose which programme delivered what — the
+ * inheritance failure `.../classic-table` exists to close, one artefact closer
+ * to home.
  */
 const DELIBERATELY_CHANGED: Record<string, string> = {
   'volumes-networks':
-    'plan-ui-coherence-optimisation/REQ-31…REQ-35 — the pair of half-width cards became one stacked full-width column, so a revealed detail is full width',
+    'plan-ui-coherence-optimisation/REQ-31…REQ-35 — the pair of half-width cards became one stacked full-width column, so a revealed detail is full width' +
+    ' · and since 2026-08-16, `.../classic-table/REQ-39`, `REQ-40` — each list is the containers table, edge to edge in an unpadded card of its own with the panel’s section header and toolbar **above** that card. The panel is therefore no longer one surface, and is read by the panel rule above; the claim asserted on it — stacked, one left edge, one width, the content column’s full width — is unchanged',
   registries:
-    'plan-ui-coherence-optimisation/REQ-36…REQ-38 — the two lists became the object list, and the fixed 1 : 1.2 template that never collapsed became the library’s pair arrangement: equal panels at desktop widths, one column at the phone breakpoint',
+    'plan-ui-coherence-optimisation/REQ-36…REQ-38 — the two lists became the object list, and the fixed 1 : 1.2 template that never collapsed became the library’s pair arrangement: equal panels at desktop widths, one column at the phone breakpoint' +
+    ' · and since 2026-08-16, `.../classic-table/REQ-39`, `REQ-40` — both lists are the containers table, each edge to edge in an unpadded card with its header above it. The pair arrangement itself is untouched, and is what is still asserted',
   'builders-cache':
-    'plan-ui-coherence-optimisation/REQ-39…REQ-41 — the builder list and the build-cache list became the object list, the hand-built cards deleted, and each card’s page-level action moved from its header into the screen toolbar under it',
+    'plan-ui-coherence-optimisation/REQ-39…REQ-41 — the builder list and the build-cache list became the object list, the hand-built cards deleted, and each card’s page-level action moved from its header into the screen toolbar under it' +
+    ' · and since 2026-08-16, `.../classic-table/REQ-39`, `REQ-40` — both lists are the containers table, each edge to edge in an unpadded card whose header and toolbar sit above it rather than inside it',
   contexts:
-    'plan-ui-coherence-optimisation/REQ-42…REQ-45 — the context list became the object list, `use` became a primary action of the row’s cluster beside the `active` marker, and the second eight-property daemon card left the screen; with it went the `Grid` that had been halving the list, one child not being a pair',
+    'plan-ui-coherence-optimisation/REQ-42…REQ-45 — the context list became the object list, `use` became a primary action of the row’s cluster beside the `active` marker, and the second eight-property daemon card left the screen; with it went the `Grid` that had been halving the list, one child not being a pair' +
+    ' · and since 2026-08-16, `.../classic-table/REQ-39`, `REQ-40` — the list is the containers table, edge to edge in an unpadded card with the header and the toolbar above it',
   plugins:
-    'plan-ui-coherence-optimisation/REQ-46…REQ-48 — the two hand-built plugin lists became the object list, the `Grid` that laid them side by side at every width was deleted rather than collapsed, the install action moved from a card header into the screen toolbar, and both empty results became the empty-state primitive',
+    'plan-ui-coherence-optimisation/REQ-46…REQ-48 — the two hand-built plugin lists became the object list, the `Grid` that laid them side by side at every width was deleted rather than collapsed, the install action moved from a card header into the screen toolbar, and both empty results became the empty-state primitive' +
+    ' · and since 2026-08-16, `.../classic-table/REQ-18`, `REQ-39`, `REQ-40` — both lists are the containers table, edge to edge in unpadded cards, which is what takes the surfaces, the gaps and the corners out of the `WHY UNAVAILABLE` column the reference analysis measured',
   compose:
-    'plan-ui-coherence-optimisation/REQ-49…REQ-51 — the projects left `GroupedRowsPanel`, the product’s third answer to “how is an object listed”, for the object list, and the component was deleted with them; the fixed `2fr 1fr` template that never collapsed was deleted rather than collapsed, its two regions having become views of the selected project’s own panel; and `No compose projects`, a bare title, became the empty-state primitive with a line and the action that resolves it',
+    'plan-ui-coherence-optimisation/REQ-49…REQ-51 — the projects left `GroupedRowsPanel`, the product’s third answer to “how is an object listed”, for the object list, and the component was deleted with them; the fixed `2fr 1fr` template that never collapsed was deleted rather than collapsed, its two regions having become views of the selected project’s own panel; and `No compose projects`, a bare title, became the empty-state primitive with a line and the action that resolves it' +
+    ' · and since 2026-08-16, `.../classic-table/REQ-7`, `REQ-39`, `REQ-40` — the projects list is the containers table, edge to edge in an unpadded card, and each project’s services are drawn **inside that same table**, indented under their row, taking no surface of their own. So the screen draws one list of its own and one child list per project row, which is why the count below excludes `.ui-data-table--nested`',
   'images-layers':
-    'plan-ui-coherence-optimisation/REQ-57, REQ-59 — the images list stopped printing one string twice per row: the `TAGS` pill column that repeated `REPOSITORY:TAG` on every row is gone, and `SIZE` — the word that carried two different numbers in one product — is now `DISK USAGE` (`images/specs/images-screen.md`). One column fewer, and a two-word label in its track, is the **shape** of those two requirements being met. This screen is therefore **not skipped**: it is compared surface by surface like the eight unchanged ones, with exactly one declared exemption — the images list’s own header row may be **narrower** where the table is wider than its card and is sized by its columns rather than by the card (375×812). It may not grow, it may not move sideways, and no other surface of the screen is exempt, so a further unintended move on it still fails. What the row *says* is checked in `images-one-fact-once.spec.ts`',
+    'plan-ui-coherence-optimisation/REQ-57, REQ-59 — the images list stopped printing one string twice per row: the `TAGS` pill column that repeated `REPOSITORY:TAG` on every row is gone, and `SIZE` — the word that carried two different numbers in one product — is now `DISK USAGE` (`images/specs/images-screen.md`). One column fewer, and a two-word label in its track, is the **shape** of those two requirements being met. This screen is therefore **not skipped**: it is compared surface by surface like the eight unchanged ones, with exactly one declared exemption — the images list’s own header row may be **narrower** where the table is wider than its card and is sized by its columns rather than by the card (375×812). It may not grow, it may not move sideways, and no other surface of the screen is exempt, so a further unintended move on it still fails. What the row *says* is checked in `images-one-fact-once.spec.ts`' +
+    ' · and since 2026-08-16, `.../classic-table/REQ-5` — the column header of **every** list, this one and the containers list included, is drawn inside the box that scrolls rather than above it, because a vertical scrollbar narrowed the rows’ box and not the header’s and drifted this very list’s columns by up to 10.99px. Three consequences, each asserted as an exact figure rather than as slack: the header sits one level deeper in the tree (re-keyed, and still compared box for box), a header inside a scrolled box is narrower by exactly that scrollbar, and a list stating `maxHeight` — with the card holding it — is shorter by exactly the header the cap now holds. This screen is still **not skipped**',
   'system-prune':
     'plan-ui-coherence-optimisation/REQ-73…REQ-75 — the fixed 1 : 1.2 template that never collapsed became the library’s pair arrangement: equal panels above the breakpoint, one column below, and `align-items: start`, so the two cards no longer share a height; the system prune left the section header for the screen toolbar under it, which puts the reclaim card’s rows one row lower; and the two empty results gained their explanation and their way out. What the batch states does **not** change is everything the screen says: the eight daemon properties, the five prune rows and the standing warning, which are compared word for word against this same delivered build in `system-prune-preserved.spec.ts`',
   'coverage-matrix':
@@ -226,7 +343,8 @@ const DELIBERATELY_CHANGED: Record<string, string> = {
   dashboard:
     'plan-ui-coherence-optimisation/REQ-66…REQ-68 — the middle row’s two cards, which the delivered build left ending at different y, are given the height of the taller of them (REQ-66, `dashboard-layout.md`); and the disk-usage chart gains a legend under its rows naming what each of its colours means (REQ-67), which costs that card’s content the legend’s own height and nothing else. Those are the two deltas, and nothing else is declared: **no surface may move sideways or change width at any viewport**, the tiles are where they were, and the footer card sits exactly where the row’s new height puts it — so a further unintended move still fails. Below the tablet breakpoint the two columns are one and each is its own height, as before (`dashboard-layout.md`), so the shared edge is asserted at the two desktop viewports REQ-66 names. What the screen still **says** — the five tiles, the activity list, the disk figures and the daemon feed — is `dashboard.spec.ts`’s',
   swarm:
-    'plan-ui-coherence-optimisation/REQ-52…REQ-55 — the condition of the swarm is stated **once**, on one surface, with `Initialise a swarm` and `Join an existing one` inside it, where the delivered build stated it in a banner and again in each of five lists; the state bar is not drawn where there is no state to qualify, the panels are not drawn where there is no cluster to read, and `QuadPanelLayout` is deleted with the two-by-two grid, the five inventories stacked at the content column’s full width',
+    'plan-ui-coherence-optimisation/REQ-52…REQ-55 — the condition of the swarm is stated **once**, on one surface, with `Initialise a swarm` and `Join an existing one` inside it, where the delivered build stated it in a banner and again in each of five lists; the state bar is not drawn where there is no state to qualify, the panels are not drawn where there is no cluster to read, and `QuadPanelLayout` is deleted with the two-by-two grid, the five inventories stacked at the content column’s full width' +
+    ' · and since 2026-08-16, `.../classic-table/REQ-7`, `REQ-39`, `REQ-40` — on a manager, each of the five inventories is the containers table, edge to edge in an unpadded card with its header above it, and the stacks’ own services are drawn inside the stacks table, indented. On a daemon that is in no swarm nothing of this is drawn, which is what the assertions below still read',
 };
 
 /**
@@ -319,13 +437,19 @@ async function measureSwarmScreen(page: Page): Promise<{
         y: button.getBoundingClientRect().y,
         insideTheStatement: statement !== null && statement.contains(button),
       })),
-      // Each card's own empty state, by the card that holds it: REQ-54's offset is the difference
-      // between two of them, `Secrets`' against `Configs & stacks`'.
+      // Each panel's own empty state, by the panel that holds it: REQ-54's offset is the difference
+      // between two of them, `Secrets`' against `Configs & stacks`'. Read through the panel rule —
+      // the delivered build's empty state sits in a card carrying the title, and a converted one in
+      // a card whose title is the region's, one level out (2026-08-16).
       cardContentTops: [...content.querySelectorAll('.ui-empty-state')]
-        .map((state) => ({ state, card: state.closest('.ui-surface:has(.ui-section-header__title)') }))
-        .filter((entry): entry is { state: Element; card: Element } => entry.card !== null)
-        .map(({ state, card }) => ({
-          card: (card.querySelector('.ui-section-header__title')?.textContent ?? '').trim(),
+        .map((state) => {
+          let region: Element | null = state.parentElement;
+          while (region !== null && region.querySelector('.ui-section-header__title') === null) region = region.parentElement;
+          return { state, panel: region };
+        })
+        .filter((entry): entry is { state: Element; panel: Element } => entry.panel !== null)
+        .map(({ state, panel }) => ({
+          card: (panel.querySelector('.ui-section-header__title')?.textContent ?? '').trim(),
           y: state.getBoundingClientRect().y,
         })),
       screenBottom,
@@ -362,8 +486,17 @@ async function measureDashboardScreen(page: Page): Promise<{
     const contentStyle = getComputedStyle(content);
     const columnWidth =
       content.clientWidth - Number.parseFloat(contentStyle.paddingLeft) - Number.parseFloat(contentStyle.paddingRight);
+    // The panel rule (stated once above): the surface holding the title, or the
+    // region holding the title and the list's own card.
+    const panelOf = (title: Element): Element | null => {
+      const own = title.closest('.ui-surface');
+      if (own !== null) return own;
+      let region = title.parentElement;
+      while (region !== null && region.querySelector('.ui-surface') === null) region = region.parentElement;
+      return region;
+    };
     const cards = [...content.querySelectorAll('.ui-section-header__title')]
-      .map((node) => ({ title: (node.textContent ?? '').trim(), card: node.closest('.ui-surface') }))
+      .map((node) => ({ title: (node.textContent ?? '').trim(), card: panelOf(node) }))
       .filter((entry): entry is { title: string; card: Element } => entry.card !== null)
       .map(({ title, card }) => {
         const rect = card.getBoundingClientRect();
@@ -376,10 +509,9 @@ async function measureDashboardScreen(page: Page): Promise<{
     // gives back as a negative margin, so its painted bottom sits 4px below the
     // region that holds it, and the gap the legend adds starts at the region.
     const rowsRegion = breakdown?.querySelector('.ui-usage-breakdown__rows') ?? null;
-    const activityCard =
-      [...content.querySelectorAll('.ui-section-header__title')]
-        .find((node) => (node.textContent ?? '').trim() === 'Container activity')
-        ?.closest('.ui-surface') ?? null;
+    const activityTitle =
+      [...content.querySelectorAll('.ui-section-header__title')].find((node) => (node.textContent ?? '').trim() === 'Container activity') ?? null;
+    const activityCard = activityTitle === null ? null : panelOf(activityTitle);
 
     return {
       columnWidth,
@@ -403,6 +535,8 @@ async function measureDashboardScreen(page: Page): Promise<{
           (row.textContent ?? '').replace(/\s+/g, ' ').trim(),
         ),
       ].join(' | '),
+      // Unqualified on purpose: this card holds one list and no nested one, so every row it draws
+      // is the activity list's (`.../classic-table/REQ-7` nests only on compose and swarm).
       activityRows: activityCard?.querySelectorAll('.ui-data-table__row').length ?? 0,
       legendEntries: legend?.querySelectorAll('.ui-usage-breakdown__legend-item').length ?? 0,
       legendCost:
@@ -480,7 +614,14 @@ async function measureAboutScreen(page: Page): Promise<{
       }),
       cards: titles
         .map((title) => {
-          const card = title.closest('.ui-surface');
+          // The panel rule (stated once above): the surface holding the title,
+          // or the region holding the title and the list's own card.
+          let card = title.closest('.ui-surface');
+          if (card === null) {
+            let region = title.parentElement;
+            while (region !== null && region.querySelector('.ui-surface') === null) region = region.parentElement;
+            card = region;
+          }
           if (card === null) return null;
           const header = title.closest('.ui-section-header') ?? title;
           let node: Element | null = header;
@@ -538,9 +679,17 @@ async function measureContextsScreen(page: Page): Promise<{
     const content = document.querySelector('.ui-frame__content')! as HTMLElement;
     const contentStyle = getComputedStyle(content);
     const columnWidth = content.clientWidth - Number.parseFloat(contentStyle.paddingLeft) - Number.parseFloat(contentStyle.paddingRight);
-    // The element both builds draw for a card's title.
+    // The panel rule (stated once above): the surface holding the title, or the
+    // region holding the title and the list's own card.
+    const panelOf = (title: Element): Element | null => {
+      const own = title.closest('.ui-surface');
+      if (own !== null) return own;
+      let region = title.parentElement;
+      while (region !== null && region.querySelector('.ui-surface') === null) region = region.parentElement;
+      return region;
+    };
     const cards = [...content.querySelectorAll('.ui-section-header__title')]
-      .map((node) => ({ title: (node.textContent ?? '').trim(), card: node.closest('.ui-surface') }))
+      .map((node) => ({ title: (node.textContent ?? '').trim(), card: panelOf(node) }))
       .filter((entry): entry is { title: string; card: Element } => entry.card !== null)
       .map(({ title, card }) => {
         const rect = card.getBoundingClientRect();
@@ -551,7 +700,9 @@ async function measureContextsScreen(page: Page): Promise<{
       columnWidth,
       cards,
       cardLists: content.querySelectorAll('.ui-card-list').length,
-      objectLists: content.querySelectorAll('.ui-data-table').length,
+      // The screen's own lists, never a child list drawn inside one of them
+      // (`.../classic-table/REQ-7`, 2026-08-16).
+      objectLists: content.querySelectorAll('.ui-data-table:not(.ui-data-table--nested)').length,
       toolbars: content.querySelectorAll('.ui-screen-toolbar').length,
       daemonProperties: daemonLabels.filter((label) => text.includes(label)),
     };
@@ -614,6 +765,41 @@ function widthDeclaredBy(screenId: string, key: string, delta: number): boolean 
 }
 
 /**
+ * **The column header's new place in the tree** — the one key this file rewrites,
+ * and it rewrites the *delivered* build's so that the surface goes on being
+ * compared rather than dropped as "no longer drawn" (2026-08-16).
+ *
+ * `.../classic-table/REQ-5` (batch 2) made the header a child of the box that
+ * scrolls, where the delivered build drew it as that box's sibling: the element
+ * is the same element, one level deeper, so its path gains exactly one step and
+ * nothing else about it may change. Everything the comparison then says about it
+ * — where it is, how tall it is, how wide, whether it moved — is said in full,
+ * under the two exact accountings `Surface.cappedHeader` and `Surface.scrollbar`
+ * carry.
+ *
+ * Deliberately narrow: only a `.ui-data-table__header`, only one level, and only
+ * where the current build actually draws it there. A header that vanished, or
+ * that reappeared somewhere else, is still a structural difference.
+ *
+ * **What it deliberately does not cover, and why that is safe rather than
+ * lucky**: a surface drawn *inside* the box that scrolls moved with it, and its
+ * path shifts by two steps rather than one — the header taking index 0 inside
+ * the box the rows' wrapper used to have to itself. Exactly one measured surface
+ * can sit there, the list's own **empty state**, and only on a list with nothing
+ * to show. The two screens this comparison still reaches are containers and
+ * images, and a run always has both: `test:registry` puts the run's own registry
+ * container on the daemon and the images it is seeded from in the store, so
+ * neither list is ever measured empty. If one ever is, it is reported as a
+ * structural difference rather than swallowed — which is the right way round.
+ */
+function headerMovedIntoTheScrollingBox(deliveredKey: string, currentKeys: { has: (key: string) => boolean }): string | null {
+  const parts = /^(\S*) (\.ui-data-table__header#\d+)$/.exec(deliveredKey);
+  if (parts === null) return null;
+  const moved = `${parts[1]}/0 ${parts[2]}`;
+  return currentKeys.has(moved) ? moved : null;
+}
+
+/**
  * The system & prune screen, as the change REQ-73…REQ-75 declares can be
  * measured on both builds.
  *
@@ -657,9 +843,17 @@ async function measureSystemScreen(page: Page): Promise<{
     const content = document.querySelector('.ui-frame__content')! as HTMLElement;
     const contentStyle = getComputedStyle(content);
     const columnWidth = content.clientWidth - Number.parseFloat(contentStyle.paddingLeft) - Number.parseFloat(contentStyle.paddingRight);
-    // The element both builds draw for a card's title.
+    // The panel rule (stated once above): the surface holding the title, or the
+    // region holding the title and the list's own card.
+    const panelOf = (title: Element): Element | null => {
+      const own = title.closest('.ui-surface');
+      if (own !== null) return own;
+      let region = title.parentElement;
+      while (region !== null && region.querySelector('.ui-surface') === null) region = region.parentElement;
+      return region;
+    };
     const cards = [...content.querySelectorAll('.ui-section-header__title')]
-      .map((node) => ({ title: (node.textContent ?? '').trim(), card: node.closest('.ui-surface') }))
+      .map((node) => ({ title: (node.textContent ?? '').trim(), card: panelOf(node) }))
       .filter((entry): entry is { title: string; card: Element } => entry.card !== null)
       .map(({ title, card }) => {
         const rect = card.getBoundingClientRect();
@@ -728,11 +922,29 @@ async function measurePluginsScreen(page: Page): Promise<{
     const content = document.querySelector('.ui-frame__content')! as HTMLElement;
     const contentStyle = getComputedStyle(content);
     const columnWidth = content.clientWidth - Number.parseFloat(contentStyle.paddingLeft) - Number.parseFloat(contentStyle.paddingRight);
-    // The element both builds draw for a card's title.
-    const titleOf = (element: Element) =>
-      (element.closest('.ui-surface')?.querySelector('.ui-section-header__title')?.textContent ?? '').trim();
+    // The panel rule (stated once above): the surface holding the title, or the
+    // region holding the title and the list's own card.
+    const panelOf = (title: Element): Element | null => {
+      const own = title.closest('.ui-surface');
+      if (own !== null) return own;
+      let region = title.parentElement;
+      while (region !== null && region.querySelector('.ui-surface') === null) region = region.parentElement;
+      return region;
+    };
+    // Which inventory an empty result belongs to, read the same way round: the
+    // innermost region that names it. On the delivered build that is the card
+    // holding both; after `.../classic-table/REQ-40` the card holds the list
+    // alone and the name is the panel's, one level out (2026-08-16). Read
+    // through `closest('.ui-surface')` it silently became `''` for every empty
+    // result on this screen, and the guard below — "the empty daemon inventory
+    // explains itself" — would have found no subject and passed.
+    const titleOf = (element: Element) => {
+      let region: Element | null = element.parentElement;
+      while (region !== null && region.querySelector('.ui-section-header__title') === null) region = region.parentElement;
+      return (region?.querySelector('.ui-section-header__title')?.textContent ?? '').trim();
+    };
     const cards = [...content.querySelectorAll('.ui-section-header__title')]
-      .map((node) => ({ title: (node.textContent ?? '').trim(), card: node.closest('.ui-surface') }))
+      .map((node) => ({ title: (node.textContent ?? '').trim(), card: panelOf(node) }))
       .filter((entry): entry is { title: string; card: Element } => entry.card !== null)
       .map(({ title, card }) => {
         const rect = card.getBoundingClientRect();
@@ -742,7 +954,9 @@ async function measurePluginsScreen(page: Page): Promise<{
       columnWidth,
       cards,
       cardLists: content.querySelectorAll('.ui-card-list').length,
-      objectLists: content.querySelectorAll('.ui-data-table').length,
+      // The screen's own lists, never a child list drawn inside one of them
+      // (`.../classic-table/REQ-7`, 2026-08-16).
+      objectLists: content.querySelectorAll('.ui-data-table:not(.ui-data-table--nested)').length,
       toolbars: content.querySelectorAll('.ui-screen-toolbar').length,
       emptyStates: [...content.querySelectorAll('.ui-empty-state')].map((state) => {
         const rect = state.getBoundingClientRect();
@@ -775,6 +989,8 @@ async function measureComposeScreen(page: Page): Promise<{
   cards: { title: string; x: number; y: number; width: number }[];
   groupedRowsPanels: number;
   objectLists: number;
+  /** The per-project service lists drawn inside the projects list's own table (REQ-7). */
+  nestedLists: number;
   grids: number;
   detailPanels: number;
   emptyStates: { title: string; titleLines: number; description: string | null; controls: number; x: number; width: number }[];
@@ -783,9 +999,17 @@ async function measureComposeScreen(page: Page): Promise<{
     const content = document.querySelector('.ui-frame__content')! as HTMLElement;
     const contentStyle = getComputedStyle(content);
     const columnWidth = content.clientWidth - Number.parseFloat(contentStyle.paddingLeft) - Number.parseFloat(contentStyle.paddingRight);
-    // The element both builds draw for a card's title.
+    // The panel rule (stated once above): the surface holding the title, or the
+    // region holding the title and the list's own card.
+    const panelOf = (title: Element): Element | null => {
+      const own = title.closest('.ui-surface');
+      if (own !== null) return own;
+      let region = title.parentElement;
+      while (region !== null && region.querySelector('.ui-surface') === null) region = region.parentElement;
+      return region;
+    };
     const cards = [...content.querySelectorAll('.ui-section-header__title')]
-      .map((node) => ({ title: (node.textContent ?? '').trim(), card: node.closest('.ui-surface') }))
+      .map((node) => ({ title: (node.textContent ?? '').trim(), card: panelOf(node) }))
       .filter((entry): entry is { title: string; card: Element } => entry.card !== null)
       .map(({ title, card }) => {
         const rect = card.getBoundingClientRect();
@@ -795,7 +1019,14 @@ async function measureComposeScreen(page: Page): Promise<{
       columnWidth,
       cards,
       groupedRowsPanels: content.querySelectorAll('.ui-grouped-rows-panel').length,
-      objectLists: content.querySelectorAll('.ui-data-table').length,
+      // **The screen's own list, never its children.** Since
+      // `.../classic-table/REQ-7` every project row carries its services as a
+      // list drawn inside this very table, indented rather than detached, so
+      // `.ui-data-table` matches one per project on a daemon that runs any —
+      // and "the projects are listed on the object list" is a claim about the
+      // outer one (2026-08-16). The children are counted beside it.
+      objectLists: content.querySelectorAll('.ui-data-table:not(.ui-data-table--nested)').length,
+      nestedLists: content.querySelectorAll('.ui-data-table--nested').length,
       grids: content.querySelectorAll('.ui-grid').length,
       detailPanels: content.querySelectorAll('.ui-detail-panel').length,
       emptyStates: [...content.querySelectorAll('.ui-empty-state')].map((state) => {
@@ -832,9 +1063,17 @@ async function measureBuildersScreen(page: Page): Promise<{
     const content = document.querySelector('.ui-frame__content')! as HTMLElement;
     const contentStyle = getComputedStyle(content);
     const columnWidth = content.clientWidth - Number.parseFloat(contentStyle.paddingLeft) - Number.parseFloat(contentStyle.paddingRight);
-    // The element both builds draw for a card's title.
+    // The panel rule (stated once above): the surface holding the title, or the
+    // region holding the title and the list's own card.
+    const panelOf = (title: Element): Element | null => {
+      const own = title.closest('.ui-surface');
+      if (own !== null) return own;
+      let region = title.parentElement;
+      while (region !== null && region.querySelector('.ui-surface') === null) region = region.parentElement;
+      return region;
+    };
     const cards = [...document.querySelectorAll('.ui-section-header__title')]
-      .map((node) => ({ title: (node.textContent ?? '').trim(), card: node.closest('.ui-surface') }))
+      .map((node) => ({ title: (node.textContent ?? '').trim(), card: panelOf(node) }))
       .filter((entry): entry is { title: string; card: Element } => entry.card !== null)
       .map(({ title, card }) => {
         const rect = card.getBoundingClientRect();
@@ -844,7 +1083,9 @@ async function measureBuildersScreen(page: Page): Promise<{
       columnWidth,
       cards,
       cardLists: content.querySelectorAll('.ui-card-list').length,
-      objectLists: content.querySelectorAll('.ui-data-table').length,
+      // The screen's own lists, never a child list drawn inside one of them
+      // (`.../classic-table/REQ-7`, 2026-08-16).
+      objectLists: content.querySelectorAll('.ui-data-table:not(.ui-data-table--nested)').length,
       toolbars: content.querySelectorAll('.ui-screen-toolbar').length,
     };
   });
@@ -864,10 +1105,20 @@ async function measureRegistryPanels(page: Page): Promise<{
     const content = document.querySelector('.ui-frame__content')! as HTMLElement;
     const contentStyle = getComputedStyle(content);
     const columnWidth = content.clientWidth - Number.parseFloat(contentStyle.paddingLeft) - Number.parseFloat(contentStyle.paddingRight);
-    // The element both builds draw for a card's title.
+    // The panel rule (stated once above): the surface holding the title, or the
+    // region holding the title and the list's own card.
+    const panelOf = (title: Element): Element | null => {
+      const own = title.closest('.ui-surface');
+      if (own !== null) return own;
+      let region = title.parentElement;
+      while (region !== null && region.querySelector('.ui-surface') === null) region = region.parentElement;
+      return region;
+    };
     const titles = [...document.querySelectorAll('.ui-section-header__title')];
-    const cardOf = (matches: (text: string) => boolean) =>
-      titles.find((node) => matches((node.textContent ?? '').trim()))?.closest('.ui-surface') ?? null;
+    const cardOf = (matches: (text: string) => boolean) => {
+      const title = titles.find((node) => matches((node.textContent ?? '').trim()));
+      return title === undefined ? null : panelOf(title);
+    };
     const registries = cardOf((text) => text === 'Registries & credentials');
     const repositories = cardOf((text) => text.startsWith('Repositories'));
     return {
@@ -890,11 +1141,22 @@ async function measureStackedLists(page: Page): Promise<{
       return { x: rect.x, y: rect.y, width: rect.width };
     };
     const content = document.querySelector('.ui-frame__content')! as HTMLElement;
-    // The element both builds draw for a card's title: the delivered build and
-    // this one both put the panel's name in a section header.
+    // The element both builds draw for a panel's name is the section header;
+    // what differs is where it sits, so the panel is reached by the rule stated
+    // once above — the surface holding the title on the delivered build, the
+    // region holding the title and the list's own card here (2026-08-16).
+    const panelOf = (title: Element): Element | null => {
+      const own = title.closest('.ui-surface');
+      if (own !== null) return own;
+      let region = title.parentElement;
+      while (region !== null && region.querySelector('.ui-surface') === null) region = region.parentElement;
+      return region;
+    };
     const titles = [...document.querySelectorAll('.ui-section-header__title')];
-    const cardOf = (title: string) =>
-      titles.find((node) => node.textContent?.trim() === title)?.closest('.ui-surface') ?? null;
+    const cardOf = (title: string) => {
+      const node = titles.find((candidate) => candidate.textContent?.trim() === title);
+      return node === undefined ? null : panelOf(node);
+    };
     const volumes = cardOf('Volumes');
     const networks = cardOf('Networks');
     const contentBox = content.getBoundingClientRect();
@@ -920,6 +1182,38 @@ async function measure(page: Page): Promise<Surface[]> {
       );
       const emptyStates = measured.filter((element) => element.matches('.ui-empty-state'));
       const liveFeeds = [...document.querySelectorAll(liveFeed)];
+
+      /**
+       * What a list's sticky header costs, and what the scrollbar under it costs
+       * — the two exact figures `.../classic-table/REQ-5` entitles a box to
+       * (2026-08-16; see `Surface.cappedHeader` and `Surface.scrollbar`).
+       *
+       * Read off the build being measured, never assumed: on the delivered build
+       * the header is a sibling of the scrolling box, so it sits in no
+       * `.ui-scroll-area` and both figures are 0, which is what makes the
+       * comparison an accounting rather than an allowance.
+       */
+      const scrollboxOf = (header: Element): Element | null => {
+        const box = header.closest('.ui-scroll-area');
+        return box !== null && box.closest('.ui-data-table') !== null ? box : null;
+      };
+      const cappedHeaderOf = (element: Element): number => {
+        // The list itself and the card around it are the two boxes a capped
+        // list's height belongs to. A shell region is sized by the viewport and
+        // is entitled to nothing, so it is left under the rule: a frame that
+        // changed height would still be reported.
+        if (!element.matches('.ui-data-table, .ui-surface')) return 0;
+        const tables = element.matches('.ui-data-table')
+          ? [element]
+          : [...element.querySelectorAll('.ui-data-table')];
+        return tables.reduce((total, table) => {
+          const header = table.querySelector('.ui-data-table__header');
+          const scrollbox = header === null ? null : scrollboxOf(header);
+          if (scrollbox === null) return total;
+          const capped = scrollbox.scrollHeight > scrollbox.clientHeight;
+          return capped ? total + (header as HTMLElement).offsetHeight : total;
+        }, 0);
+      };
       /** The element's position in the tree, so a surface is identified by where it is drawn. */
       const pathOf = (element: Element): string => {
         const parts: number[] = [];
@@ -966,6 +1260,12 @@ async function measure(page: Page): Promise<Surface[]> {
               !feed.contains(element) &&
               (feed.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
           ),
+          cappedHeader: cappedHeaderOf(element),
+          scrollbar: (() => {
+            if (!element.matches('.ui-data-table__header')) return 0;
+            const scrollbox = scrollboxOf(element);
+            return scrollbox === null ? 0 : (scrollbox as HTMLElement).offsetWidth - scrollbox.clientWidth;
+          })(),
         };
       });
     },
@@ -1477,6 +1777,7 @@ test.describe('F5 — the thirteen screens render as the delivered build does', 
                 `${deliveredScreen.objectLists} object list(s), ${deliveredScreen.grids} grid(s), ` +
                 `empty states ${JSON.stringify(deliveredScreen.emptyStates)} — ` +
                 `now ${currentScreen.groupedRowsPanels} / ${currentScreen.objectLists} / ${currentScreen.grids}, ` +
+                `${currentScreen.nestedLists} nested service list(s) inside the projects list, ` +
                 `empty states ${JSON.stringify(currentScreen.emptyStates)}, ` +
                 `cards ${currentScreen.cards.map((card) => `${card.title} x=${round(card.x)} w=${round(card.width)}`).join(', ')} — ${
                   DELIBERATELY_CHANGED[screen.id]
@@ -1489,7 +1790,9 @@ test.describe('F5 — the thirteen screens render as the delivered build does', 
             expect(deliveredScreen.objectLists, `${at}: the delivered build already listed the projects on the object list`).toBe(0);
 
             expect(currentScreen.groupedRowsPanels, `${at}: the retired grouped-rows panel is still drawn`).toBe(0);
-            expect(currentScreen.objectLists, `${at}: the projects are not listed on the object list`).toBe(1);
+            // The screen's own list, not counting the per-project service lists drawn inside it
+            // (`.../classic-table/REQ-7`): one list on the screen, one child per project row.
+            expect(currentScreen.objectLists, `${at}: the projects are not listed on one object list`).toBe(1);
             expect(currentScreen.grids, `${at}: a Grid still lays something out beside the list`).toBe(0);
             expect(currentScreen.detailPanels, `${at}: a project's detail is open before anything was selected`).toBe(0);
 
@@ -1976,8 +2279,21 @@ test.describe('F5 — the thirteen screens render as the delivered build does', 
             expect(round(currentLists.content.width), `${at}: the shell's content region changed width`).toBe(round(deliveredLists.content.width));
             continue;
           }
-          const deliveredByKey = new Map(deliveredSurfaces.map((surface) => [surface.key, surface]));
           const currentByKey = new Map(currentSurfaces.map((surface) => [surface.key, surface]));
+          // The one declared re-keying, and it is the delivered build's: a list's column header is
+          // drawn inside the box that scrolls now, one level deeper than it was
+          // (`headerMovedIntoTheScrollingBox`). Re-keyed rather than exempted, so the header is
+          // still compared box for box — a surface excused from the comparison is a surface nothing
+          // measures (2026-08-16).
+          const deliveredByKey = new Map(
+            deliveredSurfaces.map((surface) => {
+              const moved = headerMovedIntoTheScrollingBox(surface.key, currentByKey);
+              if (moved !== null) {
+                console.log(`[REQ-5] declared: ${screen.heading} ${surface.key} → ${moved} — the header is inside the box that scrolls`);
+              }
+              return [moved ?? surface.key, surface] as const;
+            }),
+          );
 
           // The hairline is the whole of the batch's declared geometry, so what a surface is
           // allowed is stated in hairlines: none at all where no empty state is drawn.
@@ -2025,16 +2341,27 @@ test.describe('F5 — the thirteen screens render as the delivered build does', 
             if (after.x !== deliveredSurface.x) record('x', after.x - deliveredSurface.x);
             const widthDelta = after.width - deliveredSurface.width;
             const widthAllowance = after.isEmptyState ? 2 : 0;
-            // …and except on the one surface a migration of this plan declares: the images list's
-            // own header row, narrower by the column REQ-57 removes, and only where the table is
-            // sized by its columns rather than by its card. Asserted positively in that screen's
-            // branch above; exempted here so that every other surface of it stays under the rule.
-            if (widthDelta < 0 || widthDelta > widthAllowance) {
+            // A column header drawn inside the box that scrolls is narrower by that box's own
+            // scrollbar and by nothing else — the whole point of `.../classic-table/REQ-5`, since
+            // that is the width the rows lay their tracks in (2026-08-16). Measured on this build,
+            // not assumed: `after.scrollbar` is 0 wherever nothing scrolls, and the header is then
+            // held to the delivered width exactly.
+            const narrowerBy = -(widthDelta + after.scrollbar);
+            if (narrowerBy > 0 || widthDelta > widthAllowance) {
+              // …and except on the one surface a migration of the reference plan declares: the
+              // images list's own header row, narrower by the column REQ-57 removes, and only where
+              // the table is sized by its columns rather than by its card. Asserted positively in
+              // that screen's branch above; exempted here so that every other surface of it stays
+              // under the rule.
               if (widthDeclaredBy(screen.id, key, widthDelta)) {
                 console.log(`[REQ-57] declared: ${screen.heading} ${key}: width ${round(widthDelta)}px — the column the images list no longer draws`);
               } else {
                 record('width', widthDelta);
               }
+            } else if (after.scrollbar > 0 && widthDelta < 0) {
+              console.log(
+                `[REQ-5] declared: ${screen.heading} ${key}: width ${round(widthDelta)}px — the ${round(after.scrollbar)}px scrollbar of the box the header now lays its tracks in`,
+              );
             }
 
             const sameContent = after.text === deliveredSurface.text;
@@ -2042,9 +2369,18 @@ test.describe('F5 — the thirteen screens render as the delivered build does', 
             // A surface holding empty states may grow by their hairlines; one merely sharing a
             // stretched row with another that does may follow it by a single hairline.
             const heightAllowance = 2 * Math.max(after.emptyStatesHeld, screenDrawsEmptyState ? 1 : 0);
+            // …and a capped list — with the card that holds it — is **shorter by exactly its own
+            // header**, which `maxHeight` now caps together with the rows instead of standing above
+            // them (`.../classic-table/REQ-5`, 2026-08-16). Read off this build, so a list that does
+            // not scroll is entitled to nothing at all and every shell region stays under the rule.
+            const heightFloor = -after.cappedHeader;
             const heightDelta = after.height - deliveredSurface.height;
-            if (sameContent && !Number.isNaN(heightDelta) && (heightDelta < 0 || heightDelta > heightAllowance)) {
+            if (sameContent && !Number.isNaN(heightDelta) && (heightDelta < heightFloor || heightDelta > heightAllowance)) {
               record('height', heightDelta);
+            } else if (sameContent && after.cappedHeader > 0 && heightDelta < 0) {
+              console.log(
+                `[REQ-5] declared: ${screen.heading} ${key}: height ${round(heightDelta)}px — the ${round(after.cappedHeader)}px header the cap now holds`,
+              );
             }
 
             // And it may sit lower by the hairlines of the empty states drawn above it, no more.

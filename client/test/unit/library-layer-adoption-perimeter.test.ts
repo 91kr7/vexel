@@ -92,11 +92,18 @@ describe('the library layer is consumed only by the screens migrated onto it (RE
    *   swarm's configs and stacks with the stacks' own services (`REQ-19`, `REQ-20` completed). A
    *   nested list states `nested` rather than a presentation: it is drawn inside its parent's
    *   surface, indented, and takes none of its own.
+   * - batch 4 — the last three call sites: the efficiency & signals dialog's wasted files,
+   *   duplicated content and flagged paths (`REQ-21`), which carry per-row **expansions** rather
+   *   than row content and are the reason this screen has a batch of its own.
+   *
+   * **The list below is now empty, and it stays until batch 5.** Empty is not the same claim as
+   * absent: it says that no feature file asks for the presentation *while the prop still exists*,
+   * which is exactly what a regression would break. Batch 5 removes the prop from the component's
+   * public interface, and this expectation goes with it in that same commit — as the same programme
+   * retired the previous list component's call-site budget once nothing could state it.
    */
-  it('has the retired presentation asked for by the lists not yet converted and nowhere else', () => {
-    expect(featureCallSites(/variant=(?:"comfortable"|\{'comfortable'\}|\{"comfortable"\})/)).toEqual([
-      'src/images/LayerEfficiencyView.tsx',
-    ]);
+  it('has the retired presentation asked for by no feature file at all', () => {
+    expect(featureCallSites(/variant=(?:"comfortable"|\{'comfortable'\}|\{"comfortable"\})/)).toEqual([]);
   });
 
   // data-table.md — the always-present row content: the networks list carries its attached-container

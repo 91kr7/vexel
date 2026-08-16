@@ -3,6 +3,7 @@ import {
   BadgeListCell,
   Button,
   Callout,
+  Card,
   ConfirmDialog,
   DataTable,
   EmptyState,
@@ -192,71 +193,82 @@ export function LayerEfficiencyView({ image, open, onClose, onNavigateToLayer, o
               <MetricTile label="Flagged paths" value={String(signals.result.secrets.findings.length)} subLabel="credential/secret patterns" tone={signals.result.secrets.findings.length > 0 ? 'danger' : 'neutral'} />
             </Grid>
 
+            {/* The composition containers and images ship, inside the dialog:
+                the section header above, and the list alone in a card of its own
+                that it fills edge to edge. Each list's one enclosing surface is
+                that card, so the section around it has none — and neither does
+                the dialog add one, a card inside a card being two surfaces. */}
             <Stack gap="var(--space-3)">
               <SectionHeader variant="eyebrow" title="Deleted-later / overwritten files" description="Bytes written by one layer, no longer reachable, still stored in the image." />
-              <DataTable
-                variant="comfortable"
-                columns={wastedFileColumns}
-                rows={signals.result.waste.wastedFiles}
-                rowKey={(file) => `${file.path}#${file.layerIndex}`}
-                selectedRowKey={selectedWasteKey}
-                onRowSelect={(file) => {
-                  const key = `${file.path}#${file.layerIndex}`;
-                  setSelectedWasteKey((current) => (current === key ? undefined : key));
-                }}
-                expandedRowKey={selectedWasteKey}
-                renderExpanded={(file) => (
-                  <Button variant="secondary" onClick={() => onNavigateToLayer(file.layerIndex)}>
-                    View layer {file.layerIndex + 1}
-                  </Button>
-                )}
-                emptyState={<EmptyState title="No wasted files found"  description={null} action={null} />}
-              />
+              <Card padding="none">
+                <DataTable
+                  columns={wastedFileColumns}
+                  rows={signals.result.waste.wastedFiles}
+                  rowKey={(file) => `${file.path}#${file.layerIndex}`}
+                  selectedRowKey={selectedWasteKey}
+                  onRowSelect={(file) => {
+                    const key = `${file.path}#${file.layerIndex}`;
+                    setSelectedWasteKey((current) => (current === key ? undefined : key));
+                  }}
+                  // The route out of a finding is its **expansion**, drawn for
+                  // the selected row alone directly under it — not the row
+                  // content slot beside it, which every row would carry.
+                  expandedRowKey={selectedWasteKey}
+                  renderExpanded={(file) => (
+                    <Button variant="secondary" onClick={() => onNavigateToLayer(file.layerIndex)}>
+                      View layer {file.layerIndex + 1}
+                    </Button>
+                  )}
+                  emptyState={<EmptyState title="No wasted files found"  description={null} action={null} />}
+                />
+              </Card>
             </Stack>
 
             <Stack gap="var(--space-3)">
               <SectionHeader variant="eyebrow" title="Duplicated content" description="Identical file content stored at more than one path." />
-              <DataTable
-                variant="comfortable"
-                columns={duplicateColumns}
-                rows={signals.result.duplicates.duplicates}
-                rowKey={(group) => group.contentHash}
-                selectedRowKey={selectedDuplicateKey}
-                onRowSelect={(group) => setSelectedDuplicateKey((current) => (current === group.contentHash ? undefined : group.contentHash))}
-                expandedRowKey={selectedDuplicateKey}
-                renderExpanded={(group) => (
-                  <Stack gap="var(--space-2)">
-                    {group.paths.map((path) => (
-                      <Button key={`${path.path}#${path.layerIndex}`} variant="secondary" onClick={() => onNavigateToLayer(path.layerIndex)}>
-                        {path.path} — view layer {path.layerIndex + 1}
-                      </Button>
-                    ))}
-                  </Stack>
-                )}
-                emptyState={<EmptyState title="No duplicated content found"  description={null} action={null} />}
-              />
+              <Card padding="none">
+                <DataTable
+                  columns={duplicateColumns}
+                  rows={signals.result.duplicates.duplicates}
+                  rowKey={(group) => group.contentHash}
+                  selectedRowKey={selectedDuplicateKey}
+                  onRowSelect={(group) => setSelectedDuplicateKey((current) => (current === group.contentHash ? undefined : group.contentHash))}
+                  expandedRowKey={selectedDuplicateKey}
+                  renderExpanded={(group) => (
+                    <Stack gap="var(--space-2)">
+                      {group.paths.map((path) => (
+                        <Button key={`${path.path}#${path.layerIndex}`} variant="secondary" onClick={() => onNavigateToLayer(path.layerIndex)}>
+                          {path.path} — view layer {path.layerIndex + 1}
+                        </Button>
+                      ))}
+                    </Stack>
+                  )}
+                  emptyState={<EmptyState title="No duplicated content found"  description={null} action={null} />}
+                />
+              </Card>
             </Stack>
 
             <Stack gap="var(--space-3)">
               <SectionHeader variant="eyebrow" title="Credential/secret-looking paths" description="Path and name patterns only; never a scan of file content." />
-              <DataTable
-                variant="comfortable"
-                columns={secretColumns}
-                rows={signals.result.secrets.findings}
-                rowKey={(finding) => `${finding.path}#${finding.introducedLayerIndex}`}
-                selectedRowKey={selectedSecretKey}
-                onRowSelect={(finding) => {
-                  const key = `${finding.path}#${finding.introducedLayerIndex}`;
-                  setSelectedSecretKey((current) => (current === key ? undefined : key));
-                }}
-                expandedRowKey={selectedSecretKey}
-                renderExpanded={(finding) => (
-                  <Button variant="secondary" onClick={() => onNavigateToLayer(finding.introducedLayerIndex)}>
-                    View introducing layer {finding.introducedLayerIndex + 1}
-                  </Button>
-                )}
-                emptyState={<EmptyState title="No flagged paths found"  description={null} action={null} />}
-              />
+              <Card padding="none">
+                <DataTable
+                  columns={secretColumns}
+                  rows={signals.result.secrets.findings}
+                  rowKey={(finding) => `${finding.path}#${finding.introducedLayerIndex}`}
+                  selectedRowKey={selectedSecretKey}
+                  onRowSelect={(finding) => {
+                    const key = `${finding.path}#${finding.introducedLayerIndex}`;
+                    setSelectedSecretKey((current) => (current === key ? undefined : key));
+                  }}
+                  expandedRowKey={selectedSecretKey}
+                  renderExpanded={(finding) => (
+                    <Button variant="secondary" onClick={() => onNavigateToLayer(finding.introducedLayerIndex)}>
+                      View introducing layer {finding.introducedLayerIndex + 1}
+                    </Button>
+                  )}
+                  emptyState={<EmptyState title="No flagged paths found"  description={null} action={null} />}
+                />
+              </Card>
             </Stack>
           </Stack>
         )}

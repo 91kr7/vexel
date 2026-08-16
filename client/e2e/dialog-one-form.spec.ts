@@ -698,6 +698,35 @@ test('the privileged switch leaves the reshaped sheet exactly where it was, at 1
   await expect(imageField(page)).toHaveCount(0);
 });
 
+/**
+ * **The claim, as a number**: how far out of line with its own siblings the row
+ * carrying the chip is, in px — 0 when the chip's inline action has grown no
+ * row, and the size of the growth when it has.
+ *
+ * A function rather than an expression inline in the assertion, so that the
+ * thing protecting the claim can be exercised on a fabricated reading as well as
+ * on a measured one: a check restated to survive a change is the easiest place
+ * in a plan to lose what it was protecting, so this one is confirmed red against
+ * a reading in which a chip row *is* taller before it is trusted green against
+ * the daemon.
+ *
+ * `NaN` where there is no sibling to be in line with, and that is deliberate: a
+ * comparison against `NaN` is false, so a list with one row alone cannot make
+ * this pass by having nothing to disagree with (the premise is asserted beside
+ * it as well — a guard whose subject can go empty is indistinguishable from a
+ * guard that passes).
+ *
+ * Exercised on fabricated readings before it was trusted on a measured one
+ * (2026-08-16), against the assertion below (`≤ 0.5px`): equal rows 0 — green;
+ * sub-pixel noise 0.01 — green; a row grown by an edge 2px, by 1px, and by the
+ * delivered card's own 36.2px — red; a *shorter* chip row 12px — red; one taller
+ * sibling among equals 12px — red; and no sibling at all `NaN` — red.
+ */
+function chipRowOutOfLineBy(reading: { chipRow: number; otherRows: number[] }): number {
+  if (reading.otherRows.length === 0) return Number.NaN;
+  return Math.max(...reading.otherRows.map((height) => Math.abs(reading.chipRow - height)));
+}
+
 test.describe('F19 — the chip’s inline action grew no row', () => {
   // chip.md — "The chip is exactly as tall with that action as it was without one drawn. The action
   // is filled rather than outlined for that reason: an edge would make it taller than the line it
@@ -706,7 +735,31 @@ test.describe('F19 — the chip’s inline action grew no row', () => {
   //
   // REQ-86, REQ-87 — the one place this batch could disturb a certified predecessor's geometry, so
   // it is measured against that predecessor rather than argued.
-  test('leaves the network rows that carry chips exactly the height the delivered build drew', async ({
+  //
+  // ---
+  //
+  // **Restated 2026-08-16 by
+  // `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table` (batch 4, under
+  // `INT-6`'s treatment).** This test predates that plan and has been red since its **batch 1**, for
+  // two reasons that are one:
+  //
+  // - it reached the row through `.ui-data-table__body > .ui-surface`, the **per-row carrier** the
+  //   retired presentation drew, which batch 1 removed from the networks list — so `card`, and with
+  //   it the chip, resolved to `null` and the test failed at "the fixture row draws no chip";
+  // - and its third assertion pinned that carrier's height to the delivered build's. That is a claim
+  //   the plan **deliberately falsifies**: a converted row is the reference's own fixed-height row
+  //   (`REQ-2`, `REQ-3`, `REQ-39`), not the comfortable card it replaces.
+  //
+  // So the locator was **not** merely relocated — relocating it would have preserved a claim this
+  // plan refuses, which is how a check survives a change and stops protecting anything. What is kept
+  // is the claim this test exists for, *the chip's inline action grew no row*, re-expressed against
+  // **this build's own rows**: the row carrying the chip is the height every other row of that same
+  // list is. That is a stronger statement than the cross-build one was, since it holds within the run
+  // instead of against a frozen number, and it is exactly what an action that grew a row would break.
+  // The chip and the action are still compared **across the two builds**, both being untouched by the
+  // conversion; the delivered carrier's own height is kept as a **historical reading**, reported with
+  // its date and reason rather than asserted.
+  test('the row carrying a chip is the height the rest of its list is, and the action is the delivered action', async ({
     browser,
     page,
   }) => {
@@ -722,17 +775,36 @@ test.describe('F19 — the chip’s inline action grew no row', () => {
           const rect = element.getBoundingClientRect();
           return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
         };
-        const card = [...document.querySelectorAll('.ui-data-table__body > .ui-surface')].find((candidate) =>
-          (candidate.textContent ?? '').includes(name),
-        );
-        const chip = card?.querySelector('.ui-chip') ?? null;
+        // The group a network's row makes with the chips it carries, on either build: the delivered
+        // one wrapped the row, its content and its expansion in **one carrier surface**; since
+        // `.../classic-table/REQ-3` there is no per-row surface at all and the row and its content
+        // are siblings in the list's body. Named for what each is, so neither build is described in
+        // the other's terms.
+        const carrier =
+          [...document.querySelectorAll('.ui-data-table__body > .ui-surface')].find((candidate) =>
+            (candidate.textContent ?? '').includes(name),
+          ) ?? null;
+        const row =
+          carrier?.querySelector('.ui-data-table__row') ??
+          [...document.querySelectorAll('.ui-data-table__row')].find((candidate) => (candidate.textContent ?? '').includes(name)) ??
+          null;
+        const sibling = row?.nextElementSibling ?? null;
+        const content =
+          carrier ?? (sibling !== null && sibling.matches('.ui-data-table__row-content') ? sibling : null);
+        const chip = content?.querySelector('.ui-chip') ?? null;
         const action = chip?.querySelector('.ui-chip__action') ?? null;
+        // Every row of **that list** — the networks list, not whichever list came first on the
+        // screen — so "the same height as the rest of them" is a statement about its own siblings.
+        const list = row?.closest('.ui-data-table') ?? null;
+        const rows = list === null ? [] : [...list.querySelectorAll('.ui-data-table__row')];
         return {
-          card: card ? box(card) : null,
-          row: card?.querySelector('.ui-data-table__row') ? box(card.querySelector('.ui-data-table__row')!) : null,
+          carrier: carrier ? box(carrier) : null,
+          row: row ? box(row) : null,
           chip: chip ? box(chip) : null,
           action: action ? box(action) : null,
           actionLineHeight: action ? getComputedStyle(action).lineHeight : null,
+          rowHeight: row ? box(row).height : Number.NaN,
+          otherRowHeights: rows.filter((candidate) => candidate !== row).map((candidate) => box(candidate).height),
         };
       }, networkName);
 
@@ -766,31 +838,56 @@ test.describe('F19 — the chip’s inline action grew no row', () => {
       const deliveredRow = await measureChipRows(before);
       const row = await measureChipRows(page);
 
+      const outOfLine = chipRowOutOfLineBy({ chipRow: row.rowHeight, otherRows: row.otherRowHeights });
+
       console.log(
-        `[REQ-86] the fixture network's row: delivered card ${round(deliveredRow.card?.height ?? Number.NaN)}px, chip ${round(
-          deliveredRow.chip?.height ?? Number.NaN,
-        )}px, action ${round(deliveredRow.action?.width ?? Number.NaN)}×${round(
-          deliveredRow.action?.height ?? Number.NaN,
-        )} — now card ${round(row.card?.height ?? Number.NaN)}px, chip ${round(row.chip?.height ?? Number.NaN)}px, action ${round(
+        `[REQ-86] the fixture network's row: delivered chip ${round(deliveredRow.chip?.height ?? Number.NaN)}px, action ${round(
+          deliveredRow.action?.width ?? Number.NaN,
+        )}×${round(deliveredRow.action?.height ?? Number.NaN)} — now chip ${round(row.chip?.height ?? Number.NaN)}px, action ${round(
           row.action?.width ?? Number.NaN,
-        )}×${round(row.action?.height ?? Number.NaN)}`,
+        )}×${round(row.action?.height ?? Number.NaN)}; the chip row is ${round(row.rowHeight)}px against sibling rows ` +
+          `${JSON.stringify([...new Set(row.otherRowHeights.map(round))])} — out of line by ${round(outOfLine)}px`,
+      );
+      // **A historical reading, kept legible rather than asserted** (2026-08-16): the delivered build
+      // drew each row on a carrier surface of its own and this test pinned that carrier's height. The
+      // figure below is what it measured, against a build that no longer exists — REQ-39 replaced the
+      // card with the reference's own fixed-height row, so the two are not comparable and comparing
+      // them would assert the presentation this plan retires.
+      console.log(
+        `[REQ-86] historical: the delivered per-row carrier measured ${round(deliveredRow.carrier?.height ?? Number.NaN)}px; ` +
+          `this build draws ${row.carrier === null ? 'no per-row surface at all' : 'a per-row surface, which REQ-3 removed'} ` +
+          `and a row of ${round(row.rowHeight)}px`,
       );
 
       expect(deliveredRow.chip, 'the delivered build drew no chip on the fixture row').not.toBeNull();
       expect(row.chip, 'the fixture row draws no chip').not.toBeNull();
       expect(row.action, 'the chip carries no inline action').not.toBeNull();
+      // The premise of the restated claim, so it cannot pass by having nothing to compare against:
+      // the list draws rows besides the fixture's own.
+      expect(
+        row.otherRowHeights.length,
+        'the networks list draws no row besides the fixture’s, so "the same height as the rest of them" has no subject',
+      ).toBeGreaterThan(0);
 
       // The declared change, and the only one: the action is wider, having gained a fill and a
       // horizontal inset.
       expect(row.action!.width, 'the inline action gained no surface at all').toBeGreaterThan(deliveredRow.action!.width);
-      // And the two things that must not have moved.
+      // And the two things that must not have moved, still read against the delivered build: neither
+      // the chip nor its action is touched by the conversion.
       expect(round(row.action!.height), 'the inline action is taller than the delivered one, which grows every chip').toBe(
         round(deliveredRow.action!.height),
       );
       expect(round(row.chip!.height), 'the chip is taller than the delivered one').toBe(round(deliveredRow.chip!.height));
-      expect(round(row.card!.height), 'the row carrying the chip is a different height from the delivered one').toBe(
-        round(deliveredRow.card!.height),
-      );
+
+      // …and the claim itself, restated against this build's own list: the row carrying the chip is
+      // the height the rest of that list is. Half a pixel of tolerance for sub-pixel layout and no
+      // more — an action that grew a row grows it by the edge that made it taller, several px, which
+      // is what this must catch and does (`chipRowOutOfLineBy`, exercised against a taller chip row).
+      expect(
+        round(outOfLine),
+        `the row carrying the chip is ${round(row.rowHeight)}px against its list's ${round(row.otherRowHeights[0] ?? Number.NaN)}px, ` +
+          'so the chip’s inline action has grown a row',
+      ).toBeLessThanOrEqual(0.5);
     } finally {
       await execFileAsync('docker', ['rm', '-fv', containerName]).catch(() => undefined);
       await execFileAsync('docker', ['network', 'rm', '-f', networkName]).catch(() => undefined);
