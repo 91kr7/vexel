@@ -41,8 +41,12 @@ fixes: it asserts what the **previous** programme delivered on the volumes/netwo
 panels, and REQ-40 changes what it delivered. It belongs here rather than in batch 1 or 3 — its
 subjects are screens this plan converts across four batches, so restating it earlier means restating
 it three times against a state still moving — and **not** in batch 6, whose one structural property is
-that it touches no file any test reads, which is exactly what makes its two complete runs trustworthy
-as this plan's closing evidence. Spending that property to save a schedule slot would be a poor trade.
+that it touches no file any test's **assertions depend on**, which is exactly what makes its two
+complete runs trustworthy as this plan's closing evidence. Spending that property to save a schedule
+slot would be a poor trade. *(That property was first written as "touches no file any test reads" and
+corrected 2026-08-16 — three unit files do read `.sdd/modules/ui-library/`, for contracts this work
+does not touch. The placement argument stands: a spec restatement in batch 6 would change what a run
+**asserts**, which is the half that matters.)*
 
 **This batch closes the product-wide claims — both of them.** After it, no list anywhere draws a row
 on a card **and every converted list is the same table containers and images are** (REQ-39, REQ-40,
