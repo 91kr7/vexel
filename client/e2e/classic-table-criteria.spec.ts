@@ -47,6 +47,11 @@ import { openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { startRegistryFixtureServer, type RegistryFixtureServer } from './support/registry-fixture-server.js';
+// The repositories stub this file wrote, **moved to a support module on
+// 2026-08-16 by batch 4's own coverage** (`INT-4`): its product-wide sweep
+// browses the same list, and two definitions of the same two rows would drift.
+// The rows, the routes and the reason no test reaches Docker Hub are unchanged.
+import { stubRepositories } from './support/screen-inventories.js';
 import { startDeliveredBuild, type DeliveredBuild } from './support/delivered-build.js';
 import {
   expectLinesReadAsLines,
@@ -166,21 +171,6 @@ test.afterAll(async () => {
   }
   await registryFixture?.stop();
 });
-
-/** The stub the repositories list is filled from: no test here reaches Docker Hub. */
-async function stubRepositories(page: Page): Promise<void> {
-  await page.route('**/api/registries/repositories*', async (route) => {
-    await route.fulfill({
-      json: [
-        { name: 'library/vexel-e2e', description: 'a stubbed repository, so this list has rows', pullCount: 1_800_000_000 },
-        { name: 'myorg/vexel-e2e-plain', description: 'a second one, so two rows have a junction', pullCount: 48_000 },
-      ],
-    });
-  });
-  await page.route('**/api/registries/tags*', async (route) => {
-    await route.fulfill({ json: [{ name: '1.0', sizeBytes: 5_242_880, pullReference: 'docker.io/library/vexel-e2e:1.0' }] });
-  });
-}
 
 /**
  * The registries screen, on the run's own nine-registry inventory and with the

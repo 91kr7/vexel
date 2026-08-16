@@ -38,6 +38,26 @@
  * - **A list is found by a column only it carries.** The section header naming a
  *   panel is no longer inside the list's card (REQ-40), so a card can no longer
  *   be found by the heading it used to hold.
+ *
+ * **Batch 4 extended it twice, and again rather than copying it** (REQ-21,
+ * REQ-39, REQ-40):
+ *
+ * - **A list read inside a dialog** — the efficiency & signals view's three,
+ *   the only converted lists that do not live on a screen. What "one enclosing
+ *   surface" counts has to be counted from the region the list is read in, and
+ *   for them that region is the dialog rather than `.ui-frame__content`: the
+ *   dialog's own surface is *the dialog*, present for every dialog the product
+ *   draws and not something a list took. So the region is a parameter
+ *   (`{ region }`), the count inside it is `enclosingSurfaces` exactly as
+ *   before, and the count to the screen is reported beside it
+ *   (`enclosingSurfacesToTheScreen`) so the dialog's own surface is stated
+ *   rather than hidden by the boundary. Nothing about a screen list's
+ *   measurement changes: the default region is the one batches 1 to 3 used.
+ * - **Every list on a screen, without naming one** — `measureEveryList`, which
+ *   is what the product-wide sweep walks with (`b4/INT-4`). A sweep that knew
+ *   the lists by name could not find the one nobody enumerated, which is the
+ *   whole reason it exists; so a list is reached by its **position** in the
+ *   region (`{ index }`) and named afterwards by what it draws.
  */
 import { expect, type Locator, type Page } from './test.js';
 
@@ -108,8 +128,21 @@ export interface JunctionGeometry {
 
 export interface ListGeometry {
   found: boolean;
+  /**
+   * How many elements the region selector matched, and the region's own box.
+   *
+   * **A guard against the premise going empty**, not diagnostics: a dialog that
+   * never opened matches no region, and a probe that quietly fell back to the
+   * screen would measure the list *behind* the dialog and report it green. A
+   * region matching twice is the same failure the other way round — two dialogs
+   * open, and no way to say which one was measured.
+   */
+  regionMatches: number;
+  regionBox: Box | null;
   headers: string[];
   table: Box;
+  /** The table's own class list, so a nested list can be told from a screen list by what it states. */
+  tableClasses: string[];
   /** The column header's own band, so the distance from a label to its values can be read. */
   headerBox: Box | null;
   clientWidth: number;
@@ -118,8 +151,17 @@ export interface ListGeometry {
   card: Box | null;
   cardClasses: string[];
   cardHolds: string[];
-  /** `.ui-surface` boundaries between the table and the screen's content region (REQ-4). */
+  /** `.ui-surface` boundaries between the table and the region it is read in (REQ-4). */
   enclosingSurfaces: number;
+  /**
+   * The same count taken all the way to the **screen's** content region.
+   *
+   * For a screen list the two are equal. For a list inside a dialog this is one
+   * more — the dialog's own surface — and it is reported rather than hidden by
+   * the boundary, so "the dialog adds exactly one, and the list adds one card"
+   * is a figure and not an argument.
+   */
+  enclosingSurfacesToTheScreen: number;
   /** `.ui-surface` elements inside the table itself: a row on a card of its own is one (REQ-3). */
   surfacesInside: number;
   headerInsideCard: boolean;
@@ -131,6 +173,17 @@ export interface ListGeometry {
    * its parent list's, and a card inside a card is two surfaces (REQ-40).
    */
   nestedInAnExpansion: boolean;
+  /**
+   * The box that scrolls **inside** the table — the header and the rows share
+   * one, capped by `maxHeight` where a call site states one.
+   *
+   * A list that states none holds no vertical scroll of its own: `scrollHeight`
+   * equals `clientHeight`, and the surface it is read in is what scrolls. Inside
+   * a dialog that is the difference between one scrollbar and two.
+   */
+  innerScroll: { clientHeight: number; scrollHeight: number };
+  /** The section header drawn immediately above the list's own card, where a screen draws one (REQ-40). */
+  precedingSectionHeader: string | null;
   /**
    * The table's own `overflow-x`. A list drawn inside a row of another one
    * computes **no** horizontal overflow of its own (`visible`), so its columns'
@@ -189,7 +242,27 @@ export function describeBox(box: Box): string {
  * read in the same pass as that parent's row, which is what makes "inset from
  * its parent's cells" a measurement rather than two.
  */
-export type ListTarget = string | { nestedInside: string; group?: number; underRow?: string };
+export type ListTarget = string | { nestedInside: string; group?: number; underRow?: string } | { index: number };
+
+/**
+ * Where a list is read, and therefore what "one enclosing surface" is counted
+ * against (REQ-4).
+ *
+ * The default is the screen's own content region, which is what batches 1 to 3
+ * measure against. A list drawn **inside a dialog** names the dialog instead —
+ * the dialog's surface is the dialog, not a surface the list took, and every
+ * dialog in the product draws one. The count to the screen is reported anyway
+ * (`enclosingSurfacesToTheScreen`), so nothing is hidden by the boundary; what
+ * moves is only what the criterion is asserted against.
+ */
+export interface ListRegionOptions {
+  region?: string;
+}
+
+/** The region a screen list is read in — the shell's own content column. */
+export const SCREEN_REGION = '.ui-frame__content';
+/** The region a list inside the large dialog is read in: the dialog's own scrolling box. */
+export const LARGE_DIALOG_REGION = '.ui-modal--size-large';
 
 /**
  * Every figure of one list, in a single pass, so that no two numbers come from
@@ -200,15 +273,21 @@ export type ListTarget = string | { nestedInside: string; group?: number; underR
  * measurement, except where the class *is* the contract (REQ-39's "the same set
  * of row modifiers").
  */
-export async function measureList(page: Page, target: ListTarget): Promise<ListGeometry> {
-  return await page.evaluate((wanted) => {
-    const wantedHeader = typeof wanted === 'string' ? wanted : wanted.nestedInside;
-    const wantedGroup = typeof wanted === 'string' ? null : (wanted.group ?? 0);
-    const wantedRow = typeof wanted === 'string' ? undefined : wanted.underRow;
+export async function measureList(page: Page, target: ListTarget, options: ListRegionOptions = {}): Promise<ListGeometry> {
+  return await page.evaluate(({ wanted, region }) => {
+    const byIndex = typeof wanted === 'object' && 'index' in wanted ? wanted.index : null;
+    const wantedHeader = typeof wanted === 'string' ? wanted : 'nestedInside' in wanted ? wanted.nestedInside : '';
+    const nestedTarget = typeof wanted === 'object' && 'nestedInside' in wanted ? wanted : null;
+    const wantedGroup = nestedTarget === null ? null : (nestedTarget.group ?? 0);
+    const wantedRow = nestedTarget?.underRow;
+    const regionElements = Array.from(document.querySelectorAll<HTMLElement>(region));
     const empty: ListGeometry = {
       found: false,
+      regionMatches: regionElements.length,
+      regionBox: null,
       headers: [],
       table: { x: 0, y: 0, width: 0, height: 0, right: 0, bottom: 0 },
+      tableClasses: [],
       headerBox: null,
       clientWidth: 0,
       scrollWidth: 0,
@@ -216,10 +295,13 @@ export async function measureList(page: Page, target: ListTarget): Promise<ListG
       cardClasses: [],
       cardHolds: [],
       enclosingSurfaces: 0,
+      enclosingSurfacesToTheScreen: 0,
       surfacesInside: 0,
       headerInsideCard: false,
       sectionHeaderInsideCard: false,
       nestedInAnExpansion: false,
+      innerScroll: { clientHeight: 0, scrollHeight: 0 },
+      precedingSectionHeader: null,
       overflowX: '',
       carrier: null,
       rows: [],
@@ -238,6 +320,14 @@ export async function measureList(page: Page, target: ListTarget): Promise<ListG
     // A rectangle is cut down by every ancestor that clips, the element itself
     // included: a line hidden by overflow still reports its full laid-out box and
     // is only painted short, so "unclipped" cannot be read off the raw rect.
+    //
+    // **The walk stops at a fixed ancestor**, and that is CSS rather than
+    // caution: an element positioned `fixed` is laid out against the viewport, so
+    // no ancestor's overflow clips it or anything inside it. Batch 4 met this on
+    // the one list the plan reads inside a dialog — the overlay is `fixed` inside
+    // the screen's own scrolled region, and a walk that carried on past it
+    // intersected the dialog's rows with a scroll region they are not in,
+    // reporting a fully painted row as clipped at 375×812.
     const paintedHeight = (element: Element): { visible: number; natural: number } => {
       const raw = element.getBoundingClientRect();
       let top = raw.top;
@@ -249,20 +339,32 @@ export async function measureList(page: Page, target: ListTarget): Promise<ListG
           top = Math.max(top, owner.top);
           bottom = Math.min(bottom, owner.bottom);
         }
+        if (style.position === 'fixed') break;
       }
       return { visible: Math.max(0, bottom - top), natural: raw.height };
     };
 
-    const tables = Array.from(document.querySelectorAll<HTMLElement>('.ui-frame__content .ui-data-table'));
+    // The region the list is read in — the screen's content column, or the
+    // dialog's own scrolling box. Matched exactly once or the measurement below
+    // would be about a region the caller did not mean: a dialog that never
+    // opened matches none, and two open dialogs match two.
+    const regionElement = regionElements.length === 1 ? regionElements[0] : null;
+    if (regionElement === null) return empty;
+    empty.regionBox = box(regionElement);
+
+    const tables = Array.from(regionElement.querySelectorAll<HTMLElement>('.ui-data-table'));
     // A header cell **of this table**, not of one nested inside it: a list drawn
     // in the panel one of its rows opened carries its own header, and a probe
     // that did not scope the match would hand back the outer table for the
     // inner one's column name.
-    const named = tables.find((candidate) =>
-      Array.from(candidate.querySelectorAll('.ui-data-table__header-cell')).some(
-        (cell) => cell.closest('.ui-data-table') === candidate && (cell.textContent ?? '').trim() === wantedHeader,
-      ),
-    );
+    const named =
+      byIndex !== null
+        ? tables[byIndex]
+        : tables.find((candidate) =>
+            Array.from(candidate.querySelectorAll('.ui-data-table__header-cell')).some(
+              (cell) => cell.closest('.ui-data-table') === candidate && (cell.textContent ?? '').trim() === wantedHeader,
+            ),
+          );
     // A nested list draws no header of its own, so it is reached through its
     // parent's: the list in the content slot of that parent's `group`-th row, or
     // of the row naming `underRow` — which is how a fixture's own group is found
@@ -286,12 +388,35 @@ export async function measureList(page: Page, target: ListTarget): Promise<ListG
     const headerElement = table.querySelector<HTMLElement>('.ui-data-table__header');
     const card = table.closest('.ui-surface');
 
-    // How many surface boundaries stand between the table and the screen's own
-    // content region: REQ-4 admits exactly one.
+    // How many surface boundaries stand between the table and the region it is
+    // read in: REQ-4 admits exactly one.
     let enclosingSurfaces = 0;
-    for (let node: Element | null = table.parentElement; node !== null && !node.matches('.ui-frame__content'); node = node.parentElement) {
+    for (let node: Element | null = table.parentElement; node !== null && node !== regionElement; node = node.parentElement) {
       if (node.matches('.ui-surface')) enclosingSurfaces += 1;
     }
+    // …and the same count to the screen's own content region, which for a list
+    // inside a dialog is one more: the dialog's. Reported rather than hidden by
+    // the boundary above.
+    let enclosingSurfacesToTheScreen = 0;
+    for (
+      let node: Element | null = table.parentElement;
+      node !== null && !node.matches('.ui-frame__content');
+      node = node.parentElement
+    ) {
+      if (node.matches('.ui-surface')) enclosingSurfacesToTheScreen += 1;
+    }
+
+    // The header a screen draws **above** the list's card, which is where REQ-40
+    // puts it: the last one drawn before the table in document order.
+    const precedingSectionHeader =
+      Array.from(regionElement.querySelectorAll('.ui-section-header__title'))
+        .filter((title) => (title.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0)
+        .map((title) => (title.textContent ?? '').trim())
+        .pop() ?? null;
+
+    // The box that scrolls inside the table: a list stating no `maxHeight` holds
+    // no vertical scroll of its own, and the surface it is read in is what scrolls.
+    const scroller = table.querySelector<HTMLElement>('.ui-scroll-area');
 
     // In document order, and **not** as the body's own children: the retired
     // presentation wraps each row in a carrier surface of its own, so a probe
@@ -448,8 +573,11 @@ export async function measureList(page: Page, target: ListTarget): Promise<ListG
 
     return {
       found: true,
+      regionMatches: regionElements.length,
+      regionBox: box(regionElement),
       headers: headerCells.map((cell) => (cell.textContent ?? '').trim()),
       table: box(table),
+      tableClasses: Array.from(table.classList),
       headerBox: headerElement ? box(headerElement) : null,
       clientWidth: table.clientWidth,
       scrollWidth: table.scrollWidth,
@@ -459,10 +587,13 @@ export async function measureList(page: Page, target: ListTarget): Promise<ListG
         ? Array.from(card.children).map((child) => child.className || child.tagName.toLowerCase())
         : [],
       enclosingSurfaces,
+      enclosingSurfacesToTheScreen,
       surfacesInside: table.querySelectorAll('.ui-surface').length,
       headerInsideCard: card !== null && headerElement !== null && card.contains(headerElement),
       sectionHeaderInsideCard: card !== null && card.querySelector('.ui-section-header') !== null,
       nestedInAnExpansion: table.closest('.ui-data-table__expanded') !== null,
+      innerScroll: { clientHeight: scroller?.clientHeight ?? 0, scrollHeight: scroller?.scrollHeight ?? 0 },
+      precedingSectionHeader,
       overflowX: getComputedStyle(table).overflowX,
       carrier:
         wrapper !== null && carrierRow !== null
@@ -489,7 +620,7 @@ export async function measureList(page: Page, target: ListTarget): Promise<ListG
       columnEdges,
       zeroWidthCells,
     };
-  }, target);
+  }, { wanted: target, region: options.region ?? SCREEN_REGION });
 }
 
 /**
@@ -502,19 +633,28 @@ export async function measureList(page: Page, target: ListTarget): Promise<ListG
  * nothing, which would be read as a clipped line rather than as a page waiting to
  * be scrolled.
  */
-export async function settledList(page: Page, target: ListTarget, budget = 20_000): Promise<ListGeometry> {
-  const table = tableWithColumn(page, typeof target === 'string' ? target : target.nestedInside);
+export async function settledList(
+  page: Page,
+  target: ListTarget,
+  options: ListRegionOptions & { budget?: number } = {},
+): Promise<ListGeometry> {
+  const budget = options.budget ?? 20_000;
+  const column = typeof target === 'string' ? target : 'nestedInside' in target ? target.nestedInside : null;
+  const table =
+    column !== null
+      ? tableWithColumn(page, column, options)
+      : page.locator(`${options.region ?? SCREEN_REGION} .ui-data-table`).nth((target as { index: number }).index);
   if ((await table.count()) > 0) await table.scrollIntoViewIfNeeded().catch(() => undefined);
 
   const deadline = Date.now() + budget;
   let previous = '';
-  let current = await measureList(page, target);
+  let current = await measureList(page, target, options);
   while (Date.now() < deadline) {
     const serialised = JSON.stringify(current);
     if (serialised === previous && current.found && current.rows.length > 0) return current;
     previous = serialised;
     await page.waitForTimeout(400);
-    current = await measureList(page, target);
+    current = await measureList(page, target, options);
   }
   return current;
 }
@@ -532,7 +672,9 @@ export function reportList(at: string, name: string, list: ListGeometry, tag = '
   console.log(
     `[${tag}/REQ-2] ${at} ${name}: ${list.rows.length} row(s), inter-row gaps ${JSON.stringify(gaps)}, radii ${JSON.stringify(
       radii,
-    )}, ${list.enclosingSurfaces} enclosing surface(s), ${list.surfacesInside} surface(s) inside the table`,
+    )}, ${list.enclosingSurfaces} enclosing surface(s) inside the region it is read in (${
+      list.enclosingSurfacesToTheScreen
+    } to the screen), ${list.surfacesInside} surface(s) inside the table`,
   );
   // The count that answers the regression this plan exists not to ship: content
   // below a row's cells, before and after (REQ-6).
@@ -724,6 +866,63 @@ export function expectSameTableAsReference(
 ): void {
   expectSameRowAsReference(at, name, list, references);
   expectEdgeToEdgeInItsOwnCard(at, name, list, references);
+}
+
+/**
+ * REQ-4, REQ-12, REQ-40 — a converted list **read inside a dialog**: the
+ * efficiency & signals view's three, the only ones in the plan that do not live
+ * on a screen.
+ *
+ * What it asserts, and why each half is the shape it is:
+ *
+ * - **The dialog is the region, and it is there.** A dialog that never opened
+ *   matches no region and two open dialogs match two, so the count is asserted
+ *   before anything is read from it: a probe that fell back to the screen would
+ *   measure the list *behind* the dialog and report it green.
+ * - **The list's own enclosing surface is one card, and the dialog adds exactly
+ *   one more.** The surface a dialog draws is the dialog — every dialog in the
+ *   product draws it, no list took it, and no list can give it up without the
+ *   library changing. So REQ-4's "exactly one" is counted inside the dialog, and
+ *   the difference to the screen's count is asserted to be **exactly 1**: a
+ *   section that wrapped its list in a surface of its own, or a card nested in a
+ *   card, appears here as 2 rather than being absorbed by the boundary.
+ * - **One scrollbar, not two.** These lists state no `maxHeight`, so the box
+ *   inside the table scrolls nothing and the dialog is what pans vertically. A
+ *   list that grew a vertical scroll of its own inside a dialog that scrolls is
+ *   the arrangement this batch exists to check.
+ * - **Nothing is clipped by the dialog's own edge.** The table's left and right
+ *   edges lie inside the dialog's visible box: a list wider than the dialog pans
+ *   inside it (`overflow-x: auto`) instead of being cut off by it.
+ */
+export function expectListInsideADialog(at: string, name: string, list: ListGeometry): void {
+  expect(list.regionMatches, `${at} ${name}: ${list.regionMatches} dialog(s) match the region this list is read in`).toBe(1);
+  expect(list.found, `${at} ${name}: the list is not inside the dialog at all`).toBe(true);
+  expect(
+    list.enclosingSurfaces,
+    `${at} ${name}: the list sits inside ${list.enclosingSurfaces} surface(s) within the dialog`,
+  ).toBe(1);
+  expect(
+    list.enclosingSurfacesToTheScreen - list.enclosingSurfaces,
+    `${at} ${name}: ${list.enclosingSurfacesToTheScreen} surface(s) stand between the table and the screen against ${list.enclosingSurfaces} inside the dialog — the dialog's own is one, and there is another`,
+  ).toBe(1);
+  expect(
+    list.innerScroll.scrollHeight,
+    `${at} ${name}: the list holds ${round(list.innerScroll.scrollHeight)}px in ${round(
+      list.innerScroll.clientHeight,
+    )}px of its own, so it scrolls vertically inside a dialog that scrolls vertically`,
+  ).toBeLessThanOrEqual(list.innerScroll.clientHeight + 0.5);
+
+  const dialog = list.regionBox!;
+  expect(
+    round(list.table.x - dialog.x),
+    `${at} ${name}: the table starts at x=${round(list.table.x)} where the dialog's own box starts at ${round(dialog.x)}`,
+  ).toBeGreaterThanOrEqual(0);
+  expect(
+    round(dialog.right - list.table.right),
+    `${at} ${name}: the table ends at x=${round(list.table.right)} where the dialog's own box ends at ${round(
+      dialog.right,
+    )} — the dialog's edge is cutting the list`,
+  ).toBeGreaterThanOrEqual(0);
 }
 
 /**
@@ -1036,9 +1235,62 @@ export async function expectPanReachesLastColumn(page: Page, column: string, lab
 }
 
 /** The table carrying a column only it has — the handle every locator here is built on. */
-export function tableWithColumn(page: Page, column: string): Locator {
+export function tableWithColumn(page: Page, column: string, options: ListRegionOptions = {}): Locator {
   return page
-    .locator('.ui-frame__content .ui-data-table')
+    .locator(`${options.region ?? SCREEN_REGION} .ui-data-table`)
     .filter({ has: page.locator('.ui-data-table__header-cell', { hasText: column }) })
     .first();
+}
+
+/**
+ * How many lists the region draws, **once the number has stopped changing**.
+ *
+ * A screen's content arrives with a daemon read behind it, and a list drawn
+ * inside a *row* of another one appears only when that row does: on compose the
+ * count goes from one to three as the projects arrive. A sweep that counted
+ * before the read returned would walk one list, measure it, and report the screen
+ * swept — which is the empty-premise failure one level up, since what went
+ * unmeasured is exactly what nobody enumerated.
+ */
+async function listCountOnceItStops(page: Page, region: string, budget = 20_000): Promise<number> {
+  const tables = page.locator(`${region} .ui-data-table`);
+  const deadline = Date.now() + budget;
+  let previous = -1;
+  let current = await tables.count();
+  while (Date.now() < deadline) {
+    if (current > 0 && current === previous) return current;
+    previous = current;
+    await page.waitForTimeout(500);
+    current = await tables.count();
+  }
+  return current;
+}
+
+/**
+ * **Every list the region draws, without naming one** — what the product-wide
+ * sweep walks with (`b4/INT-4`, REQ-39, REQ-40).
+ *
+ * A sweep that knew its lists by name could not find the one nobody enumerated,
+ * and that is precisely the list it exists for: "written as a walk over the
+ * screens rather than as a list of hard-coded cases, so a screen added later is
+ * covered by it". So each list is reached by its **position** in the region and
+ * named afterwards by what it draws — the section header above it where a screen
+ * draws one, otherwise the columns it states.
+ *
+ * Each is measured in a pass of its own, after being brought into view, so a
+ * list below the fold is judged on rows the browser has actually painted.
+ */
+export async function measureEveryList(page: Page, options: ListRegionOptions = {}): Promise<{ name: string; list: ListGeometry }[]> {
+  const region = options.region ?? SCREEN_REGION;
+  const count = await listCountOnceItStops(page, region);
+  const measured: { name: string; list: ListGeometry }[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const list = await settledList(page, { index }, options);
+    const nested = list.tableClasses.includes('ui-data-table--nested');
+    const name =
+      (nested ? null : list.precedingSectionHeader) ??
+      (list.headers.length > 0 ? list.headers.join('/') : `list #${index}`);
+    measured.push({ name: `${name}${nested ? ' (nested)' : ''}`, list });
+  }
+  return measured;
 }
