@@ -114,10 +114,10 @@ function NetworkDetail({ network, onClose }: { network: NetworkSummary; onClose:
 
 /**
  * The Networks panel of the Volumes & networks screen (REQ-72, REQ-73, REQ-74):
- * every network with its driver, scope and subnet/gateway, listed with the
- * object list's comfortable variant, its attached containers as chips carrying
- * their own detach action below each row, create and prune in the toolbar under
- * the section header, and attach and remove in the row's action cluster.
+ * every network with its driver, scope and subnet/gateway, listed in the object
+ * list, its attached containers as chips carrying their own detach action below
+ * each row, create and prune in the toolbar under the section header, and attach
+ * and remove in the row's action cluster.
  */
 export function NetworksPanel({ networks, loaded, error, onRefresh }: NetworksPanelProps) {
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);

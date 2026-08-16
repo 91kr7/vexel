@@ -73,38 +73,17 @@ function featureCallSites(pattern: RegExp): string[] {
 
 describe('the library layer is consumed only by the screens migrated onto it (REQ-30, REQ-31)', () => {
   /**
-   * data-table.md — `variant='comfortable'` was the object list the nine screens migrated onto from
-   * batch 6, and it is **being retired**
-   * (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table`): every list becomes
-   * the one presentation containers and images ship, one batch at a time, and the prop leaves the
-   * component's public interface in that plan's batch 5.
-   *
-   * So this pin now runs the other way: it is the list of screens **not yet converted**, narrowed by
-   * the batch that converts the next one. It still fails in both directions — when a screen acquires
-   * the presentation, and when a conversion lands without this file being narrowed in the same
-   * commit — which is the whole point of pinning it rather than bounding it.
-   *
-   * - batch 1 — volumes, networks and the registries screen's two lists (`REQ-14`, `REQ-15`)
-   * - batch 2 — the plain lists: builders & build cache, contexts, both plugin lists, and swarm's
-   *   nodes, services (with the nested tasks list) and secrets (`REQ-16`, `REQ-17`, `REQ-18`,
-   *   `REQ-20` in part — swarm's configs & stacks carries row content and is batch 3's)
-   * - batch 3 — the nested lists: the compose projects list with its per-project services, and
-   *   swarm's configs and stacks with the stacks' own services (`REQ-19`, `REQ-20` completed). A
-   *   nested list states `nested` rather than a presentation: it is drawn inside its parent's
-   *   surface, indented, and takes none of its own.
-   * - batch 4 — the last three call sites: the efficiency & signals dialog's wasted files,
-   *   duplicated content and flagged paths (`REQ-21`), which carry per-row **expansions** rather
-   *   than row content and are the reason this screen has a batch of its own.
-   *
-   * **The list below is now empty, and it stays until batch 5.** Empty is not the same claim as
-   * absent: it says that no feature file asks for the presentation *while the prop still exists*,
-   * which is exactly what a regression would break. Batch 5 removes the prop from the component's
-   * public interface, and this expectation goes with it in that same commit — as the same programme
-   * retired the previous list component's call-site budget once nothing could state it.
+   * The pin over the retired presentation stood here until 2026-08-16, and it was **removed with the
+   * prop it counted**, not left asserting an empty list
+   * (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-22`, `REQ-28`;
+   * the same programme retired the previous list component's call-site budget the same way, for the
+   * same reason). It counted the feature files stating `variant='comfortable'`, narrowing batch by
+   * batch as the conversions landed, and reached zero at batch 4. Batch 5 removed the prop from the
+   * component's public interface, so what is left to count is a name nothing declares — an
+   * expectation of `[]` against a prop that cannot be written is not a guard, and the guard that
+   * replaces it is the conformance script's own third pass, which refuses the presentation by name
+   * anywhere under `src/` and `scripts/` (that plan's REQ-23, `ui-conformance-check.md`).
    */
-  it('has the retired presentation asked for by no feature file at all', () => {
-    expect(featureCallSites(/variant=(?:"comfortable"|\{'comfortable'\}|\{"comfortable"\})/)).toEqual([]);
-  });
 
   // data-table.md — the always-present row content: the networks list carries its attached-container
   // chips there, the repositories list its tag chips, and the compose list the nested header-less
@@ -197,12 +176,54 @@ describe('the library layer is consumed only by the screens migrated onto it (RE
   // The pin above is only as good as the perimeter it is written against: every call site of every
   // new prop lies in a file this plan has migrated, so no screen can have acquired one quietly. The
   // perimeter is **not** narrowed by the classic-table conversion — a converted screen goes on
-  // stating its row content, its panel properties and its action weights; what it stops stating is
-  // the presentation, which is pinned on its own above.
+  // stating its row content, its panel properties and its action weights; what it stopped stating is
+  // the presentation, which no longer exists to state.
   it('states every new prop inside the migrated perimeter and nowhere outside it', () => {
     const everyNewProp =
-      /variant=(?:"comfortable"|\{'comfortable'\}|\{"comfortable"\})|renderRowContent[=:]|\bsublabel[=:]|\bproperties=\{|\bpropertiesContentClass=|\bweight\s*[:=]/;
+      /renderRowContent[=:]|\bsublabel[=:]|\bproperties=\{|\bpropertiesContentClass=|\bweight\s*[:=]/;
 
     expect(featureCallSites(everyNewProp).filter((file) => !MIGRATED_FILES.includes(file))).toEqual([]);
+  });
+});
+
+/**
+ * **Content-sized rows, pinned per file with the reason on the spot**
+ * (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-23`, `REQ-39`,
+ * added by that plan's 2026-08-16 amendment).
+ *
+ * REQ-39 states equality with the reference lists — containers and images — as a measurement, and
+ * one half of it can be settled from the tree instead: **a converted list does not buy itself a
+ * taller row**. `autoRowHeight` is how it would, and the reference's own two-line cell (a title over
+ * a monospace subtitle) sits unclipped inside the reference's fixed row, so a second line is not a
+ * reason to state it.
+ *
+ * It cannot be a blanket ban — the library documents the prop for a reference table whose cells
+ * carry wrapping text — so it is a **pinned list with a reason per entry**, failing in both
+ * directions: when a list acquires the prop, and when a new legitimate case lands without this file
+ * being widened in the same commit. What it deliberately does **not** try to settle is the other
+ * half of REQ-39, the surface a list sits in: that is an AST question across files, defeated by a
+ * list rendered through a helper, and a static check that silently passes on a screen it could not
+ * read is the failure this plan exists to close. That half is geometry, and it is measured in the
+ * browser (`e2e/classic-table-criteria-layer-efficiency.spec.ts`, `e2e/classic-table-sweep.spec.ts`).
+ */
+describe('content-sized rows are stated only where the library documents the case for them (REQ-39)', () => {
+  const CONTENT_SIZED_ROW_CALL_SITES = [
+    // The coverage matrix is a reference table, not an inventory: its cells carry the text of a
+    // requirement and of the checks that cover it — sentences, wrapping over several lines — which
+    // is the case `autoRowHeight` was added for (`plan-docker_management_app/REQ-105`).
+    'src/coverage/CoverageMatrixScreen.tsx',
+  ];
+
+  it('has the prop stated by the pinned files and by no object list', () => {
+    expect(featureCallSites(/\bautoRowHeight\b/)).toEqual(CONTENT_SIZED_ROW_CALL_SITES);
+  });
+
+  // …and the pin is over something that exists: with the prop gone from the library, the expectation
+  // above would be a list of files stating a name nothing declares, passing while checking nothing.
+  it('pins a prop the library still offers', () => {
+    const dataTable = readFileSync(join(clientRoot, 'src', 'ui', 'data', 'DataTable.tsx'), 'utf8');
+    expect(dataTable, 'the library no longer offers content-sized rows, so the pin above asserts nothing').toMatch(
+      /autoRowHeight\?: boolean/,
+    );
   });
 });

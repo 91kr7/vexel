@@ -123,8 +123,8 @@ function VolumeDetail({ volume, onClose }: { volume: VolumeSummary; onClose: () 
 /**
  * The Volumes panel of the Volumes & networks screen (REQ-70, REQ-71): every
  * local volume with its driver, mountpoint, size and mounting containers, listed
- * with the object list's comfortable variant, with create and prune in the
- * toolbar under the section header and remove in the row's action cluster.
+ * in the object list, with create and prune in the toolbar under the section
+ * header and remove in the row's action cluster.
  */
 export function VolumesPanel({ volumes, loaded, error, onRefresh }: VolumesPanelProps) {
   const [selectedName, setSelectedName] = useState<string | undefined>(undefined);

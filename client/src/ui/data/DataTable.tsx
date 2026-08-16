@@ -1,7 +1,6 @@
 import { Fragment, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type UIEvent } from 'react';
 import { DISMISSAL_FOCUS_TARGET_ATTRIBUTE } from '../controls/escape-arbitration';
 import { ScrollArea } from '../glass/ScrollArea';
-import { Surface } from '../glass/Surface';
 import './data-table.css';
 
 /**
@@ -11,7 +10,7 @@ import './data-table.css';
  * union is the refusal: an intrinsic width does not compile, so no screen can
  * ask for one and no reviewer has to notice that it did.
  *
- * **Why an intrinsic track cannot work here, in either variant.** The table is
+ * **Why an intrinsic track cannot work here.** The table is
  * not one grid: the header is a grid, and **every row is a grid of its own**,
  * each handed the same template string. A `fr` or a length resolves identically
  * in all of them, because the containers are the same width. An intrinsic track
@@ -22,19 +21,17 @@ import './data-table.css';
  * action column resolved 57.4px in its header, 50.7px on a `Log in` row and
  * 58.0px on a `Log out` row, at all three viewports; the networks one 57.4px
  * against 130.7px, carrying that row's `NAME` column 46px out of line with its
- * header; and in the **dense** variant, one intrinsic track probed on the images
- * table resolved 112.3px in the header, 136.8px on three rows and 164.0px on the
- * `moby/buildkit:buildx-stable-1` row, moving the next column's left edge by
- * 27.2px on that row alone. A column whose left edge depends on the row is not a
- * column.
+ * header; and one intrinsic track probed on the images table resolved 112.3px in
+ * the header, 136.8px on three rows and 164.0px on the
+ * `moby/buildkit:buildx-stable-1` row, moving the next column's left edge by 27.2px
+ * on that row alone. A column whose left edge depends on the row is not a column.
  *
  * **And it cannot be repaired by resolving the tracks once for the whole list.**
  * That would need the header and every row to be items of a single grid
  * (`subgrid`), and the scroll region between them is a scroll container, which
  * establishes an independent formatting context and therefore cannot be a
- * subgrid — the comfortable variant additionally puts each row inside its own
- * card. Unifying them means rebuilding the variant, so the contract refuses the
- * value instead of accepting one it cannot honour.
+ * subgrid. Unifying them means rebuilding the component, so the contract refuses
+ * the value instead of accepting one it cannot honour.
  *
  * A caller that wanted "as wide as its content" states the width it measured,
  * which is also what stops an action cluster growing at the data columns'
@@ -64,30 +61,11 @@ export interface DataTableSelection<T> {
   allSelected?: boolean;
 }
 
-/**
- * How much room a row is given, and therefore what a list of objects looks
- * like. **These are the only two, and they are variants of one component**: an
- * object list is never a second component placed beside this one.
- *
- * - `dense` — the delivered fixed-height row, virtualised: a long list scanned
- *   column by column.
- * - `comfortable` — each row on a card of its own, growing to fit a title over
- *   a monospace subtitle, with trailing badges and meta values, and the
- *   expansion inside the same card. The shape the hand-built card lists across
- *   the product were reaching for.
- *
- * Both resolve their columns through the same tracks, so the comfortable
- * variant carries the column-minimum contract (no track reaches zero, the table
- * pans instead) without restating it, and both draw their cells with the same
- * `TableCells`, which carry the truncation contract.
- */
-export type DataTableVariant = 'dense' | 'comfortable';
-
 export interface DataTableProps<T> {
   columns: DataTableColumn<T>[];
   rows: T[];
   rowKey: (row: T) => string;
-  /** Fixed row height in px; every row is this tall (dense rows). Default 56. */
+  /** Fixed row height in px; every row is this tall. Default 56. */
   rowHeight?: number;
   /**
    * Caps the height of the list — the column header and the rows together — and
@@ -117,11 +95,10 @@ export interface DataTableProps<T> {
    * this slot holding a nested `hideHeader` list of the group's children.
    *
    * **Conditional on nothing else either**: a list that supplies it gets it,
-   * whatever presentation it asked for, exactly as the expansion beside it
-   * already worked. It used to be read only when the card-per-row presentation
-   * was asked for, which made a list converted away from that presentation lose
-   * its content with no error, no type change and no shorter list — only
-   * shorter rows.
+   * exactly as the expansion beside it already worked. It was once read only
+   * when the retired card-per-row presentation was asked for, which made a list
+   * converted away from that presentation lose its content with no error, no
+   * type change and no shorter list — only shorter rows.
    */
   renderRowContent?: (row: T) => ReactNode;
   /** Adds a leading multi-select checkbox column, independent of `onRowSelect`'s single-row selection. */
@@ -145,17 +122,15 @@ export interface DataTableProps<T> {
   /**
    * Rows grow to fit their content instead of being clipped to `rowHeight`,
    * which becomes a minimum — for a reference table whose cells carry wrapping
-   * text rather than a dense list of one-line values. Virtualisation is off in
-   * this mode: a row's height is only known once it is rendered.
+   * text rather than a list of one-line values. Virtualisation is off in this
+   * mode: a row's height is only known once it is rendered.
+   *
+   * **A second line is not a reason to ask for it**: the two-line cell — a
+   * title over a monospace subtitle — sits unclipped inside the fixed row that
+   * every object list uses. A list that states it is a reference table, not an
+   * inventory (`.../classic-table/REQ-39`).
    */
   autoRowHeight?: boolean;
-  /**
-   * How much room a row is given (default `'dense'`). See `DataTableVariant`:
-   * `'comfortable'` puts each row on a card of its own and lets it grow to fit
-   * its content, which turns off virtualisation exactly as `autoRowHeight`
-   * does.
-   */
-  variant?: DataTableVariant;
 }
 
 const OVERSCAN_ROWS = 6;
@@ -184,24 +159,16 @@ function columnTrack(column: { width?: DataTableColumnWidth; minWidth?: DataTabl
   return `minmax(${minimum}, ${width})`;
 }
 
-/** The card a comfortable row, its content slot and its expansion share. */
-function ComfortableRowCarrier({ children }: { children?: ReactNode }) {
-  return (
-    <Surface elevation="flat" padding="none">
-      {children}
-    </Surface>
-  );
-}
-
 /**
- * Dense data table with column definitions, hover/selected row states, and
- * virtualised scrolling when `maxHeight` is set (REQ-109): only the rows in
- * and around the visible window are mounted. When `expandedRowKey` matches a
- * mounted row, `renderExpanded` content is inserted in normal flow directly
- * below that row, pushing the rows after it down. The row matching
- * `expandedRowKey` is always kept mounted regardless of scroll position, so
- * its expanded content never loses its component instance (and thus its
- * internal state) while scrolling.
+ * **The object list of the product, in one presentation**: one table surface,
+ * one column header at its top, ruled rows beneath it. Column definitions,
+ * hover/selected row states, and virtualised scrolling when `maxHeight` is set
+ * (REQ-109): only the rows in and around the visible window are mounted. When
+ * `expandedRowKey` matches a mounted row, `renderExpanded` content is inserted
+ * in normal flow directly below that row, pushing the rows after it down. The
+ * row matching `expandedRowKey` is always kept mounted regardless of scroll
+ * position, so its expanded content never loses its component instance (and thus
+ * its internal state) while scrolling.
  */
 export function DataTable<T>({
   columns,
@@ -219,7 +186,6 @@ export function DataTable<T>({
   hideHeader = false,
   nested = false,
   autoRowHeight = false,
-  variant = 'dense',
 }: DataTableProps<T>) {
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -304,12 +270,9 @@ export function DataTable<T>({
   const gridTemplateColumns = (selection ? ['36px', ...columnTracks] : columnTracks).join(' ');
   const headerRowStyle: CSSProperties = { gridTemplateColumns };
 
-  // A comfortable row grows to fit its content for the same reason
-  // `autoRowHeight` does — its height is not known before it is rendered — so it
-  // makes the same trade: every row mounted, `maxHeight` still scrolling.
-  const comfortable = variant === 'comfortable';
-  const contentSized = autoRowHeight || comfortable;
-  const virtualized = Boolean(maxHeight) && !contentSized;
+  // A content-sized row has no height known before it is rendered, so that mode
+  // makes its own trade: every row mounted, `maxHeight` still scrolling.
+  const virtualized = Boolean(maxHeight) && !autoRowHeight;
   // The rows begin one header down the scrolling box, so the offset the window
   // is computed from is the scroll position minus that header. The window is
   // still measured over the whole viewport rather than over the part the sticky
@@ -340,9 +303,7 @@ export function DataTable<T>({
   const topSpacerHeight = virtualized ? startIndex * rowHeight : 0;
   const bottomSpacerHeight = virtualized ? (rows.length - endIndex) * rowHeight : 0;
 
-  const tableClasses = ['ui-data-table', comfortable ? 'ui-data-table--comfortable' : '', nested ? 'ui-data-table--nested' : '']
-    .filter(Boolean)
-    .join(' ');
+  const tableClasses = ['ui-data-table', nested ? 'ui-data-table--nested' : ''].filter(Boolean).join(' ');
 
   return (
     // The list region is where the point of interaction returns when a surface
@@ -398,25 +359,22 @@ export function DataTable<T>({
             {topSpacerHeight > 0 ? <div style={{ height: topSpacerHeight }} /> : null}
             {visibleRows.map((row) => {
               const key = rowKey(row);
-              const rowStyle: CSSProperties = contentSized
+              const rowStyle: CSSProperties = autoRowHeight
                 ? { minHeight: rowHeight, gridTemplateColumns }
                 : { height: rowHeight, gridTemplateColumns };
               const selected = key === selectedRowKey;
               const rowClasses = [
                 'ui-data-table__row',
-                contentSized ? 'ui-data-table__row--auto-height' : '',
-                comfortable ? 'ui-data-table__row--comfortable' : '',
+                autoRowHeight ? 'ui-data-table__row--auto-height' : '',
                 selected ? 'ui-data-table__row--selected' : '',
               ]
                 .filter(Boolean)
                 .join(' ');
-              // A comfortable row, the content it always carries and the panel it
-              // expands into are one card, exactly as the card lists this variant
-              // replaces drew them; a dense row is a line in a continuous grid and
-              // is wrapped in nothing.
-              const Carrier = comfortable ? ComfortableRowCarrier : Fragment;
+              // A row, the content it always carries and the panel it expands into
+              // are three lines of one continuous grid, wrapped in nothing: the
+              // fragment groups them under the row's key and draws no box at all.
               return (
-                <Carrier key={key}>
+                <Fragment key={key}>
                   <div
                     className={rowClasses}
                     style={rowStyle}
@@ -454,7 +412,7 @@ export function DataTable<T>({
                       {renderExpanded(row)}
                     </div>
                   ) : null}
-                </Carrier>
+                </Fragment>
               );
             })}
             {bottomSpacerHeight > 0 ? <div style={{ height: bottomSpacerHeight }} /> : null}

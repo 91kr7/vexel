@@ -287,6 +287,134 @@ describe('DataTable — content-sized rows (autoRowHeight)', () => {
 });
 
 /**
+ * **The one presentation** — what survived the retirement of the card-per-row
+ * one (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-1`,
+ * `REQ-22`, `REQ-28`).
+ *
+ * These assertions are **restated**, not written: they come from
+ * `data-table-comfortable-variant.test.tsx`, the unit file dedicated to the
+ * retired presentation, which was removed with the thing it covered. What was a
+ * comparison *between two variants* — the same cells in both, one expansion in
+ * both, the same selection in both — is a claim about the one presentation here;
+ * what only existed inside that presentation — the card each row was drawn on,
+ * the cursor it did not have, the expansion living inside the card — went with
+ * it. An assertion weakened into passing while the behaviour it named goes
+ * unchecked is what REQ-28 forbids, so each of these names the file it comes
+ * from.
+ *
+ * **Contract and state only** (REQ-31): every box is zero in jsdom, so the
+ * geometry these replace — flush rows, no radius, one enclosing surface — is
+ * asserted in the browser (`e2e/classic-table-criteria*.spec.ts`,
+ * `e2e/classic-table-sweep.spec.ts`), never here.
+ */
+describe('DataTable — the one presentation', () => {
+  // Restated from "draws the same cells, in the same order, in both variants": the cells are the
+  // columns' own, in the order declared, on every row.
+  it('draws every column’s cell on every row, in the order declared', () => {
+    const multiColumns: DataTableColumn<Row>[] = [
+      { id: 'id', header: 'ID', render: (row) => row.id },
+      { id: 'upper', header: 'UPPER', render: (row) => row.id.toUpperCase() },
+    ];
+    const { container } = render(<DataTable columns={multiColumns} rows={makeRows(2)} rowKey={(row) => row.id} />);
+
+    const cells = [...container.querySelectorAll('.ui-data-table__cell')].map((cell) => cell.textContent);
+    expect(cells).toEqual(['row-0', 'ROW-0', 'row-1', 'ROW-1']);
+  });
+
+  // Restated from "leaves the dense row without a card of its own", which was the *other* variant's
+  // clause and is now the list's own invariant: **no surface per row, and none anywhere inside**.
+  // The count of surfaces enclosing a list is geometry and is the browser's (REQ-4, REQ-40); that a
+  // list draws none of its own is a fact about the markup and belongs here.
+  it('draws no surface of its own, per row or otherwise', () => {
+    const { container } = render(
+      <DataTable
+        columns={columns}
+        rows={makeRows(3)}
+        rowKey={(row) => row.id}
+        expandedRowKey="row-1"
+        renderExpanded={() => <span>panel</span>}
+        renderRowContent={(row) => <span>{`chips for ${row.id}`}</span>}
+      />,
+    );
+
+    expect(container.querySelectorAll('.ui-surface'), 'the list draws a surface of its own').toHaveLength(0);
+  });
+
+  // Restated from "gives the comfortable row no cursor the dense row does not have": one list, one
+  // affordance — and now one row rule, which is where the absence has to hold.
+  it('gives a row no pointer cursor of its own', () => {
+    const css = readFileSync(join(process.cwd(), 'src/ui/data/data-table.css'), 'utf8');
+
+    expect(ruleBody(css, '.ui-data-table__row')).not.toMatch(/cursor\s*:/);
+  });
+
+  /**
+   * Restated from "renders the row content whatever presentation the list asks for" — the assertion
+   * that had to land *before* any list stopped asking for the retired presentation, since four lists
+   * draw their chips, their tags and their nested lists through this slot and the gate would have
+   * taken them away with no error, no type change and no shorter list, only shorter rows
+   * (`.../classic-table/REQ-6`). With the presentation gone, "conditional on nothing" is simply what
+   * the slot is, and this is its only unit-level statement.
+   */
+  it('renders the row content of every row, below its cells and outside the selectable row', () => {
+    const { container } = render(
+      <DataTable
+        columns={columns}
+        rows={makeRows(3)}
+        rowKey={(row) => row.id}
+        renderRowContent={(row) => <span>{`chips for ${row.id}`}</span>}
+      />,
+    );
+
+    expect(container.querySelectorAll('.ui-data-table__row-content')).toHaveLength(3);
+    for (const row of makeRows(3)) {
+      const content = screen.getByText(`chips for ${row.id}`);
+      const selectableRow = screen.getAllByText(row.id)[0]!.closest('.ui-data-table__row') as HTMLElement;
+      expect(selectableRow.contains(content), 'the row content sits inside the selectable row').toBe(false);
+      expect(
+        selectableRow.compareDocumentPosition(content) & Node.DOCUMENT_POSITION_FOLLOWING,
+        'the row content is not drawn below the cells it belongs to',
+      ).toBeTruthy();
+    }
+  });
+
+  // Restated from "expands exactly one row, whichever variant the list is in": `expandedRowKey` is
+  // one key, so a list cannot present two open panels. The cross-list half of that guarantee is
+  // `DetailPanel`'s (`detail-panel-one-open.test.tsx`).
+  it('expands exactly one row of the list', () => {
+    const { container } = render(
+      <DataTable
+        columns={columns}
+        rows={makeRows(4)}
+        rowKey={(row) => row.id}
+        expandedRowKey="row-2"
+        renderExpanded={(row) => <span>{`panel for ${row.id}`}</span>}
+      />,
+    );
+
+    expect(container.querySelectorAll('.ui-data-table__expanded')).toHaveLength(1);
+    expect(screen.getByText('panel for row-2')).toBeInTheDocument();
+  });
+
+  // Restated from "reports a row selection identically in both variants": one presentation, so the
+  // claim is simply that a row reports its selection and the selected row says so.
+  it('reports a row selection and marks the selected row', async () => {
+    const user = userEvent.setup();
+    const onRowSelect = vi.fn();
+    render(
+      <DataTable columns={columns} rows={makeRows(3)} rowKey={(row) => row.id} onRowSelect={onRowSelect} selectedRowKey="row-1" />,
+    );
+
+    await user.click(screen.getByText('row-2'));
+
+    expect(onRowSelect).toHaveBeenCalledWith({ id: 'row-2' });
+    expect((screen.getByText('row-1').closest('.ui-data-table__row') as HTMLElement).className).toContain(
+      'ui-data-table__row--selected',
+    );
+  });
+});
+
+/**
  * **One scrolling box for the header and the rows**
  * (`data-table.md`, "A row and the header share one width and one set of
  * resolved tracks" — third bullet; the classic-table plan's `REQ-5`).

@@ -93,7 +93,6 @@ export {
   type DataTableColumn,
   type DataTableColumnWidth,
   type DataTableSelection,
-  type DataTableVariant,
 } from './data/DataTable';
 export {
   StatusDotCell,

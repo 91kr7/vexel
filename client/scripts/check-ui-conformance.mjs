@@ -4,6 +4,8 @@
 // enforces the blur policy over every stylesheet of the client: a runtime blur
 // is a violation unless the rule carrying it targets one of the allow-listed
 // overlay surfaces below and is valued with the single `--blur-overlay` token.
+// And it refuses the card row: an object list is one table, and neither the
+// library nor a feature file may go back to drawing a surface per row.
 // Wired into `npm run lint` and `npm run test` (client workspace).
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { extname, join, relative, sep } from 'node:path';
@@ -215,9 +217,162 @@ function checkFeatureFile(filePath, content) {
   visit(sourceFile);
 }
 
+// ── The card row stays retired ───────────────────────────────────────────────
+//
+// A third pass, independent of the two above and sharing nothing with them but
+// the collector every violation lands in. What it refuses is the card-per-row
+// presentation: a list drawn as a stack of separated surfaces, one per object,
+// under a floating column header. The decision is that **an object list is one
+// table** — one header, ruled rows beneath it, no surface per row — taken on
+// 2026-08-15, recorded, and then quietly migrated onto by the next batch of
+// work, which is why it is enforced here instead of remembered.
+//
+// It refuses both ways back:
+//
+//  - **the library offering it again** — the retired names and classes, a list
+//    row given a radius, an outline or a shadow of its own, or a gap opened
+//    between the rows of a list body;
+//  - **a feature file rebuilding it by hand** — a list composed as one surface
+//    per row. (Its other form, a stylesheet or a visual prop in feature code, is
+//    already the boundary pass's above; the two together leave no way to draw a
+//    card row outside the library and none inside it.)
+//
+// **There is no exception comment for this pass**, deliberately, and that is not
+// an oversight of the blur half's `ui-blur-exception:` marker: a comment written
+// at the very call site that reintroduces the arrangement is how a decision
+// becomes a formality. Widening it is an edit here, in the open.
+const cardRowDecision =
+  'The card-per-row presentation is retired: an object list is one table — one header, ruled rows beneath it, no surface per row';
+const cardRowRecord = '.sdd/analysis/ui-coherence-optimisation-comfortable_variant_retired-classic_table.md';
+
+// The retired presentation's own vocabulary. Written as the exact names it went
+// by, so that a check naming them in order to refuse them is the only place in
+// the product they survive; a looser pattern would fire on the prose of a plan
+// reference and teach the next reader to ignore it.
+const cardRowRetiredNames = [
+  [/\bui-data-table--comfortable\b|\bui-data-table__row--comfortable\b/g, 'a class of the retired card row'],
+  [/\bDataTableVariant\b/g, 'the type that offered the retired card row'],
+  [/\bComfortableRowCarrier\b/g, 'the surface each retired row was drawn on'],
+  [/(['"])comfortable\1/g, 'the retired card row asked for by name'],
+];
+
+// A row is the row itself, whatever modifier it carries, and the content wrapper
+// drawn under its cells; a rounded corner on either is a card. A body is the run
+// of rows, where a gap is the space that used to separate two cards.
+const cardRowRowClass = /^\.ui-data-table__row(-content)?(--[\w-]+)?$/;
+const cardRowBodyClass = /^\.ui-data-table__body$/;
+const cardRowSurfaceProperty = /^(border(-[a-z]+)*-radius|outline|box-shadow)$/;
+const cardRowGapProperty = /^(gap|row-gap)$/;
+// Switching one off is not drawing one: `border-radius: 0` is the shape of a row
+// that refuses to be a card, and the rules that state it must stay legal.
+const cardRowInertValue = /^(none|0|0px|0rem|0%|0em|initial|unset|revert)$/i;
+
+function lineOfIndex(content, index) {
+  let line = 1;
+  for (let scan = 0; scan < index; scan += 1) if (content[scan] === '\n') line += 1;
+  return line;
+}
+
+/** The classes of the rule's rightmost compound — the element the rule paints — per selector. */
+function cardRowRuleTargets(prelude) {
+  if (prelude.length === 0 || prelude.startsWith('@')) return [];
+  return prelude
+    .split(',')
+    .map((selector) => selector.trim())
+    .filter(Boolean)
+    .flatMap((selector) => {
+      const compounds = selector.split(/[\s>+~]+/).filter(Boolean);
+      const target = (compounds[compounds.length - 1] ?? '').split(':')[0];
+      return [...target.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)].map((match) => `.${match[1]}`);
+    });
+}
+
+/** What is wrong with this declaration, as a phrase, or null when nothing is. */
+function cardRowStyleOffence(declaration) {
+  const separator = declaration.text.indexOf(':');
+  if (separator === -1) return null;
+  const property = declaration.text.slice(0, separator).trim().toLowerCase();
+  const value = declaration.text.slice(separator + 1).trim();
+  if (cardRowInertValue.test(value)) return null;
+  const targets = cardRowRuleTargets(declaration.prelude);
+  if (cardRowSurfaceProperty.test(property) && targets.some((target) => cardRowRowClass.test(target))) {
+    return `a list row given a surface of its own (${property}: ${value})`;
+  }
+  if (cardRowGapProperty.test(property) && targets.some((target) => cardRowBodyClass.test(target))) {
+    return `a gap between the rows of a list body (${property}: ${value})`;
+  }
+  return null;
+}
+
+/**
+ * A list built as one surface per row, in a feature file: a surface rendered
+ * inside the callback a collection is mapped through. Read from the syntax tree
+ * rather than from the text, so that `<Card>` standing on its own — a screen's
+ * own panel, which is what a card is for — is untouched, and only a card drawn
+ * once per item of a list is reported.
+ */
+function cardRowSurfacesPerItem(filePath, content) {
+  if (!/<\s*(Surface|Card)\b/.test(content)) return;
+  const sourceFile = ts.createSourceFile(filePath, content, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+
+  function insideMapper(node) {
+    let callback = null;
+    for (let current = node.parent; current; current = current.parent) {
+      if (ts.isArrowFunction(current) || ts.isFunctionExpression(current)) callback = current;
+      const isMapCall =
+        ts.isCallExpression(current) &&
+        ts.isPropertyAccessExpression(current.expression) &&
+        current.expression.name.getText(sourceFile) === 'map';
+      if (isMapCall && callback && current.arguments.includes(callback)) return true;
+    }
+    return false;
+  }
+
+  function visit(node) {
+    if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+      const tagName = node.tagName.getText(sourceFile);
+      if ((tagName === 'Surface' || tagName === 'Card') && insideMapper(node)) {
+        const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile));
+        violations.push(
+          `${relative(clientRoot, filePath)}:${line + 1} — a list built as one <${tagName}> per row, which is the card row rebuilt by hand. ${cardRowDecision}. See ${cardRowRecord}.`,
+        );
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+}
+
+function checkCardRowRetirement(filePath, content, inUi) {
+  for (const [pattern, what] of cardRowRetiredNames) {
+    for (const match of content.matchAll(pattern)) {
+      violations.push(
+        `${relative(clientRoot, filePath)}:${lineOfIndex(content, match.index)} — ${what} (${match[0]}). ${cardRowDecision}. See ${cardRowRecord}.`,
+      );
+    }
+  }
+
+  if (extname(filePath) === '.css') {
+    for (const declaration of collectCssDeclarations(content)) {
+      const offence = cardRowStyleOffence(declaration);
+      if (offence === null) continue;
+      const selector = declaration.prelude.length > 0 ? declaration.prelude : '(no enclosing rule)';
+      violations.push(
+        `${relative(clientRoot, filePath)}:${declaration.line} — ${offence} on "${selector}". ${cardRowDecision}. See ${cardRowRecord}.`,
+      );
+    }
+    return;
+  }
+
+  if (!inUi) cardRowSurfacesPerItem(filePath, content);
+}
+
 for (const filePath of collectSourceFiles(srcRoot)) {
   const content = readFileSync(filePath, 'utf8');
   const inUi = isInsideUiLibrary(filePath);
+
+  checkCardRowRetirement(filePath, content, inUi);
 
   if (extname(filePath) === '.css') {
     checkBlurPolicy(filePath, content);

@@ -8,8 +8,9 @@ type: build check
 
 **Purpose** → guards, at build time, the rules feature code and the UI library cannot be trusted
 to keep on their own: the UI-library boundary (no raw DOM tag, no CSS, no `className`/`style` prop
-outside `client/src/ui/`), and the blur policy (a runtime blur only on the allow-listed overlay
-surfaces, only with the bounded blur token).
+outside `client/src/ui/`), the blur policy (a runtime blur only on the allow-listed overlay
+surfaces, only with the bounded blur token), and the retirement of the card-per-row presentation
+(no surface per row, in the library or rebuilt by hand in a feature file).
 
 ## Contract
 
@@ -47,6 +48,32 @@ surfaces, only with the bounded blur token).
 - a `ui-blur-exception:` comment on the declaration's own line or on the line above it exempts that
   declaration from the whole policy — the residual escape hatch for a case outside the list
 
+### The card row stays retired (every file under `client/src/`)
+
+An object list is one table — one header, ruled rows beneath it, **no surface per row**. Both ways
+back are refused, and every violation names the decision and points at the record that made it
+(`.sdd/analysis/ui-coherence-optimisation-comfortable_variant_retired-classic_table.md`):
+
+- **the library offering it again**
+  - a retired name anywhere: the classes `ui-data-table--comfortable` /
+    `ui-data-table__row--comfortable`, the type `DataTableVariant`, the carrier
+    `ComfortableRowCarrier`, or the string `'comfortable'` — reported as
+    `<what it is> ("<the name>")`
+  - a rule whose target is a list row (`.ui-data-table__row`, any modifier of it, or
+    `.ui-data-table__row-content`) declaring a `border-radius`, an `outline` or a `box-shadow` →
+    `a list row given a surface of its own (<property>: <value>)`
+  - a rule whose target is a list body (`.ui-data-table__body`) declaring a `gap` or a `row-gap` →
+    `a gap between the rows of a list body (<property>: <value>)`
+  - a value that switches one off (`none`, `0`, `initial`, …) is not drawing one and is accepted
+- **a feature file rebuilding it by hand** — a `Surface` or a `Card` rendered inside the callback a
+  collection is mapped through → `a list built as one <Surface> per row`. Read from the syntax
+  tree, so a card standing on its own — a screen's own panel, which is what a card is for — is
+  untouched; only a surface drawn once per item is reported. Its other form, a stylesheet or a
+  visual prop in feature code, is already the boundary half's.
+- **there is no exception comment for this half**, deliberately: a comment written at the very call
+  site that reintroduces the arrangement is how a decision becomes a formality. The blur half's
+  `ui-blur-exception:` marker does not reach it.
+
 ## Rules and invariants
 
 - The allow-list lives in exactly one place in code, as a named constant of the script; the same
@@ -67,13 +94,22 @@ surfaces, only with the bounded blur token).
   stylesheet neither hide a declaration nor shift the line a violation is reported on.
 - A violation of one rule never suppresses the reporting of another: every violation found in the
   pass is listed.
-- **The script holds no third rule.** It carried one for the length of
-  `plan-ui-coherence-optimisation` — a pinned call-site budget over the retiring second list
-  component (`plan-ui-coherence-optimisation/REQ-94`), failing in either direction so that each
-  migration had to lower it deliberately. It reached zero when the last call site was migrated and
-  was removed with the component itself (`plan-ui-coherence-optimisation/REQ-82`), leaving the file
-  as it stood before that plan: an assertion of zero against a name nothing declares is not a guard.
-  Anything else added to this file remains the signal that something went where it should not have.
+- **The three passes are independent, and the blur half is untouchable.** The card-row half neither
+  reads, shares nor restructures the blur half's state: `blurAllowedOverlaySelectors`, its token
+  binding and the five declarations that decide on them are byte-identical to their certified state,
+  asserted by name at every revision that has touched the file and in the working tree
+  (`test/unit/programme-constraints.test.ts`, `plan-ui-coherence-optimisation/REQ-84`,
+  `.../classic-table/REQ-34`). The one thing the two share is the collector every violation lands
+  in, and the CSS reader that turns a stylesheet into declarations.
+- **The script holds one addition beyond its two original rules, and it is the card row's.** It also
+  carried, for the length of `plan-ui-coherence-optimisation`, a pinned call-site budget over the
+  retiring second list component (`plan-ui-coherence-optimisation/REQ-94`), failing in either
+  direction so that each migration had to lower it deliberately; that one reached zero when the last
+  call site was migrated and was removed with the component itself
+  (`plan-ui-coherence-optimisation/REQ-82`) — an assertion of zero against a name nothing declares is
+  not a guard. The card-row half is not of that kind: the names it refuses can be written again at
+  any time, by anyone, which is exactly why it stays. Anything **else** added to this file remains
+  the signal that something went where it should not have, hunk by hunk.
 
 ## Requirements served
 
@@ -82,3 +118,7 @@ surfaces, only with the bounded blur token).
 - plan-liquid_glass_overlays/REQ-8
 - plan-liquid_glass_overlays/REQ-9
 - plan-ui-coherence-optimisation/REQ-84
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-23
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-24
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-33
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-34

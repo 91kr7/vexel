@@ -49,10 +49,14 @@
 
    Inside the same box, the scrollbar is outside both grids and the alignment
    holds by construction. **Padding the header by the scrollbar's width is the
-   other repair and is refused**: a compensating inset is the retired
-   presentation's own signature, which the classic-table plan deletes rather than
-   generalises (`.../classic-table/REQ-5`). `scrollbar-gutter: stable` cannot do
-   it either — it applies to scroll containers, and a sibling header is not one.
+   other repair and is refused**: a compensating inset was the retired
+   presentation's own signature, and the last of them — the inset this header
+   took when the rows were padded more than it and sat inside cards of their own —
+   was deleted with that presentation rather than generalised
+   (`.../classic-table/REQ-5`). The header and the rows are now inset identically,
+   by the same `--space-4`, so the alignment is structural and nothing corrects
+   for it. `scrollbar-gutter: stable` cannot do it either — it applies to scroll
+   containers, and a sibling header is not one.
 
    `z-index` is load-bearing: the expansion below is positioned and comes later
    in the DOM, so with `z-index: auto` a tall expanded panel would paint over the
@@ -139,42 +143,6 @@
   overflow: visible;
 }
 
-/* The comfortable variant: each row on a card of its own, separated rather than
-   ruled. Everything that makes it a list — the tracks, their minimums, the pan
-   when they no longer fit, the cells and their truncation — is the dense
-   variant's, unchanged; what differs is the room a row is given and the surface
-   it is drawn on. That is why this is a variant and not a second component: a
-   screen choosing between them chooses a density, never a set of behaviours. */
-.ui-data-table--comfortable .ui-data-table__body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-/* The card is the carrier (`Surface`), so the row inside it draws no border of
-   its own and rounds nothing: two rounded edges inside one card read as a box
-   in a box. */
-.ui-data-table__row--comfortable {
-  align-items: center;
-  padding: var(--space-4) var(--space-5);
-  border-bottom: none;
-}
-
-/* The header takes the comfortable row's own inline inset, and that is the
-   contract rather than a nicety: the tracks are laid inside each grid's content
-   box, so a header padded to `--space-4` beside rows padded to `--space-5`
-   inside a bordered card is a grid 10px wider than theirs, in which every
-   flexible track resolves to a different width. Measured before this rule, at
-   1440x1000: header cells at 349/449/652.5/808.1/987.6/1119.3/1251 against row
-   cells at 354/454/654.9/808.6/985.9/1115.9/1246 — the label drifting from its
-   column by up to 5px, in both directions, over one row. The hairline is the
-   carrier `Surface`'s own border, which the row sits inside and the header does
-   not; without it the two land 1px apart. The dense variant never needed any of
-   this, its rows being padded exactly as the header is. */
-.ui-data-table--comfortable .ui-data-table__header {
-  padding-inline: calc(var(--space-5) + var(--border-width-hairline));
-}
-
 /* Content the row always carries, below its cells and outside the selectable
    row: chips with their own actions, or the nested list that makes this a
    grouped list. It takes the row's own inline inset, so what it holds starts at
@@ -193,15 +161,6 @@
 .ui-data-table__row-content {
   padding: 0 var(--space-4) var(--space-4);
   border-bottom: var(--border-width-hairline) solid var(--color-border-subtle);
-}
-
-/* In the retired presentation it is inside the row's own card, so it keeps that
-   card's wider inset and draws no rule: inside a card there is no next row to
-   be separated from. Scoped here so the inset above is the one presentation's,
-   which is where the two have to line up. */
-.ui-data-table--comfortable .ui-data-table__row-content {
-  padding-inline: var(--space-5);
-  border-bottom: none;
 }
 
 /* A list drawn **inside a row of another list** (`nested`), in that row's
@@ -242,15 +201,6 @@
    other. */
 .ui-data-table--nested .ui-data-table__body > .ui-data-table__row:last-child {
   border-bottom: none;
-}
-
-/* Inside a card the expansion is separated from the row by a rule rather than
-   by the wash the dense variant uses: the card already sets it apart from the
-   list around it. */
-.ui-data-table--comfortable .ui-data-table__expanded {
-  padding: var(--space-4) var(--space-5) var(--space-5);
-  border-top: var(--border-width-hairline) solid var(--color-border-subtle);
-  background: none;
 }
 
 .ui-data-table__row:hover {
