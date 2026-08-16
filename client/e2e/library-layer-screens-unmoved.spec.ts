@@ -223,6 +223,8 @@ const DELIBERATELY_CHANGED: Record<string, string> = {
     'plan-ui-coherence-optimisation/REQ-73…REQ-75 — the fixed 1 : 1.2 template that never collapsed became the library’s pair arrangement: equal panels above the breakpoint, one column below, and `align-items: start`, so the two cards no longer share a height; the system prune left the section header for the screen toolbar under it, which puts the reclaim card’s rows one row lower; and the two empty results gained their explanation and their way out. What the batch states does **not** change is everything the screen says: the eight daemon properties, the five prune rows and the standing warning, which are compared word for word against this same delivered build in `system-prune-preserved.spec.ts`',
   'coverage-matrix':
     'plan-ui-coherence-optimisation/REQ-70…REQ-72 — the screen titled every section one way (REQ-70), and lost the `Daemon event stream` card that repeated the Dashboard’s stream verbatim (REQ-71). Two deltas, and nothing else is declared: **one card fewer**, and **each remaining card’s own header** costing whatever the one treatment costs it. So no card may move sideways or change width, no card may be added or lost besides that one, each card’s body must be the height it was, and each card must sit exactly where the removed card and the header deltas above it put it — which leaves a further unintended move failing. What the screen still **says** is `plan-ui-coherence-optimisation/REQ-72`’s, compared word for word against this same delivered build in `about-one-treatment.spec.ts`',
+  dashboard:
+    'plan-ui-coherence-optimisation/REQ-66…REQ-68 — the middle row’s two cards, which the delivered build left ending at different y, are given the height of the taller of them (REQ-66, `dashboard-layout.md`); and the disk-usage chart gains a legend under its rows naming what each of its colours means (REQ-67), which costs that card’s content the legend’s own height and nothing else. Those are the two deltas, and nothing else is declared: **no surface may move sideways or change width at any viewport**, the tiles are where they were, and the footer card sits exactly where the row’s new height puts it — so a further unintended move still fails. Below the tablet breakpoint the two columns are one and each is its own height, as before (`dashboard-layout.md`), so the shared edge is asserted at the two desktop viewports REQ-66 names. What the screen still **says** — the five tiles, the activity list, the disk figures and the daemon feed — is `dashboard.spec.ts`’s',
   swarm:
     'plan-ui-coherence-optimisation/REQ-52…REQ-55 — the condition of the swarm is stated **once**, on one surface, with `Initialise a swarm` and `Join an existing one` inside it, where the delivered build stated it in a banner and again in each of five lists; the state bar is not drawn where there is no state to qualify, the panels are not drawn where there is no cluster to read, and `QuadPanelLayout` is deleted with the two-by-two grid, the five inventories stacked at the content column’s full width',
 };
@@ -329,6 +331,84 @@ async function measureSwarmScreen(page: Page): Promise<{
       screenBottom,
     };
   }, SWARM_CONDITION.source);
+}
+
+/**
+ * The dashboard, as the change REQ-66…REQ-68 declares can be measured on both
+ * builds: the five tiles, the three cards, and what the disk-usage legend costs
+ * the card that draws it.
+ *
+ * Boxes, not content. "The two cards end at the same y" is a bottom edge and
+ * nothing else will do (CLAUDE.md, "What a check drives, and what it
+ * measures"), and the two figures that make the rest comparable are read rather
+ * than assumed: how many rows the activity list has mounted, and what the
+ * disk-usage panel states — the legend excluded, since the legend is precisely
+ * what one of the two builds does not draw.
+ */
+async function measureDashboardScreen(page: Page): Promise<{
+  columnWidth: number;
+  tiles: { label: string; x: number; y: number; width: number; height: number; text: string }[];
+  cards: { title: string; x: number; y: number; width: number; height: number; bottom: number }[];
+  /** What the disk-usage panel states, legend excluded, so the two builds' readings are comparable. */
+  diskReading: string;
+  /** How many rows the activity list has mounted: what that card's height is a function of. */
+  activityRows: number;
+  legendEntries: number;
+  /** What the legend costs the card's content — its own height plus the gap above it; 0 where none is drawn. */
+  legendCost: number;
+}> {
+  return await page.evaluate(() => {
+    const content = document.querySelector('.ui-frame__content')! as HTMLElement;
+    const contentStyle = getComputedStyle(content);
+    const columnWidth =
+      content.clientWidth - Number.parseFloat(contentStyle.paddingLeft) - Number.parseFloat(contentStyle.paddingRight);
+    const cards = [...content.querySelectorAll('.ui-section-header__title')]
+      .map((node) => ({ title: (node.textContent ?? '').trim(), card: node.closest('.ui-surface') }))
+      .filter((entry): entry is { title: string; card: Element } => entry.card !== null)
+      .map(({ title, card }) => {
+        const rect = card.getBoundingClientRect();
+        return { title, x: rect.x, y: rect.y, width: rect.width, height: rect.height, bottom: rect.bottom };
+      });
+    const breakdown = content.querySelector('.ui-usage-breakdown');
+    const legend = breakdown?.querySelector('.ui-usage-breakdown__legend') ?? null;
+    // What the legend costs is measured against the **rows region's** own box and
+    // never against the last row's: an activatable row is drawn with a padding it
+    // gives back as a negative margin, so its painted bottom sits 4px below the
+    // region that holds it, and the gap the legend adds starts at the region.
+    const rowsRegion = breakdown?.querySelector('.ui-usage-breakdown__rows') ?? null;
+    const activityCard =
+      [...content.querySelectorAll('.ui-section-header__title')]
+        .find((node) => (node.textContent ?? '').trim() === 'Container activity')
+        ?.closest('.ui-surface') ?? null;
+
+    return {
+      columnWidth,
+      tiles: [...content.querySelectorAll('.ui-metric-tile')].map((tile) => {
+        const rect = tile.getBoundingClientRect();
+        return {
+          label: (tile.querySelector('.ui-metric-tile__label')?.textContent ?? '').trim(),
+          x: rect.x,
+          y: rect.y,
+          width: rect.width,
+          height: rect.height,
+          text: (tile.textContent ?? '').replace(/\s+/g, ' ').trim(),
+        };
+      }),
+      cards,
+      diskReading: [
+        ...[...content.querySelectorAll('.ui-section-header__title')]
+          .filter((node) => (node.textContent ?? '').trim() === 'Disk usage')
+          .map((node) => (node.parentElement?.textContent ?? '').replace(/\s+/g, ' ').trim()),
+        ...[...(breakdown?.querySelectorAll('.ui-usage-breakdown__row') ?? [])].map((row) =>
+          (row.textContent ?? '').replace(/\s+/g, ' ').trim(),
+        ),
+      ].join(' | '),
+      activityRows: activityCard?.querySelectorAll('.ui-data-table__row').length ?? 0,
+      legendEntries: legend?.querySelectorAll('.ui-usage-breakdown__legend-item').length ?? 0,
+      legendCost:
+        legend && rowsRegion ? legend.getBoundingClientRect().bottom - rowsRegion.getBoundingClientRect().bottom : 0,
+    };
+  });
 }
 
 /** The section the About screen drew that `plan-ui-coherence-optimisation/REQ-71` takes off it. */
@@ -969,6 +1049,12 @@ test.describe('F5 — the thirteen screens render as the delivered build does', 
 
         const movements: Difference[] = [];
         const structural: string[] = [];
+        /**
+         * What a screen with declared geometry of its own was measured to do and
+         * does not — collected instead of thrown, so that one screen's failure
+         * still leaves the other twelve measured at that viewport.
+         */
+        const declared: string[] = [];
         const emptyStateDeltas: { screen: string; key: string; delta: number; widthDelta: number; compact: boolean }[] = [];
         let surfacesCompared = 0;
         let drifted = 0;
@@ -982,6 +1068,158 @@ test.describe('F5 — the thirteen screens render as the delivered build does', 
           // The one screen this plan has deliberately redrawn: its own declared geometry is
           // asserted here instead of the negative claim, and the surface-by-surface comparison is
           // skipped **for this screen only**, with the reason stated.
+          // The dashboard, whose declared change is a bottom edge and a legend: the middle row's two
+          // cards are given the height of the taller of them (REQ-66), and the disk-usage chart
+          // gains the legend that says what its colours mean (REQ-67), which costs that card's
+          // content the legend's own height. Everything else is asserted to be exactly where those
+          // two put it.
+          if (screen.id === 'dashboard') {
+            const deliveredScreen = await measureDashboardScreen(before);
+            const currentScreen = await measureDashboardScreen(page);
+            const describeCards = (reading: typeof currentScreen) =>
+              reading.cards
+                .map((card) => `${card.title} x=${round(card.x)} y=${round(card.y)} ${round(card.width)}×${round(card.height)} → ${round(card.bottom)}`)
+                .join(', ');
+            console.log(
+              `[REQ-66] ${at} ${screen.heading}: delivered ${describeCards(deliveredScreen)}, ${deliveredScreen.activityRows} activity row(s), ` +
+                `${deliveredScreen.legendEntries} legend entr(ies) — now ${describeCards(currentScreen)}, ${currentScreen.activityRows} activity row(s), ` +
+                `${currentScreen.legendEntries} legend entr(ies) costing ${round(currentScreen.legendCost)}px, ` +
+                `content column ${round(currentScreen.columnWidth)}px — ${DELIBERATELY_CHANGED[screen.id]}`,
+            );
+
+            const cardOf = (reading: typeof currentScreen, title: string) => reading.cards.find((card) => card.title === title);
+            const deliveredActivity = cardOf(deliveredScreen, 'Container activity');
+            const deliveredDisk = cardOf(deliveredScreen, 'Disk usage');
+            const deliveredFeed = cardOf(deliveredScreen, 'Daemon event stream');
+            const activity = cardOf(currentScreen, 'Container activity');
+            const disk = cardOf(currentScreen, 'Disk usage');
+            const feed = cardOf(currentScreen, 'Daemon event stream');
+            for (const [name, cards] of [
+              ['the delivered build', [deliveredActivity, deliveredDisk, deliveredFeed]],
+              ['this build', [activity, disk, feed]],
+            ] as const) {
+              expect(cards[0], `${at}: ${name} draws no Container activity card`).toBeDefined();
+              expect(cards[1], `${at}: ${name} draws no Disk usage card`).toBeDefined();
+              expect(cards[2], `${at}: ${name} draws no Daemon event stream card`).toBeDefined();
+            }
+
+            // The premise: the delivered build really did leave the chart's colours unexplained.
+            expect(
+              deliveredScreen.legendEntries,
+              `${at}: the delivered build already carried a legend, so REQ-67 has nothing to add here`,
+            ).toBe(0);
+            expect(currentScreen.legendEntries, `${at}: the chart's colours are still unexplained (REQ-67)`).toBeGreaterThan(0);
+            expect(currentScreen.legendCost, `${at}: the legend is drawn but takes no room, so nothing was added`).toBeGreaterThan(0);
+
+            // Nothing this batch declares moves a surface sideways or changes its width, at any
+            // viewport: the tiles and the three cards are where the delivered build drew them.
+            //
+            // Collected rather than thrown, and asserted with `movements` once every screen has
+            // been read: the dashboard is the **first** of the thirteen, so a throw here would
+            // leave the other twelve unmeasured at that viewport — which is the one thing this
+            // file exists to do.
+            const moved = (what: string, axis: string, before: number, after: number) => {
+              if (round(before) !== round(after)) {
+                declared.push(`${at} Dashboard ${what}: ${axis} ${round(after) > round(before) ? '+' : ''}${round(after - before)}px — delivered ${round(before)}, now ${round(after)}`);
+              }
+            };
+
+            expect(currentScreen.tiles.map((tile) => tile.label), `${at}: the screen draws a different row of tiles`).toEqual(
+              deliveredScreen.tiles.map((tile) => tile.label),
+            );
+            for (const [index, tile] of currentScreen.tiles.entries()) {
+              const deliveredTile = deliveredScreen.tiles[index]!;
+              moved(`the ${tile.label} tile`, 'x', deliveredTile.x, tile.x);
+              moved(`the ${tile.label} tile`, 'width', deliveredTile.width, tile.width);
+              if (tile.text === deliveredTile.text) {
+                moved(`the ${tile.label} tile`, 'y', deliveredTile.y, tile.y);
+                moved(`the ${tile.label} tile`, 'height', deliveredTile.height, tile.height);
+              }
+            }
+            expect(currentScreen.cards.map((card) => card.title), `${at}: the screen draws a different set of cards`).toEqual(
+              deliveredScreen.cards.map((card) => card.title),
+            );
+            for (const card of currentScreen.cards) {
+              const deliveredCard = cardOf(deliveredScreen, card.title)!;
+              moved(`the ${card.title} card`, 'x', deliveredCard.x, card.x);
+              moved(`the ${card.title} card`, 'width', deliveredCard.width, card.width);
+            }
+
+            // What makes the heights comparable at all: the same number of activity rows mounted,
+            // and the same disk-usage reading under the two builds' two reads of one daemon.
+            const comparableRow =
+              currentScreen.activityRows === deliveredScreen.activityRows && currentScreen.diskReading === deliveredScreen.diskReading;
+            if (!comparableRow) {
+              console.log(
+                `[REQ-66] ${at}: the daemon changed what the middle row holds between the two reads ` +
+                  `(${deliveredScreen.activityRows} → ${currentScreen.activityRows} activity row(s); disk reading ` +
+                  `${currentScreen.diskReading === deliveredScreen.diskReading ? 'unchanged' : 'changed'}), so the row's height is not comparable`,
+              );
+            }
+
+            if (viewport.width >= 1280) {
+              // The premise, measured on the delivered build: the two cards really did end at
+              // different y, which is the ragged bottom edge REQ-66 repairs.
+              expect(
+                Math.abs(deliveredActivity!.bottom - deliveredDisk!.bottom),
+                `${at}: the delivered build's two cards already ended at the same y, so REQ-66 has nothing to repair here`,
+              ).toBeGreaterThan(1);
+
+              // REQ-66 — one row, one straight bottom edge, whichever of them holds more.
+              expect(round(disk!.y), `${at}: the two cards are no longer on one row`).toBe(round(activity!.y));
+              if (Math.abs(disk!.bottom - activity!.bottom) > 1) {
+                declared.push(
+                  `${at} Dashboard: the two cards of the middle row end ${round(Math.abs(disk!.bottom - activity!.bottom))}px apart ` +
+                    `(REQ-66) — Container activity ${round(activity!.height)}px against Disk usage ${round(disk!.height)}px`,
+                );
+              }
+
+              // …and the row is as tall as the taller of them and no taller: the delivered heights,
+              // the disk card's carrying the legend REQ-67 adds to it.
+              if (comparableRow) {
+                const expectedHeight = Math.max(deliveredActivity!.height, deliveredDisk!.height + currentScreen.legendCost);
+                if (Math.abs(Math.max(activity!.height, disk!.height) - expectedHeight) > 1) {
+                  declared.push(
+                    `${at} Dashboard: the middle row is ${round(Math.max(activity!.height, disk!.height))}px tall, against the ` +
+                      `${round(expectedHeight)}px the taller of the delivered cards plus the legend's ${round(currentScreen.legendCost)}px accounts for`,
+                  );
+                }
+              }
+            } else {
+              // dashboard-layout.md — below the tablet breakpoint the two columns become one,
+              // `primary` first and `secondary` under it, each its own height as before.
+              expect(round(disk!.x), `${at}: the two cards are not on one left edge`).toBe(round(activity!.x));
+              expect(disk!.y, `${at}: the Disk usage card is not below the Container activity card`).toBeGreaterThan(activity!.y);
+              if (comparableRow) {
+                // Stacked, each card is its own height: the activity card's is untouched, and the
+                // disk card's grows by what its legend costs and by nothing else.
+                moved('the Container activity card', 'height', deliveredActivity!.height, activity!.height);
+                if (Math.abs(disk!.height - (deliveredDisk!.height + currentScreen.legendCost)) > 1) {
+                  declared.push(
+                    `${at} Dashboard: the Disk usage card changed height by ${round(disk!.height - deliveredDisk!.height)}px, against ` +
+                      `the ${round(currentScreen.legendCost)}px its legend costs`,
+                  );
+                }
+              }
+            }
+
+            // The footer card sits exactly where the row's new height puts it, and nowhere else.
+            if (comparableRow) {
+              const deliveredRow = Math.max(deliveredActivity!.bottom, deliveredDisk!.bottom);
+              const currentRow = Math.max(activity!.bottom, disk!.bottom);
+              if (Math.abs(feed!.y - deliveredFeed!.y - (currentRow - deliveredRow)) > 1) {
+                declared.push(
+                  `${at} Dashboard: the Daemon event stream card sits ${round(feed!.y - deliveredFeed!.y)}px lower, against the ` +
+                    `${round(currentRow - deliveredRow)}px the middle row grew by`,
+                );
+              }
+            }
+
+            // The change is inside the screen: the shell's content column is where it was.
+            expect(round(currentScreen.columnWidth), `${at}: the shell's content column changed width`).toBe(round(deliveredScreen.columnWidth));
+            continue;
+          }
+
           // The registries screen, whose declared change is the panel pair rather than the stack:
           // the fixed template it handed `Grid` divided every width in 1 : 1.2 and collapsed at
           // none, which at 375×812 left a 143px panel; the pair arrangement makes the two equal at
@@ -1854,9 +2092,11 @@ test.describe('F5 — the thirteen screens render as the delivered build does', 
         }
         for (const movement of movements) console.log(`[REQ-30] moved: ${report(movement)}`);
         for (const line of structural) console.log(`[REQ-30] structural: ${line}`);
+        for (const line of declared) console.log(`[REQ-30] declared: ${line}`);
 
         expect(structural, `${at}: a screen gained or lost a principal surface`).toEqual([]);
         expect(movements.map(report), `${at}: a surface moved that this batch states does not move`).toEqual([]);
+        expect(declared, `${at}: a screen with declared geometry of its own does not measure what it declares`).toEqual([]);
 
         // REQ-25 / empty-state.md — the surface costs the hairline and nothing else in the
         // full-height presentation; the compact site additionally gains its horizontal inset.

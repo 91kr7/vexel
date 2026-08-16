@@ -114,6 +114,44 @@ function usageRows(): { label: string; value: string }[] {
   }));
 }
 
+/** One disk-usage row's bar, which is the element exposing that category's share as a meter. */
+function usageTrack(label: string): HTMLElement {
+  const row = Array.from(document.querySelectorAll<HTMLElement>('.ui-usage-breakdown__row')).find(
+    (candidate) => candidate.querySelector('.ui-usage-breakdown__label')?.textContent === label,
+  );
+  if (!row) throw new Error(`no disk-usage row labelled ${label}`);
+  return within(row).getByRole('meter');
+}
+
+/** What that row draws on its track: a bar, a zero mark, or — where nothing was measured — nothing. */
+function trackMark(label: string): HTMLElement | null {
+  return usageTrack(label).firstElementChild as HTMLElement | null;
+}
+
+/** The legend's entries, in the order they are drawn. */
+function legendLabels(): string[] {
+  return Array.from(document.querySelectorAll<HTMLElement>('.ui-usage-breakdown__legend-item')).map(
+    (entry) => entry.querySelector('.ui-usage-breakdown__legend-label')?.textContent ?? '',
+  );
+}
+
+/**
+ * A reading in which one category holds nothing and another could not be read
+ * at all: the two states `plan-ui-coherence-optimisation/REQ-68` requires the
+ * screen to keep apart.
+ */
+function mixedDiskUsage(): SystemOverview['diskUsage'] {
+  return {
+    categories: [
+      { id: 'images', sizeBytes: 1_024, itemCount: 1 },
+      { id: 'containers', sizeBytes: 512, itemCount: 2 },
+      { id: 'volumes', sizeBytes: 0, itemCount: 0 },
+      { id: 'build-cache', sizeBytes: 0, itemCount: 0, unavailableDetail: 'buildx is not installed' },
+    ],
+    totalBytes: 1_536,
+  };
+}
+
 /** The container-activity rows, in the order they are drawn, as their four cells. */
 function activityRows(): string[][] {
   return Array.from(document.querySelectorAll<HTMLElement>('.ui-data-table__row')).map((row) =>
@@ -327,24 +365,42 @@ describe('DashboardScreen — the disk usage (plan-docker_management_app/REQ-16)
 
   // dashboard-screen.md — "A category that could not be read reads "unavailable" in place of its size."
   it('says a category is unavailable in place of its size', () => {
-    overviewState = {
-      loaded: true,
-      overview: overviewWith({
-        diskUsage: {
-          categories: [
-            { id: 'images', sizeBytes: 1_024, itemCount: 1 },
-            { id: 'containers', sizeBytes: 0, itemCount: 0 },
-            { id: 'volumes', sizeBytes: 0, itemCount: 0 },
-            { id: 'build-cache', sizeBytes: 0, itemCount: 0, unavailableDetail: 'buildx is not installed' },
-          ],
-          totalBytes: 1_024,
-        },
-      }),
-    };
+    overviewState = { loaded: true, overview: overviewWith({ diskUsage: mixedDiskUsage() }) };
 
     renderScreen();
 
     expect(usageRows().find((row) => row.label === 'Build cache')?.value).toBe('unavailable');
+  });
+
+  // dashboard-screen.md — "a category holding nothing reads 0B and still draws a bar — the
+  // zero-length one — so that it is told apart from a category that could not be read, which …
+  // draws the unmeasured track instead of a bar" (plan-ui-coherence-optimisation/REQ-68)
+  it('tells a category holding nothing apart from one that could not be read', () => {
+    overviewState = { loaded: true, overview: overviewWith({ diskUsage: mixedDiskUsage() }) };
+
+    renderScreen();
+
+    // The category holding nothing: 0B, and a mark still drawn on its track.
+    expect(usageRows().find((row) => row.label === 'Volumes')?.value).toBe('0B');
+    expect(trackMark('Volumes'), 'the 0B category draws nothing on its track').not.toBeNull();
+
+    // The category that could not be read: no mark at all, and a track of its own.
+    expect(trackMark('Build cache'), 'the unreadable category draws a mark on its track').toBeNull();
+    expect(usageTrack('Build cache').className).not.toBe(usageTrack('Volumes').className);
+
+    // …and the caller's own word is what its meter announces (usage-breakdown.md).
+    expect(usageTrack('Build cache')).toHaveAttribute('aria-valuetext', 'unavailable');
+    expect(usageTrack('Build cache')).toHaveAttribute('aria-valuenow', '0');
+    expect(usageTrack('Volumes')).not.toHaveAttribute('aria-valuetext');
+  });
+
+  // dashboard-screen.md — "a legend under the rows names what each of the chart's colours means"
+  // (plan-ui-coherence-optimisation/REQ-67)
+  it('names every colour of the chart in a legend, one entry per category', () => {
+    renderScreen();
+
+    expect(legendLabels()).toEqual(['Images', 'Containers', 'Volumes', 'Build cache']);
+    expect(legendLabels()).toEqual(usageRows().map((row) => row.label));
   });
 });
 
