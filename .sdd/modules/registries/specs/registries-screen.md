@@ -13,9 +13,8 @@ selected registry's repositories and tags with each tag's size and a pull straig
 Description:
 - Two panels side by side, as drawn in `.sdd/analysis/ui-mock/registries.png`, collapsing to one
   column when the screen is too narrow to carry both. On the left, "Registries & credentials", the
-  registries listed with the object list's comfortable variant. On the right,
-  "Repositories · <host>", the repositories of the selected registry listed the same way, each over
-  a row of tag chips.
+  registries listed with the object list. On the right, "Repositories · <host>", the repositories of
+  the selected registry listed the same way, each over a row of tag chips.
 
 Shows:
 - One row per configured registry, in columns:
@@ -40,9 +39,10 @@ Shows:
   "anonymous".
 - One row per repository found: its name over its description when the registry publishes one, and
   its pull count when it publishes one, abbreviated ("48k pulls", "1.8B pulls").
-- Under each repository, one chip per tag: the tag name, the size it weighs, and an inline "pull".
-  "Reading tags…" while they load, the failure's message in their place when the listing failed, and
-  "No tags reachable" when there are none.
+- Under each repository's cells, inside the same table, one chip per tag: the tag name, the size it
+  weighs, and an inline "pull". "Reading tags…" while they load, the failure's message in their
+  place when the listing failed, and "No tags reachable" when there are none. That slot is
+  conditional on nothing: this list supplies it, so it is drawn.
 - In place of the repositories, one of five states — each a title, an explanation where the title
   does not say everything, and the control that resolves it where one would:
   - no registry selected → "Select a registry", with the line inviting one to be picked;
@@ -80,10 +80,20 @@ Actions:
   screen never implements a transfer of its own.
 - The reference a tag is pulled by is the one the server computed for that tag; the screen never
   assembles it from parts.
+- **Both lists are one table each**, as containers and images are: one header row over a continuous
+  run of rows, a single hairline between each pair, no gap between two rows and no surface, corner
+  or outline of any row's own. A repository row, which carries its tag chips below its cells, is
+  ruled beneath them, so the hairline still separates one repository from the next rather than a
+  repository from its own tags.
+- **A row is sized by what it holds**, not clipped to a fixed height: `REGISTRY` puts the host over
+  its state line and `REPOSITORY` the name over its description, and both lines are on the row at
+  every viewport. Below the desktop breakpoint each list pans horizontally rather than growing its
+  rows.
 - **Every registry row is the same height as every other** (REQ-37), whatever its state line would
   have said: an authenticated registry naming an account and a credential store occupies exactly as
   many lines as one that is merely "not authenticated". The row's values are columns of one line
-  each, so no value can add a line to the row that carries it.
+  each, so no value can add a line to the row that carries it — and since a row is sized by its
+  content, that is precisely what makes every row resolve to the same height.
 - **No affordance of this screen is a one-off**: logging in and out are actions of the row's cluster
   and nothing else on a row is clickable but the row itself; the search is the screen's one toolbar;
   the empty results are the library's empty state.
@@ -131,8 +141,8 @@ Actions:
 
 ## Dependencies
 
-- ui-library: Card, SectionHeader, ScreenToolbar, DataTable (comfortable variant) with StatusDotCell,
-  TwoLineCell, MetaCell and BadgeListCell, ActionButtonGroup, ChipGroup, Chip (meta reading),
+- ui-library: Card, SectionHeader, ScreenToolbar, DataTable (content-sized rows, row content) with
+  StatusDotCell, TwoLineCell, MetaCell and BadgeListCell, ActionButtonGroup, ChipGroup, Chip (meta reading),
   SearchField, SecretField, TextField, FormField, FormDialog, DefinitionList, StatusPill, Button,
   StepProgressList, ErrorBanner, EmptyState, Grid, Stack, useToast
 - registries: useRegistries, useRegistryRepositories
@@ -147,3 +157,4 @@ Actions:
 - plan-ui-coherence-optimisation/REQ-36
 - plan-ui-coherence-optimisation/REQ-37
 - plan-ui-coherence-optimisation/REQ-38
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-15

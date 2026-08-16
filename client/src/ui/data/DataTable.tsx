@@ -72,9 +72,9 @@ export interface DataTableSelection<T> {
  * - `dense` — the delivered fixed-height row, virtualised: a long list scanned
  *   column by column.
  * - `comfortable` — each row on a card of its own, growing to fit a title over
- *   a monospace subtitle, with trailing badges and meta values, an
- *   always-visible content slot and the expansion inside the same card. The
- *   shape the hand-built card lists across the product were reaching for.
+ *   a monospace subtitle, with trailing badges and meta values, and the
+ *   expansion inside the same card. The shape the hand-built card lists across
+ *   the product were reaching for.
  *
  * Both resolve their columns through the same tracks, so the comfortable
  * variant carries the column-minimum contract (no track reaches zero, the table
@@ -106,7 +106,13 @@ export interface DataTableProps<T> {
    * selectable row itself — chips with their own actions, a nested list. Unlike
    * `renderExpanded` it is not conditional on a selection: a grouped list is
    * this slot holding a nested `hideHeader` list of the group's children.
-   * Comfortable rows only; a dense row is a fixed-height line.
+   *
+   * **Conditional on nothing else either**: a list that supplies it gets it,
+   * whatever presentation it asked for, exactly as the expansion beside it
+   * already worked. It used to be read only when the card-per-row presentation
+   * was asked for, which made a list converted away from that presentation lose
+   * its content with no error, no type change and no shorter list — only
+   * shorter rows.
    */
   renderRowContent?: (row: T) => ReactNode;
   /** Adds a leading multi-select checkbox column, independent of `onRowSelect`'s single-row selection. */
@@ -379,7 +385,7 @@ export function DataTable<T>({
                       </div>
                     ))}
                   </div>
-                  {comfortable && renderRowContent ? <div className="ui-data-table__row-content">{renderRowContent(row)}</div> : null}
+                  {renderRowContent ? <div className="ui-data-table__row-content">{renderRowContent(row)}</div> : null}
                   {key === expandedRowKey && renderExpanded ? (
                     <div className="ui-data-table__expanded" ref={expansionRef}>
                       {renderExpanded(row)}

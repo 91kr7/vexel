@@ -125,10 +125,31 @@
 
 /* Content the row always carries, below its cells and outside the selectable
    row: chips with their own actions, or the nested list that makes this a
-   grouped list. It is inside the same card, so it is inset to the row's own
-   padding and adds no separation of its own. */
+   grouped list. It takes the row's own inline inset, so what it holds starts at
+   the same x as the cells it belongs to.
+
+   It also carries the row's rule, the row above giving it up: the hairline is
+   what separates one row from the next, and drawn between a row's cells and
+   that row's own chips it would group them with the row underneath instead.
+   `:has()` rather than a flag passed down from the component, because the
+   condition is exactly "this row is followed by its content" and the stylesheet
+   can see that for itself. */
+.ui-data-table__row:has(+ .ui-data-table__row-content) {
+  border-bottom: none;
+}
+
 .ui-data-table__row-content {
-  padding: 0 var(--space-5) var(--space-4);
+  padding: 0 var(--space-4) var(--space-4);
+  border-bottom: var(--border-width-hairline) solid var(--color-border-subtle);
+}
+
+/* In the retired presentation it is inside the row's own card, so it keeps that
+   card's wider inset and draws no rule: inside a card there is no next row to
+   be separated from. Scoped here so the inset above is the one presentation's,
+   which is where the two have to line up. */
+.ui-data-table--comfortable .ui-data-table__row-content {
+  padding-inline: var(--space-5);
+  border-bottom: none;
 }
 
 /* Inside a card the expansion is separated from the row by a rule rather than

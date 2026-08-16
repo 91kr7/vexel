@@ -284,7 +284,10 @@ export function NetworksPanel({ networks, loaded, error, onRefresh }: NetworksPa
       <Stack gap="var(--space-3)">
         {error ? <ErrorBanner title="Could not load networks" detail={error} onRetry={onRefresh} /> : null}
         <DataTable
-          variant="comfortable"
+          // The `NAME` cell is a name over its subnet line, so the row is sized
+          // by what it holds rather than clipped to the fixed height a list of
+          // one-line values is drawn at.
+          autoRowHeight
           columns={columns}
           rows={networks}
           rowKey={(network) => network.id}

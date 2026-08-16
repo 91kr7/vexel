@@ -16,8 +16,8 @@ type: UI component
 
 Description:
 - A card holding, in this order: the section header "Volumes", the screen toolbar carrying the
-  page-level actions, and the object list (`DataTable variant="comfortable"`) of every volume. The
-  header carries no actions of its own.
+  page-level actions, and the object list (`DataTable`) of every volume. The header carries no
+  actions of its own.
 Shows:
 - One row per volume, in columns: `NAME` (the name over the mountpoint as its monospace second
   line), `DRIVER`, `MOUNTED BY` (the mounting containers as badges, "nothing" when unattached),
@@ -60,6 +60,12 @@ Actions:
   in the toolbar under the section header rather than in the header itself.
 - At most one volume's detail is revealed at a time, and — the detail panel being the library's —
   revealing one closes any panel open elsewhere on the screen, the Networks panel's included.
+- **The list is one table**, as containers and images are: one header row over a continuous run of
+  rows, a single hairline between each pair, no gap between two rows and no surface, corner or
+  outline of any row's own. There is no per-screen choice of presentation to be made here.
+- **A row is sized by what it holds**, not clipped to a fixed height: the `NAME` cell puts the
+  volume's name over its mountpoint, and both lines are on the row at every viewport. Below the
+  desktop breakpoint the list pans horizontally rather than growing its rows.
 - The row truncates the mountpoint with an ellipsis; the detail panel is the route to it in full,
   wrapped, left-aligned and selectable. No value on this panel is right-aligned.
 - The list states no column minimum and no breakpoint-conditional column set: the column contract
@@ -72,7 +78,7 @@ Actions:
 
 ## Dependencies
 
-- ui-library: Card, SectionHeader, ScreenToolbar, DataTable (comfortable), TwoLineCell, MetaCell,
+- ui-library: Card, SectionHeader, ScreenToolbar, DataTable (content-sized rows), TwoLineCell, MetaCell,
   BadgeListCell, ActionButtonGroup, DetailPanel, CodeViewer, ErrorBanner, EmptyState, Button,
   FormDialog, FormField, TextField, Combobox, KeyValueEditor, Stack, useToast
 - Volumes client, useVolumeInspect
@@ -87,3 +93,4 @@ Actions:
 - plan-ui-coherence-optimisation/REQ-33
 - plan-ui-coherence-optimisation/REQ-34
 - plan-ui-coherence-optimisation/REQ-35
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-14

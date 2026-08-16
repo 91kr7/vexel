@@ -287,7 +287,12 @@ export function RegistriesScreen() {
               <ErrorBanner title="Could not read the configured registries" detail={registries.error} onRetry={registries.refresh} />
             ) : null}
             <DataTable
-              variant="comfortable"
+              // The `REGISTRY` cell is a host over its state line, so the row is
+              // sized by what it holds rather than clipped to the fixed height a
+              // list of one-line values is drawn at. Every row still holds the
+              // same number of lines as every other (REQ-37 of the reference
+              // plan), so they all resolve to one height.
+              autoRowHeight
               columns={registryColumns}
               rows={registries.registries}
               rowKey={(registry) => registry.host}
@@ -335,7 +340,10 @@ export function RegistriesScreen() {
               <ErrorBanner title="Could not browse the registry" detail={repositories.error} onRetry={repositories.refresh} />
             ) : null}
             <DataTable
-              variant="comfortable"
+              // The `REPOSITORY` cell is a name over its description, so the row
+              // is sized by what it holds rather than clipped to the fixed
+              // height a list of one-line values is drawn at.
+              autoRowHeight
               columns={repositoryColumns}
               rows={repositories.entries}
               rowKey={(entry) => entry.repository.name}

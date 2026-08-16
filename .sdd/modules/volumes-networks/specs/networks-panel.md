@@ -17,19 +17,20 @@ object list and detail panel.
 
 Description:
 - A card holding, in this order: the section header "Networks", the screen toolbar carrying the
-  page-level actions, and the object list (`DataTable variant="comfortable"`) of every network. The
-  header carries no actions of its own.
+  page-level actions, and the object list (`DataTable`) of every network. The header carries no
+  actions of its own.
 Shows:
 - One row per network, in columns: `NAME` (the name over a "`<subnet>` · gw `<gateway>`" monospace
   second line, "no subnet" when the network has none), `DRIVER`, `SCOPE`, and the row's action
   cluster.
-- Below every row, inside the same card, the chip group of that network's attached containers, each
-  chip carrying its own "detach" action; "No attached containers" in place of the chips when none
-  are attached.
+- Below every row's cells, inside the same table, the chip group of that network's attached
+  containers, each chip carrying its own "detach" action; "No attached containers" in place of the
+  chips when none are attached. That slot is conditional on nothing: this list supplies it, so it is
+  drawn.
 - An empty state when there are no networks: while loading, the title alone; once loaded, a title, a
   line of explanation and the action that resolves it — "Create the first network", the invitation
   rather than the toolbar's own word (see the rule below).
-- Selecting a row reveals its detail panel inside the same card, directly below the row and its
+- Selecting a row reveals its detail panel inside the same table, directly below the row and its
   chips, at the full width of the screen's content column: driver, scope, subnet, gateway, IP range,
   options and labels as property bands — every value left-aligned, `Options` included — then the raw
   inspect payload at that same full width. Selecting the same row again, or `Escape`, closes it.
@@ -70,6 +71,13 @@ Actions:
   section header rather than in the header itself.
 - At most one network's detail is revealed at a time, and — the detail panel being the library's —
   revealing one closes any panel open elsewhere on the screen, the Volumes panel's included.
+- **The list is one table**, as containers and images are: one header row over a continuous run of
+  rows, a single hairline between each pair, no gap between two rows and no surface, corner or
+  outline of any row's own. A row that carries chips below its cells is ruled beneath them, so the
+  hairline still separates one network from the next rather than a network from its own chips.
+- **A row is sized by what it holds**, not clipped to a fixed height: the `NAME` cell puts the
+  network's name over its subnet line, and both lines are on the row at every viewport. Below the
+  desktop breakpoint the list pans horizontally rather than growing its rows.
 - No value on this panel is right-aligned, `Options` included.
 - The list states no column minimum and no breakpoint-conditional column set: the column contract
   and the truncation contract are the object list's, inherited by construction. The one width it
@@ -82,7 +90,7 @@ Actions:
 
 ## Dependencies
 
-- ui-library: Card, SectionHeader, ScreenToolbar, DataTable (comfortable), TwoLineCell, MetaCell,
+- ui-library: Card, SectionHeader, ScreenToolbar, DataTable (content-sized rows, row content), TwoLineCell, MetaCell,
   ChipGroup, ActionButtonGroup, DetailPanel, CodeViewer, ErrorBanner, EmptyState, Button,
   FormDialog, FormField, TextField, Combobox, KeyValueEditor, Stack, useToast
 - Networks client, useNetworkInspect
@@ -99,3 +107,4 @@ Actions:
 - plan-ui-coherence-optimisation/REQ-33
 - plan-ui-coherence-optimisation/REQ-34
 - plan-ui-coherence-optimisation/REQ-35
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-14

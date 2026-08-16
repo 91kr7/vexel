@@ -54,12 +54,12 @@ and spec together (`plan-ui-coherence-optimisation/REQ-82`).
     that row is always kept mounted (even outside the naive virtualisation window) and
     `renderExpanded(row)`'s content is inserted in normal flow directly below it (e.g. a detail
     panel), pushing the rows after it down.
-  - `renderRowContent?(row)` — content rendered inside **every** row's card, below its cells and
-    outside the selectable row itself (chips with their own actions, a nested list). Comfortable
-    rows only; a dense row is a fixed-height line and ignores it. A **grouped list** is this slot
-    holding a nested `hideHeader` comfortable list of the group's children — one list rendering
-    both levels, sharing its rows, its action cluster and its truncation contract rather than a
-    grouped component duplicating them.
+  - `renderRowContent?(row)` — content rendered inside **every** row, below its cells and outside
+    the selectable row itself (chips with their own actions, a nested list). **Conditional on
+    nothing**, as `renderExpanded` beside it: a list that supplies it gets it, whatever room its
+    rows are given. A **grouped list** is this slot holding a nested `hideHeader` list of the
+    group's children — one list rendering both levels, sharing its rows, its action cluster and its
+    truncation contract rather than a grouped component duplicating them.
   - `selection?: { selectedKeys: string[], onToggle(row), onToggleAll?(), allSelected? }` — adds a
     leading checkbox column, independent of `onRowSelect`'s single-row selection: a row's checkbox
     calls `onToggle` and reflects membership in `selectedKeys`; the header checkbox calls
@@ -187,6 +187,12 @@ Description:
   density, never a set of behaviours — which is what makes the nine screens migrating onto the
   comfortable variant inherit the column repair by construction, without any of them stating a
   column minimum.
+- **The row content is inset like the cells above it, and carries the rule that would have closed
+  the row.** On a ruled row it takes the row's own inline inset, so what it holds starts at the same
+  x as the cells it belongs to, and the hairline moves from the row to the content: it is what
+  separates one row from the next, and drawn between a row's cells and that row's own chips it would
+  group them with the row underneath. Inside a comfortable card it keeps the card's wider inset and
+  draws no rule, there being no next row inside a card to be separated from.
 - **A comfortable row, the content it always carries and the panel it expands into are one card**
   (a flat `Surface`): the row inside it draws no rule and rounds nothing of its own, and the
   expansion is set apart from the row by a hairline rather than by the wash the dense variant uses,
@@ -223,3 +229,4 @@ Description:
 - plan-ui-coherence-optimisation/REQ-24
 - plan-ui-coherence-optimisation/REQ-28
 - plan-ui-coherence-optimisation/REQ-30
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-6
