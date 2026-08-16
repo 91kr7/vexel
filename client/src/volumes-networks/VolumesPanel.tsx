@@ -268,7 +268,9 @@ export function VolumesPanel({ volumes, loaded, error, onRefresh }: VolumesPanel
               <EmptyState
                 title="No volumes"
                 description="A volume keeps data alive independently of the containers that mount it."
-                action={<Button onClick={openCreate}>Create volume…</Button>}
+                // Its label is the invitation, never the toolbar's own word
+                // (DEF-2, `volumes-panel.md`): one surface, one control per name.
+                action={<Button onClick={openCreate}>Create the first volume</Button>}
               />
             ) : (
               <EmptyState title="Loading volumes…" description={null} action={null} />

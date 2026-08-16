@@ -308,7 +308,9 @@ export function NetworksPanel({ networks, loaded, error, onRefresh }: NetworksPa
               <EmptyState
                 title="No networks"
                 description="A user-defined network lets the containers on it reach each other by name."
-                action={<Button onClick={openCreate}>Create network…</Button>}
+                // Its label is the invitation, never the toolbar's own word
+                // (DEF-2, `networks-panel.md`): one surface, one control per name.
+                action={<Button onClick={openCreate}>Create the first network</Button>}
               />
             ) : (
               <EmptyState title="Loading networks…" description={null} action={null} />

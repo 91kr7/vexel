@@ -23,13 +23,15 @@ Shows:
   line), `DRIVER`, `MOUNTED BY` (the mounting containers as badges, "nothing" when unattached),
   `SIZE` (or "–" while the daemon has not computed it), and the row's action cluster.
 - An empty state when there are no volumes: while loading, the title alone; once loaded, a title, a
-  line of explanation and the action that resolves it (creating a volume).
+  line of explanation and the action that resolves it — "Create the first volume", the invitation
+  rather than the toolbar's own word (see the rule below).
 - Selecting a row reveals its detail panel inside the same card, directly below the row, at the full
   width of the screen's content column: driver, mountpoint, scope, created time, mounting
   containers, driver options and labels as property bands, then the raw inspect payload at that same
   full width. Selecting the same row again, or `Escape`, closes it.
 Actions:
-- "Create volume…" (toolbar, primary) opens a `FormDialog` for a name (optional, blank lets the
+- "Create volume…" (toolbar, primary) and "Create the first volume" (the empty state's own action)
+  open the same `FormDialog`, for a name (optional, blank lets the
   daemon generate one), a driver (free text, suggesting `local`), driver options and labels (each a
   repeatable key/value list, REQ-71); submitting creates the volume, closes the dialog and re-reads
   the list.
@@ -41,6 +43,18 @@ Actions:
 
 ## Rules and invariants
 
+- **The toolbar's action and the empty state's are two controls, and neither name contains the
+  other.** Both open the same dialog, and while the list is empty both are on screen at once — the
+  toolbar because a page-level action lives there (plan-ui-coherence-optimisation/REQ-41), the empty
+  state's because an empty result states the way out of itself
+  (plan-docker_management_app/REQ-25). A suffix is not a different name, and two identical names are
+  the same collision rather than its repair, so the empty state takes the invitation and the toolbar
+  keeps the standing action's word. **This panel is where that cost the most and showed the least**:
+  its two controls carried the *same* label, and the check that drives them
+  (`client/e2e/volumes.spec.ts:95`) is scoped to the panel and locates them by that shared name — so it
+  has always resolved two controls whenever the list is empty, and passed only because this daemon
+  happens to hold one. Green by luck. The single account, with the deferred ellipsis question, is in
+  `ui-library/specs/empty-state.md` and `swarm/specs/swarm-secrets-panel.md` (DEF-2).
 - "Prune" is disabled when there is no volume to prune.
 - Every control on this screen is a control: no action is bare text, and the page-level actions sit
   in the toolbar under the section header rather than in the header itself.

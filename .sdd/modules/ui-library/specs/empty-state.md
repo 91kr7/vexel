@@ -55,12 +55,19 @@ component insists on it rather than rendering whichever subset a caller happened
   otherwise rediscovered only from the error a check throws when it finds two controls where the
   contract promised one.
 
-  Eight panels shipped one action under two names that shadowed each other, four of them colliding
-  outright, and only one ever surfaced: `client/e2e/exclusive/swarm-cluster.spec.ts` drives a swarm
-  that has just been initialised and therefore holds no secret, so it is the one check that met the
-  empty state at all. Every other instance was hidden by the daemon happening to hold data — which is
-  the mirror of the suite's own rule that no test may assume an empty daemon: it may not assume a
-  populated one either (DEF-2, reasoned out in `swarm/specs/swarm-secrets-panel.md`).
+  Eight panels shipped one action under two names that shadowed each other, four of them — volumes,
+  networks, and the two swarm inventories — colliding outright, and only one ever surfaced:
+  `client/e2e/exclusive/swarm-cluster.spec.ts` drives a swarm that has just been initialised and
+  therefore holds no secret, so it is the one check that met an empty list at all.
+
+  **The other half of a rule this repository already half-states.** `CLAUDE.md` says a test may never
+  assume an empty daemon; **it may not assume a populated one either**, and that is the half nobody
+  had written down. The volumes and networks panels are what it costs: their two controls carried the
+  *same* label, and `client/e2e/volumes.spec.ts:95` and `networks.spec.ts:102` locate them by that
+  shared name, scoped to the panel. Those checks resolve two controls whenever the list is empty and
+  have never once failed — not because they were latent, but because this daemon happens to hold a
+  volume and a network. **Green by luck**, and luck that any developer's fresh machine would have
+  withdrawn (DEF-2, reasoned out in `swarm/specs/swarm-secrets-panel.md`).
 - **It costs no width where the container gives the box one, and 2px where the container does not.**
   `box-sizing: border-box` is global, but it absorbs a border only into a width that has been
   specified; on an **auto-width** box the width is derived from the content and the hairline adds its

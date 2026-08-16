@@ -27,13 +27,15 @@ Shows:
   chip carrying its own "detach" action; "No attached containers" in place of the chips when none
   are attached.
 - An empty state when there are no networks: while loading, the title alone; once loaded, a title, a
-  line of explanation and the action that resolves it (creating a network).
+  line of explanation and the action that resolves it — "Create the first network", the invitation
+  rather than the toolbar's own word (see the rule below).
 - Selecting a row reveals its detail panel inside the same card, directly below the row and its
   chips, at the full width of the screen's content column: driver, scope, subnet, gateway, IP range,
   options and labels as property bands — every value left-aligned, `Options` included — then the raw
   inspect payload at that same full width. Selecting the same row again, or `Escape`, closes it.
 Actions:
-- "Create network…" (toolbar, primary) opens a `FormDialog` for a name, a driver (free text,
+- "Create network…" (toolbar, primary) and "Create the first network" (the empty state's own
+  action) open the same `FormDialog`, for a name, a driver (free text,
   suggesting `bridge`/`overlay`/`macvlan`), subnet, gateway, IP range, options and labels (each a
   repeatable key/value list); submitting creates the network, closes the dialog and re-reads the
   list.
@@ -50,6 +52,18 @@ Actions:
 
 ## Rules and invariants
 
+- **The toolbar's action and the empty state's are two controls, and neither name contains the
+  other.** Both open the same dialog, and while the list is empty both are on screen at once — the
+  toolbar because a page-level action lives there (plan-ui-coherence-optimisation/REQ-41), the empty
+  state's because an empty result states the way out of itself
+  (plan-docker_management_app/REQ-25). A suffix is not a different name, and two identical names are
+  the same collision rather than its repair, so the empty state takes the invitation and the toolbar
+  keeps the standing action's word. **This panel is where that cost the most and showed the least**:
+  its two controls carried the *same* label, and the check that drives them
+  (`client/e2e/networks.spec.ts:102`) is scoped to the panel and locates them by that shared name — so it
+  has always resolved two controls whenever the list is empty, and passed only because this daemon
+  happens to hold one. Green by luck. The single account, with the deferred ellipsis question, is in
+  `ui-library/specs/empty-state.md` and `swarm/specs/swarm-secrets-panel.md` (DEF-2).
 - "Prune" is disabled when there is no network to prune.
 - Every control on this screen is a control: attaching a container is an action of the row's cluster
   rather than bare text beside the chips, and the page-level actions sit in the toolbar under the
