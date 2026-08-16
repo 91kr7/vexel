@@ -99,10 +99,24 @@ function describeBox(box: Box): string {
   return `x=${round(box.x)}, y=${round(box.y)}, ${round(box.width)}×${round(box.height)}`;
 }
 
-/** The card a list is drawn in, named by the section header it carries. */
+/**
+ * The panel a list is drawn in, named by the section header above it — and the
+ * box the pair arrangement lays out, which is what the widths below are measured
+ * on.
+ *
+ * The innermost region carrying both the heading and the list: since
+ * `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`
+ * a panel's section header (and, on the right, its search toolbar) sits **above**
+ * the one unpadded card holding its list, so the card no longer holds the title
+ * it used to be found by.
+ */
 function panel(page: Page, title: 'registries' | 'repositories'): Locator {
   const heading = title === 'registries' ? /^Registries & credentials$/ : /^Repositories(\s|$)/;
-  return page.locator('.ui-surface').filter({ has: page.getByRole('heading', { level: 2, name: heading }) }).first();
+  return page
+    .locator('.ui-stack, .ui-surface')
+    .filter({ has: page.getByRole('heading', { level: 2, name: heading }) })
+    .filter({ has: page.locator('.ui-data-table') })
+    .last();
 }
 
 function rowOf(page: Page, host: string): Locator {

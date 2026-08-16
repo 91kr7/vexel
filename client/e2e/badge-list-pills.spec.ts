@@ -36,8 +36,16 @@ import { F4_VIEWPORTS, describeRect, round } from './support/truncating-rows.js'
 /** Four names, long enough that three of them cannot sit side by side in one column. */
 const MOUNTING_CONTAINERS = 4;
 
+// The panel is the innermost region carrying both its heading and its list: a
+// converted list's section header sits **above** its card rather than inside it
+// (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`),
+// so the card can no longer be found by the title it used to hold.
 function volumesPanel(page: Page): Locator {
-  return page.locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Volumes' }) });
+  return page
+    .locator('.ui-stack, .ui-surface')
+    .filter({ has: page.getByRole('heading', { level: 2, name: 'Volumes' }) })
+    .filter({ has: page.locator('.ui-data-table') })
+    .last();
 }
 
 function volumeRow(page: Page, name: string): Locator {

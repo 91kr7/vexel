@@ -80,9 +80,20 @@ async function removeNetworkQuietly(name: string): Promise<void> {
   await execFileAsync('docker', ['network', 'rm', '-f', name]).catch(() => undefined);
 }
 
-/** The card a list is drawn in, named by the section header it carries. */
+/**
+ * The panel a list is drawn in, named by the section header above it.
+ *
+ * The innermost region carrying both the heading and the list: the header sits
+ * **above** the list's card rather than inside it
+ * (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`),
+ * so the card can no longer be found by the title it used to hold.
+ */
 function panel(page: Page, title: 'Volumes' | 'Networks'): Locator {
-  return page.locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: title }) }).first();
+  return page
+    .locator('.ui-stack, .ui-surface')
+    .filter({ has: page.getByRole('heading', { level: 2, name: title }) })
+    .filter({ has: page.locator('.ui-data-table') })
+    .last();
 }
 
 function row(page: Page, title: 'Volumes' | 'Networks', name: string): Locator {
@@ -509,8 +520,18 @@ test('at 375×812 the lists are full width, no column resolves to nothing, and t
       const contentColumnWidth =
         (content as HTMLElement).clientWidth - Number.parseFloat(contentStyle.paddingLeft) - Number.parseFloat(contentStyle.paddingRight);
       const headings = Array.from(document.querySelectorAll('.ui-section-header__title'));
-      const cardOf = (title: string) =>
-        headings.find((heading) => heading.textContent?.trim() === title)?.closest('.ui-surface') ?? null;
+      // The panel a heading names, which is the box the screen lays out: its
+      // section header sits **above** the list's own card rather than inside it
+      // (`.../classic-table/REQ-40`), so it is the innermost region holding both
+      // the heading and the list.
+      const panelOf = (title: string) => {
+        const heading = headings.find((candidate) => candidate.textContent?.trim() === title) ?? null;
+        for (let node = heading?.parentElement ?? null; node !== null; node = node.parentElement) {
+          if (node.querySelector('.ui-data-table') !== null) return node;
+        }
+        return null;
+      };
+      const cardOf = (title: string) => panelOf(title);
       const volumes = cardOf('Volumes');
       const networks = cardOf('Networks');
       return {

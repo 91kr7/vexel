@@ -20,19 +20,29 @@ async function removeContainerQuietly(name: string): Promise<void> {
   await execFileAsync('docker', ['rm', '-fv', name]).catch(() => undefined);
 }
 
-// The list is the object list's comfortable variant: the row itself
-// (`.ui-data-table__row`) and the attached-container chips
-// (`.ui-data-table__row-content`) are siblings inside the same row card, not
-// nested inside one another — so a locator that must see both is scoped to the
-// card (`networks-panel.md`).
+// The list is the object list — the same table containers and images ship. The
+// row itself (`.ui-data-table__row`) and the attached-container chips
+// (`.ui-data-table__row-content`) are **siblings** in the one ruled grid: the row
+// card that used to hold both is gone with the presentation that drew it, and the
+// slot is now conditional on nothing (`networks-panel.md`, `data-table.md`).
 function networkRow(page: Page, name: string): Locator {
   return networksPanel(page).locator('.ui-data-table__row', { hasText: name }).first();
 }
 
-function networkCard(page: Page, name: string): Locator {
-  return networksPanel(page)
-    .locator('.ui-data-table__body > .ui-surface', { has: page.locator('.ui-data-table__row', { hasText: name }) })
-    .first();
+/**
+ * The chips a network's row carries below its cells.
+ *
+ * There is no enclosing element to scope to any more, and the block carries the
+ * names of the *containers* attached rather than the network's own, so it is
+ * found by position: this list draws one content block per row, in the same
+ * order, so a row's chips are the block at that row's own index.
+ */
+async function networkChips(page: Page, name: string): Promise<Locator> {
+  const index = await networksPanel(page)
+    .locator('.ui-data-table__row')
+    .evaluateAll((rows, wanted) => rows.findIndex((row) => (row.textContent ?? '').includes(wanted)), name);
+  expect(index, `no row of the networks list names ${name}`).toBeGreaterThanOrEqual(0);
+  return networksPanel(page).locator('.ui-data-table__row-content').nth(index);
 }
 
 /** The value a row carries in the column the list names `header`. */
@@ -48,8 +58,19 @@ async function cellText(row: Locator, header: string): Promise<string> {
 
 // Scopes an action to the Networks panel specifically: the Volumes panel above
 // it on the same screen carries a create and a prune of its own.
+//
+// The panel is **not a surface**: its section header and its toolbar sit above
+// the one unpadded card that holds the list and nothing else, which is the
+// composition containers and images ship (`networks-panel.md`). So it is scoped by
+// the region holding all three, and the innermost of the nested ones is taken —
+// every region matching contains the same heading and is therefore an ancestor of
+// the next, so the last in document order is the panel's own.
 function networksPanel(page: Page) {
-  return page.locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Networks' }) });
+  return page
+    .locator('.ui-stack, .ui-surface')
+    .filter({ has: page.getByRole('heading', { level: 2, name: 'Networks' }) })
+    .filter({ has: page.locator('.ui-data-table') })
+    .last();
 }
 
 test.beforeEach(async ({ page }) => {
@@ -84,9 +105,8 @@ test('shows an attached container\'s name as a chip on its network\'s row', asyn
     await createTestNetwork(networkName);
     await createSleepingContainer(containerName, ['--network', networkName]);
 
-    const card = networkCard(page, networkName);
-    await expect(card).toBeVisible({ timeout: 15_000 });
-    const chips = card.locator('.ui-data-table__row-content');
+    await expect(networkRow(page, networkName)).toBeVisible({ timeout: 15_000 });
+    const chips = await networkChips(page, networkName);
     await expect(chips).toContainText(containerName, { timeout: 15_000 });
     await expect(chips.getByRole('button', { name: 'detach' })).toBeVisible();
   } finally {
@@ -161,10 +181,11 @@ test('attaching a container from the row\'s action cluster adds it as a chip, wi
     await createTestNetwork(networkName);
     await createSleepingContainer(containerName);
 
-    const card = networkCard(page, networkName);
-    await expect(card).toBeVisible({ timeout: 15_000 });
-    await expect(card).not.toContainText(containerName);
-    await expect(card.getByText('+ Attach'), 'the bare-text attach affordance is still on the row (REQ-27)').toHaveCount(0);
+    const row = networkRow(page, networkName);
+    await expect(row).toBeVisible({ timeout: 15_000 });
+    const chips = await networkChips(page, networkName);
+    await expect(chips).not.toContainText(containerName);
+    await expect(chips.getByText('+ Attach'), 'the bare-text attach affordance is still on the row (REQ-27)').toHaveCount(0);
 
     await networkRow(page, networkName).getByRole('button', { name: 'Attach…', exact: true }).click();
     const dialog = page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: `Attach a container to ${networkName}` }) });
@@ -174,7 +195,7 @@ test('attaching a container from the row\'s action cluster adds it as a chip, wi
     await dialog.getByRole('button', { name: 'Attach' }).click();
 
     await expect(dialog).toBeHidden();
-    await expect(card.locator('.ui-data-table__row-content')).toContainText(containerName, { timeout: 15_000 });
+    await expect(chips).toContainText(containerName, { timeout: 15_000 });
   } finally {
     await removeContainerQuietly(containerName);
     await removeNetworkQuietly(networkName);
@@ -190,8 +211,8 @@ test("detaching a container from its chip's inline action removes it from the ro
     await createTestNetwork(networkName);
     await createSleepingContainer(containerName, ['--network', networkName]);
 
-    const card = networkCard(page, networkName);
-    const chips = card.locator('.ui-data-table__row-content');
+    await expect(networkRow(page, networkName)).toBeVisible({ timeout: 15_000 });
+    const chips = await networkChips(page, networkName);
     await expect(chips).toContainText(containerName, { timeout: 15_000 });
 
     await chips.getByRole('button', { name: 'detach' }).click();

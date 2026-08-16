@@ -98,9 +98,21 @@ function screenContent(page: Page): Locator {
   return page.locator('.ui-frame__content');
 }
 
-/** One panel of a screen that carries several, by the heading it is titled with. */
+/**
+ * One panel of a screen that carries several, by the heading it is titled with.
+ *
+ * Named by **what it holds** rather than by the surface it used to be: a
+ * converted list has its section header above its card rather than inside it
+ * (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`),
+ * so a panel is the innermost region carrying both the heading and the list —
+ * which is the same region on a screen still drawn the old way, its card.
+ */
 function panelTitled(page: Page, title: string): Locator {
-  return screenContent(page).locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: title }) });
+  return screenContent(page)
+    .locator('.ui-stack, .ui-surface')
+    .filter({ has: page.getByRole('heading', { level: 2, name: title }) })
+    .filter({ has: page.locator('.ui-data-table') })
+    .last();
 }
 
 /**
@@ -303,7 +315,8 @@ test.describe('Volumes and networks', () => {
     const names = fixtureNames(stem);
     try {
       for (const name of names) await execFileAsync('docker', ['volume', 'create', ...ownershipArgs('list-order'), name]);
-      // The volumes list is the object list's comfortable variant (REQ-31), so a row is one of its rows.
+      // The volumes list is the object list — the same table containers and images ship — so a row
+      // is one of its rows; the order it is served in is unchanged by that.
       const rows = panelTitled(page, 'Volumes').locator('.ui-data-table__row');
 
       const shown = await settledOrder(rows, names);

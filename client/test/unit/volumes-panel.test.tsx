@@ -54,9 +54,9 @@ function renderPanel(volumes: VolumeSummary[], onRefresh = vi.fn()) {
   return { onRefresh };
 }
 
-// The list is the object list's comfortable variant, so a row is a
-// `.ui-data-table__row` and the panel it reveals is the library's detail panel
-// inside the row's expansion (volumes-panel.md).
+// The list is the object list — the same table containers and images ship — so a
+// row is a `.ui-data-table__row` and the panel it reveals is the library's detail
+// panel inside the row's expansion (volumes-panel.md).
 function listRows(): HTMLElement[] {
   return Array.from(document.querySelectorAll<HTMLElement>('.ui-data-table__row'));
 }
@@ -138,8 +138,38 @@ describe('VolumesPanel — list rows (plan-docker_management_app/REQ-70, plan-ui
   it('lists every volume on the object list, with the columns the panel declares in order', () => {
     renderPanel([makeVolume()]);
 
-    expect(document.querySelector('.ui-data-table--comfortable')).not.toBeNull();
+    // volumes-panel.md — "the list is the containers list … the **same row**, of the reference's own
+    // fixed height and vertical alignment, stating no row modifier of its own. There is no
+    // per-screen choice of presentation to be made here."
+    //
+    // **Contract and state only** (`.../classic-table/REQ-31`): every box is zero in jsdom, so a
+    // geometric assertion would pass on any build, defect included. What is asserted here is what
+    // the call site states — no presentation, no row modifier — and the boxes are measured in a
+    // browser (`e2e/classic-table-criteria.spec.ts`).
+    expect(document.querySelector('.ui-data-table')).not.toBeNull();
+    expect(document.querySelector('.ui-data-table--comfortable')).toBeNull();
+    for (const row of listRows()) {
+      expect(Array.from(row.classList).filter((name) => name !== 'ui-data-table__row' && name !== 'ui-data-table__row--selected')).toEqual([]);
+    }
     expect(columnHeaders()).toEqual(['NAME', 'DRIVER', 'MOUNTED BY', 'SIZE', 'ACTIONS']);
+  });
+
+  // volumes-panel.md — "its list alone in an **unpadded card it fills edge to edge** … The header
+  // carries no actions of its own, and it is not on a surface: the panel's only surface is the
+  // list's own card." State, not geometry: which surfaces exist and what they hold.
+  it('draws the list in one unpadded card holding it alone, with the section header outside it', () => {
+    renderPanel([makeVolume()]);
+
+    const table = document.querySelector('.ui-data-table')!;
+    const card = table.closest('.ui-surface');
+    expect(card, 'the list sits in no card at all').not.toBeNull();
+    expect(card!.classList.contains('ui-surface--pad-none'), 'the list’s card is padded').toBe(true);
+    expect(card!.children).toHaveLength(1);
+    expect(card!.firstElementChild, 'the card holds something besides the list').toBe(table);
+    expect(card!.querySelector('.ui-section-header'), 'the section header is inside the list’s card').toBeNull();
+    // One surface, not two: a card inside a card is two, and is not the answer.
+    expect(card!.parentElement?.closest('.ui-surface') ?? null, 'the list’s card sits inside another surface').toBeNull();
+    expect(table.querySelectorAll('.ui-surface'), 'a row is drawn on a surface of its own').toHaveLength(0);
   });
 
   it('shows the volume name, mountpoint, driver, unattached state and size', () => {

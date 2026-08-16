@@ -23,20 +23,33 @@ function screenContent(page: Page) {
   return page.locator('.ui-frame__content');
 }
 
+// Neither panel is a surface: each has its section header — and, on the right,
+// its search toolbar — **above** the one unpadded card that holds its list and
+// nothing else, which is the composition containers and images ship
+// (`registries-screen.md`). So a panel is scoped by the region holding all of
+// them, and the innermost of the nested ones is taken: every region matching
+// contains the same heading and is therefore an ancestor of the next, so the last
+// in document order is the panel's own.
 function registriesPanel(page: Page) {
-  return screenContent(page).locator('.ui-surface', {
-    has: page.getByRole('heading', { level: 2, name: 'Registries & credentials' }),
-  });
+  return screenContent(page)
+    .locator('.ui-stack, .ui-surface')
+    .filter({ has: page.getByRole('heading', { level: 2, name: 'Registries & credentials' }) })
+    .filter({ has: page.locator('.ui-data-table') })
+    .last();
 }
 
 function repositoriesPanel(page: Page) {
-  return screenContent(page).locator('.ui-surface').filter({ has: page.getByRole('heading', { level: 2, name: /^Repositories · / }) });
+  return screenContent(page)
+    .locator('.ui-stack, .ui-surface')
+    .filter({ has: page.getByRole('heading', { level: 2, name: /^Repositories · / }) })
+    .filter({ has: page.locator('.ui-data-table') })
+    .last();
 }
 
-// The rows are the object list's comfortable variant since
-// `plan-ui-coherence-optimisation/REQ-36`: a row is a `.ui-data-table__row`, its
-// host is the first line of the REGISTRY column, and the credential store is a
-// column of its own rather than part of the line under the host.
+// The rows are the object list — the same table containers and images ship: a row
+// is a `.ui-data-table__row`, its host is the first line of the REGISTRY column,
+// and the credential store is a column of its own rather than part of the line
+// under the host.
 function registryRow(page: Page, host: string): Locator {
   return registriesPanel(page).locator('.ui-data-table__row', {
     has: page.locator('.ui-table-two-line-cell__title', { hasText: host }),

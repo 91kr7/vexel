@@ -54,10 +54,10 @@ function renderPanel(networks: NetworkSummary[], onRefresh = vi.fn()) {
   return { onRefresh };
 }
 
-// The list is the object list's comfortable variant: a row is a
-// `.ui-data-table__row`, the attached-container chips are the row content that
-// always accompanies it, and the panel it reveals is the library's detail panel
-// (networks-panel.md).
+// The list is the object list — the same table containers and images ship: a row
+// is a `.ui-data-table__row`, the attached-container chips are the row content
+// that always accompanies it, drawn by a slot conditional on nothing, and the
+// panel it reveals is the library's detail panel (networks-panel.md).
 function listRows(): HTMLElement[] {
   return Array.from(document.querySelectorAll<HTMLElement>('.ui-data-table__row'));
 }
@@ -149,8 +149,37 @@ describe('NetworksPanel — list rows (plan-docker_management_app/REQ-72, plan-u
   it('lists every network on the object list, with the columns the panel declares in order', () => {
     renderPanel([makeNetwork()]);
 
-    expect(document.querySelector('.ui-data-table--comfortable')).not.toBeNull();
+    // networks-panel.md — "the list is the containers list … the **same row**, of the reference's own
+    // fixed height and vertical alignment, stating no row modifier of its own."
+    //
+    // **Contract and state only** (`.../classic-table/REQ-31`): every box is zero in jsdom, so a
+    // geometric assertion would pass on any build. The boxes are measured in a browser
+    // (`e2e/classic-table-criteria.spec.ts`).
+    expect(document.querySelector('.ui-data-table')).not.toBeNull();
+    expect(document.querySelector('.ui-data-table--comfortable')).toBeNull();
+    for (const row of listRows()) {
+      expect(Array.from(row.classList).filter((name) => name !== 'ui-data-table__row' && name !== 'ui-data-table__row--selected')).toEqual([]);
+    }
     expect(columnHeaders()).toEqual(['NAME', 'DRIVER', 'SCOPE', 'ACTIONS']);
+  });
+
+  // networks-panel.md — "its list alone in an **unpadded card it fills edge to edge** … the panel's
+  // only surface is the list's own card." State, not geometry: which surfaces exist and what they
+  // hold.
+  it('draws the list in one unpadded card holding it alone, with the section header outside it', () => {
+    renderPanel([makeNetwork()]);
+
+    const table = document.querySelector('.ui-data-table')!;
+    const card = table.closest('.ui-surface');
+    expect(card, 'the list sits in no card at all').not.toBeNull();
+    expect(card!.classList.contains('ui-surface--pad-none'), 'the list’s card is padded').toBe(true);
+    expect(card!.children).toHaveLength(1);
+    expect(card!.firstElementChild, 'the card holds something besides the list').toBe(table);
+    expect(card!.querySelector('.ui-section-header'), 'the section header is inside the list’s card').toBeNull();
+    expect(card!.parentElement?.closest('.ui-surface') ?? null, 'the list’s card sits inside another surface').toBeNull();
+    // The chips are drawn inside the table and on no surface of their own.
+    expect(table.querySelectorAll('.ui-surface'), 'a row is drawn on a surface of its own').toHaveLength(0);
+    expect(rowContents(), 'the row content the list supplies is not drawn').toHaveLength(1);
   });
 
   it('shows the network name, subnet/gateway line and driver/scope', () => {

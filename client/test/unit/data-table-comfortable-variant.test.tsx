@@ -206,19 +206,37 @@ describe('DataTable — the content a comfortable row always carries (REQ-22)', 
     }
   });
 
-  // data-table.md — "Comfortable rows only; a dense row is a fixed-height line and ignores it."
-  it('ignores the row content in the dense variant', () => {
+  /**
+   * data-table.md — "**Conditional on nothing**, as `renderExpanded` beside it: a list that supplies
+   * it gets it, whatever room its rows are given."
+   *
+   * **This assertion is the inverse of the one it replaces**, which pinned that a dense row ignored
+   * the slot. That gate is what
+   * `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-6` removes, and it
+   * had to go **before** any list stopped asking for the retired presentation: four lists draw their
+   * chips, their tags and their nested lists through this slot, and with the gate in place they
+   * would have lost them with no error, no type change and no shorter list — only shorter rows.
+   */
+  it('renders the row content whatever presentation the list asks for', () => {
     render(
       <DataTable
         columns={columns}
         rows={makeRows(3)}
         rowKey={(row) => row.id}
-        renderRowContent={() => <span>chips</span>}
+        renderRowContent={(row) => <span>chips for {row.name}</span>}
       />,
     );
 
-    expect(document.querySelectorAll('.ui-data-table__row-content')).toHaveLength(0);
-    expect(screen.queryByText('chips')).toBeNull();
+    expect(document.querySelectorAll('.ui-data-table__row-content')).toHaveLength(3);
+    for (const row of makeRows(3)) {
+      const content = screen.getByText(`chips for ${row.name}`);
+      const selectableRow = screen.getByText(row.name).closest('.ui-data-table__row') as HTMLElement;
+      expect(selectableRow.contains(content), 'the row content sits inside the selectable row').toBe(false);
+      expect(
+        selectableRow.compareDocumentPosition(content) & Node.DOCUMENT_POSITION_FOLLOWING,
+        'the row content is not drawn below the cells it belongs to',
+      ).toBeTruthy();
+    }
   });
 
   // data-table.md — "A grouped list is this slot holding a nested `hideHeader` comfortable list of

@@ -12,8 +12,9 @@ import type { UseRegistriesResult } from '../../src/data/use-registries';
 // shows in place of repositories — and, above all, that no credential is ever
 // displayed, kept or echoed (REQ-87).
 //
-// The rows are now the object list's comfortable variant
-// (`plan-ui-coherence-optimisation/REQ-36`), so the values are read out of the
+// The rows are the object list — the same table containers and images ship
+// (`plan-ui-coherence-optimisation/REQ-36`, and the classic-table plan's REQ-15),
+// so the values are read out of the
 // column each belongs to rather than off one hand-built line. What a jsdom
 // render can say about REQ-37 is the **structural** half of it — every value is
 // a column of one line, and the one whose presence depends on the registry's
@@ -99,9 +100,15 @@ function rowOf(host: string): HTMLElement {
   return screen.getByText(host).closest('.ui-data-table__row') as HTMLElement;
 }
 
-/** The whole card of a row: the row itself and the content rendered under it (the tag chips). */
-function cardOf(name: string): HTMLElement {
-  return rowOf(name).parentElement as HTMLElement;
+/**
+ * The content a row carries below its cells — the tag chips.
+ *
+ * Its **sibling**, not its parent: the row card that used to hold both is gone
+ * with the presentation that drew it, and the slot is conditional on nothing
+ * (`data-table.md`, and the classic-table plan's REQ-6).
+ */
+function rowContentOf(name: string): HTMLElement {
+  return rowOf(name).nextElementSibling as HTMLElement;
 }
 
 /** The list a row belongs to — the registries one, or the repositories one. */
@@ -145,10 +152,21 @@ function clusterOf(host: string): HTMLElement {
   return rowOf(host).querySelector('.ui-action-button-group') as HTMLElement;
 }
 
-/** What the repositories browser draws in place of repositories, whichever of the five it is. */
+/**
+ * What the repositories browser draws in place of repositories, whichever of the
+ * five it is.
+ *
+ * The panel is no longer a surface to be found from its heading: its section
+ * header and its search toolbar sit **above** the one unpadded card holding its
+ * list (`registries-screen.md`, and the classic-table plan's REQ-40). It is
+ * therefore the innermost region that carries both the heading and a list.
+ */
 function browserEmptyState(): HTMLElement {
-  const panel = screen.getByRole('heading', { name: /^Repositories/ }).closest('.ui-surface') as HTMLElement;
-  return panel.querySelector('.ui-empty-state') as HTMLElement;
+  const heading = screen.getByRole('heading', { name: /^Repositories/ });
+  let panel: HTMLElement | null = heading.parentElement;
+  while (panel !== null && panel.querySelector('.ui-data-table') === null) panel = panel.parentElement;
+  expect(panel, 'the repositories heading is drawn nowhere near a list').not.toBeNull();
+  return panel!.querySelector('.ui-empty-state') as HTMLElement;
 }
 
 /** The dialog currently open, whichever one it is. */
@@ -185,13 +203,30 @@ function fourStatedRegistries() {
 
 describe('RegistriesScreen — the registries panel (registries/specs/registries-screen.md)', () => {
   // REQ-36 — "Registries are listed with the object-list primitive, hand-built cards deleted";
-  // registries-screen.md — "the registries listed with the object list's comfortable variant"
-  it('lists the registries on the object list, in its comfortable variant, and draws no card list', () => {
+  // registries-screen.md — "**Both lists are the containers list** … the **same row**, of the
+  // reference's own fixed height and vertical alignment, stating no row modifier of its own", each
+  // "alone in an **unpadded card it fills edge to edge**".
+  //
+  // **Contract and state only** (`.../classic-table/REQ-31`): every box is zero in jsdom. The boxes
+  // are measured in a browser (`e2e/classic-table-criteria.spec.ts`).
+  it('lists the registries on the object list, asking for no presentation, and draws no card list', () => {
     registriesResult.registries = fourStatedRegistries();
 
     renderScreen();
 
-    expect(listOf(rowOf('ghcr.io')).classList.contains('ui-data-table--comfortable')).toBe(true);
+    const list = listOf(rowOf('ghcr.io'));
+    expect(list.classList.contains('ui-data-table--comfortable')).toBe(false);
+    for (const row of list.querySelectorAll('.ui-data-table__row')) {
+      expect(Array.from(row.classList).filter((name) => name !== 'ui-data-table__row' && name !== 'ui-data-table__row--selected')).toEqual([]);
+    }
+    const card = list.closest('.ui-surface');
+    expect(card, 'the list sits in no card at all').not.toBeNull();
+    expect(card!.classList.contains('ui-surface--pad-none'), 'the list’s card is padded').toBe(true);
+    expect(card!.children).toHaveLength(1);
+    expect(card!.firstElementChild, 'the card holds something besides the list').toBe(list);
+    expect(card!.querySelector('.ui-section-header'), 'the section header is inside the list’s card').toBeNull();
+    expect(card!.parentElement?.closest('.ui-surface') ?? null, 'the list’s card sits inside another surface').toBeNull();
+    expect(list.querySelectorAll('.ui-surface'), 'a row is drawn on a surface of its own').toHaveLength(0);
     expect(document.querySelectorAll('.ui-card-list')).toHaveLength(0);
     expect(document.querySelectorAll('.ui-card-list__item')).toHaveLength(0);
   });
@@ -435,13 +470,19 @@ describe('RegistriesScreen — the repositories browser (registries/specs/regist
 
   // REQ-36 — the repository/tag browser is listed with the same primitive; registries-screen.md —
   // "the repositories of the selected registry listed the same way, each over a row of tag chips"
-  it('lists the repositories on the object list too, and draws no card list', () => {
+  it('lists the repositories on the object list too, asking for no presentation, and draws no card list', () => {
     registriesResult.registries = [registry()];
     repositoriesResult.entries = [entry({ repository: { name: 'library/nginx' } })];
 
     renderScreen();
 
-    expect(listOf(rowOf('library/nginx')).classList.contains('ui-data-table--comfortable')).toBe(true);
+    const list = listOf(rowOf('library/nginx'));
+    expect(list.classList.contains('ui-data-table--comfortable')).toBe(false);
+    const card = list.closest('.ui-surface');
+    expect(card!.classList.contains('ui-surface--pad-none'), 'the list’s card is padded').toBe(true);
+    expect(card!.children).toHaveLength(1);
+    expect(card!.firstElementChild, 'the card holds something besides the list').toBe(list);
+    expect(list.querySelectorAll('.ui-surface'), 'a repository row is drawn on a surface of its own').toHaveLength(0);
     expect(document.querySelectorAll('.ui-card-list')).toHaveLength(0);
   });
 
@@ -462,16 +503,17 @@ describe('RegistriesScreen — the repositories browser (registries/specs/regist
   });
 
   // "Under each repository, one chip per tag: the tag name, the size it weighs, and an inline
-  // 'pull'." — the row content the comfortable list carries under every row (data-table.md).
+  // 'pull'." — the row content the list carries under every row, drawn by a slot conditional on
+  // nothing (data-table.md, and the classic-table plan's REQ-6).
   it('shows one chip per tag with its size and an inline pull, under the row itself', () => {
     registriesResult.registries = [registry({ host: 'registry.internal:5000', official: false })];
     repositoriesResult.entries = [entry({ tags: [tag({ name: 'v1', sizeBytes: 5_242_880 })] })];
 
     renderScreen();
 
-    const card = cardOf('team/api');
-    const content = card.querySelector<HTMLElement>('.ui-data-table__row-content')!;
+    const content = rowContentOf('team/api');
     expect(content).not.toBeNull();
+    expect(content.classList.contains('ui-data-table__row-content'), 'the row is not followed by its own content').toBe(true);
     expect(content).toHaveTextContent('v1');
     expect(content).toHaveTextContent('5MB');
     expect(within(content).getByRole('button', { name: 'pull' })).toBeInTheDocument();

@@ -72,34 +72,43 @@ function featureCallSites(pattern: RegExp): string[] {
 }
 
 describe('the library layer is consumed only by the screens migrated onto it (REQ-30, REQ-31)', () => {
-  // data-table.md — `variant='comfortable'` is the object list the nine screens migrate onto, from
-  // batch 6; volumes, networks, the registries screen's two lists, the builders screen's two
-  // (`REQ-39`), the contexts list (`REQ-42`), the plugins screen's two (`REQ-46`) and the compose
-  // screen's project list with the nested service list inside every row (`REQ-49`) are the ones that
-  // have — and, last, the efficiency view's three findings lists (`REQ-82`), which were the retired
-  // list component's final call sites and the reason a programme migrating "the nine list screens"
-  // would have left it alive: this is a `DataTable` screen
-  it('has the comfortable list asked for by the migrated lists and nowhere else', () => {
+  /**
+   * data-table.md — `variant='comfortable'` was the object list the nine screens migrated onto from
+   * batch 6, and it is **being retired**
+   * (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table`): every list becomes
+   * the one presentation containers and images ship, one batch at a time, and the prop leaves the
+   * component's public interface in that plan's batch 5.
+   *
+   * So this pin now runs the other way: it is the list of screens **not yet converted**, narrowed by
+   * the batch that converts the next one. It still fails in both directions — when a screen acquires
+   * the presentation, and when a conversion lands without this file being narrowed in the same
+   * commit — which is the whole point of pinning it rather than bounding it.
+   *
+   * - batch 1 — volumes, networks and the registries screen's two lists (`REQ-14`, `REQ-15`)
+   */
+  it('has the retired presentation asked for by the lists not yet converted and nowhere else', () => {
     expect(featureCallSites(/variant=(?:"comfortable"|\{'comfortable'\}|\{"comfortable"\})/)).toEqual([
       'src/builders/BuildersScreen.tsx',
       'src/compose/ComposeScreen.tsx',
       'src/contexts/ContextsScreen.tsx',
       'src/images/LayerEfficiencyView.tsx',
       'src/plugins/PluginsScreen.tsx',
-      'src/registries/RegistriesScreen.tsx',
       'src/swarm/SwarmConfigsStacksPanel.tsx',
       'src/swarm/SwarmNodesPanel.tsx',
       'src/swarm/SwarmSecretsPanel.tsx',
       'src/swarm/SwarmServicesPanel.tsx',
-      'src/volumes-networks/NetworksPanel.tsx',
-      'src/volumes-networks/VolumesPanel.tsx',
     ]);
   });
 
   // data-table.md — the always-present row content: the networks list carries its attached-container
   // chips there, the repositories list its tag chips, and the compose list the nested header-less
   // list of a project's services — which is the composition `GroupedRowsPanel` was retired against
-  // (`REQ-49`), so it is stated here rather than answered by a component of its own
+  // (`REQ-49`), so it is stated here rather than answered by a component of its own.
+  //
+  // The four are unchanged by the classic-table conversion, and that is the point of them: the slot
+  // is **conditional on nothing** since `.../classic-table/REQ-6`, so the two lists converted in its
+  // batch 1 keep their content while asking for no presentation at all, and the two still on the
+  // retired one keep theirs until their own batch.
   it('has row content rendered by the networks list, the repositories list, the compose list and the stacks list', () => {
     expect(featureCallSites(/renderRowContent[=:]/)).toEqual([
       'src/compose/ComposeScreen.tsx',
@@ -179,7 +188,10 @@ describe('the library layer is consumed only by the screens migrated onto it (RE
   });
 
   // The pin above is only as good as the perimeter it is written against: every call site of every
-  // new prop lies in a file this plan has migrated, so no screen can have acquired one quietly.
+  // new prop lies in a file this plan has migrated, so no screen can have acquired one quietly. The
+  // perimeter is **not** narrowed by the classic-table conversion — a converted screen goes on
+  // stating its row content, its panel properties and its action weights; what it stops stating is
+  // the presentation, which is pinned on its own above.
   it('states every new prop inside the migrated perimeter and nowhere outside it', () => {
     const everyNewProp =
       /variant=(?:"comfortable"|\{'comfortable'\}|\{"comfortable"\})|renderRowContent[=:]|\bsublabel[=:]|\bproperties=\{|\bpropertiesContentClass=|\bweight\s*[:=]/;

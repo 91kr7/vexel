@@ -109,7 +109,18 @@ async function measureTables(page: Page): Promise<TableGeometry[]> {
   return await page.evaluate(() => {
     return Array.from(document.querySelectorAll<HTMLElement>('.ui-frame__content .ui-data-table')).map((table, index) => {
       const card = table.closest('.ui-surface');
-      const label = (card?.querySelector('.ui-section-header__title')?.textContent ?? `list #${index}`).trim();
+      // A converted list's card holds the table and nothing else, its section header sitting above
+      // it (REQ-40 of the classic-table plan), so the name of the panel is the last header drawn
+      // before the table rather than one inside its card. Failures name the list either way.
+      const headings = Array.from(document.querySelectorAll('.ui-frame__content .ui-section-header__title'));
+      const preceding = headings.filter(
+        (heading) => (heading.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+      );
+      const label = (
+        card?.querySelector('.ui-section-header__title')?.textContent ??
+        preceding[preceding.length - 1]?.textContent ??
+        `list #${index}`
+      ).trim();
       // The multi-select checkbox is a structural control, not column data: the header carries it
       // as a header cell while the row's own is not a column cell at all (data-table.md), so it is
       // left out of the header before the two are compared column by column.
@@ -300,14 +311,18 @@ for (const viewport of VIEWPORTS) {
  * data-table.md — "**An expansion is never wider than the box the table is read in, and never
  * pans.** While the table pans, `renderExpanded`'s content keeps the width of the table's own
  * visible box and stays in it as the grid pans underneath: its left edge holds the table's left
- * edge at every scroll offset. In the comfortable variant that left edge is the row card's, one
- * hairline in from the pan region's … in the dense variant the two coincide."
+ * edge at every scroll offset."
  *
  * Asserted across every list that expands, at the one viewport where there is a pan to hold against
- * — the desktop widths fit their columns and the component writes no geometry at all. **The dense
- * images table is measured beside the three comfortable ones as the control**: it is the case batch
- * 2 pinned and `list-row-columns.spec.ts` covers, so a reading that accuses the comfortable variant
- * has to leave the dense one alone or it is accusing the probe.
+ * — the desktop widths fit their columns and the component writes no geometry at all. **The images
+ * table is measured beside the others as the control**: it is the case batch 2 pinned and
+ * `list-row-columns.spec.ts` covers, so a reading that accuses the migrated lists has to leave it
+ * alone or it is accusing the probe. Volumes and networks were two of the "comfortable subjects"
+ * this file measured against that control; since
+ * `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-14` they are the
+ * same table the control is, and the assertion below is unchanged because it never depended on
+ * which presentation drew them — build cache still asks for the retired one until batch 2 converts
+ * it.
  *
  * **The pan is driven by a real wheel, and that is the whole reliability of this check.** The
  * offset is written from the pan region's **scroll event**; a programmatic `scrollLeft =` moves the
@@ -403,7 +418,7 @@ test('an open expansion holds the table’s left edge at every scroll offset, un
   }
 
   console.log(`[REQ-8] 375×812: ${measured.length} panned expansion(s) measured under a real wheel, ${offences.length} offence(s)`);
-  // The three comfortable lists (volumes, networks, build cache) and the dense control (images).
+  // Volumes, networks, build cache — and the images table as the control.
   expect(measured.length, 'fewer expansions panned than the four the contract is measured on').toBeGreaterThanOrEqual(4);
   expect(offences, 'an open expansion does not hold the table’s visible box while the grid pans').toEqual([]);
 });

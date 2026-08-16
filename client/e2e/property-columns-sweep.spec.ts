@@ -108,13 +108,24 @@ test('volumes & networks: both panels arrange their inspect data without clippin
       await openApp(page, 'volumes-networks');
       await expect(page.getByRole('heading', { level: 1, name: 'Volumes & networks' })).toBeVisible({ timeout: 20_000 });
 
-      const volumesPanel = page.locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Volumes' }) });
+      // A panel is the innermost region carrying both its heading and its list: a converted list's
+      // section header sits above its card rather than inside it
+      // (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`).
+      const volumesPanel = page
+        .locator('.ui-stack, .ui-surface')
+        .filter({ has: page.getByRole('heading', { level: 2, name: 'Volumes' }) })
+        .filter({ has: page.locator('.ui-data-table') })
+        .last();
       await volumesPanel.locator('.ui-data-table__row', { hasText: volumeName }).first().locator('.ui-data-table__cell').first().click();
       await expect(volumesPanel.locator('.ui-detail-panel')).toBeVisible();
       const volumeSections = await sweepScreen(page, 'volumes & networks — the volume panel', viewport, 1);
       expect(volumeSections, "the volume's revealed panel presented no property section").toBeGreaterThanOrEqual(1);
 
-      const networksPanel = page.locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Networks' }) });
+      const networksPanel = page
+        .locator('.ui-stack, .ui-surface')
+        .filter({ has: page.getByRole('heading', { level: 2, name: 'Networks' }) })
+        .filter({ has: page.locator('.ui-data-table') })
+        .last();
       await networksPanel.locator('.ui-data-table__row', { hasText: networkName }).first().locator('.ui-data-table__cell').first().click();
       await expect(networksPanel.locator('.ui-detail-panel')).toBeVisible();
       // REQ-33 — and the volume's is gone, which is why the two are swept apart.

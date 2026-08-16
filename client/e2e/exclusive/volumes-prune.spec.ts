@@ -19,8 +19,17 @@ async function removeVolumeQuietly(name: string): Promise<void> {
 
 // The volumes panel only. Its actions must be scoped to it: the networks panel
 // under it on the same screen carries a "Prune" button of its own.
+//
+// The panel is the innermost region carrying both its heading and its list: its
+// section header and its toolbar sit **above** the one unpadded card holding the
+// list (`volumes-panel.md`, and the classic-table plan's REQ-40), so the card no
+// longer holds the title it used to be found by.
 function volumesPanel(page: Page) {
-  return page.locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Volumes' }) });
+  return page
+    .locator('.ui-stack, .ui-surface')
+    .filter({ has: page.getByRole('heading', { level: 2, name: 'Volumes' }) })
+    .filter({ has: page.locator('.ui-data-table') })
+    .last();
 }
 
 // plan-docker_management_app/REQ-71 — unused volumes can be pruned in one bulk action, reporting the

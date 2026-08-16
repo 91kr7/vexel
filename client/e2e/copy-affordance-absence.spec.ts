@@ -448,9 +448,16 @@ test('volumes & networks: neither inline inspect offers a copy, on a band or abo
     await openApp(page, 'volumes-networks');
     await expect(page.getByRole('heading', { level: 1, name: 'Volumes & networks' })).toBeVisible({ timeout: 20_000 });
 
-    // Both lists are the object list's comfortable variant since REQ-31, and the surface each
-    // reveals is the library's detail panel: the sites are the same two, drawn by other components.
-    const volumesPanel = page.locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Volumes' }) });
+    // Both lists are the object list — the same table containers and images ship — and the surface
+    // each reveals is the library's detail panel: the sites are the same two, drawn by other
+    // components. A panel is now the innermost region carrying both its heading and its list: its
+    // section header sits above the card rather than inside it
+    // (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`).
+    const volumesPanel = page
+      .locator('.ui-stack, .ui-surface')
+      .filter({ has: page.getByRole('heading', { level: 2, name: 'Volumes' }) })
+      .filter({ has: page.locator('.ui-data-table') })
+      .last();
     await volumesPanel.locator('.ui-data-table__row', { hasText: volumeName }).first().locator('.ui-data-table__cell').first().click();
     const volumeExpanded = volumesPanel.locator('.ui-detail-panel');
     await expect(volumeExpanded).toBeVisible({ timeout: 20_000 });
@@ -461,7 +468,11 @@ test('volumes & networks: neither inline inspect offers a copy, on a band or abo
     const mountpoint = volumeExpanded.locator('.ui-definition-list__row', { hasText: 'Mountpoint' }).first().locator('.ui-definition-list__value');
     await expectSelectable(mountpoint, 'Volumes → inline inspect, the `Mountpoint` value');
 
-    const networksPanel = page.locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Networks' }) });
+    const networksPanel = page
+      .locator('.ui-stack, .ui-surface')
+      .filter({ has: page.getByRole('heading', { level: 2, name: 'Networks' }) })
+      .filter({ has: page.locator('.ui-data-table') })
+      .last();
     await networksPanel.locator('.ui-data-table__row', { hasText: networkName }).first().locator('.ui-data-table__cell').first().click();
     const networkExpanded = networksPanel.locator('.ui-detail-panel');
     await expect(networkExpanded).toBeVisible({ timeout: 20_000 });
@@ -623,9 +634,13 @@ test('registries: the pull dialog offers no copy on the reference it is about to
   await openApp(page, 'registries');
   await expect(screenContent(page).getByRole('heading', { level: 2, name: 'Registries & credentials' })).toBeVisible({ timeout: 20_000 });
 
-  const registriesPanel = screenContent(page).locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Registries & credentials' }) });
-  // The registries list is the object list's comfortable variant since
-  // `plan-ui-coherence-optimisation/REQ-36`; a row is selected on its first cell, the row's own
+  const registriesPanel = screenContent(page)
+    .locator('.ui-stack, .ui-surface')
+    .filter({ has: page.getByRole('heading', { level: 2, name: 'Registries & credentials' }) })
+    .filter({ has: page.locator('.ui-data-table') })
+    .last();
+  // The registries list is the object list — the same table containers and images ship, its section
+  // header above its card rather than inside it; a row is selected on its first cell, the row's own
   // centre being over the action cluster once a table pans.
   await registriesPanel.locator('.ui-data-table__row').first().locator('.ui-data-table__cell').first().click();
 

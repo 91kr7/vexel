@@ -20,9 +20,9 @@ async function removeContainerQuietly(name: string): Promise<void> {
   await execFileAsync('docker', ['rm', '-fv', name]).catch(() => undefined);
 }
 
-// The list is the object list's comfortable variant, so a volume is a row of it
-// (`volumes-panel.md`) and its values sit in named columns rather than in one
-// concatenated subtitle line.
+// The list is the object list — the same table containers and images ship — so a
+// volume is a row of it (`volumes-panel.md`) and its values sit in named columns
+// rather than in one concatenated subtitle line.
 function volumeRow(page: Page, name: string) {
   return volumesPanel(page).locator('.ui-data-table__row', { hasText: name });
 }
@@ -40,8 +40,19 @@ async function cellText(row: Locator, header: string): Promise<string> {
 
 // The volumes panel only. Its actions must be scoped to it: the networks panel
 // under it on the same screen carries a create and a prune of its own.
+//
+// The panel is **not a surface**: its section header and its toolbar sit above
+// the one unpadded card that holds the list and nothing else, which is the
+// composition containers and images ship (`volumes-panel.md`). So it is scoped by
+// the region holding all three, and the innermost of the nested ones is taken —
+// every region matching contains the same heading and is therefore an ancestor of
+// the next, so the last in document order is the panel's own.
 function volumesPanel(page: Page) {
-  return page.locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Volumes' }) });
+  return page
+    .locator('.ui-stack, .ui-surface')
+    .filter({ has: page.getByRole('heading', { level: 2, name: 'Volumes' }) })
+    .filter({ has: page.locator('.ui-data-table') })
+    .last();
 }
 
 test.beforeEach(async ({ page }) => {

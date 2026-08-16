@@ -194,7 +194,14 @@ async function openCreateContextDialog(page: Page): Promise<Locator> {
 async function openPruneNetworksDialog(page: Page): Promise<Locator> {
   await openApp(page, 'volumes-networks');
   await expect(page.getByRole('heading', { level: 1, name: 'Volumes & networks' })).toBeVisible();
-  const networksPanel = page.locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Networks' }) });
+  // The innermost region carrying both the heading and the list: the panel's
+  // section header sits above its card rather than inside it
+  // (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`).
+  const networksPanel = page
+    .locator('.ui-stack, .ui-surface')
+    .filter({ has: page.getByRole('heading', { level: 2, name: 'Networks' }) })
+    .filter({ has: page.locator('.ui-data-table') })
+    .last();
   const pruneButton = networksPanel.getByRole('button', { name: 'Prune', exact: true });
   await expect(pruneButton).toBeEnabled({ timeout: 20_000 });
   await pruneButton.click();
