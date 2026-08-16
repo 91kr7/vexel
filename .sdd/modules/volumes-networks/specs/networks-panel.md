@@ -16,9 +16,10 @@ object list and detail panel.
   () => void` re-reads the list (the caller owns `useNetworks()`).
 
 Description:
-- A card holding, in this order: the section header "Networks", the screen toolbar carrying the
-  page-level actions, and the object list (`DataTable`) of every network. The header carries no
-  actions of its own.
+- In this order: the section header "Networks", the screen toolbar carrying the page-level actions,
+  and then the object list (`DataTable`) of every network, alone in an **unpadded card it fills edge
+  to edge** — the composition containers and images ship. The header carries no actions of its own,
+  and it is not on a surface: the panel's only surface is the list's own card.
 Shows:
 - One row per network, in columns: `NAME` (the name over a "`<subnet>` · gw `<gateway>`" monospace
   second line, "no subnet" when the network has none), `DRIVER`, `SCOPE`, and the row's action
@@ -71,13 +72,16 @@ Actions:
   section header rather than in the header itself.
 - At most one network's detail is revealed at a time, and — the detail panel being the library's —
   revealing one closes any panel open elsewhere on the screen, the Volumes panel's included.
-- **The list is one table**, as containers and images are: one header row over a continuous run of
-  rows, a single hairline between each pair, no gap between two rows and no surface, corner or
-  outline of any row's own. A row that carries chips below its cells is ruled beneath them, so the
-  hairline still separates one network from the next rather than a network from its own chips.
-- **A row is sized by what it holds**, not clipped to a fixed height: the `NAME` cell puts the
-  network's name over its subnet line, and both lines are on the row at every viewport. Below the
-  desktop breakpoint the list pans horizontally rather than growing its rows.
+- **The list is the containers list**, not merely table-like: one header row over a continuous run
+  of rows, a single hairline between each pair, no gap between two rows and no surface, corner or
+  outline of any row's own — and the **same row**, of the reference's own fixed height and vertical
+  alignment, stating no row modifier of its own. A row that carries chips below its cells is ruled
+  beneath them, so the hairline still separates one network from the next rather than a network from
+  its own chips.
+- **A two-line row needs no extra room.** The `NAME` cell puts the network's name over its subnet
+  line, and both lines sit unclipped inside that fixed-height row at every viewport — the same cell
+  the reference carries in the same row. Below the desktop breakpoint the list pans horizontally;
+  its rows do not grow.
 - No value on this panel is right-aligned, `Options` included.
 - The list states no column minimum and no breakpoint-conditional column set: the column contract
   and the truncation contract are the object list's, inherited by construction. The one width it
@@ -90,7 +94,7 @@ Actions:
 
 ## Dependencies
 
-- ui-library: Card, SectionHeader, ScreenToolbar, DataTable (content-sized rows, row content), TwoLineCell, MetaCell,
+- ui-library: Card (unpadded, holding the list alone), SectionHeader, ScreenToolbar, DataTable (row content), TwoLineCell, MetaCell,
   ChipGroup, ActionButtonGroup, DetailPanel, CodeViewer, ErrorBanner, EmptyState, Button,
   FormDialog, FormField, TextField, Combobox, KeyValueEditor, Stack, useToast
 - Networks client, useNetworkInspect
@@ -108,3 +112,5 @@ Actions:
 - plan-ui-coherence-optimisation/REQ-34
 - plan-ui-coherence-optimisation/REQ-35
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-14
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-39
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40

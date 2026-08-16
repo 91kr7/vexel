@@ -246,19 +246,18 @@ export function VolumesPanel({ volumes, loaded, error, onRefresh }: VolumesPanel
   ];
 
   return (
-    <Card>
+    // The composition containers and images ship: the header and the toolbar
+    // above, and the list alone in a card of its own that it fills edge to edge.
+    // The list's one enclosing surface is that card, so the panel has none.
+    <Stack gap="var(--space-4)">
       <SectionHeader title="Volumes" />
       <ScreenToolbar
         primaryAction={{ label: 'Create volume…', onClick: openCreate }}
         destructiveAction={{ label: 'Prune', onClick: handlePrune, disabled: volumes.length === 0 }}
       />
-      <Stack gap="var(--space-3)">
-        {error ? <ErrorBanner title="Could not load volumes" detail={error} onRetry={onRefresh} /> : null}
+      {error ? <ErrorBanner title="Could not load volumes" detail={error} onRetry={onRefresh} /> : null}
+      <Card padding="none">
         <DataTable
-          // The `NAME` cell is a name over its mountpoint, so the row is sized
-          // by what it holds rather than clipped to the fixed height a list of
-          // one-line values is drawn at.
-          autoRowHeight
           columns={columns}
           rows={volumes}
           rowKey={(volume) => volume.name}
@@ -280,7 +279,7 @@ export function VolumesPanel({ volumes, loaded, error, onRefresh }: VolumesPanel
             )
           }
         />
-      </Stack>
+      </Card>
 
       <FormDialog
         open={createOpen}
@@ -306,6 +305,6 @@ export function VolumesPanel({ volumes, loaded, error, onRefresh }: VolumesPanel
           </FormField>
         </Stack>
       </FormDialog>
-    </Card>
+    </Stack>
   );
 }

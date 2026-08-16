@@ -280,19 +280,16 @@ export function RegistriesScreen() {
       {/* The pair collapses to one column when the screen is too narrow to
           carry both panels, instead of dividing a phone's width between them. */}
       <Grid arrangement="pair">
-        <Card>
+        {/* The composition containers and images ship: the header above, and
+            the list alone in a card of its own that it fills edge to edge. The
+            list's one enclosing surface is that card, so the panel has none. */}
+        <Stack gap="var(--space-4)">
           <SectionHeader title="Registries & credentials" />
-          <Stack gap="var(--space-3)">
-            {registries.error ? (
-              <ErrorBanner title="Could not read the configured registries" detail={registries.error} onRetry={registries.refresh} />
-            ) : null}
+          {registries.error ? (
+            <ErrorBanner title="Could not read the configured registries" detail={registries.error} onRetry={registries.refresh} />
+          ) : null}
+          <Card padding="none">
             <DataTable
-              // The `REGISTRY` cell is a host over its state line, so the row is
-              // sized by what it holds rather than clipped to the fixed height a
-              // list of one-line values is drawn at. Every row still holds the
-              // same number of lines as every other (REQ-37 of the reference
-              // plan), so they all resolve to one height.
-              autoRowHeight
               columns={registryColumns}
               rows={registries.registries}
               rowKey={(registry) => registry.host}
@@ -310,10 +307,10 @@ export function RegistriesScreen() {
                 )
               }
             />
-          </Stack>
-        </Card>
+          </Card>
+        </Stack>
 
-        <Card>
+        <Stack gap="var(--space-4)">
           <SectionHeader
             title={browserTitle}
             trailing={
@@ -335,15 +332,11 @@ export function RegistriesScreen() {
               />
             }
           />
-          <Stack gap="var(--space-3)">
-            {repositories.error ? (
-              <ErrorBanner title="Could not browse the registry" detail={repositories.error} onRetry={repositories.refresh} />
-            ) : null}
+          {repositories.error ? (
+            <ErrorBanner title="Could not browse the registry" detail={repositories.error} onRetry={repositories.refresh} />
+          ) : null}
+          <Card padding="none">
             <DataTable
-              // The `REPOSITORY` cell is a name over its description, so the row
-              // is sized by what it holds rather than clipped to the fixed
-              // height a list of one-line values is drawn at.
-              autoRowHeight
               columns={repositoryColumns}
               rows={repositories.entries}
               rowKey={(entry) => entry.repository.name}
@@ -362,8 +355,8 @@ export function RegistriesScreen() {
                 onClearSearch: () => setSearch(''),
               })}
             />
-          </Stack>
-        </Card>
+          </Card>
+        </Stack>
       </Grid>
 
       <FormDialog

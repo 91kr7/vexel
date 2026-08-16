@@ -15,9 +15,10 @@ type: UI component
   void` re-reads the list (the caller owns `useVolumes()`).
 
 Description:
-- A card holding, in this order: the section header "Volumes", the screen toolbar carrying the
-  page-level actions, and the object list (`DataTable`) of every volume. The header carries no
-  actions of its own.
+- In this order: the section header "Volumes", the screen toolbar carrying the page-level actions,
+  and then the object list (`DataTable`) of every volume, alone in an **unpadded card it fills edge
+  to edge** — the composition containers and images ship. The header carries no actions of its own,
+  and it is not on a surface: the panel's only surface is the list's own card.
 Shows:
 - One row per volume, in columns: `NAME` (the name over the mountpoint as its monospace second
   line), `DRIVER`, `MOUNTED BY` (the mounting containers as badges, "nothing" when unattached),
@@ -25,7 +26,7 @@ Shows:
 - An empty state when there are no volumes: while loading, the title alone; once loaded, a title, a
   line of explanation and the action that resolves it — "Create the first volume", the invitation
   rather than the toolbar's own word (see the rule below).
-- Selecting a row reveals its detail panel inside the same card, directly below the row, at the full
+- Selecting a row reveals its detail panel inside the same table, directly below the row, at the full
   width of the screen's content column: driver, mountpoint, scope, created time, mounting
   containers, driver options and labels as property bands, then the raw inspect payload at that same
   full width. Selecting the same row again, or `Escape`, closes it.
@@ -60,12 +61,15 @@ Actions:
   in the toolbar under the section header rather than in the header itself.
 - At most one volume's detail is revealed at a time, and — the detail panel being the library's —
   revealing one closes any panel open elsewhere on the screen, the Networks panel's included.
-- **The list is one table**, as containers and images are: one header row over a continuous run of
-  rows, a single hairline between each pair, no gap between two rows and no surface, corner or
-  outline of any row's own. There is no per-screen choice of presentation to be made here.
-- **A row is sized by what it holds**, not clipped to a fixed height: the `NAME` cell puts the
-  volume's name over its mountpoint, and both lines are on the row at every viewport. Below the
-  desktop breakpoint the list pans horizontally rather than growing its rows.
+- **The list is the containers list**, not merely table-like: one header row over a continuous run
+  of rows, a single hairline between each pair, no gap between two rows and no surface, corner or
+  outline of any row's own — and the **same row**, of the reference's own fixed height and vertical
+  alignment, stating no row modifier of its own. There is no per-screen choice of presentation to be
+  made here.
+- **A two-line row needs no extra room.** The `NAME` cell puts the volume's name over its
+  mountpoint, and both lines sit unclipped inside that fixed-height row at every viewport — the same
+  cell the reference carries in the same row. Below the desktop breakpoint the list pans
+  horizontally; its rows do not grow.
 - The row truncates the mountpoint with an ellipsis; the detail panel is the route to it in full,
   wrapped, left-aligned and selectable. No value on this panel is right-aligned.
 - The list states no column minimum and no breakpoint-conditional column set: the column contract
@@ -78,7 +82,7 @@ Actions:
 
 ## Dependencies
 
-- ui-library: Card, SectionHeader, ScreenToolbar, DataTable (content-sized rows), TwoLineCell, MetaCell,
+- ui-library: Card (unpadded, holding the list alone), SectionHeader, ScreenToolbar, DataTable, TwoLineCell, MetaCell,
   BadgeListCell, ActionButtonGroup, DetailPanel, CodeViewer, ErrorBanner, EmptyState, Button,
   FormDialog, FormField, TextField, Combobox, KeyValueEditor, Stack, useToast
 - Volumes client, useVolumeInspect
@@ -94,3 +98,5 @@ Actions:
 - plan-ui-coherence-optimisation/REQ-34
 - plan-ui-coherence-optimisation/REQ-35
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-14
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-39
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40

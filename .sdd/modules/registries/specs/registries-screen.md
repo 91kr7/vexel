@@ -15,6 +15,9 @@ Description:
   column when the screen is too narrow to carry both. On the left, "Registries & credentials", the
   registries listed with the object list. On the right, "Repositories · <host>", the repositories of
   the selected registry listed the same way, each over a row of tag chips.
+- Each panel is composed as containers and images are: its section header (and, on the right, the
+  search toolbar) **above**, and its list alone in an **unpadded card it fills edge to edge**. The
+  panel itself is not on a surface: a panel's only surface is its list's own card.
 
 Shows:
 - One row per configured registry, in columns:
@@ -80,20 +83,20 @@ Actions:
   screen never implements a transfer of its own.
 - The reference a tag is pulled by is the one the server computed for that tag; the screen never
   assembles it from parts.
-- **Both lists are one table each**, as containers and images are: one header row over a continuous
+- **Both lists are the containers list**, not merely table-like: one header row over a continuous
   run of rows, a single hairline between each pair, no gap between two rows and no surface, corner
-  or outline of any row's own. A repository row, which carries its tag chips below its cells, is
-  ruled beneath them, so the hairline still separates one repository from the next rather than a
-  repository from its own tags.
-- **A row is sized by what it holds**, not clipped to a fixed height: `REGISTRY` puts the host over
-  its state line and `REPOSITORY` the name over its description, and both lines are on the row at
-  every viewport. Below the desktop breakpoint each list pans horizontally rather than growing its
-  rows.
+  or outline of any row's own — and the **same row**, of the reference's own fixed height and
+  vertical alignment, stating no row modifier of its own. A repository row, which carries its tag
+  chips below its cells, is ruled beneath them, so the hairline still separates one repository from
+  the next rather than a repository from its own tags.
+- **A two-line row needs no extra room.** `REGISTRY` puts the host over its state line and
+  `REPOSITORY` the name over its description, and both lines sit unclipped inside that fixed-height
+  row at every viewport — the same cell the reference carries in the same row. Below the desktop
+  breakpoint each list pans horizontally; its rows do not grow.
 - **Every registry row is the same height as every other** (REQ-37), whatever its state line would
   have said: an authenticated registry naming an account and a credential store occupies exactly as
   many lines as one that is merely "not authenticated". The row's values are columns of one line
-  each, so no value can add a line to the row that carries it — and since a row is sized by its
-  content, that is precisely what makes every row resolve to the same height.
+  each, so no value can add a line to the row that carries it.
 - **No affordance of this screen is a one-off**: logging in and out are actions of the row's cluster
   and nothing else on a row is clickable but the row itself; the search is the screen's one toolbar;
   the empty results are the library's empty state.
@@ -141,7 +144,7 @@ Actions:
 
 ## Dependencies
 
-- ui-library: Card, SectionHeader, ScreenToolbar, DataTable (content-sized rows, row content) with
+- ui-library: Card (unpadded, holding a list alone), SectionHeader, ScreenToolbar, DataTable (row content) with
   StatusDotCell, TwoLineCell, MetaCell and BadgeListCell, ActionButtonGroup, ChipGroup, Chip (meta reading),
   SearchField, SecretField, TextField, FormField, FormDialog, DefinitionList, StatusPill, Button,
   StepProgressList, ErrorBanner, EmptyState, Grid, Stack, useToast
@@ -158,3 +161,5 @@ Actions:
 - plan-ui-coherence-optimisation/REQ-37
 - plan-ui-coherence-optimisation/REQ-38
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-15
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-39
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40

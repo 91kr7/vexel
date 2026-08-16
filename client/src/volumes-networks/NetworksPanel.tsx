@@ -275,19 +275,18 @@ export function NetworksPanel({ networks, loaded, error, onRefresh }: NetworksPa
   ];
 
   return (
-    <Card>
+    // The composition containers and images ship: the header and the toolbar
+    // above, and the list alone in a card of its own that it fills edge to edge.
+    // The list's one enclosing surface is that card, so the panel has none.
+    <Stack gap="var(--space-4)">
       <SectionHeader title="Networks" />
       <ScreenToolbar
         primaryAction={{ label: 'Create network…', onClick: openCreate }}
         destructiveAction={{ label: 'Prune', onClick: handlePrune, disabled: networks.length === 0 }}
       />
-      <Stack gap="var(--space-3)">
-        {error ? <ErrorBanner title="Could not load networks" detail={error} onRetry={onRefresh} /> : null}
+      {error ? <ErrorBanner title="Could not load networks" detail={error} onRetry={onRefresh} /> : null}
+      <Card padding="none">
         <DataTable
-          // The `NAME` cell is a name over its subnet line, so the row is sized
-          // by what it holds rather than clipped to the fixed height a list of
-          // one-line values is drawn at.
-          autoRowHeight
           columns={columns}
           rows={networks}
           rowKey={(network) => network.id}
@@ -320,7 +319,7 @@ export function NetworksPanel({ networks, loaded, error, onRefresh }: NetworksPa
             )
           }
         />
-      </Stack>
+      </Card>
 
       <FormDialog
         open={createOpen}
@@ -373,6 +372,6 @@ export function NetworksPanel({ networks, loaded, error, onRefresh }: NetworksPa
           />
         </FormField>
       </FormDialog>
-    </Card>
+    </Stack>
   );
 }

@@ -41,8 +41,8 @@ Shows:
   further with every row either list gains. **Reaching networks is a scroll, deliberately.** A
   reader who wants the pair back is asking for the ~250px panel back with it.
 - The screen owns no selection and no detail state: each panel reveals its own detail inside its own
-  card, and at most one panel is open across the two — enforced by the detail-panel primitive, not
-  by this screen.
+  list, under the row it belongs to, and at most one panel is open across the two — enforced by the
+  detail-panel primitive, not by this screen.
 - The screen carries no actions: each panel's page-level actions sit in that panel's toolbar.
 
 ## Dependencies
