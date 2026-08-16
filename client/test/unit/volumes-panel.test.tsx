@@ -80,6 +80,18 @@ function toolbar(): HTMLElement {
   return document.querySelector<HTMLElement>('.ui-screen-toolbar')!;
 }
 
+function buttonNames(): string[] {
+  return screen.getAllByRole('button').map((button) => (button.getAttribute('aria-label') ?? button.textContent ?? '').trim());
+}
+
+// A name that is a prefix of another's is the same name to anything that finds a control by name
+// (empty-state.md), which is what `getByRole(..., { name })` does in Playwright.
+function namesShadowingEachOther(names: string[]): string[] {
+  return names.flatMap((name, index) =>
+    names.filter((other, otherIndex) => otherIndex !== index && other.includes(name)).map((other) => `"${name}" is found by "${other}"`),
+  );
+}
+
 // The inline inspect surface's useVolumeInspect subscribes to daemon events
 // through a module-level EventSource, which jsdom does not provide.
 class FakeEventSource {
@@ -165,7 +177,19 @@ describe('VolumesPanel — list rows (plan-docker_management_app/REQ-70, plan-ui
     const emptyState = document.querySelector<HTMLElement>('.ui-empty-state')!;
     expect(within(emptyState).getByText('No volumes')).toBeInTheDocument();
     expect(emptyState.querySelector('.ui-empty-state__description')?.textContent ?? '').not.toBe('');
-    expect(within(emptyState).getByRole('button', { name: 'Create volume…' })).toBeInTheDocument();
+    expect(within(emptyState).getByRole('button', { name: 'Create the first volume' })).toBeInTheDocument();
+  });
+
+  // volumes-panel.md — while the list is empty the toolbar's action and the empty state's are drawn
+  // at once, as two controls neither of whose names contains the other
+  // (plan-ui-coherence-optimisation/REQ-41, plan-docker_management_app/REQ-25)
+  it('draws both create controls on an empty list, under names that do not shadow each other', () => {
+    renderPanel([]);
+
+    const emptyState = document.querySelector<HTMLElement>('.ui-empty-state')!;
+    expect(within(toolbar()).getByRole('button', { name: 'Create volume…' })).toBeInTheDocument();
+    expect(within(emptyState).getByRole('button', { name: 'Create the first volume' })).toBeInTheDocument();
+    expect(namesShadowingEachOther(buttonNames())).toEqual([]);
   });
 });
 
@@ -355,7 +379,7 @@ describe('VolumesPanel — create (plan-docker_management_app/REQ-71)', () => {
     renderPanel([]);
 
     const emptyState = document.querySelector<HTMLElement>('.ui-empty-state')!;
-    await user.click(within(emptyState).getByRole('button', { name: 'Create volume…' }));
+    await user.click(within(emptyState).getByRole('button', { name: 'Create the first volume' }));
 
     expect(screen.getByRole('heading', { name: 'Create volume' })).toBeInTheDocument();
   });
