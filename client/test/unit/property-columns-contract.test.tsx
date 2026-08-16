@@ -291,10 +291,23 @@ describe('no feature file anywhere states a count, a template or a width for a p
     { path: 'coverage/CoverageMatrixScreen.tsx', tag: 'DefinitionList', contentClass: null },
   ] as const;
 
-  /** Every `.tsx` under `src` that is not the library itself: the feature layer. */
+  /**
+   * Every `.tsx` under `src` that is not the library itself: the feature layer.
+   *
+   * `__conformance-fixture__` is skipped, exactly as `blur-policy.test.ts`,
+   * `overlay-glass.test.tsx` and `truncation-contract.test.tsx` skip it:
+   * `ui-conformance-check.test.ts` writes deliberately illegal sources there for
+   * the length of its own run and removes them afterwards, so a scan of the live
+   * tree that picked one up would be reading **another test's fixture** as
+   * feature code — and, this scan being an `it.each` that enumerates at
+   * collection time and reads at run time, would fail with `ENOENT` on a file
+   * that had been correctly cleaned up in between (CLAUDE.md, "Tests" — a test
+   * depends on nothing another test did). Observed exactly so in a full run.
+   */
   function featureFiles(directory = featureRoot): string[] {
     return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
       const path = join(directory, entry.name);
+      if (entry.name === '__conformance-fixture__') return [];
       if (entry.isDirectory()) return entry.name === 'ui' ? [] : featureFiles(path);
       return entry.name.endsWith('.tsx') ? [path] : [];
     });

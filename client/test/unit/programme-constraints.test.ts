@@ -67,10 +67,24 @@ function allowListLiteral(source: string): string {
   return source.slice(start, end + 3);
 }
 
-/** Every source file of the client, by kind: the library, and the feature code the boundary applies to. */
+/**
+ * Every source file of the client, by kind: the library, and the feature code the
+ * boundary applies to.
+ *
+ * `__conformance-fixture__` is skipped, exactly as the three other scans of this
+ * tree skip it (`blur-policy.test.ts`, `overlay-glass.test.tsx`,
+ * `truncation-contract.test.tsx`): `ui-conformance-check.test.ts` writes
+ * deliberately illegal sources there for the length of its own run, so a scan of
+ * the live tree that read them would be reporting **another test's fixture** as
+ * feature code — and would pass or fail depending on whether that suite happened
+ * to be mid-run (CLAUDE.md, "Tests" — a test depends on nothing another test
+ * did). One directory name, and nothing else about the check is relaxed: a real
+ * blur in a real feature file still fails it.
+ */
 function sourceFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
+    if (entry.name === '__conformance-fixture__') return [];
     if (entry.isDirectory()) return entry.name === 'node_modules' || entry.name === 'dist' ? [] : sourceFiles(path);
     return /\.(tsx?|css)$/.test(entry.name) ? [path] : [];
   });
