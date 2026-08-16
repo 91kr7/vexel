@@ -174,13 +174,28 @@ function describeBox(box: Box): string {
   return `x=${round(box.x)}, y=${round(box.y)}, ${round(box.width)}×${round(box.height)}`;
 }
 
-/** The card a list is drawn in, named by the section header it carries. */
+/**
+ * The region a list is read in, named by the section header titling it.
+ *
+ * Named by **what it holds** rather than by the surface it used to be: each
+ * section's header and toolbar sit **above** the one unpadded card holding its
+ * list (`builders-screen.md`, and
+ * `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`),
+ * so a card can no longer be found by the heading it used to hold. A panel is
+ * the innermost region carrying both the heading and the list; every region
+ * matching contains the same heading and is therefore an ancestor of the next,
+ * so the last in document order is the panel's own — and on a screen still drawn
+ * the old way that is its card. The **card** itself is still what is measured;
+ * it is resolved from the table inside `measureList`.
+ */
 function panel(page: Page, title: 'builders' | 'cache'): Locator {
   const heading = title === 'builders' ? /^buildx builders$/ : /^Build cache$/;
   return page
-    .locator('.ui-frame__content .ui-surface')
+    .locator('.ui-frame__content')
+    .locator('.ui-stack, .ui-surface')
     .filter({ has: page.getByRole('heading', { level: 2, name: heading }) })
-    .first();
+    .filter({ has: page.locator('.ui-data-table') })
+    .last();
 }
 
 /**
@@ -241,6 +256,10 @@ async function measureList(page: Page, title: 'builders' | 'cache'): Promise<Lis
     };
 
     const list = card.querySelector('.ui-data-table') as HTMLElement;
+    // The list's **own card**, resolved from the table it holds: the section header
+    // and the toolbar are outside it now, so the region scoped by the heading is no
+    // longer the surface, and `card` below is about the surface (REQ-40).
+    const surface = (list.closest('.ui-surface') ?? card) as HTMLElement;
     const header = list.querySelector<HTMLElement>('.ui-data-table__header');
     const headerCellElements = Array.from(list.querySelectorAll('.ui-data-table__header-cell'));
     const headers = headerCellElements.map((cell) => (cell.textContent ?? '').trim());
@@ -287,7 +306,7 @@ async function measureList(page: Page, title: 'builders' | 'cache'): Promise<Lis
     });
 
     return {
-      card: box(card),
+      card: box(surface),
       list: box(list),
       listClientWidth: list.clientWidth,
       listScrollWidth: list.scrollWidth,
@@ -625,9 +644,10 @@ test.describe('F8 — the builders screen against an inventory holding every row
   }
 
   // REQ-41 — "Page-level actions exist where the screen has them, in the toolbar under the header
-  // rather than in a card header". Measured as a box, not as a presence: the toolbar sits under the
-  // section header of its own card and above the list it acts on.
-  test('the page-level actions are in each card’s toolbar, under its header and above its list', async ({ page }) => {
+  // rather than in a card header". Measured as a box, not as a presence: the toolbar sits under its
+  // section's header and above the list it acts on — all three above the list's own card since
+  // `./../classic-table/REQ-40`, which is why the region is named by what it holds.
+  test('the page-level actions are in each section’s toolbar, under its header and above its list', async ({ page }) => {
     test.setTimeout(120_000);
     const used: string[] = [];
     await openScreen(page, VIEWPORTS[0], used);
@@ -636,20 +656,20 @@ test.describe('F8 — the builders screen against an inventory holding every row
       ['builders', 'Create builder'],
       ['cache', 'Prune'],
     ] as const) {
-      const card = panel(page, title);
-      const toolbar = card.locator('.ui-screen-toolbar').first();
-      await expect(toolbar, `the ${title} card draws no screen toolbar`).toBeVisible();
+      const section = panel(page, title);
+      const toolbar = section.locator('.ui-screen-toolbar').first();
+      await expect(toolbar, `the ${title} section draws no screen toolbar`).toBeVisible();
 
       const action = toolbar.getByRole('button', { name: label });
       await expect(action, `${label} is not a control of the ${title} toolbar`).toHaveCount(1);
-      expect(await card.getByRole('button', { name: label }).count(), `${label} is stated twice on the ${title} card`).toBe(1);
+      expect(await section.getByRole('button', { name: label }).count(), `${label} is stated twice on the ${title} section`).toBe(1);
 
-      const headerBox = (await card.locator('.ui-section-header').first().boundingBox())!;
+      const headerBox = (await section.locator('.ui-section-header').first().boundingBox())!;
       const toolbarBox = (await toolbar.boundingBox())!;
-      const listBox = (await card.locator('.ui-data-table').first().boundingBox())!;
+      const listBox = (await section.locator('.ui-data-table').first().boundingBox())!;
       console.log(`[REQ-41] ${title}: header ${describeBox(headerBox)}, toolbar ${describeBox(toolbarBox)}, list ${describeBox(listBox)}`);
 
-      expect(toolbarBox.y, `the ${title} toolbar is not under the card's section header`).toBeGreaterThanOrEqual(headerBox.y + headerBox.height - 1);
+      expect(toolbarBox.y, `the ${title} toolbar is not under its section header`).toBeGreaterThanOrEqual(headerBox.y + headerBox.height - 1);
       expect(toolbarBox.y + toolbarBox.height, `the ${title} toolbar is not above the list it acts on`).toBeLessThanOrEqual(listBox.y + 1);
     }
   });
@@ -709,12 +729,15 @@ test.describe('F8 — the builders screen against an inventory holding every row
       await expect(expansion).toContainText('No local image carries this build step.');
 
       // The panel is read in the box the table is read in: no wider than it, and starting at its
-      // left edge — which in the comfortable variant "is the row card's, one hairline in from the
-      // pan region's (measured at 375×812: expansion `x=54` against a pan region at `x=53`)",
-      // data-table.md, the expansion living inside the card the row is drawn on.
+      // left edge — data-table.md, "An expansion is never wider than the box the table is read in,
+      // and never pans … its left edge holds the table's left edge at every scroll offset". The
+      // qualifier this sentence carried — the row card's edge, one hairline in from the pan
+      // region's — belonged to the retired presentation, which put every row on a surface of its
+      // own; since `.../classic-table/REQ-16` there is no row card and the two coincide. The
+      // tolerance is unchanged, so nothing here is weakened into passing.
       expect(panelBox.width, `${at}: the panel is wider than the box the table is read in`).toBeLessThanOrEqual(list.listClientWidth + 0.5);
       expect(panelBox.x - list.list.x, `${at}: the panel does not start at the table's left edge`).toBeGreaterThanOrEqual(-0.5);
-      expect(panelBox.x - list.list.x, `${at}: the panel starts more than the card's hairline inside the table`).toBeLessThanOrEqual(1.5);
+      expect(panelBox.x - list.list.x, `${at}: the panel starts more than a hairline inside the table`).toBeLessThanOrEqual(1.5);
 
       // …and it does not pan with the grid underneath it: a row is scanned across, a panel is read.
       // Driven with a **real wheel** and sampled once each scroll has settled, for the reason

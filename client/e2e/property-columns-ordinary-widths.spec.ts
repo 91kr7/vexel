@@ -136,10 +136,40 @@ const CALLER_STATED_COLUMNS = 2;
  * as the product would move with it and notice nothing. What each figure's moving
  * would mean is said in its own failure message.
  */
-const RECORDED_ON_THE_PANEL: Record<number, { panelPx: number; sectionPx: number; columns: number }> = {
-  1440: { panelPx: 1012, sectionPx: 1012, columns: 1 },
-  1280: { panelPx: 852, sectionPx: 852, columns: 1 },
-  375: { panelPx: 229, sectionPx: 229, columns: 1 },
+/*
+ * **Re-taken 2026-08-16, and here is what moved and why.** The panel widened by
+ * 58px at every viewport — 1012→1070, 852→910, 229→287 — and by the same 58px at
+ * the ordinary widths below. The cause is
+ * `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`:
+ * the list is now alone in an **unpadded** card it fills edge to edge, where it
+ * used to sit inside a padded one, so the expansion the panel is drawn in — and
+ * therefore the panel — gains the card's two side paddings exactly. This is the
+ * file's own header being obeyed rather than overruled: *"A failure here is not a
+ * defect on its own. It means the geometry REQ-26's amendment is read against has
+ * changed again, and the amendment is what has to be re-read."* It was re-read,
+ * and **the amendment's outcome is unchanged**: the derived count at every one of
+ * these widths is the count already on record, because 58px of extra width
+ * crosses no transition of the rule. What is pinned is the geometry; what is
+ * argued is the count, and only the first of the two moved.
+ */
+interface PinnedWidths {
+  panelPx: number;
+  sectionPx: number;
+  columns: number;
+}
+
+/**
+ * **Two pins per width, for as long as this screen carries two compositions.**
+ * `Nodes`, `Services & tasks` and `Secrets` are converted; `Configs` and `Stacks`
+ * are that plan's batch 3 and still put their header inside a padded card. When
+ * the last two convert, the second column of figures becomes unreachable and is
+ * deleted with the composition it records — the reading that chooses between them
+ * is measured, so nothing here has to be edited for the check to keep holding.
+ */
+const RECORDED_ON_THE_PANEL: Record<number, { converted: PinnedWidths; stillOnTheRetiredPresentation: PinnedWidths }> = {
+  1440: { converted: { panelPx: 1070, sectionPx: 1070, columns: 1 }, stillOnTheRetiredPresentation: { panelPx: 1012, sectionPx: 1012, columns: 1 } },
+  1280: { converted: { panelPx: 910, sectionPx: 910, columns: 1 }, stillOnTheRetiredPresentation: { panelPx: 852, sectionPx: 852, columns: 1 } },
+  375: { converted: { panelPx: 287, sectionPx: 287, columns: 1 }, stillOnTheRetiredPresentation: { panelPx: 229, sectionPx: 229, columns: 1 } },
 };
 
 /**
@@ -155,9 +185,13 @@ const RECORDED_ON_THE_PANEL: Record<number, { panelPx: number; sectionPx: number
  * derives two. No minimum moved, no caller states a count, and the refusal of a
  * sub-329px minimum the amendment turned on is untouched.
  */
-const RECORDED_AT_ORDINARY_WIDTHS: Record<number, { panelPx: number; sectionPx: number; columns: number }> = {
-  1920: { panelPx: 1492, sectionPx: 1492, columns: 2 },
-  2560: { panelPx: 2132, sectionPx: 2132, columns: 3 },
+const RECORDED_AT_ORDINARY_WIDTHS: Record<number, { converted: PinnedWidths; stillOnTheRetiredPresentation: PinnedWidths }> = {
+  // Re-taken 2026-08-16, +58px on the converted inventories and for the one
+  // reason given above the previous table: their list's card no longer pads what
+  // it holds (REQ-40). Every count is the one on record — 1550px still derives 2,
+  // 2190px still 3 — so the amendment's outcome is untouched by the widening.
+  1920: { converted: { panelPx: 1550, sectionPx: 1550, columns: 2 }, stillOnTheRetiredPresentation: { panelPx: 1492, sectionPx: 1492, columns: 2 } },
+  2560: { converted: { panelPx: 2190, sectionPx: 2190, columns: 3 }, stillOnTheRetiredPresentation: { panelPx: 2132, sectionPx: 2132, columns: 3 } },
 };
 
 /**
@@ -182,11 +216,11 @@ function derivedColumns(sectionWidth: number, minimum: number): number {
 function expectPinned(measured: number, recorded: number, reason: string): void {
   expect(
     measured,
-    `${reason} — measured ${measured.toFixed(1)}px against the ${recorded}px on record (re-taken on DetailPanel, 2026-08-15)`,
+    `${reason} — measured ${measured.toFixed(1)}px against the ${recorded}px on record (re-taken on DetailPanel 2026-08-15, and again 2026-08-16 for the unpadded card of the classic-table plan's REQ-40)`,
   ).toBeGreaterThanOrEqual(recorded - PIN_TOLERANCE_PX);
   expect(
     measured,
-    `${reason} — measured ${measured.toFixed(1)}px against the ${recorded}px on record (re-taken on DetailPanel, 2026-08-15)`,
+    `${reason} — measured ${measured.toFixed(1)}px against the ${recorded}px on record (re-taken on DetailPanel 2026-08-15, and again 2026-08-16 for the unpadded card of the classic-table plan's REQ-40)`,
   ).toBeLessThanOrEqual(recorded + PIN_TOLERANCE_PX);
 }
 
@@ -243,11 +277,19 @@ async function openSwarmScreen(page: Page, viewport: { width: number; height: nu
  * sit over another column — or over a control (CLAUDE.md, "What a check drives,
  * and what it measures").
  */
-async function openPropertySection(page: Page, title: string): Promise<{ panel: Locator; section: Locator }> {
+async function openPropertySection(page: Page, title: string): Promise<{ panel: Locator; section: Locator; converted: boolean }> {
+  // The panel is named by **what it holds** rather than by the surface it used to
+  // be: a converted inventory's section header sits above the one unpadded card
+  // holding its list
+  // (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`),
+  // so a card can no longer be found by the heading it used to hold. The
+  // innermost region carrying both the heading and the list resolves to the same
+  // region on an inventory still drawn the old way, its card.
   const card = screenContent(page)
-    .locator('.ui-surface')
+    .locator('.ui-stack, .ui-surface')
     .filter({ has: page.getByRole('heading', { level: 2, name: title, exact: true }) })
-    .first();
+    .filter({ has: page.locator('.ui-data-table') })
+    .last();
   const cell = card.locator('.ui-data-table__row').first().locator('.ui-data-table__cell').first();
   await expect(cell, `the ${title} inventory lists nothing to open, so its property section cannot be measured`).toBeVisible({
     timeout: 20_000,
@@ -258,7 +300,17 @@ async function openPropertySection(page: Page, title: string): Promise<{ panel: 
 
   const panel = card.locator('.ui-detail-panel');
   await expect(panel, `the ${title} row opened no detail panel`).toHaveCount(1, { timeout: 20_000 });
-  return { panel, section: panel.locator('.ui-definition-list').first() };
+  // Which of the two compositions this screen carries at once drew this panel,
+  // read from the tree rather than from a list of panel names: a converted
+  // inventory's heading is above its card, one still drawn the old way is inside
+  // it. The pinned widths below differ by exactly the card padding the first no
+  // longer applies, so the pin has to know which it is looking at — and when the
+  // last two inventories convert, both pins become one and the reading here
+  // simply stops distinguishing anything.
+  const converted = await card.evaluate(
+    (region) => region.querySelector('.ui-section-header')?.closest('.ui-surface') === null,
+  );
+  return { panel, section: panel.locator('.ui-definition-list').first(), converted };
 }
 
 /**
@@ -322,7 +374,8 @@ test('the four swarm panels: the property section on the detail panel, at 1440, 
     await openSwarmScreen(page, viewport);
 
     for (const title of SWARM_PANELS) {
-      const { panel, section } = await openPropertySection(page, title);
+      const { panel, section, converted } = await openPropertySection(page, title);
+      const pinned = converted ? recorded.converted : recorded.stillOnTheRetiredPresentation;
       const panelWidth = await panel.evaluate((element) => element.getBoundingClientRect().width);
       const geometry = await measureSection(section, `the ${title} property section`);
       const predicted = derivedColumns(geometry.box.width, LONG_SINGLE_LINE_MIN_PX);
@@ -335,12 +388,12 @@ test('the four swarm panels: the property section on the detail panel, at 1440, 
       // the section's own width follows from.
       expectPinned(
         panelWidth,
-        recorded.panelPx,
+        pinned.panelPx,
         `${title} @${viewport.width}\u00d7${viewport.height} — the stacked card gives a swarm detail panel a different width from the one on record`,
       );
       expectPinned(
         geometry.box.width,
-        recorded.sectionPx,
+        pinned.sectionPx,
         `${title} @${viewport.width}\u00d7${viewport.height} — the width a swarm property section is given has moved off the figure on record`,
       );
 
@@ -353,8 +406,8 @@ test('the four swarm panels: the property section on the detail panel, at 1440, 
       ).toBe(predicted);
       expect(
         geometry.columns,
-        `${evidence} — the recorded outcome is ${recorded.columns} column(s), and the count drawn is no longer it: either the stated minimum, the panel or the layout has changed, and REQ-26's amendment is what has to be re-read before this number is updated`,
-      ).toBe(recorded.columns);
+        `${evidence} — the recorded outcome is ${pinned.columns} column(s), and the count drawn is no longer it: either the stated minimum, the panel or the layout has changed, and REQ-26's amendment is what has to be re-read before this number is updated`,
+      ).toBe(pinned.columns);
 
       // The invariants that hold at every width on every consuming surface.
       expectLinesReadAsLines(geometry, evidence);
@@ -390,7 +443,8 @@ test('the four swarm panels: the ordinary-width outcome, at 1920 and 2560', asyn
     await openSwarmScreen(page, viewport);
 
     for (const title of SWARM_PANELS) {
-      const { panel, section } = await openPropertySection(page, title);
+      const { panel, section, converted } = await openPropertySection(page, title);
+      const pinned = converted ? recorded.converted : recorded.stillOnTheRetiredPresentation;
       const panelWidth = await panel.evaluate((element) => element.getBoundingClientRect().width);
       const geometry = await measureSection(section, `the ${title} property section`);
       const predicted = derivedColumns(geometry.box.width, LONG_SINGLE_LINE_MIN_PX);
@@ -401,12 +455,12 @@ test('the four swarm panels: the ordinary-width outcome, at 1920 and 2560', asyn
 
       expectPinned(
         panelWidth,
-        recorded.panelPx,
+        pinned.panelPx,
         `${title} @${viewport.width}\u00d7${viewport.height} — the stacked card gives a swarm detail panel a different width from the one on record`,
       );
       expectPinned(
         geometry.box.width,
-        recorded.sectionPx,
+        pinned.sectionPx,
         `${title} @${viewport.width}\u00d7${viewport.height} — the width a swarm property section is given at an ordinary width has moved off the figure on record`,
       );
       expect(
@@ -415,8 +469,8 @@ test('the four swarm panels: the ordinary-width outcome, at 1920 and 2560', asyn
       ).toBe(predicted);
       expect(
         geometry.columns,
-        `${evidence} — the recorded outcome is ${recorded.columns} column(s), and the count drawn is no longer it: REQ-26's amendment is what has to be re-read before this number is updated`,
-      ).toBe(recorded.columns);
+        `${evidence} — the recorded outcome is ${pinned.columns} column(s), and the count drawn is no longer it: REQ-26's amendment is what has to be re-read before this number is updated`,
+      ).toBe(pinned.columns);
 
       // REQ-26's second clause, on the surface that carries the section now: the count the operator
       // sees is the caller-stated two, or better. The amendment recorded this as the one place it

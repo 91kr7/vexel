@@ -171,16 +171,31 @@ function content(page: Page): Locator {
   return page.locator('.ui-frame__content');
 }
 
-/** One of the two cards, by the section header naming it. */
-function card(page: Page, title: string): Locator {
+/**
+ * The region one of the two inventories is read in, by the section header naming
+ * it.
+ *
+ * Named by **what it holds** rather than by the surface it used to be: each
+ * section's header — and, for the daemon list, its toolbar — sits **above** the
+ * one unpadded card holding its list (`plugins-screen.md`, and
+ * `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`),
+ * so a card can no longer be found by the heading it used to hold. A panel is
+ * the innermost region carrying both the heading and the list; every region
+ * matching contains the same heading and is therefore an ancestor of the next,
+ * so the last in document order is the panel's own — and on a screen still drawn
+ * the old way that is its card. The **card** itself is still what is measured;
+ * it is resolved from the table inside `measureList`.
+ */
+function panel(page: Page, title: string): Locator {
   return content(page)
-    .locator('.ui-surface')
+    .locator('.ui-stack, .ui-surface')
     .filter({ has: page.getByRole('heading', { level: 2, name: title }) })
-    .first();
+    .filter({ has: page.locator('.ui-data-table') })
+    .last();
 }
 
 function rows(page: Page, title: string): Locator {
-  return card(page, title).locator('.ui-data-table__row');
+  return panel(page, title).locator('.ui-data-table__row');
 }
 
 function round(value: number): number {
@@ -243,7 +258,12 @@ interface ListGeometry {
  * file: 43 "spilling" cells at 375×812, every one of them merely panned).
  */
 async function measureList(page: Page, title: string): Promise<ListGeometry> {
-  return await card(page, title).evaluate((cardElement) => {
+  return await panel(page, title).evaluate((region) => {
+    // The list's **own card**, resolved from the table it holds: the section
+    // header and the toolbar are outside it now, so the region scoped by the
+    // heading is no longer the surface, and every figure below is about the
+    // surface (REQ-40).
+    const cardElement = (region.querySelector('.ui-data-table')?.closest('.ui-surface') ?? region) as HTMLElement;
     const box = (element: Element): Box => {
       const rect = element.getBoundingClientRect();
       return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
@@ -376,7 +396,7 @@ async function openScreen(page: Page, viewport: Viewport, reading: Reading = FUL
     if (items.length > 0) {
       await expect(rows(page, title).first()).toBeVisible({ timeout: 20_000 });
     } else {
-      await expect(card(page, title).locator('.ui-empty-state__description')).toBeVisible({ timeout: 20_000 });
+      await expect(panel(page, title).locator('.ui-empty-state__description')).toBeVisible({ timeout: 20_000 });
     }
   }
 }
@@ -459,7 +479,16 @@ test.describe('F10 — the plugins screen against an inventory holding every row
       await openScreen(page, viewport);
 
       expect(await content(page).locator('.ui-card-list').count(), `${at}: the screen still draws a hand-built card list`).toBe(0);
-      expect(await content(page).locator('.ui-data-table--comfortable').count(), `${at}: the two inventories are not both on the comfortable object list`).toBe(2);
+      // **The count is kept and the qualifier is gone.** This counted how many lists were drawn in
+      // the retired card-per-row presentation and expected both of them to be; since
+      // `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-18` the screen
+      // draws the same two lists and **neither** is a card. So the two claims are asserted apart:
+      // two lists, and none of them asking for a presentation.
+      expect(await content(page).locator('.ui-data-table').count(), `${at}: the screen does not draw its two inventories`).toBe(2);
+      expect(
+        await content(page).locator('.ui-data-table--comfortable').count(),
+        `${at}: an inventory is still drawn as a stack of cards`,
+      ).toBe(0);
 
       for (const title of ['CLI plugins', 'Daemon plugins']) {
         const list = await measureList(page, title);
@@ -553,10 +582,10 @@ test.describe('F10 — the plugins screen against an inventory holding every row
       const inspect = rows(page, 'Daemon plugins').first().getByRole('button', { name: 'Inspect' });
       await clickAtItsOwnCentre(page, inspect);
 
-      const panel = card(page, 'Daemon plugins').locator('.ui-detail-panel');
-      await expect(panel, `${at}: the inspection opened no detail panel`).toBeVisible({ timeout: 20_000 });
+      const detailPanel = panel(page, 'Daemon plugins').locator('.ui-detail-panel');
+      await expect(detailPanel, `${at}: the inspection opened no detail panel`).toBeVisible({ timeout: 20_000 });
 
-      const geometry = await card(page, 'Daemon plugins').evaluate((cardElement) => {
+      const geometry = await panel(page, 'Daemon plugins').evaluate((cardElement) => {
         const table = cardElement.querySelector('.ui-data-table') as HTMLElement;
         const expansion = cardElement.querySelector('.ui-data-table__expanded') as HTMLElement;
         const detail = cardElement.querySelector('.ui-detail-panel') as HTMLElement;
@@ -681,7 +710,7 @@ test.describe('F10 — an empty inventory (REQ-48)', () => {
     );
 
     // A surface of the library's own, with a box of its own — not bare text in the layout.
-    const surface = card(page, 'Daemon plugins').locator('.ui-empty-state');
+    const surface = panel(page, 'Daemon plugins').locator('.ui-empty-state');
     await expect(surface).toBeVisible();
     expect(daemon.emptyState!.box.width, 'the empty state has no box at all').toBeGreaterThan(0);
     expect(daemon.emptyState!.title, 'the empty state states no title').not.toBe('');
@@ -719,6 +748,6 @@ test.describe('F10 — an empty inventory (REQ-48)', () => {
     expect(cli.emptyState?.controls, 'the read-only CLI inventory offers an action on its empty state').toBe(0);
 
     // The screen's own install is still where it belongs — in the toolbar, not on the empty state.
-    await expect(card(page, 'Daemon plugins').locator('.ui-screen-toolbar').getByRole('button', { name: 'Install plugin' })).toBeVisible();
+    await expect(panel(page, 'Daemon plugins').locator('.ui-screen-toolbar').getByRole('button', { name: 'Install plugin' })).toBeVisible();
   });
 });

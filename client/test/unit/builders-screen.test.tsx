@@ -98,13 +98,28 @@ function renderScreen() {
   );
 }
 
-/** The card a list is drawn in, named by the section header it carries. */
-function card(title: 'buildx builders' | 'Build cache'): HTMLElement {
-  return screen.getByRole('heading', { name: title }).closest('.ui-surface') as HTMLElement;
+/**
+ * The region a list is read in, named by the section header titling it.
+ *
+ * Named by **what it holds** rather than by the surface it used to be: each
+ * section's header and toolbar sit **above** the one unpadded card holding its
+ * list (`builders-screen.md`, and
+ * `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`),
+ * so the heading's own `.ui-surface` ancestor is no longer the panel and on this
+ * screen is nothing at all. A panel is therefore the innermost region carrying
+ * both the heading and a list — the same region on a screen still drawn the old
+ * way, its card.
+ */
+function panel(title: 'buildx builders' | 'Build cache'): HTMLElement {
+  const heading = screen.getByRole('heading', { name: title });
+  let region: HTMLElement | null = heading.parentElement;
+  while (region !== null && region.querySelector('.ui-data-table') === null) region = region.parentElement;
+  expect(region, `the “${title}” heading is drawn nowhere near a list`).not.toBeNull();
+  return region!;
 }
 
 function listIn(title: 'buildx builders' | 'Build cache'): HTMLElement {
-  return card(title).querySelector('.ui-data-table') as HTMLElement;
+  return panel(title).querySelector('.ui-data-table') as HTMLElement;
 }
 
 function rowsIn(title: 'buildx builders' | 'Build cache'): HTMLElement[] {
@@ -178,15 +193,53 @@ afterEach(cleanup);
 
 describe('BuildersScreen — the builder list (REQ-39, REQ-40)', () => {
   // REQ-39 — "Builders and build cache are listed with the object-list primitive, hand-built cards
-  // deleted"; builders-screen.md — "the object list's comfortable variant below"
-  it('lists the builders on the object list, in its comfortable variant, and draws no card list', () => {
+  // deleted"; builders-screen.md — "**Both lists are the containers list** … the **same row**, of
+  // the reference's own fixed height and vertical alignment, stating no row modifier of its own",
+  // the classic-table plan's REQ-16 and REQ-39.
+  //
+  // **Contract and state only** (`.../classic-table/REQ-31`): every box is zero in jsdom, so a
+  // geometric assertion would pass on any build, the rejected one included. The boxes are measured
+  // in a browser (`e2e/classic-table-criteria-plain-lists.spec.ts`).
+  it('lists the builders on the object list, asking for no presentation, and draws no card list', () => {
     buildersResult.builders = [builder()];
+    cacheResult.records = [record()];
     renderScreen();
 
-    expect(listIn('buildx builders')).not.toBeNull();
-    expect(listIn('buildx builders').className).toMatch(/comfortable/);
+    for (const title of ['buildx builders', 'Build cache'] as const) {
+      const list = listIn(title);
+      expect(list, `the ${title} list is not on the object list`).not.toBeNull();
+      expect(list.classList.contains('ui-data-table--comfortable'), `the ${title} list still asks for the retired presentation`).toBe(false);
+      for (const row of rowsIn(title)) {
+        expect(
+          Array.from(row.classList).filter((name) => name !== 'ui-data-table__row' && name !== 'ui-data-table__row--selected'),
+          `a row of the ${title} list states a modifier of its own where the reference row states none`,
+        ).toEqual([]);
+      }
+    }
     expect(document.querySelectorAll('.ui-card-list'), 'the screen still draws a hand-built card list').toHaveLength(0);
     expect(rowsIn('buildx builders')).toHaveLength(1);
+  });
+
+  // builders-screen.md — "the object list (`DataTable`) alone in an **unpadded card it fills edge to
+  // edge**. Neither header is on a surface: each list's only enclosing surface is its own card"
+  // (REQ-40). State, not geometry: which surfaces exist and what each holds.
+  it('draws each list in one unpadded card holding it alone, with the section header outside it', () => {
+    buildersResult.builders = [builder()];
+    cacheResult.records = [record()];
+    renderScreen();
+
+    for (const title of ['buildx builders', 'Build cache'] as const) {
+      const table = listIn(title);
+      const card = table.closest('.ui-surface');
+      expect(card, `the ${title} list sits in no card at all`).not.toBeNull();
+      expect(card!.classList.contains('ui-surface--pad-none'), `the ${title} list’s card is padded`).toBe(true);
+      expect(card!.children, `the ${title} list’s card holds more than the list`).toHaveLength(1);
+      expect(card!.firstElementChild, `the ${title} list’s card holds something besides the list`).toBe(table);
+      expect(card!.querySelector('.ui-section-header'), `the ${title} section header is inside the list’s card`).toBeNull();
+      expect(card!.querySelector('.ui-screen-toolbar'), `the ${title} toolbar is inside the list’s card`).toBeNull();
+      expect(card!.parentElement?.closest('.ui-surface') ?? null, `the ${title} list’s card sits inside another surface`).toBeNull();
+      expect(table.querySelectorAll('.ui-surface'), `a row of the ${title} list is drawn on a surface of its own`).toHaveLength(0);
+    }
   });
 
   // builders-screen.md — "lists every builder as a row of seven columns: the active marker, the
@@ -350,21 +403,21 @@ describe('BuildersScreen — the page-level actions live in the toolbar (REQ-41)
     cacheResult.records = [record()];
     renderScreen();
 
-    const buildersToolbar = card('buildx builders').querySelector('.ui-screen-toolbar') as HTMLElement;
-    const cacheToolbar = card('Build cache').querySelector('.ui-screen-toolbar') as HTMLElement;
-    expect(buildersToolbar, 'the builders card draws no screen toolbar').not.toBeNull();
-    expect(cacheToolbar, 'the build-cache card draws no screen toolbar').not.toBeNull();
+    const buildersToolbar = panel('buildx builders').querySelector('.ui-screen-toolbar') as HTMLElement;
+    const cacheToolbar = panel('Build cache').querySelector('.ui-screen-toolbar') as HTMLElement;
+    expect(buildersToolbar, 'the builders section draws no screen toolbar').not.toBeNull();
+    expect(cacheToolbar, 'the build-cache section draws no screen toolbar').not.toBeNull();
 
     expect(within(buildersToolbar).getByRole('button', { name: 'Create builder' })).toBeInTheDocument();
     expect(within(cacheToolbar).getByRole('button', { name: 'Prune' })).toBeInTheDocument();
 
-    // …and neither action is left in the card's own header.
+    // …and neither action is left in the section header itself.
     for (const [title, label] of [
       ['buildx builders', 'Create builder'],
       ['Build cache', 'Prune'],
     ] as const) {
-      const header = card(title).querySelector('.ui-section-header') as HTMLElement;
-      expect(within(header).queryByRole('button', { name: label }), `${label} is still a control of the card header`).toBeNull();
+      const header = panel(title).querySelector('.ui-section-header') as HTMLElement;
+      expect(within(header).queryByRole('button', { name: label }), `${label} is still a control of the section header`).toBeNull();
     }
   });
 
@@ -373,7 +426,7 @@ describe('BuildersScreen — the page-level actions live in the toolbar (REQ-41)
     cacheResult.records = [];
     renderScreen();
 
-    expect(within(card('Build cache')).getByRole('button', { name: 'Prune' })).toBeDisabled();
+    expect(within(panel('Build cache')).getByRole('button', { name: 'Prune' })).toBeDisabled();
   });
 
   // builders-screen.md — "'Prune' (build-cache toolbar) → confirms, then prunes every reclaimable
@@ -383,7 +436,7 @@ describe('BuildersScreen — the page-level actions live in the toolbar (REQ-41)
     cacheResult.records = [record()];
     renderScreen();
 
-    await user.click(within(card('Build cache')).getByRole('button', { name: 'Prune' }));
+    await user.click(within(panel('Build cache')).getByRole('button', { name: 'Prune' }));
     expect(prune).not.toHaveBeenCalled();
     await user.click(within(document.querySelector('.ui-modal') as HTMLElement).getByRole('button', { name: 'Prune' }));
 

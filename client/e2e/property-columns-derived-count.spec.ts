@@ -254,10 +254,17 @@ test('the four swarm panels: one column and nothing wrapped at ~400px, no fewer 
         await openApp(page, 'swarm');
         await expect(page.getByRole('heading', { level: 1, name: 'Swarm' })).toBeVisible({ timeout: 20_000 });
 
+        // The panel is named by **what it holds** rather than by the surface it used to be: a
+        // converted inventory's section header sits above the one unpadded card holding its list
+        // (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`), so a
+        // card can no longer be found by the heading it used to hold. The innermost region carrying
+        // both the heading and the list resolves to the same region on an inventory still drawn the
+        // old way, its card.
         const panel = screenContent(page)
-          .locator('.ui-surface')
+          .locator('.ui-stack, .ui-surface')
           .filter({ has: page.getByRole('heading', { level: 2, name: panelTitle, exact: true }) })
-          .first();
+          .filter({ has: page.locator('.ui-data-table') })
+          .last();
         const row = rowText === '' ? panel.locator('.ui-data-table__row').first() : panel.locator('.ui-data-table__row', { hasText: rowText }).first();
         await expect(row, `the ${panelTitle} panel lists nothing to open, so its property section cannot be measured`).toBeVisible({ timeout: 20_000 });
         // On its first cell, with a real pointer: below the desktop breakpoint the row is wider than

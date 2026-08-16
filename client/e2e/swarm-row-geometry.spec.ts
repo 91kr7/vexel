@@ -169,6 +169,17 @@ interface RowGeometry {
 interface CardGeometry {
   title: string;
   box: Box;
+  /**
+   * Whether this panel's own heading is drawn **on a surface**, which is how the
+   * two compositions on this screen tell themselves apart while the migration is
+   * half done: an inventory converted to the one presentation puts its header
+   * above the unpadded card holding its list
+   * (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`),
+   * and one still drawn the old way keeps it inside the card. Read from the tree
+   * rather than from a list of panel names, so the checks below follow the
+   * migration instead of having to be edited by it.
+   */
+  headerOnASurface: boolean;
   /** The card's own section header, and the top of the first thing drawn under it. */
   headerBox: Box | null;
   contentTop: number;
@@ -239,14 +250,28 @@ async function measureScreen(page: Page): Promise<ScreenGeometry> {
       return out;
     };
 
+    // A panel is named by **what it holds** rather than by the surface it used to
+    // be: on a converted inventory the section header sits *above* the one
+    // unpadded card holding its list
+    // (`.../classic-table/REQ-40`), so `header.closest('.ui-surface')` resolves to
+    // null and the panel would simply vanish from this enumeration. The panel is
+    // the innermost region carrying both this header and a list — which is the
+    // card itself on an inventory still drawn the old way. `surface` stays the
+    // list's own card wherever there is one, so every figure about the surface
+    // goes on being about the surface.
     const cards: CardGeometry[] = [];
-    for (const header of Array.from(region.querySelectorAll<HTMLElement>('.ui-section-header'))) {
-      const card = header.closest('.ui-surface');
-      // Only a card's *own* header, not one drawn inside a body.
-      if (!card || header.parentElement?.closest('.ui-surface') !== card) continue;
+    const headings = Array.from(region.querySelectorAll<HTMLElement>('.ui-section-header'));
+    for (const header of headings) {
+      let card: HTMLElement | null = header.parentElement;
+      while (card !== null && card !== region && card.querySelector('.ui-data-table') === null) card = card.parentElement;
+      if (card === null || card === region) continue;
+      // Only a panel's *own* header: the first one drawn inside it. An eyebrow in
+      // a body, or the header of a list nested in a row's detail, resolves to the
+      // same panel and comes later, exactly as it did when the panel was a card.
+      if (headings.find((candidate) => card!.contains(candidate)) !== header) continue;
       const title = (header.querySelector('.ui-section-header__title')?.textContent ?? '').trim();
       const headerRect = header.getBoundingClientRect();
-      // The first element drawn under the header inside the same card.
+      // The first element drawn under the header inside the same panel.
       const following = Array.from(card.querySelectorAll<HTMLElement>('*')).filter(
         (element) => !header.contains(element) && element.getBoundingClientRect().top >= headerRect.bottom - 0.5,
       );
@@ -255,9 +280,11 @@ async function measureScreen(page: Page): Promise<ScreenGeometry> {
         Number.POSITIVE_INFINITY,
       );
       const list = card.querySelector('.ui-data-table');
+      const surface = (list?.closest('.ui-surface') ?? card) as HTMLElement;
       cards.push({
         title,
-        box: box(card),
+        box: box(surface),
+        headerOnASurface: header.closest('.ui-surface') !== null,
         headerBox: box(header),
         contentTop: Number.isFinite(contentTop) ? contentTop : headerRect.bottom,
         sublabels: header.querySelectorAll('.ui-section-header__sublabel').length,
@@ -271,8 +298,19 @@ async function measureScreen(page: Page): Promise<ScreenGeometry> {
     const rows: RowGeometry[] = [];
     for (const row of Array.from(region.querySelectorAll<HTMLElement>('.ui-data-table__row'))) {
       const table = row.closest('.ui-data-table') as HTMLElement;
+      // The panel a row belongs to, named by the last heading drawn before its
+      // table: a converted list's card holds the table and nothing else, its
+      // section header sitting above it (`.../classic-table/REQ-40`), so the name
+      // is no longer inside the surface. Failures name the list either way.
       const card = table.closest('.ui-surface');
-      const listName = (card?.querySelector('.ui-section-header__title')?.textContent ?? 'list').trim();
+      const preceding = headings.filter(
+        (heading) => (heading.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+      );
+      const listName = (
+        card?.querySelector('.ui-section-header__title')?.textContent ??
+        preceding[preceding.length - 1]?.querySelector('.ui-section-header__title')?.textContent ??
+        'list'
+      ).trim();
       const nested = row.closest('.ui-data-table__row-content') !== null;
       const headers = Array.from(table.querySelectorAll<HTMLElement>('.ui-data-table__header-cell')).map((cell) =>
         (cell.textContent ?? '').trim(),
@@ -347,14 +385,34 @@ async function measurePanel(page: Page): Promise<PanelGeometry> {
     };
     const region = document.querySelector('.ui-frame__content') as HTMLElement;
     const panel = region.querySelector('.ui-detail-panel');
-    // The **card**, not the row's own surface: in the comfortable variant every row is a surface of
-    // its own, so the nearest one to a panel is the row that opened it and carries no header.
-    const card = panel?.closest('.ui-surface:has(> .ui-section-header)') ?? null;
+    // Which list the open panel belongs to, named by **the heading of the region
+    // holding it** rather than by a surface carrying one: a converted list's card
+    // holds the table alone, its section header above it
+    // (`.../classic-table/REQ-40`), and an unconverted one puts every row on a
+    // surface of its own — so neither the nearest surface nor a surface with a
+    // header of its own answers this on both. The innermost region carrying both a
+    // heading and this panel does, on either.
+    // A heading **outside the panel itself**: a service's panel labels its own
+    // nested tasks list with an eyebrow header, so the first heading found
+    // walking up would be the panel's own and every panel would report "Tasks".
+    const headingOutside = (candidate: Element): boolean =>
+      Array.from(candidate.querySelectorAll('.ui-section-header__title')).some((title) => panel === null || !panel.contains(title));
+    let owner: Element | null = panel?.parentElement ?? null;
+    while (owner !== null && owner !== region && !headingOutside(owner)) {
+      owner = owner.parentElement;
+    }
     return {
       panels: region.querySelectorAll('.ui-detail-panel').length,
       closeControls: region.querySelectorAll('.ui-detail-panel [aria-label="Close detail"]').length,
       panel: panel ? box(panel) : null,
-      list: card ? (card.querySelector('.ui-section-header__title')?.textContent ?? '').trim() : null,
+      list:
+        owner !== null && owner !== region
+          ? (
+              Array.from(owner.querySelectorAll('.ui-section-header__title')).find(
+                (title) => panel === null || !panel.contains(title),
+              )?.textContent ?? ''
+            ).trim()
+          : null,
       bands: panel
         ? Array.from(panel.querySelectorAll<HTMLElement>('.ui-definition-list__row')).map((band) => {
             const rect = band.getBoundingClientRect();
@@ -402,6 +460,25 @@ async function openScreen(page: Page, viewport: Viewport, fixture: SwarmFixture)
   return stub;
 }
 
+/**
+ * One inventory of this screen, by the section header titling it.
+ *
+ * Named by **what it holds** rather than by the surface it used to be: a
+ * converted panel's section header sits above the one unpadded card holding its
+ * list (`.../classic-table/REQ-40`), so a card can no longer be found by the
+ * heading it used to hold. A panel is the innermost region carrying both the
+ * heading and a list; every region matching contains the same heading and is
+ * therefore an ancestor of the next, so the last in document order is the
+ * panel's own — and on an inventory still drawn the old way that is its card.
+ */
+function panelTitled(page: Page, title: string): Locator {
+  return content(page)
+    .locator('.ui-stack, .ui-surface')
+    .filter({ has: page.getByRole('heading', { level: 2, name: title, exact: true }) })
+    .filter({ has: page.locator('.ui-data-table') })
+    .last();
+}
+
 /** A real pointer at the visible control's own coordinates — never `element.click()`. */
 async function clickAtItsOwnCentre(page: Page, target: Locator): Promise<void> {
   await target.scrollIntoViewIfNeeded();
@@ -415,9 +492,7 @@ async function clickAtItsOwnCentre(page: Page, target: Locator): Promise<void> {
  * column — or over a control.
  */
 function firstCellOf(page: Page, listTitle: string, index: number): Locator {
-  return content(page)
-    .locator('.ui-surface')
-    .filter({ has: page.getByRole('heading', { level: 2, name: listTitle, exact: true }) })
+  return panelTitled(page, listTitle)
     .locator('.ui-data-table__row')
     .nth(index)
     .locator('.ui-data-table__cell')
@@ -671,11 +746,13 @@ test.describe('F12 — the cluster’s inventories, on a stubbed manager (REQ-55
         gap: round(card.contentTop - (card.headerBox!.y + card.headerBox!.height)),
         sublabels: card.sublabels,
         innerEyebrows: card.innerEyebrows,
+        converted: !card.headerOnASurface,
       }));
       for (const gap of gaps) {
         console.log(
           `[REQ-54] ${at} ${gap.title}: header ${gap.headerHeight}px, content starts ${gap.gap}px under it, ` +
-            `${gap.sublabels} sublabel(s), ${gap.innerEyebrows} header(s) inside the body`,
+            `${gap.sublabels} sublabel(s), ${gap.innerEyebrows} header(s) inside the body, ` +
+            `${gap.converted ? 'header above its card' : 'header inside its card'}`,
         );
       }
 
@@ -685,12 +762,45 @@ test.describe('F12 — the cluster’s inventories, on a stubbed manager (REQ-55
         `${at}: a card labels a list inside its own body, which is what shifted the baseline`,
       ).toEqual([]);
 
-      const distinctGaps = [...new Set(gaps.map((gap) => gap.gap))];
-      expect(
-        distinctGaps.length,
-        `${at}: the cards start their content at ${JSON.stringify(gaps.map((gap) => `${gap.title} ${gap.gap}px`))} under their headers`,
-      ).toBe(1);
-      expect(distinctGaps[0], `${at}: a card starts its content ${distinctGaps[0]}px under its header`).toBe(0);
+      // **The claim is unchanged; the population it is quantified over is stated.**
+      // What REQ-54 protects is that no inventory's content sits at a different
+      // distance under its heading from its neighbours' *for a reason of its own*
+      // — the cause it was written against being a `SectionHeader
+      // variant="eyebrow"` inside one card's body, asserted absent above. Since
+      // `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`
+      // this screen carries **two compositions at once**, and will until that
+      // plan's batch 3 converts `Configs` and `Stacks`: a converted inventory's
+      // heading sits above the card holding its list, which is a different
+      // rhythm from a heading inside one, and 0px was the second's value. So the
+      // equality is asserted **within each composition**, which is where "the
+      // same distance" is a statement about layout rather than about how far the
+      // migration has got. The grouping is read from the tree, not from a list of
+      // panel names: when the last two convert, both groups become one and this
+      // assertion needs no edit at all.
+      const compositions = [
+        { name: 'header above its card', members: gaps.filter((gap) => gap.converted) },
+        { name: 'header inside its card', members: gaps.filter((gap) => !gap.converted) },
+      ].filter((composition) => composition.members.length > 0);
+      expect(compositions.length, `${at}: no inventory was measured at all`).toBeGreaterThan(0);
+      for (const composition of compositions) {
+        const distinct = [...new Set(composition.members.map((gap) => gap.gap))];
+        expect(
+          distinct.length,
+          `${at}: the inventories drawn with the ${composition.name} start their content at ${JSON.stringify(
+            composition.members.map((gap) => `${gap.title} ${gap.gap}px`),
+          )} under their headers`,
+        ).toBe(1);
+      }
+      // …and the one still-unconverted composition keeps the value it was
+      // certified at, so nothing has moved under the panels this batch leaves
+      // alone.
+      const unconverted = compositions.find((composition) => composition.name === 'header inside its card');
+      if (unconverted !== undefined) {
+        expect(
+          unconverted.members[0]!.gap,
+          `${at}: an inventory still drawn the old way starts its content ${unconverted.members[0]!.gap}px under its header`,
+        ).toBe(0);
+      }
 
       // …and every header is one height, which is what "side-by-side headers share a baseline"
       // becomes once the row itself is a stack — **at the two desktop widths**, which is where
@@ -721,16 +831,48 @@ test.describe('F12 — the cluster’s inventories, on a stubbed manager (REQ-55
         );
       }
 
+      // **The claim is "a row's height does not depend on what that row carries",
+      // and it is a claim about one list.** It used to be asserted over every row
+      // on the screen at once, which was the same thing while all five
+      // inventories were drawn one way. Since
+      // `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-20`
+      // three of them are the containers row and two are not yet, and will not be
+      // until that plan's batch 3 — so a single height across the screen would now
+      // be a statement about how far the migration has got rather than about a
+      // row's content. Per list it is the stronger reading of the two: it fails on
+      // one list whose rows disagree even if the screen's other four agree.
       for (const kind of ['row', 'nested'] as const) {
         const rows = screen.rows.filter((row) => row.kind === kind);
-        const heights = [...new Set(rows.map((row) => round(row.box.height)))];
-        console.log(`[REQ-55] ${at}: ${rows.length} ${kind} row(s), heights ${JSON.stringify(heights)}`);
         expect(rows.length, `${at}: no ${kind} row was measured, so this comparison shows nothing`).toBeGreaterThan(1);
-        expect(
-          heights.length,
-          `${at}: the ${kind} rows are ${JSON.stringify(heights)}px tall — a row's height still depends on what it carries`,
-        ).toBe(1);
+        const lists = [...new Set(rows.map((row) => row.list))];
+        console.log(
+          `[REQ-55] ${at}: ${rows.length} ${kind} row(s) over ${lists.length} list(s) — ` +
+            lists
+              .map((list) => `${list} ${JSON.stringify([...new Set(rows.filter((row) => row.list === list).map((row) => round(row.box.height)))])}`)
+              .join(', '),
+        );
+        for (const list of lists) {
+          const heights = [...new Set(rows.filter((row) => row.list === list).map((row) => round(row.box.height)))];
+          expect(
+            heights.length,
+            `${at}: the ${kind} rows of ${list} are ${JSON.stringify(heights)}px tall — a row's height still depends on what it carries`,
+          ).toBe(1);
+        }
       }
+      // …and the inventories converted to the one presentation share **one** row
+      // with each other, which is what REQ-39 asks of them and is read here from
+      // the tree rather than from a list of names: a panel is converted when its
+      // heading is not on a surface.
+      const convertedLists = new Set(screen.cards.filter((card) => !card.headerOnASurface).map((card) => card.title));
+      const convertedHeights = [
+        ...new Set(screen.rows.filter((row) => row.kind === 'row' && convertedLists.has(row.list)).map((row) => round(row.box.height))),
+      ];
+      console.log(`[REQ-55] ${at}: the converted inventories (${[...convertedLists].join(', ')}) draw rows ${JSON.stringify(convertedHeights)}px tall`);
+      expect(convertedLists.size, `${at}: no inventory on this screen is drawn in the one presentation`).toBeGreaterThan(0);
+      expect(
+        convertedHeights.length,
+        `${at}: the converted inventories draw rows of ${JSON.stringify(convertedHeights)}px, so they are not one row`,
+      ).toBe(1);
 
       // The premise: the fixture really does differ in the values that used to share a subtitle line,
       // or one height proves nothing.

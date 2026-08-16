@@ -33,8 +33,23 @@ function screenContent(page: Page) {
   return page.locator('.ui-frame__content');
 }
 
+/**
+ * One inventory of the screen, by the section header titling it.
+ *
+ * Named by **what it holds** rather than by the surface it used to be: a
+ * converted panel's section header and toolbar sit above the one unpadded card
+ * holding its list (`swarm-nodes-panel.md`, `swarm-secrets-panel.md`, and
+ * `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`),
+ * so a card can no longer be found by the heading it used to hold. The panel is
+ * the innermost region carrying both the heading and the list — the same region
+ * on an inventory still drawn the old way, its card.
+ */
 function panel(page: Page, title: string) {
-  return screenContent(page).locator('.ui-surface').filter({ has: page.getByRole('heading', { level: 2, name: title, exact: true }) });
+  return screenContent(page)
+    .locator('.ui-stack, .ui-surface')
+    .filter({ has: page.getByRole('heading', { level: 2, name: title, exact: true }) })
+    .filter({ has: page.locator('.ui-data-table') })
+    .last();
 }
 
 /**

@@ -41,18 +41,30 @@ async function useBuilderQuietly(name: string): Promise<void> {
   await execFileAsync('docker', ['buildx', 'use', name]).catch(() => undefined);
 }
 
-/** The card a list is drawn in, named by the section header it carries. */
+/**
+ * The region a list is read in, named by the section header titling it.
+ *
+ * Named by **what it holds** rather than by the surface it used to be: each
+ * section's header and toolbar sit **above** the one unpadded card holding its
+ * list (`builders-screen.md`, and
+ * `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`),
+ * so a card can no longer be found by the heading it used to hold. A panel is
+ * the innermost region carrying both the heading and the list; every region
+ * matching contains the same heading and is therefore an ancestor of the next,
+ * so the last in document order is the panel's own — and on a screen still drawn
+ * the old way that is its card.
+ */
 function panel(page: Page, title: 'buildx builders' | 'Build cache') {
   return screenContent(page)
-    .locator('.ui-surface')
+    .locator('.ui-stack, .ui-surface')
     .filter({ has: page.getByRole('heading', { level: 2, name: title }) })
-    .first();
+    .filter({ has: page.locator('.ui-data-table') })
+    .last();
 }
 
 /**
- * A builder's row of the object list — the whole card it is drawn on, so the
- * assertions cover everything the row carries
- * (`plan-ui-coherence-optimisation/REQ-39`; the hand-built card list this
+ * A builder's row of the object list, so the assertions cover everything the row
+ * carries (`plan-ui-coherence-optimisation/REQ-39`; the hand-built card list this
  * screen used is deleted).
  */
 function builderRow(page: Page, name: string) {

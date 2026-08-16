@@ -137,12 +137,27 @@ function describeBox(box: Box): string {
   return `x=${round(box.x)}, y=${round(box.y)}, ${round(box.width)}×${round(box.height)}`;
 }
 
-/** The one card this screen draws, named by the section header it carries. */
+/**
+ * The region this screen's one list is read in, named by the section header
+ * titling it.
+ *
+ * Named by **what it holds** rather than by the surface it used to be: the
+ * section header and the toolbar sit **above** the one unpadded card holding the
+ * list (`contexts-screen.md`, and
+ * `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`),
+ * so a card can no longer be found by the heading it used to hold. A panel is
+ * the innermost region carrying both the heading and the list; every region
+ * matching contains the same heading and is therefore an ancestor of the next,
+ * so the last in document order is the panel's own — and on a screen still drawn
+ * the old way that is its card.
+ */
 function panel(page: Page): Locator {
   return page
-    .locator('.ui-frame__content .ui-surface')
+    .locator('.ui-frame__content')
+    .locator('.ui-stack, .ui-surface')
     .filter({ has: page.getByRole('heading', { level: 2, name: 'Docker contexts' }) })
-    .first();
+    .filter({ has: page.locator('.ui-data-table') })
+    .last();
 }
 
 function rowOf(page: Page, name: string): Locator {
@@ -219,6 +234,10 @@ async function measureList(page: Page): Promise<ListGeometry> {
     };
 
     const list = card.querySelector('.ui-data-table') as HTMLElement;
+    // The list's **own card**, resolved from the table it holds: the section header
+    // and the toolbar are outside it now, so the region scoped by the heading is no
+    // longer the surface, and `card` below is about the surface (REQ-40).
+    const surface = (list.closest('.ui-surface') ?? card) as HTMLElement;
     const headers = Array.from(list.querySelectorAll('.ui-data-table__header-cell')).map((cell) => (cell.textContent ?? '').trim());
 
     const rows = Array.from(list.querySelectorAll('.ui-data-table__row')).map((row) => {
@@ -261,7 +280,7 @@ async function measureList(page: Page): Promise<ListGeometry> {
     ).length;
 
     return {
-      card: box(card),
+      card: box(surface),
       list: box(list),
       listClientWidth: list.clientWidth,
       listScrollWidth: list.scrollWidth,
@@ -353,7 +372,16 @@ test.describe('F9 — the contexts screen against an inventory holding described
 
       // The paradigm this migration deletes is not merely unused: it is not drawn.
       expect(await panel(page).locator('.ui-card-list').count(), `${at}: the screen still draws a hand-built card list`).toBe(0);
-      expect(await panel(page).locator('.ui-data-table--comfortable').count(), `${at}: the list is not the comfortable object list`).toBe(1);
+      // **The count is kept and the qualifier is gone.** This counted the one list drawn in the
+      // retired card-per-row presentation and expected it to be; since
+      // `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-17` the screen
+      // draws the same one list and it is **not** a card. So the two claims are asserted apart: one
+      // list, and it asks for no presentation.
+      expect(await panel(page).locator('.ui-data-table').count(), `${at}: the screen does not draw its one list`).toBe(1);
+      expect(
+        await panel(page).locator('.ui-data-table--comfortable').count(),
+        `${at}: the list is still drawn as a stack of cards`,
+      ).toBe(0);
 
       // The premise: the inventory really does hold rows in different states, so equal heights are
       // a repair and not an artefact of every row saying the same thing.

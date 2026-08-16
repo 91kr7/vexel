@@ -383,8 +383,9 @@ test.describe('Contexts', () => {
         await execFileAsync('docker', ['context', 'create', name, '--docker', 'host=ssh://operator@build-host']);
       }
       await page.reload();
-      // The list is the object list's comfortable variant since
-      // plan-ui-coherence-optimisation/REQ-42; the order it is served in is unchanged by that.
+      // The list is the object list — the same table containers and images ship
+      // (plan-ui-coherence-optimisation/REQ-42, and the classic-table plan's REQ-17); the order it
+      // is served in is unchanged by that.
       const rows = panelTitled(page, 'Docker contexts').locator('.ui-data-table__row');
 
       const shown = await settledOrder(rows, names);

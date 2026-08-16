@@ -107,18 +107,33 @@ function renderScreen() {
   );
 }
 
-/** The card carrying one of the two inventories, by the section header naming it. */
-function card(title: string): HTMLElement {
+/**
+ * The region one of the two inventories is read in, by the section header naming
+ * it.
+ *
+ * Named by **what it holds** rather than by the surface it used to be: each
+ * section's header — and, for the daemon list, its toolbar — sits **above** the
+ * one unpadded card holding its list (`plugins-screen.md`, and
+ * `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`),
+ * so the heading's own `.ui-surface` ancestor is no longer the panel and on this
+ * screen is nothing at all. A panel is therefore the innermost region carrying
+ * both the heading and a list — the same region on a screen still drawn the old
+ * way, its card.
+ */
+function panel(title: string): HTMLElement {
   const heading = screen.getByRole('heading', { level: 2, name: title });
-  return heading.closest('.ui-surface') as HTMLElement;
+  let region: HTMLElement | null = heading.parentElement;
+  while (region !== null && region.querySelector('.ui-data-table') === null) region = region.parentElement;
+  expect(region, `the “${title}” heading is drawn nowhere near a list`).not.toBeNull();
+  return region!;
 }
 
 function list(title: string): HTMLElement {
-  return card(title).querySelector('.ui-data-table') as HTMLElement;
+  return panel(title).querySelector('.ui-data-table') as HTMLElement;
 }
 
 function rowsOf(title: string): HTMLElement[] {
-  return Array.from(card(title).querySelectorAll<HTMLElement>('.ui-data-table__row'));
+  return Array.from(panel(title).querySelectorAll<HTMLElement>('.ui-data-table__row'));
 }
 
 function headersOf(title: string): string[] {
@@ -163,7 +178,7 @@ function linesOf(cell: HTMLElement): string[] {
 }
 
 function emptyStateOf(title: string): HTMLElement | null {
-  return card(title).querySelector('.ui-empty-state');
+  return panel(title).querySelector('.ui-empty-state');
 }
 
 beforeEach(() => {
@@ -182,16 +197,53 @@ afterEach(cleanup);
 describe('PluginsScreen — the two inventories on the object list (REQ-46)', () => {
   // plan-ui-coherence-optimisation/REQ-46 — "Plugins are listed with the object-list primitive,
   // hand-built cards deleted"; plugins-screen.md — "two object lists, one under the other".
-  it('lists both inventories on the object list’s comfortable variant, and draws no card list', () => {
+  it('lists both inventories on the object list, asking for no presentation, and draws no card list', () => {
     reading.cli = { items: [cliPlugin()] };
     reading.daemon = { items: [daemonPlugin()] };
     renderScreen();
 
-    expect(list('CLI plugins'), 'the CLI inventory is not on the object list').not.toBeNull();
-    expect(list('Daemon plugins'), 'the daemon inventory is not on the object list').not.toBeNull();
-    expect(list('CLI plugins').className).toMatch(/comfortable/);
-    expect(list('Daemon plugins').className).toMatch(/comfortable/);
+    // plugins-screen.md — "**Both lists are the containers list** … the **same row**, of the
+    // reference's own fixed height and vertical alignment, stating no row modifier of its own"
+    // (the classic-table plan's REQ-18 and REQ-39).
+    //
+    // **Contract and state only** (`.../classic-table/REQ-31`): every box is zero in jsdom, so a
+    // geometric assertion would pass on any build, the rejected one included. The boxes — the
+    // `WHY UNAVAILABLE` column's left edge above all — are measured in a browser
+    // (`e2e/classic-table-criteria-plain-lists.spec.ts`).
+    for (const title of ['CLI plugins', 'Daemon plugins']) {
+      const inventory = list(title);
+      expect(inventory, `the ${title} inventory is not on the object list`).not.toBeNull();
+      expect(inventory.classList.contains('ui-data-table--comfortable'), `the ${title} list still asks for the retired presentation`).toBe(false);
+      for (const row of rowsOf(title)) {
+        expect(
+          Array.from(row.classList).filter((name) => name !== 'ui-data-table__row' && name !== 'ui-data-table__row--selected'),
+          `a row of the ${title} list states a modifier of its own where the reference row states none`,
+        ).toEqual([]);
+      }
+    }
     expect(document.querySelectorAll('.ui-card-list'), 'the screen still draws a hand-built card list').toHaveLength(0);
+  });
+
+  // plugins-screen.md — "the list (`DataTable`) alone in an **unpadded card it fills edge to edge**
+  // … Neither header is on a surface: each list's only enclosing surface is its own card" (REQ-40).
+  // State, not geometry: which surfaces exist and what each holds.
+  it('draws each inventory in one unpadded card holding it alone, with the section header outside it', () => {
+    reading.cli = { items: [cliPlugin()] };
+    reading.daemon = { items: [daemonPlugin()] };
+    renderScreen();
+
+    for (const title of ['CLI plugins', 'Daemon plugins']) {
+      const table = list(title);
+      const card = table.closest('.ui-surface');
+      expect(card, `the ${title} list sits in no card at all`).not.toBeNull();
+      expect(card!.classList.contains('ui-surface--pad-none'), `the ${title} list’s card is padded`).toBe(true);
+      expect(card!.children, `the ${title} list’s card holds more than the list`).toHaveLength(1);
+      expect(card!.firstElementChild, `the ${title} list’s card holds something besides the list`).toBe(table);
+      expect(card!.querySelector('.ui-section-header'), `the ${title} section header is inside the list’s card`).toBeNull();
+      expect(card!.querySelector('.ui-screen-toolbar'), `the ${title} toolbar is inside the list’s card`).toBeNull();
+      expect(card!.parentElement?.closest('.ui-surface') ?? null, `the ${title} list’s card sits inside another surface`).toBeNull();
+      expect(table.querySelectorAll('.ui-surface'), `a row of the ${title} list is drawn on a surface of its own`).toHaveLength(0);
+    }
   });
 
   // plugins-screen.md — "the Daemon list below it with the screen's only page-level action in its
@@ -203,9 +255,9 @@ describe('PluginsScreen — the two inventories on the object list (REQ-46)', ()
 
     const toolbars = document.querySelectorAll('.ui-screen-toolbar');
     expect(toolbars, 'the screen draws more than one page-level toolbar').toHaveLength(1);
-    expect(card('Daemon plugins').contains(toolbars[0]!), 'the page-level action is not in the daemon list’s toolbar').toBe(true);
+    expect(panel('Daemon plugins').contains(toolbars[0]!), 'the page-level action is not in the daemon list’s toolbar').toBe(true);
     expect(within(toolbars[0] as HTMLElement).getByRole('button', { name: 'Install plugin' })).toBeInTheDocument();
-    expect(within(card('CLI plugins')).queryAllByRole('button'), 'the read-only CLI inventory offers a control').toHaveLength(0);
+    expect(within(panel('CLI plugins')).queryAllByRole('button'), 'the read-only CLI inventory offers a control').toHaveLength(0);
   });
 
   // plan-docker_management_app/REQ-98, plugins-screen.md — "the invocation (`docker compose`), its
@@ -346,7 +398,7 @@ describe('PluginsScreen — the two inventories on the object list (REQ-46)', ()
 
     expect(screen.getByText('the daemon is unreachable')).toBeInTheDocument();
     expect(list('CLI plugins')).not.toBeNull();
-    expect(card('Daemon plugins')).toBeInTheDocument();
+    expect(panel('Daemon plugins')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(hook.refresh).toHaveBeenCalled();

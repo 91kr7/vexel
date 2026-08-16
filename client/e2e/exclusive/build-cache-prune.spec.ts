@@ -120,7 +120,15 @@ test('pruning the build cache reclaims space and reports it, after confirmation'
 
     // The screen must be showing that cache before the operator prunes it (builders-screen.md,
     // "Shows: every build-cache record").
-    const cacheCard = screenContent(page).locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Build cache' }) });
+    // The innermost region carrying both the heading and the list: the section header and the
+    // toolbar sit above the one unpadded card holding it, so a card can no longer be found by the
+    // heading it used to hold
+    // (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`).
+    const cacheCard = screenContent(page)
+      .locator('.ui-stack, .ui-surface')
+      .filter({ has: page.getByRole('heading', { level: 2, name: 'Build cache' }) })
+      .filter({ has: page.locator('.ui-data-table') })
+      .last();
     await expect(cacheCard.locator('.ui-data-table__row').first()).toBeVisible({ timeout: 15_000 });
 
     await cacheCard.getByRole('button', { name: 'Prune' }).click();

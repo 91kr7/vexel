@@ -58,8 +58,9 @@ async function createTlsContextQuietly(name: string): Promise<string> {
 /**
  * A context's row.
  *
- * The list is the object list's comfortable variant since
- * `plan-ui-coherence-optimisation/REQ-42`, so a row is a `.ui-data-table__row`
+ * The list is the object list — the same table containers and images ship
+ * (`plan-ui-coherence-optimisation/REQ-42`, and the classic-table plan's
+ * `REQ-17`) — so a row is a `.ui-data-table__row`
  * and each value of a context is a cell of its own — the kind under the name,
  * TLS and the state in columns rather than a `(kind)` suffix on the title and a
  * `(tls)` one on the endpoint.

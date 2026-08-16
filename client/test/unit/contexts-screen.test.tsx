@@ -75,12 +75,28 @@ function renderScreen() {
   );
 }
 
-function card(): HTMLElement {
-  return screen.getByRole('heading', { name: 'Docker contexts' }).closest('.ui-surface') as HTMLElement;
+/**
+ * The region the list is read in, named by the section header titling it.
+ *
+ * Named by **what it holds** rather than by the surface it used to be: the
+ * section header and the toolbar sit **above** the one unpadded card holding the
+ * list (`contexts-screen.md`, and
+ * `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`),
+ * so the heading's own `.ui-surface` ancestor is no longer the panel and on this
+ * screen is nothing at all. The panel is therefore the innermost region carrying
+ * both the heading and the list — the same region on a screen still drawn the
+ * old way, its card.
+ */
+function panel(): HTMLElement {
+  const heading = screen.getByRole('heading', { name: 'Docker contexts' });
+  let region: HTMLElement | null = heading.parentElement;
+  while (region !== null && region.querySelector('.ui-data-table') === null) region = region.parentElement;
+  expect(region, 'the “Docker contexts” heading is drawn nowhere near a list').not.toBeNull();
+  return region!;
 }
 
 function list(): HTMLElement {
-  return card().querySelector('.ui-data-table') as HTMLElement;
+  return panel().querySelector('.ui-data-table') as HTMLElement;
 }
 
 function rows(): HTMLElement[] {
@@ -138,16 +154,46 @@ afterEach(cleanup);
 
 describe('ContextsScreen — the list (REQ-42)', () => {
   // REQ-42 — "Contexts are listed with the object-list primitive, and the cards-with-inline-trailing-
-  // buttons paradigm … is deleted"; contexts-screen.md — "the contexts in the object list's
-  // comfortable variant — one row per context, aligned columns"
-  it('lists the contexts on the object list, in its comfortable variant, and draws no card list', () => {
+  // buttons paradigm … is deleted"; contexts-screen.md — "**The list is the containers list** …
+  // the **same row**, of the reference's own fixed height and vertical alignment, stating no row
+  // modifier of its own", the classic-table plan's REQ-17 and REQ-39.
+  //
+  // **Contract and state only** (`.../classic-table/REQ-31`): every box is zero in jsdom, so a
+  // geometric assertion would pass on any build, the rejected one included. The boxes are measured
+  // in a browser (`e2e/classic-table-criteria-plain-lists.spec.ts`).
+  it('lists the contexts on the object list, asking for no presentation, and draws no card list', () => {
     contextsResult.contexts = [context({ name: 'desktop-linux', kind: 'local', active: true }), context()];
     renderScreen();
 
     expect(list(), 'the screen draws no object list').not.toBeNull();
-    expect(list().className).toMatch(/comfortable/);
+    expect(list().classList.contains('ui-data-table--comfortable'), 'the list still asks for the retired presentation').toBe(false);
+    for (const row of rows()) {
+      expect(
+        Array.from(row.classList).filter((name) => name !== 'ui-data-table__row' && name !== 'ui-data-table__row--selected'),
+        'a row states a modifier of its own where the reference row states none',
+      ).toEqual([]);
+    }
     expect(document.querySelectorAll('.ui-card-list'), 'the screen still draws a hand-built card list').toHaveLength(0);
     expect(rows()).toHaveLength(2);
+  });
+
+  // contexts-screen.md — "the object list (`DataTable`) of every context alone in an **unpadded card
+  // it fills edge to edge** … The header is not on a surface: the screen's only surface is the
+  // list's own card" (REQ-40). State, not geometry: which surfaces exist and what each holds.
+  it('draws the list in one unpadded card holding it alone, with the section header outside it', () => {
+    contextsResult.contexts = [context({ name: 'desktop-linux', kind: 'local', active: true }), context()];
+    renderScreen();
+
+    const table = list();
+    const card = table.closest('.ui-surface');
+    expect(card, 'the list sits in no card at all').not.toBeNull();
+    expect(card!.classList.contains('ui-surface--pad-none'), 'the list’s card is padded').toBe(true);
+    expect(card!.children).toHaveLength(1);
+    expect(card!.firstElementChild, 'the card holds something besides the list').toBe(table);
+    expect(card!.querySelector('.ui-section-header'), 'the section header is inside the list’s card').toBeNull();
+    expect(card!.querySelector('.ui-screen-toolbar'), 'the screen toolbar is inside the list’s card').toBeNull();
+    expect(card!.parentElement?.closest('.ui-surface') ?? null, 'the list’s card sits inside another surface').toBeNull();
+    expect(table.querySelectorAll('.ui-surface'), 'a row is drawn on a surface of its own').toHaveLength(0);
   });
 
   // contexts-screen.md — "One row per context, whatever its endpoint kind, in aligned columns: a
@@ -220,15 +266,15 @@ describe('ContextsScreen — the list (REQ-42)', () => {
   });
 
   // contexts-screen.md — "'Create context' action in the screen toolbar under the section header"
-  it('offers Create context in the screen toolbar rather than in the card header', async () => {
+  it('offers Create context in the screen toolbar rather than in the section header', async () => {
     const user = userEvent.setup();
     renderScreen();
 
-    const toolbar = card().querySelector('.ui-screen-toolbar') as HTMLElement;
-    expect(toolbar, 'the card draws no screen toolbar').not.toBeNull();
+    const toolbar = panel().querySelector('.ui-screen-toolbar') as HTMLElement;
+    expect(toolbar, 'the screen draws no screen toolbar').not.toBeNull();
     expect(within(toolbar).getByRole('button', { name: 'Create context' })).toBeInTheDocument();
-    const header = card().querySelector('.ui-section-header') as HTMLElement;
-    expect(within(header).queryByRole('button', { name: 'Create context' }), 'Create context is still a control of the card header').toBeNull();
+    const header = panel().querySelector('.ui-section-header') as HTMLElement;
+    expect(within(header).queryByRole('button', { name: 'Create context' }), 'Create context is still a control of the section header').toBeNull();
 
     await user.click(within(toolbar).getByRole('button', { name: 'Create context' }));
     expect(document.querySelector('.ui-modal'), 'the toolbar action opened no form').not.toBeNull();

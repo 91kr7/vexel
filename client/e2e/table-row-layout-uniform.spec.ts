@@ -317,12 +317,13 @@ for (const viewport of VIEWPORTS) {
  * — the desktop widths fit their columns and the component writes no geometry at all. **The images
  * table is measured beside the others as the control**: it is the case batch 2 pinned and
  * `list-row-columns.spec.ts` covers, so a reading that accuses the migrated lists has to leave it
- * alone or it is accusing the probe. Volumes and networks were two of the "comfortable subjects"
- * this file measured against that control; since
- * `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-14` they are the
- * same table the control is, and the assertion below is unchanged because it never depended on
- * which presentation drew them — build cache still asks for the retired one until batch 2 converts
- * it.
+ * alone or it is accusing the probe. Volumes, networks and the build cache were three of the
+ * "comfortable subjects" this file measured against that control; since
+ * `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-14` and its
+ * `REQ-16` all three are the same table the control is, and the assertion below is unchanged
+ * because it never depended on which presentation drew them. **That is the point of leaving it
+ * alone**: the guarantee is the component's, so a list that changes presentation and keeps it is
+ * evidence, and one that loses it is the regression this file exists to catch.
  *
  * **The pan is driven by a real wheel, and that is the whole reliability of this check.** The
  * offset is written from the pan region's **scroll event**; a programmatic `scrollLeft =` moves the

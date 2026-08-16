@@ -108,8 +108,24 @@ async function openLayerExplorer(page: Page, reference: string) {
   return modal;
 }
 
+/**
+ * The build-cache inventory, by the section header titling it.
+ *
+ * Named by **what it holds** rather than by the surface it used to be: its
+ * section header and toolbar sit above the one unpadded card holding the list
+ * (`builders-screen.md`, and
+ * `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`),
+ * so a card can no longer be found by the heading it used to hold. The panel is
+ * the innermost region carrying both the heading and the list — the same region
+ * on a screen still drawn the old way, its card.
+ */
 function buildCacheCard(page: Page) {
-  return page.locator('.ui-frame__content').locator('.ui-surface', { has: page.getByRole('heading', { level: 2, name: 'Build cache' }) });
+  return page
+    .locator('.ui-frame__content')
+    .locator('.ui-stack, .ui-surface')
+    .filter({ has: page.getByRole('heading', { level: 2, name: 'Build cache' }) })
+    .filter({ has: page.locator('.ui-data-table') })
+    .last();
 }
 
 // plan-docker_management_app/REQ-68 — from a layer of an image, the build step and the build-cache

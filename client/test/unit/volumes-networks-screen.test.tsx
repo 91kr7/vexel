@@ -58,13 +58,34 @@ describe('VolumesNetworksScreen — layout (plan-ui-coherence-optimisation/REQ-3
   });
 
   // volumes-networks-screen.md — the screen carries no actions: each panel's page-level actions sit
-  // in that panel's own toolbar
+  // in that panel's own toolbar.
+  //
+  // **The claim is unchanged; what proved it had to move.** It read "every toolbar is inside a
+  // surface", which was how a toolbar was shown to belong to a panel while a panel *was* a surface.
+  // Since `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40` a
+  // panel's section header and toolbar sit **above** the one unpadded card holding its list, so no
+  // toolbar is inside a surface at all and the old form asserted the composition the plan retired.
+  // A toolbar's panel is therefore the innermost region carrying both a section header and a list —
+  // the same region on a screen still drawn the old way, its card.
   it('carries no toolbar of its own beyond the panels\' own', () => {
     renderScreen(<p>networks placeholder</p>);
 
+    const networksPanel = screen.getByText('networks placeholder');
     const toolbars = Array.from(document.querySelectorAll('.ui-screen-toolbar'));
+    expect(toolbars.length, 'the volumes panel draws no page-level toolbar at all').toBeGreaterThan(0);
     for (const toolbar of toolbars) {
-      expect(toolbar.closest('.ui-surface')).not.toBeNull();
+      let region: Element | null = toolbar.parentElement;
+      while (
+        region !== null &&
+        (region.querySelector('.ui-section-header') === null || region.querySelector('.ui-data-table') === null)
+      ) {
+        region = region.parentElement;
+      }
+      expect(region, 'a screen toolbar is drawn outside every panel').not.toBeNull();
+      expect(
+        region!.contains(networksPanel),
+        'a screen toolbar spans both panels, so it is the screen’s own rather than one panel’s',
+      ).toBe(false);
     }
   });
 });

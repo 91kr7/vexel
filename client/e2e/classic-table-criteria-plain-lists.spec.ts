@@ -1,0 +1,863 @@
+/**
+ * **The classic-table criteria, on the lists batch 2 converts** — builders and
+ * build cache, contexts, both plugin inventories, and swarm's nodes, services
+ * and secrets, with the services' nested tasks list beside them
+ * (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-2`
+ * … `REQ-5`, `REQ-8` … `REQ-13`, `REQ-16`, `REQ-17`, `REQ-18`, `REQ-20`,
+ * `REQ-29`, `REQ-30`, `REQ-32`, `REQ-36`, `REQ-39`, `REQ-40`).
+ *
+ * **The same instrument as batch 1's check, not a second one**: everything that
+ * measures a list and everything that says what "it is the containers table"
+ * means lives in `support/classic-table.ts`, which `classic-table-criteria.spec.ts`
+ * uses too. A criterion restated twice is a criterion that will one day be two,
+ * and this plan exists because a target was described rather than pointed at.
+ *
+ * **Eight lists here, and the ninth is nested.** The tasks list inside a
+ * service's detail panel takes **no card of its own**: it is already inside the
+ * services list's card, and a card inside a card is two surfaces where REQ-4
+ * admits one — which is how the reference itself nests a list in a panel
+ * (`ContainerProcessesView`, `LayerExplorer`). Asserting "the table's edges sit
+ * within 1px of its own surface's" on it would therefore assert the wrong thing,
+ * so it is measured by `expectNestedWithoutACardOfItsOwn` instead, and the
+ * exemption is stated here rather than left as a silently missing assertion.
+ *
+ * **The named case is the CLI plugins list's `WHY UNAVAILABLE` column**, which
+ * the reference analysis read roughly 1100px from the values under it on the
+ * delivered build. It is asserted as boxes, at 1440×1000, with the delivered
+ * distance recorded beside it (REQ-18, REQ-29).
+ *
+ * **The four inventories are stubbed at the browser's own request**, as the
+ * per-screen geometry specs already stub them, and for the same reasons: a
+ * daemon will not produce a builder whose endpoint is its own name, a managed
+ * plugin, or a swarm cluster on demand, and obtaining any of them would move
+ * state on the operator's own machine (`docker swarm init` reconfigures the
+ * daemon; `docker plugin ls` is host-wide and no label can scope it). Nothing
+ * here creates, changes or reads anything on the daemon **except** the two
+ * fixtures the reference lists need — one container and one image tag, both
+ * labelled and both removed in an `afterAll`, the container with `docker rm -fv`
+ * (REQ-32). No assertion anywhere is about a total, a count of the machine's own
+ * objects, or a list being empty.
+ *
+ * Every interaction is driven with a **real pointer at the visible control's own
+ * coordinates**, never `element.click()` and never a dispatched event
+ * (CLAUDE.md, "What a check drives, and what it measures").
+ */
+import { expect, test, type Page } from './support/test.js';
+import { openApp, ownershipArgs } from './support/fixtures.js';
+import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
+import { startDeliveredBuild, type DeliveredBuild } from './support/delivered-build.js';
+import { managerSwarmFixture, stubSwarmReading } from './support/swarm-reading.js';
+import {
+  VIEWPORTS,
+  expectBothLinesUnclipped,
+  expectClassicTable,
+  expectNestedWithoutACardOfItsOwn,
+  expectPanReachesLastColumn,
+  expectSameRowAsReference,
+  expectSameTableAsReference,
+  measureList,
+  reportList,
+  round,
+  settledList,
+  tableWithColumn,
+  type ListGeometry,
+  type Viewport,
+} from './support/classic-table.js';
+
+const DESKTOP: Viewport = VIEWPORTS[0];
+const PHONE: Viewport = VIEWPORTS[2];
+
+/**
+ * The revision the plan was delivered on top of — the merge this branch starts
+ * from, and the build the human read the `WHY UNAVAILABLE` drift on. Batch 1 did
+ * not touch any screen of this batch, so it is the delivered build for these
+ * lists exactly as it was for that one.
+ */
+const DELIVERED_REF = process.env.VEXEL_DELIVERED_REF ?? 'd17e1df';
+
+/** Its own port: neither the suite's 3100, nor a developer's 3000, nor batch 1's 3101. */
+const DELIVERED_PORT = Number(process.env.VEXEL_DELIVERED_PLAIN_PORT ?? 3102);
+
+/**
+ * A list is named by a column only it has, which is what makes the locator
+ * survive the surface recomposition: the section header naming the panel is no
+ * longer inside the list's card (REQ-40), so a card can no longer be found by
+ * the heading it used to hold.
+ */
+const LISTS = {
+  builders: 'PLATFORMS',
+  buildCache: 'BUILD STEP',
+  contexts: 'TLS',
+  cliPlugins: 'WHY UNAVAILABLE',
+  daemonPlugins: 'INTERFACE',
+  nodes: 'AVAILABILITY',
+  services: 'PUBLISHED PORTS',
+  secrets: 'SECRET',
+  tasks: 'SLOT',
+  containers: 'UPTIME',
+  images: 'DISK USAGE',
+} as const;
+
+// ---------------------------------------------------------------------------
+// The inventories, answered in the page.
+// ---------------------------------------------------------------------------
+
+/**
+ * Three builders and three cache records, differing in every value whose
+ * presence used to decide a row's height: a reported cache size and one the
+ * builder did not report, a long platform list and none at all, a recorded build
+ * step and none.
+ */
+const BUILDERS = [
+  {
+    name: 'vexel-e2e-desktop',
+    driver: 'docker',
+    endpoint: 'vexel-e2e-desktop',
+    platforms: ['linux/amd64', 'linux/amd64/v2', 'linux/arm64', 'linux/ppc64le'],
+    status: 'running',
+    active: true,
+  },
+  {
+    name: 'vexel-e2e-multiarch',
+    driver: 'docker-container',
+    endpoint: 'tcp://build01.internal.example.test:1234',
+    platforms: ['linux/amd64', 'linux/arm64'],
+    status: 'running',
+    active: false,
+    cacheBytes: 16_148_070,
+  },
+  {
+    name: 'vexel-e2e-remote',
+    driver: 'remote',
+    endpoint: 'tcp://build02.internal.example.test:1234',
+    platforms: [],
+    status: 'inactive',
+    active: false,
+  },
+];
+
+const CACHE_RECORDS = [
+  {
+    id: 'sha256:00e2e0123456789abcdef0123456789abcdef0123456789abcdef0123456789a',
+    type: 'regular',
+    sizeBytes: 5_242_880,
+    usageState: 'reclaimable' as const,
+    description: 'RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund && npm run build --workspace client',
+  },
+  { id: 'sha256:01e2e0123456789abcdef0123456789abcdef0123456789abcdef0123456789b', type: 'source.local', sizeBytes: 1_048_576, usageState: 'shared' as const },
+  {
+    id: 'sha256:02e2e0123456789abcdef0123456789abcdef0123456789abcdef0123456789c',
+    type: 'exec.cachemount',
+    sizeBytes: 12_582_912,
+    usageState: 'in-use' as const,
+    description: 'RUN apk add --no-cache ca-certificates',
+  },
+];
+
+/** Three contexts: the active one, one carrying a description and one carrying none. */
+const CONTEXTS = [
+  {
+    name: 'vexel-e2e-active',
+    endpoint: 'unix:///var/run/docker.sock',
+    kind: 'local' as const,
+    tls: false,
+    active: true,
+    description: 'the stubbed context in use',
+  },
+  {
+    name: 'vexel-e2e-remote-prod',
+    endpoint: `ssh://operator@build-host-${'x'.repeat(40)}.example.invalid`,
+    kind: 'ssh' as const,
+    tls: true,
+    active: false,
+    description: 'a stubbed context carrying a description',
+  },
+  {
+    name: 'vexel-e2e-bare',
+    endpoint: `ssh://operator@another-host-${'y'.repeat(30)}.example.invalid`,
+    kind: 'ssh' as const,
+    tls: false,
+    active: false,
+  },
+];
+
+/**
+ * Fifteen CLI plugins — the shape a stock installation ships, and **enough rows
+ * to make the list scroll inside its own `60vh` cap**, which is the state the
+ * named case is read in. One of them is refused, so the `WHY UNAVAILABLE` column
+ * carries a value and not only its `–`.
+ */
+const CLI_PLUGINS = [
+  { name: 'buildx', command: 'docker buildx', version: 'v0.36.0-desktop.1', availability: 'enabled' as const },
+  { name: 'compose', command: 'docker compose', version: 'v2.40.0', availability: 'enabled' as const },
+  { name: 'ai', command: 'docker ai', version: 'v1.9.4', availability: 'available' as const },
+  { name: 'cloud', command: 'docker cloud', version: 'v0.3.2', availability: 'available' as const },
+  { name: 'debug', command: 'docker debug', version: 'v0.0.42', availability: 'enabled' as const },
+  { name: 'desktop', command: 'docker desktop', version: 'v0.1.9', availability: 'enabled' as const },
+  { name: 'dev', command: 'docker dev', version: 'v0.1.2', availability: 'available' as const },
+  { name: 'extension', command: 'docker extension', version: 'v0.2.27', availability: 'enabled' as const },
+  { name: 'feedback', command: 'docker feedback', version: 'v1.0.0-beta.14', availability: 'available' as const },
+  { name: 'init', command: 'docker init', version: 'v1.4.0', availability: 'enabled' as const },
+  { name: 'mcp', command: 'docker mcp', version: 'v0.24.0-desktop.2', availability: 'available' as const },
+  { name: 'model', command: 'docker model', version: 'v0.1.44', availability: 'enabled' as const },
+  { name: 'sbom', command: 'docker sbom', version: '0.6.1', availability: 'enabled' as const },
+  { name: 'scout', command: 'docker scout', version: 'v1.18.3', availability: 'enabled' as const },
+  {
+    name: 'refused',
+    command: 'docker refused',
+    availability: 'unavailable' as const,
+    unavailableReason: 'accessing plugin /usr/local/lib/docker/cli-plugins/docker-refused: permission denied',
+  },
+];
+
+const DAEMON_PLUGINS = [
+  {
+    id: 'vexel-e2e-plugin-described',
+    name: 'localhost:41234/vexel-e2e-classic-plugin:v1',
+    reference: 'localhost:41234/vexel-e2e-classic-plugin:v1',
+    enabled: false,
+    interfaceTypes: ['docker.volumedriver/1.0'],
+    type: 'volume driver',
+    description: 'a stubbed reading of a volume driver, carrying a description of its own',
+  },
+  { id: 'vexel-e2e-plugin-bare', name: 'loki:latest', enabled: true, interfaceTypes: ['docker.logdriver/1.0'], type: 'log driver' },
+  {
+    id: 'vexel-e2e-plugin-network',
+    name: 'weaveworks/net-plugin:latest_release',
+    enabled: false,
+    interfaceTypes: ['docker.networkdriver/1.0'],
+    type: 'network driver',
+    description: 'a stubbed reading of a network driver',
+  },
+];
+
+/**
+ * Answers the four inventories in the page, leaving the daemon untouched.
+ *
+ * Only the **readings** are answered. Every mutation on the same paths — a
+ * builder created or removed, a context switched, a plugin enabled or installed
+ * — is refused outright rather than passed on, so no stub can ever be mistaken
+ * for a command that reached the operator's own daemon, and no assertion here
+ * depends on one having.
+ */
+async function stubTheInventories(page: Page): Promise<void> {
+  const readOnly = async (route: import('@playwright/test').Route, json: unknown) => {
+    if (route.request().method() !== 'GET') return route.abort();
+    await route.fulfill({ json });
+  };
+
+  await page.route('**/api/builders', (route) => readOnly(route, BUILDERS));
+  await page.route('**/api/builders/cache', (route) => readOnly(route, CACHE_RECORDS));
+  await page.route('**/api/builders/cache/*/usage', (route) =>
+    readOnly(route, {
+      record: CACHE_RECORDS[0],
+      references: [],
+      unavailableReason: 'NoMatchingImage',
+      unavailableDetail: 'No local image carries this build step.',
+    }),
+  );
+  await page.route('**/api/builders/**', (route) => (route.request().method() === 'GET' ? route.fallback() : route.abort()));
+
+  await page.route('**/api/contexts', (route) => readOnly(route, CONTEXTS));
+  await page.route('**/api/contexts/*/use', (route) => route.abort());
+
+  await page.route('**/api/plugins', (route) => readOnly(route, { cli: { items: CLI_PLUGINS }, daemon: { items: DAEMON_PLUGINS } }));
+  await page.route('**/api/plugins/inspect*', (route) =>
+    readOnly(route, {
+      ...DAEMON_PLUGINS[0],
+      documentation: 'https://docs.docker.com/engine/extend/',
+      mounts: ['/var/lib/docker/plugins/state → /mnt/state'],
+      devices: ['/dev/fuse'],
+      capabilities: ['CAP_SYS_ADMIN'],
+      env: [],
+      raw: { Id: 'vexel-e2e-plugin-described', Name: DAEMON_PLUGINS[0].name, Enabled: false },
+    }),
+  );
+  // The switch REQ-36 drives below: answered in the page, so the gesture is real
+  // and nothing on the daemon is asked to change.
+  await page.route('**/api/plugins/enable', async (route) => {
+    await route.fulfill({ json: { ...DAEMON_PLUGINS[0], enabled: true } });
+  });
+  await page.route('**/api/plugins/disable', async (route) => {
+    await route.fulfill({ json: { ...DAEMON_PLUGINS[1], enabled: false } });
+  });
+
+  await stubSwarmReading(page, managerSwarmFixture());
+}
+
+// ---------------------------------------------------------------------------
+// The reference lists' own fixtures: one container and one image tag.
+// ---------------------------------------------------------------------------
+
+const RUN_ID = `${process.pid}-${Date.now()}`;
+const referenceContainer = `vexel-e2e-plain-ref-${RUN_ID}`;
+const referenceImage = `vexel-e2e-plain-ref-${RUN_ID}:1`;
+
+test.beforeAll(async () => {
+  // Ensured at the point of use, not once for the run: the exclusive project prunes the host.
+  await ensureImage(ALPINE_IMAGE);
+  await execFileAsync('docker', [
+    'run',
+    '-d',
+    '--name',
+    referenceContainer,
+    ...ownershipArgs(referenceContainer),
+    '--entrypoint',
+    'sleep',
+    ALPINE_IMAGE,
+    '600',
+  ]);
+  await execFileAsync('docker', ['tag', ALPINE_IMAGE, referenceImage]);
+});
+
+test.afterAll(async () => {
+  // `-fv` and not `-f`: without it an image's anonymous volumes outlive the container.
+  await execFileAsync('docker', ['rm', '-fv', referenceContainer]).catch(() => undefined);
+  await execFileAsync('docker', ['rmi', '-f', referenceImage]).catch(() => undefined);
+});
+
+/** The two reference lists, read from the tree in this same run and in this same browser. */
+async function readTheReference(page: Page, at: string): Promise<{ name: string; list: ListGeometry }[]> {
+  await openApp(page, 'containers');
+  await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible({ timeout: 20_000 });
+  const containers = await settledList(page, LISTS.containers);
+  reportList(at, 'containers (reference)', containers, 'b2');
+
+  await openApp(page, 'images-layers');
+  await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible({ timeout: 20_000 });
+  const images = await settledList(page, LISTS.images);
+  reportList(at, 'images (reference)', images, 'b2');
+
+  // The rows this file created are what the reference is read on: never a total, never an emptiness.
+  expect(
+    containers.rows.some((row) => row.label.startsWith('vexel-e2e-plain-ref-')),
+    `${at}: the container this spec created is not listed, so the reference row may be anybody's`,
+  ).toBe(true);
+
+  return [
+    { name: 'containers', list: containers },
+    { name: 'images', list: images },
+  ];
+}
+
+/** The four screens this batch converts, measured in one pass each. */
+async function readTheConvertedLists(page: Page, at: string): Promise<Record<string, ListGeometry>> {
+  await openApp(page, 'builders-cache');
+  await expect(page.getByRole('heading', { level: 1, name: 'Builders & cache' })).toBeVisible({ timeout: 20_000 });
+  const builders = await settledList(page, LISTS.builders);
+  const buildCache = await settledList(page, LISTS.buildCache);
+
+  await openApp(page, 'contexts');
+  await expect(page.getByRole('heading', { level: 1, name: 'Contexts' })).toBeVisible({ timeout: 20_000 });
+  const contexts = await settledList(page, LISTS.contexts);
+
+  await openApp(page, 'plugins');
+  await expect(page.getByRole('heading', { level: 1, name: 'Plugins' })).toBeVisible({ timeout: 20_000 });
+  const cliPlugins = await settledList(page, LISTS.cliPlugins);
+  const daemonPlugins = await settledList(page, LISTS.daemonPlugins);
+
+  await openApp(page, 'swarm');
+  await expect(page.getByRole('heading', { level: 1, name: 'Swarm' })).toBeVisible({ timeout: 20_000 });
+  const nodes = await settledList(page, LISTS.nodes);
+  const services = await settledList(page, LISTS.services);
+  const secrets = await settledList(page, LISTS.secrets);
+
+  const measured = { builders, 'build cache': buildCache, contexts, 'CLI plugins': cliPlugins, 'daemon plugins': daemonPlugins, nodes, services, secrets };
+  for (const [name, list] of Object.entries(measured)) reportList(at, name, list, 'b2');
+  return measured;
+}
+
+for (const viewport of VIEWPORTS) {
+  const at = `${viewport.width}×${viewport.height}`;
+
+  // REQ-2 … REQ-5, REQ-8, REQ-12, REQ-16, REQ-17, REQ-18, REQ-20, REQ-39, REQ-40 —
+  // the whole of the criteria on the eight screen lists, with the two reference
+  // lists read in the same run so the equality is a comparison and not a
+  // coincidence.
+  test(`the plain lists are the containers table, not a table like it — ${at}`, async ({ page }) => {
+    test.setTimeout(420_000);
+    await page.setViewportSize(viewport);
+    await stubTheInventories(page);
+
+    const references = await readTheReference(page, at);
+    const measured = await readTheConvertedLists(page, at);
+
+    for (const [name, list] of Object.entries(measured)) {
+      expectClassicTable(at, name, list);
+      expectSameTableAsReference(at, name, list, references);
+    }
+
+    // REQ-8 — "**Every row that shows a title over a subtitle** … shows every
+    // line it shows today, unclipped and not hidden by overflow". Quantified over
+    // the rows that draw two lines rather than over the lists, since only some of
+    // these do: a builder's name over its driver and a context's over its kind
+    // are the two-line cells here, and the same component, at the same size, sits
+    // unclipped inside the reference's fixed-height row. A second line is not a
+    // reason for a taller row (REQ-39), and this is where that is checked rather
+    // than assumed.
+    const twoLineLists = Object.entries(measured).filter(([, list]) => list.rows.some((row) => row.twoLine !== null));
+    // The premise, so the loop cannot quietly become vacuous the day a cell
+    // changes shape: there really are two-line rows to judge.
+    expect(
+      twoLineLists.map(([name]) => name).sort(),
+      `${at}: the lists drawing a title over a subtitle are not the ones this batch converts`,
+    ).toEqual(['builders', 'contexts']);
+    for (const [name, list] of twoLineLists) expectBothLinesUnclipped(at, name, list);
+    // …and beside the boxes, the values the human reads (REQ-13): every one of
+    // them still on the row it belongs to.
+    expect(
+      measured.contexts.rows.some((row) => row.twoLine?.title === 'vexel-e2e-remote-prod'),
+      `${at}: the contexts list lost the row naming a stubbed context`,
+    ).toBe(true);
+    expect(
+      measured['CLI plugins'].headers,
+      `${at}: the CLI plugins list does not state its four columns in order`,
+    ).toEqual(['PLUGIN', 'VERSION', 'AVAILABILITY', 'WHY UNAVAILABLE']);
+    expect(measured.builders.headers.includes('CACHE'), `${at}: the builders list lost its cache column`).toBe(true);
+
+    // REQ-12 — below the desktop breakpoint the lists pan, and no column is drawn at no width.
+    for (const [name, list] of Object.entries(measured)) {
+      expect(list.zeroWidthCells, `${at} ${name}: a cell is in the DOM and nowhere on screen`).toEqual([]);
+      console.log(`[b2/REQ-12] ${at} ${name}: holds ${list.scrollWidth}px of row in ${list.clientWidth}px`);
+    }
+  });
+}
+
+/**
+ * REQ-12 — a list wider than the box it is read in pans under a **real wheel**,
+ * and the pan brings its last column into view.
+ *
+ * At the phone breakpoint, where there is a pan at all, and screen by screen:
+ * the wheel is delivered over a row of the list being panned, so the pointer has
+ * to be on the screen that holds it.
+ */
+test('every converted list pans to its last column under a real wheel — 375×812', async ({ page }) => {
+  test.setTimeout(420_000);
+  await page.setViewportSize(PHONE);
+  await stubTheInventories(page);
+
+  for (const [screen, heading, columns] of [
+    ['builders-cache', 'Builders & cache', [LISTS.builders, LISTS.buildCache]],
+    ['contexts', 'Contexts', [LISTS.contexts]],
+    ['plugins', 'Plugins', [LISTS.cliPlugins, LISTS.daemonPlugins]],
+    ['swarm', 'Swarm', [LISTS.nodes, LISTS.services, LISTS.secrets]],
+  ] as const) {
+    await openApp(page, screen);
+    await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible({ timeout: 20_000 });
+    for (const column of columns) {
+      const list = await settledList(page, column);
+      expect(list.found, `375×812 ${column}: the list is not on screen`).toBe(true);
+      // A list whose columns fit the box it is read in has nothing to pan and
+      // reaches every one of them already; one wider than its box must pan, and
+      // the pan must arrive at the last column.
+      if (list.scrollWidth > list.clientWidth) {
+        await expectPanReachesLastColumn(page, column, `375×812 ${column}`, 'b2');
+      } else {
+        console.log(`[b2/REQ-12] 375×812 ${column}: ${list.scrollWidth}px of row fits ${list.clientWidth}px, nothing to pan`);
+      }
+    }
+  }
+});
+
+/**
+ * REQ-5 — "at every horizontal scroll offset": a header inset separately from
+ * its rows drifts as soon as the two pan, which is the retired presentation's
+ * own signature. Driven by a real wheel, at the one viewport where there is a
+ * pan at all.
+ */
+test('the columns of a converted list hold their header at every pan offset — 375×812', async ({ page }) => {
+  test.setTimeout(300_000);
+  await page.setViewportSize(PHONE);
+  await stubTheInventories(page);
+  await openApp(page, 'contexts');
+  await expect(page.getByRole('heading', { level: 1, name: 'Contexts' })).toBeVisible({ timeout: 20_000 });
+
+  const rested = await settledList(page, LISTS.contexts);
+  expect(rested.scrollWidth, 'contexts: there is no pan to measure a drift against').toBeGreaterThan(rested.clientWidth);
+
+  const table = tableWithColumn(page, LISTS.contexts);
+  const row = table.locator('.ui-data-table__row').first();
+  const rowBox = (await row.boundingBox())!;
+  await page.mouse.move(rowBox.x + Math.min(60, rowBox.width / 2), rowBox.y + rowBox.height / 2);
+
+  const offsets: string[] = [];
+  for (let step = 0; step < 8; step += 1) {
+    await page.mouse.wheel(120, 0);
+    await page.waitForTimeout(200);
+    const panned = await measureList(page, LISTS.contexts);
+    const offset = await table.evaluate((element) => Math.round((element as HTMLElement).scrollLeft));
+    offsets.push(`scrollLeft ${offset} → ${panned.columnEdges.map((edge) => `${edge.header || '·'}=${round(edge.worstDelta)}`).join(', ')}`);
+    for (const edge of panned.columnEdges) {
+      expect(
+        edge.worstDelta,
+        `contexts: at scrollLeft ${offset} the ${edge.header || 'unnamed'} column drifts ${round(edge.worstDelta)}px from its header`,
+      ).toBeLessThanOrEqual(0.5);
+    }
+    if (offset >= rested.scrollWidth - rested.clientWidth) break;
+  }
+  console.log(`[b2/REQ-5] 375×812 contexts: ${offsets.join(' | ')}`);
+  expect(offsets.length, 'contexts: a wheel over the list moved it to no offset at all').toBeGreaterThan(1);
+});
+
+/**
+ * The named case, in the two figures it is actually made of.
+ *
+ * REQ-18 states it as a left edge — "the `WHY UNAVAILABLE` value and the header
+ * naming it share one left edge, **measured as boxes**" — and that is asserted
+ * below. But the ~1100px the human read is **not** that number, and this file
+ * says so rather than letting a later reader take a green left-edge assertion
+ * for the repair of what was reported. The analysis is explicit about both
+ * halves: the `–` floated "roughly 1100px from the label that names it, **with
+ * the row's own card boundary — a gap and two rounded corners — cutting the line
+ * of sight between them**", and it records separately that the retired
+ * presentation's header carried a **compensating inset** whose stated purpose
+ * was to keep those left edges together (`data-table.css:122`, "the hybrid's own
+ * confession"). A compensated header measures 0px of left drift while the value
+ * is still unreadable as belonging to its column.
+ *
+ * So what the named case is measured as, here and on the delivered build:
+ *
+ * - the **left edge** of the header cell against its column's, which REQ-18
+ *   requires to be one edge and REQ-5 requires to hold by construction rather
+ *   than by a compensation;
+ * - the **vertical run** from the header to the last value it names, and the
+ *   number of **surfaces cut across it** — the gap and the two rounded corners
+ *   per row that the analysis names as what severed the line of sight. That is
+ *   the 1100px, and it is what the conversion actually changes.
+ */
+function namedCase(list: ListGeometry): { headerX: number; leftDrift: number; verticalRun: number; surfacesBetween: number; gaps: number[] } {
+  const column = list.columnEdges.find((candidate) => candidate.header === 'WHY UNAVAILABLE');
+  const lastRow = list.rows[list.rows.length - 1];
+  return {
+    headerX: column?.headerX ?? Number.NaN,
+    leftDrift: column?.worstDelta ?? Number.NaN,
+    verticalRun: lastRow && list.headerBox ? lastRow.box.bottom - list.headerBox.bottom : Number.NaN,
+    surfacesBetween: list.surfacesInside,
+    gaps: list.rowJunctions.map((junction) => round(junction.gap)),
+  };
+}
+
+function reportNamedCase(at: string, measured: ReturnType<typeof namedCase>, rows: number): void {
+  console.log(
+    `[b2/REQ-18] ${at} CLI plugins: WHY UNAVAILABLE header at x=${round(measured.headerX)}, its values ${round(
+      measured.leftDrift,
+    )}px from that edge; the column runs ${round(measured.verticalRun)}px from the label to the last value it names, ` +
+      `across ${measured.surfacesBetween} surface(s) and ${measured.gaps.filter((gap) => gap > 0.5).length} gap(s), over ${rows} row(s)`,
+  );
+}
+
+test('the WHY UNAVAILABLE column and its values share one left edge — 1440×1000', async ({ page }) => {
+  test.setTimeout(300_000);
+  await page.setViewportSize(DESKTOP);
+  await stubTheInventories(page);
+  await openApp(page, 'plugins');
+  await expect(page.getByRole('heading', { level: 1, name: 'Plugins' })).toBeVisible({ timeout: 20_000 });
+
+  const cli = await settledList(page, LISTS.cliPlugins);
+  const measured = namedCase(cli);
+  expect(Number.isNaN(measured.leftDrift), '1440×1000: the CLI plugins list states no WHY UNAVAILABLE column at all').toBe(false);
+  reportNamedCase('1440×1000', measured, cli.rows.length);
+
+  expect(
+    measured.leftDrift,
+    `1440×1000: the WHY UNAVAILABLE value is ${round(measured.leftDrift)}px from the header naming it`,
+  ).toBeLessThanOrEqual(0.5);
+  // …and it is one edge because the two grids are laid on one set of tracks, not
+  // because a header inset was tuned to hide the difference: nothing is drawn
+  // between the label and the values it names.
+  expect(
+    measured.surfacesBetween,
+    `1440×1000: ${measured.surfacesBetween} surface(s) cut the line of sight between WHY UNAVAILABLE and its values`,
+  ).toBe(0);
+  expect(
+    measured.gaps.filter((gap) => gap > 0.5),
+    '1440×1000: the column is interrupted by a gap between one value and the next',
+  ).toEqual([]);
+
+  // Beside the boxes: the column still says what it said — a reason on the
+  // refused plugin, a dash on every plugin the installation runs (REQ-13).
+  const refused = cli.rows.find((row) => row.label.includes('refused'));
+  expect(refused, '1440×1000: the refused plugin is not listed').toBeDefined();
+  const reason = await tableWithColumn(page, LISTS.cliPlugins)
+    .locator('.ui-data-table__row', { hasText: 'refused' })
+    .first()
+    .locator('.ui-data-table__cell')
+    .last()
+    .textContent();
+  expect(reason ?? '', '1440×1000: the refused plugin explains nothing').toContain('permission denied');
+});
+
+/**
+ * REQ-20, REQ-40 — **the ninth call site**: the tasks list inside a service's
+ * detail panel.
+ *
+ * It is the same table, in the same one presentation, and it takes **no card of
+ * its own**: it is already inside the services list's card, and a card inside a
+ * card is two surfaces where REQ-4 admits one. So its row is held equal to the
+ * reference's exactly as every other list's is, and its surface is asserted by
+ * the nesting rather than by an inset it must not have.
+ */
+test('the nested tasks list is the same row, inside its parent’s card and on no card of its own — 1440×1000', async ({ page }) => {
+  test.setTimeout(300_000);
+  await page.setViewportSize(DESKTOP);
+  await stubTheInventories(page);
+
+  const references = await readTheReference(page, 'nested');
+
+  await openApp(page, 'swarm');
+  await expect(page.getByRole('heading', { level: 1, name: 'Swarm' })).toBeVisible({ timeout: 20_000 });
+  const services = tableWithColumn(page, LISTS.services);
+  await expect(services.locator('.ui-data-table__row').first()).toBeVisible({ timeout: 20_000 });
+
+  // A real pointer on the row's **first cell**: the row's own centre can sit
+  // over another column, or over a control.
+  const cell = services.locator('.ui-data-table__row').first().locator('.ui-data-table__cell').first();
+  await cell.scrollIntoViewIfNeeded();
+  const cellBox = (await cell.boundingBox())!;
+  await page.mouse.click(cellBox.x + cellBox.width / 2, cellBox.y + cellBox.height / 2);
+
+  await expect(page.locator('.ui-detail-panel'), 'selecting a service opened no detail panel').toBeVisible({ timeout: 20_000 });
+  const tasks = await settledList(page, LISTS.tasks);
+  reportList('1440×1000', 'tasks (nested)', tasks, 'b2');
+
+  expectClassicTable('1440×1000', 'tasks', tasks);
+  expectSameRowAsReference('1440×1000', 'tasks', tasks, references);
+  expectNestedWithoutACardOfItsOwn('1440×1000', 'tasks', tasks, 'services');
+
+  // Beside the boxes: a task is still listed with its state, its node and the
+  // message the daemon reports (REQ-13).
+  expect(tasks.headers, '1440×1000: the tasks list does not state its columns in order').toEqual([
+    'SLOT',
+    'NODE',
+    'STATE',
+    'DESIRED',
+    'DAEMON REPORTS',
+  ]);
+  await expect(page.locator('.ui-detail-panel')).toContainText('no suitable node');
+});
+
+/**
+ * REQ-36 — the certified predecessors on these screens, asserted rather than
+ * assumed.
+ *
+ * **The switch that must not drag its surface out of the viewport** (bug-2 of
+ * `plan-docker_management_app-detail_panel_density`) is the one that matters
+ * here: the plugins list draws a `Toggle` in a column of every daemon row, and
+ * the defect it was paid for was a control whose visually hidden input sat
+ * 1346px from the switch it belongs to, so that focusing it scrolled the surface
+ * off the screen. It is therefore driven with a **real pointer at the visible
+ * control's own coordinates**, and what is measured is the surface's viewport
+ * box before and after — not its content, which a surface carried off screen
+ * keeps in full.
+ *
+ * And beside it, the absence of any copy affordance on these rows
+ * (`plan-docker_management_app-copy_affordance_absence`).
+ */
+test('the switch does not move the surface it sits on, and no row offers a copy — 1440×1000', async ({ page }) => {
+  test.setTimeout(300_000);
+  await page.setViewportSize(DESKTOP);
+  await stubTheInventories(page);
+  await openApp(page, 'plugins');
+  await expect(page.getByRole('heading', { level: 1, name: 'Plugins' })).toBeVisible({ timeout: 20_000 });
+
+  const daemon = tableWithColumn(page, LISTS.daemonPlugins);
+  const row = daemon.locator('.ui-data-table__row').first();
+  await expect(row).toBeVisible({ timeout: 20_000 });
+
+  // The part of a switch a human actually clicks: the track. Never the visually
+  // hidden input behind it, whose position is frequently the very thing under
+  // examination.
+  const track = row.locator('.ui-toggle__track').first();
+  await track.scrollIntoViewIfNeeded();
+  const before = (await daemon.boundingBox())!;
+  const trackBox = (await track.boundingBox())!;
+  expect(trackBox.y, 'the switch sits above the top of the viewport before it is even used').toBeGreaterThanOrEqual(0);
+  await page.mouse.click(trackBox.x + trackBox.width / 2, trackBox.y + trackBox.height / 2);
+  await page.waitForTimeout(500);
+
+  const after = (await daemon.boundingBox())!;
+  const trackAfter = (await track.boundingBox())!;
+  console.log(
+    `[b2/REQ-36] 1440×1000 daemon plugins: the list at y=${round(before.y)} before the switch and y=${round(after.y)} after; ` +
+      `the switch itself at y=${round(trackBox.y)} → ${round(trackAfter.y)}`,
+  );
+  expect(
+    Math.abs(after.y - before.y),
+    `the switch moved the list it sits on by ${round(after.y - before.y)}px`,
+  ).toBeLessThanOrEqual(1);
+  expect(trackAfter.y, 'the switch dragged itself above the top of the viewport').toBeGreaterThanOrEqual(0);
+  expect(trackAfter.y + trackAfter.height, 'the switch dragged itself below the bottom of the viewport').toBeLessThanOrEqual(DESKTOP.height);
+
+  // …and nothing on these rows offers a copy.
+  const copyControls = await page.evaluate(() => {
+    const inside = Array.from(document.querySelectorAll<HTMLElement>('.ui-data-table__row *'));
+    return inside
+      .filter((element) =>
+        /copy/i.test(`${element.getAttribute('aria-label') ?? ''} ${element.getAttribute('title') ?? ''} ${element.textContent ?? ''}`),
+      )
+      .map((element) => `${element.tagName.toLowerCase()} "${(element.textContent ?? '').trim().slice(0, 40)}"`);
+  });
+  expect(copyControls, 'a row of these lists offers a copy affordance').toEqual([]);
+});
+
+/**
+ * REQ-29 — the delivered figures, on record, before the change.
+ *
+ * The build this plan started from is checked out, built and served on a port of
+ * its own, and the same measurements are read on it through **the same stubs**,
+ * so the two readings differ in the build and in nothing else. Both halves are
+ * asserted: the criteria **fail** there — which is what makes this check
+ * discriminating rather than merely green — and they hold on the build under
+ * test, with the reference's own figures beside them.
+ *
+ * The named case is the headline of it: the distance between the
+ * `WHY UNAVAILABLE` header's left edge and the values under it, in px, on the
+ * build the human read it on and on this one.
+ */
+test('the delivered build fails these criteria, and the numbers are on record', async ({ page, browser, baseURL }) => {
+  test.setTimeout(900_000);
+  expect(baseURL, 'this run has no origin of its own to compare the delivered build against').toBeTruthy();
+  let delivered: DeliveredBuild | undefined;
+  let deliveredNamedCase: ReturnType<typeof namedCase> | undefined;
+  let deliveredScrollbarDrift = 0;
+  try {
+    delivered = await startDeliveredBuild({ revision: DELIVERED_REF, port: DELIVERED_PORT });
+    const revision = delivered.revision.slice(0, 7);
+    const context = await browser.newContext({ baseURL: delivered.origin, viewport: DESKTOP });
+    const before = await context.newPage();
+    try {
+      await stubTheInventories(before);
+      const measured = await readTheConvertedLists(before, `delivered ${revision}`);
+
+      // The named case, in px, on the build the human read it on.
+      deliveredNamedCase = namedCase(measured['CLI plugins']);
+      expect(
+        Number.isNaN(deliveredNamedCase.leftDrift),
+        `delivered ${revision}: the CLI plugins list states no WHY UNAVAILABLE column`,
+      ).toBe(false);
+      reportNamedCase(`delivered ${revision}`, deliveredNamedCase, measured['CLI plugins'].rows.length);
+
+      // …and the **second** cause of a label parting company with its column, on
+      // the same list and the same build: the header was a sibling of the box
+      // that scrolls, so a vertical scrollbar narrowed the rows' box and not the
+      // header's. Playwright's Chromium draws overlay scrollbars here — a
+      // scrollbar takes 0px — so the gutter a classic one occupies is asked for
+      // explicitly, exactly as `data-table-header-column-alignment.spec.ts` does
+      // and for the reason stated there at length. The measurement is taken on
+      // the plugins screen, which has to be the one on screen for it to mean
+      // anything.
+      await openApp(before, 'plugins');
+      await expect(before.getByRole('heading', { level: 1, name: 'Plugins' })).toBeVisible({ timeout: 20_000 });
+      await before.addStyleTag({ content: '.ui-scroll-area { scrollbar-gutter: stable; }' });
+      await before.waitForTimeout(600);
+      const withAScrollbar = await measureList(before, LISTS.cliPlugins);
+      deliveredScrollbarDrift = Math.max(...withAScrollbar.columnEdges.map((edge) => edge.worstDelta));
+      const gutter = await before.evaluate(() => {
+        const areas = Array.from(document.querySelectorAll<HTMLElement>('.ui-frame__content .ui-scroll-area'));
+        return Math.max(0, ...areas.map((area) => area.offsetWidth - area.clientWidth));
+      });
+      console.log(
+        `[b2/REQ-5] delivered ${revision} CLI plugins, with a ${round(gutter)}px scrollbar gutter reserved: ` +
+          `${JSON.stringify(withAScrollbar.columnEdges.map((edge) => `${edge.header || '·'}=${round(edge.worstDelta)}`))}`,
+      );
+      expect(gutter, `delivered ${revision}: no scrollbar gutter was reserved, so this reading shows nothing`).toBeGreaterThanOrEqual(8);
+
+      // Recorded failing, with its measurements — not "before: failed".
+      for (const [name, list] of Object.entries(measured)) {
+        expect(list.rows.length, `delivered ${revision} ${name}: fewer than two rows, so nothing here discriminates`).toBeGreaterThan(1);
+        expect(
+          list.rowJunctions.map((junction) => round(junction.gap)).filter((gap) => gap > 0.5).length,
+          `delivered ${revision} ${name}: the delivered build already drew its rows flush`,
+        ).toBeGreaterThan(0);
+        expect(
+          Math.max(...list.rows.map((row) => row.carrierRadius)),
+          `delivered ${revision} ${name}: the delivered build already drew square rows`,
+        ).toBeGreaterThan(0);
+        expect(
+          list.surfacesInside,
+          `delivered ${revision} ${name}: the delivered build already drew no surface inside its list`,
+        ).toBeGreaterThan(0);
+        // …and the two the amendment added, which the first attempt satisfied
+        // the four geometric criteria without satisfying.
+        expect(
+          list.rows.every((row) => row.modifiers.length === 0),
+          `delivered ${revision} ${name}: the delivered build already stated no row modifier`,
+        ).toBe(false);
+        expect(
+          Math.abs(list.table.x - (list.card?.x ?? 0)),
+          `delivered ${revision} ${name}: the delivered build already ran its table edge to edge in its card`,
+        ).toBeGreaterThan(1);
+        expect(
+          list.sectionHeaderInsideCard,
+          `delivered ${revision} ${name}: the delivered build already put the section header outside the list’s card`,
+        ).toBe(true);
+      }
+    } finally {
+      await context.close();
+    }
+  } finally {
+    await delivered?.stop();
+  }
+
+  // …and the same figures on the build under test, measured minutes apart in the
+  // same browser and through the same stubs.
+  await page.setViewportSize(DESKTOP);
+  await stubTheInventories(page);
+  const references = await readTheReference(page, 'after');
+  const after = await readTheConvertedLists(page, 'after');
+
+  for (const [name, list] of Object.entries(after)) {
+    expectClassicTable('after', name, list);
+    expectSameTableAsReference('after', name, list, references);
+  }
+
+  // The named case, side by side, in the two figures it is made of.
+  const afterNamedCase = namedCase(after['CLI plugins']);
+  reportNamedCase('after', afterNamedCase, after['CLI plugins'].rows.length);
+  console.log(
+    `[b2/REQ-18] the named case, before → after: left edge ${round(deliveredNamedCase!.leftDrift)} → ${round(
+      afterNamedCase.leftDrift,
+    )}px; the column's run from its label to its last value ${round(deliveredNamedCase!.verticalRun)} → ${round(
+      afterNamedCase.verticalRun,
+    )}px; surfaces cut across it ${deliveredNamedCase!.surfacesBetween} → ${afterNamedCase.surfacesBetween}; ` +
+      `gaps between one value and the next ${deliveredNamedCase!.gaps.filter((gap) => gap > 0.5).length} → ${
+        afterNamedCase.gaps.filter((gap) => gap > 0.5).length
+      }`,
+  );
+
+  // **The left edge is not what the delivered build failed**, and the assertion
+  // says so rather than pretending otherwise: the retired presentation carried a
+  // header inset written to keep exactly these two edges together, which is why
+  // it measures what it measures there. What the delivered build failed is the
+  // rest of the same sentence — the line of sight from the label to the value,
+  // cut by a surface and a gap per row down a column a thousand pixels long.
+  expect(
+    deliveredNamedCase!.surfacesBetween,
+    'the delivered build drew no surface between the WHY UNAVAILABLE label and its values, so the named case shows nothing',
+  ).toBeGreaterThan(0);
+  expect(
+    deliveredNamedCase!.gaps.filter((gap) => gap > 0.5).length,
+    'the delivered build already ran the column unbroken',
+  ).toBeGreaterThan(0);
+  expect(
+    afterNamedCase.verticalRun,
+    `the column runs ${round(afterNamedCase.verticalRun)}px from its label to its last value, against the delivered ${round(
+      deliveredNamedCase!.verticalRun,
+    )}px`,
+  ).toBeLessThan(deliveredNamedCase!.verticalRun);
+  expect(afterNamedCase.leftDrift, 'the WHY UNAVAILABLE column drifts from the header naming it').toBeLessThanOrEqual(0.5);
+  expect(afterNamedCase.surfacesBetween, 'a surface still cuts the line of sight from the label to its values').toBe(0);
+
+  // …and the second cause, the one the library fix repairs: with a scrollbar
+  // really taking layout space, the delivered build's own columns parted company
+  // with their labels. The after-figures for it are
+  // `data-table-header-column-alignment.spec.ts`, which drives the same harness.
+  console.log(
+    `[b2/REQ-5] the header's own drift under a reserved scrollbar gutter: ${round(deliveredScrollbarDrift)}px on the delivered build`,
+  );
+  expect(
+    deliveredScrollbarDrift,
+    'the delivered build held every column on its header with a scrollbar taking real width, so the library repair shows nothing',
+  ).toBeGreaterThan(1);
+});

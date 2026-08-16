@@ -31,24 +31,48 @@ function screenContent(page: Page) {
   return page.locator('.ui-frame__content');
 }
 
+/**
+ * The daemon inventory, by the section header titling it.
+ *
+ * Named by **what it holds** rather than by the surface it used to be: its
+ * section header and toolbar sit above the one unpadded card holding the list
+ * (`plugins-screen.md`, and
+ * `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`),
+ * so a card can no longer be found by the heading it used to hold. The panel is
+ * the innermost region carrying both the heading and the list.
+ */
 function daemonPanel(page: Page) {
-  return screenContent(page).locator('.ui-surface').filter({ has: page.getByRole('heading', { level: 2, name: 'Daemon plugins' }) }).first();
+  return screenContent(page)
+    .locator('.ui-stack, .ui-surface')
+    .filter({ has: page.getByRole('heading', { level: 2, name: 'Daemon plugins' }) })
+    .filter({ has: page.locator('.ui-data-table') })
+    .last();
 }
 
 /**
- * The card a comfortable row, its content and the panel it expands into share
- * (`data-table.md`): since batch 10 the daemon list is the object list
- * (`plan-ui-coherence-optimisation/REQ-46`), so the plugin's row and its
- * inspection are found through the table rather than through a hand-built card.
+ * A plugin's row, by the name it states.
+ *
+ * It used to be reached through the surface the row was drawn on — the retired
+ * presentation put every row on a carrier of its own, `.ui-data-table__body >
+ * .ui-surface`, which held the row, its content and the panel it expanded into
+ * at once. Since
+ * `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-18`
+ * there is no per-row surface — that is the whole change — and the row and its
+ * expansion are **siblings** in the body. So each is named for what it is: the
+ * row here, the panel below.
  */
-function pluginCard(page: Page, name: string): Locator {
+function pluginRow(page: Page, name: string): Locator {
   return daemonPanel(page)
-    .locator('.ui-data-table__body > .ui-surface')
+    .locator('.ui-data-table__row')
     .filter({ has: page.locator('.ui-table-two-line-cell__title', { hasText: name }) });
 }
 
-function pluginRow(page: Page, name: string): Locator {
-  return pluginCard(page, name).locator('.ui-data-table__row');
+/**
+ * The inspection a row opened — the list's one open expansion, the component
+ * guaranteeing at most one per list (`data-table.md`).
+ */
+function pluginInspection(page: Page): Locator {
+  return daemonPanel(page).locator('.ui-data-table__expanded');
 }
 
 /** The cell of the plugin's row stating what the daemon says its state is. */
@@ -117,7 +141,7 @@ test('a plugin is installed only after its privileges are granted, then inspecte
 
     // --- Inspected in place ---
     await pluginRow(page, installedAs).getByRole('button', { name: 'Inspect' }).click();
-    const inspection = pluginCard(page, installedAs).locator('.ui-data-table__expanded');
+    const inspection = pluginInspection(page);
     await expect(inspection).toBeVisible();
     await expect(inspection).toContainText('CAP_SYS_ADMIN');
     await expect(inspection).toContainText(installedAs);

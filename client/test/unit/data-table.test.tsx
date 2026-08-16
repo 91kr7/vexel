@@ -285,3 +285,97 @@ describe('DataTable — content-sized rows (autoRowHeight)', () => {
     expect(row?.className).not.toContain('auto-height');
   });
 });
+
+/**
+ * **One scrolling box for the header and the rows**
+ * (`data-table.md`, "A row and the header share one width and one set of
+ * resolved tracks" — third bullet; the classic-table plan's `REQ-5`).
+ *
+ * A vertical scrollbar takes real layout space out of its scroll container's
+ * content box, so a header drawn as a *sibling* of that container resolves its
+ * tracks in a wider box than the rows do. The repair is structural: the header
+ * is a **child** of the box that scrolls.
+ *
+ * **Everything here is contract and state** (`.../classic-table/REQ-31`): every
+ * box is zero in jsdom, so no drift can be measured and none is asserted. Which
+ * element contains which, what the cap is set on, which class the scrolled state
+ * carries, and what the stylesheet declares — those are what a jsdom render can
+ * say. The drift itself is measured in a browser, with a scrollbar gutter really
+ * reserved: `e2e/data-table-header-column-alignment.spec.ts`.
+ */
+describe('DataTable — the header and the rows share one scrolling box', () => {
+  it('draws the header inside the scroll area rather than beside it', () => {
+    const { container } = render(<DataTable columns={columns} rows={makeRows(3)} rowKey={(row) => row.id} maxHeight="300px" />);
+
+    const table = container.querySelector('.ui-data-table') as HTMLElement;
+    const scrollArea = table.querySelector('.ui-scroll-area') as HTMLElement;
+    const header = table.querySelector('.ui-data-table__header') as HTMLElement;
+    const body = table.querySelector('.ui-data-table__body') as HTMLElement;
+
+    expect(scrollArea, 'the table has no scrolling box at all').not.toBeNull();
+    expect(header, 'the table draws no column header').not.toBeNull();
+    expect(scrollArea.contains(header), 'the header is drawn outside the box that scrolls').toBe(true);
+    expect(scrollArea.contains(body), 'the rows are drawn outside the box that scrolls').toBe(true);
+    // …and there is exactly one such box: two would put the two grids back in two
+    // content boxes by another route.
+    expect(table.querySelectorAll('.ui-scroll-area'), 'the table holds more than one scrolling box').toHaveLength(1);
+  });
+
+  // data-table.md — "`maxHeight?: string` — caps the height of the **list**, the column header and
+  // the rows together". Corrected 2026-08-16: it bounded the rows alone.
+  it('caps the header and the rows together, not the rows alone', () => {
+    const { container } = render(<DataTable columns={columns} rows={makeRows(200)} rowKey={(row) => row.id} maxHeight="300px" />);
+
+    const capped = container.querySelector<HTMLElement>('[style*="max-height"]');
+    expect(capped, 'nothing carries the stated cap').not.toBeNull();
+    expect(capped!.style.maxHeight).toBe('300px');
+    expect(
+      capped!.contains(container.querySelector('.ui-data-table__header') as Node),
+      'the cap is set on a box that does not hold the header, so a list stated at 300px is 300px plus a header tall',
+    ).toBe(true);
+  });
+
+  // The empty state is inside the same box: it replaces the rows, not the list.
+  it('draws the empty state inside the same scrolling box, under the header', () => {
+    const { container } = render(
+      <DataTable columns={columns} rows={[]} rowKey={(row: Row) => row.id} emptyState={<p>nothing here</p>} />,
+    );
+
+    const scrollArea = container.querySelector('.ui-scroll-area') as HTMLElement;
+    expect(scrollArea.querySelector('.ui-data-table__empty'), 'the empty state is drawn outside the scrolling box').not.toBeNull();
+    expect(scrollArea.querySelector('.ui-data-table__header'), 'the header left the scrolling box on an empty list').not.toBeNull();
+  });
+
+  // data-table.md — "The sticky header is **opaque only while the list is scrolled away from its
+  // top**, carrying a state class for it: its own wash is 4% white and hides nothing, and a list
+  // that never scrolls is drawn exactly as before."
+  it('takes the opaque state only while something is scrolling under it', () => {
+    const { container } = render(<DataTable columns={columns} rows={makeRows(200)} rowKey={(row) => row.id} maxHeight="300px" />);
+    const scrollArea = container.querySelector('.ui-scroll-area') as HTMLDivElement;
+    const header = () => container.querySelector('.ui-data-table__header') as HTMLElement;
+
+    expect(header().className, 'the header is opaque at rest, where its paint must be unchanged').not.toContain('--stuck');
+
+    fireEvent.scroll(scrollArea, { target: { scrollTop: 240 } });
+    expect(header().className, 'the header stays transparent while rows pass beneath it').toContain('ui-data-table__header--stuck');
+
+    fireEvent.scroll(scrollArea, { target: { scrollTop: 0 } });
+    expect(header().className, 'the header keeps its floor after the list is scrolled back to its top').not.toContain('--stuck');
+  });
+
+  // The stylesheet is where "sticky at its top" lives, and jsdom loads none: the rule is read from
+  // the file itself, as `design-tokens-contrast.test.ts` does. `z-index` is load-bearing — the
+  // expansion is positioned and comes later in the DOM, so without it a tall open panel paints over
+  // the header it is scrolling under.
+  it('declares the header sticky at the top of that box, above the expansion, with no blur', () => {
+    const css = readFileSync(join(process.cwd(), 'src/ui/data/data-table.css'), 'utf8');
+    const header = ruleBody(css, '.ui-data-table__header');
+
+    expect(header).toMatch(/position:\s*sticky/);
+    expect(header).toMatch(/top:\s*0/);
+    expect(header).toMatch(/z-index:\s*[1-9]/);
+    // These lists are main view: the floor under a sticky header is a colour, never a filter
+    // (CLAUDE.md, "Performance — background and blur").
+    expect(css.slice(css.indexOf('.ui-data-table__header'))).not.toMatch(/backdrop-filter|filter:\s*blur/);
+  });
+});

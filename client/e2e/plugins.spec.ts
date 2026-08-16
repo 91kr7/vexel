@@ -32,8 +32,26 @@ function screenContent(page: Page) {
   return page.locator('.ui-frame__content');
 }
 
+/**
+ * The region one of the two inventories is read in, named by the section header
+ * titling it.
+ *
+ * Named by **what it holds** rather than by the surface it used to be: each
+ * section's header — and, for the daemon list, its toolbar — sits **above** the
+ * one unpadded card holding its list (`plugins-screen.md`, and
+ * `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`),
+ * so a card can no longer be found by the heading it used to hold. A panel is
+ * the innermost region carrying both the heading and the list; every region
+ * matching contains the same heading and is therefore an ancestor of the next,
+ * so the last in document order is the panel's own — and on a screen still drawn
+ * the old way that is its card.
+ */
 function panel(page: Page, title: string) {
-  return screenContent(page).locator('.ui-surface').filter({ has: page.getByRole('heading', { level: 2, name: title }) }).first();
+  return screenContent(page)
+    .locator('.ui-stack, .ui-surface')
+    .filter({ has: page.getByRole('heading', { level: 2, name: title }) })
+    .filter({ has: page.locator('.ui-data-table') })
+    .last();
 }
 
 function rows(page: Page, title: string): Locator {

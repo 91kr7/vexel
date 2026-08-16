@@ -506,11 +506,18 @@ test('swarm: no panel offers a copy on an id, and a join token is reachable only
   // touch its surfaces — and only the locators and the list of cards move with the migration. A
   // stack's services are carried by its row rather than by a selection, so `Stacks` reveals no
   // property band and is not one of the sites.
+  //
+  // A panel is now the innermost region carrying both its heading and its list: on the three
+  // converted here the section header sits above the card rather than inside it
+  // (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`), and on the
+  // two still drawn the old way that region is the card itself. The sites and the assertions are
+  // the ones they always were.
   for (const title of ['Nodes', 'Services & tasks', 'Secrets', 'Configs']) {
     const panel = screenContent(page)
-      .locator('.ui-surface')
+      .locator('.ui-stack, .ui-surface')
       .filter({ has: page.getByRole('heading', { level: 2, name: title, exact: true }) })
-      .first();
+      .filter({ has: page.locator('.ui-data-table') })
+      .last();
     await expect(panel).toBeVisible({ timeout: 20_000 });
     const rows = panel.locator('.ui-data-table__row');
     const count = await rows.count();
@@ -592,7 +599,14 @@ async function stubOneDaemonPlugin(page: Page): Promise<void> {
 test('plugins: an inspected plugin offers no copy on its name or above its payload', async ({ page }) => {
   await stubOneDaemonPlugin(page);
   await openApp(page, 'plugins');
-  const panel = screenContent(page).locator('.ui-surface').filter({ has: page.getByRole('heading', { level: 2, name: 'Daemon plugins' }) }).first();
+  // The innermost region carrying both the heading and the list: the section header and the
+  // toolbar sit above the one unpadded card holding it
+  // (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`).
+  const panel = screenContent(page)
+    .locator('.ui-stack, .ui-surface')
+    .filter({ has: page.getByRole('heading', { level: 2, name: 'Daemon plugins' }) })
+    .filter({ has: page.locator('.ui-data-table') })
+    .last();
   await expect(panel).toBeVisible({ timeout: 20_000 });
 
   await panel.getByRole('button', { name: 'Inspect' }).first().click();
