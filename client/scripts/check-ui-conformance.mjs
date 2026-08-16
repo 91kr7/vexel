@@ -4,12 +4,6 @@
 // enforces the blur policy over every stylesheet of the client: a runtime blur
 // is a violation unless the rule carrying it targets one of the allow-listed
 // overlay surfaces below and is valued with the single `--blur-overlay` token.
-//
-// Those two rules are the whole file. A third lived here for the length of
-// `plan-ui-coherence-optimisation` — a pinned call-site budget over the second
-// list component while it was being retired — and was removed with the
-// component itself once the budget read zero: an assertion of zero against a
-// name nothing declares is not a guard.
 // Wired into `npm run lint` and `npm run test` (client workspace).
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { extname, join, relative, sep } from 'node:path';

@@ -1,9 +1,0 @@
-/* The card's heading is a `SectionHeader` in its eyebrow treatment, so nothing
-   about how it is drawn is declared here any more — only the step between it
-   and the card's content, which is the card's own spacing and not the header's.
-   `.ui-card__title` used to carry the type itself: an uppercase micro-caps
-   label byte-identical to `.ui-section-header--eyebrow`'s, which is how one
-   product came to have two ways of titling the same thing. */
-.ui-card__title {
-  margin: 0 0 var(--space-1);
-}

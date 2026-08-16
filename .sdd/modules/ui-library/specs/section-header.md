@@ -11,8 +11,10 @@ PageHeader): a title, an optional same-baseline sublabel, an optional one-line d
 trailing actions slot.
 
 **The one question it answers** → *how is a section titled?* There is one component that titles a
-section, and a card's own title is this component (see `card.md`) rather than a treatment of the
-card's.
+section, and by the end of the programme it is the **only** thing that titles one: a card no longer
+has a title of its own to delegate (see `card.md`), a form's field group is titled by this component
+too (see `form-section.md`), and a field's label is a label rather than a fourth heading (see
+`form-field.md`).
 
 ## Contract
 
@@ -35,9 +37,12 @@ card's.
   the title and its qualifier.
 - The sublabel resets the treatment the header's variant applies to the title (letter-spacing, case),
   so an eyebrow header's sublabel reads as a qualifier rather than as more of the same label.
-- **`Card` renders its title through this component**; there is no second element and no second rule
-  carrying a card-title treatment. The step between the heading and the card's content stays the
-  card's, being the card's spacing rather than the header's.
+- **No other component carries a heading treatment.** `Card` used to render a title through this one;
+  it now renders none at all, its `title` prop having had no feature call site left, and there is no
+  element and no rule anywhere else declaring a heading's type. A screen or a form that needs a
+  heading states this component.
+- The two variants are two treatments of one header, not two headers: `'default'` for a section's
+  own title, `'eyebrow'` for a column, group or field-group heading inside one.
 
 ## Dependencies
 

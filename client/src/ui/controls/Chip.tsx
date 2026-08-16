@@ -1,3 +1,4 @@
+import { Button } from './Button';
 import './controls.css';
 
 export interface ChipProps {
@@ -61,7 +62,12 @@ export interface ChipGroupProps {
   emptyLabel?: string;
 }
 
-/** A row of Chips with an optional trailing "add" affordance and an empty-state label. */
+/**
+ * A row of Chips with an optional trailing "add" affordance and an empty-state
+ * label. The add affordance is the library's own button — the dashed outline it
+ * used to carry read as a placeholder waiting to be filled rather than as
+ * something to press.
+ */
 export function ChipGroup({ items, addLabel, onAdd, emptyLabel }: ChipGroupProps) {
   return (
     <span className="ui-chip-group">
@@ -77,9 +83,9 @@ export function ChipGroup({ items, addLabel, onAdd, emptyLabel }: ChipGroupProps
         />
       ))}
       {onAdd && addLabel ? (
-        <button type="button" className="ui-chip-group__add" onClick={onAdd}>
+        <Button size="sm" onClick={onAdd}>
           {addLabel}
-        </button>
+        </Button>
       ) : null}
     </span>
   );

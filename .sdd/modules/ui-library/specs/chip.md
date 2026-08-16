@@ -35,7 +35,27 @@ Actions:
 - a chip carrying `onSelect` → clicking anywhere on it calls `onSelect`.
 - the trailing add affordance → calls `onAdd`.
 
+## Rules and invariants
+
+- **A chip's inline action is a control and is drawn as one**: it carries a surface and a shape of
+  its own inside the chip, so `detach` and `pull` read as something to press rather than as the last
+  word of the chip's label. Bare text is never a control, wherever it sits.
+- **The chip is exactly as tall with that action as it was without one drawn.** The action is filled
+  rather than outlined for that reason: an edge would make it taller than the line it sits on and
+  grow every chip, and with it the height of the rows that carry chip groups on the networks and
+  registries lists, which two certified batches pinned to the pixel.
+- **The trailing add affordance is the library's own button**, not an outline of its own invention.
+  The dashed pill it used to be read as a placeholder waiting to be filled; it still calls `onAdd`
+  and nothing else about the group changed.
+- A chip that carries neither an action nor `onSelect` is a statement and holds no control at all.
+
+## Dependencies
+
+- Button
+
 ## Requirements served
+
+- plan-ui-coherence-optimisation/REQ-80
 
 - plan-docker_management_app/REQ-72
 - plan-docker_management_app/REQ-74

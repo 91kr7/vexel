@@ -28,6 +28,10 @@ variables).
   pass different `name`s: a screen reader announces which editor a field belongs to.
 - `name` never changes what is rendered on screen: it is an accessible-naming qualifier only. The
   visible placeholders and the add action stay exactly as the caller set them.
+- **The add action is a control and is drawn as one**: it carries the border and the surface every
+  other button in the product carries, so `Add variable` is legible as something to press rather
+  than as a word at the end of a list. Bare text is never a control (the action cluster's rule,
+  observed here). It is sized by its own label rather than stretched across the editor.
 
 ## Dependencies
 
@@ -36,3 +40,4 @@ variables).
 ## Requirements served
 
 - plan-docker_management_app/REQ-25
+- plan-ui-coherence-optimisation/REQ-80

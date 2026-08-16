@@ -20,6 +20,13 @@ a hint normally, the validation message when the field is invalid.
 ## Rules and invariants
 
 - At most one message line is shown: `error` replaces `hint` whenever it is present.
+- **The label carries the product's one label treatment, and it is not a section header's.** It is
+  small and quiet and stays in the case it was written in: it declares no uppercasing and no
+  letter-spacing, the two properties that used to make `IMAGE`, `ENTRYPOINT` and `COMMAND` read as
+  headings of sections that do not exist and compete with the heading of the group actually holding
+  them. A label names its control; the same treatment a property row's label carries.
+- The label keeps its association with its control whatever it is drawn like: every field states its
+  label, and the control keeps its own accessible name.
 
 ## Dependencies
 
@@ -29,3 +36,5 @@ a hint normally, the validation message when the field is invalid.
 
 - plan-docker_management_app/REQ-27
 - plan-docker_management_app/REQ-28
+- plan-ui-coherence-optimisation/REQ-79
+- plan-ui-coherence-optimisation/REQ-81

@@ -253,7 +253,9 @@
  * panel at that depth reads as a box inside a box rather than as a surface of
  * its own. `--color-wash-1` with a hairline and the medium radius is the
  * library's existing answer for content living inside a surface that is already
- * glass — the same treatment `.ui-form-section` and the property bands take.
+ * glass — the same treatment the property bands take. (A form's field group used
+ * to be named here too; it stopped drawing a surface of any kind in batch 19,
+ * a dialog of them having been the boxes-inside-boxes this reasoning warns of.)
  *
  * `box-sizing: border-box` is global, so the hairline costs no width; it adds
  * its two pixels to the height, which is the whole of this change's geometry in

@@ -1,32 +1,24 @@
 import type { ReactNode } from 'react';
-import { SectionHeader } from './SectionHeader';
 import { Surface, type SurfaceElevation, type SurfacePadding } from './Surface';
-import './card.css';
 
 export interface CardProps {
   children?: ReactNode;
-  title?: string;
   elevation?: SurfaceElevation;
   /** `none` when the content manages its own edge-to-edge inset (e.g. a table). */
   padding?: SurfacePadding;
 }
 
 /**
- * A glass Surface with padding and an optional title.
+ * A glass Surface with padding: the everyday content block.
  *
- * The title is a `SectionHeader`, not a treatment of the card's own: a card's
- * heading and a section's heading were two styles for one thing, and one of
- * them had to stop existing. All that is left here is the step between the
- * heading and the card's content.
+ * It titles nothing. A card that could title itself was a second way of asking
+ * the one question `SectionHeader` answers — and by the end of the migrations no
+ * screen was using it, every one of them composing the header into the card
+ * instead. The prop, its element and its stylesheet went with the finding.
  */
-export function Card({ children, title, elevation = 'flat', padding = 'lg' }: CardProps) {
+export function Card({ children, elevation = 'flat', padding = 'lg' }: CardProps) {
   return (
     <Surface elevation={elevation} padding={padding}>
-      {title ? (
-        <div className="ui-card__title">
-          <SectionHeader variant="eyebrow" title={title} />
-        </div>
-      ) : null}
       {children}
     </Surface>
   );

@@ -6,35 +6,33 @@ type: UI component
 
 # Card
 
-**Purpose** → the everyday content block: a padded Surface with an optional title, used for
-dashboard tiles, list panels and grouped content.
+**Purpose** → the everyday content block: a padded Surface used for dashboard tiles, list panels and
+grouped content.
 
 ## Contract
 
-- `<Card title? elevation? padding? children?>`
-  - `title` — optional heading above the content, rendered as a `SectionHeader` in its eyebrow
-    treatment.
+- `<Card elevation? padding? children?>`
   - `elevation` — forwarded to the underlying Surface (default `'flat'`).
   - `padding` — forwarded to the underlying Surface (default `'lg'`); `'none'` where the content
     manages its own edge-to-edge inset (e.g. a table).
 
 ## Rules and invariants
 
-- **The title is a `SectionHeader`, not a treatment of the card's own.** A card's heading and a
-  section's heading were two ways of stating one thing — byte-identical declarations in two
-  stylesheets — and one of them had to stop existing. All the card keeps is the step between its
-  heading and its content, which is the card's spacing rather than the header's.
-- Rendered geometry and typography are unchanged by that: card box, the content's offset inside it
-  and the heading's computed type measure identically before and after, at 1440×1000, 1280×800 and
-  375×812.
+- **A card titles nothing.** There is no `title` prop, no title element and no card stylesheet: a
+  card that could title itself was a second way of asking the one question `SectionHeader` answers.
+  A screen that wants a heading composes one into the card, which is what every screen in the
+  product already did — the prop's last feature call site went with the About screen, and it was
+  retired rather than left exported for the next screen to find.
+- Rendered geometry is a Surface's: the card's box and its content's offset inside it are the
+  padding and elevation asked for, and nothing else.
 
 ## Dependencies
 
 - Surface
-- SectionHeader
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-3
 - plan-ui-coherence-optimisation/REQ-26
 - plan-ui-coherence-optimisation/REQ-30
+- plan-ui-coherence-optimisation/REQ-81

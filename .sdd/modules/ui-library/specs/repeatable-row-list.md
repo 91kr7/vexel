@@ -20,6 +20,13 @@ that is itself a list of structured values (e.g. a container's port mappings or 
   - `removeLabel?(item): string` — accessible label for a row's remove action (default `'Remove row
     N'`).
 
+## Rules and invariants
+
+- **The add action is a control and is drawn as one** — the same rule the key/value editor carries:
+  `Add port mapping` and `Add mount` have the border and the surface of every other button, and are
+  sized by their label rather than stretched across the list. Each still appends exactly one row
+  built by `createItem`.
+
 ## Dependencies
 
 - IconButton, Button
@@ -27,3 +34,4 @@ that is itself a list of structured values (e.g. a container's port mappings or 
 ## Requirements served
 
 - plan-docker_management_app/REQ-25
+- plan-ui-coherence-optimisation/REQ-80

@@ -114,7 +114,9 @@ Navigation:
   treatment inside the card it titles — the notice's `Identity and license`, `CLI availability`,
   `Local storage` and the coverage half's two. The uppercase micro-caps `Card title` treatment is
   gone from this screen, and no section title on it is styled locally
-  (plan-ui-coherence-optimisation/REQ-70, plan-ui-coherence-optimisation/REQ-26).
+  (plan-ui-coherence-optimisation/REQ-70, plan-ui-coherence-optimisation/REQ-26). This screen having
+  held its last three call sites, that treatment is now gone from the library too: `Card` has no
+  title prop at all (plan-ui-coherence-optimisation/REQ-81, `ui-library/specs/card.md`).
 - `errors` (REQ-7), `pending` (REQ-8) and `connection` (REQ-9/REQ-10/REQ-13/REQ-110) come from
   providers supplied by the caller (`App`), so they can be observed/driven independently of the
   shell chrome; `ToastProvider` and `ConfirmationProvider` (REQ-6/REQ-8) are supplied by the Shell
