@@ -72,6 +72,11 @@ test is written to fail if a migration lands without it.
   `contexts-row-geometry.spec.ts`, `plugins-row-geometry.spec.ts`, `builders-row-geometry.spec.ts`,
   `swarm-row-geometry.spec.ts`, `contexts.spec.ts`, `list-order.spec.ts`,
   `table-row-layout-uniform.spec.ts`, and `exclusive/plugins.spec.ts` in the exclusive project.
+- **Enumerate for the locator class batch 1 uncovered, not only for the presentation's name.** A spec
+  that reaches a panel through its heading (`.ui-section-header__title → closest('.ui-surface')` and
+  equivalents) assumes the table and its header share one surface, which REQ-40 ends — it breaks
+  without ever naming the presentation. Batch 1's list missed seven of those because it was enumerated
+  before REQ-40 existed. Grep the locator shape across this batch's four screen areas before starting.
 - Test discipline (REQ-32) as batch 1; the swarm coverage stubs its cluster in the browser and
   initialises nothing on the daemon.
 - The complete runs are the programme's closing step, not this batch's.

@@ -71,6 +71,12 @@ that happens before the programme is closed.
 This batch touches no file any test reads, so a failure in those runs belongs to batches 1–5 and is
 attributed to whichever one owns the surface that failed.
 
+**Two specs are exercised here for the first time**, and both are expected green rather than
+discovered: `client/e2e/exclusive/volumes-prune.spec.ts`, restated in batch 1 for the locator change
+REQ-40 forced but never run, the exclusive project being outside every batch's own set; and
+`client/e2e/library-layer-screens-unmoved.spec.ts`, red by design from batch 1 and settled by
+`b4/INT-6`. If either fails, it belongs to the batch that restated it.
+
 ## What is reported back
 
 The amended requirements quoted in full, before and after. The list of annotated batch files with the

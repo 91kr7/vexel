@@ -72,6 +72,11 @@ never by a surface. Neither list asks for content-sized rows.
   plus the object list's own unit file if `INT-1` added behaviour to it.
 - The e2e specs this batch changed, **each also run on its own**: the criteria check,
   `compose-row-geometry.spec.ts`, `swarm-row-geometry.spec.ts`.
+- **Enumerate for the locator class batch 1 uncovered, not only for the presentation's name**: a spec
+  reaching a panel through its heading (`.ui-section-header__title → closest('.ui-surface')` and
+  equivalents) assumes the table and its header share one surface, which REQ-40 ends, and breaks
+  without ever naming the presentation. Grep the locator shape across compose and swarm before
+  starting.
 - Test discipline (REQ-32): the compose fixture is the suite's own project, torn down in a `finally`;
   swarm is stubbed in the browser and the daemon is not put into swarm mode.
 - The complete runs are the programme's closing step, not this batch's.
