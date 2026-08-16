@@ -129,6 +129,20 @@ export interface DataTableProps<T> {
   /** Drops the column header row, for a short list whose columns need no naming. */
   hideHeader?: boolean;
   /**
+   * This list is drawn **inside a row of another list** — in that row's content
+   * slot (`renderRowContent`) — rather than on a screen of its own.
+   *
+   * It takes **no surface of its own**: it stays inside the surface its parent
+   * row is drawn in, shares that list's pan region, and is ruled with the same
+   * hairline between its rows. What says it is a child is that its rows are
+   * **inset** from the parent row's cells — one rule, stated once in the
+   * stylesheet, so no caller writes a length for it.
+   *
+   * A child list keeps the columns it declares; only the arrangement is shared,
+   * never the tracks.
+   */
+  nested?: boolean;
+  /**
    * Rows grow to fit their content instead of being clipped to `rowHeight`,
    * which becomes a minimum — for a reference table whose cells carry wrapping
    * text rather than a dense list of one-line values. Virtualisation is off in
@@ -203,6 +217,7 @@ export function DataTable<T>({
   renderRowContent,
   selection,
   hideHeader = false,
+  nested = false,
   autoRowHeight = false,
   variant = 'dense',
 }: DataTableProps<T>) {
@@ -325,6 +340,10 @@ export function DataTable<T>({
   const topSpacerHeight = virtualized ? startIndex * rowHeight : 0;
   const bottomSpacerHeight = virtualized ? (rows.length - endIndex) * rowHeight : 0;
 
+  const tableClasses = ['ui-data-table', comfortable ? 'ui-data-table--comfortable' : '', nested ? 'ui-data-table--nested' : '']
+    .filter(Boolean)
+    .join(' ');
+
   return (
     // The list region is where the point of interaction returns when a surface
     // expanded inside it is dismissed by the key rather than by a control of its
@@ -332,7 +351,7 @@ export function DataTable<T>({
     // it, and adds no stop of its own to the tab order, which walks the screen
     // exactly as it did before.
     <div
-      className={comfortable ? 'ui-data-table ui-data-table--comfortable' : 'ui-data-table'}
+      className={tableClasses}
       ref={panRef}
       onScroll={pinExpansion}
       tabIndex={-1}

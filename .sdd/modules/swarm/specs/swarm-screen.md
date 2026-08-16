@@ -93,13 +93,13 @@ Navigation:
   measured after their own pairs went. Side by side and a full-width reveal are incompatible, and
   this screen has a reveal in every one of its lists; `QuadPanelLayout` is what the screen used and
   it leaves the screen with the arrangement, its last call site in the client.
-- **`Configs & stacks` becomes two cards, `Configs` and `Stacks`** (REQ-54). That card was the only
-  one on the screen holding two inventories, so it had to label the first of them *inside its own
-  body* — and that inner label, not a header sublabel, is what set its content **25.4px below** its
-  neighbour `Secrets`' at 1440×1000 and 1280×800 on the delivered build. One card per inventory
-  removes the cause rather than compensating for it: every card now carries one section header and
-  starts its content **0px** under it, and every header is the same height (46px at both desktop
-  widths). **No sublabel is supplied anywhere on this screen** — the arrangement that would have
+- **`Configs & stacks` becomes two sections, `Configs` and `Stacks`** (REQ-54). That card was the
+  only one on the screen holding two inventories, so it had to label the first of them *inside its
+  own body* — and that inner label, not a header sublabel, is what set its content **25.4px below**
+  its neighbour `Secrets`' at 1440×1000 and 1280×800 on the delivered build. One section per
+  inventory removes the cause rather than compensating for it: each carries exactly one section
+  header over one unpadded card holding its list alone, so no inventory's content starts lower than
+  its neighbour's, and every header is the same height (46px at both desktop widths). **No sublabel is supplied anywhere on this screen** — the arrangement that would have
   needed one is gone. `SectionHeader`'s same-baseline guarantee is unchanged and stays covered by its
   own unit test.
 - **The state bar is not drawn outside a swarm.** It exists to qualify a state with facts; a daemon

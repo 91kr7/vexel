@@ -88,12 +88,14 @@ describe('the library layer is consumed only by the screens migrated onto it (RE
    * - batch 2 — the plain lists: builders & build cache, contexts, both plugin lists, and swarm's
    *   nodes, services (with the nested tasks list) and secrets (`REQ-16`, `REQ-17`, `REQ-18`,
    *   `REQ-20` in part — swarm's configs & stacks carries row content and is batch 3's)
+   * - batch 3 — the nested lists: the compose projects list with its per-project services, and
+   *   swarm's configs and stacks with the stacks' own services (`REQ-19`, `REQ-20` completed). A
+   *   nested list states `nested` rather than a presentation: it is drawn inside its parent's
+   *   surface, indented, and takes none of its own.
    */
   it('has the retired presentation asked for by the lists not yet converted and nowhere else', () => {
     expect(featureCallSites(/variant=(?:"comfortable"|\{'comfortable'\}|\{"comfortable"\})/)).toEqual([
-      'src/compose/ComposeScreen.tsx',
       'src/images/LayerEfficiencyView.tsx',
-      'src/swarm/SwarmConfigsStacksPanel.tsx',
     ]);
   });
 
@@ -103,9 +105,10 @@ describe('the library layer is consumed only by the screens migrated onto it (RE
   // (`REQ-49`), so it is stated here rather than answered by a component of its own.
   //
   // The four are unchanged by the classic-table conversion, and that is the point of them: the slot
-  // is **conditional on nothing** since `.../classic-table/REQ-6`, so the two lists converted in its
-  // batch 1 keep their content while asking for no presentation at all, and the two still on the
-  // retired one keep theirs until their own batch.
+  // is **conditional on nothing** since `.../classic-table/REQ-6`, so all four supply it while
+  // asking for no presentation at all — the chips of the first two exactly as before, and the
+  // nested lists of the last two now stating `nested`, which is a property of the child list and
+  // not a presentation of the parent.
   it('has row content rendered by the networks list, the repositories list, the compose list and the stacks list', () => {
     expect(featureCallSites(/renderRowContent[=:]/)).toEqual([
       'src/compose/ComposeScreen.tsx',

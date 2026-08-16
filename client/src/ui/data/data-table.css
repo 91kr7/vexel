@@ -204,6 +204,46 @@
   border-bottom: none;
 }
 
+/* A list drawn **inside a row of another list** (`nested`), in that row's
+   content slot. It is the same table, in the **same surface** and the same pan
+   region as the row it belongs to, ruled with the same hairline — and inset from
+   that row's own cells by one spacing step, which is the only thing that says it
+   is a child (`.../classic-table/REQ-7`). Nothing here draws a surface, a radius,
+   an outline or a shadow: a card around a nested list is the presentation this
+   plan retires, under another name. The inset is stated once, here, so no call
+   site writes a length for it.
+
+   Where it starts: the wrapper above already sets its content at the parent
+   row's own inline inset, i.e. at the x of the cells this list belongs to. One
+   step past that is the child's rows, so a child cell sits two steps in from a
+   parent cell, and the group's ruling reads as two levels at a glance rather
+   than as one run of rows shifted sideways. */
+.ui-data-table--nested {
+  /* One pan region for the pair, which is the contract rather than a nicety.
+     `auto` — the value the table itself carries — would make this list a scroll
+     container of its own, and a scroll container hands nothing of its minimum
+     upwards: at a width neither fits, the parent would pan while the child sat
+     still on a scrollbar of its own. Visible, the child's minimum reaches the
+     parent's scroller and the two pan together, under one. */
+  overflow-x: visible;
+  padding-inline-start: var(--space-4);
+}
+
+/* The wrapper gives up its block-end padding to a nested list: the last child
+   row is as flush with what follows it as any other row is, no gap opening
+   between two levels of one list (`.../classic-table/REQ-2`). */
+.ui-data-table__row-content:has(> .ui-data-table--nested) {
+  padding-bottom: 0;
+}
+
+/* And the wrapper's own rule — the full-width one that closes the group and
+   separates it from the next parent row — is then the only one drawn there: the
+   last child would otherwise be ruled twice, one hairline directly above the
+   other. */
+.ui-data-table--nested .ui-data-table__body > .ui-data-table__row:last-child {
+  border-bottom: none;
+}
+
 /* Inside a card the expansion is separated from the row by a rule rather than
    by the wash the dense variant uses: the card already sets it apart from the
    list around it. */

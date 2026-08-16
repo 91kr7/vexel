@@ -53,14 +53,21 @@ export interface SwarmConfigsStacksPanelProps {
  * no compose editor here: stack deployment was withdrawn on 2026-08-07
  * (departure Three). Stacks are observed and removed.
  *
- * **The two inventories are two cards, where they were two labelled groups
- * inside one** (plan-ui-coherence-optimisation/REQ-54). That card was the only
- * one on the screen whose content started below its own header — it had to
+ * **The two inventories are two sections, where they were two labelled groups
+ * inside one card** (plan-ui-coherence-optimisation/REQ-54). That card was the
+ * only one on the screen whose content started below its own header — it had to
  * label its first group inside its own body — which is precisely what set its
  * content 25.4px lower than its neighbour's, measured on the delivered build at
- * 1440×1000 and 1280×800. One card per inventory removes the cause: every card
- * on this screen now carries one section header and starts its content directly
- * under it.
+ * 1440×1000 and 1280×800. One section per inventory removes the cause: each
+ * carries one section header and starts its content directly under it.
+ *
+ * **And both lists are the containers table** (`.../classic-table/REQ-20`,
+ * REQ-39, REQ-40): one header over a continuous run of ruled rows, rows of the
+ * reference's own height and alignment stating no modifier of their own, each
+ * table edge to edge in an unpadded card holding it and nothing else, its
+ * section header and toolbar above that card. A stack's services stay legible as
+ * that stack's by the indentation the library draws for a nested list — never by
+ * a surface, which is the presentation this plan retires.
  */
 export function SwarmConfigsStacksPanel({ configs, stacks, onCreateConfig, onRemoveConfig, onRemoveStack }: SwarmConfigsStacksPanelProps) {
   const { confirm } = useConfirmation();
@@ -283,66 +290,77 @@ export function SwarmConfigsStacksPanel({ configs, stacks, onCreateConfig, onRem
 
   return (
     <Stack gap="var(--space-5)">
-      <Card>
+      {/* The composition containers and images ship, once per inventory: the
+          section header and the toolbar above, and the list alone in a card of
+          its own that it fills edge to edge. Each list's one enclosing surface is
+          that card, so the section around it has none — and neither does the
+          nested service list a stack row carries. */}
+      <Stack gap="var(--space-4)">
         <SectionHeader title="Configs" description="In name order; a content is never read back" />
-        {/* The page-level action, in the toolbar under the header rather than in
-            the card's header. */}
+        {/* The page-level action, in the toolbar under the section header rather
+            than in the header itself. */}
         <ScreenToolbar primaryAction={{ label: 'New config', onClick: openCreate }} />
-        <DataTable
-          variant="comfortable"
-          columns={configColumns}
-          rows={configs.items}
-          rowKey={(config) => config.id}
-          selectedRowKey={openConfigId}
-          onRowSelect={(config) => setOpenConfigId((current) => (current === config.id ? undefined : config.id))}
-          expandedRowKey={openConfigId}
-          renderExpanded={configDetail}
-          emptyState={
-            <EmptyState
-              title="No configs"
-              description={configs.unavailableReason ?? NO_CONFIGS}
-              // Where the reading itself states a reason, creating a config is
-              // not what resolves it, so no action is offered for it.
-              // Its label is the invitation, never the toolbar's own word (DEF-2,
-              // `swarm-configs-stacks-panel.md`): one surface, one control per name.
-              action={configs.unavailableReason ? null : <Button onClick={openCreate}>Create the first config</Button>}
-            />
-          }
-        />
-      </Card>
+        <Card padding="none">
+          <DataTable
+            columns={configColumns}
+            rows={configs.items}
+            rowKey={(config) => config.id}
+            selectedRowKey={openConfigId}
+            onRowSelect={(config) => setOpenConfigId((current) => (current === config.id ? undefined : config.id))}
+            expandedRowKey={openConfigId}
+            renderExpanded={configDetail}
+            emptyState={
+              <EmptyState
+                title="No configs"
+                description={configs.unavailableReason ?? NO_CONFIGS}
+                // Where the reading itself states a reason, creating a config is
+                // not what resolves it, so no action is offered for it.
+                // Its label is the invitation, never the toolbar's own word (DEF-2,
+                // `swarm-configs-stacks-panel.md`): one surface, one control per name.
+                action={configs.unavailableReason ? null : <Button onClick={openCreate}>Create the first config</Button>}
+              />
+            }
+          />
+        </Card>
+      </Stack>
 
-      <Card>
+      <Stack gap="var(--space-4)">
         <SectionHeader title="Stacks" description="Read from the namespace label the stack's own objects carry" />
-        <DataTable
-          variant="comfortable"
-          columns={stackColumns}
-          rows={stacks.items}
-          rowKey={(stack) => stack.name}
-          // Every stack row carries its services, opened or not: the grouping is
-          // the object's own shape, not a detail of a selection.
-          renderRowContent={(stack) => (
-            <DataTable
-              variant="comfortable"
-              hideHeader
-              columns={stackServiceColumns}
-              rows={stack.services}
-              rowKey={(service) => service.id}
-              emptyState={
-                <EmptyState title="No services left" description="Every service of this stack has gone from the cluster." action={null} compact />
-              }
-            />
-          )}
-          emptyState={
-            <EmptyState
-              title="No stacks"
-              description={stacks.unavailableReason ?? NO_STACKS}
-              // Nothing here deploys a stack, so nothing here resolves it
-              // (departure Three).
-              action={null}
-            />
-          }
-        />
-      </Card>
+        <Card padding="none">
+          <DataTable
+            columns={stackColumns}
+            rows={stacks.items}
+            rowKey={(stack) => stack.name}
+            // Every stack row carries its services, opened or not: the grouping is
+            // the object's own shape, not a detail of a selection.
+            renderRowContent={(stack) => (
+              // The services take no surface of their own: they are drawn inside
+              // the stacks list's own, indented under the row they belong to,
+              // which is what the library's `nested` states
+              // (`.../classic-table/REQ-7`).
+              <DataTable
+                nested
+                hideHeader
+                columns={stackServiceColumns}
+                rows={stack.services}
+                rowKey={(service) => service.id}
+                emptyState={
+                  <EmptyState title="No services left" description="Every service of this stack has gone from the cluster." action={null} compact />
+                }
+              />
+            )}
+            emptyState={
+              <EmptyState
+                title="No stacks"
+                description={stacks.unavailableReason ?? NO_STACKS}
+                // Nothing here deploys a stack, so nothing here resolves it
+                // (departure Three).
+                action={null}
+              />
+            }
+          />
+        </Card>
+      </Stack>
 
       <FormDialog
         open={createOpen}

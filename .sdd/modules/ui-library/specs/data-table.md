@@ -19,7 +19,7 @@ and spec together (`plan-ui-coherence-optimisation/REQ-82`).
 ## Contract
 
 - `<DataTable columns rows rowKey variant? rowHeight? maxHeight? selectedRowKey? onRowSelect?
-  emptyState? expandedRowKey? renderExpanded? renderRowContent? selection? hideHeader?
+  emptyState? expandedRowKey? renderExpanded? renderRowContent? selection? hideHeader? nested?
   autoRowHeight? />`
   - `columns: DataTableColumn<T>[]` — `{ id, header, width?, minWidth?, align?, render(row) }`;
     `align`: `'start' | 'end'` (default `'start'`).
@@ -61,9 +61,9 @@ and spec together (`plan-ui-coherence-optimisation/REQ-82`).
   - `renderRowContent?(row)` — content rendered inside **every** row, below its cells and outside
     the selectable row itself (chips with their own actions, a nested list). **Conditional on
     nothing**, as `renderExpanded` beside it: a list that supplies it gets it, whatever room its
-    rows are given. A **grouped list** is this slot holding a nested `hideHeader` list of the
-    group's children — one list rendering both levels, sharing its rows, its action cluster and its
-    truncation contract rather than a grouped component duplicating them.
+    rows are given. A **grouped list** is this slot holding a `nested` (and usually `hideHeader`)
+    list of the group's children — one list rendering both levels, sharing its rows, its action
+    cluster and its truncation contract rather than a grouped component duplicating them.
   - `selection?: { selectedKeys: string[], onToggle(row), onToggleAll?(), allSelected? }` — adds a
     leading checkbox column, independent of `onRowSelect`'s single-row selection: a row's checkbox
     calls `onToggle` and reflects membership in `selectedKeys`; the header checkbox calls
@@ -71,6 +71,14 @@ and spec together (`plan-ui-coherence-optimisation/REQ-82`).
   - `hideHeader?: boolean` (default `false`) — drops the header row entirely, for a short list
     whose columns need no naming (e.g. an overview panel); the rows, their tracks and their
     alignment are unchanged, and the multi-select header checkbox goes with the header.
+  - `nested?: boolean` (default `false`) — this list is drawn **inside a row of another list**, in
+    that row's `renderRowContent` slot, rather than on a screen of its own. It takes **no surface,
+    corner, outline or shadow of its own**: it stays inside the surface its parent row is drawn in,
+    shares that list's pan region, is ruled between its rows with the same hairline as any other
+    row, and its rows are **inset** from the parent row's own cells. It keeps the columns it
+    declares — what is shared is the surface, the pan region and the ruled treatment, never the
+    tracks. Stated with `hideHeader` where the child's columns need no naming, but the two are
+    independent.
   - `autoRowHeight?: boolean` (default `false`) — the matrix variant: every row grows to fit its
     content instead of being clipped, `rowHeight` becoming a minimum rather than a fixed height,
     and the cells align to the top of the row. For a reference table whose cells carry text that
@@ -214,7 +222,23 @@ Description:
   x as the cells it belongs to, and the hairline moves from the row to the content: it is what
   separates one row from the next, and drawn between a row's cells and that row's own chips it would
   group them with the row underneath. Inside a comfortable card it keeps the card's wider inset and
-  draws no rule, there being no next row inside a card to be separated from.
+  draws no rule, there being no next row inside a card to be separated from. Holding a **nested**
+  list it gives up its block-end padding as well, so the last child row is as flush with what
+  follows it as any other row is, and its rule is the group's closing one.
+- **A nested list is a child by its indentation, and by nothing else.** With `nested` stated, the
+  list is drawn inside the surface of the row that carries it — never on one of its own — and the
+  only thing that distinguishes it from the rows around it is an inset stated once in the library:
+  **one spacing step past the parent row's cells**, so a child row's box begins 16px inside a parent
+  cell's left edge and a child cell 32px inside it, at every viewport. Read on the emitted markup at
+  1440×1000, 1280×800 and 375×812: zero surfaces inside the table, one enclosing it; the child row's
+  radius, outline and shadow all absent; the parent row and its first child flush (0px), one child
+  and the next flush (0px), and the group closed by a **single** full-width hairline — the row
+  content's own, the last child giving up its rule so the two are not drawn one above the other.
+- **A nested list pans with its parent, in one pan region and under one scrollbar.** It computes no
+  horizontal overflow of its own: its columns' minimums reach the parent list's scroller, so at a
+  width neither fits, the pair moves together instead of the child sitting still on a scrollbar of
+  its own. Measured at 375×812 on a compose project row: the outer table scrolling 775.19 against a
+  277px visible box, the nested list reporting no overflow at all and no column of it at zero width.
 - **A comfortable row, the content it always carries and the panel it expands into are one card**
   (a flat `Surface`): the row inside it draws no rule and rounds nothing of its own, and the
   expansion is set apart from the row by a hairline rather than by the wash the dense variant uses,
@@ -253,3 +277,4 @@ Description:
 - plan-ui-coherence-optimisation/REQ-30
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-5
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-6
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-7

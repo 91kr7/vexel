@@ -17,10 +17,17 @@ per service.
 
 Description:
 
-- one full-width list of projects, in the object list's comfortable variant, and nothing beside it.
-  Each project row carries its services as a nested header-less list of the same component, so the
-  grouping is the object's own shape rather than a second list component; the selected project's
-  detail is revealed below its row, at the content column's full width.
+- composed as containers and images are: the section header "Compose projects" **above**, and then
+  one full-width list of projects (`DataTable`) alone in an **unpadded card it fills edge to edge**,
+  and nothing beside it. The header is not on a surface: the screen's only surface is the list's own
+  card. The selected project's detail is revealed below its row, inside the same table, at the
+  content column's full width.
+- **Each project row carries its services as a nested header-less list of the same component**, and
+  that list takes **no surface of its own**: it is drawn inside the projects list's card, indented
+  under the row it belongs to, ruled between its rows with the same hairline as any other row. The
+  grouping is the object's own shape rather than a second list component, and what says a service
+  belongs to a project is the indentation — never a card, which is the presentation this plan
+  retires.
 
 Shows:
 
@@ -64,10 +71,21 @@ Actions:
   would discard it (the panel's `Escape`, the row that closes it, another project's row) confirms
   first, and a refused confirmation leaves both the panel and the edit standing.
 - The aggregated log stream is subscribed only while a project's panel is open.
+- **The projects list is the containers list**, not merely table-like: one header row over a
+  continuous run of rows, a single hairline between each pair, no gap between two rows and no
+  surface, corner or outline of any row's own — and the **same row**, of the reference's own fixed
+  height and vertical alignment, stating no row modifier of its own. There is no choice of
+  presentation to be made here.
+- **A service row differs from a project row by its indentation and by nothing else**: same height,
+  same vertical alignment, same hairline, same surface. Its rows begin one spacing step past a
+  project row's cells (a child cell 32px inside a project cell's left edge), and parent and child are
+  inside **one** enclosing surface, neither carrying a radius or an outline of its own.
 - Every cell of a project row is the same number of lines whatever the project's state: the
   discovered file paths and the daemon's refusal to read the project are columns of their own, not a
-  shared subtitle line, so a project that carries neither costs its row no height. Measured: 59.4px
-  on every project row and 56px on every service row, at 1440×1000, 1280×800 and 375×812.
+  shared subtitle line, so a project that carries neither costs its row no height. Both levels' rows
+  are the reference's own height, no cell asking for more room than the fixed-height row gives it.
+  (The 59.4px recorded for a project row before this list became the one presentation was the retired
+  presentation's and is superseded; the service row's 56px was already the reference's.)
 - One project's detail is open at a time, which is the list's own guarantee (one `expandedRowKey`)
   and `DetailPanel`'s across the interface.
 - Nothing on this screen is laid out beside anything else: the panel is the content column's width
@@ -77,9 +95,14 @@ Actions:
 
 - **`GroupedRowsPanel` leaves the product with this migration** (plan-ui-coherence-optimisation/
   REQ-49). This screen was its only call site. The grouping survives as `renderRowContent` holding a
-  nested `hideHeader` comfortable list, which is the composition the retirement was recorded against
-  in batch 5: one list rendering both levels, sharing the row rendering, the column contract, the
-  action cluster and the truncation contract instead of duplicating them.
+  `nested`, `hideHeader` list, which is the composition the retirement was recorded against in batch
+  5: one list rendering both levels, sharing the row rendering, the column contract, the action
+  cluster and the truncation contract instead of duplicating them.
+- **The two levels are told apart by an indentation stated in the library, not by a surface**
+  (`.../classic-table/REQ-7`). Giving either level a card of its own would be the retired
+  presentation under another name, and a card inside a card is two surfaces where the contract asks
+  for one. The service list keeps the columns it declares — a service's own name, state, image and
+  replicas — because handing it its parent's columns would be a redesign, not a change of surface.
 - **The side-by-side pair is deleted rather than collapsed.** `Grid columns="2fr 1fr"` never
   collapsed; measured on the delivered build at 375×812 it laid a 210px column beside a **105px**
   one, in which the compose editor painted **39px** wide, the log stream 39px, and the two empty
@@ -119,9 +142,10 @@ Actions:
 
 ## Dependencies
 
-- ui-library: DataTable, DetailPanel, ActionButtonGroup, TwoLineCell, MetaCell, BadgeListCell,
-  CodeEditor, Stepper, LogStream, Tabs, Badge, Button, ErrorBanner, EmptyState, Card, SectionHeader,
-  Stack, Row
+- ui-library: DataTable (the projects list, and the `nested` service list inside every project row),
+  DetailPanel, ActionButtonGroup, TwoLineCell, MetaCell, BadgeListCell, CodeEditor, Stepper,
+  LogStream, Tabs, Badge, Button, ErrorBanner, EmptyState, Card (unpadded, holding the list alone),
+  SectionHeader, Stack, Row
 - compose: useComposeFile, useComposeLifecycle, useComposeLogs
 - app-shell: ConfirmationService, ErrorReportingService, Toast
 
@@ -134,3 +158,7 @@ Actions:
 - plan-ui-coherence-optimisation/REQ-49
 - plan-ui-coherence-optimisation/REQ-50
 - plan-ui-coherence-optimisation/REQ-51
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-7
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-19
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-39
+- plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40

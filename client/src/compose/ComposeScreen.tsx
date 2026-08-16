@@ -87,12 +87,19 @@ function formatTimestamp(timestamp: string | undefined): string | undefined {
  * aggregated live logs labelled per service.
  *
  * **One list, one paradigm** (plan-ui-coherence-optimisation/REQ-49): the
- * projects are rows of the object list's comfortable variant and each project's
- * services are a nested header-less list in the row's own content slot, so the
- * grouping survives while the rows, the columns, the action cluster and the
- * truncation contract are the ones every other screen draws. `GroupedRowsPanel`
- * — the product's third answer to "how is an object listed", and this screen's
- * alone — leaves the library with this migration.
+ * projects are rows of the object list and each project's services are a nested
+ * header-less list in the row's own content slot, so the grouping survives while
+ * the rows, the columns, the action cluster and the truncation contract are the
+ * ones every other screen draws. `GroupedRowsPanel` — the product's third answer
+ * to "how is an object listed", and this screen's alone — leaves the library with
+ * this migration.
+ *
+ * **And it is the containers table** (`.../classic-table/REQ-19`, REQ-39,
+ * REQ-40): one header over a continuous run of ruled rows, the parent row of the
+ * reference's own height and alignment and stating no modifier of its own, the
+ * table edge to edge in an unpadded card holding it and nothing else. What tells
+ * a project from its services is the indentation the library draws for a nested
+ * list — never a surface, which is the presentation this plan retires.
  *
  * **The side-by-side pair is gone with it**
  * (plan-ui-coherence-optimisation/REQ-50). Two reasons, and the second is the
@@ -425,46 +432,51 @@ export function ComposeScreen({ projects, loaded, error, onRefresh }: ComposeScr
   }
 
   return (
-    <Stack gap="var(--space-5)">
-      <Card>
-        <SectionHeader title="Compose projects" description="Discovered from the labels the projects' own containers carry" />
-        <Stack gap="var(--space-3)">
-          {error ? <ErrorBanner title="Could not load compose projects" detail={error} onRetry={onRefresh} /> : null}
-          <DataTable
-            variant="comfortable"
-            columns={projectColumns}
-            rows={projects}
-            rowKey={(project) => project.name}
-            selectedRowKey={selectedName}
-            // The opening gesture is also the closing one, as on every other
-            // migrated screen; the buffer's guard is in `requestSelect`.
-            onRowSelect={(project) => void requestSelect(project.name === selectedName ? undefined : project.name)}
-            expandedRowKey={selectedName}
-            renderExpanded={(project) => projectDetail(project)}
-            // Every project row carries its services, opened or not: the
-            // grouping is the object's own shape, not a detail of the selection
-            // (plan-ui-coherence-optimisation/REQ-49).
-            renderRowContent={(project) => (
-              <DataTable
-                variant="comfortable"
-                hideHeader
-                columns={serviceColumns(project)}
-                rows={project.services}
-                rowKey={(service) => service.name}
-                emptyState={
-                  <EmptyState title="No services" description="The daemon reports no service for this project." action={null} compact />
-                }
-              />
-            )}
-            emptyState={
-              loaded ? (
-                <EmptyState title="No compose projects" description={NO_PROJECTS} action={<Button onClick={onRefresh}>Check again</Button>} />
-              ) : (
-                <EmptyState title="Loading compose projects…" description={null} action={null} />
-              )
-            }
-          />
-        </Stack>
+    // The composition containers and images ship: the section header above, and
+    // the list alone in a card of its own that it fills edge to edge. The list's
+    // one enclosing surface is that card, so the screen has none — and neither do
+    // the nested service lists inside it.
+    <Stack gap="var(--space-4)">
+      <SectionHeader title="Compose projects" description="Discovered from the labels the projects' own containers carry" />
+      {error ? <ErrorBanner title="Could not load compose projects" detail={error} onRetry={onRefresh} /> : null}
+      <Card padding="none">
+        <DataTable
+          columns={projectColumns}
+          rows={projects}
+          rowKey={(project) => project.name}
+          selectedRowKey={selectedName}
+          // The opening gesture is also the closing one, as on every other
+          // migrated screen; the buffer's guard is in `requestSelect`.
+          onRowSelect={(project) => void requestSelect(project.name === selectedName ? undefined : project.name)}
+          expandedRowKey={selectedName}
+          renderExpanded={(project) => projectDetail(project)}
+          // Every project row carries its services, opened or not: the grouping
+          // is the object's own shape, not a detail of the selection
+          // (plan-ui-coherence-optimisation/REQ-49).
+          renderRowContent={(project) => (
+            // The services take no surface of their own: they are drawn inside
+            // the projects list's own, indented under the row they belong to,
+            // which is what the library's `nested` states
+            // (`.../classic-table/REQ-7`).
+            <DataTable
+              nested
+              hideHeader
+              columns={serviceColumns(project)}
+              rows={project.services}
+              rowKey={(service) => service.name}
+              emptyState={
+                <EmptyState title="No services" description="The daemon reports no service for this project." action={null} compact />
+              }
+            />
+          )}
+          emptyState={
+            loaded ? (
+              <EmptyState title="No compose projects" description={NO_PROJECTS} action={<Button onClick={onRefresh}>Check again</Button>} />
+            ) : (
+              <EmptyState title="Loading compose projects…" description={null} action={null} />
+            )
+          }
+        />
       </Card>
     </Stack>
   );
