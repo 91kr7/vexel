@@ -54,6 +54,39 @@ exists to close, one level down:
   efficiency's three lists are **siblings inside a dialog**, not nested, so REQ-7 does not reach
   them and REQ-20 does not ask them to indent anything.
 
+## Amendment — 2026-08-16, after batch 1 was rejected on sight
+
+**What happened.** Batch 1 was implemented and the human rejected the result with one question:
+*"can't you use the same tables as images and containers?"* The four geometric criteria of REQ-2 to
+REQ-5 were **met** and verified in the running application — inter-row gap 0, row radius 0, one
+hairline between rows, column drift 0.00px on every column — and the lists were still visibly not
+the containers table.
+
+**Why the plan let it happen: the target was specified by its properties and not by its reference.**
+Everything the criteria did not name was free to differ, and two things did.
+
+- **Row metrics.** Containers draw `.ui-data-table__row` with no modifier, `height: 56px`,
+  `align-items: center`. Batch 1 delivered `.ui-data-table__row--auto-height`, `61.2px`,
+  `align-items: start`, on the reasoning that a two-line cell needs room. It does not: containers'
+  own `NAME` cell is the same `.ui-table-two-line-cell` and measures **36.2px**, unclipped, inside
+  the fixed 56px row.
+- **How the table sits in its surface.** Containers and images wrap the table in a `Card` with no
+  padding and it runs edge to edge — card `300→1420` against table `301→1419`, the card's radius
+  cropping the header band. The converted lists put the table inside a padded card beside their
+  section header and toolbar, so it is inset by roughly 20px and the header band floats with glass
+  either side. `ContainersScreen.tsx:399` and `ImagesScreen.tsx:610` are the **only** two unpadded
+  cards in the client: the pattern was already sanctioned, and simply never named as the target.
+
+**What changes.** Two requirements are added — **REQ-39** and **REQ-40**, in F8 below — stating
+equality with the reference lists as a *measurement against those lists as they stand in the tree*,
+never against a number copied into this file. REQ-4 keeps its text and gains a pointer, because it
+was satisfied by a result that was wrong: it bounded how many surfaces there are, not which surface
+it is. Nothing is renumbered, nothing is deleted, and no other requirement's meaning moves.
+
+**Recorded rather than folded in silently**, since a requirement that quietly grows a clause is the
+same record defect batch 6 exists to repair, one file closer to home. Validated at the coverage gate
+by the human's delegate, under his standing delegation, on 2026-08-16.
+
 ## F1 — One presentation, and it is a table
 
 | ID | Requirement |
@@ -61,7 +94,7 @@ exists to close, one level down:
 | REQ-1 | **An object list is drawn one way, by one component, in one presentation**: a single table surface, one header row at the top, body rows beneath it. There is no second list primitive, no "list card" component, no compatibility wrapper for the screens that used to have cards, and no per-screen choice of surface. |
 | REQ-2 | **Rows are flush.** On every object list, the vertical distance between the bottom edge of one row and the top edge of the next is **zero** — no inter-row gap — at 1440×1000, 1280×800 and 375×812. |
 | REQ-3 | **Rows are not cards.** No row carries a rounded corner, an outline, a shadow or a detached surface of its own; the separation between two adjacent rows is a **single hairline rule**. |
-| REQ-4 | **One surface.** A list has exactly **one** enclosing surface boundary, with the header inside it and the rows continuous beneath it — not a header floating above a stack of surfaces. |
+| REQ-4 | **One surface.** A list has exactly **one** enclosing surface boundary, with the header inside it and the rows continuous beneath it — not a header floating above a stack of surfaces. **Amended 2026-08-16**: this requirement bounds *how many* surfaces there are, not *which* surface it is or how the table sits in it, and batch 1 satisfied it with a result the human rejected. **REQ-40** states the rest; the two are read together, and neither replaces the other. |
 | REQ-5 | **Columns do not drift, and nothing compensates for it.** Every header cell's left edge equals its body cells' left edge **exactly**, at every horizontal scroll offset and at each of the three viewports. The header and the rows are inset identically by construction: **no compensating inset rule exists anywhere in the library**, the existence of such a compensation being the retired presentation's own signature. |
 
 ## F2 — Nothing the card carried is lost
@@ -130,3 +163,15 @@ action, expansion and piece of row content they show today, at 1440×1000, 1280�
 | REQ-36 | **The certified predecessors on these screens stay certified**, and are **named in the checks rather than assumed**: the detail property column rule, the absence of any copy affordance, the dialog sizing rules, and the switch that must not drag its surface out of the viewport. |
 | REQ-37 | **No server file, no API and no daemon behaviour is in the diff.** |
 | REQ-38 | **English only** in source, identifiers, comments and every amended artefact; **kebab-case** for any new file. |
+
+## F8 — The same table as containers and images (added 2026-08-16, see *Amendment* above)
+
+The reference is not a description, it is two lists that ship. These two requirements are stated as
+comparisons **against those lists as they stand in the tree at the moment of the check**, never
+against figures copied here: a number written into this file rots the day the reference legitimately
+changes, and what must hold is that the two stay the same, whatever the value becomes.
+
+| ID | Requirement |
+| --- | --- |
+| REQ-39 | **A converted row is the reference row.** On every converted list, a body row resolves to the **same height**, the **same vertical alignment** and the **same set of row modifiers** as a row of the containers and images lists, read from those lists as they stand. In particular **no converted list asks for content-sized rows**: the reference's own two-line cell — the same component, a title over a monospace subtitle — sits unclipped inside the reference's fixed-height row, so a second line is **not** a reason for a taller row and REQ-8 is satisfied without one. A list whose content genuinely cannot fit the reference row **reports the measurement that proves it** and records the exception on the spot; the exception is never taken silently, and "it looked tight" is not a measurement. |
+| REQ-40 | **The table sits edge to edge in its own surface, and that surface is the reference's composition.** A converted screen composes as containers and images do: the section header and the screen toolbar **above** the surface, and **one unpadded card holding the table and nothing else**. The table's left and right edges lie within **1px** of that card's, so the header band runs the full width of the surface and is cropped by its radius instead of floating inset with glass either side. Still exactly one surface (REQ-4) — a card inside a card is two, and is not the answer. **The order of preference for getting there is part of the requirement**: reuse the pattern the reference already uses; extend the library only if a panel genuinely cannot be composed from what exists, recording the reason; never a local workaround in feature code (REQ-33). |
