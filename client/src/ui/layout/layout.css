@@ -210,8 +210,15 @@
   min-width: 0;
 }
 
+/* The row track is what makes the panel fill its cell rather than stop at its
+   content. The column track is stated for the opposite reason: an implicit one
+   is `auto`, whose automatic minimum is the panel's min-content — a list too
+   wide for the viewport then sized the card instead of panning inside it (the
+   card measured 542px against a 335px content column at 375×812). `min-width`
+   bounds the wrapper, not the track it lays its child out in. */
 .ui-dashboard-layout__panels > * {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: 1fr;
   min-width: 0;
 }

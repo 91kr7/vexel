@@ -42,6 +42,12 @@ Shows:
   longer list nor an extra row on one side leaves the other short. The caller states no height for
   either panel, at any viewport — the arrangement is this component's answer, not the screen's
   (`plan-ui-coherence-optimisation/REQ-28`).
+- **A panel is sized by its cell, and never the other way round.** Filling the cell is a guarantee
+  about height alone: a panel holding content wider than its column — a list at the phone
+  breakpoint — still takes the width the cell gives it and pans or truncates inside itself. The two
+  halves are one rule, and they were once shipped apart: making a panel fill its cell let the
+  panel's own content size the cell instead, and the container-activity card measured **542px
+  against a 335px content column at 375×812**, its list region 500px where it should pan at 293px.
 - Below the tablet breakpoint the two columns become one, `primary` first and `secondary` under it;
   stacked, each is its own height and the shared edge no longer applies.
 - Each region is a plain container: it applies no padding, background or border of its own, so the
