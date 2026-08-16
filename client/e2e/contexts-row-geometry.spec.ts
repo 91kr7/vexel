@@ -35,6 +35,10 @@
  */
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
+// The shared classic-table instrument, extended by each batch rather than copied: what replaced the
+// retired presentation's class name here is a measurement, and it is the same measurement every
+// other converted list is judged by (`e2e/support/classic-table.ts`).
+import { expectFlushRuledRows, settledList } from './support/classic-table.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 interface Viewport {
@@ -375,13 +379,18 @@ test.describe('F9 — the contexts screen against an inventory holding described
       // **The count is kept and the qualifier is gone.** This counted the one list drawn in the
       // retired card-per-row presentation and expected it to be; since
       // `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-17` the screen
-      // draws the same one list and it is **not** a card. So the two claims are asserted apart: one
-      // list, and it asks for no presentation.
+      // draws the same one list and it is **not** a card.
       expect(await panel(page).locator('.ui-data-table').count(), `${at}: the screen does not draw its one list`).toBe(1);
-      expect(
-        await panel(page).locator('.ui-data-table--comfortable').count(),
-        `${at}: the list is still drawn as a stack of cards`,
-      ).toBe(0);
+      // The `--comfortable` count that stood beside it until 2026-08-16 went **with the class**
+      // (that plan's `REQ-22`, `REQ-28`, batch 5): the library emits it from nowhere, so the count
+      // was zero whatever the screen drew. What it claimed — the list is not a stack of cards — is
+      // measured here as boxes rather than as a class name: no row carries a corner, an outline, a
+      // shadow or a surface of its own, and two rows are separated by one hairline.
+      const asBoxes = await settledList(page, 'ENDPOINT');
+      // …and its own premise: one row is flush with nothing, so a junction assertion over a
+      // one-row list asserts nothing at all.
+      expect(asBoxes.rows.length, `${at}: fewer than two context rows, so there is no junction to measure`).toBeGreaterThan(1);
+      expectFlushRuledRows(at, 'the contexts list', asBoxes);
 
       // The premise: the inventory really does hold rows in different states, so equal heights are
       // a repair and not an artefact of every row saying the same thing.

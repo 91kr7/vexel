@@ -258,10 +258,13 @@ describe('ComposeScreen — one list, projects and their services (REQ-49)', () 
     renderScreen([project({ name: 'alpha' }), project({ name: 'beta', services: [] })]);
 
     expect(list(), 'the screen draws no object list').not.toBeNull();
-    // The retired presentation is not asked for anywhere on this screen — neither on the projects
-    // list nor on the nested one — and no row of either carries a modifier of its own
-    // (`.../classic-table/REQ-39`).
-    expect(document.querySelectorAll('.ui-data-table--comfortable'), 'a list on this screen still asks for the retired presentation').toHaveLength(0);
+    // No row of either level carries a modifier of its own (`.../classic-table/REQ-39`).
+    //
+    // The count of `--comfortable` lists stood here until 2026-08-16 and went **with the class**
+    // (`.../classic-table/REQ-22`, `REQ-28`): nothing emits it, so it could no longer fail. Its
+    // claim — no list on this screen asks for a presentation — is the row-modifier assertion below,
+    // which a row can still break, plus the guard that refuses the vocabulary outright
+    // (`card-row-presentation-retired.test.ts`, `scripts/check-ui-conformance.mjs`).
     expect(
       Array.from(document.querySelectorAll('.ui-data-table__row'))
         .flatMap((row) => Array.from(row.classList))

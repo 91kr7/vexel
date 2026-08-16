@@ -703,9 +703,14 @@ describe('SwarmConfigsStacksPanel (swarm/specs/swarm-configs-stacks-panel.md)', 
     expect(visibleText()).toContain('alpine:3.20');
     expect(visibleText()).toContain('2/3');
 
-    // Neither list asks for the retired presentation, no row of either level states a modifier of
-    // its own, and no surface is drawn inside either table.
-    expect(document.querySelectorAll('.ui-data-table--comfortable'), 'a list on this panel still asks for the retired presentation').toHaveLength(0);
+    // No row of either level states a modifier of its own, and no surface is drawn inside either
+    // table.
+    //
+    // The count of `--comfortable` lists stood here until 2026-08-16 and went **with the class**
+    // (`.../classic-table/REQ-22`, `REQ-28`): nothing emits it, so it could no longer fail. Its
+    // claim — neither list asks for a presentation — is the row-modifier assertion below, which a
+    // row can still break, plus the guard that refuses the vocabulary outright
+    // (`card-row-presentation-retired.test.ts`, `scripts/check-ui-conformance.mjs`).
     expect(
       [...document.querySelectorAll('.ui-data-table__row')]
         .flatMap((row) => [...row.classList])

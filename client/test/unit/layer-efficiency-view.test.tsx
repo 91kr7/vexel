@@ -262,7 +262,11 @@ describe('LayerEfficiencyView — findings (plan-docker_management_app/REQ-65, p
     it('asks for no presentation and states no row modifier on any of the three lists', async () => {
       await analyzeAndDeliver(makeSignals());
 
-      expect(document.querySelectorAll('.ui-data-table--comfortable'), 'a list still asks for the retired presentation').toHaveLength(0);
+      // The count of `--comfortable` lists stood here until 2026-08-16 and went **with the class**
+      // (`.../classic-table/REQ-22`, `REQ-28`): nothing emits it, so it could no longer fail. Its
+      // claim — none of the three lists asks for a presentation — is the row-modifier assertion
+      // below, which a row can still break, plus the guard that refuses the vocabulary outright
+      // (`card-row-presentation-retired.test.ts`, `scripts/check-ui-conformance.mjs`).
       const rows = Array.from(document.querySelectorAll('.ui-data-table__row'));
       expect(rows.length, 'the three lists draw no row at all, so there is no modifier to read').toBeGreaterThan(0);
       for (const row of rows) {

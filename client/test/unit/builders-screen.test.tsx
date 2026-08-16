@@ -207,8 +207,12 @@ describe('BuildersScreen — the builder list (REQ-39, REQ-40)', () => {
 
     for (const title of ['buildx builders', 'Build cache'] as const) {
       const list = listIn(title);
+      // The `--comfortable` class assertion stood here until 2026-08-16 and went **with the class**
+      // (`.../classic-table/REQ-22`, `REQ-28`): nothing emits it, so it could no longer fail. Its
+      // claim — this list asks for no presentation — is the row-modifier assertion below, which a
+      // row can still break, plus the guard that refuses the vocabulary outright
+      // (`card-row-presentation-retired.test.ts`, `scripts/check-ui-conformance.mjs`).
       expect(list, `the ${title} list is not on the object list`).not.toBeNull();
-      expect(list.classList.contains('ui-data-table--comfortable'), `the ${title} list still asks for the retired presentation`).toBe(false);
       for (const row of rowsIn(title)) {
         expect(
           Array.from(row.classList).filter((name) => name !== 'ui-data-table__row' && name !== 'ui-data-table__row--selected'),

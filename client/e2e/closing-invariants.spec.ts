@@ -63,6 +63,25 @@ interface ScreenReading {
   /** The one list paradigm, and anything that answers the same question a second way. */
   objectLists: number;
   replacedArrangements: { selector: string; count: number }[];
+  /**
+   * **One presentation as well as one primitive**
+   * (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-1`, `REQ-28`,
+   * batch 5).
+   *
+   * Counting one primitive was never enough, and this plan is the proof: every list on the build
+   * the human rejected was already `DataTable`, and half of them were still stacks of cards. So
+   * beside the count of components goes a count of **presentations** — one signature per list on
+   * the screen, read as boxes rather than as a class name, since the class that used to say it has
+   * been deleted (REQ-22) and a name is not what an operator sees.
+   *
+   * The signature is the retired presentation's own three traits, and nothing else: a row drawn on
+   * a surface of its own, a corner on that row, a gap to the next one. Nothing about height,
+   * alignment or nesting is in it, deliberately — a reference table with wrapping cells and a list
+   * nested inside a row are legitimately different in those and are the same presentation.
+   */
+  listPresentations: string[];
+  /** How many rows the signatures above were read from: a screen whose lists are empty settles nothing. */
+  rowsRead: number;
   /** The one detail reveal, and the one place actions live. */
   detailPanels: number;
   toolbars: number;
@@ -109,11 +128,58 @@ async function readScreen(page: Page, replaced: string[]): Promise<ScreenReading
         !heading.matches('.ui-form-sheet__title, .ui-modal__title'),
     );
 
+    // The presentation each list on this screen is drawn in, as boxes.
+    const presentations: string[] = [];
+    let rowsRead = 0;
+    const largestRadius = (element: Element): number => {
+      const style = getComputedStyle(element);
+      return Math.max(
+        Number.parseFloat(style.borderTopLeftRadius) || 0,
+        Number.parseFloat(style.borderTopRightRadius) || 0,
+        Number.parseFloat(style.borderBottomLeftRadius) || 0,
+        Number.parseFloat(style.borderBottomRightRadius) || 0,
+      );
+    };
+    for (const table of content.querySelectorAll<HTMLElement>('.ui-data-table')) {
+      // A list's own rows and its own content wrappers, never those of a list drawn inside one of
+      // them: a nested list is measured as the list it is, in its own turn of this loop.
+      const blocks = [...table.querySelectorAll<HTMLElement>('.ui-data-table__row, .ui-data-table__row-content')].filter(
+        (block) => block.closest('.ui-data-table') === table,
+      );
+      const rows = blocks.filter((block) => block.matches('.ui-data-table__row'));
+      if (rows.length === 0) continue;
+      rowsRead += rows.length;
+
+      // The carrier the retired presentation wrapped each row in: read upward from the row, so a
+      // surface inside a *cell* is not mistaken for the row being drawn on one.
+      let onASurface = false;
+      let radius = 0;
+      for (const row of rows) {
+        radius = Math.max(radius, largestRadius(row));
+        if (row.matches('.ui-surface')) onASurface = true;
+        for (let node = row.parentElement; node !== null && node !== table; node = node.parentElement) {
+          if (node.matches('.ui-surface')) {
+            onASurface = true;
+            radius = Math.max(radius, largestRadius(node));
+          }
+        }
+      }
+      let gap = 0;
+      for (let index = 0; index + 1 < blocks.length; index += 1) {
+        gap = Math.max(gap, blocks[index + 1]!.getBoundingClientRect().top - blocks[index]!.getBoundingClientRect().bottom);
+      }
+      presentations.push(
+        `row on a surface of its own: ${onASurface ? 'yes' : 'no'} | largest row corner: ${Math.round(radius)}px | largest inter-row gap: ${Math.round(gap)}px`,
+      );
+    }
+
     return {
       objectLists: content.querySelectorAll('.ui-data-table').length,
       replacedArrangements: replacedSelectors
         .map((selector) => ({ selector, count: content.querySelectorAll(selector).length }))
         .filter((entry) => entry.count > 0),
+      listPresentations: presentations,
+      rowsRead,
       detailPanels: content.querySelectorAll('.ui-detail-panel').length,
       toolbars: content.querySelectorAll('.ui-screen-toolbar').length,
       headingTreatments: [
@@ -158,8 +224,10 @@ for (const viewport of VIEWPORTS) {
 
     const headingTreatments = new Set<string>();
     const emptyStateTreatments = new Set<string>();
+    const presentations = new Map<string, string[]>();
     const secondAnswers: string[] = [];
     const handBuiltHeadings: string[] = [];
+    let rowsRead = 0;
     let screensListingObjects = 0;
     let screensRevealingDetail = 0;
     let screensWithAToolbar = 0;
@@ -174,6 +242,18 @@ for (const viewport of VIEWPORTS) {
           `${reading.toolbars} toolbar(s), ${reading.emptyStates} empty state(s), ` +
           `${reading.headingTreatments.length} section-heading treatment(s), ${reading.cardTitles} card title(s)`,
       );
+
+      if (reading.listPresentations.length > 0) {
+        console.log(
+          `[b5/REQ-1] ${at} ${screen.heading}: ${reading.listPresentations.length} list(s) over ${reading.rowsRead} row(s) — ${[
+            ...new Set(reading.listPresentations),
+          ].join(' ;; ')}`,
+        );
+      }
+      rowsRead += reading.rowsRead;
+      for (const presentation of reading.listPresentations) {
+        presentations.set(presentation, [...(presentations.get(presentation) ?? []), screen.heading]);
+      }
 
       if (reading.objectLists > 0) screensListingObjects += 1;
       if (reading.detailPanels > 0) screensRevealingDetail += 1;
@@ -204,6 +284,33 @@ for (const viewport of VIEWPORTS) {
 
     // One way an object is listed, and no second paradigm anywhere (REQ-82).
     expect(secondAnswers, `${at}: a screen answers one of the five questions a second way`).toEqual([]);
+
+    /**
+     * …and **one presentation** as well as one primitive
+     * (`.../classic-table/REQ-1`, batch 5).
+     *
+     * Its own premise first: a walk that found no row read no presentation, and would report one —
+     * none — and pass. That is the shape this plan has already paid three findings for.
+     */
+    console.log(
+      `[b5/REQ-1] ${at} over ${SCREENS.length} screens: ${rowsRead} row(s) in ${presentations.size} presentation(s) — ${[
+        ...presentations,
+      ]
+        .map(([presentation, screens]) => `${presentation} → ${[...new Set(screens)].join(', ')}`)
+        .join(' ;; ')}`,
+    );
+    expect(rowsRead, `${at}: not one list drew a row, so "one presentation" is a verdict about nothing`).toBeGreaterThan(0);
+    expect(
+      [...presentations].map(([presentation, screens]) => `${presentation} → ${[...new Set(screens)].join(', ')}`),
+      `${at}: the product draws its object lists in ${presentations.size} presentations`,
+    ).toHaveLength(1);
+    // And the one presentation is **the ruled row**, not the card: "one presentation" alone would be
+    // satisfied by every list in the product being a stack of cards, which is the arrangement this
+    // plan retired rather than the one it kept.
+    expect(
+      [...presentations.keys()][0],
+      `${at}: the one presentation the product draws is not the ruled row`,
+    ).toBe('row on a surface of its own: no | largest row corner: 0px | largest inter-row gap: 0px');
 
     // One section-header treatment. The primitive states two treatments of one header — a section's
     // own title and a column/group eyebrow (`section-header.md`) — and nothing else may state one:

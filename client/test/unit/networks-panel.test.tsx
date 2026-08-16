@@ -155,8 +155,13 @@ describe('NetworksPanel — list rows (plan-docker_management_app/REQ-72, plan-u
     // **Contract and state only** (`.../classic-table/REQ-31`): every box is zero in jsdom, so a
     // geometric assertion would pass on any build. The boxes are measured in a browser
     // (`e2e/classic-table-criteria.spec.ts`).
+    //
+    // The `--comfortable` class assertion stood here until 2026-08-16 and went **with the class**
+    // (`.../classic-table/REQ-22`, `REQ-28`): nothing emits it, so it could no longer fail. Its
+    // claim — this list asks for no presentation — is the row-modifier assertion below, which a row
+    // can still break, plus the guard that refuses the vocabulary outright
+    // (`card-row-presentation-retired.test.ts`, `scripts/check-ui-conformance.mjs`).
     expect(document.querySelector('.ui-data-table')).not.toBeNull();
-    expect(document.querySelector('.ui-data-table--comfortable')).toBeNull();
     for (const row of listRows()) {
       expect(Array.from(row.classList).filter((name) => name !== 'ui-data-table__row' && name !== 'ui-data-table__row--selected')).toEqual([]);
     }

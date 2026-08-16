@@ -212,8 +212,12 @@ describe('PluginsScreen — the two inventories on the object list (REQ-46)', ()
     // (`e2e/classic-table-criteria-plain-lists.spec.ts`).
     for (const title of ['CLI plugins', 'Daemon plugins']) {
       const inventory = list(title);
+      // The `--comfortable` class assertion stood here until 2026-08-16 and went **with the class**
+      // (`.../classic-table/REQ-22`, `REQ-28`): nothing emits it, so it could no longer fail. Its
+      // claim — this list asks for no presentation — is the row-modifier assertion below, which a
+      // row can still break, plus the guard that refuses the vocabulary outright
+      // (`card-row-presentation-retired.test.ts`, `scripts/check-ui-conformance.mjs`).
       expect(inventory, `the ${title} inventory is not on the object list`).not.toBeNull();
-      expect(inventory.classList.contains('ui-data-table--comfortable'), `the ${title} list still asks for the retired presentation`).toBe(false);
       for (const row of rowsOf(title)) {
         expect(
           Array.from(row.classList).filter((name) => name !== 'ui-data-table__row' && name !== 'ui-data-table__row--selected'),

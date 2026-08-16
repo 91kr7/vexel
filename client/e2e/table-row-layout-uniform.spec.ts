@@ -32,6 +32,12 @@ import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
+import { startDeliveredBuild, type DeliveredBuild } from './support/delivered-build.js';
+
+/** The revision the classic-table plan was delivered on top of — the merge it starts from. */
+const DELIVERED_REF = process.env.VEXEL_DELIVERED_REF ?? 'd17e1df';
+/** Its own port: neither the suite's 3100, nor the classic-table specs' 3101 to 3105. */
+const DELIVERED_COST_PORT = Number(process.env.VEXEL_DELIVERED_COST_PORT ?? 3106);
 
 interface Viewport {
   width: number;
@@ -314,16 +320,19 @@ for (const viewport of VIEWPORTS) {
  * edge at every scroll offset."
  *
  * Asserted across every list that expands, at the one viewport where there is a pan to hold against
- * — the desktop widths fit their columns and the component writes no geometry at all. **The images
- * table is measured beside the others as the control**: it is the case batch 2 pinned and
- * `list-row-columns.spec.ts` covers, so a reading that accuses the migrated lists has to leave it
- * alone or it is accusing the probe. Volumes, networks and the build cache were three of the
- * "comfortable subjects" this file measured against that control; since
- * `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-14` and its
- * `REQ-16` all three are the same table the control is, and the assertion below is unchanged
- * because it never depended on which presentation drew them. **That is the point of leaving it
- * alone**: the guarantee is the component's, so a list that changes presentation and keeps it is
- * evidence, and one that loses it is the regression this file exists to catch.
+ * — the desktop widths fit their columns and the component writes no geometry at all.
+ *
+ * **There is no longer a control here, because every list is the control**
+ * (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-1`, batch 5). This
+ * file used to read as "the comfortable subjects — volumes, networks, the build cache — measured
+ * against the dense images table", the images table being the case batch 2 pinned and
+ * `list-row-columns.spec.ts` covers. With the card row retired (`REQ-22`) there is one presentation
+ * and the four lists are the same table, so the framing goes and **every measurement it made
+ * stays**: the same four lists, the same wheel, the same left-edge and width readings, the same
+ * count below. **That is the point of leaving the assertions alone**: the guarantee is the
+ * component's, so a list that changed presentation and kept it is evidence, and one that lost it is
+ * the regression this file exists to catch. The figures recorded below were read when three of the
+ * four were still cards and the fourth was not, which is exactly what makes them worth keeping.
  *
  * **The pan is driven by a real wheel, and that is the whole reliability of this check.** The
  * offset is written from the pan region's **scroll event**; a programmatic `scrollLeft =` moves the
@@ -331,8 +340,8 @@ for (const viewport of VIEWPORTS) {
  * reads a position the product occupies only between the assignment and its own event, and which no
  * operator can reach — `element.click()` in another costume (CLAUDE.md, "What a check drives, and
  * what it measures"). Read that way at 375×812 the build cache measured x −199, volumes −170 and
- * the **dense** images table −369, the control failing hardest because its pan is longest. Driven by
- * a wheel and sampled once each scroll has settled, none of the four moves at any offset.
+ * the images table −369, that one failing hardest because its pan is longest. Driven by a wheel and
+ * sampled once each scroll has settled, none of the four moves at any offset.
  */
 test('an open expansion holds the table’s left edge at every scroll offset, under a real wheel — 375×812', async ({ page }) => {
   test.setTimeout(300_000);
@@ -419,7 +428,269 @@ test('an open expansion holds the table’s left edge at every scroll offset, un
   }
 
   console.log(`[REQ-8] 375×812: ${measured.length} panned expansion(s) measured under a real wheel, ${offences.length} offence(s)`);
-  // Volumes, networks, build cache — and the images table as the control.
+  // Volumes, networks, the build cache and the images list — four lists, and since batch 5 of the
+  // classic-table plan one presentation between them. The count is the measurement kept from the
+  // framing that named three of them subjects and the fourth a control.
   expect(measured.length, 'fewer expansions panned than the four the contract is measured on').toBeGreaterThanOrEqual(4);
   expect(offences, 'an open expansion does not hold the table’s visible box while the grid pans').toEqual([]);
+});
+
+/**
+ * **REQ-35 — the change costs no more at runtime than what it replaces**
+ * (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-35`, batch 5).
+ *
+ * Two claims, and neither can be settled by the tree it is written about:
+ *
+ * - **Nothing on a scrolled surface gains a filter, a transition or an animation.** Absolute, and
+ *   asserted on the build under test alone: these lists are main view, and a filter or an animation
+ *   on a surface an operator scrolls is paid for on every frame of the scroll. It is red on the
+ *   rejected build for the surfaces that build wrapped each row in, since a card is drawn and the
+ *   layers below are what count it.
+ * - **The layers painted per row did not grow.** Comparative by nature — "no more than what it
+ *   replaces" names something to be compared with — so the delivered build is checked out, built and
+ *   served on a port of its own, and the same screens are read on it minutes apart against the same
+ *   daemon. A number written into this file instead would say nothing about what was replaced.
+ *
+ * What is counted per row is what the browser has to paint for it beyond its own text: the row, the
+ * elements between it and its table, and the content wrapper below its cells — each contributing one
+ * for a background it fills, one for a corner it rounds, one for a shadow it casts, one for a filter
+ * and one for an animation or a paint transition. The retired presentation drew a `Surface` around
+ * every row, which is a background, a corner and two shadows per row of a scrolled list; the ruled
+ * row is a border and nothing else.
+ *
+ * **The scroll is a real wheel and it is asserted to have moved something**, at the viewport where
+ * the content certainly exceeds the window: a reading taken over a list nothing scrolled would be a
+ * claim about scrolling made without any.
+ */
+interface ScrollCost {
+  label: string;
+  rows: number;
+  /** The worst row of this list: how many layers the browser paints for it beyond its own text. */
+  layersPerRow: number;
+  /** What each of those layers is, so a figure that moves can be read rather than merely noticed. */
+  layers: string[];
+  /** A filter, an animation or a paint transition on a surface the operator scrolls. */
+  offenders: string[];
+}
+
+async function measureScrollCost(page: Page): Promise<ScrollCost[]> {
+  return await page.evaluate(() => {
+    const opaque = (colour: string) => colour !== 'transparent' && !/rgba\([^)]*,\s*0\s*\)$/.test(colour);
+    const painted = (element: Element, where: string): string[] => {
+      const style = getComputedStyle(element);
+      const found: string[] = [];
+      if (opaque(style.backgroundColor) || style.backgroundImage !== 'none') found.push(`${where}: a background`);
+      const radius = Math.max(
+        Number.parseFloat(style.borderTopLeftRadius) || 0,
+        Number.parseFloat(style.borderTopRightRadius) || 0,
+        Number.parseFloat(style.borderBottomLeftRadius) || 0,
+        Number.parseFloat(style.borderBottomRightRadius) || 0,
+      );
+      if (radius > 0) found.push(`${where}: a ${Math.round(radius)}px corner`);
+      if (style.boxShadow !== 'none') found.push(`${where}: a shadow`);
+      if (style.filter !== 'none') found.push(`${where}: a filter (${style.filter})`);
+      if (style.backdropFilter !== 'none' && style.backdropFilter !== '') found.push(`${where}: a backdrop filter`);
+      if (style.animationName !== 'none') found.push(`${where}: an animation (${style.animationName})`);
+      const transitions = style.transitionProperty
+        .split(',')
+        .map((property) => property.trim())
+        .filter((property) => property !== 'none' && property !== '');
+      const durations = style.transitionDuration.split(',').map((duration) => Number.parseFloat(duration) || 0);
+      if (transitions.length > 0 && durations.some((duration) => duration > 0)) {
+        found.push(`${where}: a transition (${style.transitionProperty})`);
+      }
+      return found;
+    };
+    const costly = /a filter|a backdrop filter|an animation|a transition/;
+
+    return Array.from(document.querySelectorAll<HTMLElement>('.ui-frame__content .ui-data-table')).map((table, index) => {
+      const rows = Array.from(table.querySelectorAll<HTMLElement>('.ui-data-table__row')).filter(
+        (row) => row.closest('.ui-data-table') === table,
+      );
+      const headings = Array.from(document.querySelectorAll('.ui-frame__content .ui-section-header__title')).filter(
+        (heading) => (heading.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+      );
+      const label = (headings[headings.length - 1]?.textContent ?? `list #${index}`).trim();
+
+      let worst: string[] = [];
+      for (const row of rows) {
+        const layers = painted(row, 'the row');
+        // Everything between the row and its table: the carrier the retired presentation wrapped
+        // each row in was exactly this, and it is where a reintroduction would put one again.
+        for (let node = row.parentElement; node !== null && node !== table; node = node.parentElement) {
+          layers.push(...painted(node, `a wrapper (${node.className || node.tagName.toLowerCase()})`));
+        }
+        const content = row.nextElementSibling;
+        if (content?.matches('.ui-data-table__row-content')) layers.push(...painted(content, 'the row content'));
+        if (layers.length > worst.length) worst = layers;
+      }
+
+      // The surfaces an operator actually scrolls, whatever the rows carry: the pan region, the box
+      // that scrolls inside it, and the run of rows.
+      const surfaces: string[] = [];
+      for (const [where, element] of [
+        ['the table', table],
+        ['the scrolling box', table.querySelector('.ui-scroll-area')],
+        ['the list body', table.querySelector('.ui-data-table__body')],
+      ] as const) {
+        if (element) surfaces.push(...painted(element, where).filter((entry) => costly.test(entry)));
+      }
+
+      return {
+        label,
+        rows: rows.length,
+        layersPerRow: worst.length,
+        layers: worst,
+        offenders: [...surfaces, ...worst.filter((entry) => costly.test(entry))],
+      };
+    });
+  });
+}
+
+/** Opens a screen, settles it, and scrolls it with a real wheel — returning how far it moved. */
+async function scrolledScreen(page: Page, screen: { id: string; heading: string }): Promise<number> {
+  await openApp(page, screen.id);
+  await expect(page.getByRole('heading', { level: 1, name: screen.heading })).toBeVisible({ timeout: 20_000 });
+  await settledTables(page);
+
+  const rows = page.locator('.ui-frame__content .ui-data-table__row');
+  if ((await rows.count()) === 0) return 0;
+  const box = await rows.first().boundingBox();
+  if (!box) return 0;
+  // Over a row, with a real wheel, at the visible control's own coordinates: what scrolls under an
+  // operator's finger is what this claim is about (CLAUDE.md, "What a check drives").
+  await page.mouse.move(box.x + Math.min(60, box.width / 2), box.y + box.height / 2);
+  for (let step = 0; step < 6; step += 1) await page.mouse.wheel(0, 240);
+  await page.waitForTimeout(400);
+
+  return await page.evaluate(() => {
+    let furthest = 0;
+    for (const element of document.querySelectorAll<HTMLElement>('.ui-frame__content, .ui-frame__content *')) {
+      furthest = Math.max(furthest, element.scrollTop);
+    }
+    return Math.round(furthest);
+  });
+}
+
+test('a scrolled list costs no more to paint than the build that shipped the card row — 375×812', async ({ page, browser, baseURL }) => {
+  test.setTimeout(900_000);
+  expect(baseURL, 'this run has no origin of its own to compare the delivered build against').toBeTruthy();
+
+  // The screens whose lists exist on any daemon, plus this file's own fixtures: a container, an
+  // image tag, a volume and a network. Nothing here asserts a count or an emptiness — a screen whose
+  // lists are empty is reported and skipped, exactly as the sweeps above do.
+  const WALKED = SCREENS.filter((screen) => ['containers', 'images-layers', 'volumes-networks', 'contexts', 'builders-cache', 'plugins'].includes(screen.id));
+
+  await page.setViewportSize(PHONE);
+  const now = new Map<string, ScrollCost[]>();
+  let scrolled = 0;
+  for (const screen of WALKED) {
+    scrolled = Math.max(scrolled, await scrolledScreen(page, screen));
+    const costs = (await measureScrollCost(page)).filter((cost) => cost.rows > 0);
+    now.set(screen.id, costs);
+    for (const cost of costs) {
+      console.log(
+        `[b5/REQ-35] 375×812 ${screen.heading} · ${cost.label}: ${cost.rows} row(s), ${cost.layersPerRow} layer(s) painted per row — [${cost.layers.join(', ')}]`,
+      );
+    }
+  }
+
+  // The premise: a real wheel actually moved a scrolled surface, or "while a long list is scrolled"
+  // is a phrase and not a condition.
+  expect(scrolled, 'no surface of any walked screen scrolled under a real wheel, so nothing here was measured while scrolling').toBeGreaterThan(0);
+  expect([...now.values()].flat().length, 'not one list drew a row, so there is no per-row cost to compare').toBeGreaterThan(0);
+
+  // Nothing on a scrolled surface carries a filter, a transition or an animation — asserted on the
+  // build under test, where "it did not have one" is the whole of the claim, the lists having none.
+  const costly = [...now].flatMap(([id, costs]) => costs.flatMap((cost) => cost.offenders.map((entry) => `${id} · ${cost.label}: ${entry}`)));
+  expect(costly, 'a surface an operator scrolls carries a filter, a transition or an animation').toEqual([]);
+
+  /**
+   * …and **a converted row costs what the reference row costs**, read from the reference lists in
+   * the same run rather than from a figure written here (REQ-39's own form, applied to what a row
+   * costs to paint).
+   *
+   * This is the half of the claim that can be observed failing on the build this plan replaced,
+   * where the comparison below cannot be: measured against itself, a build is never more expensive
+   * than itself. On `d17e1df` the reference lists painted 1 layer per row — the row a pointer
+   * happens to hover — while volumes, networks, builders, contexts and plugins painted 3 and 4, the
+   * card each row was drawn on being a background, a corner and a shadow apiece.
+   */
+  const referenceWorst = Math.max(
+    0,
+    ...['containers', 'images-layers'].flatMap((id) => (now.get(id) ?? []).map((cost) => cost.layersPerRow)),
+  );
+  expect(
+    (now.get('containers') ?? []).length + (now.get('images-layers') ?? []).length,
+    'neither reference list drew a row, so there is nothing to measure the converted ones against',
+  ).toBeGreaterThan(0);
+  const dearerThanTheReference = [...now]
+    .filter(([id]) => id !== 'containers' && id !== 'images-layers')
+    .flatMap(([id, costs]) =>
+      costs
+        .filter((cost) => cost.layersPerRow > referenceWorst)
+        .map((cost) => `${id} · ${cost.label}: ${cost.layersPerRow} layer(s) per row against the reference row's ${referenceWorst} — [${cost.layers.join(', ')}]`),
+    );
+  expect(dearerThanTheReference, 'a converted row costs more to paint than the reference row it is supposed to be').toEqual([]);
+
+  let delivered: DeliveredBuild | undefined;
+  try {
+    delivered = await startDeliveredBuild({ revision: DELIVERED_REF, port: DELIVERED_COST_PORT });
+    const context = await browser.newContext({ baseURL: delivered.origin, viewport: PHONE });
+    const before = await context.newPage();
+    try {
+      const worse: string[] = [];
+      const deliveredCosts = new Map<string, ScrollCost[]>();
+      let deliveredRows = 0;
+      for (const screen of WALKED) {
+        await scrolledScreen(before, screen);
+        const costs = (await measureScrollCost(before)).filter((cost) => cost.rows > 0);
+        deliveredCosts.set(screen.id, costs);
+        deliveredRows += costs.reduce((total, cost) => total + cost.rows, 0);
+        const deliveredWorst = Math.max(0, ...costs.map((cost) => cost.layersPerRow));
+        const currentWorst = Math.max(0, ...(now.get(screen.id) ?? []).map((cost) => cost.layersPerRow));
+        for (const cost of costs) {
+          console.log(
+            `[b5/REQ-35] delivered ${delivered.revision.slice(0, 7)} 375×812 ${screen.heading} · ${cost.label}: ${cost.rows} row(s), ${
+              cost.layersPerRow
+            } layer(s) painted per row — [${cost.layers.join(', ')}]`,
+          );
+        }
+        console.log(`[b5/REQ-35] ${screen.heading}: ${currentWorst} layer(s) per row now against ${deliveredWorst} delivered`);
+        if (currentWorst > deliveredWorst) {
+          worse.push(`${screen.heading}: ${currentWorst} layer(s) painted per row against the delivered build's ${deliveredWorst}`);
+        }
+      }
+
+      // The comparison's own premise: the delivered build was read with rows on screen. A build that
+      // showed none would report zero layers everywhere and let anything through as "no more".
+      expect(deliveredRows, 'the delivered build listed no row at all, so it bounds nothing').toBeGreaterThan(0);
+      expect(worse, 'a scrolled list paints more layers per row than the build this plan replaced').toEqual([]);
+
+      // REQ-29 — and the delivered build **fails the criterion above**, with its numbers, read by
+      // this very probe minutes earlier: a check that cannot be observed failing on the build the
+      // human rejected is not yet a check. The card each row was drawn on is a background, a corner
+      // and a shadow the reference row never had.
+      const deliveredReference = Math.max(
+        0,
+        ...['containers', 'images-layers'].flatMap((id) => (deliveredCosts.get(id) ?? []).map((cost) => cost.layersPerRow)),
+      );
+      const dearerThere = [...deliveredCosts]
+        .filter(([id]) => id !== 'containers' && id !== 'images-layers')
+        .flatMap(([id, costs]) =>
+          costs.filter((cost) => cost.layersPerRow > deliveredReference).map((cost) => `${id} · ${cost.label}: ${cost.layersPerRow}`),
+        );
+      console.log(
+        `[b5/REQ-29] delivered ${delivered.revision.slice(0, 7)}: reference row ${deliveredReference} layer(s), converted lists dearer than it — ${JSON.stringify(dearerThere)}`,
+      );
+      expect(
+        dearerThere.length,
+        'the delivered build already painted its lists as cheaply as its reference lists, so this criterion discriminates nothing',
+      ).toBeGreaterThan(0);
+    } finally {
+      await context.close();
+    }
+  } finally {
+    await delivered?.stop();
+  }
 });

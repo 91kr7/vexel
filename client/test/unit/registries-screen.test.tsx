@@ -214,8 +214,12 @@ describe('RegistriesScreen — the registries panel (registries/specs/registries
 
     renderScreen();
 
+    // The `--comfortable` class assertion stood here until 2026-08-16 and went **with the class**
+    // (`.../classic-table/REQ-22`, `REQ-28`): nothing emits it, so it could no longer fail. Its
+    // claim — this list asks for no presentation — is the row-modifier assertion below, which a row
+    // can still break, plus the guard that refuses the vocabulary outright
+    // (`card-row-presentation-retired.test.ts`, `scripts/check-ui-conformance.mjs`).
     const list = listOf(rowOf('ghcr.io'));
-    expect(list.classList.contains('ui-data-table--comfortable')).toBe(false);
     for (const row of list.querySelectorAll('.ui-data-table__row')) {
       expect(Array.from(row.classList).filter((name) => name !== 'ui-data-table__row' && name !== 'ui-data-table__row--selected')).toEqual([]);
     }
@@ -477,7 +481,16 @@ describe('RegistriesScreen — the repositories browser (registries/specs/regist
     renderScreen();
 
     const list = listOf(rowOf('library/nginx'));
-    expect(list.classList.contains('ui-data-table--comfortable')).toBe(false);
+    // The `--comfortable` class assertion stood here until 2026-08-16 and went with the class
+    // (`.../classic-table/REQ-22`, `REQ-28`): nothing emits it, so it could no longer fail. Unlike
+    // the registries list above, this one had no live neighbour carrying the claim, so it is
+    // **restated** against what does: a repository row states no modifier the reference row does not.
+    for (const row of list.querySelectorAll('.ui-data-table__row')) {
+      expect(
+        Array.from(row.classList).filter((name) => name !== 'ui-data-table__row' && name !== 'ui-data-table__row--selected'),
+        'a repository row states a modifier of its own where the reference row states none',
+      ).toEqual([]);
+    }
     const card = list.closest('.ui-surface');
     expect(card!.classList.contains('ui-surface--pad-none'), 'the list’s card is padded').toBe(true);
     expect(card!.children).toHaveLength(1);
