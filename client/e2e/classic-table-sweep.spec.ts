@@ -653,6 +653,22 @@ test('the exclusions the walk cannot reach still name the lists they were writte
   await expect(detail, 'selecting the container opened no detail panel').toBeVisible({ timeout: 20_000 });
   await clickAt(page, detail.getByRole('tab', { name: 'Processes' }), 'the Processes tab');
 
+  // The view reads the process list from the daemon **after** it mounts and
+  // draws its table only once that read answers, so the tab being selected is
+  // not the list being on screen. The walk below stops as soon as two readings
+  // 500ms apart agree, and "not started yet" reads exactly like "settled": on
+  // 2026-08-17 a complete run counted `1 table drawn` here — the containers list
+  // alone — and this test reported its exclusion matching nothing, on a build
+  // whose exclusion is correct and which counts 2 whenever the list has landed.
+  // Waited for by the view's own table, and reported by what the view shows
+  // instead when it never arrives, so a daemon that refuses `top` is named as
+  // that rather than mistaken for a stale predicate.
+  await expect(async () => {
+    const drawn = await detail.locator('.ui-data-table').count();
+    const shows = (await detail.innerText()).replace(/\s+/g, ' ').trim().slice(0, 160);
+    expect(drawn, `the Processes view drew no list of its own; the panel shows: "${shows}"`).toBe(1);
+  }).toPass({ timeout: 30_000 });
+
   const onTheScreen = await measureEveryList(page);
   const processes = EXCLUDED_BY_NAME.find((candidate) => candidate.callSite === 'ContainerProcessesView.tsx:50')!;
   const matched = onTheScreen.filter(({ list }) => processes.matches(list, 'containers'));

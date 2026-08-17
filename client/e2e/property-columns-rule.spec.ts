@@ -178,6 +178,45 @@ async function measure(section: Locator): Promise<Measurement> {
   });
 }
 
+/**
+ * The same measurement, taken once the layout has come to rest.
+ *
+ * **A viewport change is not one event**, and below the width at which a list
+ * pans that matters here. The browser re-lays the page out in the frame the new
+ * size is applied; the table's expanded panel is then re-pinned to the pan
+ * region's *visible* box by a `ResizeObserver` (`ui-library/specs/data-table.md`
+ * — "an expansion is never wider than the box the table is read in"), and a
+ * `ResizeObserver` callback is delivered **after that layout and before the
+ * frame is painted**. So the un-pinned width exists for one layout and is never
+ * drawn — but a probe that forces layout in between reads it, and reads a panel
+ * as wide as the table's content instead of as wide as the window.
+ *
+ * Measured on this machine on 2026-08-17, at a 460px window on the image panel:
+ * pan region `clientWidth` 418 against `scrollWidth` 682, the section **634.4px**
+ * in the first sample and **370px** two frames later, the inline pin going from
+ * `''` to `418px` in between. Identical, to the decimal, at `d17e1df` — the
+ * revision this plan started from — so it is a property of the pinning mechanism
+ * (`84492d6`, 2026-08-15) and not of anything this programme changed. It is what
+ * made this file report *"the section is not narrower than its class's 560px
+ * minimum, so the degrading case was never reached"* on a build where the
+ * settled section is 370px and the case is reached comfortably.
+ *
+ * Sampled until two consecutive frames agree: what is measured is where the
+ * layout came to rest, which is the only state an operator ever sees.
+ */
+async function measureOnceSettled(section: Locator): Promise<Measurement> {
+  let previous = await measure(section);
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    await section
+      .page()
+      .evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    const current = await measure(section);
+    if (Math.abs(current.width - previous.width) < 0.5 && Math.abs(current.height - previous.height) < 0.5) return current;
+    previous = current;
+  }
+  return previous;
+}
+
 function describeMeasurement(label: string, measurement: Measurement): string {
   return `${label}: ${measurement.width.toFixed(1)}×${measurement.height.toFixed(1)}px — ${measurement.columns} column(s) × ${measurement.lines} line(s) over ${measurement.bands.length} bands`;
 }
@@ -433,7 +472,11 @@ test('arranges Environment and Labels in columns of their own class, and History
      * through it would answer a wasted-space report with a clipping defect.
      */
     await page.setViewportSize({ width: 460, height: 900 });
-    const narrow = await measure(page.locator('.ui-detail-panel .ui-collapsible-section .ui-definition-list').first());
+    // Measured where the layout comes to rest, not in the frame the window
+    // changed size: see `measureOnceSettled`. The 560px bound below is the
+    // class's own minimum and is unchanged — what was wrong was *when* the box
+    // was read, never what is expected of it.
+    const narrow = await measureOnceSettled(page.locator('.ui-detail-panel .ui-collapsible-section .ui-definition-list').first());
     const narrowDescription = describeMeasurement('Environment at a 460px window', narrow);
     measured.push(narrowDescription);
     expect(narrow.width, `${narrowDescription} — the section is not narrower than its class's 560px minimum, so the degrading case was never reached`).toBeLessThan(560);
