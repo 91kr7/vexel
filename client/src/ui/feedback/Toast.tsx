@@ -8,7 +8,9 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { IconButton } from '../controls/IconButton';
 import { Surface } from '../glass/Surface';
+import { Row } from '../layout/Row';
 import './feedback.css';
 
 /**
@@ -37,6 +39,13 @@ interface ToastContextValue {
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null);
+
+/** The mark a toned toast carries before its text; `neutral` carries none. */
+const toneGlyph: Record<ToastTone, string | null> = {
+  neutral: null,
+  success: '✓',
+  danger: '!',
+};
 
 /** A per-instance counter would collide across concurrently mounted providers (and reset on remount); a random id never does. */
 function createToastId(): string {
@@ -81,14 +90,35 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
     <ToastContext.Provider value={value}>
       {children}
       <div className="ui-toast-viewport">
-        {toasts.map((toast) => (
-          <Surface key={toast.id} elevation="raised" padding="md" material="overlay">
-            <div className="ui-toast">
-              <p className="ui-toast__title">{toast.title}</p>
-              {toast.message ? <p className="ui-toast__message">{toast.message}</p> : null}
-            </div>
-          </Surface>
-        ))}
+        {toasts.map((toast) => {
+          const tone = toast.tone ?? 'neutral';
+          const glyph = toneGlyph[tone];
+          return (
+            // The surface carries no padding: the card's one padding is on
+            // `.ui-toast`, which therefore fills the glass exactly and can draw
+            // the tone accent at its edge.
+            <Surface key={toast.id} elevation="raised" padding="none" material="overlay">
+              <div className={tone === 'neutral' ? 'ui-toast' : `ui-toast ui-toast--tone-${tone}`}>
+                <Row gap="var(--space-3)" align="start">
+                  {glyph ? (
+                    <span className="ui-toast__glyph" aria-hidden="true">
+                      {glyph}
+                    </span>
+                  ) : null}
+                  <div className="ui-toast__body">
+                    <p className="ui-toast__title">{toast.title}</p>
+                    {toast.message ? <p className="ui-toast__message">{toast.message}</p> : null}
+                  </div>
+                  <div className="ui-toast__dismiss">
+                    <IconButton label={`Dismiss notification: ${toast.title}`} size="sm" onClick={() => dismiss(toast.id)}>
+                      ×
+                    </IconButton>
+                  </div>
+                </Row>
+              </div>
+            </Surface>
+          );
+        })}
       </div>
     </ToastContext.Provider>
   );

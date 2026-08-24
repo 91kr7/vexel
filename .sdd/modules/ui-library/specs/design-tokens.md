@@ -78,6 +78,13 @@ token by name, never a literal value.
     builds — ten entries, two group separators and a reason line under every entry that can be
     disabled at once — so that menu is shown whole. It makes no menu taller: a cap only stops
     capping earlier.
+  - Toast card sizing: `--toast-min-width` (240px), `--toast-max-width` (360px) and
+    `--toast-glyph-size` (20px). The card follows its own content between the floor and the
+    maximum, so a two-word toast is not drawn in the box of a full sentence: the maximum is the
+    width the stack used to be fixed at, unchanged, and the floor — two thirds of it — is what
+    keeps a one-word toast reading as a notification card rather than as a chip. The glyph size is
+    the round tone badge a `success`/`danger` toast carries before its text. See `toast.md`; none
+    of the three is ever written at a call site.
   - Elevation: `--shadow-{1,2,3}`.
   - Z-index: `--z-{backdrop,shell,content,overlay,modal,toast}`.
   - Overlay glass: `--blur-overlay` (20px) and `--overlay-glass-saturation` (140%), plus the three
@@ -115,6 +122,11 @@ token by name, never a literal value.
   for a larger radius. The three overlay fills are the same hue as `--color-surface-raised`
   composited over `--color-void`, so a surface degrading to one of them keeps its colour and the
   text contrast guaranteed above.
+- The toast's tone treatment introduces **no colour of its own**: it reuses the `success` and
+  `danger` families already declared above, and its one padding is the existing spacing scale. A
+  component correcting its own appearance adds the figures that are its own — a width floor, a
+  maximum, a badge size — and retunes nothing that is shared, which is what keeps the fix off every
+  other surface built on the same tokens.
 - The categorical palette is kept to four entries: a breakdown that needed more would be relying on
   two colors an eye cannot separate. Three of the four reuse the accent, success and warning roles
   by reference, so the palette cannot drift away from the rest of the interface.
@@ -128,3 +140,6 @@ token by name, never a literal value.
 - plan-docker_management_app-image_row_actions/REQ-34
 - plan-ui-coherence-optimisation/REQ-7
 - plan-ui-coherence-optimisation/REQ-9
+- plan-docker_management_app-toast_feedback/REQ-13
+- plan-docker_management_app-toast_feedback/REQ-14
+- plan-docker_management_app-toast_feedback/REQ-20

@@ -262,6 +262,17 @@
   --menu-min-width: 236px;
   --menu-max-height: 480px;
 
+  /* Toast card sizing. The card follows the content it holds between these two
+     figures, so a two-word toast is not drawn in the box of a full sentence.
+     The maximum is the width the stack used to be fixed at, unchanged; the
+     floor is what keeps a one-word toast reading as a notification card rather
+     than as a chip — two thirds of the maximum, and retunable here once seen.
+     The glyph size is the round tone badge a success/danger toast carries
+     before its text. */
+  --toast-min-width: 240px;
+  --toast-max-width: 360px;
+  --toast-glyph-size: 20px;
+
   /* Elevation */
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.35);

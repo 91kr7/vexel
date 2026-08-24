@@ -103,6 +103,18 @@
   margin-top: var(--space-3);
 }
 
+/*
+ * The stack has no width of its own: it shrinks to the widest card it holds, up
+ * to the maximum, and each card then sizes itself to its own content inside it.
+ * `align-items: flex-end` is what keeps the stack readable as one stack — the
+ * cards share the edge nearest the corner they live in and only the inward side
+ * is ragged.
+ *
+ * `pointer-events` is switched off here and back on on the card below, so the
+ * corner region is transparent to the pointer everywhere a toast is not: a
+ * click beside a narrow toast, between two cards, or into an empty stack
+ * reaches the screen underneath.
+ */
 .ui-toast-viewport {
   position: fixed;
   right: var(--space-6);
@@ -110,26 +122,87 @@
   z-index: var(--z-toast);
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
   gap: var(--space-2);
-  width: min(360px, calc(100vw - var(--space-6) * 2));
+  max-width: min(var(--toast-max-width), calc(100vw - var(--space-6) * 2));
+  pointer-events: none;
 }
 
+/*
+ * The card's one and only padding: the surface above it is asked for
+ * `padding="none"`, so this is the whole of the gap between the glass edge and
+ * the text, and it is the same on every side — the card carries no border of
+ * its own to inset one edge past the others.
+ */
 .ui-toast {
+  min-width: var(--toast-min-width);
   padding: var(--space-3) var(--space-4);
-  box-shadow: var(--shadow-3);
+  border-radius: var(--radius-xl);
+  pointer-events: auto;
 }
 
+.ui-toast__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.ui-toast__dismiss {
+  flex: none;
+}
+
+/*
+ * Tone — one channel, the round glyph badge `Callout` uses below, applied to the
+ * families the toast already declares. The glyph differs in **shape** as well as
+ * in hue (`✓` against `!`) and `neutral` carries no glyph element at all, so the
+ * three tones stay apart with the screen in greyscale: by shape and by presence,
+ * never by colour alone.
+ *
+ * There is deliberately **no accent down the card's edge**. It was drawn as a
+ * hairline border-left and withdrawn on sight by the human: a line on one edge of
+ * one card is not how anything else in this interface marks a state, and it read
+ * as foreign rather than as an accent. It was a second, redundant channel — the
+ * glyph already carries the non-colour half on its own — so removing it costs
+ * redundancy, not the guarantee. Do not reinstate it.
+ *
+ * Nothing tones the card's own fill either: the text keeps the untoned card's
+ * background, so a failure toast reads no worse than any other.
+ */
+.ui-toast__glyph {
+  display: grid;
+  place-items: center;
+  width: var(--toast-glyph-size);
+  height: var(--toast-glyph-size);
+  flex: none;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+}
+
+.ui-toast--tone-success .ui-toast__glyph {
+  background: var(--color-success-tint);
+  color: var(--color-success);
+}
+
+.ui-toast--tone-danger .ui-toast__glyph {
+  background: var(--color-danger-tint);
+  color: var(--color-danger-strong);
+}
+
+/* A message is frequently one unbroken machine value (a tag reference, a
+   digest): it wraps inside the card rather than pushing past its edge. */
 .ui-toast__title {
   margin: 0;
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
+  overflow-wrap: anywhere;
 }
 
 .ui-toast__message {
   margin: var(--space-1) 0 0;
   font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
 }
 
 .ui-error-banner {

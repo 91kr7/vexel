@@ -2,7 +2,7 @@
 
 | Component | Type | Path | Responsibility | Spec |
 |-----------|------|------|-----------------|------|
-| Design tokens | configuration | `client/src/ui/tokens.css` | Color, typography, spacing, radii, border, elevation, z-index and layout-sizing custom properties (including the two data-table action column widths, the data-table flexible-column minimum, the truncating-run minimum and the property-band minima and maxima by content class); single source of truth for every visual value | `specs/design-tokens.md` |
+| Design tokens | configuration | `client/src/ui/tokens.css` | Color, typography, spacing, radii, border, elevation, z-index and layout-sizing custom properties (including the two data-table action column widths, the data-table flexible-column minimum, the truncating-run minimum, the property-band minima and maxima by content class and the toast card's width floor, maximum and glyph size); single source of truth for every visual value | `specs/design-tokens.md` |
 | Foundation stylesheet | configuration | `client/src/ui/foundation.css` | The library's single style entry point: imports tokens, applies the base reset | `specs/foundation-stylesheet.md` |
 | Truncation contract | configuration | `client/src/ui/truncation.css` | The one rule for a flexible text run laid beside trailing metadata: the run shrinks and ellipsises above an explicit floor, the metadata keeps its width, and when neither fits the metadata takes its own line. Carried by StorageUsageRow and the table cells; the property band is deliberately outside it | `specs/truncation-contract.md` |
 | Backdrop | UI component | `client/src/ui/background/Backdrop.tsx` | Fixed, full-viewport layer rendering the static pre-blurred background asset | `specs/backdrop.md` |
@@ -86,7 +86,7 @@
 | UsageBreakdown | UI component | `client/src/ui/metrics/UsageBreakdown.tsx` | One whole split across named categories: per row a label, its absolute reading and a categorically coloured bar for its share — zero and unmeasured each drawn as themselves — under a legend naming every colour, each row optionally activatable | `specs/usage-breakdown.md` |
 | Modal | UI component | `client/src/ui/feedback/Modal.tsx` | Centered glass dialog over a dimmed overlay | `specs/modal.md` |
 | ConfirmDialog | UI component | `client/src/ui/feedback/ConfirmDialog.tsx` | Destructive-confirmation dialog naming the target and the consequence, with an optional slot for the decision the action needs (e.g. its scope) | `specs/confirm-dialog.md` |
-| ToastProvider, useToast | UI component | `client/src/ui/feedback/Toast.tsx` | Transient toast notification stack and its provider/hook | `specs/toast.md` |
+| ToastProvider, useToast | UI component | `client/src/ui/feedback/Toast.tsx` | Transient toast notification stack and its provider/hook: a card sized to what it holds, drawn with the tone its caller passed and dismissible on the toast itself | `specs/toast.md` |
 | ErrorBanner | UI component | `client/src/ui/feedback/ErrorBanner.tsx` | Inline failure banner showing the upstream error message verbatim, with an optional retry action | `specs/error-banner.md` |
 | Callout | UI component | `client/src/ui/feedback/Callout.tsx` | Persistent, non-dismissible explanatory banner (e.g. a heuristic-signal disclaimer) | `specs/callout.md` |
 | ResultSummary | UI component | `client/src/ui/feedback/ResultSummary.tsx` | Block reporting what an action just did: a headline figure over one line per part of the work, failed parts marked | `specs/result-summary.md` |
