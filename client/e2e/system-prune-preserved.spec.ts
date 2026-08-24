@@ -36,7 +36,11 @@
  * The daemon is the operator's own and moves under both builds, so every value
  * compared is read **twice on the build under test**, before and after the
  * delivered one: a field that differs between those two reads is the daemon
- * changing under the comparison and is reported as drift rather than asserted.
+ * changing under the comparison and is reported as drift rather than asserted. That
+ * catches only what moves *between* those two reads, so the live quantities — sizes,
+ * and the counts inside the rows' lines — are normalised out of the comparison
+ * altogether (`withoutLiveQuantities`): what is compared is the shape of each
+ * statement, not the state of the daemon at the moment it was read.
  *
  * The one fixture — a container left in `created`, so that "the stopped
  * containers category holds something" is this spec's own fact and not the
@@ -147,24 +151,77 @@ async function readScreen(page: Page): Promise<ScreenReading> {
   }, DAEMON_PROPERTIES);
 }
 
-/** The reading as flat `what it states` → `what it says` pairs, so a difference names itself. */
+/** A size as this screen writes one — `317.7MB`, `0B` — wherever it appears in a stated value. */
+const STATED_SIZE = /(?<![\w.])\d+(?:\.\d+)?\s?(?:B|KB|MB|GB|TB)(?![\w])/g;
+
+/** A number standing on its own inside a sentence — the `N` of "N records …" — never a digit inside a word (`arm64`). */
+const STATED_COUNT = /(?<![\w.])\d+(?:[.,]\d+)*(?![\w.])/g;
+
+/**
+ * The stated value with its **live quantities** — what the daemon holds right now —
+ * replaced by placeholders, so that what the two builds are compared on is the
+ * **shape of the statement**: every word, in its order, with whatever unit the
+ * wording itself carries. Two quantities only: a size, and a count standing inside a
+ * sentence. A value that is a number and nothing else — a version — is not one of
+ * them: the same daemon answers both builds, so it is left compared in full.
+ *
+ * This is here because the guard in `differences()` below rests on an inference
+ * that does not hold: "stable across two adjacent reads, therefore a property of
+ * the product". A volatile quantity does not become the build's by holding still
+ * for a moment. Measured, and this is the evidence — do not reinstate the strict
+ * comparison believing it was stricter and therefore better: the `Build cache` row
+ * was read at `159.9MB` / "90 records of BuildKit cache from past builds" on the
+ * delivered build, and at `317.7MB` / "138 records …" on the build under test
+ * minutes later, because the suite itself was building fixture images between the
+ * two openings; it then sat still across both reads of the build under test, and a
+ * screen that had not changed a character was reported as violating REQ-73. No
+ * sampling window repairs that, since the source of the movement is the run.
+ *
+ * What still fails, which is the point: a reworded line ("records of BuildKit cache
+ * from past builds" → anything else), a unit the wording carries, a row, property
+ * or callout that appeared or disappeared (the `structural` half, untouched), and —
+ * the only legitimate assertion about the numbers themselves — the per-row
+ * `/^(—|\d+(\.\d+)?(B|KB|MB|GB|TB))$/` check on each size, which stays where it is.
+ * `drift` stays too: it still catches everything this does not cover.
+ */
+function withoutLiveQuantities(value: string): string {
+  // An em dash is the whole of a size that could not be read: the same live
+  // quantity in its empty form, and the only value this screen states as one.
+  if (value === '—') return '<size>';
+  const withoutSizes = value.replace(STATED_SIZE, '<size>');
+  // A count is normalised only **inside a sentence**. A value that is nothing but a
+  // number is a version, not a quantity — one daemon answers both builds, so those
+  // stay compared character for character.
+  return /\p{L}/u.test(value) ? withoutSizes.replace(STATED_COUNT, '<n>') : withoutSizes;
+}
+
+/**
+ * The reading as flat `what it states` → `what it says` pairs, so a difference names
+ * itself. Every value passes through `withoutLiveQuantities` here, once, so the one
+ * normalisation serves the delivered reading and both readings of the build under
+ * test alike rather than being applied at the comparison's call sites.
+ */
 function stated(reading: ScreenReading): Map<string, string> {
   const out = new Map<string, string>();
-  for (const property of reading.properties) out.set(`property "${property.label}"`, property.value);
+  const say = (key: string, value: string) => out.set(key, withoutLiveQuantities(value));
+  for (const property of reading.properties) say(`property "${property.label}"`, property.value);
   for (const row of reading.rows) {
-    out.set(`row "${row.label}" line`, row.description);
-    out.set(`row "${row.label}" size`, row.size);
-    out.set(`row "${row.label}" Prune`, row.enabled ? 'enabled' : 'disabled');
-    out.set(`row "${row.label}" tint`, row.destructive ? 'destructive' : 'plain');
+    say(`row "${row.label}" line`, row.description);
+    say(`row "${row.label}" size`, row.size);
+    say(`row "${row.label}" Prune`, row.enabled ? 'enabled' : 'disabled');
+    say(`row "${row.label}" tint`, row.destructive ? 'destructive' : 'plain');
   }
-  reading.callouts.forEach((callout, index) => out.set(`callout ${index}`, callout.text));
+  reading.callouts.forEach((callout, index) => say(`callout ${index}`, callout.text));
   return out;
 }
 
 /**
  * Compares what the delivered build stated with what this one states, twice
  * read: a field the two current reads disagree about is the daemon moving under
- * the comparison, not the build.
+ * the comparison, not the build. The converse does not follow — a field that holds
+ * still across the two adjacent reads may still be a live quantity the daemon moved
+ * *before* them — which is why the values arrive here already normalised by
+ * `withoutLiveQuantities`.
  */
 function differences(
   delivered: Map<string, string>,
