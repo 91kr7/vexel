@@ -62,6 +62,9 @@ export async function expectCompletionStated(progressDialog: Locator, completion
     announcement,
     'the completion was not announced: the dialog carries no status message stating it',
   ).toContainText('Completed');
+  // Single-frame, and not a position: what is asked here is whether the announcement is **drawn at
+  // all**, on an element the assertion above has already waited for. A settle would add frames to
+  // every progress dialog in the suite and change nothing about the answer (`support/settled.ts`).
   const box = await announcement.boundingBox();
   expect(box, 'the completion status message is not rendered at all, so nothing is announced').not.toBeNull();
   expect(

@@ -48,6 +48,7 @@
  */
 import { expect, test, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
+import { movePointerOverTheRow, readOnceSettled } from './support/settled.js';
 import { measureList, round, tableWithColumn } from './support/classic-table.js';
 
 const DESKTOP = { width: 1440, height: 1000 };
@@ -94,7 +95,22 @@ async function reserveTheScrollbarGutter(page: Page): Promise<void> {
 }
 
 /** What the scrolling box of a list looks like, and what its header does inside it. */
+/**
+ * The scroll box, **once the layout has come to rest**: it is read straight after a real wheel, and what the sticky header is written from is the scroll event.
+ *
+ * The pass below is what stops two figures coming from two frames; the sampler is
+ * what stops the whole reading coming from a frame nobody sees (`support/settled.ts`).
+ */
 async function measureScrollBox(page: Page, column: string) {
+  return await readOnceSettled(
+    page,
+    () => measureScrollBoxThisFrame(page, column),
+    (previous, current) => JSON.stringify(previous) === JSON.stringify(current),
+  );
+}
+
+/** **One frame, and no test calls it**: the reader above is built out of it. */
+async function measureScrollBoxThisFrame(page: Page, column: string) {
   return await page.evaluate((wanted) => {
     const tables = Array.from(document.querySelectorAll<HTMLElement>('.ui-frame__content .ui-data-table'));
     const table = tables.find((candidate) =>
@@ -222,9 +238,7 @@ test('no column drifts from its header while a scrollbar takes real width — 14
 
   // …and once something really is scrolling under it. Driven by a **real wheel**
   // over a row of the list, never by assigning `scrollTop`.
-  const firstRow = tableWithColumn(page, CLI_COLUMN).locator('.ui-data-table__row').first();
-  const rowBox = (await firstRow.boundingBox())!;
-  await page.mouse.move(rowBox.x + Math.min(60, rowBox.width / 2), rowBox.y + rowBox.height / 2);
+  await movePointerOverTheRow(page, tableWithColumn(page, CLI_COLUMN).locator('.ui-data-table__row').first(), 'the first row of the CLI list');
   await page.mouse.wheel(0, 240);
   await page.waitForTimeout(400);
 
@@ -275,9 +289,7 @@ test('the header takes an opaque floor only while something scrolls under it —
     }, CLI_COLUMN);
 
   const atRest = await paint();
-  const firstRow = tableWithColumn(page, CLI_COLUMN).locator('.ui-data-table__row').first();
-  const rowBox = (await firstRow.boundingBox())!;
-  await page.mouse.move(rowBox.x + Math.min(60, rowBox.width / 2), rowBox.y + rowBox.height / 2);
+  await movePointerOverTheRow(page, tableWithColumn(page, CLI_COLUMN).locator('.ui-data-table__row').first(), 'the first row of the CLI list');
   await page.mouse.wheel(0, 240);
   await page.waitForTimeout(400);
   const scrolled = await paint();

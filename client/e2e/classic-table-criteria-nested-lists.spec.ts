@@ -59,6 +59,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type Page } from './support/test.js';
 import { CASE_LABEL, OWNER_LABEL, RUN_ID, openApp, ownershipArgs } from './support/fixtures.js';
+import { boxOf, boxThisFrame, clickAtItsCentre } from './support/settled.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { startDeliveredBuild, type DeliveredBuild } from './support/delivered-build.js';
@@ -539,8 +540,13 @@ test('a nested list pans with its parent, under one scrollbar — 375×812', asy
     // on the part of the list that is supposed to move with the rest of it.
     const childRow = parent.locator('.ui-data-table__row-content .ui-data-table__row').first();
     await childRow.scrollIntoViewIfNeeded();
-    const childBox = (await childRow.boundingBox())!;
-    const before = { child: childBox.x, parentRow: (await parent.locator('.ui-data-table__row').first().boundingBox())!.x };
+    // The pair below measures **movement under a pan**, so both halves are read as they stand:
+    // settling them would be answering a different question (`support/settled.ts`).
+    const childBox = await boxOf(childRow, 'the nested row the wheel is delivered over');
+    const before = {
+      child: childBox.x,
+      parentRow: (await boxThisFrame(parent.locator('.ui-data-table__row').first(), 'the parent row before the pan')).x,
+    };
     await page.mouse.move(childBox.x + Math.min(60, childBox.width / 2), childBox.y + childBox.height / 2);
     for (let stroke = 0; stroke < 6; stroke += 1) {
       await page.mouse.wheel(120, 0);
@@ -549,8 +555,8 @@ test('a nested list pans with its parent, under one scrollbar — 375×812', asy
 
     const offset = await parent.evaluate((element) => Math.round((element as HTMLElement).scrollLeft));
     const after = {
-      child: (await childRow.boundingBox())!.x,
-      parentRow: (await parent.locator('.ui-data-table__row').first().boundingBox())!.x,
+      child: (await boxThisFrame(childRow, 'the nested row after the pan')).x,
+      parentRow: (await boxThisFrame(parent.locator('.ui-data-table__row').first(), 'the parent row after the pan')).x,
     };
     console.log(
       `[b3/REQ-12] 375×812 ${screen}: a wheel over a child row pans the parent to scrollLeft ${offset}; ` +
@@ -597,10 +603,7 @@ test('selecting a project opens its panel under its own row without disturbing i
     .locator('.ui-data-table__body > .ui-data-table__row')
     .filter({ hasText: MULTI_PROJECT })
     .first();
-  const cell = projectRow.locator('.ui-data-table__cell').first();
-  await cell.scrollIntoViewIfNeeded();
-  const cellBox = (await cell.boundingBox())!;
-  await page.mouse.click(cellBox.x + cellBox.width / 2, cellBox.y + cellBox.height / 2);
+  await clickAtItsCentre(page, projectRow.locator('.ui-data-table__cell').first(), 'the project row’s own first cell');
 
   const panel = page.locator('.ui-detail-panel');
   await expect(panel, 'selecting a project opened no detail panel').toBeVisible({ timeout: 20_000 });

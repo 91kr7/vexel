@@ -4,6 +4,8 @@ import path from 'node:path';
 import { expect, test, type Page } from './support/test.js';
 import { navEntry, openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
+import { boxOf } from './support/settled.js';
 import { PULLABLE_REPOSITORY, TINY_IMAGE, ensureImage, ensurePullableImage } from '../../server/test/support/base-images.js';
 
 // Every test in this file exercises the daemon's real pull/tag/push/remove
@@ -90,6 +92,17 @@ async function openMenuGeometry(page: Page) {
         : 0,
     };
   });
+}
+
+/**
+ * The row's overflow menu opened and one of its entries chosen, as **one retried gesture**
+ * (`support/row-overflow-menu.ts`). The menu dismisses itself on a scroll, a resize or a re-read
+ * that replaces the row (`ui-library/specs/menu.md`), and a gesture split in two waits out its
+ * whole budget on an entry that is already gone. Several entries reached this way are destructive,
+ * so the retry stops at the first activation the browser delivers: `Remove` cannot run twice.
+ */
+async function chooseRowAction(page: Page, row: ReturnType<typeof imageRow>, label: string): Promise<void> {
+  await chooseFromRowOverflowMenu(page, row, label);
 }
 
 async function openRowOverflow(page: Page, row: ReturnType<typeof imageRow>): Promise<void> {
@@ -316,8 +329,7 @@ test('the row menu closes on Escape, on an outside click and on choosing an entr
     await expect(menu).toHaveCount(0);
     await expect(rowOverflow(row)).toBeFocused();
 
-    await openRowOverflow(page, row);
-    await menuEntry(page, 'Tag…').click();
+    await chooseRowAction(page, row, 'Tag…');
     await expect(menu).toHaveCount(0);
     await expect(page.getByRole('textbox', { name: 'New reference' })).toBeVisible();
   } finally {
@@ -528,8 +540,7 @@ test('tagging an image adds the new reference and confirms with a success toast'
     const row = imageRow(page, sourceTag);
     await expect(row).toBeVisible({ timeout: 10_000 });
 
-    await openRowOverflow(page, row);
-    await menuEntry(page, 'Tag…').click();
+    await chooseRowAction(page, row, 'Tag…');
     const dialogHeading = page.getByRole('heading', { name: `Tag ${sourceTag}` });
     const dialog = page.locator('.ui-modal').filter({ has: dialogHeading });
     await dialog.getByRole('textbox', { name: 'New reference' }).fill(newTag);
@@ -564,8 +575,7 @@ test('untagging one of several tags removes just that reference, leaving the oth
     await expect(row).toBeVisible({ timeout: 10_000 });
     await expect(row).toContainText(removedTag);
 
-    await openRowOverflow(page, row);
-    await menuEntry(page, 'Untag').click();
+    await chooseRowAction(page, row, 'Untag');
     const dialog = page.locator('.ui-modal');
     await dialog.getByRole('combobox', { name: 'Reference to untag' }).selectOption(removedTag);
     await dialog.getByRole('button', { name: 'Untag' }).click();
@@ -590,8 +600,7 @@ test('untagging a single-tag image drops its reference straight away', async ({ 
     const row = imageRow(page, tag);
     await expect(row).toBeVisible({ timeout: 10_000 });
 
-    await openRowOverflow(page, row);
-    await menuEntry(page, 'Untag').click();
+    await chooseRowAction(page, row, 'Untag');
 
     await expect(page.locator('.ui-modal')).toHaveCount(0);
     await expect(imageRow(page, tag)).toHaveCount(0, { timeout: 10_000 });
@@ -665,16 +674,14 @@ test('removing an image asks for confirmation, does nothing on cancel and remove
 
     // Reached from the row's menu now; the confirmation in front of it is unchanged — the menu is
     // a step before it, not instead of it (REQ-11).
-    await openRowOverflow(page, row);
-    await menuEntry(page, 'Remove').click();
+    await chooseRowAction(page, row, 'Remove');
     const confirmHeading = page.getByRole('heading', { name: `Confirm: ${tag}` });
     await expect(confirmHeading).toBeVisible();
     const confirmDialog = page.locator('.ui-modal').filter({ has: confirmHeading });
     await confirmDialog.getByRole('button', { name: 'Cancel' }).click();
     await expect(imageRow(page, tag)).toBeVisible();
 
-    await openRowOverflow(page, row);
-    await menuEntry(page, 'Remove').click();
+    await chooseRowAction(page, row, 'Remove');
     await expect(confirmHeading).toBeVisible();
     await confirmDialog.getByRole('button', { name: 'Remove' }).click();
 
@@ -751,7 +758,9 @@ test('the images table and the containers table present with the same header, ty
           };
         });
       const row = table.locator('.ui-data-table__row').first();
-      const rowBox = await row.boundingBox();
+      // The height is compared with the other screen's, so it is read once the list has settled:
+      // two screens measured at different moments of their own arrival are not comparable.
+      const rowBox = await boxOf(row, 'the first row of the list');
       const restingBackground = await row.evaluate((node) => getComputedStyle(node).backgroundColor);
       await row.hover();
       const hoverBackground = await row.evaluate((node) => getComputedStyle(node).backgroundColor);
@@ -807,8 +816,7 @@ test('pushing an image to a registry shows per-layer progress until it completes
     const row = imageRow(page, pushReference);
     await expect(row).toBeVisible({ timeout: 10_000 });
 
-    await openRowOverflow(page, row);
-    await menuEntry(page, 'Push…').click();
+    await chooseRowAction(page, row, 'Push…');
     const dialogHeading = page.getByRole('heading', { name: `Push ${pushReference}` });
     const dialog = page.locator('.ui-modal').filter({ has: dialogHeading });
     await dialog.getByRole('button', { name: 'Push' }).click();
@@ -1003,8 +1011,7 @@ test.describe('Image detail panel dismissal (REQ-20, REQ-21, REQ-22, REQ-23, REQ
       await selectRow(row);
       await expect(detail).toBeVisible();
 
-      await openRowOverflow(page, row);
-      await menuEntry(page, 'Tag…').click();
+      await chooseRowAction(page, row, 'Tag…');
       const tagHeading = page.getByRole('heading', { name: `Tag ${tag}` });
       await expect(tagHeading).toBeVisible();
 
@@ -1016,8 +1023,7 @@ test.describe('Image detail panel dismissal (REQ-20, REQ-21, REQ-22, REQ-23, REQ
       await expect(tagHeading).toHaveCount(0);
       await expect(detail).toBeVisible();
 
-      await openRowOverflow(page, row);
-      await menuEntry(page, 'Remove').click();
+      await chooseRowAction(page, row, 'Remove');
       const confirmHeading = page.getByRole('heading', { name: `Confirm: ${tag}` });
       await expect(confirmHeading).toBeVisible();
 
@@ -1056,8 +1062,7 @@ test.describe('Image detail panel dismissal (REQ-20, REQ-21, REQ-22, REQ-23, REQ
       await selectRow(row);
       await expect(expandedPanel(page)).toBeVisible();
 
-      await openRowOverflow(page, row);
-      await menuEntry(page, 'Remove').click();
+      await chooseRowAction(page, row, 'Remove');
       const confirmHeading = page.getByRole('heading', { name: `Confirm: ${tag}` });
       await expect(confirmHeading).toBeVisible();
       await page.locator('.ui-modal').filter({ has: confirmHeading }).getByRole('button', { name: 'Remove' }).click();
@@ -1180,8 +1185,7 @@ test.describe('The four analysis views, opened from the row menu (REQ-4, REQ-13 
       ];
 
       for (const view of views) {
-        await openRowOverflow(page, row);
-        await menuEntry(page, view.label).click();
+        await chooseRowAction(page, row, view.label);
 
         const heading = page.getByRole('heading', { name: view.heading });
         await expect(heading).toBeVisible({ timeout: 15_000 });
@@ -1198,8 +1202,7 @@ test.describe('The four analysis views, opened from the row menu (REQ-4, REQ-13 
       }
 
       // The comparison names the image it was started from, by the reference the row shows (REQ-23).
-      await openRowOverflow(page, row);
-      await menuEntry(page, 'Compare with…').click();
+      await chooseRowAction(page, row, 'Compare with…');
       await expect(page.getByText(`Started from ${tag}`, { exact: false })).toBeVisible();
       await dismissView(page);
     } finally {
@@ -1229,8 +1232,7 @@ test.describe('The four analysis views, opened from the row menu (REQ-4, REQ-13 
       await expect(expandedPanel(page).getByText('Raw payload')).toBeVisible({ timeout: 15_000 });
 
       await imageRow(page, viewTag).scrollIntoViewIfNeeded();
-      await openRowOverflow(page, imageRow(page, viewTag));
-      await menuEntry(page, 'Explore layers…').click();
+      await chooseRowAction(page, imageRow(page, viewTag), 'Explore layers…');
 
       // The view is the invoked row's, not the selected image's (REQ-14).
       await expect(page.getByRole('heading', { name: `Layer stack — ${viewTag}` })).toBeVisible({ timeout: 15_000 });
@@ -1269,8 +1271,7 @@ test.describe('The four analysis views, opened from the row menu (REQ-4, REQ-13 
       await expect(row).toBeVisible({ timeout: 10_000 });
 
       // First with no panel at all: nothing on the images list moves.
-      await openRowOverflow(page, row);
-      await menuEntry(page, 'Explore layers…').click();
+      await chooseRowAction(page, row, 'Explore layers…');
       const heading = page.getByRole('heading', { name: `Layer stack — ${tag}` });
       await expect(heading).toBeVisible();
 
@@ -1284,8 +1285,7 @@ test.describe('The four analysis views, opened from the row menu (REQ-4, REQ-13 
       // Then with a panel open underneath: it is still open and the selection is unchanged.
       await selectRow(row);
       await expect(expandedPanel(page)).toBeVisible();
-      await openRowOverflow(page, row);
-      await menuEntry(page, 'Explore layers…').click();
+      await chooseRowAction(page, row, 'Explore layers…');
       await expect(heading).toBeVisible();
 
       await page.keyboard.press('Escape');
@@ -1320,8 +1320,7 @@ test.describe('The four analysis views, opened from the row menu (REQ-4, REQ-13 
       await expect(row).toBeVisible({ timeout: 10_000 });
       await expect(detailPanels(page)).toHaveCount(0);
 
-      await openRowOverflow(page, row);
-      await menuEntry(page, 'Explore layers…').click();
+      await chooseRowAction(page, row, 'Explore layers…');
       const heading = page.getByRole('heading', { name: `Layer stack — ${tag}` });
       await expect(heading).toBeVisible({ timeout: 15_000 });
 
@@ -1351,8 +1350,7 @@ test.describe('The four analysis views, opened from the row menu (REQ-4, REQ-13 
       const row = imageRow(page, tag);
       await expect(row).toBeVisible({ timeout: 10_000 });
 
-      await openRowOverflow(page, row);
-      await menuEntry(page, 'Explore layers…').click();
+      await chooseRowAction(page, row, 'Explore layers…');
       const heading = page.getByRole('heading', { name: `Layer stack — ${tag}` });
       await expect(heading).toBeVisible({ timeout: 15_000 });
 

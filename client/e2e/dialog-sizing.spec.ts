@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
+import { chooseImageRowAnalysis } from './support/images-screen.js';
 import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 
 /**
@@ -244,18 +245,9 @@ async function waitForLayerStack(page: Page, dialog: Locator): Promise<void> {
  */
 async function openLayerExplorerDialog(page: Page): Promise<Locator> {
   await ensureImage(TINY_IMAGE);
-  await openApp(page, 'images-layers');
-  await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible();
-  await page.getByPlaceholder('Search reference or digest…').fill(TINY_IMAGE);
-  const row = page.locator('.ui-data-table__row', { hasText: TINY_IMAGE }).first();
-  await expect(row).toBeVisible({ timeout: 20_000 });
-  // Retried as a whole: the list keeps re-reading from the daemon's own events, and a re-read that
-  // replaces the row takes its trigger — and with it the menu (ui-library/specs/menu.md).
-  await expect(async () => {
-    await row.getByRole('button', { name: /^More actions for / }).click();
-    await expect(page.getByRole('menu')).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 20_000 });
-  await page.getByRole('menuitem', { name: 'Explore layers…', exact: true }).click();
+  // Screen, search and gesture from the shared path, so this file and `layer-build-cache.spec.ts`
+  // cannot drift apart again; what stays here is what this file demands of the dialog.
+  await chooseImageRowAnalysis(page, TINY_IMAGE, 'Explore layers…');
   const dialog = page.locator('.ui-modal--size-large');
   await expect(dialog).toBeVisible();
   await waitForLayerStack(page, dialog);
@@ -277,16 +269,7 @@ async function openLayerExplorerDialog(page: Page): Promise<Locator> {
  */
 async function openFilesystemBrowserDialog(page: Page): Promise<Locator> {
   await ensureImage(TINY_IMAGE);
-  await openApp(page, 'images-layers');
-  await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible();
-  await page.getByPlaceholder('Search reference or digest…').fill(TINY_IMAGE);
-  const row = page.locator('.ui-data-table__row', { hasText: TINY_IMAGE }).first();
-  await expect(row).toBeVisible({ timeout: 20_000 });
-  await expect(async () => {
-    await row.getByRole('button', { name: /^More actions for / }).click();
-    await expect(page.getByRole('menu')).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 20_000 });
-  await page.getByRole('menuitem', { name: 'Browse filesystem…', exact: true }).click();
+  await chooseImageRowAnalysis(page, TINY_IMAGE, 'Browse filesystem…');
 
   const warning = page.getByRole('heading', { name: `Confirm: ${TINY_IMAGE}` });
   await expect(warning).toBeVisible();

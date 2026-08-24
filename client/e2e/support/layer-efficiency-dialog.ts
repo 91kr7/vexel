@@ -31,6 +31,8 @@ import { openApp, ownershipArgs } from './fixtures.js';
 import { execFileAsync } from '../../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../../server/test/support/base-images.js';
 import { expectCompletedThenSelfDismissed } from './progress-completion.js';
+import { clickAt } from './pointer.js';
+import { chooseFromRowOverflowMenu } from './row-overflow-menu.js';
 import { LARGE_DIALOG_REGION } from './classic-table.js';
 
 /**
@@ -84,15 +86,8 @@ export async function removeEfficiencyFixtureImage(tag: string): Promise<void> {
   await execFileAsync('docker', ['rmi', '-f', tag]).catch(() => undefined);
 }
 
-/** A click at the visible control's own coordinates, never `element.click()` and never a dispatched event. */
-export async function clickAt(page: Page, target: Locator, what: string): Promise<void> {
-  await target.scrollIntoViewIfNeeded();
-  const box = await target.boundingBox();
-  expect(box, `${what}: the control has no box on screen at all`).not.toBeNull();
-  // Beside its own box: a control dragged out of the viewport keeps every character it had.
-  expect(box!.y, `${what}: the control sits above the top of the viewport`).toBeGreaterThanOrEqual(0);
-  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
-}
+/** Re-exported where its callers have always found it; it lives apart so this module can be imported by the one it uses. */
+export { clickAt } from './pointer.js';
 
 /** The efficiency & signals dialog, opened from the image row's own overflow menu. */
 export async function openTheDialog(page: Page, image: string): Promise<Locator> {
@@ -100,15 +95,11 @@ export async function openTheDialog(page: Page, image: string): Promise<Locator>
   const row = page.locator('.ui-data-table__row', { hasText: image }).first();
   await expect(row, `the images list does not draw a row for ${image}`).toBeVisible({ timeout: 30_000 });
 
-  // Retried as a whole: the list keeps re-reading from the daemon's own events,
-  // and a re-read that replaces the row takes its trigger — and with it the menu
-  // — as it is meant to (`ui-library/specs/menu.md`). Same precedent as
-  // `layer-efficiency-signals.spec.ts`.
-  await expect(async () => {
-    await clickAt(page, row.getByRole('button', { name: /^More actions for / }), 'the row’s overflow menu');
-    await expect(page.getByRole('menu')).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 30_000 });
-  await clickAt(page, page.getByRole('menuitem', { name: 'Efficiency & signals…', exact: true }), 'the Efficiency & signals entry');
+  // Opening and choosing are one retried gesture, over a settled list: the list
+  // keeps re-reading from the daemon's own events, and every one of the menu's
+  // specified dismissals (`ui-library/specs/menu.md`) lands between the two
+  // halves when they are retried separately.
+  await chooseFromRowOverflowMenu(page, row, 'Efficiency & signals…');
 
   const modal = page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: /^Efficiency & signals/ }) });
   await expect(modal, 'the efficiency & signals dialog did not open').toBeVisible({ timeout: 20_000 });

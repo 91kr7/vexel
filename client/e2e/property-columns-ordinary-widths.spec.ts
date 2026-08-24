@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
+import { clickAtItsCentre } from './support/settled.js';
 import { managerSwarmFixture, stubSwarmReading } from './support/swarm-reading.js';
 import {
   COLUMN_GAP_PX,
@@ -307,9 +308,7 @@ async function openPropertySection(page: Page, title: string): Promise<{ panel: 
   await expect(cell, `the ${title} inventory lists nothing to open, so its property section cannot be measured`).toBeVisible({
     timeout: 20_000,
   });
-  await cell.scrollIntoViewIfNeeded();
-  const box = (await cell.boundingBox())!;
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await clickAtItsCentre(page, cell, 'the row’s own first cell');
 
   const panel = card.locator('.ui-detail-panel');
   await expect(panel, `the ${title} row opened no detail panel`).toHaveCount(1, { timeout: 20_000 });

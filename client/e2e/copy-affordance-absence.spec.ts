@@ -4,6 +4,8 @@ import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { CASE_LABEL, OWNER_LABEL, RUN_ID, openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
+import { clickAtItsCentre } from './support/settled.js';
 import { ALPINE_IMAGE, TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 
 /**
@@ -203,13 +205,16 @@ function containerRow(page: Page, name: string): Locator {
   return page.locator('.ui-data-table__row', { hasText: name }).first();
 }
 
-/** Opens one of the image's analyses from the row's own overflow menu, retried as a whole: the list re-reads from daemon events. */
+/**
+ * Opens one of the image's analyses from the row's own overflow menu.
+ *
+ * Opening **and** choosing are retried together, over a settled list: the list
+ * re-reads from daemon events, and every one of the menu's specified dismissals
+ * (`ui-library/specs/menu.md`) lands between the two halves when they are
+ * retried separately.
+ */
 async function chooseRowAction(page: Page, row: Locator, label: string): Promise<void> {
-  await expect(async () => {
-    await row.getByRole('button', { name: /^More actions for / }).click();
-    await expect(page.getByRole('menu')).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 20_000 });
-  await page.getByRole('menuitem', { name: label, exact: true }).click();
+  await chooseFromRowOverflowMenu(page, row, label);
 }
 
 test.beforeEach(async ({ page }) => {
@@ -525,10 +530,7 @@ test('swarm: no panel offers a copy on an id, and a join token is reachable only
     for (let index = 0; index < count; index += 1) {
       // On its first cell, with a real pointer: below the desktop breakpoint a row is wider than the
       // box it is read in, so its own centre can sit over another column.
-      const cell = rows.nth(index).locator('.ui-data-table__cell').first();
-      await cell.scrollIntoViewIfNeeded();
-      const box = (await cell.boundingBox())!;
-      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      await clickAtItsCentre(page, rows.nth(index).locator('.ui-data-table__cell').first(), `${title} row ${index}: its own first cell`);
       const expanded = panel.locator('.ui-detail-panel');
       if ((await expanded.count()) === 0) continue;
       await expectBandsHoldNoControl(expanded.locator('.ui-definition-list').first(), `Swarm → ${title}, row ${index}`);

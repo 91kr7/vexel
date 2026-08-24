@@ -44,6 +44,9 @@
 import type { Browser } from '@playwright/test';
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
+import { boxOf, movePointerOverTheRow } from './support/settled.js';
+import { pressUntilItTakes } from './support/delivered-press.js';
+import { waitForArrivedContent } from './support/arrived.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { startRegistryFixtureServer, type RegistryFixtureServer } from './support/registry-fixture-server.js';
@@ -361,8 +364,7 @@ test('the columns hold their header at every pan offset — 375×812', async ({ 
       .filter({ has: page.locator('.ui-data-table__header-cell', { hasText: column }) })
       .first();
     const row = page.locator('.ui-data-table__row', { hasText: name === 'volumes' ? volumeNames[0] : networkName }).first();
-    const rowBox = (await row.boundingBox())!;
-    await page.mouse.move(rowBox.x + Math.min(60, rowBox.width / 2), rowBox.y + rowBox.height / 2);
+    await movePointerOverTheRow(page, row, `${name}: the row the wheel is delivered over`);
 
     const offsets: string[] = [];
     for (let step = 0; step < 6; step += 1) {
@@ -424,7 +426,7 @@ test('the networks chips are still under their row, counted, and their detach st
   // Brought into view as an operator brings it into view, and then clicked where
   // it is drawn: the panel sits below the fold on this screen.
   await detach.scrollIntoViewIfNeeded();
-  const detachBox = (await detach.boundingBox())!;
+  const detachBox = await boxOf(detach, 'the detach control');
   // Beside its own box: a control dragged out of the viewport keeps every character it had.
   expect(detachBox.y, 'the detach control sits above the top of the viewport').toBeGreaterThanOrEqual(0);
   expect(
@@ -458,14 +460,31 @@ test('one expansion opens at a time, under its own row, and holds the pan region
   // A real pointer on the row's own first cell: below the desktop breakpoint the
   // row is wider than the box it is read in, so its own centre can sit over
   // another column.
-  const openRow = async (row: Locator) => {
-    const cell = row.locator('.ui-data-table__cell').first();
-    await cell.scrollIntoViewIfNeeded();
-    const box = (await cell.boundingBox())!;
-    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  //
+  // **And the press is one this check can prove reached the row it names.** The
+  // volumes list re-reads every 3s (`use-volumes.ts`), and a re-read that
+  // re-orders the rows between the box being read and the press being delivered
+  // sends the press to whichever row now occupies those coordinates — a settled
+  // box says nothing about that, since the replacement has the same geometry
+  // (`support/settled.ts`, "a settled box is not a stable node"). This file lost
+  // a run to it: the check selected row B and the panel opened on row A. So the
+  // effect stated below is **the panel opening under this row's own name**, never
+  // "a panel appeared" — a panel that appeared on the wrong row is precisely the
+  // failure, and an effect of mere appearance would pass while the defect stands
+  // (`support/delivered-press.ts`).
+  const openRow = async (row: Locator, name: string) => {
+    await pressUntilItTakes(page, row.locator('.ui-data-table__cell').first(), `the row for ${name}, on its own first cell`, {
+      describe: `the panel opened directly under the row for ${name}`,
+      reached: async () => {
+        const expansion = page.locator('.ui-frame__content .ui-data-table .ui-data-table__expanded');
+        if ((await expansion.count()) !== 1) return false;
+        const above = await expansion.first().evaluate((element) => element.previousElementSibling?.textContent ?? '');
+        return above.includes(name);
+      },
+    });
   };
 
-  await openRow(first);
+  await openRow(first, volumeNames[0]!);
   const table = page.locator('.ui-frame__content .ui-data-table').first();
   const expansion = table.locator('.ui-data-table__expanded');
   await expect(expansion).toBeVisible({ timeout: 20_000 });
@@ -475,7 +494,7 @@ test('one expansion opens at a time, under its own row, and holds the pan region
     'the panel did not open directly below the row it belongs to',
   ).toContain(volumeNames[0]);
 
-  await openRow(second);
+  await openRow(second, volumeNames[1]!);
   await expect(expansion).toBeVisible({ timeout: 20_000 });
   expect(await expansion.count(), 'opening a second panel left the first one open').toBe(1);
   expect(
@@ -489,14 +508,13 @@ test('one expansion opens at a time, under its own row, and holds the pan region
     clientWidth: (element as HTMLElement).clientWidth,
     scrollWidth: (element as HTMLElement).scrollWidth,
   }));
-  const rowBox = (await second.boundingBox())!;
-  await page.mouse.move(rowBox.x + Math.min(60, rowBox.width / 2), rowBox.y + rowBox.height / 2);
+  await movePointerOverTheRow(page, second, 'the second row, which the wheel is delivered over');
   const readings: string[] = [];
   for (let step = 0; step < 4 && geometry.scrollWidth > geometry.clientWidth; step += 1) {
     await page.mouse.wheel(120, 0);
     await page.waitForTimeout(200);
     const offset = await table.evaluate((element) => Math.round((element as HTMLElement).scrollLeft));
-    const box = (await expansion.boundingBox())!;
+    const box = await boxOf(expansion, 'the open expansion, after the pan');
     readings.push(`scrollLeft ${offset} → x ${round(box.x)}`);
     expect(
       box.x - geometry.x,
@@ -527,14 +545,25 @@ test('the certified predecessors still hold on these rows and the panels they op
 
   const row = page.locator('.ui-data-table__row', { hasText: volumeNames[0] }).first();
   await expect(row).toBeVisible({ timeout: 20_000 });
-  const cell = row.locator('.ui-data-table__cell').first();
-  const box = (await cell.boundingBox())!;
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  // The same proved press as above: this list re-reads every 3s, and the panel this measures must
+  // be the panel of the row that was named (`support/delivered-press.ts`).
+  await pressUntilItTakes(page, row.locator('.ui-data-table__cell').first(), 'the volume row’s own first cell', {
+    describe: `the panel opened directly under the row for ${volumeNames[0]}`,
+    reached: async () => {
+      const expansion = page.locator('.ui-frame__content .ui-data-table .ui-data-table__expanded');
+      if ((await expansion.count()) !== 1) return false;
+      const above = await expansion.first().evaluate((element) => element.previousElementSibling?.textContent ?? '');
+      return above.includes(volumeNames[0]!);
+    },
+  });
 
   // plan-docker_management_app-detail_property_columns — the panel the row
   // expands into still lays its property bands out by the certified rule.
   const panel = page.locator('.ui-data-table__expanded .ui-detail-panel').first();
-  await expect(panel).toBeVisible({ timeout: 20_000 });
+  // Its bands are about to be measured, so the panel must **hold them**: while the inspect payload
+  // is outstanding this panel draws "Loading volume details…", which has a box, and a box that has
+  // stopped moving (`support/arrived.ts`).
+  await waitForArrivedContent(page.locator('.ui-data-table__expanded'), 'the volume row’s inline panel');
   const section = await measureSection(panel.locator('.ui-definition-list').first(), 'volumes → inline inspect');
   console.log(reportSection('[b1/REQ-36] volumes → inline inspect', section));
   expectNothingClippedOrOverlapped(section, 'volumes → inline inspect, at 1440×1000');

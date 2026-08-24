@@ -29,6 +29,7 @@
  */
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { navEntry, openApp } from './support/fixtures.js';
+import { boxOf } from './support/settled.js';
 
 /** A rectangle in viewport coordinates, as the browser reports it. */
 interface Box {
@@ -100,10 +101,6 @@ function contains(outer: Box, inner: Box, tolerance = 1): boolean {
   );
 }
 
-function sameBox(a: Box, b: Box): boolean {
-  return Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5 && Math.abs(a.width - b.width) < 0.5 && Math.abs(a.height - b.height) < 0.5;
-}
-
 /**
  * The element's box once it has stopped moving.
  *
@@ -112,16 +109,10 @@ function sameBox(a: Box, b: Box): boolean {
  * about where a surface actually is.
  */
 async function stableBox(target: Locator, description: string): Promise<Box> {
-  const deadline = Date.now() + 5000;
-  let previous: Box | null = null;
-  while (Date.now() < deadline) {
-    const current = await target.boundingBox();
-    if (current !== null && previous !== null && sameBox(previous, current)) return current;
-    previous = current;
-    await target.page().waitForTimeout(50);
-  }
-  expect(previous, `${description} never settled into a box on screen, so nothing about its position can be measured`).not.toBeNull();
-  return previous as Box;
+  // One of the settle primitives this suite had grown a dozen of; it now asks the shared reader
+  // (`support/settled.ts`), which samples on frames rather than on a 50ms timer and discards its
+  // first reading.
+  return await boxOf(target, description);
 }
 
 /** What the browser finds at a point, and whether it is the control an operator is aiming at. */

@@ -7,6 +7,7 @@ import { openApp, ownershipArgs } from './support/fixtures.js';
 import { expectCompletedThenSelfDismissed } from './support/progress-completion.js';
 import { expectRegionPinnedAcrossViewportHeights } from './support/pinned-region.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
 
 // Every test compares the very same fixture pair; running serially avoids
 // racing the single-pair comparison cache and keeps the two (~seconds-long)
@@ -44,14 +45,10 @@ function searchField(page: Page) {
  * (images/specs/images-screen.md).
  */
 async function chooseRowAction(page: Page, row: ReturnType<typeof imageRow>, label: string): Promise<void> {
-  // The opening is retried as a whole: the list keeps re-reading from the daemon's own events, and a
-  // re-read that replaces the row takes its trigger — and with it the menu — as it is meant to
-  // (ui-library/specs/menu.md). Same precedent as the keyboard case in `images.spec.ts`.
-  await expect(async () => {
-    await row.getByRole('button', { name: /^More actions for / }).click();
-    await expect(page.getByRole('menu')).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 20_000 });
-  await page.getByRole('menuitem', { name: label, exact: true }).click();
+  // Opening and choosing are one retried gesture, over a settled list: the list keeps re-reading
+  // from the daemon's own events, and every one of the menu's specified dismissals
+  // (ui-library/specs/menu.md) lands between the two halves when they are retried separately.
+  await chooseFromRowOverflowMenu(page, row, label);
 }
 
 /** The image id the daemon holds a reference under — what the view's pick-lists carry as their value. */

@@ -3,7 +3,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { CASE_LABEL, OWNER_LABEL, RUN_ID, navEntry, openApp } from './support/fixtures.js';
-import { COLUMN_GAP_PX, expectNothingClippedOrOverlapped, measureSection, report, type BandGeometry, type SectionGeometry } from './support/property-bands.js';
+import { clickAtItsCentre } from './support/settled.js';
+import {
+  COLUMN_GAP_PX,
+  expectNothingClippedOrOverlapped,
+  measureSection,
+  measureSectionOnceSettled,
+  report,
+  type BandGeometry,
+  type SectionGeometry,
+} from './support/property-bands.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 
@@ -193,7 +202,10 @@ test('the About screen’s baseline list: one column and nothing wrapped at ~400
   expectNoFewerColumnsThanStated(wide, wideEvidence);
 
   await page.setViewportSize(NARROW_VIEWPORT);
-  const narrow = await measureSection(section, 'the About screen’s coverage baseline list, narrowed');
+  // The window is resized under a section already on screen, with no navigation in between, so the
+  // read waits for the layout to come to rest: a box read in the frame the size changed is the
+  // previous layout's, whole and self-consistent (see `measureSectionOnceSettled`).
+  const narrow = await measureSectionOnceSettled(section, 'the About screen’s coverage baseline list, narrowed');
   const narrowEvidence = describe(`coverage baseline @${NARROW_VIEWPORT.width}×${NARROW_VIEWPORT.height}`, narrow);
   console.log(`[REQ-26] ${narrowEvidence}`);
   expectOneColumnNothingWrapped(narrow, narrowEvidence);
@@ -272,10 +284,7 @@ test('the four swarm panels: one column and nothing wrapped at ~400px, no fewer 
         await expect(row, `the ${panelTitle} panel lists nothing to open, so its property section cannot be measured`).toBeVisible({ timeout: 20_000 });
         // On its first cell, with a real pointer: below the desktop breakpoint the row is wider than
         // the box it is read in, so its own centre can sit over another column — or over a control.
-        const cell = row.locator('.ui-data-table__cell').first();
-        await cell.scrollIntoViewIfNeeded();
-        const cellBox = (await cell.boundingBox())!;
-        await page.mouse.click(cellBox.x + cellBox.width / 2, cellBox.y + cellBox.height / 2);
+        await clickAtItsCentre(page, row.locator('.ui-data-table__cell').first(), `the ${panelTitle} row's own first cell`);
 
         const section = panel.locator('.ui-detail-panel .ui-definition-list').first();
         const geometry = await measureSection(section, `the ${panelTitle} property card`);

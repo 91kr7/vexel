@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
+import { readOnceSettled } from './support/settled.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 
@@ -108,8 +109,14 @@ interface Measurement {
  * the same layout. Written here rather than taken from the shared helper: two
  * measurements of the same surface that agree are evidence, and one measurement
  * used twice is not.
+ *
+ * **One frame, and no test calls it.** It is the sampler `measure` below is built
+ * out of; on its own it answers about whichever layout happens to be current,
+ * which after a viewport change is regularly the previous one. A site that
+ * genuinely wants a single frame must reach for this name deliberately and say
+ * why — which is the whole point of it having one.
  */
-async function measure(section: Locator): Promise<Measurement> {
+async function measureThisFrame(section: Locator): Promise<Measurement> {
   await expect(section, 'the section is not on screen, so nothing about its arrangement can be measured').toBeVisible();
   return section.evaluate((element) => {
     const box = element.getBoundingClientRect();
@@ -179,7 +186,24 @@ async function measure(section: Locator): Promise<Measurement> {
 }
 
 /**
- * The same measurement, taken once the layout has come to rest.
+ * **The** measurement: taken once the layout has come to rest, which is what
+ * every site in this file now gets by asking for `measure`.
+ *
+ * It was written as `measureOnceSettled` beside the raw reader and wired to one
+ * call site out of eleven — the one whose run had failed at the time. The other
+ * ten kept reading a single frame, and one of them failed the same way ten days
+ * later: at a 1280×720 window the section measured **630.0×295.1px**, identical
+ * to the decimal to the 720px baseline taken earlier in the same test, and was
+ * judged against a ceiling derived from that baseline. A window going 720 → 1280
+ * cannot leave a section's box unchanged to the decimal; what it can do is leave
+ * the panel's **inline pin** in force until the observer below re-computes it.
+ * The count reported was right for the width that was read — `derivedColumns`
+ * puts the first transition at 744px, so 630px is correctly one column — which
+ * is exactly how a stale read passes for a product defect.
+ *
+ * So the raw sampler is no longer reachable by the obvious name. A new call site
+ * written without knowing any of this gets the settled reading by default, and
+ * that is the only arrangement in which this does not recur a third time.
  *
  * **A viewport change is not one event**, and below the width at which a list
  * pans that matters here. The browser re-lays the page out in the frame the new
@@ -204,17 +228,14 @@ async function measure(section: Locator): Promise<Measurement> {
  * Sampled until two consecutive frames agree: what is measured is where the
  * layout came to rest, which is the only state an operator ever sees.
  */
-async function measureOnceSettled(section: Locator): Promise<Measurement> {
-  let previous = await measure(section);
-  for (let attempt = 0; attempt < 30; attempt += 1) {
-    await section
-      .page()
-      .evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-    const current = await measure(section);
-    if (Math.abs(current.width - previous.width) < 0.5 && Math.abs(current.height - previous.height) < 0.5) return current;
-    previous = current;
-  }
-  return previous;
+async function measure(section: Locator): Promise<Measurement> {
+  // The sampling — consecutive readings agreeing, the first frame discarded — is the suite's one
+  // sampler (`support/settled.ts`); what belongs here is only *what* is compared.
+  return await readOnceSettled(
+    section.page(),
+    () => measureThisFrame(section),
+    (previous, current) => Math.abs(current.width - previous.width) < 0.5 && Math.abs(current.height - previous.height) < 0.5,
+  );
 }
 
 function describeMeasurement(label: string, measurement: Measurement): string {
@@ -473,10 +494,10 @@ test('arranges Environment and Labels in columns of their own class, and History
      */
     await page.setViewportSize({ width: 460, height: 900 });
     // Measured where the layout comes to rest, not in the frame the window
-    // changed size: see `measureOnceSettled`. The 560px bound below is the
-    // class's own minimum and is unchanged — what was wrong was *when* the box
-    // was read, never what is expected of it.
-    const narrow = await measureOnceSettled(page.locator('.ui-detail-panel .ui-collapsible-section .ui-definition-list').first());
+    // changed size — which is what `measure` now means everywhere in this file.
+    // The 560px bound below is the class's own minimum and is unchanged; what
+    // was wrong was *when* the box was read, never what is expected of it.
+    const narrow = await measure(page.locator('.ui-detail-panel .ui-collapsible-section .ui-definition-list').first());
     const narrowDescription = describeMeasurement('Environment at a 460px window', narrow);
     measured.push(narrowDescription);
     expect(narrow.width, `${narrowDescription} — the section is not narrower than its class's 560px minimum, so the degrading case was never reached`).toBeLessThan(560);

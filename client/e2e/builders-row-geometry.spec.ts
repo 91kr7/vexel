@@ -31,6 +31,8 @@
  */
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
+import { boxOf, boxesOf, centreOf, clickAtItsCentre, movePointerOverTheRow, readOnceSettled, twoFrames } from './support/settled.js';
+import { pressUntilItTakes } from './support/delivered-press.js';
 
 interface Viewport {
   width: number;
@@ -203,7 +205,26 @@ function panel(page: Page, title: 'builders' | 'cache'): Locator {
  * two layouts — with each cell's **painted** ink intersected against the boxes
  * of the cells beside it.
  */
+/**
+ * The same reading, **once the layout has come to rest** — which is what every
+ * caller in this file gets by asking for `measureList`.
+ *
+ * The single `evaluate` below is what stops two figures coming from two frames;
+ * it is not what stops the whole reading coming from a frame nobody sees. Those
+ * are different guarantees, and this file had only the first (`support/settled.ts`,
+ * "the limits"). The comparator is the whole geometry object: everything read in
+ * the pass has to agree between samples, since that is what a caller compares.
+ */
 async function measureList(page: Page, title: 'builders' | 'cache'): Promise<ListGeometry> {
+  return await readOnceSettled(
+    page,
+    () => measureListThisFrame(page, title),
+    (previous, current) => JSON.stringify(previous) === JSON.stringify(current),
+  );
+}
+
+/** **One frame, and no test calls it**: the sampler above is built out of it. */
+async function measureListThisFrame(page: Page, title: 'builders' | 'cache'): Promise<ListGeometry> {
   return await panel(page, title).evaluate((card) => {
     const box = (element: Element): Box => {
       const rect = element.getBoundingClientRect();
@@ -346,7 +367,7 @@ async function panTo(page: Page, title: 'builders' | 'cache', scrollLeft: number
 }
 
 async function nextPaint(page: Page): Promise<void> {
-  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await twoFrames(page);
 }
 
 /**
@@ -617,8 +638,8 @@ test.describe('F8 — the builders screen against an inventory holding every row
       await useAction.scrollIntoViewIfNeeded();
       await expect(useAction, `${at}: the idle builder is offered no Use action`).toBeVisible();
 
-      const box = (await useAction.boundingBox())!;
-      const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      const box = await boxOf(useAction, `${at}: the idle builder's Use action`);
+      const centre = centreOf(box);
       const hit = await page.evaluate(
         ({ x, y }) => {
           const element = document.elementFromPoint(x, y);
@@ -630,10 +651,31 @@ test.describe('F8 — the builders screen against an inventory holding every row
       console.log(`[REQ-39] ${at}: Use at ${describeBox({ ...box })} — the point at its centre resolves to <${hit.tag}> "${hit.label}"`);
       expect(hit.label, `${at}: the point at the Use control's own centre belongs to something else`).toBe('Use');
 
-      await page.mouse.click(centre.x, centre.y);
-      await expect
-        .poll(() => used, { message: `${at}: clicking Use at its own coordinates activated nothing` })
-        .toEqual([idle.name]);
+      // **The press is one this check can prove reached the control it names.** This list re-reads
+      // every 5s (`use-builders.ts`), and a re-read that replaces the row takes the button with it:
+      // a settled box says nothing about that, since the replacement has the same geometry
+      // (`support/settled.ts`, "a settled box is not a stable node"). A run was lost here with
+      // "clicking Use at its own coordinates activated nothing" — a press that reached nothing,
+      // reported as the product ignoring it.
+      //
+      // The two outcomes are kept as **two different reports**, because they are two different
+      // findings: a press delivered to this very control that activated nothing ends the gesture and
+      // says so (`support/delivered-press.ts` refuses to press a control that has already answered),
+      // while a press that activated **another builder** throws from the effect itself rather than
+      // being retried into a second wrong activation. Only a press that reached nothing at all is
+      // repeated, and it cannot have activated anything.
+      await pressUntilItTakes(page, useAction, `${at}: the Use action of ${idle.name}`, {
+        describe: `the daemon was asked to use ${idle.name}`,
+        reached: async () => {
+          const wrong = used.filter((name) => name !== idle.name);
+          expect(
+            wrong,
+            `${at}: clicking Use at ${idle.name}'s own coordinates activated another builder — the press landed on a control that is not the one it was aimed at`,
+          ).toEqual([]);
+          return used.includes(idle.name);
+        },
+      });
+      expect(used, `${at}: clicking Use at its own coordinates asked for something other than ${idle.name}`).toEqual([idle.name]);
 
       // …and the marker column is a reading, not a control: the active builder offers no action
       // that would switch to itself.
@@ -664,9 +706,19 @@ test.describe('F8 — the builders screen against an inventory holding every row
       await expect(action, `${label} is not a control of the ${title} toolbar`).toHaveCount(1);
       expect(await section.getByRole('button', { name: label }).count(), `${label} is stated twice on the ${title} section`).toBe(1);
 
-      const headerBox = (await section.locator('.ui-section-header').first().boundingBox())!;
-      const toolbarBox = (await toolbar.boundingBox())!;
-      const listBox = (await section.locator('.ui-data-table').first().boundingBox())!;
+      // **One layout, not three.** These three boxes are compared to one another, so they are read
+      // together once they have all stopped moving: read one at a time, a toolbar's bottom edge came
+      // back at 714px above a list whose top edge came back at 592px — three readings of one layout
+      // coming to rest, reported as the toolbar not being above its list (`support/settled.ts`).
+      const { header: headerBox, toolbar: toolbarBox, list: listBox } = await boxesOf(
+        page,
+        {
+          header: section.locator('.ui-section-header').first(),
+          toolbar,
+          list: section.locator('.ui-data-table').first(),
+        },
+        `the ${title} section`,
+      );
       console.log(`[REQ-41] ${title}: header ${describeBox(headerBox)}, toolbar ${describeBox(toolbarBox)}, list ${describeBox(listBox)}`);
 
       expect(toolbarBox.y, `the ${title} toolbar is not under its section header`).toBeGreaterThanOrEqual(headerBox.y + headerBox.height - 1);
@@ -691,14 +743,11 @@ test.describe('F8 — the builders screen against an inventory holding every row
       const row = panel(page, 'cache').locator('.ui-data-table__row').first();
       // The second card sits below the fold at the shorter viewports, and a pointer click at
       // coordinates outside the viewport reaches nothing at all.
-      const firstCell = row.locator('.ui-data-table__cell').first();
-      await firstCell.scrollIntoViewIfNeeded();
-      const cellBox = (await firstCell.boundingBox())!;
-      await page.mouse.click(cellBox.x + cellBox.width / 2, cellBox.y + cellBox.height / 2);
+      await clickAtItsCentre(page, row.locator('.ui-data-table__cell').first(), `${at}: the cache record's first cell`);
 
       const expansion = panel(page, 'cache').locator('.ui-data-table__expanded');
       await expect(expansion, `${at}: selecting a record opened no panel`).toBeVisible({ timeout: 20_000 });
-      const panelBox = (await expansion.boundingBox())!;
+      const panelBox = await boxOf(expansion, `${at}: the cache record's panel`);
       const list = await measureList(page, 'cache');
 
       /**
@@ -747,15 +796,14 @@ test.describe('F8 — the builders screen against an inventory holding every row
         const table = panel(page, 'cache').locator('.ui-data-table');
         // The wheel is delivered over a **row**, not over the panel, which scrolls nothing
         // horizontally; the pointer is placed once, before any of the grid has moved.
-        const rowBox = (await panel(page, 'cache').locator('.ui-data-table__row').first().boundingBox())!;
-        await page.mouse.move(rowBox.x + Math.min(60, rowBox.width / 2), rowBox.y + rowBox.height / 2);
+        await movePointerOverTheRow(page, panel(page, 'cache').locator('.ui-data-table__row').first(), `${at}: the cache row`);
         const readings: string[] = [];
         let previous = -1;
         for (let step = 0; step < 12; step += 1) {
           const landed = await wheelPan(page, table, 80);
           if (landed === previous) break;
           previous = landed;
-          const panned = (await expansion.boundingBox())!;
+          const panned = await boxOf(expansion, `${at}: the panel, after the grid was panned`);
           readings.push(`scrollLeft ${landed} → x ${round(panned.x)}, w ${round(panned.width)}`);
           expect(round(panned.x), `${at}: at scrollLeft ${landed} the panel panned with the grid underneath it`).toBe(round(panelBox.x));
           expect(round(panned.width), `${at}: at scrollLeft ${landed} the panel changed width as the grid panned`).toBe(round(panelBox.width));

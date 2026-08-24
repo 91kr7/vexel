@@ -1,6 +1,7 @@
 import { expect, test, type Page } from './support/test.js';
 import { anonymousVolumes, openApp, ownershipArgs, removeAnonymousVolumesSince } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
 
 // A tiny, already-cached image whose entrypoint is overridden to `sleep` so the
 // container starts instantly and needs no network pull or app init.
@@ -23,6 +24,17 @@ function overflowTrigger(page: Page, name: string) {
 
 function menuEntry(page: Page, label: string) {
   return page.getByRole('menuitem', { name: label, exact: true });
+}
+
+/**
+ * The row's overflow menu opened and one of its entries chosen, as **one retried gesture**
+ * (`support/row-overflow-menu.ts`). The menu dismisses itself on a scroll, a resize or a re-read
+ * that replaces the row (`ui-library/specs/menu.md`), and a gesture split in two waits out its
+ * whole budget on an entry that is already gone. This row's entries include `Kill` and `Remove`,
+ * so the retry stops at the first activation the browser delivers: neither can run twice.
+ */
+async function chooseRowAction(page: Page, name: string, label: string): Promise<void> {
+  await chooseFromRowOverflowMenu(page, containerRow(page, name), label, { trigger: `More actions for ${name}` });
 }
 
 async function openOverflow(page: Page, name: string) {
@@ -161,8 +173,7 @@ test('the row menu closes on Escape, on an outside click and on choosing an entr
     await expect(menu).toHaveCount(0);
     await expect(trigger).toBeFocused();
 
-    await openOverflow(page, name);
-    await menuEntry(page, 'Rename…').click();
+    await chooseRowAction(page, name, 'Rename…');
     await expect(menu).toHaveCount(0);
     await expect(page.getByRole('textbox', { name: `New name for ${name}` })).toBeVisible();
   } finally {
@@ -342,16 +353,14 @@ test('killing a container asks for confirmation naming it, does nothing on cance
     // Kill is reached from the row's overflow menu now; the confirmation in
     // front of it is unchanged — the menu is a step before it, not instead of
     // it (REQ-22).
-    await openOverflow(page, name);
-    await menuEntry(page, 'Kill').click();
+    await chooseRowAction(page, name, 'Kill');
     const confirmHeading = page.getByRole('heading', { name: `Confirm: ${name}` });
     await expect(confirmHeading).toBeVisible();
     const confirmDialog = page.locator('.ui-modal').filter({ has: confirmHeading });
     await confirmDialog.getByRole('button', { name: 'Cancel' }).click();
     await expect(row).toContainText('running');
 
-    await openOverflow(page, name);
-    await menuEntry(page, 'Kill').click();
+    await chooseRowAction(page, name, 'Kill');
     await expect(confirmHeading).toBeVisible();
     await confirmDialog.getByRole('button', { name: 'kill', exact: true }).click();
 
@@ -372,8 +381,7 @@ test('renaming a container replaces the name cell and the new name is reflected 
 
     // Rename is started from the row's overflow menu now; the inline editor it
     // opens is the one the pencil opened (REQ-18).
-    await openOverflow(page, name);
-    await menuEntry(page, 'Rename…').click();
+    await chooseRowAction(page, name, 'Rename…');
     // The name cell is replaced by the input while renaming, so it stops matching the
     // row locator's text filter; query the field by its accessible name at the page level.
     const field = page.getByRole('textbox', { name: `New name for ${name}` });
@@ -547,8 +555,7 @@ test.describe('Container detail panel dismissal (REQ-1, REQ-3, REQ-4, REQ-5, REQ
 
       await openDetail(page, name);
       await expect(detail).toBeVisible();
-      await openOverflow(page, name);
-      await menuEntry(page, 'Remove').click();
+      await chooseRowAction(page, name, 'Remove');
       const confirmHeading = page.getByRole('heading', { name: `Confirm: ${name}` });
       await expect(confirmHeading).toBeVisible();
 

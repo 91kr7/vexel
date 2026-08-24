@@ -39,6 +39,7 @@
  * empty; nothing reaches Docker Hub.
  */
 import { expect, test, type Locator, type Page } from './support/test.js';
+import { readOnceSettled } from './support/settled.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { startDeliveredBuild, type DeliveredBuild } from './support/delivered-build.js';
 import { clickAndExpectSurfaceUnmoved } from './support/surface-stability.js';
@@ -120,7 +121,22 @@ interface SheetReading {
  * Written once and run on both origins: a comparison whose two halves are
  * measured by two functions is a comparison of the two functions.
  */
+/**
+ * The create sheet's reading, **once the layout has come to rest** — and it is compared with the same reading taken from the delivered build in another browser, where a single frame of difference reads as a regression.
+ *
+ * The pass below is what stops two figures coming from two frames; the sampler is
+ * what stops the whole reading coming from a frame nobody sees (`support/settled.ts`).
+ */
 async function measureCreateSheet(page: Page): Promise<SheetReading> {
+  return await readOnceSettled(
+    page,
+    () => measureCreateSheetThisFrame(page),
+    (previous, current) => JSON.stringify(previous) === JSON.stringify(current),
+  );
+}
+
+/** **One frame, and no test calls it**: the reader above is built out of it. */
+async function measureCreateSheetThisFrame(page: Page): Promise<SheetReading> {
   return await page.evaluate(() => {
     const box = (element: Element): Box => {
       const rect = element.getBoundingClientRect();

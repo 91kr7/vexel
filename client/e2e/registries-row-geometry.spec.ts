@@ -34,6 +34,7 @@
 import type { Browser } from '@playwright/test';
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
+import { clickAtItsCentre, readOnceSettled } from './support/settled.js';
 import {
   FIXTURE_REGISTRIES,
   FIXTURE_SECRET,
@@ -128,7 +129,26 @@ function rowOf(page: Page, host: string): Locator {
  * two layouts — with each cell's **painted** ink intersected against the boxes
  * of the cells beside it.
  */
+/**
+ * The same reading, **once the layout has come to rest** — which is what every
+ * caller in this file gets by asking for `measureList`.
+ *
+ * The single `evaluate` below is what stops two figures coming from two frames;
+ * it is not what stops the whole reading coming from a frame nobody sees. Those
+ * are different guarantees, and this file had only the first (`support/settled.ts`,
+ * "the limits"). The comparator is the whole geometry object: everything read in
+ * the pass has to agree between samples, since that is what a caller compares.
+ */
 async function measureList(page: Page, title: 'registries' | 'repositories'): Promise<ListGeometry> {
+  return await readOnceSettled(
+    page,
+    () => measureListThisFrame(page, title),
+    (previous, current) => JSON.stringify(previous) === JSON.stringify(current),
+  );
+}
+
+/** **One frame, and no test calls it**: the sampler above is built out of it. */
+async function measureListThisFrame(page: Page, title: 'registries' | 'repositories'): Promise<ListGeometry> {
   return await panel(page, title).evaluate((card) => {
     const box = (element: Element): Box => {
       const rect = element.getBoundingClientRect();
@@ -369,8 +389,7 @@ test.describe('F7 — the registries screen against a nine-registry inventory', 
       // A real pointer, at the control's own coordinates.
       const logIn = rowOf(page, unauthenticated.host).getByRole('button', { name: 'Log in' });
       await expect(logIn).toBeVisible();
-      const logInBox = (await logIn.boundingBox())!;
-      await page.mouse.click(logInBox.x + logInBox.width / 2, logInBox.y + logInBox.height / 2);
+      await clickAtItsCentre(page, logIn, 'the Log in action');
 
       const loginDialog = page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: `Log in to ${unauthenticated.host}` }) });
       await expect(loginDialog, 'the log-in form did not open from the row action').toBeVisible();
@@ -384,8 +403,7 @@ test.describe('F7 — the registries screen against a nine-registry inventory', 
       // The other half of the pair, on an authenticated row: it asks before it does anything.
       const logOut = rowOf(page, authenticated.host).getByRole('button', { name: 'Log out' });
       await expect(logOut).toBeVisible();
-      const logOutBox = (await logOut.boundingBox())!;
-      await page.mouse.click(logOutBox.x + logOutBox.width / 2, logOutBox.y + logOutBox.height / 2);
+      await clickAtItsCentre(page, logOut, 'the Log out action');
 
       const confirmation = page.locator('.ui-modal');
       await expect(confirmation).toBeVisible();
@@ -426,8 +444,7 @@ test.describe('F7 — the registries screen against a nine-registry inventory', 
 
       // Driven with a real pointer at the control's own coordinates: a programmatic activation
       // moves no focus, and focus is the whole of what this control does.
-      const box = (await action.boundingBox())!;
-      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      await clickAtItsCentre(page, action, "the row's action");
 
       const focused = await page.evaluate(() => {
         const element = document.activeElement as HTMLElement | null;
@@ -486,8 +503,7 @@ test.describe('F7 — the registries screen against a nine-registry inventory', 
 
       // The pull names the reference the server computed, and is abandoned rather than run.
       const chipPull = rowContent.getByRole('button', { name: 'pull' });
-      const pullBox = (await chipPull.boundingBox())!;
-      await page.mouse.click(pullBox.x + pullBox.width / 2, pullBox.y + pullBox.height / 2);
+      await clickAtItsCentre(page, chipPull, 'the pull chip');
       const pullDialog = page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: 'Pull tag' }) });
       await expect(pullDialog).toBeVisible();
       await expect(pullDialog).toContainText('docker.io/library/vexel-e2e:1.0');

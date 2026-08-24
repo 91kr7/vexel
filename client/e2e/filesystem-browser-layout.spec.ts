@@ -1,6 +1,8 @@
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
+import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
 import { expectCompletedThenSelfDismissed } from './support/progress-completion.js';
+import { readOnceSettled } from './support/settled.js';
 import { boxOf, clickAndExpectSurfaceUnmoved } from './support/surface-stability.js';
 import { expectBandIsTheHeightOfItsControl, measureSearchBand } from './support/search-band-axis.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
@@ -106,7 +108,22 @@ interface BodyGeometry {
  * so a measurement taken between band boxes reports a tidy 16px gap on a surface
  * with 103px of nothing above and below the control.
  */
+/**
+ * The browser dialog's layout, **once it has come to rest**: this is read after the window is resized under an open dialog, after a tree row is revealed and after text is typed into the search field.
+ *
+ * The pass below is what stops two figures coming from two frames; the sampler is
+ * what stops the whole reading coming from a frame nobody sees (`support/settled.ts`).
+ */
 async function measureBody(page: Page): Promise<BodyGeometry> {
+  return await readOnceSettled(
+    page,
+    () => measureBodyThisFrame(page),
+    (previous, current) => JSON.stringify(previous) === JSON.stringify(current),
+  );
+}
+
+/** **One frame, and no test calls it**: the reader above is built out of it. */
+async function measureBodyThisFrame(page: Page): Promise<BodyGeometry> {
   return page.evaluate((rowHeight) => {
     const rect = (element: Element): Rect => {
       const box = element.getBoundingClientRect();
@@ -233,13 +250,10 @@ async function openBrowsedFilesystem(page: Page): Promise<Locator> {
   const row = imageRow(page, ALPINE_IMAGE);
   await expect(row).toBeVisible({ timeout: 20_000 });
 
-  // Retried as a whole: the list keeps re-reading from the daemon's own events, and a re-read that
-  // replaces the row takes its trigger — and with it the menu (ui-library/specs/menu.md).
-  await expect(async () => {
-    await row.getByRole('button', { name: /^More actions for / }).click();
-    await expect(page.getByRole('menu')).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 20_000 });
-  await page.getByRole('menuitem', { name: 'Browse filesystem…', exact: true }).click();
+  // Opening and choosing retried as one gesture, over a settled list: the list keeps re-reading from
+  // the daemon's own events, and any of the menu's specified dismissals (ui-library/specs/menu.md)
+  // takes the entry away between two separately retried halves.
+  await chooseFromRowOverflowMenu(page, row, 'Browse filesystem…');
 
   const dialog = browserDialog(page);
   await expect(dialog).toBeVisible();
@@ -599,11 +613,7 @@ test('keeps 8 rows visible with both the refused-entries and the truncated-match
     });
 
     const row = imageRow(page, ALPINE_IMAGE);
-    await expect(async () => {
-      await row.getByRole('button', { name: /^More actions for / }).click();
-      await expect(page.getByRole('menu')).toBeVisible({ timeout: 2_000 });
-    }).toPass({ timeout: 20_000 });
-    await page.getByRole('menuitem', { name: 'Browse filesystem…', exact: true }).click();
+    await chooseFromRowOverflowMenu(page, row, 'Browse filesystem…');
 
     const reopened = browserDialog(page);
     await expect(reopened).toBeVisible();

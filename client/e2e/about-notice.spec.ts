@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
+import { boxesOf } from './support/settled.js';
 
 // The identity and legal notice, as the operator meets it: the AGPL asks for a
 // *display*, so what matters here is not that the strings exist but that they
@@ -61,11 +62,10 @@ test('the notice is one block at the top of the About screen, with everything el
 
   const block = notice(page);
   const cli = shellCard(page, 'CLI availability');
-  const blockBox = await block.boundingBox();
-  const cliBox = await cli.boundingBox();
-  expect(blockBox, 'the notice has no box on the screen').not.toBeNull();
-  expect(cliBox, 'the CLI availability card is no longer on the screen').not.toBeNull();
-  expect(blockBox!.y, 'the notice does not sit above the CLI availability card').toBeLessThan(cliBox!.y);
+  // The two boxes are compared to each other, so they are read together in one rested layout: read
+  // one at a time, "above" is a claim about two different moments (`support/settled.ts`).
+  const { block: blockBox, cli: cliBox } = await boxesOf(page, { block, cli }, 'the About screen');
+  expect(blockBox.y, 'the notice does not sit above the CLI availability card').toBeLessThan(cliBox.y);
 
   // Everything the notice says is inside that one block, not scattered over the screen.
   await expect(block).toContainText(ATTRIBUTION);
@@ -204,9 +204,10 @@ test('the network-modification clause and the name reservation read as two separ
   await expect(reservation, 'the two clauses are rendered as one run of prose').not.toContainText(/over a network/i);
 
   // ...and they occupy two separate bands of the block, one under the other.
-  const networkBox = await network.boundingBox();
-  const reservationBox = await reservation.boundingBox();
-  expect(networkBox).not.toBeNull();
-  expect(reservationBox).not.toBeNull();
-  expect(networkBox!.y + networkBox!.height, 'the two clauses overlap on screen').toBeLessThanOrEqual(reservationBox!.y);
+  const { network: networkBox, reservation: reservationBox } = await boxesOf(
+    page,
+    { network, reservation },
+    'the notice’s two clauses',
+  );
+  expect(networkBox.y + networkBox.height, 'the two clauses overlap on screen').toBeLessThanOrEqual(reservationBox.y);
 });

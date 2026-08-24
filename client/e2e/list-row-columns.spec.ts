@@ -34,6 +34,8 @@
  */
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
+import { waitForArrivedContent } from './support/arrived.js';
+import { readOnceSettled } from './support/settled.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 
@@ -103,10 +105,36 @@ function contains(outer: Box, inner: Box, tolerance = 1): boolean {
 }
 
 /**
- * Everything one row and the table around it can say about their layout, read in
- * a single pass so that no two figures come from two different frames.
+ * **The** measurement: everything one row and the table around it can say about
+ * their layout, read once the layout has come to rest.
+ *
+ * The single pass below is what stops two figures coming from two frames; it is
+ * not what stops the *whole reading* coming from a frame nobody sees. Those are
+ * different guarantees and this file had only the first: it panned the grid and
+ * read immediately, and the run reported "the grid panned 574px and the expansion
+ * went with it, from x 21 to -553". x=-553 is the expansion **before** the
+ * `ResizeObserver` re-pins it to the pan region's visible box — a layout that
+ * exists for one frame and is never painted, and that a probe forcing layout in
+ * between reads (`support/settled.ts`, and `e705f06`). The pinned value is the 21
+ * that was expected.
+ *
+ * The comparator is the **whole geometry object**, not one box: everything read
+ * in the pass has to agree between samples, since that is what a caller compares.
  */
 async function measure(row: Locator): Promise<TableGeometry> {
+  return await readOnceSettled(
+    row.page(),
+    () => measureThisFrame(row),
+    (previous, current) => JSON.stringify(previous) === JSON.stringify(current),
+  );
+}
+
+/**
+ * **One frame, and no test calls it.** The sampler above is built out of it; on
+ * its own it answers about whichever layout happens to be current, which after a
+ * pan or a style change is regularly the one the browser is about to replace.
+ */
+async function measureThisFrame(row: Locator): Promise<TableGeometry> {
   return await row.evaluate((rowElement) => {
     const table = rowElement.closest('.ui-data-table') as HTMLElement;
     const header = table.querySelector<HTMLElement>('.ui-data-table__header');
@@ -178,25 +206,19 @@ async function withoutColumnMinimum<T>(page: Page, measurement: () => Promise<T>
 }
 
 /**
- * Waits until the inline expansion has stopped moving.
+ * Waits until the inline expansion **holds its content** and has then stopped
+ * moving — in that order, because the second cannot stand in for the first.
  *
- * The panel loads its content asynchronously (an image panel extracts its
- * layers), so a box read the instant it appears is the box of a surface still
- * growing — and the "before and after" comparison below is about where the
- * surface actually is.
+ * This is the wait that decides the comparison below, and it was wrong in a way
+ * that reads as a product defect: the containers expansion settles at 226.6px
+ * while it draws "Loading container details…", grows to 355.1px when the inspect
+ * payload lands, and a run was lost reporting a 128.5px difference in height with
+ * `x` and `width` agreeing to the pixel. A box that has stopped moving is not a
+ * panel that has arrived; the settle was doing its job and answering another
+ * question (`support/arrived.ts`).
  */
 async function waitForStableExpansion(page: Page): Promise<void> {
-  const expansion = page.locator('.ui-data-table__expanded');
-  const deadline = Date.now() + 20_000;
-  let previous: Box | null = null;
-  while (Date.now() < deadline) {
-    const current = await expansion.boundingBox();
-    if (current !== null && previous !== null && Math.abs(current.height - previous.height) < 0.5 && Math.abs(current.width - previous.width) < 0.5) {
-      return;
-    }
-    previous = current;
-    await page.waitForTimeout(250);
-  }
+  await waitForArrivedContent(page.locator('.ui-data-table__expanded'), "the row's inline expansion");
 }
 
 /** The flex factor of each declared track, `null` for a track that is a length. */

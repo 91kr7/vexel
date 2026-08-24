@@ -29,6 +29,7 @@
  */
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
+import { clickAtItsCentre, readOnceSettled } from './support/settled.js';
 
 interface Viewport {
   width: number;
@@ -257,7 +258,26 @@ interface ListGeometry {
  * the second would be reported as the first (as it was, on the first run of this
  * file: 43 "spilling" cells at 375×812, every one of them merely panned).
  */
+/**
+ * The same reading, **once the layout has come to rest** — which is what every
+ * caller in this file gets by asking for `measureList`.
+ *
+ * The single `evaluate` below is what stops two figures coming from two frames;
+ * it is not what stops the whole reading coming from a frame nobody sees. Those
+ * are different guarantees, and this file had only the first (`support/settled.ts`,
+ * "the limits"). The comparator is the whole geometry object: everything read in
+ * the pass has to agree between samples, since that is what a caller compares.
+ */
 async function measureList(page: Page, title: string): Promise<ListGeometry> {
+  return await readOnceSettled(
+    page,
+    () => measureListThisFrame(page, title),
+    (previous, current) => JSON.stringify(previous) === JSON.stringify(current),
+  );
+}
+
+/** **One frame, and no test calls it**: the sampler above is built out of it. */
+async function measureListThisFrame(page: Page, title: string): Promise<ListGeometry> {
   return await panel(page, title).evaluate((region) => {
     // The list's **own card**, resolved from the table it holds: the section
     // header and the toolbar are outside it now, so the region scoped by the
@@ -403,9 +423,9 @@ async function openScreen(page: Page, viewport: Viewport, reading: Reading = FUL
 
 /** A real pointer at the visible control's own coordinates — never `element.click()`. */
 async function clickAtItsOwnCentre(page: Page, target: Locator): Promise<void> {
-  await target.scrollIntoViewIfNeeded();
-  const box = (await target.boundingBox())!;
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  // The coordinates are read once the control has stopped moving: a click aimed at a box taken from
+  // a layout in motion lands where the control **was** (`support/settled.ts`).
+  await clickAtItsCentre(page, target, 'the control');
 }
 
 test.describe('F10 — the plugins screen against an inventory holding every row state', () => {

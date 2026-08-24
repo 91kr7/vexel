@@ -24,6 +24,7 @@
  */
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
+import { readOnceSettled } from './support/settled.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 interface Viewport {
@@ -118,7 +119,32 @@ async function openScreen(page: Page, viewport: Viewport): Promise<void> {
 }
 
 /** The boxes this file is written about, read in one pass so no two come from two layouts. */
+/**
+ * The reveal's geometry, **once the layout has come to rest**: the panel this
+ * measures is opened by a click and fills from a daemon read, so the pass below
+ * — which is what stops two figures coming from two frames — is not on its own
+ * what stops the whole reading coming from a frame nobody sees
+ * (`support/settled.ts`).
+ */
 async function measureReveal(page: Page, title: 'Volumes' | 'Networks'): Promise<{
+  content: Box;
+  contentColumnWidth: number;
+  card: Box;
+  table: Box;
+  tableClientWidth: number;
+  panel: Box;
+  payload: Box | null;
+  values: { label: string; textAlign: string; box: Box; lines: number; clipped: boolean }[];
+}> {
+  return await readOnceSettled(
+    page,
+    () => measureRevealThisFrame(page, title),
+    (previous, current) => JSON.stringify(previous) === JSON.stringify(current),
+  );
+}
+
+/** **One frame, and no test calls it**: the reader above is built out of it. */
+async function measureRevealThisFrame(page: Page, title: 'Volumes' | 'Networks'): Promise<{
   content: Box;
   contentColumnWidth: number;
   card: Box;

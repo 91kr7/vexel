@@ -37,6 +37,7 @@
  */
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
+import { clickAtItsCentre, readOnceSettled } from './support/settled.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import {
   F4_VIEWPORTS,
@@ -140,8 +141,36 @@ async function hitTestAtVisibleCentre(control: Locator): Promise<{ reached: bool
   });
 }
 
-/** Every property band's value on the current screen, with what the contract's boundary says about it. */
+/**
+ * Every property band's value on the current screen, with what the contract's boundary says about
+ * it — read **once the layout has come to rest**: this is called straight after a row is selected,
+ * on a panel that is still arriving and still laying itself out (`support/settled.ts`).
+ */
 async function measurePropertyValues(page: Page): Promise<
+  {
+    label: string;
+    text: string;
+    whiteSpace: string;
+    textOverflow: string;
+    lineClamp: string;
+    userSelect: string;
+    lines: number;
+    scrollWidth: number;
+    clientWidth: number;
+    inkLost: number;
+    truncationClasses: string[];
+    box: { top: number; bottom: number; left: number; right: number; width: number; height: number };
+  }[]
+> {
+  return await readOnceSettled(
+    page,
+    () => measurePropertyValuesThisFrame(page),
+    (previous, current) => JSON.stringify(previous) === JSON.stringify(current),
+  );
+}
+
+/** **One frame, and no test calls it**: the reader above is built out of it. */
+async function measurePropertyValuesThisFrame(page: Page): Promise<
   {
     label: string;
     text: string;
@@ -654,8 +683,7 @@ test('a property band still wraps, with no ellipsis and no one-line clamp', asyn
             .locator('.ui-data-table__cell', { has: page.locator('.ui-table-two-line-cell') })
             .first();
           await expect(firstCell).toBeVisible({ timeout: 20_000 });
-          const cellBox = (await firstCell.boundingBox())!;
-          await page.mouse.click(cellBox.x + cellBox.width / 2, cellBox.y + cellBox.height / 2);
+          await clickAtItsCentre(page, firstCell, 'the two-line cell of the first row');
         }
         await expect(page.locator('.ui-definition-list').first()).toBeVisible({ timeout: 20_000 });
         const bands = await measurePropertyValues(page);

@@ -48,6 +48,7 @@
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { CASE_LABEL, OWNER_LABEL, RUN_ID, navEntry, openApp } from './support/fixtures.js';
 import { clickAndExpectSurfaceUnmoved } from './support/surface-stability.js';
+import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 
@@ -398,19 +399,12 @@ test('creates the same privileged container from an image row on the images scre
     const imageRow = page.locator('.ui-data-table__row', { hasText: TINY_IMAGE }).first();
     await expect(imageRow).toBeVisible({ timeout: 15_000 });
 
-    // The row's overflow menu is opened the way the rest of the suite opens it — a click, and the
-    // menu asserted open, retried. Measured on this machine, on **both** this build and the one
-    // before it (batch 18): the first click leaves the menu closed and the second opens it, every
-    // time. That is why `copy-affordance-absence`, `copy-affordance-geometry`, `dialog-sizing` and
-    // `filesystem-browser-layout` all wrap this same gesture in `toPass`; this site and
-    // `container-create-run.spec.ts`'s were the two that did not, and clicking once here made the
-    // whole test fail on something that has nothing to do with the privileged path. The behaviour
-    // itself is reported to the human rather than accommodated silently.
-    await expect(async () => {
-      await imageRow.getByRole('button', { name: /^More actions for / }).click();
-      await expect(page.getByRole('menu')).toBeVisible({ timeout: 2_000 });
-    }).toPass({ timeout: 20_000 });
-    await page.getByRole('menuitem', { name: 'Run…', exact: true }).click();
+    // The opening and the entry click are one retried gesture, over a list first let settle: this
+    // test reaches the screen through the navigation rail rather than through `openApp`, so the
+    // table is still being sized while the search narrows it — and that reflow emits the scroll the
+    // menu is contracted to close on (`ui-library/specs/menu.md`). Split in two, the entry click
+    // spent 59.7s of a 60s budget on an entry a specified dismissal had already taken away.
+    await chooseFromRowOverflowMenu(page, imageRow, 'Run…');
 
     // The form opens from another screen with the row's reference already in it.
     await expect(imageField(page)).toHaveValue(TINY_IMAGE);

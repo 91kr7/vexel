@@ -46,6 +46,7 @@
  */
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
+import { boxOf, boxThisFrame } from './support/settled.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { startDeliveredBuild, type DeliveredBuild } from './support/delivered-build.js';
 import {
@@ -463,8 +464,12 @@ test('the system prune opens its confirmation from the toolbar, at every viewpor
       expect(placement.destructive, `${at}: the system prune is no longer marked as destructive (REQ-73)`).toBe(true);
       expect(placement.top, `${at}: the action bar is not under the panel's header`).toBeGreaterThanOrEqual(placement.headerBottom - 1);
 
-      const cardBefore = (await reclaimCard.boundingBox())!;
-      const actionBox = (await action.boundingBox())!;
+      // **Single-frame on purpose.** This pair and the one after the click are a *displacement*
+      // measurement — the defect it exists for drags a surface out of the viewport (CLAUDE.md,
+      // "A check that measures content cannot detect a defect that moves position") — so neither
+      // half is settled: a settled reading answers a different question.
+      const cardBefore = await boxThisFrame(reclaimCard, `${at}: the reclaim card before the click`);
+      const actionBox = await boxThisFrame(action, `${at}: the prune action before the click`);
       // A real pointer at the visible control's own coordinates: a programmatic activation moves no
       // focus and hit-tests nothing, and focus is exactly what carried a dialog off screen once.
       await page.mouse.click(actionBox.x + actionBox.width / 2, actionBox.y + actionBox.height / 2);
@@ -476,7 +481,7 @@ test('the system prune opens its confirmation from the toolbar, at every viewpor
         await expect(dialog.getByRole('checkbox', { name: title }), `${at}: the scope offers no ${title} checkbox`).toHaveCount(1);
       }
 
-      const dialogBox = (await dialog.boundingBox())!;
+      const dialogBox = await boxOf(dialog, `${at}: the prune confirmation`);
       console.log(
         `[REQ-73] ${at} confirmation at x=${Math.round(dialogBox.x)}, y=${Math.round(dialogBox.y)}, ` +
           `${Math.round(dialogBox.width)}×${Math.round(dialogBox.height)}`,
@@ -490,8 +495,8 @@ test('the system prune opens its confirmation from the toolbar, at every viewpor
 
       // The surface the control belongs to is where it was, and the control is still inside the
       // viewport: a box, not a character count.
-      const cardAfter = (await reclaimCard.boundingBox())!;
-      const actionAfter = (await action.boundingBox())!;
+      const cardAfter = await boxThisFrame(reclaimCard, `${at}: the reclaim card after the click`);
+      const actionAfter = await boxThisFrame(action, `${at}: the prune action after the click`);
       expect(
         `${round(cardAfter.x)},${round(cardAfter.y)},${round(cardAfter.width)}`,
         `${at}: the reclaim panel moved when its own action was operated`,

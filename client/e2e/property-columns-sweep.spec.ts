@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
+import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
 import { COLUMN_GAP_PX, expectNothingClippedOrOverlapped, measureSection, report } from './support/property-bands.js';
 import { expectCompletedThenSelfDismissed } from './support/progress-completion.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
@@ -217,13 +218,10 @@ test('the layer explorer: its build-step section fills its width and clips nothi
       await page.getByPlaceholder('Search reference or digest…').fill(tag.split(':')[0]!);
       const row = page.locator('.ui-data-table__row', { hasText: tag }).first();
       await expect(row).toBeVisible({ timeout: 20_000 });
-      // Retried as a whole: the list re-reads from the daemon's own events, and a re-read that
-      // replaces the row takes its trigger — and with it the menu (ui-library/specs/menu.md).
-      await expect(async () => {
-        await row.getByRole('button', { name: /^More actions for / }).click();
-        await expect(page.getByRole('menu')).toBeVisible({ timeout: 2_000 });
-      }).toPass({ timeout: 20_000 });
-      await page.getByRole('menuitem', { name: 'Explore layers…', exact: true }).click();
+      // Opening and choosing as one retried gesture, over a settled list: the list re-reads from the
+      // daemon's own events, and any of the menu's specified dismissals (ui-library/specs/menu.md)
+      // takes the entry away between two separately retried halves.
+      await chooseFromRowOverflowMenu(page, row, 'Explore layers…');
 
       const modal = page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: `Layer stack — ${tag}` }) });
       await expect(modal).toBeVisible({ timeout: 20_000 });
@@ -264,11 +262,7 @@ test('the image diff: the two sides’ metadata sections are sound', async ({ pa
     await page.getByPlaceholder('Search reference or digest…').fill(`vexel-e2e-bug4-diff-a-${stamp}`);
     const row = page.locator('.ui-data-table__row', { hasText: tagA }).first();
     await expect(row).toBeVisible({ timeout: 20_000 });
-    await expect(async () => {
-      await row.getByRole('button', { name: /^More actions for / }).click();
-      await expect(page.getByRole('menu')).toBeVisible({ timeout: 2_000 });
-    }).toPass({ timeout: 20_000 });
-    await page.getByRole('menuitem', { name: 'Compare with…', exact: true }).click();
+    await chooseFromRowOverflowMenu(page, row, 'Compare with…');
 
     const modal = page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: 'Compare filesystems' }) });
     await expect(modal).toBeVisible();
@@ -302,11 +296,7 @@ test('the filesystem browser’s entry-metadata pane is one column and the width
   await page.getByPlaceholder('Search reference or digest…').fill(ALPINE_IMAGE);
   const row = page.locator('.ui-data-table__row', { hasText: ALPINE_IMAGE }).first();
   await expect(row).toBeVisible({ timeout: 20_000 });
-  await expect(async () => {
-    await row.getByRole('button', { name: /^More actions for / }).click();
-    await expect(page.getByRole('menu')).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 20_000 });
-  await page.getByRole('menuitem', { name: 'Browse filesystem…', exact: true }).click();
+  await chooseFromRowOverflowMenu(page, row, 'Browse filesystem…');
 
   const dialog = page.locator('.ui-modal--size-large').filter({ has: page.getByRole('heading', { name: `Filesystem — ${ALPINE_IMAGE}` }) });
   await expect(dialog).toBeVisible();

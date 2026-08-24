@@ -5,6 +5,7 @@ import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { expectCompletedThenSelfDismissed } from './support/progress-completion.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
 import { TINY_IMAGE, TINY_IMAGE_FILE, ensureImage } from '../../server/test/support/base-images.js';
 
 async function createStandaloneImage(tag: string, containerName: string): Promise<void> {
@@ -107,14 +108,10 @@ function searchField(page: Page) {
  * event, and nothing aims at an element behind a control.
  */
 async function chooseRowAction(page: Page, row: ReturnType<typeof imageRow>, label: string): Promise<void> {
-  // The opening is retried as a whole: the list keeps re-reading from the daemon's own events, and a
-  // re-read that replaces the row takes its trigger — and with it the menu — as it is meant to
-  // (ui-library/specs/menu.md). Same precedent as the keyboard case in `images.spec.ts`.
-  await expect(async () => {
-    await row.getByRole('button', { name: /^More actions for / }).click();
-    await expect(page.getByRole('menu')).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 20_000 });
-  await page.getByRole('menuitem', { name: label, exact: true }).click();
+  // Opening and choosing are one retried gesture, over a settled list: the list keeps re-reading
+  // from the daemon's own events, and every one of the menu's specified dismissals
+  // (ui-library/specs/menu.md) lands between the two halves when they are retried separately.
+  await chooseFromRowOverflowMenu(page, row, label);
 }
 
 function filesystemBrowserModal(page: Page, title: string) {

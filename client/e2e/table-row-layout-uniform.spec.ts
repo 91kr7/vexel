@@ -30,6 +30,8 @@
  */
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
+import { boxOf, movePointerOverTheRow, readOnceSettled } from './support/settled.js';
+import { clickAtItsCentre } from './support/settled.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { startDeliveredBuild, type DeliveredBuild } from './support/delivered-build.js';
@@ -200,14 +202,12 @@ function round(value: number): number {
  * once the offset has settled and the handler has run for it.
  */
 async function settledScrollLeft(page: Page, table: Locator): Promise<number> {
-  let previous = Number.NaN;
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    const current = await table.evaluate((element) => (element as HTMLElement).scrollLeft);
-    if (current === previous) return Math.round(current);
-    previous = current;
-    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-  }
-  return Math.round(previous);
+  const settled = await readOnceSettled(
+    page,
+    () => table.evaluate((element) => (element as HTMLElement).scrollLeft),
+    (previous, current) => previous === current,
+  );
+  return Math.round(settled);
 }
 
 /** The tables once the screen has stopped moving: its content arrives with a daemon read behind it. */
@@ -366,9 +366,8 @@ test('an open expansion holds the table’s left edge at every scroll offset, un
       // the row is wider than the box it is read in, so its own centre can sit over another column.
       const firstCell = rows.first().locator('.ui-data-table__cell').first();
       await firstCell.scrollIntoViewIfNeeded();
-      const cellBox = await firstCell.boundingBox();
-      if (!cellBox) continue;
-      await page.mouse.click(cellBox.x + cellBox.width / 2, cellBox.y + cellBox.height / 2);
+      if ((await firstCell.boundingBox()) === null) continue;
+      await clickAtItsCentre(page, firstCell, `${list}: the first row's own first cell`);
 
       const expansion = table.locator('.ui-data-table__expanded');
       if ((await expansion.count()) === 0) {
@@ -391,8 +390,7 @@ test('an open expansion holds the table’s left edge at every scroll offset, un
 
       // The wheel is delivered over a **row**, not over the panel: the panel scrolls nothing
       // horizontally, and a wheel there would be handed to whichever ancestor does.
-      const rowBox = (await rows.first().boundingBox())!;
-      await page.mouse.move(rowBox.x + Math.min(60, rowBox.width / 2), rowBox.y + rowBox.height / 2);
+      await movePointerOverTheRow(page, rows.first(), `${list}: the first row`);
 
       const readings: string[] = [];
       let previous = -1;
@@ -404,7 +402,7 @@ test('an open expansion holds the table’s left edge at every scroll offset, un
         if (offset === previous) break;
         previous = offset;
 
-        const box = (await expansion.boundingBox())!;
+        const box = await boxOf(expansion, `${list}: the open expansion, after the pan`);
         readings.push(`scrollLeft ${offset} → x ${round(box.x)}, w ${round(box.width)}`);
 
         if (box.x - geometry.x < -0.5 || box.x - geometry.x > 1.5) {
@@ -473,6 +471,11 @@ interface ScrollCost {
   offenders: string[];
 }
 
+/**
+ * **Single-frame on purpose.** What this reads is what *paints* while the list is being scrolled —
+ * computed styles and scroll containers, not positions compared across time — and the state under
+ * examination is the one during the scroll (`support/settled.ts`).
+ */
 async function measureScrollCost(page: Page): Promise<ScrollCost[]> {
   return await page.evaluate(() => {
     const opaque = (colour: string) => colour !== 'transparent' && !/rgba\([^)]*,\s*0\s*\)$/.test(colour);
@@ -555,11 +558,10 @@ async function scrolledScreen(page: Page, screen: { id: string; heading: string 
 
   const rows = page.locator('.ui-frame__content .ui-data-table__row');
   if ((await rows.count()) === 0) return 0;
-  const box = await rows.first().boundingBox();
-  if (!box) return 0;
+  if ((await rows.first().boundingBox()) === null) return 0;
   // Over a row, with a real wheel, at the visible control's own coordinates: what scrolls under an
   // operator's finger is what this claim is about (CLAUDE.md, "What a check drives").
-  await page.mouse.move(box.x + Math.min(60, box.width / 2), box.y + box.height / 2);
+  await movePointerOverTheRow(page, rows.first(), `${screen.heading}: the first row`);
   for (let step = 0; step < 6; step += 1) await page.mouse.wheel(0, 240);
   await page.waitForTimeout(400);
 

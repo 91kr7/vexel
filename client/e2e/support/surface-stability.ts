@@ -15,6 +15,7 @@
  * is only shown to be the control's by being observed on more than one screen.
  */
 import { expect, type Locator, type Page } from '@playwright/test';
+import { boxThisFrame } from './settled.js';
 
 /** A rectangle in viewport coordinates, as the browser reports it. */
 export interface Box {
@@ -38,9 +39,13 @@ function describe(box: Box): string {
  * box cannot be said to have stayed where it was.
  */
 export async function boxOf(target: Locator, description: string): Promise<Box> {
-  const box = await target.boundingBox();
-  expect(box, `${description} has no box on screen, so nothing about its position can be measured`).not.toBeNull();
-  return box as Box;
+  // **Deliberately single-frame, and it must stay that way.** Everything else in the suite reads a
+  // box once it has stopped moving (`support/settled.ts`); here the subject *is* the movement — a
+  // surface dragged out of the viewport by a focus scroll — and a reader that waits for the layout
+  // to come to rest would report the position the surface ends at rather than the displacement the
+  // interaction caused. The single-frame reader is named on purpose so that this reads as the
+  // decision it is.
+  return await boxThisFrame(target, description);
 }
 
 /**
@@ -55,6 +60,8 @@ export async function hiddenControlGap(hidden: Locator, visible: Box): Promise<n
 }
 
 async function hiddenControlBox(hidden: Locator): Promise<Box | null> {
+  // Single-frame for the same reason as `boxOf` above: this distance is evidence beside a
+  // displacement, measured at the same moment as it.
   return await hidden.boundingBox();
 }
 

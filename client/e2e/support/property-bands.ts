@@ -20,6 +20,7 @@
  *   assertions stand beside them, never instead of them.
  */
 import { expect, type Locator } from '@playwright/test';
+import { readOnceSettled } from './settled.js';
 
 /** A rectangle in viewport coordinates, as the browser reports it. */
 export interface Rect {
@@ -120,6 +121,20 @@ function round(value: number): number {
  * is deduced from geometry alone**.
  */
 export async function measureSection(section: Locator, name: string): Promise<SectionGeometry> {
+  return await readOnceSettled(
+    section.page(),
+    () => measureSectionThisFrame(section, name),
+    (previous, current) => JSON.stringify(previous) === JSON.stringify(current),
+  );
+}
+
+/**
+ * **One frame, and it is reachable only by naming it.** The reader above is built
+ * out of it; on its own it answers about whichever layout happens to be current,
+ * which after a viewport change, a pan or a selection is regularly the one the
+ * browser is about to replace (`support/settled.ts`).
+ */
+export async function measureSectionThisFrame(section: Locator, name: string): Promise<SectionGeometry> {
   await expect(section, `${name} is not on screen, so nothing about its arrangement can be measured`).toBeVisible();
   const geometry = await section.evaluate((element, tolerance) => {
     const rect = (target: Element) => {
@@ -204,6 +219,17 @@ export async function measureSection(section: Locator, name: string): Promise<Se
 
   expect(geometry.bands.length, `${name} draws no band at all, so it is present and empty — which the arrangement can never be`).toBeGreaterThan(0);
   return geometry as SectionGeometry;
+}
+
+/**
+ * The old name for the settled reading, kept because call sites say it out loud
+ * where the hazard was found — a section measured after the window was resized
+ * under it, with no navigation in between. `measureSection` **is** this now: the
+ * settled reading is what a caller gets by default, and the single-frame one has
+ * to be named (`measureSectionThisFrame`).
+ */
+export async function measureSectionOnceSettled(section: Locator, name: string): Promise<SectionGeometry> {
+  return await measureSection(section, name);
 }
 
 /**

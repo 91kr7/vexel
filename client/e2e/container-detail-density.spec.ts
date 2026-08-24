@@ -18,6 +18,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
+import { readOnceSettled } from './support/settled.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 const DESKTOP_VIEWPORTS = [
@@ -105,8 +106,25 @@ async function openTab(page: Page, name: string, tab: string): Promise<Locator> 
   return detail;
 }
 
-/** The control's box and what a pointer aimed at its own centre reaches. */
+/**
+ * The control's box and what a pointer aimed at its own centre reaches, **once it has stopped
+ * moving**: a hit test at a point taken from a layout in flight answers about whatever was there
+ * that frame (`support/settled.ts`). This file changes the viewport under an open panel, which is
+ * the arrangement that produced the worst of these readings elsewhere.
+ */
 async function boxOf(name: string, locator: Locator): Promise<Box> {
+  return await readOnceSettled(
+    locator.page(),
+    () => readTheBox(name, locator),
+    (previous, current) =>
+      Math.abs(previous.x - current.x) < 0.5 &&
+      Math.abs(previous.y - current.y) < 0.5 &&
+      Math.abs(previous.width - current.width) < 0.5 &&
+      Math.abs(previous.height - current.height) < 0.5,
+  );
+}
+
+async function readTheBox(name: string, locator: Locator): Promise<Box> {
   return await locator.evaluate((element, controlName) => {
     const rect = element.getBoundingClientRect();
     const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);

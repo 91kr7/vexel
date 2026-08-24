@@ -5,6 +5,7 @@ import { expect, test, type Download, type Page } from './support/test.js';
 import { navEntry, openApp, ownershipArgs } from './support/fixtures.js';
 import { expectCompletedAndStillWaiting } from './support/progress-completion.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
 import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 
 // Every test in this file drives a real save/load or export/import round
@@ -71,9 +72,11 @@ test('saving an image downloads a tarball that reloads it under the same referen
 
     const downloadPromise = page.waitForEvent('download');
     // The row carries one control now: the tarball download is started from its `Save` entry
-    // (images/specs/images-screen.md).
-    await row.getByRole('button', { name: `More actions for ${tag}`, exact: true }).click();
-    await page.getByRole('menuitem', { name: 'Save', exact: true }).click();
+    // (images/specs/images-screen.md). Opening and choosing are one retried gesture: the menu closes
+    // on a scroll or a re-read of the row (ui-library/specs/menu.md), and a gesture split in two
+    // waits out its budget on an entry that is gone. It is never pressed twice — the retry stops at
+    // the first activation the browser delivers — so at most one download is ever started.
+    await chooseFromRowOverflowMenu(page, row, 'Save', { trigger: `More actions for ${tag}` });
     const download = await downloadPromise;
 
     expect(download.suggestedFilename()).toBe(`${tag}.tar`.replace(':', '_'));
@@ -193,11 +196,12 @@ test('exporting a container filesystem and importing it back builds an image und
     const row = page.locator('.ui-data-table__row', { hasText: containerName });
     await expect(row).toBeVisible({ timeout: 10_000 });
     // Started from the row's overflow menu: the detail panel no longer offers
-    // the export, so the row is not selected on the way (REQ-19).
-    await row.getByRole('button', { name: `More actions for ${containerName}`, exact: true }).click();
-
+    // the export, so the row is not selected on the way (REQ-19). The download is awaited from
+    // before the gesture, which is now one retried unit — the menu dismisses itself on a scroll or a
+    // re-read (ui-library/specs/menu.md) and a split gesture waits out its budget on a vanished
+    // entry. At most one export is ever started: the retry stops at the first delivered activation.
     const downloadPromise = page.waitForEvent('download');
-    await page.getByRole('menuitem', { name: 'Export filesystem…', exact: true }).click();
+    await chooseFromRowOverflowMenu(page, row, 'Export filesystem…', { trigger: `More actions for ${containerName}` });
     download = await downloadPromise;
     expect(download.suggestedFilename()).toBe(`${containerName}.tar`);
     await expect(page.locator('.ui-modal')).toHaveCount(0);

@@ -30,6 +30,7 @@
  */
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
+import { clickAtItsCentre, readOnceSettled } from './support/settled.js';
 import {
   MANAGER_TOKEN,
   WORKER_REASON,
@@ -204,7 +205,26 @@ interface ScreenGeometry {
 }
 
 /** The whole screen in one pass — so no two figures come from two layouts. */
+/**
+ * The same reading, **once the layout has come to rest** — which is what every
+ * caller in this file gets by asking for `measureScreen`.
+ *
+ * The single `evaluate` below is what stops two figures coming from two frames;
+ * it is not what stops the whole reading coming from a frame nobody sees. Those
+ * are different guarantees, and this file had only the first (`support/settled.ts`,
+ * "the limits"). The comparator is the whole geometry object: everything read in
+ * the pass has to agree between samples, since that is what a caller compares.
+ */
 async function measureScreen(page: Page): Promise<ScreenGeometry> {
+  return await readOnceSettled(
+    page,
+    () => measureScreenThisFrame(page),
+    (previous, current) => JSON.stringify(previous) === JSON.stringify(current),
+  );
+}
+
+/** **One frame, and no test calls it**: the sampler above is built out of it. */
+async function measureScreenThisFrame(page: Page): Promise<ScreenGeometry> {
   return await page.evaluate(() => {
     const region = document.querySelector('.ui-frame__content') as HTMLElement;
     const regionStyle = getComputedStyle(region);
@@ -377,7 +397,26 @@ interface PanelGeometry {
   text: string;
 }
 
+/**
+ * The same reading, **once the layout has come to rest** — which is what every
+ * caller in this file gets by asking for `measurePanel`.
+ *
+ * The single `evaluate` below is what stops two figures coming from two frames;
+ * it is not what stops the whole reading coming from a frame nobody sees. Those
+ * are different guarantees, and this file had only the first (`support/settled.ts`,
+ * "the limits"). The comparator is the whole geometry object: everything read in
+ * the pass has to agree between samples, since that is what a caller compares.
+ */
 async function measurePanel(page: Page): Promise<PanelGeometry> {
+  return await readOnceSettled(
+    page,
+    () => measurePanelThisFrame(page),
+    (previous, current) => JSON.stringify(previous) === JSON.stringify(current),
+  );
+}
+
+/** **One frame, and no test calls it**: the sampler above is built out of it. */
+async function measurePanelThisFrame(page: Page): Promise<PanelGeometry> {
   return await page.evaluate(() => {
     const box = (element: Element) => {
       const rect = element.getBoundingClientRect();
@@ -481,9 +520,9 @@ function panelTitled(page: Page, title: string): Locator {
 
 /** A real pointer at the visible control's own coordinates — never `element.click()`. */
 async function clickAtItsOwnCentre(page: Page, target: Locator): Promise<void> {
-  await target.scrollIntoViewIfNeeded();
-  const box = (await target.boundingBox())!;
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  // The coordinates are read once the control has stopped moving: a click aimed at a box taken from
+  // a layout in motion lands where the control **was** (`support/settled.ts`).
+  await clickAtItsCentre(page, target, 'the control');
 }
 
 /**

@@ -35,6 +35,7 @@
  */
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
+import { boxOf, clickAtItsCentre, readOnceSettled } from './support/settled.js';
 // The shared classic-table instrument, extended by each batch rather than copied: what replaced the
 // retired presentation's class name here is a measurement, and it is the same measurement every
 // other converted list is judged by (`e2e/support/classic-table.ts`).
@@ -188,7 +189,26 @@ function nameCell(page: Page, name: string): Locator {
  * its full length and only painted clipped, so raw text rectangles would report a
  * collision nobody can see.
  */
+/**
+ * The same reading, **once the layout has come to rest** — which is what every
+ * caller in this file gets by asking for `measureList`.
+ *
+ * The single `evaluate` below is what stops two figures coming from two frames;
+ * it is not what stops the whole reading coming from a frame nobody sees. Those
+ * are different guarantees, and this file had only the first (`support/settled.ts`,
+ * "the limits"). The comparator is the whole geometry object: everything read in
+ * the pass has to agree between samples, since that is what a caller compares.
+ */
 async function measureList(page: Page): Promise<ListGeometry> {
+  return await readOnceSettled(
+    page,
+    () => measureListThisFrame(page),
+    (previous, current) => JSON.stringify(previous) === JSON.stringify(current),
+  );
+}
+
+/** **One frame, and no test calls it**: the sampler above is built out of it. */
+async function measureListThisFrame(page: Page): Promise<ListGeometry> {
   return await panel(page).evaluate((card) => {
     const box = (element: Element): Box => {
       const rect = element.getBoundingClientRect();
@@ -494,7 +514,7 @@ test.describe('F9 — the contexts screen against an inventory holding described
 
         const useAction = rowOf(page, FIXTURES[0].name).getByRole('button', { name: 'Use', exact: true });
         await expect(useAction, `${at}: the panned row offers no Use action`).toBeVisible();
-        const box = (await useAction.boundingBox())!;
+        const box = await boxOf(useAction, `${at}: the panned row's Use action`);
         const hit = await page.evaluate(
           ({ x, y }) => {
             const element = document.elementFromPoint(x, y);
@@ -535,10 +555,7 @@ test.describe('F9 — the contexts screen against an inventory holding described
 
       // …and none of them arrives with a row's detail either. The row is selected on its own first
       // cell, with a real pointer.
-      const firstCell = nameCell(page, FIXTURES[0].name);
-      await firstCell.scrollIntoViewIfNeeded();
-      const cellBox = (await firstCell.boundingBox())!;
-      await page.mouse.click(cellBox.x + cellBox.width / 2, cellBox.y + cellBox.height / 2);
+      await clickAtItsCentre(page, nameCell(page, FIXTURES[0].name), `${at}: the context row's own first cell`);
       await expect(panel(page).locator('.ui-detail-panel'), `${at}: selecting a context opened no detail panel`).toBeVisible({ timeout: 20_000 });
 
       const after = await measureList(page);
@@ -629,7 +646,7 @@ test.describe('F9 — the contexts screen against an inventory holding described
 
     // …and the switch answers a hit test at its own visible centre, which a cleared overlap does
     // not prove on its own.
-    const box = (await useAction.boundingBox())!;
+    const box = await boxOf(useAction, 'the row’s Use switch');
     const hit = await page.evaluate(
       ({ x, y }) => {
         const element = document.elementFromPoint(x, y);
@@ -670,10 +687,7 @@ test.describe('F9 — the contexts screen against an inventory holding described
 
       // A real pointer on the row's own first cell: the action cluster sits at the row's trailing
       // edge and is not the gesture that reveals the panel.
-      const firstCell = nameCell(page, fixture.name);
-      await firstCell.scrollIntoViewIfNeeded();
-      const cellBox = (await firstCell.boundingBox())!;
-      await page.mouse.click(cellBox.x + cellBox.width / 2, cellBox.y + cellBox.height / 2);
+      await clickAtItsCentre(page, nameCell(page, fixture.name), `${at}: the ${fixture.name} row's own first cell`);
 
       const detail = panel(page).locator('.ui-detail-panel');
       await expect(detail, `${at}: selecting the context opened no detail panel`).toBeVisible({ timeout: 20_000 });
@@ -740,7 +754,7 @@ test.describe('F9 — the contexts screen against an inventory holding described
 
       // The panel is inside the box the table is read in, and never pans with it (data-table.md).
       const expansion = panel(page).locator('.ui-data-table__expanded');
-      const expansionBox = (await expansion.boundingBox())!;
+      const expansionBox = await boxOf(expansion, `${at}: the open expansion`);
       const table = await panel(page).evaluate((card) => {
         const element = card.querySelector('.ui-data-table') as HTMLElement;
         const box = element.getBoundingClientRect();
@@ -760,10 +774,7 @@ test.describe('F9 — the contexts screen against an inventory holding described
     await openScreen(page, VIEWPORTS[0]);
 
     const clickFirstCell = async (name: string) => {
-      const cell = nameCell(page, name);
-      await cell.scrollIntoViewIfNeeded();
-      const box = (await cell.boundingBox())!;
-      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      await clickAtItsCentre(page, nameCell(page, name), `the ${name} row's own first cell`);
     };
 
     await clickFirstCell(FIXTURES[0].name);

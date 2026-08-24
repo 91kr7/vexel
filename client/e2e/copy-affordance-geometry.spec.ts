@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from './support/test.js';
 import { CASE_LABEL, OWNER_LABEL, RUN_ID, openApp, ownershipArgs } from './support/fixtures.js';
 import { measureSection, report } from './support/property-bands.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
 import { ALPINE_IMAGE, TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -378,11 +379,9 @@ test('the filesystem browser metadata pane is unchanged apart from the control i
     const row = imageRow(page, tag);
     await expect(row).toBeVisible({ timeout: 20_000 });
 
-    await expect(async () => {
-      await row.getByRole('button', { name: /^More actions for / }).click();
-      await expect(page.getByRole('menu')).toBeVisible({ timeout: 2_000 });
-    }).toPass({ timeout: 20_000 });
-    await page.getByRole('menuitem', { name: 'Browse filesystem…', exact: true }).click();
+    // Opening and choosing as one retried gesture, over a settled list: every dismissal the menu is
+    // contracted to perform (`ui-library/specs/menu.md`) otherwise lands between the two halves.
+    await chooseFromRowOverflowMenu(page, row, 'Browse filesystem…');
 
     const modal = page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: `Filesystem — ${tag}` }) });
     await expect(modal).toBeVisible();

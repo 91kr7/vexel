@@ -35,6 +35,15 @@
  */
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
+import { boxOf, clickAtItsCentre, movePointerOverTheRow, readOnceSettled } from './support/settled.js';
+import {
+  becomesVisible,
+  comesToSay,
+  countBecomes,
+  disappears,
+  pressUntilItTakes,
+  type PressEffect,
+} from './support/delivered-press.js';
 
 interface Viewport {
   width: number;
@@ -363,7 +372,26 @@ interface ScreenGeometry {
  * it would be reported as ink spilling out of its row, which is the opposite of
  * what it is.
  */
+/**
+ * The same reading, **once the layout has come to rest** — which is what every
+ * caller in this file gets by asking for `measureScreen`.
+ *
+ * The single `evaluate` below is what stops two figures coming from two frames;
+ * it is not what stops the whole reading coming from a frame nobody sees. Those
+ * are different guarantees, and this file had only the first (`support/settled.ts`,
+ * "the limits"). The comparator is the whole geometry object: everything read in
+ * the pass has to agree between samples, since that is what a caller compares.
+ */
 async function measureScreen(page: Page): Promise<ScreenGeometry> {
+  return await readOnceSettled(
+    page,
+    () => measureScreenThisFrame(page),
+    (previous, current) => JSON.stringify(previous) === JSON.stringify(current),
+  );
+}
+
+/** **One frame, and no test calls it**: the sampler above is built out of it. */
+async function measureScreenThisFrame(page: Page): Promise<ScreenGeometry> {
   return await page.evaluate(() => {
     const region = document.querySelector('.ui-frame__content') as HTMLElement;
     const regionStyle = getComputedStyle(region);
@@ -534,7 +562,26 @@ interface PanelGeometry {
   statusLine: string | null;
 }
 
+/**
+ * The same reading, **once the layout has come to rest** — which is what every
+ * caller in this file gets by asking for `measurePanel`.
+ *
+ * The single `evaluate` below is what stops two figures coming from two frames;
+ * it is not what stops the whole reading coming from a frame nobody sees. Those
+ * are different guarantees, and this file had only the first (`support/settled.ts`,
+ * "the limits"). The comparator is the whole geometry object: everything read in
+ * the pass has to agree between samples, since that is what a caller compares.
+ */
 async function measurePanel(page: Page): Promise<PanelGeometry> {
+  return await readOnceSettled(
+    page,
+    () => measurePanelThisFrame(page),
+    (previous, current) => JSON.stringify(previous) === JSON.stringify(current),
+  );
+}
+
+/** **One frame, and no test calls it**: the sampler above is built out of it. */
+async function measurePanelThisFrame(page: Page): Promise<PanelGeometry> {
   return await page.evaluate(() => {
     const box = (element: Element) => {
       const rect = element.getBoundingClientRect();
@@ -595,39 +642,93 @@ async function openScreen(page: Page, viewport: Viewport, options: StubOptions =
   return stub;
 }
 
-/** A real pointer at the visible control's own coordinates — never `element.click()`. */
+/**
+ * A real pointer at the visible control's own coordinates — never `element.click()`, and never at
+ * coordinates read from a layout still moving (`support/settled.ts`). Sixteen gestures in this file
+ * go through here; the file's own `settledBox` was wired to two of them.
+ */
 async function clickAtItsOwnCentre(page: Page, target: Locator): Promise<void> {
-  await target.scrollIntoViewIfNeeded();
-  const box = (await target.boundingBox())!;
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await clickAtItsCentre(page, target, 'the control');
 }
 
 /**
  * A project row is selected on its **first cell**: below the desktop breakpoint
  * the row is wider than the box it is read in, so its own centre can sit over
  * another column — or over a control.
+ *
+ * **With `effect`, the press is one the check can prove landed.** This screen
+ * re-reads its projects on every daemon `container` event and on a bounded 3s
+ * poll (`use-compose-projects.ts`, REQ-75), so a row's node is replaced under the
+ * pointer by something of identical geometry — invisible to a settled box, and
+ * the reason a run was lost here with the press sent 57ms after the response that
+ * swapped the row. `pressUntilItTakes` repeats the press only while the effect
+ * named below has not happened, which is what makes repeating it safe on a
+ * control that **toggles**: selecting this row again would close the panel it
+ * opened (`support/delivered-press.ts`).
+ *
+ * Without `effect` the gesture is a single press, as it was: at the sites that
+ * follow it with an assertion of their own about something else entirely, there
+ * is nothing for this to wait for.
  */
-async function clickRow(page: Page, index: number): Promise<void> {
+async function clickRow(page: Page, index: number, effect?: PressEffect): Promise<void> {
   const cell = projectRows(page).nth(index).locator('.ui-data-table__cell').first();
-  await clickAtItsOwnCentre(page, cell);
+  if (effect === undefined) {
+    await clickAtItsOwnCentre(page, cell);
+    return;
+  }
+  await pressUntilItTakes(page, cell, `the project row ${index}, on its own first cell`, effect);
 }
+
+/** The panel the screen opens for a project — the effect a row selection has. */
+function detailPanel(page: Page): Locator {
+  return page.locator('.ui-detail-panel');
+}
+
+const opensTheDetailPanel = (page: Page): PressEffect => countBecomes(detailPanel(page), 1, 'the project’s detail panel opened');
+const closesTheDetailPanel = (page: Page): PressEffect => disappears(detailPanel(page), 'the project’s detail panel closed');
+const raisesTheConfirmation = (page: Page): PressEffect =>
+  becomesVisible(confirmation(page), 'the guard raised its confirmation');
 
 /** The confirmation the product raises before anything that destroys work. */
 function confirmation(page: Page): Locator {
   return page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: /^Confirm: / }) });
 }
 
-/** A locator's box once it has stopped moving, so a pointer is aimed at where the control now is. */
-async function settledBox(page: Page, target: Locator): Promise<void> {
-  let previous = '';
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    const current = JSON.stringify(await target.boundingBox());
-    if (current === previous) return;
-    previous = current;
-    await page.evaluate(
-      () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
-    );
-  }
+/**
+ * A locator's box once it has stopped moving, so a pointer is aimed at where the control now is.
+ *
+ * One of the twelve settle primitives this suite had grown, and it now delegates to the one they
+ * were all folded into (`support/settled.ts`) rather than sampling on its own: the shared sampler
+ * discards its first frame, which this one did not, and a box read before the browser has re-laid
+ * out is stale *and* stable.
+ */
+async function settledBox(target: Locator): Promise<void> {
+  await boxOf(target, 'the control');
+}
+
+/**
+ * The open panel **with its compose file actually in it**, and the editor's box
+ * no longer moving.
+ *
+ * A panel that exists is not a panel that has finished: it opens with a file
+ * read behind it, and the editor replaces the "Reading the compose file…" state
+ * some milliseconds later, laying the panel out again as it arrives. The file
+ * already stated that, for the pointer — `editTheBuffer` below was written
+ * against it — and every **measurement** of the panel went on being taken
+ * straight after `.ui-detail-panel` reached count 1. That is what lost a run at
+ * 375×812: `the panel draws no compose editor`, on a snapshot whose own
+ * accessibility dump holds the editor's gutter, lines 1 to 7, and its textbox.
+ *
+ * The wait is the one the log stream in the same test already has, written the
+ * same way, so what changes is **when** a box is read and never what is demanded
+ * of it. Returns the editor, for a caller that goes on to point at it.
+ */
+async function panelWithItsComposeFile(page: Page): Promise<Locator> {
+  const editor = page.locator('.ui-detail-panel .ui-code-editor__textarea');
+  await expect(editor, 'the compose editor never appeared in the open panel').toBeVisible({ timeout: 20_000 });
+  await expect(editor, 'the compose file never arrived in the editor').not.toHaveValue('', { timeout: 20_000 });
+  await settledBox(editor);
+  return editor;
 }
 
 /**
@@ -644,10 +745,7 @@ async function settledBox(page: Page, target: Locator): Promise<void> {
  * before anything is typed into it.
  */
 async function editTheBuffer(page: Page, marker: string): Promise<void> {
-  const editor = page.locator('.ui-detail-panel .ui-code-editor__textarea');
-  await expect(editor).toBeVisible({ timeout: 20_000 });
-  await expect(editor, 'the compose file never arrived in the editor').not.toHaveValue('', { timeout: 20_000 });
-  await settledBox(page, editor);
+  const editor = await panelWithItsComposeFile(page);
   await clickAtItsOwnCentre(page, editor);
   await expect(editor, 'a click at the editor’s own centre did not land on it').toBeFocused({ timeout: 10_000 });
   await page.keyboard.type(marker);
@@ -830,8 +928,7 @@ test.describe('F11 — the compose screen against a reading holding every projec
         // At the phone breakpoint the ACTIONS column lies beyond the box the list is read in, so it
         // is reached the way an operator reaches it: by panning, with a real wheel over the row.
         if (geometry.scrollWidth > geometry.clientWidth) {
-          const rowBox = (await projectRows(page).nth(index).boundingBox())!;
-          await page.mouse.move(rowBox.x + Math.min(60, rowBox.width / 2), rowBox.y + rowBox.height / 2);
+          await movePointerOverTheRow(page, projectRows(page).nth(index), `${at}: project row ${index}`);
           for (let step = 0; step < 20; step += 1) {
             await page.mouse.wheel(120, 0);
             const offset = await table.evaluate((element) => (element as HTMLElement).scrollLeft);
@@ -840,7 +937,7 @@ test.describe('F11 — the compose screen against a reading holding every projec
         }
 
         // …and read once the scroll those two produced has stopped moving.
-        await settledBox(page, projectRows(page).nth(index));
+        await settledBox(projectRows(page).nth(index));
 
         const screen = await measureScreen(page);
         const row = screen.rows.filter((candidate) => candidate.kind === 'project')[index]!;
@@ -927,8 +1024,12 @@ test.describe('F11 — the compose screen against a reading holding every projec
       await openScreen(page, viewport);
 
       const before = await measureScreen(page);
-      await clickRow(page, 0);
+      await clickRow(page, 0, opensTheDetailPanel(page));
       await expect(page.locator('.ui-detail-panel')).toHaveCount(1, { timeout: 20_000 });
+      // The editor is measured below, so it is waited for here — the same wait the log stream gets
+      // before *its* measurement, further down this very test. Without it the panel is read while
+      // the compose file is still being fetched, which is how this test failed at 375×812.
+      await panelWithItsComposeFile(page);
 
       const panel = await measurePanel(page);
       const after = await measureScreen(page);
@@ -985,8 +1086,11 @@ test.describe('F11 — the compose screen against a reading holding every projec
     test(`the panel's property bands take two columns at desktop widths and one on the phone — ${at}`, async ({ page }) => {
       test.setTimeout(120_000);
       await openScreen(page, viewport);
-      await clickRow(page, 0);
+      await clickRow(page, 0, opensTheDetailPanel(page));
       await expect(page.locator('.ui-detail-panel')).toHaveCount(1, { timeout: 20_000 });
+      // Read once the panel holds its file: the bands are measured, and a band measured while the
+      // panel is still committing its content is the `starved` reading this test exists to refuse.
+      await panelWithItsComposeFile(page);
 
       const panel = await measurePanel(page);
       const tops = [...new Set(panel.bands.map((band) => Math.round(band.y)))];
@@ -1023,7 +1127,7 @@ test.describe('F11 — the compose screen against a reading holding every projec
     console.log(`[REQ-50] streams opened before any selection: ${JSON.stringify(stub.streams())}`);
     expect(stub.streams(), 'the screen subscribed to a project’s aggregated logs that nobody asked to see').toEqual([]);
 
-    await clickRow(page, 0);
+    await clickRow(page, 0, opensTheDetailPanel(page));
     await expect(page.locator('.ui-detail-panel')).toHaveCount(1, { timeout: 20_000 });
     await expect.poll(() => stub.streams(), { timeout: 20_000 }).toEqual(['vexel-e2e-alpha']);
 
@@ -1036,7 +1140,7 @@ test.describe('F11 — the compose screen against a reading holding every projec
     expect(stub.streams(), 'a stream was re-subscribed after the panel closed').toEqual(['vexel-e2e-alpha']);
 
     // Another project's panel subscribes to that project, and to nothing else.
-    await clickRow(page, 1);
+    await clickRow(page, 1, opensTheDetailPanel(page));
     await expect(page.locator('.ui-detail-panel')).toHaveCount(1, { timeout: 20_000 });
     await expect.poll(() => stub.streams(), { timeout: 20_000 }).toEqual(['vexel-e2e-alpha', 'vexel-e2e-beta']);
   });
@@ -1049,22 +1153,25 @@ test.describe('F11 — the compose screen against a reading holding every projec
     test.setTimeout(120_000);
     await openScreen(page, VIEWPORTS[0]);
 
-    await clickRow(page, 0);
+    await clickRow(page, 0, opensTheDetailPanel(page));
     await expect(page.locator('.ui-detail-panel')).toHaveCount(1, { timeout: 20_000 });
+    // The claim is an **absence**, which a panel that has not finished drawing satisfies for the
+    // wrong reason, so it is made about a panel that holds its file.
+    await panelWithItsComposeFile(page);
     const opened = await measurePanel(page);
     expect(opened.closeControls, 'the panel presents a close control of its own').toBe(0);
 
     // A second project's row replaces the panel rather than opening a second one.
-    await clickRow(page, 1);
+    await clickRow(page, 1, comesToSay(detailPanel(page), 'vexel-e2e-beta', 'the panel moved to the other project'));
     await expect(page.locator('.ui-detail-panel'), 'a second panel was opened beside the first').toHaveCount(1, { timeout: 20_000 });
     await expect(page.locator('.ui-detail-panel')).toContainText('vexel-e2e-beta');
 
     // The row that opened it closes it…
-    await clickRow(page, 1);
+    await clickRow(page, 1, closesTheDetailPanel(page));
     await expect(page.locator('.ui-detail-panel'), 'the open project’s own row left it open').toHaveCount(0, { timeout: 20_000 });
 
     // …and so does Escape, with a clean buffer.
-    await clickRow(page, 0);
+    await clickRow(page, 0, opensTheDetailPanel(page));
     await expect(page.locator('.ui-detail-panel')).toHaveCount(1, { timeout: 20_000 });
     await page.keyboard.press('Escape');
     await expect(page.locator('.ui-detail-panel'), 'Escape left the panel open with a clean buffer').toHaveCount(0, {
@@ -1093,7 +1200,7 @@ test.describe('F11 — the editable buffer is guarded on every route that would 
     }) => {
       test.setTimeout(120_000);
       await openScreen(page, viewport);
-      await clickRow(page, 0);
+      await clickRow(page, 0, opensTheDetailPanel(page));
       await expect(page.locator('.ui-detail-panel')).toHaveCount(1, { timeout: 20_000 });
       await editTheBuffer(page, marker);
       const edited = (await measurePanel(page)).editorValue!;
@@ -1124,12 +1231,12 @@ test.describe('F11 — the editable buffer is guarded on every route that would 
       await openScreen(page, viewport);
 
       // Route 2 — another project's row.
-      await clickRow(page, 0);
+      await clickRow(page, 0, opensTheDetailPanel(page));
       await expect(page.locator('.ui-detail-panel')).toHaveCount(1, { timeout: 20_000 });
       await editTheBuffer(page, marker);
       const edited = (await measurePanel(page)).editorValue!;
 
-      await clickRow(page, 1);
+      await clickRow(page, 1, raisesTheConfirmation(page));
       await expect(
         confirmation(page),
         `${at}: another project's row discarded the unsaved edit without asking`,
@@ -1145,7 +1252,7 @@ test.describe('F11 — the editable buffer is guarded on every route that would 
       console.log(`[REQ-50] ${at}: another project's row — confirmation shown, selection and edit unchanged on Cancel`);
 
       // Route 3 — the open project's own row, which is the route that closes it.
-      await clickRow(page, 0);
+      await clickRow(page, 0, raisesTheConfirmation(page));
       await expect(
         confirmation(page),
         `${at}: the open project's own row discarded the unsaved edit without asking`,
@@ -1156,7 +1263,7 @@ test.describe('F11 — the editable buffer is guarded on every route that would 
       expect((await measurePanel(page)).editorValue, `${at}: the refused close discarded the edit`).toBe(edited);
 
       // …and a confirmed switch really does move to the other project.
-      await clickRow(page, 1);
+      await clickRow(page, 1, raisesTheConfirmation(page));
       await expect(confirmation(page)).toBeVisible({ timeout: 20_000 });
       await clickAtItsOwnCentre(page, confirmation(page).getByRole('button', { name: 'Discard changes' }));
       await expect(page.locator('.ui-detail-panel')).toHaveCount(1, { timeout: 20_000 });
@@ -1173,12 +1280,12 @@ test.describe('F11 — the editable buffer is guarded on every route that would 
       test.setTimeout(120_000);
       await openScreen(page, viewport);
 
-      await clickRow(page, 0);
+      await clickRow(page, 0, opensTheDetailPanel(page));
       await expect(page.locator('.ui-detail-panel')).toHaveCount(1, { timeout: 20_000 });
-      await clickRow(page, 1);
+      await clickRow(page, 1, comesToSay(detailPanel(page), 'vexel-e2e-beta', 'the panel moved to the other project'));
       await expect(page.locator('.ui-detail-panel')).toContainText('vexel-e2e-beta', { timeout: 20_000 });
       await expect(confirmation(page), `${at}: a clean switch asked for a confirmation`).toHaveCount(0);
-      await clickRow(page, 1);
+      await clickRow(page, 1, closesTheDetailPanel(page));
       await expect(page.locator('.ui-detail-panel')).toHaveCount(0, { timeout: 20_000 });
       await expect(confirmation(page), `${at}: a clean close asked for a confirmation`).toHaveCount(0);
     });
@@ -1194,7 +1301,7 @@ test.describe('F11 — the compose file inside the panel (plan-docker_management
     const stub = await openScreen(page, VIEWPORTS[0]);
 
     // The project with two discovered files, so the tabs are a real choice.
-    await clickRow(page, 1);
+    await clickRow(page, 1, opensTheDetailPanel(page));
     await expect(page.locator('.ui-detail-panel')).toHaveCount(1, { timeout: 20_000 });
     const panel = page.locator('.ui-detail-panel');
     const fileTabs = panel.getByRole('tab').filter({ hasText: /\.yml$/ });

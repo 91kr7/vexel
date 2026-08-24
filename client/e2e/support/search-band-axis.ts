@@ -15,6 +15,7 @@
  * plan-docker_management_app-filesystem_browser_layout).
  */
 import { expect, type Locator } from '@playwright/test';
+import { readOnceSettled } from './settled.js';
 
 export interface SearchBandGeometry {
   /** The band's own root box, in viewport coordinates. */
@@ -37,6 +38,19 @@ export interface SearchBandGeometry {
 
 /** Measures the band and the controls it holds in one pass, so every number belongs to the same layout. */
 export async function measureSearchBand(band: Locator): Promise<SearchBandGeometry> {
+  // Once the layout has come to rest: this band is measured after a style rule is injected to
+  // reinstate the delivered arrangement, and after text is typed into the control it sizes itself
+  // around — both of which take a layout the reading must not be taken inside of
+  // (`support/settled.ts`).
+  return await readOnceSettled(
+    band.page(),
+    () => measureSearchBandThisFrame(band),
+    (previous, current) => JSON.stringify(previous) === JSON.stringify(current),
+  );
+}
+
+/** **One frame, and it is reachable only by naming it**: the reader above is built out of it. */
+export async function measureSearchBandThisFrame(band: Locator): Promise<SearchBandGeometry> {
   return band.evaluate((element) => {
     const controls = Array.from(element.children)
       .map((child) => ({ className: child.className, height: child.getBoundingClientRect().height }))

@@ -60,6 +60,7 @@
  *   region (`{ index }`) and named afterwards by what it draws.
  */
 import { expect, type Locator, type Page } from './test.js';
+import { movePointerOverTheRow, readOnceSettled } from './settled.js';
 
 export interface Viewport {
   width: number;
@@ -274,6 +275,23 @@ export const LARGE_DIALOG_REGION = '.ui-modal--size-large';
  * of row modifiers").
  */
 export async function measureList(page: Page, target: ListTarget, options: ListRegionOptions = {}): Promise<ListGeometry> {
+  // **Settled by default**, and deliberately without the scroll-into-view and the content wait
+  // `settledList` performs: the callers that reach for this one are measuring a list they have just
+  // **panned**, and bringing it into view would move the very offset under examination. What they
+  // need is the layout half — the pan region rewrites the open expansion's pin from its own scroll
+  // event, one layout after the wheel (`support/settled.ts`, and `e705f06`).
+  return await readOnceSettled(
+    page,
+    () => measureListThisFrame(page, target, options),
+    (previous, current) => JSON.stringify(previous) === JSON.stringify(current),
+  );
+}
+
+/**
+ * **One frame, and it is reachable only by naming it.** Both readers above are built out of it, and
+ * `settledList` samples it on its own schedule — a daemon read is seconds, not frames.
+ */
+export async function measureListThisFrame(page: Page, target: ListTarget, options: ListRegionOptions = {}): Promise<ListGeometry> {
   return await page.evaluate(({ wanted, region }) => {
     const byIndex = typeof wanted === 'object' && 'index' in wanted ? wanted.index : null;
     const wantedHeader = typeof wanted === 'string' ? wanted : 'nestedInside' in wanted ? wanted.nestedInside : '';
@@ -646,15 +664,26 @@ export async function settledList(
       : page.locator(`${options.region ?? SCREEN_REGION} .ui-data-table`).nth((target as { index: number }).index);
   if ((await table.count()) > 0) await table.scrollIntoViewIfNeeded().catch(() => undefined);
 
+  // Two waits, with two different jobs. This one waits for the **content**: a screen's list arrives
+  // with a daemon read behind it, which is seconds, not frames, so it is polled against a budget.
   const deadline = Date.now() + budget;
   let previous = '';
-  let current = await measureList(page, target, options);
+  let current = await measureListThisFrame(page, target, options);
   while (Date.now() < deadline) {
     const serialised = JSON.stringify(current);
-    if (serialised === previous && current.found && current.rows.length > 0) return current;
+    if (serialised === previous && current.found && current.rows.length > 0) {
+      // …and this one waits for the **layout**, on the suite's one sampler, so what is returned is
+      // a single rested reading rather than the first pair of polls that happened to match
+      // (`support/settled.ts`, and its discarded first frame).
+      return await readOnceSettled(
+        page,
+        () => measureListThisFrame(page, target, options),
+        (before, after) => JSON.stringify(before) === JSON.stringify(after),
+      );
+    }
     previous = serialised;
     await page.waitForTimeout(400);
-    current = await measureList(page, target, options);
+    current = await measureListThisFrame(page, target, options);
   }
   return current;
 }
@@ -1203,10 +1232,7 @@ export function expectBothLinesUnclipped(at: string, name: string, list: ListGeo
  */
 export async function expectPanReachesLastColumn(page: Page, column: string, label: string, tag = 'b1'): Promise<void> {
   const table = tableWithColumn(page, column);
-  const firstRow = table.locator('.ui-data-table__row').first();
-  await firstRow.scrollIntoViewIfNeeded();
-  const rowBox = (await firstRow.boundingBox())!;
-  await page.mouse.move(rowBox.x + Math.min(60, rowBox.width / 2), rowBox.y + rowBox.height / 2);
+  await movePointerOverTheRow(page, table.locator('.ui-data-table__row').first(), `${label}: the first row of the ${column} list`);
 
   let previous = -1;
   for (let step = 0; step < 20; step += 1) {
@@ -1258,7 +1284,11 @@ async function listCountOnceItStops(page: Page, region: string, budget = 20_000)
   let previous = -1;
   let current = await tables.count();
   while (Date.now() < deadline) {
-    if (current > 0 && current === previous) return current;
+    if (current > 0 && current === previous) {
+      // The count has stopped changing across the content wait; the layout settle below is the
+      // suite's own, so a list still being inserted is not counted mid-insertion.
+      return await readOnceSettled(page, () => tables.count(), (before, after) => before === after);
+    }
     previous = current;
     await page.waitForTimeout(500);
     current = await tables.count();

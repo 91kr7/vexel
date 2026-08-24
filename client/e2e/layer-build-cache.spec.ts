@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
+import { chooseImageRowAnalysis } from './support/images-screen.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 const RUN_ID = `${process.pid}-${Date.now()}`;
@@ -76,10 +77,6 @@ async function selectRow(row: ReturnType<typeof imageRow>): Promise<void> {
   await row.locator('.ui-data-table__cell').first().click();
 }
 
-function searchField(page: Page) {
-  return page.getByPlaceholder('Search reference or digest…');
-}
-
 function layerExplorerModal(page: Page, title: string) {
   return page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: title }) });
 }
@@ -90,19 +87,11 @@ function layerExplorerModal(page: Page, title: string) {
  * detail panel's (images/specs/images-screen.md). No row is selected and no panel is open.
  */
 async function openLayerExplorer(page: Page, reference: string) {
-  await openApp(page, 'images-layers');
-  await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible();
-  await searchField(page).fill(reference);
-  const row = imageRow(page, reference);
-  await expect(row).toBeVisible({ timeout: 15_000 });
-  // The opening is retried as a whole: the list keeps re-reading from the daemon's own events —
-  // loudly so, right after this spec's own `docker build` — and a re-read that replaces the row
-  // takes its trigger, and with it the menu, as it is meant to (ui-library/specs/menu.md).
-  await expect(async () => {
-    await row.getByRole('button', { name: /^More actions for / }).click();
-    await expect(page.getByRole('menu')).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 20_000 });
-  await page.getByRole('menuitem', { name: 'Explore layers…', exact: true }).click();
+  // Screen, search and gesture from the shared path — the same one `dialog-sizing.spec.ts` takes.
+  // This file's own copy of it kept the split shape after that one was repaired, and lost a run to
+  // the entry click hanging 29.3s of a 30s budget on a menu that had dismissed itself
+  // (ui-library/specs/menu.md). What stays here is what this file demands of the dialog.
+  await chooseImageRowAnalysis(page, reference, 'Explore layers…');
   const modal = layerExplorerModal(page, `Layer stack — ${reference}`);
   await expect(modal.locator('.ui-data-table__row').first()).toBeVisible({ timeout: 20_000 });
   return modal;

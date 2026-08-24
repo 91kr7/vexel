@@ -20,6 +20,7 @@
  */
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
+import { readOnceSettled } from './support/settled.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 /** The three viewports the plan is written against. */
@@ -259,9 +260,14 @@ test.describe('Raw console — the daemon payload (REQ-76, REQ-77)', () => {
       for (const viewport of VIEWPORTS) {
         await page.setViewportSize(viewport);
         // The transcript is virtualised by nothing, but the resize reflows it: measured once the
-        // layout has settled rather than on the frame the resize lands in.
-        await page.waitForTimeout(400);
-        const geometry = await measurePayload(line);
+        // layout has settled rather than on the frame the resize lands in — by the suite's own
+        // sampler rather than by a fixed sleep, which is a guess in both directions
+        // (`support/settled.ts`).
+        const geometry = await readOnceSettled(
+          page,
+          () => measurePayload(line),
+          (previous, current) => JSON.stringify(previous) === JSON.stringify(current),
+        );
         const at = `${viewport.width}×${viewport.height}`;
 
         console.log(

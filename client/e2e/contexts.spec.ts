@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
+import { clickAtItsCentre } from './support/settled.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 const RUN_ID = `${process.pid}-${Date.now()}`;
@@ -91,9 +92,10 @@ function switchControl(row: ReturnType<typeof contextRow>) {
  * product.
  */
 async function clickAtItsOwnCentre(page: Page, control: ReturnType<typeof switchControl>): Promise<void> {
-  await control.scrollIntoViewIfNeeded();
-  const box = (await control.boundingBox())!;
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  // …and read once the control has stopped moving: this control's own defect was a hidden input
+  // 1346px away from it, so coordinates taken from a layout still settling are exactly the mistake
+  // the check exists to refuse (`support/settled.ts`).
+  await clickAtItsCentre(page, control, 'the context switch');
 }
 
 function screenContent(page: Page) {

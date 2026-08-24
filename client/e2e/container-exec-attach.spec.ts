@@ -293,6 +293,12 @@ test.describe('Container attach sessions (REQ-35, REQ-36)', () => {
 });
 
 /** Reads the live terminal host's height and the containers table's scroll metrics. */
+/**
+ * **Deliberately single-frame, and it must stay that way.** The two readings this feeds are taken
+ * two seconds apart to prove the terminal is *not* growing while nothing resizes it: a settled
+ * reader samples until consecutive readings agree, which is precisely how a slow growth would be
+ * waited out and reported as stability (`support/settled.ts`, "what must not come here").
+ */
 async function sessionLayout(page: Page) {
   return page.evaluate(() => {
     const host = document.querySelector('.ui-terminal-host') as HTMLElement | null;

@@ -29,6 +29,7 @@
  */
 import { expect, test, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
+import { boxOf } from './support/settled.js';
 import { startDeliveredBuild, type DeliveredBuild } from './support/delivered-build.js';
 
 /** The screen's internal id, which the rename to "About" deliberately left alone. */
@@ -277,8 +278,9 @@ test.describe('F16 — About states one thing one way', () => {
         expect(title.styledLocally, `"${title.text}" is styled locally`).toBe(false);
       }
 
-      const box = await page.locator('.ui-frame__content').boundingBox();
-      expect(box, 'the screen has no content region').not.toBeNull();
+      // The titles below are compared against this box, so it is read once the screen has come to
+      // rest rather than in whichever frame the walk above finished (`support/settled.ts`).
+      const box = await boxOf(page.locator('.ui-frame__content'), 'the screen’s content region');
       titles.forEach((title, index) => {
         expect(title.width, `"${title.text}" has no box on the screen`).toBeGreaterThan(0);
         expect(title.height, `"${title.text}" has no box on the screen`).toBeGreaterThan(0);

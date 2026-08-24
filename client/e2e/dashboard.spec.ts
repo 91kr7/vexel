@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
+import { readOnceSettled } from './support/settled.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 const RUN_ID = `${process.pid}-${Date.now()}`;
@@ -225,7 +226,25 @@ test('a daemon change made by this spec appears in the dashboard event panel', a
  * two cards end at the same y" is a bottom edge, so a bottom edge is what is
  * read.
  */
+/**
+ * The middle row's two cards, **once the layout has come to rest**: they fill from a daemon read and
+ * are compared with each other, so a reading taken while one of them is still arriving compares two
+ * moments (`support/settled.ts`).
+ */
 async function measureMiddleRow(page: Page): Promise<{
+  columnWidth: number;
+  activity: Box | null;
+  disk: Box | null;
+}> {
+  return await readOnceSettled(
+    page,
+    () => measureMiddleRowThisFrame(page),
+    (previous, current) => JSON.stringify(previous) === JSON.stringify(current),
+  );
+}
+
+/** **One frame, and no test calls it**: the reader above is built out of it. */
+async function measureMiddleRowThisFrame(page: Page): Promise<{
   columnWidth: number;
   activity: Box | null;
   disk: Box | null;

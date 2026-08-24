@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
+import { boxOf, centreOf } from './support/settled.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, localBuilderDriverArgs, mirroredImage } from '../../server/test/support/base-images.js';
 
@@ -87,9 +88,11 @@ async function cellOf(page: Page, row: ReturnType<typeof builderRow>, header: Re
 
 /** Clicks a control with a real pointer at its own coordinates, after checking the point belongs to it. */
 async function clickAtItsOwnCentre(page: Page, control: ReturnType<typeof builderRow>, expectedLabel: string): Promise<void> {
+  // The hit test is the point of this helper, and it is only worth anything against a **settled**
+  // box: a point taken from a layout in motion belongs to whatever has since slid under it, which
+  // this check would then report as the control being covered (`support/settled.ts`).
   await control.scrollIntoViewIfNeeded();
-  const box = (await control.boundingBox())!;
-  const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  const centre = centreOf(await boxOf(control, `the "${expectedLabel}" control`));
   const hit = await page.evaluate(({ x, y }) => (document.elementFromPoint(x, y)?.closest('button')?.textContent ?? '').trim(), centre);
   expect(hit, `the point at the centre of "${expectedLabel}" belongs to something else`).toBe(expectedLabel);
   await page.mouse.click(centre.x, centre.y);

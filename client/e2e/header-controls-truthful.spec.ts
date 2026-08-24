@@ -40,6 +40,7 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { navEntry, openApp } from './support/fixtures.js';
+import { boxOf, centreOf, clickAtItsCentre } from './support/settled.js';
 
 /** A rectangle in viewport coordinates, as the browser reports it. */
 interface Box {
@@ -219,9 +220,10 @@ async function activateHeaderControl(
   const control = header(page).locator(CONTROL_SELECTOR).nth(index);
   await expect(control, `${where}: header control ${index} is not on screen`).toBeVisible();
   const name = await nameOf(control);
-  const box = await control.boundingBox();
-  expect(box, `${where}: the "${name}" control has no box on screen, so a pointer cannot be aimed at it`).not.toBeNull();
-  const centre = { x: (box as Box).x + (box as Box).width / 2, y: (box as Box).y + (box as Box).height / 2 };
+  // Read once the header has stopped moving: the hit test below is only worth anything about a
+  // point the control still occupies when the pointer arrives (`support/settled.ts`).
+  const box = await boxOf(control, `${where}: the "${name}" control`);
+  const centre = centreOf(box);
 
   const { hit, found } = await hitTestAtCentre(control, centre);
   expect(
@@ -237,7 +239,7 @@ async function activateHeaderControl(
   await page.waitForTimeout(1_200);
   const after = await observableState(page);
 
-  return { name, box: box as Box, found, before, after, requests: api.seen(), clickedAt };
+  return { name, box, found, before, after, requests: api.seen(), clickedAt };
 }
 
 function answered(activation: Activation): boolean {
@@ -587,9 +589,7 @@ test('the raw console is reached from the navigation rail, docked and in the pho
 
   const docked = navEntry(page, destination);
   await docked.scrollIntoViewIfNeeded();
-  const dockedBox = await docked.boundingBox();
-  expect(dockedBox, `the "${destination}" entry has no box in the docked rail`).not.toBeNull();
-  await page.mouse.click((dockedBox as Box).x + (dockedBox as Box).width / 2, (dockedBox as Box).y + (dockedBox as Box).height / 2);
+  await clickAtItsCentre(page, docked, `the "${destination}" entry in the docked rail`);
   await expect(
     page.getByRole('heading', { level: 1, name: destination }),
     `a real click at the centre of the docked "${destination}" entry did not open the screen (REQ-15)`,
@@ -606,9 +606,9 @@ test('the raw console is reached from the navigation rail, docked and in the pho
 
   const drawerEntry = navEntry(page, destination);
   await drawerEntry.scrollIntoViewIfNeeded();
-  const drawerBox = await drawerEntry.boundingBox();
-  expect(drawerBox, `the "${destination}" entry has no box in the open drawer`).not.toBeNull();
-  await page.mouse.click((drawerBox as Box).x + (drawerBox as Box).width / 2, (drawerBox as Box).y + (drawerBox as Box).height / 2);
+  // The drawer slides in on a transition, so this is exactly the aim that must not be taken from
+  // the frame the surface was still in flight (`support/settled.ts`).
+  await clickAtItsCentre(page, drawerEntry, `the "${destination}" entry in the phone drawer`);
   await expect(
     page.getByRole('heading', { level: 1, name: destination }),
     `a real click at the centre of the "${destination}" entry in the phone drawer did not open the screen (REQ-15)`,

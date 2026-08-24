@@ -80,6 +80,7 @@ import {
   openTheDialog,
   removeEfficiencyFixtureImage,
 } from './support/layer-efficiency-dialog.js';
+import { boxOf } from './support/settled.js';
 import {
   LARGE_DIALOG_REGION,
   VIEWPORTS,
@@ -610,7 +611,7 @@ test('no finding offers a copy, and the dialog stays inside the viewport at all 
     await page.setViewportSize(viewport);
     await openTheAnalysedDialog(page, FIXTURE_IMAGE);
 
-    const dialog = (await page.locator(LARGE_DIALOG_REGION).boundingBox())!;
+    const dialog = await boxOf(page.locator(LARGE_DIALOG_REGION), `${at}: the large dialog`);
     console.log(
       `[b4/REQ-36] ${at}: the dialog is ${round(dialog.width)}×${round(dialog.height)} at y=${round(dialog.y)} in a ${viewport.height}px viewport`,
     );

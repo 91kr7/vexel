@@ -48,6 +48,7 @@ import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { startDeliveredBuild, type DeliveredBuild } from './support/delivered-build.js';
 import { stubTheInventories } from './support/screen-inventories.js';
+import { boxOf, boxThisFrame, clickAtItsCentre, movePointerOverTheRow } from './support/settled.js';
 import {
   VIEWPORTS,
   expectBothLinesUnclipped,
@@ -302,8 +303,7 @@ test('the columns of a converted list hold their header at every pan offset — 
 
   const table = tableWithColumn(page, LISTS.contexts);
   const row = table.locator('.ui-data-table__row').first();
-  const rowBox = (await row.boundingBox())!;
-  await page.mouse.move(rowBox.x + Math.min(60, rowBox.width / 2), rowBox.y + rowBox.height / 2);
+  await movePointerOverTheRow(page, row, 'the contexts row the wheel is delivered over');
 
   const offsets: string[] = [];
   for (let step = 0; step < 8; step += 1) {
@@ -436,10 +436,7 @@ test('the nested tasks list is the same row, inside its parent’s card and on n
 
   // A real pointer on the row's **first cell**: the row's own centre can sit
   // over another column, or over a control.
-  const cell = services.locator('.ui-data-table__row').first().locator('.ui-data-table__cell').first();
-  await cell.scrollIntoViewIfNeeded();
-  const cellBox = (await cell.boundingBox())!;
-  await page.mouse.click(cellBox.x + cellBox.width / 2, cellBox.y + cellBox.height / 2);
+  await clickAtItsCentre(page, services.locator('.ui-data-table__row').first().locator('.ui-data-table__cell').first(), 'the service row’s own first cell');
 
   await expect(page.locator('.ui-detail-panel'), 'selecting a service opened no detail panel').toBeVisible({ timeout: 20_000 });
   const tasks = await settledList(page, LISTS.tasks);
@@ -494,14 +491,20 @@ test('the switch does not move the surface it sits on, and no row offers a copy 
   // examination.
   const track = row.locator('.ui-toggle__track').first();
   await track.scrollIntoViewIfNeeded();
-  const before = (await daemon.boundingBox())!;
-  const trackBox = (await track.boundingBox())!;
+  // **Single-frame on purpose, both halves.** What is under examination here is a *displacement*
+  // across the interaction (CLAUDE.md, "A check that measures content cannot detect a defect that
+  // moves position"), so the before and after readings are taken as they stand and are never
+  // settled: a reading that waits for the layout to come back to rest is a reading of a different
+  // question. The aim of the click below is the opposite case and is settled, because a pointer
+  // sent to a stale box presses whatever has slid under it.
+  const before = await boxThisFrame(daemon, 'the daemon plugins list before the switch');
+  const trackBox = await boxOf(track, 'the switch track');
   expect(trackBox.y, 'the switch sits above the top of the viewport before it is even used').toBeGreaterThanOrEqual(0);
   await page.mouse.click(trackBox.x + trackBox.width / 2, trackBox.y + trackBox.height / 2);
   await page.waitForTimeout(500);
 
-  const after = (await daemon.boundingBox())!;
-  const trackAfter = (await track.boundingBox())!;
+  const after = await boxThisFrame(daemon, 'the daemon plugins list after the switch');
+  const trackAfter = await boxThisFrame(track, 'the switch track after it was used');
   console.log(
     `[b2/REQ-36] 1440×1000 daemon plugins: the list at y=${round(before.y)} before the switch and y=${round(after.y)} after; ` +
       `the switch itself at y=${round(trackBox.y)} → ${round(trackAfter.y)}`,

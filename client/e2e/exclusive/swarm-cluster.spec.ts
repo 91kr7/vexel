@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '../support/test.js';
 import { CASE_LABEL, OWNER_LABEL, RUN_ID, openApp } from '../support/fixtures.js';
+import { clickAtItsCentre } from '../support/settled.js';
 import { execFileAsync } from '../../../server/test/support/docker-cli.js';
 
 // The Swarm screen driven against a real cluster (REQ-79 to REQ-84): the state
@@ -67,9 +68,9 @@ function row(card: Locator, name: string): Locator {
  * "What a check drives, and what it measures").
  */
 async function clickAtItsOwnCentre(page: Page, target: Locator): Promise<void> {
-  await target.scrollIntoViewIfNeeded();
-  const box = (await target.boundingBox())!;
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  // The coordinates are read once the control has stopped moving: a click aimed at a box taken from
+  // a layout in motion lands where the control **was** (`support/settled.ts`).
+  await clickAtItsCentre(page, target, 'the control');
 }
 
 test.beforeAll(async () => {
