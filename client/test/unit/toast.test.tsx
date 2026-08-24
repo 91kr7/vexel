@@ -7,13 +7,8 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-// ui-library/specs/toast.md — the stack is capped at three, which is also what bounds how many
-// blurred overlay surfaces the compositor can be asked for at one moment
-// (plan-liquid_glass_overlays/REQ-10).
-
 let push: (toast: ToastInput) => void = () => {};
 
-/** Hands the provider's own push out, so a test drives it exactly as a caller would. */
 function Pusher() {
   push = useToast().push;
   return null;
@@ -33,17 +28,11 @@ function pushToast(toast: ToastInput) {
   });
 }
 
-/** The titles of the toasts currently on screen, in the order they are stacked. */
 function titlesOnScreen(container: HTMLElement): string[] {
   return Array.from(container.querySelectorAll('.ui-toast__title')).map((title) => title.textContent ?? '');
 }
 
-/**
- * Operates one toast's dismiss control through the control's own `onClick`.
- * A real pointer at the control's visible coordinates is the browser half's job
- * (`client/e2e/toast-feedback.spec.ts`): jsdom lays nothing out, so there are no
- * coordinates here to aim at.
- */
+/** jsdom lays out nothing, so there are no coordinates to aim at: the real-pointer half is the e2e suite's. */
 function dismissToast(title: string) {
   const control = screen.getByRole('button', { name: `Dismiss notification: ${title}` });
   act(() => {
@@ -58,8 +47,7 @@ function advance(milliseconds: number) {
 }
 
 describe('ToastProvider (ui-library/specs/toast.md)', () => {
-  // toast.md — at most three at once, newest last; a fourth drops the oldest immediately
-  // (plan-liquid_glass_overlays/REQ-10)
+  // plan-liquid_glass_overlays/REQ-10 — at most three at once, newest last.
   it('keeps at most three toasts on screen, dropping the oldest when a fourth arrives', () => {
     const { container } = renderProvider();
 
@@ -75,8 +63,7 @@ describe('ToastProvider (ui-library/specs/toast.md)', () => {
     expect(screen.getByText('fourth')).toBeInTheDocument();
   });
 
-  // toast.md — a toast dropped by the cap takes its pending auto-dismissal with it: it never
-  // dismisses the toast that took its place (plan-liquid_glass_overlays/REQ-10)
+  // plan-liquid_glass_overlays/REQ-10 — a toast dropped by the cap takes its pending auto-dismissal with it.
   it('never lets a dropped toast dismiss another when its time comes', () => {
     vi.useFakeTimers();
     const { container } = renderProvider();
@@ -92,7 +79,7 @@ describe('ToastProvider (ui-library/specs/toast.md)', () => {
     expect(screen.getByText('fourth')).toBeInTheDocument();
   });
 
-  // toast.md — each toast still auto-dismisses at its own duration
+  // ui-library/specs/toast.md — each toast auto-dismisses at its own duration.
   it('dismisses each surviving toast at its own duration', () => {
     vi.useFakeTimers();
     const { container } = renderProvider();
@@ -108,9 +95,7 @@ describe('ToastProvider (ui-library/specs/toast.md)', () => {
     expect(container.querySelectorAll('.ui-toast')).toHaveLength(0);
   });
 
-  // toast.md — a toast with no duration of its own auto-dismisses after the 5s default, for every
-  // tone alike. The default is stated in the contract and written down nowhere else in the tests,
-  // so this is what would notice it moving (plan-docker_management_app-toast_feedback/REQ-23).
+  // plan-docker_management_app-toast_feedback/REQ-23 — no duration of its own means the 5s default, every tone alike.
   it('auto-dismisses a toast with no duration of its own after the 5s default', () => {
     vi.useFakeTimers();
     const { container } = renderProvider();
@@ -125,8 +110,7 @@ describe('ToastProvider (ui-library/specs/toast.md)', () => {
     expect(container.querySelectorAll('.ui-toast')).toHaveLength(0);
   });
 
-  // toast.md — every toast surface carries the overlay glass material, the same one the dialog
-  // surfaces carry (plan-liquid_glass_overlays/REQ-3)
+  // plan-liquid_glass_overlays/REQ-3 — every toast surface carries the overlay glass material.
   it('gives every toast surface the overlay glass material', () => {
     const { container } = renderProvider();
 
@@ -137,10 +121,7 @@ describe('ToastProvider (ui-library/specs/toast.md)', () => {
     for (const surface of surfaces) expect(surface.classList.contains('ui-overlay-glass')).toBe(true);
   });
 
-  // toast.md — the tone is shown before any word of the toast is read, carried by one mark: a badge
-  // holding `✓` for `success` and `!` for `danger`, and no badge element at all for `neutral`. This
-  // is the check that fails the instant the render stops reading `tone` again
-  // (plan-docker_management_app-toast_feedback/REQ-1, REQ-27).
+  // plan-docker_management_app-toast_feedback/REQ-1, REQ-4, REQ-27 — one badge per tone, none for neutral.
   it('renders each tone as its own structure, and an untoned toast as neither', () => {
     const { container } = renderProvider();
 
@@ -156,17 +137,11 @@ describe('ToastProvider (ui-library/specs/toast.md)', () => {
     expect(danger!.classList.contains('ui-toast--tone-danger')).toBe(true);
     expect(danger!.querySelector('.ui-toast__glyph')?.textContent).toBe('!');
 
-    // REQ-4 — a call site that passes no tone keeps the absence of a tone treatment: no tone class
-    // on the card, and no badge element before the text.
     expect(Array.from(neutral!.classList).filter((name) => name.startsWith('ui-toast--tone-'))).toEqual([]);
     expect(neutral!.querySelector('.ui-toast__glyph')).toBeNull();
   });
 
-  // toast.md — outcome is never carried by hue alone, and the badge is what guarantees it: its
-  // **presence** separates a toned toast from `neutral`, its **shape** separates `success` from
-  // `danger`. Both channels survive a greyscale screen, which is why one mark is enough and why
-  // the withdrawn edge accent was redundancy rather than the guarantee
-  // (plan-docker_management_app-toast_feedback/REQ-3, REQ-27).
+  // plan-docker_management_app-toast_feedback/REQ-3, REQ-27 — the three tones are told apart without reading a colour.
   it('tells the three tones apart without reading a single colour', () => {
     const { container } = renderProvider();
 
@@ -174,24 +149,18 @@ describe('ToastProvider (ui-library/specs/toast.md)', () => {
     pushToast({ title: 'b', tone: 'danger' });
     pushToast({ title: 'c' });
 
-    // The badge each card carries, and nothing else: no class, no colour, no tint — the reading a
-    // greyscale screen or a colour-blindness simulation is left with.
     const badges = Array.from(container.querySelectorAll('.ui-toast')).map(
       (card) => card.querySelector('.ui-toast__glyph')?.textContent ?? null,
     );
 
-    // Presence tells the two toned cards from the untoned one …
     expect(badges[0]).not.toBeNull();
     expect(badges[1]).not.toBeNull();
     expect(badges[2]).toBeNull();
-    // … and shape tells the two toned ones from each other.
     expect(badges[0]).not.toBe(badges[1]);
     expect(new Set(badges).size).toBe(3);
   });
 
-  // toast.md — the dismiss control is a real button, on every toast, named after the toast it
-  // closes, so three on screen at once are told apart
-  // (plan-docker_management_app-toast_feedback/REQ-6, REQ-9).
+  // plan-docker_management_app-toast_feedback/REQ-6, REQ-9 — a named dismiss button on every toast.
   it('gives every toast a named dismiss control of its own', () => {
     const { container } = renderProvider();
 
@@ -206,9 +175,7 @@ describe('ToastProvider (ui-library/specs/toast.md)', () => {
     }
   });
 
-  // toast.md — operating the dismiss control removes that toast alone; the survivors keep their
-  // relative order and none is duplicated
-  // (plan-docker_management_app-toast_feedback/REQ-6, REQ-7, REQ-8).
+  // plan-docker_management_app-toast_feedback/REQ-6, REQ-7, REQ-8 — dismissing removes that toast alone, in order.
   it('removes only the dismissed toast, leaving the others in their order', () => {
     const { container } = renderProvider();
 
@@ -219,9 +186,7 @@ describe('ToastProvider (ui-library/specs/toast.md)', () => {
     expect(titlesOnScreen(container)).toEqual(['first', 'third']);
   });
 
-  // toast.md — dismissing one toast disturbs no other's remaining time: none is prolonged,
-  // shortened or restarted, and the dismissed toast's pending timeout never removes a toast that
-  // is still standing (plan-docker_management_app-toast_feedback/REQ-7).
+  // plan-docker_management_app-toast_feedback/REQ-7 — a dismissal disturbs no other toast's remaining time.
   it('leaves every surviving toast its own remaining time when one is dismissed', () => {
     vi.useFakeTimers();
     const { container } = renderProvider();
@@ -234,12 +199,9 @@ describe('ToastProvider (ui-library/specs/toast.md)', () => {
     dismissToast('dismissed');
     expect(titlesOnScreen(container)).toEqual(['short', 'long']);
 
-    // Past the dismissed toast's own deadline: its pending timeout must take nothing with it.
     advance(1000);
     expect(titlesOnScreen(container)).toEqual(['short', 'long']);
 
-    // Each survivor still goes at its own time, counted from its own push — neither restarted by
-    // the dismissal nor shortened by it.
     advance(2400);
     expect(titlesOnScreen(container)).toEqual(['short', 'long']);
     advance(200);
@@ -251,10 +213,7 @@ describe('ToastProvider (ui-library/specs/toast.md)', () => {
     expect(titlesOnScreen(container)).toEqual([]);
   });
 
-  // toast.md — the card's padding is one padding: the glass surface underneath is asked for none,
-  // so the gap between the glass edge and the text is a single spacing token on every side. The
-  // geometry itself is measured in the browser, where boxes exist
-  // (plan-docker_management_app-toast_feedback/REQ-11).
+  // plan-docker_management_app-toast_feedback/REQ-11 — the glass surface is asked for no padding of its own.
   it('asks the glass surface for no padding of its own', () => {
     const { container } = renderProvider();
 

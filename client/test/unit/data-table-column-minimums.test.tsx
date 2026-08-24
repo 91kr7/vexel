@@ -224,6 +224,9 @@ describe('the column minimum is the library’s, and every screen inherits it', 
       for (const entry of readdirSync(directory, { withFileTypes: true })) {
         const path = join(directory, entry.name);
         if (entry.isDirectory()) {
+          // Skipped as in the other scans: `ui-conformance-check.test.ts` writes and deletes
+          // files there from another worker, so walking it reads a file that is already gone.
+          if (entry.name === '__conformance-fixture__') continue;
           walk(path);
           continue;
         }

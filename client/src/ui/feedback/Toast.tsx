@@ -40,7 +40,6 @@ interface ToastContextValue {
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
-/** The mark a toned toast carries before its text; `neutral` carries none. */
 const toneGlyph: Record<ToastTone, string | null> = {
   neutral: null,
   success: '✓',
@@ -94,9 +93,7 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
           const tone = toast.tone ?? 'neutral';
           const glyph = toneGlyph[tone];
           return (
-            // The surface carries no padding: the card's one padding is on
-            // `.ui-toast`, which therefore fills the glass exactly and can draw
-            // the tone accent at its edge.
+            // No padding here: the card's one padding is on `.ui-toast`.
             <Surface key={toast.id} elevation="raised" padding="none" material="overlay">
               <div className={tone === 'neutral' ? 'ui-toast' : `ui-toast ui-toast--tone-${tone}`}>
                 <Row gap="var(--space-3)" align="start">

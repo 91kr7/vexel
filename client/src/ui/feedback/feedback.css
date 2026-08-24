@@ -128,12 +128,7 @@
   pointer-events: none;
 }
 
-/*
- * The card's one and only padding: the surface above it is asked for
- * `padding="none"`, so this is the whole of the gap between the glass edge and
- * the text, and it is the same on every side — the card carries no border of
- * its own to inset one edge past the others.
- */
+/* The toast's only padding: its Surface is asked for `padding="none"`. */
 .ui-toast {
   min-width: var(--toast-min-width);
   padding: var(--space-3) var(--space-4);
@@ -150,23 +145,9 @@
   flex: none;
 }
 
-/*
- * Tone — one channel, the round glyph badge `Callout` uses below, applied to the
- * families the toast already declares. The glyph differs in **shape** as well as
- * in hue (`✓` against `!`) and `neutral` carries no glyph element at all, so the
- * three tones stay apart with the screen in greyscale: by shape and by presence,
- * never by colour alone.
- *
- * There is deliberately **no accent down the card's edge**. It was drawn as a
- * hairline border-left and withdrawn on sight by the human: a line on one edge of
- * one card is not how anything else in this interface marks a state, and it read
- * as foreign rather than as an accent. It was a second, redundant channel — the
- * glyph already carries the non-colour half on its own — so removing it costs
- * redundancy, not the guarantee. Do not reinstate it.
- *
- * Nothing tones the card's own fill either: the text keeps the untoned card's
- * background, so a failure toast reads no worse than any other.
- */
+/* Tone is the glyph alone — shape and presence, so it survives greyscale. An
+   edge accent was drawn here and withdrawn as foreign to the interface: do not
+   reinstate it, and do not tint the card's fill. */
 .ui-toast__glyph {
   display: grid;
   place-items: center;
