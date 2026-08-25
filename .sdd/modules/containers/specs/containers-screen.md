@@ -21,15 +21,17 @@ panel.
 Description:
 - A `ScreenToolbar` with a "Run container…" primary action, a "Create from image…" secondary
   action, a "Prune stopped" destructive action and a filters row (a `SearchField` and
-  state `FilterChips`: all/running/stopped/paused), above a **stack of cards**: one
-  `ContainerCard` per container matching the current search/filter, at full width, separated by one
-  uniform gap and by nothing else — no header row, no rules between them, and no single surface
-  around the list.
+  state `FilterChips`: all/running/stopped/paused), above a **grid of cards, three to a row**: one
+  `ContainerCard` per container matching the current search/filter, separated by one uniform gap and
+  by nothing else — no header row, no rules between them, and no single surface around the list. Two
+  to a row at ≤1200px and one below the phone breakpoint; the empty/loading state spans the whole
+  row.
 Shows:
 - One card per matching container, whose own arrangement and values are `container-card.md`'s. Every
-  value the delivered table row showed is on it — state, name, image reference, every port it
-  reports, the status/uptime sentence, CPU and memory — and it adds NET I/O, the CPU and memory
-  capacities and a fill against each.
+  value the delivered table row showed is on it — state, name, image reference, its ports, the
+  status/uptime sentence, CPU and memory — and it adds NET I/O, the CPU and memory capacities and a
+  fill against each. Past four ports the card draws three and a `+n` (`container-card.md`); the full
+  set is in the detail panel.
 - **Three lifecycle slots, fixed in number, order and position on every card and in every state** —
   the state-appropriate run/halt action, then `Pause`, then `Restart`. An action the state does not
   allow keeps its slot, disabled, stating why. The legality is the one the delivered row already
@@ -75,8 +77,9 @@ Actions:
 - The search field matches name, image or state (case-insensitive substring); state chips narrow to
   running / stopped (`created`, `exited`, `dead`) / paused (`paused`, `restarting`) / all.
 - Selecting a card (anywhere outside its action cluster) opens a `ContainerDetailPanel` directly
-  beneath it, at full width, as the next item of the same stack (REQ-24); selecting the same card
-  again closes it — the card is the panel's only pointer route, the panel offering no close control
+  beneath it, **spanning the whole row** of the grid, as the next item of that grid (REQ-24) — so it
+  opens under the row holding the card that owns it and the cards below move down; selecting the
+  same card again closes it — the card is the panel's only pointer route, the panel offering no close control
   of its own — and so does `Escape`, after which the point of interaction is left on the list. At
   most one panel is open at a time. A selected container that is removed from the daemon closes its
   detail panel; one merely filtered out of view stays selected (its panel reappears if the filter
@@ -107,10 +110,28 @@ Actions:
   selection; "Prune stopped" acts on every stopped container at once, with none to drive.
 - **Live updates land in place**: a card redraws its numbers and its fills where it stands. No card
   moves, the list does not reorder and no neighbour is disturbed.
+- **Three cards to a row, against the mock's one card at full width** — a departure decided by the
+  human on the running product on 2026-08-25, on evidence the mock could not supply: at full width
+  the three metric columns spread across ~1000px, leaving a void in the middle with `NET I/O` pushed
+  to the far right. The mock stays normative for everything else — the bands, their contents, their
+  order, the accent bar, the action arrangement and the *no sample* state. The metrics are
+  consequently **stacked** on the card rather than laid side by side (`container-card.md`), the
+  second half of the same departure.
+- **The cards of a row are equal in height; rows are not equal to each other.** No minimum height is
+  imposed on a card. The alternative — one height for every card on the screen — was put to the human
+  and refused: rows that match, at the cost of empty space inside most cards.
+- **The metric columns line up within a row, which is what REQ-10 means on a grid.** Every card of a
+  row is the same width and its strip places its metrics at the same x, so the values line up
+  **across** a row; with the metrics stacked, they also line up down each column of the grid. The
+  original "same x on every card down the list" was written for a single column of full-width cards
+  and describes the same property, read on the arrangement that now exists.
 - **The cards are not virtualised, and that is the accepted cost of the presentation.** `DataTable`
-  mounted only the rows near the viewport; a card's height follows its content (the ports chip
-  wraps), which is the one case `DataTable` itself declines to virtualise. Recorded in the plan's
-  `batches.md`; what is verified instead is measured smoothness at a realistic container count.
+  mounted only the rows near the viewport; a card's height follows its content, which is the one
+  case `DataTable` itself declines to virtualise. Recorded in the plan's `batches.md`; what is
+  verified instead is measured smoothness at a realistic container count. Three cards to a row
+  **reduces** the exposure without removing it — the same container count now mounts across a third
+  as many rows — and the ports cap keeps one container's port list from setting a row's height, but
+  a card's height still follows its content and nothing here is virtualised.
 - "Prune stopped" is disabled when no container is currently stopped.
 - **This screen is the one place in the product where an object list draws a surface per object**,
   admitted by name (and by two literal paths) in `check-ui-conformance.mjs` on 2026-08-25. Every
@@ -124,7 +145,8 @@ Actions:
 ## Dependencies
 
 - ui-library: ScreenToolbar, SearchField, FilterChips, TextField, IconButton, ErrorBanner,
-  EmptyState, Row, Stack (as the list's dismissal focus target), triggerDownload, useToast
+  EmptyState, Row, Stack, Grid (as the list's dismissal focus target) and GridSpan, triggerDownload,
+  useToast
 - Containers client, Container transfer client, Images client (`ImageSummary`)
 - ContainerCard, ContainerDetailPanel, ContainerCreateForm
 - app-shell: ConfirmationService, ProgressService, ErrorReportingService

@@ -168,6 +168,40 @@
   }
 }
 
+/* Three cards to a row. Explicit tracks rather than auto-fill: how many cards
+   belong on a row is a decision about the list, not something a track's minimum
+   width should discover — auto-fill would hand the count to whatever the widest
+   card's content happened to be. Two tracks where three would each fall under a
+   readable card width, one below the phone breakpoint. */
+.ui-grid--cards {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  /* Stretched, not started: every card of a row takes the height of the
+     tallest, so a row reads as a row of equals rather than as a ragged edge.
+     Equality is per row and no minimum height is imposed, so rows may differ
+     from one another — chosen over one height for the whole grid, which would
+     have matched every row at the cost of empty space in most of them. */
+  align-items: stretch;
+}
+
+@media (max-width: 1200px) {
+  .ui-grid--cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .ui-grid--cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* A child that takes the whole row whatever the track count is: a list's
+   expansion, an empty state, a banner standing among tiles. */
+.ui-grid__span-full {
+  grid-column: 1 / -1;
+}
+
 .ui-grid > * {
   /* Grid tracks default to a minimum content size, so one unbreakable long
      value (e.g. a PATH-style env line) would otherwise blow out its track

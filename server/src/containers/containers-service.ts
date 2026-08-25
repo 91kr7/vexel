@@ -486,6 +486,27 @@ function computeUsage(raw: RawStats): SampledUsage {
   };
 }
 
+/**
+ * The container's ports, each mapping once. The daemon reports one entry per
+ * host binding, so a port published on both stacks arrives twice — same private
+ * port, same public port, same protocol, differing only by a host IP this shape
+ * does not carry. Once the IP is dropped the two are indistinguishable, and a
+ * consumer keying by what it can see cannot tell a real pair from an artefact
+ * of dual-stack binding. Deduped here rather than in each reader: every
+ * consumer of this shape inherits the pair, and the card — one chip per entry,
+ * keyed by the mapping — was given duplicate React keys by it and accumulated
+ * chips in the DOM on every poll. The delivered table joined the entries into
+ * one line, which hid the same duplication rather than escaping it.
+ */
+function summaryPorts(ports: RawContainer["Ports"]): ContainerPort[] {
+  const byMapping = new Map<string, ContainerPort>();
+  for (const port of ports ?? []) {
+    const mapping = { privatePort: port.PrivatePort, publicPort: port.PublicPort, type: port.Type };
+    byMapping.set(`${mapping.type}-${mapping.publicPort ?? ""}-${mapping.privatePort}`, mapping);
+  }
+  return [...byMapping.values()];
+}
+
 function toSummary(raw: RawContainer): ContainerSummary {
   const usage = statsCache.get(raw.Id);
   return {
@@ -495,7 +516,7 @@ function toSummary(raw: RawContainer): ContainerSummary {
     image: raw.Image,
     state: raw.State as ContainerState,
     status: raw.Status,
-    ports: (raw.Ports ?? []).map((port) => ({ privatePort: port.PrivatePort, publicPort: port.PublicPort, type: port.Type })),
+    ports: summaryPorts(raw.Ports),
     cpuPercent: usage?.cpuPercent,
     memoryUsageBytes: usage?.memoryUsageBytes,
     memoryLimitBytes: usage?.memoryLimitBytes,

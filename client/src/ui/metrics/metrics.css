@@ -455,6 +455,23 @@
   min-width: 0;
 }
 
+/* The same shape asked for at any width: one full-width column per metric,
+   for a strip inside a box too narrow to carry its columns side by side — a
+   card standing in a grid rather than across the page. These are the phone
+   breakpoint's own declarations below: one stacked form written in two places,
+   because a media query's rules cannot be shared with a rule outside it.
+   Change them together. */
+.ui-metric-strip--stacked {
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.ui-metric-strip--stacked .ui-metric-strip__column,
+.ui-metric-strip--stacked .ui-metric-strip__column--readings {
+  flex: 1 1 auto;
+  width: 100%;
+}
+
 /* The phone breakpoint: one full-width column per metric, each keeping its
    label, value, reading and track. Nothing is dropped and nothing is scrolled
    sideways — the strip only stops being a row. */

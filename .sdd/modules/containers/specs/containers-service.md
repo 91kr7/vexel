@@ -20,7 +20,7 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   - `state`: `'created' | 'running' | 'paused' | 'restarting' | 'removing' | 'exited' | 'dead'`.
   - `status` is the daemon's own human-readable status text (e.g. `"Up 3 days"`,
     `"Exited (0) 2 hours ago"`).
-  - `ports`: `{ privatePort, publicPort?, type }[]`.
+  - `ports`: `{ privatePort, publicPort?, type }[]`, **each mapping appearing exactly once**.
   - `cpuPercent`/`memoryUsageBytes`/`memoryLimitBytes`/`onlineCpus`/`networkRxBytes`/
     `networkTxBytes` are present only for a `running` container that the sampler has read at least
     once since it started running; all six come from **one** sample and are absent together.
@@ -79,6 +79,17 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   endpoint.
 - A container's cached sample is dropped as soon as it no longer appears in the running set, so a
   stopped container never reports a stale CPU/memory reading.
+- **`ports` carries no duplicates, and the daemon's own answer does.** The daemon reports one entry
+  per host binding, so a port published on both IP stacks arrives twice — same private port, same
+  public port, same protocol, differing only by a host IP this shape does not carry. Once the IP is
+  dropped the two entries are indistinguishable, so they are collapsed to one here rather than in
+  each reader: every consumer of this shape would otherwise inherit the pair, and one that keys by
+  what it can see cannot tell a real pair from an artefact of dual-stack binding. Found 2026-08-25
+  through the containers card, which draws one chip per entry and was given duplicate React keys by
+  it; the delivered table joined the entries into a single line, which hid the same duplication
+  rather than escaping it. This is a rule about **this shape only**: `inspectContainer`'s bindings
+  carry the host IP, so they are not indistinguishable and are not collapsed — the detail panel still
+  shows a dual-stack publication as the two bindings it is.
 - **The widened fields cost the daemon nothing** (plan-docker_management_app-containers_card_view/REQ-13).
   `onlineCpus` and the network totals are read out of the **same stats frame** the sampler already
   fetched for `cpuPercent` — the CPU count was computed inside it and thrown away, the `networks`
@@ -117,4 +128,5 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 - plan-docker_management_app/REQ-54
 - plan-docker_management_app-list_ordering/REQ-8
 - plan-docker_management_app-list_ordering/REQ-12
+- plan-docker_management_app-containers_card_view/REQ-5
 - plan-docker_management_app-containers_card_view/REQ-13

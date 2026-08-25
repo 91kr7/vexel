@@ -24,6 +24,9 @@ metrics — the presentation the containers list is built from.
 Description:
 - Three bands inside one `Card`, in this order on every card and in every state, with a
   state-coloured accent bar down the card's left edge running its full height.
+- The card takes the width of the track it is placed in — a third of the list at desktop width, not
+  the page — and it states no width, no height and no minimum of its own. Its height follows its
+  content; the grid it stands in is what equalises the cards of a row (`layout-primitives.md`).
 
 Shows:
 - **Band 1**, at the left in reading order: the status dot, the container name as the card's most
@@ -33,10 +36,13 @@ Shows:
   then `Pause` · `Restart` · `…` joined into one segmented cluster ending flush at the card's inner
   right edge.
 - **Band 2**, at the left in reading order: the `image <reference>` chip (`image` muted, the
-  reference the chip's value), one accented chip **per port the daemon reports** — present only when
-  the container has at least one — and the daemon's own status sentence in muted plain text.
-- **Band 3**: the metric strip — `CPU` and `MEMORY` as two equal tracked columns, then a narrower
-  `NET I/O` carrying `in` and `out` and no bar.
+  reference the chip's value), the port chips — present only when the container reports at least one
+  port — and the daemon's own status sentence in muted plain text. Up to three ports are chips of
+  their own; past that the remainder is one trailing `+n` chip.
+- **Band 3**: the metric strip, **stacked** — one metric per row at any width, not three columns
+  side by side.
+  - `CPU` over `MEMORY` over `NET I/O`, in that order: `CPU` and `MEMORY` tracked, `NET I/O`
+    carrying `in` and `out` and no bar.
   - `CPU` → `<n.n>%` with `of <onlineCpus> core(s)`, the track filled against `onlineCpus × 100`.
   - `MEMORY` → the usage formatted, with `of <limit>`, the track filled against the limit; with no
     limit the track draws the "no measurable maximum" state and no capacity note.
@@ -59,21 +65,27 @@ Actions:
   included, not only the three the mock drew: `running` → success, `paused`/`restarting` → warning,
   `dead` → danger, `created`/`removing`/`exited` → neutral. The metric fills take that same tone.
   No card ever shows two states at once.
-- **Every port the daemon reports is shown**, published and merely exposed alike, one chip each and
-  worded exactly as the delivered list worded it: `publicPort→privatePort` where the port is
-  published, the bare `privatePort` where it is only exposed. Both kinds, because no value the
-  delivered row showed may disappear from the card (REQ-12); the chips are present when there is at
-  least one port of either kind. None is truncated, summarised, or replaced by a `+N more`: a
-  container carrying many of them wraps onto further lines and makes a taller card.
+- **Ports are worded exactly as the delivered list worded them**, published and merely exposed
+  alike: `publicPort→privatePort` where the port is published, the bare `privatePort` where it is
+  only exposed. Both kinds, because no value the delivered row showed may disappear from the card
+  (REQ-12); the chips are present when there is at least one port of either kind, and no chip is
+  ever truncated or reworded.
+- **At most three ports are drawn, the rest becoming one `+n` chip** (REQ-5, as reversed on
+  2026-08-25). The split is at **four**, not three: a container reporting exactly four draws four
+  chips, because a fourth chip costs precisely what the chip announcing it would and a `+1` is never
+  worth drawing. The full set stays one click away in the detail panel, so nothing is lost — only
+  moved. This is a **deliberate reversal** of the earlier "every mapping, wrapping, none summarised"
+  decision, which was taken for a card at full width; at a third of the page one container's port
+  list set the height of every card beside it.
 - The first slot is the **affirmative** control where the container is not running (`Start`,
   `Resume`) and a quiet one where it is (`Stop`). That is a weight, and only a weight: the action in
   the slot, its position and its legality are the caller's and are unchanged.
 - The card shows no age of any sample, and nothing on it is animated, transitioned or tweened
   between samples: a value that changes is redrawn where it stood.
 - Block I/O and PIDS are deliberately absent; they stay in the detail panel.
-- At 375×812 it carries the **same values** as at desktop width: the metric columns stack, each
-  keeping its label, value, capacity note and track; the action cluster wraps onto its own line
-  keeping its order and its segmented geometry; the provenance chips wrap. Nothing is hidden and
+- At 375×812 it carries the **same values** as at desktop width: the card is alone on its row, the
+  metrics are stacked as they already are at every width, the action cluster wraps onto its own line
+  keeping its order and its segmented geometry, and the provenance chips wrap. Nothing is hidden and
   nothing is scrolled sideways.
 - This is one of exactly two feature files admitted by name to draw a surface per object
   (`check-ui-conformance.mjs`, 2026-08-25); its path is part of that admission and moving it fails

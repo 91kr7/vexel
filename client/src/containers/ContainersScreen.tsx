@@ -7,6 +7,8 @@ import {
   Row,
   ScreenToolbar,
   SearchField,
+  Grid,
+  GridSpan,
   Stack,
   TextField,
   triggerDownload,
@@ -360,19 +362,24 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
         }
       />
       {error ? <ErrorBanner title="Could not load containers" detail={error} onRetry={onRefresh} /> : null}
-      {/* One card per container, at full width, separated by one gap and by
+      {/* One card per container, three to a row, separated by one gap and by
           nothing else: no header row, no rules between them, no surface around
-          the list. The panel of the selected container is the next item of this
-          same stack, so it opens directly under the card that owns it and the
-          list below simply moves down. The stack is where the point of
-          interaction returns when `Escape` closes that panel. */}
-      <Stack gap="var(--space-3)" dismissalFocusTarget>
+          the list. Three to a row against the mock's one card at full width —
+          decided by the human on the running product, where the metric columns
+          spread across the page read as a void with `NET I/O` pushed to the
+          far right. The panel of the selected container spans the whole row, so
+          it opens under the card that owns it and the cards below move down.
+          The grid is where the point of interaction returns when `Escape`
+          closes that panel. */}
+      <Grid arrangement="cards" dismissalFocusTarget>
         {filtered.length === 0 ? (
-          <EmptyState
-            title={loaded ? 'No containers match' : 'Loading containers…'}
-            description={loaded ? 'Try a different search or filter.' : null}
-            action={null}
-          />
+          <GridSpan>
+            <EmptyState
+              title={loaded ? 'No containers match' : 'Loading containers…'}
+              description={loaded ? 'Try a different search or filter.' : null}
+              action={null}
+            />
+          </GridSpan>
         ) : null}
         {filtered.map((container) => (
           <Fragment key={container.id}>
@@ -385,18 +392,20 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
               renameControl={renameControlFor(container)}
             />
             {container.id === selectedId ? (
-              <ContainerDetailPanel
-                container={container}
-                onClose={() => setSelectedId(undefined)}
-                onContainerReplaced={(newId) => {
-                  setSelectedId(newId);
-                  onRefresh();
-                }}
-              />
+              <GridSpan>
+                <ContainerDetailPanel
+                  container={container}
+                  onClose={() => setSelectedId(undefined)}
+                  onContainerReplaced={(newId) => {
+                    setSelectedId(newId);
+                    onRefresh();
+                  }}
+                />
+              </GridSpan>
             ) : null}
           </Fragment>
         ))}
-      </Stack>
+      </Grid>
 
       <ContainerCreateForm
         open={createMode !== null}

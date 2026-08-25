@@ -132,9 +132,63 @@ requirements below hang on the difference:
   opened for one container while its panel is open. Different lifecycle, different consumer,
   untouched by this change. Named explicitly so the two are not conflated in the plan.
 
+## Amendment — 2026-08-25: three cards to a row, against the mock
+
+**What changed, and it is a departure from the mock.** The delivered containers list lays its cards
+**three to a row** (two at ≤1200px, one below the phone breakpoint), and each card stacks its three
+metrics **one per row**. The mock, `.sdd/analysis/ui-mock/containers-refactor.png`, draws **one card
+at full width** with `CPU`, `MEMORY` and `NET I/O` **side by side**. This analysis declares the mock
+normative for placement and says that where the words and the image disagree the image wins; on
+these two points the image has been **deliberately departed from**, and the paragraphs below are
+read subject to this amendment: *"one card per container, stacked vertically, full width"*, the
+element map's *"three columns spanning the card's inner width"* row, and the Summary's *"vertical
+stack"*. Everything else in the map stands unchanged and normative — the bands, their contents,
+their order, the accent bar, the action arrangement, the capacity notes, the untracked `NET I/O`
+column and the *no sample* state.
+
+**Who decided it, and on what evidence.** The human, looking at the delivered build running with
+their own containers. The full-width card was built as this file specified it, and in practice the
+three metric columns were stretched across roughly 1000px: a void through the middle of the card
+with `NET I/O` squashed against the right edge. That is evidence a static mock cannot supply — it
+draws one card at one width, and does not show what the arrangement does to a real window. The
+change was tried with the human at the keyboard and accepted on sight. It is not a re-reading of the
+mock and not an implementer's judgement: it is a decision taken on the running product, recorded
+here so the mock is never used to argue the delivery back.
+
+**Cards are equal in height within a row; rows are not equal to each other.** A row's cards all take
+the height of the tallest of them; two rows may differ (387 / 417 / 352px, measured). One fixed
+height for every card on the screen was offered and refused: it would match the rows at the cost of
+empty space inside most of the cards, since a card's height follows its content. No minimum height
+is imposed.
+
+**The ports decision is reversed, and it was the human's own.** At the requirements gate the human
+chose *"every mapping, wrapping onto further lines, never truncated and never summarised"* (REQ-5).
+That choice was made for a card at full width. At a third of the page it made one container's port
+list set the height of every card standing beside it, and the human reversed it themselves on seeing
+that. The card now draws **at most three port chips and then a single `+n`**, splitting at four so a
+`+1` is never drawn; the full set remains in the detail panel. The earlier decision is not deleted
+anywhere — it is annotated as reversed, with this reason. Note that this returns to what this
+analysis originally left open: its own assumption said *"how many fit before the chip must summarise
+is a presentation detail for the later phases"*, and it was the requirements gate that closed it.
+
+**What is not amended.** The sampling half of this analysis is untouched — the cadence, the gate, the
+consumer liveness, the interval. So is everything the card *contains*: no metric was added, removed
+or reworded, no value the delivered row showed has left the card, and the *no sample* state is what
+it was. The 2026-08-16 card-row exception is unaffected: this is still one screen, still two named
+file paths, still every other object list a classic table.
+
+**A defect found while consolidating this, and fixed at its source.** The daemon reports one port
+entry per host binding, so a port published on both IP stacks arrives **twice** — identical once the
+host IP, which the summary shape does not carry, is dropped. The card draws one chip per entry and
+keys it by the mapping, so the pair produced duplicate keys and the chips accumulated in the DOM on
+every poll (a container reporting 4 ports was measured at 57 chips). The list summary now reports
+each mapping once. This is pre-existing daemon behaviour the delivered **table** received too; it
+was invisible there only because the table joined the entries into a single line.
+
 ## Summary
 
-The containers list stops being a table and becomes a vertical stack of one card per container, laid
+The containers list stops being a table and becomes a list of one card per container — a vertical
+stack as first written, **three cards to a row as delivered** (see *Amendment — 2026-08-25*) — laid
 out exactly as `.sdd/analysis/ui-mock/containers-refactor.png` arranges it, built from the material
 the object table already ships — its surface, highlight, shadow, border, radius and state colours —
 carried by a UI-library component that owns that material so no feature file ever re-authors it.
@@ -193,10 +247,12 @@ one is how a rule survives a legitimate special case.
 
 #### The presentation
 
-- **The containers screen lists one card per container, stacked vertically, full width.** The table
-  presentation on this screen — its header row, its hairline row rules, its single enclosing surface
-  — is gone. Cards are detached from one another with a uniform gap between them, as the mock draws
-  them.
+- **The containers screen lists one card per container.** The table presentation on this screen —
+  its header row, its hairline row rules, its single enclosing surface — is gone. Cards are detached
+  from one another with a uniform gap between them. Written here as *stacked vertically, full
+  width*, as the mock draws them; **amended 2026-08-25 to three cards to a row** (two at ≤1200px,
+  one below the phone breakpoint) — see *Amendment — 2026-08-25: three cards to a row, against the
+  mock*.
 
 - **The mock is normative for placement.** `.sdd/analysis/ui-mock/containers-refactor.png` decides
   **where every element sits**: which band of the card it belongs to, its order within that band, its
@@ -212,8 +268,8 @@ one is how a rule survives a legitimate special case.
   | Card edge | Left edge, full height, following the card's left rounding | State accent bar — green running, amber paused, neutral exited |
   | 1 — identity & actions | Left, in reading order | Status dot · container **name** (most prominent text on the card) · state pill, uppercase (`RUNNING` / `PAUSED` / `EXITED`) · short container id, monospace, muted |
   | 1 — identity & actions | Right, flush to the card's inner right edge, vertically centred with the identity group | Primary lifecycle action (`Stop` / `Resume` / `Start`), detached by a gap from — then — a segmented cluster `Pause` · `Restart` · `…`, in that order, sharing one boundary with internal dividers |
-  | 2 — provenance | Left, in reading order | `image <reference>` chip (label muted, value monospace) · ports chip (monospace, accented, **present only when the container publishes ports**) · status sentence in muted plain text (`Up 44 seconds`, `Paused 12 minutes ago`, `Exited (0) 2 hours ago`) |
-  | 3 — metrics | Three columns spanning the card's inner width: `CPU` and `MEMORY` of equal width side by side, then a narrower `NET I/O` | see the two rows below |
+  | 2 — provenance | Left, in reading order | `image <reference>` chip (label muted, value monospace) · ports chip (monospace, accented, **present only when the container publishes ports**; **amended 2026-08-25: at most three chips, then one `+n`**) · status sentence in muted plain text (`Up 44 seconds`, `Paused 12 minutes ago`, `Exited (0) 2 hours ago`) |
+  | 3 — metrics | Three columns spanning the card's inner width: `CPU` and `MEMORY` of equal width side by side, then a narrower `NET I/O` — **amended 2026-08-25: three full-width rows, `CPU` over `MEMORY` over `NET I/O`**, the order and the untracked `NET I/O` unchanged | see the two rows below |
   | 3 — `CPU` / `MEMORY` | First line: label (small, uppercase, muted) then value, left; capacity note right-aligned to that column's right edge (`of 8 cores`, `of 31.0GB`). Second line: a thin track spanning the column's full width, with a fill | |
   | 3 — `NET I/O` | First line: label only. Second line, aligned with the tracks beside it: `in <value>` and `out <value>`, label muted, value prominent. **No bar.** | |
 
@@ -380,7 +436,9 @@ stream with its own lifecycle and is untouched.
 - **Selecting a card opens that container's detail; selecting it again closes it.** The tabbed detail
   expansion — Logs, Stats, Config, Processes, Inspect, Exec, Attach — keeps its current content and
   behaviour, at full width, opening directly beneath the selected card, and at most one is open at a
-  time.
+  time. **Amended 2026-08-25**: with three cards to a row, "full width, directly beneath the selected
+  card" is delivered as the panel spanning the **whole row** and opening beneath the row that holds
+  that card. Nothing else about it changes.
 - **Order is unchanged and is still the server's.** Alphabetical by name, total, stable across
   re-reads; the client presents the order it receives and derives none of its own. There is no sort
   control on this screen today and this change adds none — which is why removing the table's header
@@ -516,7 +574,10 @@ stream with its own lifecycle and is untouched.
   `container_row_actions` analysis, which took its screenshot as deciding which actions are primary,
   their order, wording and tone, and left measurements and colours to the later phases within the
   existing tokens. The human's insistence here strengthens the first half — placement is mandatory —
-  and leaves the second half unchanged.
+  and leaves the second half unchanged. **Amended 2026-08-25**: the mock is normative for arrangement
+  with **two named exceptions**, and no others — three cards to a row and the metrics stacked, both
+  decided by the human on the running product. See *Amendment — 2026-08-25: three cards to a row,
+  against the mock*.
 - **The mock's bars are indicative, not measured.** Its memory bar shows a visible fill for `6.1MB`
   against `31.0GB`, which is not proportional. The intent is a fill proportional to the value against
   the stated capacity, with a non-zero measurement remaining visible rather than disappearing; the
@@ -532,7 +593,10 @@ stream with its own lifecycle and is untouched.
 - **The ports chip appears only when there is something to show.** The mock draws it on the running
   card and on neither other. A container publishing several ports shows them in that chip's place;
   how many fit before the chip must summarise is a presentation detail for the later phases, bounded
-  by the rule that no identifier is silently clipped into illegibility.
+  by the rule that no identifier is silently clipped into illegibility. **Settled 2026-08-25**: the
+  requirements gate closed this to "every mapping, none summarised" (REQ-5); the human reversed that
+  on the running product once the cards were three to a row, and the answer to "how many fit" is
+  **three, then one `+n`**.
 - **NET I/O, the capacity denominators and the bars are re-presentations, not new capability.** The
   product already samples per-container CPU, memory and network for the list, and already knows the
   host's capacity. If a later phase finds any of these genuinely unavailable where the list is built,
@@ -763,9 +827,11 @@ choice for a resource list, and whether per-container metrics belong on the list
 
 **In scope**
 
-- Replacing the containers screen's table with a vertical stack of one card per container, arranged
-  as `.sdd/analysis/ui-mock/containers-refactor.png` arranges it, element by element, per the map
-  under Requirements.
+- Replacing the containers screen's table with a list of one card per container, arranged as
+  `.sdd/analysis/ui-mock/containers-refactor.png` arranges it, element by element, per the map under
+  Requirements — **except on the two positions the 2026-08-25 amendment departs from**: the cards
+  are laid three to a row, not one at full width, and each card's metrics are stacked one per row,
+  not side by side.
 - The card's three bands and everything in them: the state accent bar, dot, name, state pill, short
   id, the primary action and the `Pause` / `Restart` / `…` cluster, the image chip, the conditional
   ports chip, the status sentence, and the `CPU` / `MEMORY` / `NET I/O` metric strip with its

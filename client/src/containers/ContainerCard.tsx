@@ -64,20 +64,32 @@ function formatBytes(bytes: number): string {
 }
 
 /**
- * Every port the daemon reports, one chip each, worded exactly as the delivered
- * list worded it: `publicPort→privatePort` where the port is published, the bare
- * `privatePort` where it is only exposed. Both kinds, because no value the row
- * showed may disappear from the card
- * (plan-docker_management_app-containers_card_view/REQ-12), and none of them is
- * summarised, dropped, or replaced by a count. A container carrying many of them
- * wraps onto further lines and makes a taller card, which is the trade this
- * states rather than hides.
+ * How many port chips a card shows before the rest become a count. The card
+ * stands in a grid three to a row, and every card of a row is as tall as the
+ * tallest: one container publishing a dozen ports would otherwise set the
+ * height of every card beside it.
+ */
+const PORTS_SHOWN = 3;
+
+/**
+ * The ports the card draws, worded exactly as the delivered list worded them:
+ * `publicPort→privatePort` where the port is published, the bare `privatePort`
+ * where it is only exposed. Both kinds, because no value the row showed may
+ * disappear from the card (plan-docker_management_app-containers_card_view/REQ-12).
+ *
+ * Past `PORTS_SHOWN` the remainder becomes one `+n` chip rather than more lines.
+ * The full set stays a click away in the detail panel, so nothing is lost —
+ * only moved. Splitting at `PORTS_SHOWN + 1` rather than at `PORTS_SHOWN` keeps
+ * the degenerate `+1` from ever being drawn: a fourth chip costs exactly what
+ * the chip announcing it would.
  */
 function portEntries(ports: ContainerPort[]): { key: string; label: string }[] {
-  return ports.map((port) => ({
+  const entries = ports.map((port) => ({
     key: `${port.type}-${port.publicPort ?? ''}-${port.privatePort}`,
     label: port.publicPort === undefined ? `${port.privatePort}` : `${port.publicPort}→${port.privatePort}`,
   }));
+  if (entries.length <= PORTS_SHOWN + 1) return entries;
+  return [...entries.slice(0, PORTS_SHOWN), { key: 'more', label: `+${entries.length - PORTS_SHOWN}` }];
 }
 
 function cpuColumn(container: ContainerSummary, tone: StatusTone): MetricStripColumn {
@@ -175,7 +187,11 @@ export function ContainerCard({
           <FieldMessage tone="muted">{container.status}</FieldMessage>
         </Row>
 
+        {/* Stacked, against the mock's row of three: the card stands in a grid
+            three to a row, and three columns side by side in a third of the
+            page leave no width to read a value in. */}
         <MetricStrip
+          stacked
           columns={[cpuColumn(container, tone), memoryColumn(container, tone)]}
           readings={networkReadings(container)}
         />

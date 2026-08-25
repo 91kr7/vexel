@@ -23,6 +23,13 @@ export interface MetricStripProps {
   columns: MetricStripColumn[];
   /** The narrower trailing column: a label over a pair of readings, and no track. */
   readings?: MetricStripReadings;
+  /**
+   * Lays the metrics one per row instead of side by side, at any width. For a
+   * strip inside a box too narrow to carry its columns as a row — a card
+   * standing in a grid rather than across the page. Below the phone breakpoint
+   * the strip stacks regardless.
+   */
+  stacked?: boolean;
 }
 
 /**
@@ -37,9 +44,9 @@ export interface MetricStripProps {
  *
  * Domain-agnostic: it receives already-formatted strings and plain numbers.
  */
-export function MetricStrip({ columns, readings }: MetricStripProps) {
+export function MetricStrip({ columns, readings, stacked = false }: MetricStripProps) {
   return (
-    <div className="ui-metric-strip">
+    <div className={stacked ? 'ui-metric-strip ui-metric-strip--stacked' : 'ui-metric-strip'}>
       {columns.map(({ id, ...meter }) => (
         <div key={id} className="ui-metric-strip__column">
           <Meter {...meter} />
