@@ -421,3 +421,76 @@ describe('REQ-34 — this plan moved no blur and did not touch the background', 
     expect(git('diff', '--stat', DELIVERED, 'HEAD', '--', 'client/src/ui/background/').trim()).toBe('');
   });
 });
+
+/**
+ * **The 2026-08-25 exception is recorded where the retirement is stated**
+ * (`plan-docker_management_app-containers_card_view/REQ-62`, `REQ-63`).
+ *
+ * The guard is driven in `ui-conformance-check.test.ts`; what is left is the
+ * half REQ-62 names, and it is the half a green run cannot show: a reader
+ * arriving cold at the 2026-08-16 record, at the plan artefacts that carry it as
+ * delivered behaviour, or at the two component specs that state the rule, finds
+ * a **bounded exception with a date and a pointer** rather than a record the
+ * product silently contradicts.
+ *
+ * The certified requirements are read against the revision that last held them
+ * before the amendment: "annotate, do not renumber" is a claim about a change,
+ * so it is checked against the state that changed.
+ */
+describe('the containers exception is recorded, dated and bounded (REQ-62)', () => {
+  /** The record as certified, the last revision before the 2026-08-25 amendment. */
+  const BEFORE_THE_AMENDMENT = 'c434700';
+  const RETIREMENT_PLAN = '.sdd/plans/plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table';
+  const PLAN_REQUIREMENTS = `${RETIREMENT_PLAN}/requirements.md`;
+
+  it.each([
+    '.sdd/analysis/ui-coherence-optimisation-comfortable_variant_retired-classic_table.md',
+    PLAN_REQUIREMENTS,
+    `${RETIREMENT_PLAN}/batches.md`,
+    `${RETIREMENT_PLAN}/closing-state.md`,
+    '.sdd/modules/ui-library/specs/ui-conformance-check.md',
+    '.sdd/modules/ui-library/specs/data-table.md',
+  ])('%s states the exception, its date and where it is written', (path) => {
+    const text = readFileSync(join(repositoryRoot, path), 'utf8');
+
+    expect(text, 'the artefact carries the retirement with no amendment dated 2026-08-25').toMatch(/2026-08-25/);
+    expect(text, 'the amendment does not name the one screen it is bounded to').toMatch(/containers/i);
+    expect(text, 'the amendment points at no record a later reader could follow').toMatch(
+      /docker_management_app-containers_card_view/,
+    );
+  });
+
+  // REQ-62 — "do not renumber, delete or rewrite a certified requirement: annotate it". The ids are
+  // read as a set against the certified revision, and the three geometric claims the exception
+  // narrows are read as text: an amendment that removed the criterion instead of bounding it would
+  // leave the record silent about what still holds on every other list.
+  it('annotates the certified requirements of the retirement instead of renumbering or deleting them', () => {
+    const ids = (text: string): string[] => [...text.matchAll(/^\| (REQ-\d+) \|/gm)].map((match) => match[1]!);
+
+    const before = ids(git('show', `${BEFORE_THE_AMENDMENT}:${PLAN_REQUIREMENTS}`));
+    // The premise: a revision that holds no requirement table at all would make the comparison below
+    // an equality between two empty lists.
+    expect(before.length, `${BEFORE_THE_AMENDMENT} states no requirement, so this comparison reads the wrong file`).toBeGreaterThan(10);
+
+    const now = readFileSync(join(repositoryRoot, PLAN_REQUIREMENTS), 'utf8');
+    expect(ids(now), 'a certified requirement of the retirement was renumbered, deleted or added to').toEqual(before);
+    for (const criterion of ['Rows are flush', 'Rows are not cards', 'One surface']) {
+      expect(now, `the amendment removed "${criterion}" instead of bounding it`).toContain(criterion);
+    }
+  });
+
+  // REQ-63 — the exception is a screen: what the record admits is the containers list, and it says
+  // in the same breath that every other object list is unchanged. Read on the artefact the guard's
+  // own violations point a reader at.
+  it('records the exception as one screen with every other list unchanged', () => {
+    const record = readFileSync(
+      join(repositoryRoot, '.sdd/analysis/ui-coherence-optimisation-comfortable_variant_retired-classic_table.md'),
+      'utf8',
+    );
+    const amendment = record.slice(record.indexOf('2026-08-25'));
+
+    for (const list of ['images', 'volumes', 'networks', 'compose', 'swarm', 'registries', 'contexts', 'plugins', 'dashboard']) {
+      expect(amendment, `the amendment does not say what became of the ${list} list`).toMatch(new RegExp(list, 'i'));
+    }
+  });
+});
