@@ -28,6 +28,12 @@ Answered by the human during this analysis, and binding:
   **UI-library component acting as the card's container**: an existing one if one can carry it, a
   new one only if none can.
 - **The metrics are live**, as drawn: *"Sì, live come oggi"*.
+- **But the sampling that feeds them is not to run unconditionally**, raised by the human after the
+  first draft of this analysis: *"non mi hai chiesto ogni quanto aggiornare le metriche! ti direi che
+  l'aggiornamento delle metriche deve essere attivo solo nel momento in cui si apre 'containers' e
+  quando si cambia sezione va disabilitato al fine di evitare chiamate massive a docker. io
+  campionerei ogni 20 secondi, che dici?"* — settled at **10 seconds**, and at a gate that closes on
+  more than a section change (see Requirements).
 
 ## Reference
 
@@ -79,9 +85,40 @@ retired.
 4. The product will ship **two list presentations**, deliberately: cards on containers, tables
    everywhere else. The 2026-08-16 decision and its automated guard are amended in the open to say
    so.
+5. **The per-container sampling that feeds those metrics changes cadence and gains a gate.** It moves
+   from every 3 seconds to every 10, and from always-on to demand-driven. This is the one part of
+   this change that is not a rendering concern, and it is described in its own right below.
 
-Nothing about what the actions do, what the detail panel contains, how the list is ordered, or what
-the daemon is asked changes.
+Nothing about what the actions do, what the detail panel contains, or how the list is ordered
+changes. What *is* asked of the daemon changes, and only in one direction — less often, and only
+while somebody is looking.
+
+**What the sampling does today, established in the source on 2026-08-25 and reported to this
+analysis.** It matters because it is not what the first draft of this file assumed, and the
+requirements below hang on the difference:
+
+- The sampling is **server-side and starts at process boot**, in a loop that never ends. Every 3
+  seconds it lists the containers **and asks the daemon for a stats frame per running container** —
+  one call, plus **N** — writing the results into an in-process cache.
+- The client **drives none of it**. The containers list polls the server every 3 seconds for the
+  list and simply reads the already-cached figures off each container. The dashboard reads the same
+  cached figures for its own CPU display.
+- So the loop runs **whatever screen is open, and whether or not any browser is connected at all**.
+  The *"chiamate massive"* the human wants to avoid are already being made; in the worst case — the
+  server up with nobody connected — they are made for no consumer whatsoever.
+- **Therefore a gate in the client alone would change nothing**, and this is the single most
+  important consequence to carry forward: hiding the cards does not stop the calls. The sampler
+  itself has to become demand-driven.
+- The two costs are **separable and different in kind**: the list poll is one call regardless of how
+  many containers exist; the stats sampling is one call per running container. Slowing the second
+  does not require slowing the first.
+- **A longer interval does not make a sample less accurate.** Each CPU percentage is derived from a
+  delta carried *within a single frame*, so every sample stands on its own and a longer gap between
+  samples degrades nothing. The cost of a long interval is purely perceptual.
+- **A different mechanism, not governed here:** the detail panel's Stats tab uses a separate
+  per-container stream (`/api/containers/:id/stats/stream`) carrying the daemon's own native frames,
+  opened for one container while its panel is open. Different lifecycle, different consumer,
+  untouched by this change. Named explicitly so the two are not conflated in the plan.
 
 ## Summary
 
@@ -89,6 +126,10 @@ The containers list stops being a table and becomes a vertical stack of one card
 out exactly as `.sdd/analysis/ui-mock/containers-refactor.png` arranges it, built from the material
 the object table already ships — its surface, highlight, shadow, border, radius and state colours —
 carried by a UI-library component that owns that material so no feature file ever re-authors it.
+
+And the per-container sampling those cards display stops running unconditionally: it samples every
+10 seconds while a screen that shows the figures is actually being watched, and idles the rest of
+the time.
 
 ## Business goal
 
@@ -111,8 +152,21 @@ after you click into a container, and "show stats of all containers on one page"
 request against it.
 
 **The values are already paid for; only the presentation was withholding them.** NET I/O, the host's
-capacity and the sampling that produces them already exist behind the detail panel's Stats tab. The
-table had no room for them; the card does. Delivering them costs the surface, not new capability.
+capacity and the sampling that produces them already exist. The table had no room for them; the card
+does. Delivering them costs the surface, not new capability.
+
+**But making the numbers prominent makes what they cost worth looking at, and it does not survive
+the look.** The product asks the daemon for a stats frame per running container every 3 seconds,
+from the moment the server starts, for as long as it runs — on every screen, and with no browser
+connected at all. Nobody chose that: it is what "start a sampler at boot" quietly means. On the
+operator's own daemon — the same one their work runs on — that is a permanent background load
+proportional to how many containers they happen to have running, bought for a figure nobody may be
+looking at. The card view is what makes it urgent rather than what makes it wrong: the numbers move
+from two thin columns to the most eye-catching band of the card, so the honest response is to make
+them **worth their cost** — sampled when they are being read, at a rate a human can actually follow,
+and not at all when they are not. Ten seconds is that rate: it is a status board, not a monitoring
+tool, and the tool for watching one container closely already exists one click away in the detail
+panel's Stats tab.
 
 **One screen, one exception, stated once.** The product's rule is one visual language, and its
 2026-08-16 decision is one presentation for every object list. Both stay in force. What this change
@@ -163,9 +217,10 @@ one is how a rule survives a legitimate special case.
   memory, and a proportional fill for CPU and memory. Block I/O and PIDS are **not** on the card —
   the mock omits them and they stay where they are, in the detail panel.
 
-- **The metrics are live, at the cadence the list's CPU and memory already update at.** Confirmed by
-  the human. A card updates its numbers and its bars in place, without the card moving, without the
-  list reordering and without any other card being disturbed.
+- **The metrics are live.** Confirmed by the human. A card updates its numbers and its bars in place,
+  without the card moving, without the list reordering and without any other card being disturbed.
+  *How often* and *when at all* are the two requirements below, and they are a change to delivered
+  behaviour rather than a restatement of it.
 
 - **The absence of a sample is a stated state, not a blank or a zero.** As the exited card in the
   mock shows: the value reads `—`, the capacity note is replaced by the *no sample* wording, and the
@@ -177,6 +232,73 @@ one is how a rule survives a legitimate special case.
   derive from the same container state, and the metric bars' fill takes the same state colour (the
   mock's paused card fills its bars amber, its running card blue). No card may show two states at
   once.
+
+#### How often the metrics are sampled, and when they are sampled at all
+
+These requirements govern the **shared per-container sampling that feeds the containers list and the
+dashboard**. They do not govern the detail panel's Stats tab, which is a separate per-container
+stream with its own lifecycle and is untouched.
+
+- **The sampling interval is 10 seconds**, replacing the delivered 3. Decided by the human, who
+  proposed 20 and chose 10 when the trade was put to them. It is a deliberate midpoint: long enough
+  that the per-container cost falls by more than two thirds, short enough that a bar visibly moves
+  while an operator watches a container start up. Accuracy is not traded away — each sample carries
+  its own delta and is self-contained, so a longer gap between samples costs nothing but immediacy.
+
+- **The sampling runs only while somebody is consuming it, and idles otherwise.** This is the
+  requirement, and it is about the **server's sampling**, not about what the client draws: today the
+  loop is started at boot and never stops, so gating the interface alone would leave every call
+  exactly where it is and satisfy nothing the human asked for. After this change, the daemon is asked
+  for per-container stats **only while at least one consumer is actually being shown those figures**.
+
+- **The gate closes in all three of these cases**, and the third is the worst of today's behaviour
+  and must be named rather than left to follow:
+  1. the operator moves to a section that does not display these figures;
+  2. the browser tab holding the interface is hidden or backgrounded;
+  3. **no client is connected at all** — the server running with nobody watching must ask the daemon
+     for nothing.
+
+- **The gate is on the consumers of the figures, not on one named screen.** Two screens read them
+  today: the containers list and the dashboard. The sampling is active while **either** is being
+  consumed. Gating on the containers screen by name would silently break the dashboard's CPU figure,
+  which is a regression on a screen nobody asked to change — and it would be the kind that shows as a
+  dash rather than as an error.
+
+- **Re-entering costs no wait.** When the gate opens — the screen is selected, the tab comes back,
+  a client connects — a sample is taken promptly rather than after a full interval. With a 10-second
+  cadence, an operator who returns to the screen and is shown nothing for ten seconds will read the
+  product as broken, and this is the single most likely way this change is felt as a regression.
+
+- **A figure that is not current is not shown as if it were.** The *no sample* presentation already
+  required above — `—`, the explicit wording, an empty track — is also what a card shows when the
+  last sample is too old to stand behind, which includes the moment after the gate has been shut for
+  a while. What must never happen is a number from before the gate closed, redisplayed on return as
+  though it had just been measured. Where the staleness bound sits is for the later phases, expressed
+  as a small multiple of the interval rather than as a magic number.
+
+- **The card does not display the age of a sample, and this is a decision rather than an omission.**
+  At 10 seconds a figure is current by any operator's reading, and a per-card timestamp would add a
+  changing value to every card — on the most numerous surface in the product — to answer a question
+  nobody is asking, while the mock draws no such element. Freshness is expressed the honest way
+  instead: a current figure, or the *no sample* state. If the interval ever grows to where "when was
+  this measured?" becomes a real question, that is the point at which the card owes an answer, and it
+  would be a change to this decision rather than a gap in it.
+
+- **The value steps; it is not animated between samples.** A bar tweened smoothly across a 10-second
+  gap claims a resolution the data does not have, and it would put an animation on the product's
+  longest scrolled surface, which the project's performance rule forbids outright.
+
+- **This is server-side work, and it does not follow from the card view.** Recorded plainly for the
+  plan: the cadence and the gate are a change to how the product samples the daemon, not to how it
+  renders. The card view is what makes them urgent — it puts the figures where they cannot be
+  ignored — but the two are separable, and treating the gate as a rendering detail is how it ends up
+  implemented in the client, where it would do nothing at all.
+
+- **The list poll is a different thing from the stats sampling and does not have to follow it.**
+  Whatever keeps the list itself current — one request, whose cost does not grow with the number of
+  containers — is what makes a container appear, disappear or change state promptly, and that
+  responsiveness is not what the human objected to. Slowing it would degrade the screen without
+  reducing the load that was complained about. (Assumption, with the reasoning recorded below.)
 
 #### Behaviour that must not change
 
@@ -269,13 +391,28 @@ one is how a rule survives a legitimate special case.
 - **No blur is introduced anywhere.** The containers list is main view. The allow-list, the
   conformance check's blur half and the static pre-blurred background are untouched; an edit to any
   of them is a signal that something has gone wrong and is reported rather than made.
-- **Live metrics on every visible card must not degrade the screen.** The list already re-reads on
-  every daemon event and already updates CPU and memory; adding NET I/O, two bars and a capacity
+- **Live metrics on every card must not degrade the screen.** The list already re-reads on every
+  daemon event and already displays CPU and memory; adding NET I/O, two bars and a capacity
   denominator must not make the screen stutter, must not delay the daemon event stream, and must not
-  make an action feel slower to acknowledge. If sampling every visible container proves to cost more
-  than the screen can afford, the answer is to bound *how often* or *for which cards* it is sampled —
-  never to make the numbers stale without saying so, since the *no sample* state exists precisely to
-  be honest about a missing measurement.
+  make an action feel slower to acknowledge.
+- **The load on the daemon must come down, measurably, and be shown to have come down.** This is the
+  human's actual objection — *"evitare chiamate massive a docker"* — so it is verified as a figure
+  rather than asserted: the number of stats requests made to the daemon over a fixed window, with the
+  containers screen open, with another section open, with the tab hidden, and with no client
+  connected. The last of those must be zero. A change that reorganises the sampling without reducing
+  the calls has not been made.
+- **The daemon is the operator's own machine.** This sampling is not a synthetic load in a lab: it is
+  requests against the daemon the operator's real work depends on, made continuously, in proportion
+  to how many containers they are running. That is the reason a gate is worth building at all, and
+  the reason "it is only a few requests" is not an argument — it is a few requests forever, times the
+  number of running containers, for a figure that may have no reader.
+- **Idling must be genuine.** A gate that stops updating the interface while the requests continue
+  satisfies nothing. What must stop is the traffic to the daemon.
+- **No leak, and no wedge.** The gate opens and closes many times in a session — every section
+  change, every tab switch, every client that connects or drops. It must not accumulate anything per
+  cycle, must not leave sampling running after the last consumer has gone, and must not fail to
+  restart when a consumer returns. A sampler wedged shut is a screen of dashes; a sampler wedged open
+  is the defect this requirement exists to remove, silently reinstated.
 - **The card must remain readable below the desktop breakpoint.** The mock is a desktop arrangement.
   At narrow widths the card reflows — this is the one thing a card does better than a row, and it is
   the failure mode the product has already been bitten by, where the containers row collapsed six of
@@ -327,10 +464,29 @@ one is how a rule survives a legitimate special case.
   how many fit before the chip must summarise is a presentation detail for the later phases, bounded
   by the rule that no identifier is silently clipped into illegibility.
 - **NET I/O, the capacity denominators and the bars are re-presentations, not new capability.** The
-  product already obtains per-container CPU, memory, network and block I/O for the detail panel's
-  Stats tab, and already knows the host's capacity. If a later phase finds any of these genuinely
-  unavailable where the list is built, that is a finding to report — not a licence to drop a value
-  the mock draws.
+  product already samples per-container CPU, memory and network for the list, and already knows the
+  host's capacity. If a later phase finds any of these genuinely unavailable where the list is built,
+  that is a finding to report — not a licence to drop a value the mock draws.
+- **The list poll keeps its current cadence; only the per-container stats sampling moves to 10
+  seconds.** The human's decision named the metrics, and the two costs are different in kind: the
+  list is one request whose cost does not grow with the number of containers, and it is what makes a
+  container appear, disappear or change state promptly — the responsiveness the product is sold on.
+  The stats sampling is one request per running container, and it is the *"chiamate massive"* the
+  human objected to. Slowing the first would cost the screen its liveness while saving almost
+  nothing. Recorded as an assumption because it is an inference from the request rather than a
+  sentence in it, and it is cheap to reverse if the human disagrees.
+- **10 seconds is the interval while sampling is active**, not an average and not a target. Whether
+  the clock runs from the start or the end of a sampling pass, and how a pass slower than the
+  interval is handled, are later-phase concerns — bounded by the rule that passes must not overlap or
+  queue up behind each other, since that would reproduce the massed calls at a different rhythm.
+- **The gate is about the daemon's load, not about correctness of the display.** No figure becomes
+  wrong because sampling paused; it becomes *old*, which the *no sample* state already exists to say.
+- **The dashboard is a consumer and is otherwise untouched.** Its container list stays a table and
+  its layout does not change; it appears in these requirements only because it reads the same sampled
+  figures, and so must keep them.
+- **Nothing about the detail panel's Stats tab changes.** It is a separate per-container stream,
+  opened while a panel is open and closed with it, already demand-driven by construction. It is named
+  in these requirements only to keep it out of them.
 - **The short container id on the card is the identifier the product already shows for a container**,
   in its existing short form. The mock shows twelve hexadecimal characters, which is the daemon's own
   convention.
@@ -374,9 +530,20 @@ one is how a rule survives a legitimate special case.
 - **The daemon is the operator's own.** Their containers are in this list; verification creates its
   own labelled fixtures, cleans up in a `finally`, and asserts on what it created rather than on
   totals or emptiness.
-- **No server file, no API and no daemon behaviour is in scope** — unless the later phases establish
-  that a value the mock draws is genuinely not obtainable where the list is built, which is a finding
-  to be reported before anything server-side is touched.
+- **The sampling change is server-side, and it is the only part of this work that is.** Everything
+  else here is the interface. The two halves are separable and should be recognisable as such in the
+  plan: a card view that renders whatever it is given, and a sampler that is asked for less, less
+  often. Building the gate in the client would satisfy the letter of "disable it when the section
+  changes" and none of its purpose, since the calls are not made by the client.
+- **The sampled figures are shared, not owned by the containers screen.** The dashboard reads them
+  too. Any gate, cadence or cache decision is a decision about a shared resource with more than one
+  consumer, and must be expressed in terms of consumers rather than of one screen.
+- **The interface is served by the same single process that serves the API**, so "no client
+  connected" is a state that process can and must recognise: it is the normal state of a server left
+  running, and today it is indistinguishable from a busy one as far as the daemon is concerned.
+- **No other API and no daemon behaviour is in scope** — and if a later phase establishes that a
+  value the mock draws is genuinely not obtainable where the list is built, that is a finding to be
+  reported before anything further server-side is touched.
 
 ## Market trends
 
@@ -405,6 +572,12 @@ choice for a resource list, and whether per-container metrics belong on the list
   against it. The mock puts on the list precisely what that request asks for.
   ([portainer#8144 — show statistics about memory and CPU usage of all containers](https://github.com/portainer/portainer/issues/8144);
   [Viewing container resource usage in Portainer](https://oneuptime.com/blog/post/2026-03-20-view-container-resource-usage-portainer/view))
+- **The same comparison supports the gate, from the other side.** Portainer asks the daemon for a
+  container's stats when the operator opens that container's stats view — one container, while it is
+  being looked at. Vexel's advantage is that it shows the figures for every container without a
+  click; what it should not inherit from that advantage is asking for all of them forever. Sampling
+  while the figures are on screen keeps the advantage and drops the cost, which is what the human's
+  decision amounts to.
 - **The mock's metric set is the CLI's own, minus two.** `docker stats` reports CPU %, memory
   usage/limit, net I/O, block I/O and PIDS. The card takes the first three — including the *usage
   against limit* framing that the mock's `of 8 cores` / `of 31.0GB` reproduces — and leaves block I/O
@@ -428,11 +601,36 @@ choice for a resource list, and whether per-container metrics belong on the list
   sit at the same position on every card, so the numbers still line up vertically down the list — and
   that alignment is therefore load-bearing, not decorative. A card whose metric columns drift with
   its content would lose the last of the table's advantage.
-- **The live metrics cost more than the screen can pay.** Sampling and re-rendering CPU, memory and
-  network for every visible card, on a list that also re-reads on every daemon event, is the most
-  likely source of a regression in a product whose main view is required to pay nothing for its
-  material. It will not announce itself as a bug; it will show up as a list that stutters when
-  scrolled.
+- **The live metrics cost more than the screen can pay.** Re-rendering CPU, memory and network for
+  every card, on a list that also re-reads on every daemon event, is a likely source of a regression
+  in a product whose main view is required to pay nothing for its material. It will not announce
+  itself as a bug; it will show up as a list that stutters when scrolled.
+- **The gate is built in the wrong layer and changes nothing.** The most probable way this request is
+  answered wrongly. "Disable the metrics when you leave the section" describes an interface, and the
+  interface is not what calls the daemon — so a client-side gate would look right on review, pass a
+  test that watches the cards, and leave every request exactly where it is. This risk is why the
+  verification is a count of requests reaching the daemon and not an observation of the screen.
+- **The gate never closes in the case that matters most.** A server left running with no browser
+  attached is the state a developer never looks at and the state the product spends most of its life
+  in. It is also the one where the calls buy literally nothing. If any of the three cases is quietly
+  dropped during implementation, it will be this one.
+- **The sampler is left wedged.** Gating something that has never been stopped introduces a lifecycle
+  where there was none: sampling that does not resume when the operator comes back (a screen of
+  dashes that looks like a broken daemon), or does not stop when they leave (the defect reinstated,
+  invisibly, while the code reads as though it were fixed). The second is worse because nothing on
+  screen betrays it.
+- **Ten seconds reads as frozen.** The metrics become the most prominent band of the card, and a bar
+  that steps every ten seconds on a container the operator has just started may read as a product
+  that has stopped updating rather than as one that samples. The prompt sample on re-entry and the
+  honest *no sample* state are what stand between the decision and that impression; if either is
+  skipped, the cadence will be blamed for a defect that is not in it.
+- **A stale figure is redisplayed as current.** After the gate has been shut for a while, the cached
+  numbers are still there and showing them costs nothing — which is exactly why it will happen. A
+  number that has not been measured for ten minutes, presented identically to one measured a second
+  ago, is worse than a dash: it is trusted.
+- **The dashboard loses its CPU figure.** It reads the same sampled data and nobody asked for it to
+  change. A gate written around the containers screen by name breaks it, and the symptom is a dash on
+  a screen not under review.
 - **The material gets re-authored instead of reused.** The most likely way this request is answered
   wrongly, and the one the human pre-empted in writing: a new card stylesheet that *looks* like the
   table's surface. It passes the eye on day one and diverges on the first day either is touched. Two
@@ -475,8 +673,17 @@ choice for a resource list, and whether per-container metrics belong on the list
   id, the primary action and the `Pause` / `Restart` / `…` cluster, the image chip, the conditional
   ports chip, the status sentence, and the `CPU` / `MEMORY` / `NET I/O` metric strip with its
   capacity notes, its bars and its explicit *no sample* state.
-- Adding NET I/O, the capacity denominators and the per-metric bars to the list, live at the cadence
-  CPU and memory already use.
+- Adding NET I/O, the capacity denominators and the per-metric bars to the list, live.
+- Changing the shared per-container stats sampling from every 3 seconds to **every 10**, and from
+  always-on to **demand-driven**: active while the containers screen or the dashboard is being
+  consumed, idle on a section change, idle when the tab is hidden, and idle — asking the daemon for
+  nothing at all — when no client is connected.
+- Sampling promptly when the gate reopens, and falling back to the *no sample* presentation rather
+  than redisplaying a figure that is too old to stand behind.
+- Verifying the reduction as a count of stats requests reaching the daemon in each of those states,
+  the connected-to-nobody case included, and verifying that the gate neither wedges open nor wedges
+  shut across repeated section changes and tab switches.
+- Keeping the dashboard's CPU figure working across all of it.
 - Providing the card's material through a UI-library component that acts as the card's container and
   owns its background, highlight, shadow, border and radius — reusing or extending an existing
   component where one can carry it, and creating a new library component only if none can, with the
@@ -504,7 +711,15 @@ choice for a resource list, and whether per-container metrics belong on the list
   does not exist today.
 - Selection, bulk actions, an operator-facing sort control, grouping, pagination, a density toggle,
   or a card/table switch on this screen.
-- The contents of the container detail panel and its tabs, beyond where it opens.
+- The contents of the container detail panel and its tabs, beyond where it opens — **including its
+  Stats tab's own per-container stream**, which is a separate mechanism, already opened and closed
+  with the panel, and is not what the cadence and the gate govern.
+- The cadence of the list poll itself, which stays as delivered: it is one request whose cost does
+  not grow with the number of containers, and it is what keeps state changes prompt.
+- Any per-metric history, sparkline, chart, alerting or threshold on the card, and any operator
+  setting for the sampling interval.
+- The dashboard's layout, list presentation or content — it appears here only as a consumer of the
+  sampled figures.
 - Block I/O and PIDS on the card.
 - Translating or rewording any part of the interface.
 - The blur allow-list, the conformance check's blur half, and the background asset.
