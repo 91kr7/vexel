@@ -87,14 +87,44 @@ it is. Nothing is renumbered, nothing is deleted, and no other requirement's mea
 same record defect batch 6 exists to repair, one file closer to home. Validated at the coverage gate
 by the human's delegate, under his standing delegation, on 2026-08-16.
 
+## Amendment — 2026-08-25, one named exception: the containers list
+
+**What changed.** From 2026-08-25 the **containers list** is drawn as one card per container. Every
+other object list in the product is still the classic table this plan delivered, and the library
+still offers no way to ask for a second presentation.
+
+**Why.** The reason is this plan's own record. What it retired was a **hybrid** — a column header
+promising columns, standing over detached cards promising self-contained objects — and that record
+said that where a row does legitimately become a card, it carries each column's label **inside the
+card**, the shared header having stopped being reachable once the rows detach. The containers card
+does exactly that: no header row survives it, and every value is written beside the label naming it.
+The decision below is **not reversed and not re-argued**.
+
+**What it narrows, and by how much.** REQ-1, REQ-2, REQ-3, REQ-4 and REQ-22 are read from this date
+as holding on every object list **except containers**; each is annotated below with the same date and
+this pointer. REQ-23's guard is **not** switched off: it admits **two literal file paths** —
+`client/src/containers/ContainersScreen.tsx` and `client/src/containers/ContainerCard.tsx` — and
+still reports a surface drawn per row in any other feature file. **REQ-24 is untouched**: the
+card-row half still carries no exception marker a call site can write for itself, and widening the
+admission stays an edit to that list, in the open.
+
+**Where it is written.** `.sdd/analysis/docker_management_app-containers_card_view.md` (2026-08-25),
+the amendment of the same date in
+`.sdd/analysis/ui-coherence-optimisation-comfortable_variant_retired-classic_table.md`, and
+`.sdd/plans/plan-docker_management_app-containers_card_view/` (REQ-59 … REQ-63).
+
+**Annotated, not renumbered.** Nothing below is deleted, renumbered or rewritten: a certified
+requirement records what was decided and delivered, and an exception to it is a second dated
+statement beside it rather than a silent edit of the first.
+
 ## F1 — One presentation, and it is a table
 
 | ID | Requirement |
 | --- | --- |
-| REQ-1 | **An object list is drawn one way, by one component, in one presentation**: a single table surface, one header row at the top, body rows beneath it. There is no second list primitive, no "list card" component, no compatibility wrapper for the screens that used to have cards, and no per-screen choice of surface. |
-| REQ-2 | **Rows are flush.** On every object list, the vertical distance between the bottom edge of one row and the top edge of the next is **zero** — no inter-row gap — at 1440×1000, 1280×800 and 375×812. |
-| REQ-3 | **Rows are not cards.** No row carries a rounded corner, an outline, a shadow or a detached surface of its own; the separation between two adjacent rows is a **single hairline rule**. |
-| REQ-4 | **One surface.** A list has exactly **one** enclosing surface boundary, with the header inside it and the rows continuous beneath it — not a header floating above a stack of surfaces. **Amended 2026-08-16**: this requirement bounds *how many* surfaces there are, not *which* surface it is or how the table sits in it, and batch 1 satisfied it with a result the human rejected. **REQ-40** states the rest; the two are read together, and neither replaces the other. |
+| REQ-1 | **An object list is drawn one way, by one component, in one presentation**: a single table surface, one header row at the top, body rows beneath it. There is no second list primitive, no "list card" component, no compatibility wrapper for the screens that used to have cards, and no per-screen choice of surface. **Amended 2026-08-25**: read as holding on every object list **except containers**, which is drawn as one card per container from that date — one named exception, recorded above under *Amendment — 2026-08-25*, and neither a reversal nor a licence for any other list. |
+| REQ-2 | **Rows are flush.** On every object list, the vertical distance between the bottom edge of one row and the top edge of the next is **zero** — no inter-row gap — at 1440×1000, 1280×800 and 375×812. **Amended 2026-08-25**: read as holding on every object list **except containers**, which is drawn as one card per container from that date — one named exception, recorded above under *Amendment — 2026-08-25*, and neither a reversal nor a licence for any other list. |
+| REQ-3 | **Rows are not cards.** No row carries a rounded corner, an outline, a shadow or a detached surface of its own; the separation between two adjacent rows is a **single hairline rule**. **Amended 2026-08-25**: read as holding on every object list **except containers**, which is drawn as one card per container from that date — one named exception, recorded above under *Amendment — 2026-08-25*, and neither a reversal nor a licence for any other list. |
+| REQ-4 | **One surface.** A list has exactly **one** enclosing surface boundary, with the header inside it and the rows continuous beneath it — not a header floating above a stack of surfaces. **Amended 2026-08-16**: this requirement bounds *how many* surfaces there are, not *which* surface it is or how the table sits in it, and batch 1 satisfied it with a result the human rejected. **REQ-40** states the rest; the two are read together, and neither replaces the other. **Amended 2026-08-25**: read as holding on every object list **except containers**, which is drawn as one card per container from that date — one named exception, recorded above under *Amendment — 2026-08-25*, and neither a reversal nor a licence for any other list. |
 | REQ-5 | **Columns do not drift, and nothing compensates for it.** Every header cell's left edge equals its body cells' left edge **exactly**, at every horizontal scroll offset and at each of the three viewports. The header and the rows are inset identically by construction: **no compensating inset rule exists anywhere in the library**, the existence of such a compensation being the retired presentation's own signature. |
 
 ## F2 — Nothing the card carried is lost
@@ -167,8 +197,8 @@ close. Validated by the human's delegate under his standing delegation, 2026-08-
 
 | ID | Requirement |
 | --- | --- |
-| REQ-22 | **The card-per-row presentation is removed, not merely unused.** The choice is absent from the component's **public interface** — no screen can ask for it — and no code path in the library draws it: the carrier surface, its stylesheet block, its body gap, its row padding, its expansion rule and its header-inset compensation are gone, not left behind unreferenced. |
-| REQ-23 | **Reintroducing it fails a command the developer already runs.** `npm run lint` and `npm run test` fail, **naming what is wrong and where**, when the presentation is reintroduced either by asking the library for it or by a feature file reproducing it with markup or styling of its own (a per-row surface, a per-row border-radius or outline, an inter-row gap on a list body). The check is demonstrated red against a deliberate reintroduction of each of those two forms, and green on the converted tree. |
+| REQ-22 | **The card-per-row presentation is removed, not merely unused.** The choice is absent from the component's **public interface** — no screen can ask for it — and no code path in the library draws it: the carrier surface, its stylesheet block, its body gap, its row padding, its expansion rule and its header-inset compensation are gone, not left behind unreferenced. **Amended 2026-08-25**: read as holding on every object list **except containers**, which is drawn as one card per container from that date — one named exception, recorded above under *Amendment — 2026-08-25*, and neither a reversal nor a licence for any other list. |
+| REQ-23 | **Reintroducing it fails a command the developer already runs.** `npm run lint` and `npm run test` fail, **naming what is wrong and where**, when the presentation is reintroduced either by asking the library for it or by a feature file reproducing it with markup or styling of its own (a per-row surface, a per-row border-radius or outline, an inter-row gap on a list body). The check is demonstrated red against a deliberate reintroduction of each of those two forms, and green on the converted tree. **Amended 2026-08-25**: the check admits **two literal file paths** — `client/src/containers/ContainersScreen.tsx` and `client/src/containers/ContainerCard.tsx` — and reports every other feature file exactly as before; see *Amendment — 2026-08-25* above. |
 | REQ-24 | **The guard does not become a formality.** It names the decision and points at the record that made it, and it is not satisfiable by an exception comment added at the call site that violates it. |
 
 ## F5 — The record agrees with the product

@@ -103,6 +103,37 @@ Consequently this analysis adds one requirement the reference analysis did not c
 must be **enforceable**, not merely performed. What stands between "decided" and "decided again next
 month" today is nothing at all — no automated check knows the variant is not supposed to exist.
 
+## Amendment — 2026-08-25: one named exception, the containers list
+
+**What changed.** From 2026-08-25 the **containers list** is drawn as one card per container. Every
+other object list in the product — images, volumes, networks, compose, swarm, registries, contexts,
+plugins, builders, build cache, and the dashboard's own container list — is still the classic table
+this analysis required, and the library still offers no way to ask for anything else.
+
+The geometric acceptance criteria below (*"rows are flush… no row carries a rounded corner, an
+outline or a detached surface of its own… one enclosing surface boundary"*) therefore hold on every
+object list **except containers**, and are read that way from this date. Nothing else in this
+analysis is withdrawn: the decision is not reversed and it is not re-argued here.
+
+**Why.** The reason is this analysis's own. What it condemned is a **hybrid** — a column header
+promising that every value beneath it is in a column, standing over detached cards promising that
+each card is a self-contained object — and it recorded that where a row does legitimately become a
+card it carries each column's label **inside the card**, the shared header having stopped being
+reachable once the rows detach. The containers card does exactly that: no header row survives it,
+and each value is written beside the label that names it, inside the card. That is the card this
+analysis called legitimate, not the one it retired.
+
+**Where the exception lives, so that it stays one screen wide.** The guard required above
+(`client/scripts/check-ui-conformance.mjs`) is not switched off and grows no exception marker a call
+site could write for itself. It admits **two literal file paths** —
+`client/src/containers/ContainersScreen.tsx` and `client/src/containers/ContainerCard.tsx` — and
+reports a surface drawn per row anywhere else, containers' own the day it moves. Widening the
+admission is an edit to that list, in the open.
+
+**Recorded in.** [`.sdd/analysis/docker_management_app-containers_card_view.md`](./docker_management_app-containers_card_view.md)
+(2026-08-25), which states the change and the reason above in full, and
+`.sdd/plans/plan-docker_management_app-containers_card_view/` (REQ-59 … REQ-63), which carries it.
+
 ## Summary
 
 Every object list in the product is drawn as one classic table — a single surface, one header row on

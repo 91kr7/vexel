@@ -6,10 +6,21 @@ type: UI component
 
 # DataTable
 
-**Purpose** → **the object list of the whole product, in one presentation**: the column-defined
-table used by every list screen (containers, images, volumes, networks, …) — one table surface, one
-column header at its top, ruled rows beneath it — with hover/selected row states and virtualised
-scrolling so a long list stays smooth (REQ-109).
+**Purpose** → **the object list of the whole product bar one, in one presentation**: the
+column-defined table used by every list screen — images, volumes, networks, compose, swarm,
+registries, contexts, plugins, builders, build cache, the dashboard's own container list — one table
+surface, one column header at its top, ruled rows beneath it — with hover/selected row states and
+virtualised scrolling so a long list stays smooth (REQ-109).
+
+**The one exception, named: containers.** From **2026-08-25** the containers **screen** draws one
+card per container instead of this table, and it is the only object list in the product that does
+(`plan-docker_management_app-containers_card_view/REQ-63`,
+`.sdd/analysis/docker_management_app-containers_card_view.md`). This spec's own containers
+references are therefore **references to a list that is leaving**: the screen's inner tables — the
+detail panel's processes list among them — are unaffected and stay this component's. The 2026-08-16
+retirement is not reversed and the library still offers no choice of presentation: the exception is a
+screen drawing something else, admitted by two literal file paths in the guard
+(`ui-conformance-check.md`), not a variant of this component.
 
 **The one question it answers** → *how is a list of objects presented?* There is one answer, and it
 is not parameterised: no screen chooses a surface, a density or a row treatment. The list that used
@@ -221,7 +232,10 @@ Description:
   because there is nothing else it could be. The nine screens that were migrated onto the retired
   card-per-row variant inherited the column repair by construction, without one of them stating a
   column minimum; converted onto this presentation they inherit it the same way, having no
-  presentation left to state (`.../classic-table/REQ-1`, `REQ-22`).
+  presentation left to state (`.../classic-table/REQ-1`, `REQ-22`). **Qualified 2026-08-25**: every
+  list *drawn by this component* — which is every object list but containers, and every inner table
+  of the containers screen itself. A screen that draws something other than a list of objects in
+  columns does not consult this component; it does not gain a way to configure it.
 - **The row content is inset like the cells above it, and carries the rule that would have closed
   the row.** It takes the row's own inline inset, so what it holds starts at the same
   x as the cells it belongs to, and the hairline moves from the row to the content: it is what
@@ -285,3 +299,5 @@ Description:
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-22
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-35
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-39
+- plan-docker_management_app-containers_card_view/REQ-62
+- plan-docker_management_app-containers_card_view/REQ-63

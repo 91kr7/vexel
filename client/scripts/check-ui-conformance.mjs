@@ -5,7 +5,8 @@
 // is a violation unless the rule carrying it targets one of the allow-listed
 // overlay surfaces below and is valued with the single `--blur-overlay` token.
 // And it refuses the card row: an object list is one table, and neither the
-// library nor a feature file may go back to drawing a surface per row.
+// library nor a feature file may go back to drawing a surface per row — bar the
+// two containers files the card-row pass admits by name below, since 2026-08-25.
 // Wired into `npm run lint` and `npm run test` (client workspace).
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { extname, join, relative, sep } from 'node:path';
@@ -245,6 +246,30 @@ const cardRowDecision =
   'The card-per-row presentation is retired: an object list is one table — one header, ruled rows beneath it, no surface per row';
 const cardRowRecord = '.sdd/analysis/ui-coherence-optimisation-comfortable_variant_retired-classic_table.md';
 
+// **The one admission, 2026-08-25: the containers list, and nothing else.**
+//
+// Containers is drawn as one card per container from that date
+// (`.sdd/analysis/docker_management_app-containers_card_view.md`, amended into
+// the record above, which is not reversed). The reason is that record's own: what
+// it condemned was a **hybrid** — a column header promising columns, standing over
+// detached cards promising self-contained objects — and it said in as many words
+// that a row which does legitimately become a card carries each label inside
+// itself. The containers card does exactly that, and no header survives it.
+//
+// So the admission is **two literal paths**, listed here where widening it is an
+// edit in the open. Not a directory, not a pattern, not a component name, and
+// still no marker a call site may write for itself: every other feature file that
+// draws a surface per row is reported, containers' own included the day it moves.
+const cardRowAdmittedCardPerItemPaths = new Set([
+  'client/src/containers/ContainersScreen.tsx',
+  'client/src/containers/ContainerCard.tsx',
+]);
+
+/** True when this file is one of the two paths admitted above, by its whole path. */
+function cardRowIsAdmittedCardPerItem(filePath) {
+  return cardRowAdmittedCardPerItemPaths.has(`client/${relative(clientRoot, filePath).split(sep).join('/')}`);
+}
+
 // The retired presentation's own vocabulary. Written as the exact names it went
 // by, so that a check naming them in order to refuse them is the only place in
 // the product they survive; a looser pattern would fire on the prose of a plan
@@ -310,8 +335,12 @@ function cardRowStyleOffence(declaration) {
  * rather than from the text, so that `<Card>` standing on its own — a screen's
  * own panel, which is what a card is for — is untouched, and only a card drawn
  * once per item of a list is reported.
+ *
+ * The two admitted paths are exempt from this card-row form and from it alone:
+ * the retired vocabulary and the stylesheet rules below still hold there.
  */
 function cardRowSurfacesPerItem(filePath, content) {
+  if (cardRowIsAdmittedCardPerItem(filePath)) return;
   if (!/<\s*(Surface|Card)\b/.test(content)) return;
   const sourceFile = ts.createSourceFile(filePath, content, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 

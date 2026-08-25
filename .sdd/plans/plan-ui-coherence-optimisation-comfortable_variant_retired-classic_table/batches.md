@@ -30,6 +30,20 @@ plan.
 > reference as the target rather than converted twice.** Batch 1's own fix is with its developer.
 > Recorded here, and in `requirements.md` under *Amendment*, rather than folded in silently.
 
+> **Amendment, 2026-08-25 — one named exception: the containers list.** From that date the
+> **containers list** is drawn as one card per container; every other object list this plan converted
+> is still the classic table it delivered, and the library still offers no second presentation. The
+> reason is this plan's own record — what it retired was a **hybrid**, a column header over detached
+> cards, and it said that a row which does legitimately become a card carries each column's label
+> **inside** it; the containers card does that, with no header surviving. **Nothing below is
+> reversed, re-run or re-certified**: the batches stayed as delivered and are annotated, not
+> rewritten. Batch 5's guard is not switched off either — it admits **two literal file paths**
+> (`client/src/containers/ContainersScreen.tsx`, `client/src/containers/ContainerCard.tsx`) and still
+> refuses a surface per row anywhere else, with no exception marker a call site can write for itself.
+> Recorded in `requirements.md` under *Amendment — 2026-08-25*, in
+> `.sdd/analysis/docker_management_app-containers_card_view.md`, and carried by
+> `.sdd/plans/plan-docker_management_app-containers_card_view/` (REQ-59 … REQ-63).
+
 | Batch | Feature | REQ closed | Depends | Status | Human acceptance |
 | --- | --- | --- | --- | --- | --- |
 | 1 · volumes-networks-registries | F3 — the two-line lists that carry content below their cells: volumes, networks, registries. Carries the two library changes their rows need | REQ-14, REQ-15 | — | certified | **The report itself, with the mouse, at 1440×1000.** Volumes & networks → the volumes list is **one table**: rows touching, no gap between them, no rounded corner on any row, a hairline between each pair, one header row on top of a continuous run of rows. **The row that caused this report**: a volume's name over its **mount path**, and *both lines are there* — read the path, do not take its presence on trust. Then the networks panel beside it: same table, and **the attached-container chips are still under their row, with their detach still on them** — click one and it still detaches. That content is drawn by a slot that was switched on by the presentation being retired; if the chips are gone the batch is refused, and nothing else needs checking. Then Registries: both lists are tables, the repository rows still carry their per-repository content, and `Log in`/`Log out` are still the row actions they were. **Then the two sizes that break it**: at 1280×800 nothing clips; at **375×812** the lists **pan sideways** — drag them — and every column can be reached, none collapsed to nothing. The rows no longer grow at phone width; that is the point, not a regression. **Then the comparison this batch failed the first time, and it is the acceptance now**: put Containers in one window and Volumes in the other. A row of one is the **same height** as a row of the other, aligned the same way, carrying the same modifiers — the two-line name does **not** buy a taller row, because containers' own two-line cell does not need one. And each table runs **edge to edge in its own card**, its header band cropped by the card's corners, not inset with glass either side. If you can tell the two arrangements apart, the batch is refused however well the geometry reads. **Then the diff**: the three files state no presentation and no style; the row-content slot in the library is no longer conditional on anything; `check-ui-conformance.mjs` untouched. **Then the evidence**: the geometry check ran against the delivered build **before** the conversion existed and is on record failing, with the numbers — the measured inter-row gap and the row's corner radius on the volumes list — beside the same numbers after. |

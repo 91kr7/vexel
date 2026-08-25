@@ -5,6 +5,25 @@ Written 2026-08-17, at the point the run was suspended for the human to close it
 Branch `feat/ui-coherence-optimisation-comfortable_variant_retired-classic_table`, head `e705f06`,
 **not merged**. `main` is untouched.
 
+## Amendment — 2026-08-25: the containers list is one named exception
+
+The state below is as it stood on 2026-08-17 and is not rewritten. Since **2026-08-25** the
+**containers list** is drawn as one card per container — one screen, named — while every other object
+list this plan converted is still the classic table it delivered. The reason is this plan's own
+record: what it retired was a hybrid, a column header over detached cards, and a row that does
+legitimately become a card carries each column's label inside it, which is what the containers card
+does.
+
+The guard batch 5 installed is **not** switched off: it admits **two literal file paths** —
+`client/src/containers/ContainersScreen.tsx` and `client/src/containers/ContainerCard.tsx` — reports
+a surface per row in every other feature file, and still carries no exception marker a call site can
+write for itself. So the sentence below — *"a third pass … that refuses both routes back"* — is read
+from this date as refusing them everywhere but there.
+
+Recorded in `requirements.md` and `batches.md` under the amendment of the same date, in
+`.sdd/analysis/docker_management_app-containers_card_view.md`, and carried by
+`.sdd/plans/plan-docker_management_app-containers_card_view/` (REQ-59 … REQ-63).
+
 ## Where the plan stands
 
 | Batch | Status |

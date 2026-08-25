@@ -70,9 +70,20 @@ back are refused, and every violation names the decision and points at the recor
   tree, so a card standing on its own — a screen's own panel, which is what a card is for — is
   untouched; only a surface drawn once per item is reported. Its other form, a stylesheet or a
   visual prop in feature code, is already the boundary half's.
+  - **One admission, from 2026-08-25, and it is two literal file paths**:
+    `client/src/containers/ContainersScreen.tsx` and `client/src/containers/ContainerCard.tsx`, the
+    containers list being drawn as one card per container from that date
+    (`.sdd/analysis/docker_management_app-containers_card_view.md`, and the amendment of the same
+    date in the record above, which is neither reversed nor re-argued). A surface drawn per item is
+    accepted in those two files and reported in every other feature file — containers' own the day
+    it moves. The admission is a **path list**, not a directory, a pattern or a component name, so
+    widening it is an edit to the script, in the open.
+  - The admission reaches **this form only**: in those two files the retired vocabulary is still
+    refused by name, and the stylesheet rules above still hold.
 - **there is no exception comment for this half**, deliberately: a comment written at the very call
   site that reintroduces the arrangement is how a decision becomes a formality. The blur half's
-  `ui-blur-exception:` marker does not reach it.
+  `ui-blur-exception:` marker does not reach it, and the 2026-08-25 admission did not add one: an
+  admitted path is named in the script, never claimed by the file that needs it.
 
 ## Rules and invariants
 
@@ -110,6 +121,12 @@ back are refused, and every violation names the decision and points at the recor
   not a guard. The card-row half is not of that kind: the names it refuses can be written again at
   any time, by anyone, which is exactly why it stays. Anything **else** added to this file remains
   the signal that something went where it should not have, hunk by hunk.
+- **A widening of the card-row half is a change to a list of paths, and to nothing else.** The
+  2026-08-25 admission added a named constant holding two literal paths, the date, the reason and a
+  pointer to both records, and one early return in the pass that reads it; it loosened no pattern,
+  removed no case and left the blur half byte-identical. A guard widened until it stops catching
+  anything is the failure that half exists to prevent, so the admission is stated as paths a reader
+  can count.
 
 ## Requirements served
 
@@ -122,3 +139,8 @@ back are refused, and every violation names the decision and points at the recor
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-24
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-33
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-34
+- plan-docker_management_app-containers_card_view/REQ-59
+- plan-docker_management_app-containers_card_view/REQ-60
+- plan-docker_management_app-containers_card_view/REQ-61
+- plan-docker_management_app-containers_card_view/REQ-62
+- plan-docker_management_app-containers_card_view/REQ-63
