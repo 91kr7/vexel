@@ -138,9 +138,18 @@
   cursor: pointer;
 }
 
+/* The compact box takes a tighter radius, and it is the box's size that asks
+   for it: the ordinary radius on a 24px square is 42% of its own side, which
+   reads as a soft blob rather than as a quiet control — visible beside a card's
+   name, which is 23.2px tall and so *shorter* than the control standing next to
+   it (measured 2026-08-25). Eased corners on a square is what a discreet
+   affordance looks like at this size. Declared on the size rather than on a
+   variant of one call site: every compact icon button in the product is the same
+   24px box and the reasoning is the box's, not the caller's. */
 .ui-icon-button--sm {
   width: 24px;
   height: 24px;
+  border-radius: var(--radius-sm);
   font-size: var(--font-size-xs);
 }
 
@@ -401,9 +410,21 @@
    apart, the hairline between two of them being one border and not two — which
    is what the negative inline offset buys. The outer corners are the cluster's,
    so only the first and the last slot keep a radius. Appearance only: the slots,
-   their order and their number are untouched. */
+   their order and their number are untouched.
+
+   **The group owns the height, and every slot takes it.** `stretch` instead of
+   the base rule's `center`, so each slot resolves to the tallest slot's height
+   rather than to its own content's: the members of a segmented cluster are not
+   all the same kind of control — a lifecycle `Button` sits beside the overflow
+   `Menu`'s trigger, which carries its own padding and a tighter line height —
+   and derived individually they came out 27px and 24px, leaving the rounded end
+   of the cluster reading as a bulge escaping a boundary it did not actually
+   share (measured on the containers card, 2026-08-25). Owning it at the group
+   is what makes that hold for a member added later with a different glyph or
+   size, which deriving it per member never would. */
 .ui-action-button-group--segmented {
   gap: 0;
+  align-items: stretch;
 }
 
 .ui-action-button-group__segment {
@@ -1047,6 +1068,27 @@
 
 .ui-chip__label {
   white-space: nowrap;
+}
+
+/* A field rather than a pill: the chip takes a line of its own and fills it,
+   for a value long enough that anything sharing its line would be pushed out of
+   place. Rectangular rounding, because a stadium as wide as its container reads
+   as a button; the label is the part that gives way, the prefix naming the
+   value is not. */
+.ui-chip--block {
+  display: flex;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+}
+
+.ui-chip--block .ui-chip__prefix {
+  flex: none;
+}
+
+.ui-chip--block .ui-chip__label {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 /* The chip's muted parts: what the value is (`image`) before it, and the

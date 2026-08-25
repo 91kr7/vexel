@@ -487,16 +487,29 @@ function computeUsage(raw: RawStats): SampledUsage {
 }
 
 /**
- * The container's ports, each mapping once. The daemon reports one entry per
- * host binding, so a port published on both stacks arrives twice — same private
- * port, same public port, same protocol, differing only by a host IP this shape
- * does not carry. Once the IP is dropped the two are indistinguishable, and a
- * consumer keying by what it can see cannot tell a real pair from an artefact
- * of dual-stack binding. Deduped here rather than in each reader: every
- * consumer of this shape inherits the pair, and the card — one chip per entry,
- * keyed by the mapping — was given duplicate React keys by it and accumulated
- * chips in the DOM on every poll. The delivered table joined the entries into
- * one line, which hid the same duplication rather than escaping it.
+ * The container's ports, each mapping once and in a total order. The daemon
+ * reports one entry per host binding, so a port published on both stacks
+ * arrives twice — same private port, same public port, same protocol, differing
+ * only by a host IP this shape does not carry. Once the IP is dropped the two
+ * are indistinguishable, and a consumer keying by what it can see cannot tell a
+ * real pair from an artefact of dual-stack binding. Deduped here rather than in
+ * each reader: every consumer of this shape inherits the pair, and the card —
+ * one chip per entry, keyed by the mapping — was given duplicate React keys by
+ * it and accumulated chips in the DOM on every poll. The delivered table joined
+ * the entries into one line, which hid the same duplication rather than
+ * escaping it.
+ *
+ * **The order is imposed here, not observed, and that is the point of it.** The
+ * daemon's own order is not stable across reads: three consecutive reads of the
+ * same unchanged container return the same five mappings rotated. A consumer
+ * that shows **a subset** — the card draws the first two and then a `+n` — is
+ * therefore handed a different subset each poll, so two chips swap identity
+ * under an operator watching a container that is not changing. Sorting by
+ * private port, then public, then protocol makes the key **total**: two
+ * mappings can never tie, so the sequence is identical read to read, the subset
+ * is the same subset, and the detail panel agrees with the card by construction
+ * rather than by coincidence. Removing this sort as redundant reinstates the
+ * defect, which is invisible in a single read.
  */
 function summaryPorts(ports: RawContainer["Ports"]): ContainerPort[] {
   const byMapping = new Map<string, ContainerPort>();
@@ -504,7 +517,12 @@ function summaryPorts(ports: RawContainer["Ports"]): ContainerPort[] {
     const mapping = { privatePort: port.PrivatePort, publicPort: port.PublicPort, type: port.Type };
     byMapping.set(`${mapping.type}-${mapping.publicPort ?? ""}-${mapping.privatePort}`, mapping);
   }
-  return [...byMapping.values()];
+  return [...byMapping.values()].sort(
+    (left, right) =>
+      left.privatePort - right.privatePort ||
+      (left.publicPort ?? 0) - (right.publicPort ?? 0) ||
+      left.type.localeCompare(right.type),
+  );
 }
 
 function toSummary(raw: RawContainer): ContainerSummary {

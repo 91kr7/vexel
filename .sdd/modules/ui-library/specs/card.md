@@ -15,13 +15,14 @@ grouped content.
   - `elevation` — forwarded to the underlying Surface (default `'flat'`).
   - `padding` — forwarded to the underlying Surface (default `'lg'`); `'none'` where the content
     manages its own edge-to-edge inset (e.g. a table).
-  - `accent`, `onSelect`, `selected` — forwarded to the underlying Surface unchanged: the
-    state-coloured left edge and the selectable treatment described in `surface.md`.
+  - `accent`, `onSelect`, `selected`, `footer` — forwarded to the underlying Surface unchanged: the
+    state-coloured left edge, the selectable treatment and the closing band described in
+    `surface.md`.
 
 ## Rules and invariants
 
 - **The card declares no material of its own, and there is still no card stylesheet.** The accent
-  edge and the hover/selected highlights are the Surface's, forwarded — the one place those values
+  edge, the hover/selected highlights and the footer band are the Surface's, forwarded — the one place those values
   live (plan-docker_management_app-containers_card_view/REQ-28, REQ-29). A card that carried a
   second declaration of them, even to the same value, is the defect this invariant names.
 - **A card titles nothing.** There is no `title` prop, no title element and no card stylesheet: a

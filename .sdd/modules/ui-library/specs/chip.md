@@ -13,7 +13,7 @@ weighs).
 
 ## Contract
 
-- `<Chip label prefix? meta? tone? actionLabel? onAction? onSelect? />`
+- `<Chip label prefix? meta? tone? block? truncate? actionLabel? onAction? onSelect? />`
   - `prefix?` — a muted qualifier shown **before** the label, naming what the label is (e.g.
     `image` before an image reference); omitted when absent. Same muted treatment as `meta`, one
     declaration serving both positions.
@@ -28,6 +28,15 @@ weighs).
   - `onSelect?` — makes the whole chip the click target, for a chip that is itself a starting point
     (e.g. a suggested command put into an input) rather than a label carrying a secondary action.
     A chip with `onSelect` carries no inline action.
+  - `block?: boolean` (default `false`) — the chip takes a line of its own and fills it, as a
+    **field** rather than a pill: for a value long enough that anything sharing its line would be
+    pushed out of place. Rectangular rounding, since a stadium as wide as its container reads as a
+    button; the prefix keeps its width and the label is the part that gives way.
+  - `truncate?: 'start' | 'end'` — which end of the label gives way when it does not fit.
+    `'start'` keeps the **tail** — for a value whose tail identifies it, an image's `name:tag`
+    against its registry host — and `'end'` is the ordinary ellipsis. Absent, the label is never
+    truncated and the chip takes the width its value needs. A truncated label carries the whole
+    value as its `title`; that is a convenience and not the route to it (`truncation-contract.md`).
 - `<ChipGroup items addLabel? onAdd? emptyLabel? />`
   - `items: { key, label, prefix?, meta?, tone?, actionLabel?, onAction?, onSelect? }[]` — each
     rendered as a `Chip`, every field forwarded unchanged.
@@ -57,7 +66,11 @@ Actions:
   The dashed pill it used to be read as a placeholder waiting to be filled; it still calls `onAdd`
   and nothing else about the group changed.
 - A chip that carries neither an action nor `onSelect` is a statement and holds no control at all.
-- A chip asked for no `prefix` and no `tone` renders exactly what it rendered before those existed.
+- A chip asked for no `prefix` and no `tone` renders exactly what it rendered before those existed,
+  and so does one asked for no `block` and no `truncate`.
+- **The truncation is the library's one contract, not a second rule** (`truncation-contract.md`):
+  `truncate` puts that contract's line class on the label, and `'start'` its front-ellipsis
+  variant. The chip declares no ellipsis of its own.
 
 ## Dependencies
 

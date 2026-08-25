@@ -15,7 +15,7 @@ with which to ask for an appearance, which is what makes the rule un-re-answerab
 
 ## Contract
 
-- `<ActionButtonGroup actions overflow? segmented? />`
+- `<ActionButtonGroup actions overflow? segmented? size? />`
   - `actions: { id, label, onClick, weight?, destructive?, disabled?, disabledReason? }[]`.
   - `weight?: 'primary' | 'secondary' | 'destructive' | 'overflow'` (default `'secondary'`) — how
     much the action weighs, and **the only thing said about it**:
@@ -39,6 +39,12 @@ with which to ask for an appearance, which is what makes the rule un-re-answerab
     two borders and a gap. Appearance only: the actions, their number, their order, their positions,
     their disabled reasons and the overflow menu are exactly what they are without it, and a group
     that does not ask for it renders exactly what it rendered before the prop existed.
+  - `size?: 'sm' | 'md'` (default `'sm'`) — how large the cluster's controls are drawn. `'sm'` is
+    the density every list row in the product uses and is what every delivered call site gets;
+    `'md'` is the library's ordinary button size, for a cluster standing on its own rather than
+    ending a row — the band that closes a card. Size only: the actions, their order, their
+    positions, their legality and the overflow menu are untouched, and it is not a way to ask for an
+    appearance — every weight still renders what its weight renders.
 
 ## Rules and invariants
 
@@ -56,6 +62,14 @@ with which to ask for an appearance, which is what makes the rule un-re-answerab
 - The overflow control, when present, is always the trailing slot: it is never the control that
   moves as the actions before it change.
 - The group itself carries no overlay material and computes no filter: it exists once per row.
+- **Segmented, every slot is one height, and the group is what owns it.** Each slot resolves to the
+  tallest slot's height rather than to its own content's — because the members are not all the same
+  kind of control: a lifecycle `Button` stands beside the overflow `Menu`'s trigger, which carries
+  its own padding and a tighter line height. Derived per member they came out at 27px and 24px, and
+  the cluster's rounded end read as a bulge escaping a boundary it was not in fact sharing (found on
+  the containers card, 2026-08-25). A segmented cluster whose members differ in height has no shared
+  boundary at all, which is the whole of what `segmented` promises. Owning the height at the group
+  is also what keeps that true for a member added later with a different glyph, size or line height.
 - Segmented, the outer corners are the cluster's: only its first and last slot keep a radius, and the
   radius, the border and the divider are the button's own tokens — no second declaration of any of
   them.

@@ -27,6 +27,8 @@ export interface SurfaceProps {
   onSelect?: () => void;
   /** Whether this is the selected surface; only meaningful together with `onSelect`. */
   selected?: boolean;
+  /** A band closing the surface: its own ground under a hairline, spanning the full width, holding the surface's actions. */
+  footer?: ReactNode;
 }
 
 /**
@@ -37,6 +39,9 @@ export interface SurfaceProps {
  * `onSelect` and `selected` give it the object table's own hover and selected
  * highlights, by reference to the same tokens, so a list drawn as one surface
  * per object behaves as a list of rows does.
+ *
+ * With a `footer` the surface parts into two bands: the padding moves off the
+ * surface and onto each band, so the footer's ground reaches its edges.
  */
 export function Surface({
   children,
@@ -46,11 +51,14 @@ export function Surface({
   accent,
   onSelect,
   selected,
+  footer,
 }: SurfaceProps) {
+  const parted = footer !== undefined;
   const classes = [
     'ui-surface',
     `ui-surface--${elevation}`,
     paddingClass[padding],
+    parted ? 'ui-surface--parted' : '',
     material === 'overlay' ? 'ui-overlay-glass' : '',
     accent ? `ui-surface--accent ui-surface--accent-${accent}` : '',
     onSelect ? 'ui-surface--selectable' : '',
@@ -60,7 +68,14 @@ export function Surface({
     .join(' ');
   return (
     <div className={classes} onClick={onSelect} aria-selected={onSelect ? selected === true : undefined}>
-      {children}
+      {parted ? (
+        <>
+          <div className="ui-surface__body">{children}</div>
+          <div className="ui-surface__footer">{footer}</div>
+        </>
+      ) : (
+        children
+      )}
     </div>
   );
 }

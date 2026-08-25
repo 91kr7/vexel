@@ -26,6 +26,9 @@ type: UI component
     control inside it did not swallow.
   - `selected` — whether this is the selected surface. Only meaningful with `onSelect`; it then also
     becomes the surface's `aria-selected`.
+  - `footer?` — a band closing the surface: its own ground, a hairline above it, spanning the
+    surface's full width from edge to edge and following its bottom rounding. Absent, the surface is
+    one undivided band and is drawn exactly as before.
 
 ## Rules and invariants
 
@@ -59,7 +62,16 @@ type: UI component
   material, and the two are never asked for together.
 - A `Surface` asked for no `accent`, no `onSelect` and no `selected` renders exactly what it rendered
   before those existed: same markup, same classes, same computed style, no click handler and no
-  `aria-selected`.
+  `aria-selected`. The same holds for `footer`: without one the children are the surface's own,
+  unwrapped.
+- **A footer parts the surface into two bands, and the padding goes with them.** The inset asked for
+  by `padding` leaves the surface and is taken by each band, which is what lets the footer's ground
+  and its hairline reach the surface's edges instead of stopping short of them. The two bands
+  therefore share one inset: a control in the footer stands at the same x as the content above it.
+- **The footer's ground is a wash over the surface's own fill, not a second surface colour**
+  (`--color-wash-1`), and its bottom corners inherit the surface's radius rather than restating it —
+  a surface with a footer is exactly as round as one without. The accent bar, being a layer over the
+  whole surface, runs through the footer as it runs through the content (2026-08-25).
 - Corner radius is `--radius-xl` (22px, raised from `--radius-lg`/16px 2026-08-06) for a rounder,
   more pillowy glass-card silhouette.
 

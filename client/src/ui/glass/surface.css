@@ -30,21 +30,70 @@
     inset 0 1px 0 var(--color-highlight-top);
 }
 
+/* Each padding class also names its inset, so a surface that parts into bands
+   (below) can hand the same inset to each of them. */
 .ui-surface--pad-none {
+  --surface-pad: 0;
   padding: 0;
   overflow: hidden;
 }
 
 .ui-surface--pad-sm {
-  padding: var(--space-3);
+  --surface-pad: var(--space-3);
+  padding: var(--surface-pad);
 }
 
 .ui-surface--pad-md {
-  padding: var(--space-5);
+  --surface-pad: var(--space-5);
+  padding: var(--surface-pad);
 }
 
 .ui-surface--pad-lg {
-  padding: var(--space-7);
+  --surface-pad: var(--space-7);
+  padding: var(--surface-pad);
+}
+
+/* Parted: a surface with a footer. The padding leaves the surface and is taken
+   by each band, which is what lets the footer's ground and its hairline run
+   edge to edge instead of stopping short of the border. These rules follow the
+   padding classes deliberately — same specificity, so source order is what
+   zeroes the surface's own padding.
+
+   The footer is denser than the content it closes, and its ground is the wash
+   over the surface's own fill rather than a second surface colour: a card ends
+   in a band to act in, not in an expanse of empty glass. Its bottom corners
+   inherit the surface's radius rather than restating it, so a surface with a
+   footer is exactly as round as one without.
+
+   **The footer sits on the surface's bottom edge whatever the surface's height,
+   and the slack goes above it.** A parted surface is a full-height column and
+   the content band is what absorbs the free space, so the footer is simply the
+   last band rather than a band pushed down by a margin or lifted out of flow by
+   a position — either of which would take its ground and its hairline off the
+   surface's edges. This is the case of a card standing in a grid row: its height
+   comes from the track, not from its content, so a card shorter than its
+   row-mates has slack to place, and placing it after the footer left the footer
+   floating over a band of bare surface (measured at 32px) with the footers of a
+   row out of line. */
+.ui-surface--parted {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.ui-surface__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--surface-pad, 0);
+}
+
+.ui-surface__footer {
+  flex: none;
+  padding: var(--space-4) var(--surface-pad, 0);
+  border-top: var(--border-width-hairline) solid var(--color-border-subtle);
+  border-bottom-left-radius: inherit;
+  border-bottom-right-radius: inherit;
+  background-color: var(--color-wash-1);
 }
 
 /* Selectable: the object table's own highlights, by reference. The hover value

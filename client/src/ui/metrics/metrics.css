@@ -472,6 +472,17 @@
   width: 100%;
 }
 
+/* Stacked, the untracked column has no track to sit above and no neighbour to
+   share a baseline with: it becomes one line — label at the left, readings at
+   the right — which is the rhythm every other row of a stacked strip reads in.
+   Written in both stacked forms, as above. */
+.ui-metric-strip--stacked .ui-metric-strip__column--readings {
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
 /* The phone breakpoint: one full-width column per metric, each keeping its
    label, value, reading and track. Nothing is dropped and nothing is scrolled
    sideways — the strip only stops being a row. */
@@ -486,4 +497,41 @@
     flex: 1 1 auto;
     width: 100%;
   }
+
+  .ui-metric-strip__column--readings {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+  }
+}
+
+/* ── The strip and its track-less rows ───────────────────────────────────────
+   A row reports something read like a metric and measured like nothing: its
+   label anchors the left, its content is pushed against the right edge and
+   wraps there rather than widening the strip. The rows take the stacked strip's
+   own gap, so a strip and its rows read as one rhythm and not as two blocks
+   set side by side. */
+.ui-metric-strip-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.ui-metric-strip__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.ui-metric-strip__row-content {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  min-width: 0;
 }

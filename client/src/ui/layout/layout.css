@@ -128,6 +128,20 @@
   flex-wrap: wrap;
 }
 
+/* The truncation contract (truncation.css) stated as a row arrangement, for a
+   row whose groups are composed by a caller and so cannot be given the
+   contract's classes one by one. Read positionally: the last group is the
+   trailing metadata and keeps its natural width, everything before it may
+   shrink — which is what lets a name ellipsise while the identifier beside it
+   never does. */
+.ui-row--truncating > * {
+  min-width: 0;
+}
+
+.ui-row--truncating > *:last-child {
+  flex: none;
+}
+
 .ui-grid {
   display: grid;
 }

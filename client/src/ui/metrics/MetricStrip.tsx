@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Meter, type MeterProps } from './Meter';
 import './metrics.css';
 
@@ -18,6 +19,14 @@ export interface MetricStripReadings {
   items: MetricStripReading[];
 }
 
+export interface MetricStripRow {
+  id: string;
+  /** The row's label, in the strip's own small uppercase muted treatment. */
+  label: string;
+  /** What the row reports, right-aligned against the strip's right edge. Already-built elements; the strip reads none of it. */
+  content: ReactNode;
+}
+
 export interface MetricStripProps {
   /** The tracked columns, all of the same width, in reading order. */
   columns: MetricStripColumn[];
@@ -30,6 +39,13 @@ export interface MetricStripProps {
    * the strip stacks regardless.
    */
   stacked?: boolean;
+  /**
+   * Track-less rows drawn after the metrics, on the metrics' own rhythm: the
+   * label at the left anchoring the row, the content right-aligned. For a fact
+   * that is read like a metric and measured like nothing — a set of chips, a
+   * count — so it keeps its shape whatever it holds.
+   */
+  rows?: MetricStripRow[];
 }
 
 /**
@@ -42,10 +58,11 @@ export interface MetricStripProps {
  * would stop lining up down the list. Below the phone breakpoint it stacks to
  * one full-width column per metric, each keeping everything it showed.
  *
- * Domain-agnostic: it receives already-formatted strings and plain numbers.
+ * Domain-agnostic: it receives already-formatted strings, plain numbers and —
+ * for its track-less rows — elements it never reads.
  */
-export function MetricStrip({ columns, readings, stacked = false }: MetricStripProps) {
-  return (
+export function MetricStrip({ columns, readings, stacked = false, rows = [] }: MetricStripProps) {
+  const strip = (
     <div className={stacked ? 'ui-metric-strip ui-metric-strip--stacked' : 'ui-metric-strip'}>
       {columns.map(({ id, ...meter }) => (
         <div key={id} className="ui-metric-strip__column">
@@ -67,6 +84,19 @@ export function MetricStrip({ columns, readings, stacked = false }: MetricStripP
           </div>
         </div>
       ) : null}
+    </div>
+  );
+
+  if (rows.length === 0) return strip;
+  return (
+    <div className="ui-metric-strip-group">
+      {strip}
+      {rows.map((row) => (
+        <div key={row.id} className="ui-metric-strip__row">
+          <p className="ui-meter__label--eyebrow">{row.label}</p>
+          <div className="ui-metric-strip__row-content">{row.content}</div>
+        </div>
+      ))}
     </div>
   );
 }

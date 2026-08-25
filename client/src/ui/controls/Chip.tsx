@@ -1,4 +1,5 @@
 import { Button } from './Button';
+import '../truncation.css';
 import './controls.css';
 
 export type ChipTone = 'neutral' | 'accent';
@@ -20,15 +21,43 @@ export interface ChipProps {
   onSelect?: () => void;
   /** `accent` marks the salient chip among its neighbours; what makes it salient is the caller's. */
   tone?: ChipTone;
+  /**
+   * Takes a line of its own and fills it, as a field rather than a pill — for a
+   * value long enough that nothing may share its line without being pushed out
+   * of place.
+   */
+  block?: boolean;
+  /**
+   * Which end of the label gives way when it does not fit. `'start'` keeps the
+   * tail, for a value whose tail identifies it (an image's `name:tag` against
+   * its registry host); `'end'` is the ordinary ellipsis. Absent, the label is
+   * never truncated and the chip takes the width its value needs.
+   */
+  truncate?: 'start' | 'end';
 }
 
 /** A short label chip with an optional muted prefix and meta reading, an optional inline secondary action, and optionally clickable as a whole. */
-export function Chip({ label, prefix, meta, actionLabel, onAction, onSelect, tone = 'neutral' }: ChipProps) {
-  const classes = tone === 'accent' ? 'ui-chip ui-chip--accent' : 'ui-chip';
+export function Chip({ label, prefix, meta, actionLabel, onAction, onSelect, tone = 'neutral', block = false, truncate }: ChipProps) {
+  const classes = [
+    'ui-chip',
+    tone === 'accent' ? 'ui-chip--accent' : '',
+    block ? 'ui-chip--block' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+  const labelClass = [
+    'ui-chip__label',
+    truncate ? 'ui-truncating-line' : '',
+    truncate === 'start' ? 'ui-truncating-line--start' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
   const content = (
     <>
       {prefix ? <span className="ui-chip__prefix">{prefix}</span> : null}
-      <span className="ui-chip__label">{label}</span>
+      <span className={labelClass} title={truncate ? label : undefined}>
+        {label}
+      </span>
       {meta ? <span className="ui-chip__meta">{meta}</span> : null}
     </>
   );

@@ -12,7 +12,7 @@ carried by every primitive that draws such a row.
 
 ## Contract
 
-The stylesheet declares four classes and nothing else. A component that draws a "flexible text plus
+The stylesheet declares five classes and nothing else. A component that draws a "flexible text plus
 trailing meta" row carries them; no other file expresses the rule, and no screen solves it locally.
 
 - `.ui-truncating-row` → the row itself: when it cannot hold the floored run and the trailing group
@@ -24,6 +24,10 @@ trailing meta" row carries them; no other file expresses the rule, and no screen
 - `.ui-truncating-line` → one line of that run: a single line, truncated with an ellipsis at the
   run's edge.
 - `.ui-truncating-meta` → the trailing metadata: its natural width, whatever the run does.
+- `.ui-truncating-line--start` → the same one line, ellipsised at its **front** instead of its end,
+  for a value whose tail is the half that identifies it: an image reference, where the registry host
+  is sacrificial and `name:tag` is what says which image this is. Carried together with
+  `.ui-truncating-line`, never instead of it.
 
 Guarantees, at any viewport and for an identifier of any length:
 
@@ -52,6 +56,11 @@ Guarantees, at any viewport and for an identifier of any length:
   object's detail surface shows the same value wrapped and selectable. Truncation is a presentation
   of a list, never the only presentation of a value. No `title`-attribute tooltip is a substitute
   for that route, and nothing on either side gains `user-select: none`.
+- **The front ellipsis keeps the value's own reading order.** The line's direction is reversed so
+  the overflow — and with it the ellipsis — falls at its start, while the alignment keeps the line
+  where it was; the characters themselves are strong left-to-right and are unmoved. A value made
+  only of neutral characters (punctuation or digits alone) is outside what this covers, and no value
+  in the product is one.
 - The floor is the token `--truncating-run-min-width`; no length is written on the spot.
 
 ## Dependencies

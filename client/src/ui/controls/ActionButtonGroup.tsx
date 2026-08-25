@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Button, type ButtonVariant } from './Button';
+import { Button, type ButtonSize, type ButtonVariant } from './Button';
 import { Menu, type MenuEntry } from './Menu';
 import './controls.css';
 
@@ -56,6 +56,16 @@ export interface ActionButtonGroupProps {
    */
   segmented?: boolean;
   /**
+   * How large the cluster's controls are (default `'sm'`, the density every
+   * list row in the product is drawn at). A cluster standing on its own —
+   * closing a card rather than ending a row — asks for `'md'`, the library's
+   * ordinary button size. It is the size of the controls only: the actions,
+   * their order, their positions and the overflow menu are untouched, and a
+   * segmented cluster still resolves every slot to one height whichever size is
+   * asked for.
+   */
+  size?: ButtonSize;
+  /**
    * The menu the `overflow`-weight actions are collected into, always the
    * group's last, trailing slot. Required as soon as an action weighs
    * `overflow`, because its trigger needs a name; an overflow-weighted action
@@ -75,7 +85,7 @@ function actionWeight(action: RowAction): ActionWeight {
  * overflow menu. Stops click propagation so an action never also triggers the
  * containing row's `onRowSelect`.
  */
-export function ActionButtonGroup({ actions, overflow, segmented = false }: ActionButtonGroupProps) {
+export function ActionButtonGroup({ actions, overflow, segmented = false, size = 'sm' }: ActionButtonGroupProps) {
   const buttons = actions.filter((action) => actionWeight(action) !== 'overflow');
   const demoted: MenuEntry[] = actions
     .filter((action) => actionWeight(action) === 'overflow')
@@ -110,7 +120,7 @@ export function ActionButtonGroup({ actions, overflow, segmented = false }: Acti
           action.id,
           <Button
             key={action.id}
-            size="sm"
+            size={size}
             variant={weightVariant[actionWeight(action) as Exclude<ActionWeight, 'overflow'>]}
             disabled={action.disabled}
             description={action.disabled ? action.disabledReason : undefined}

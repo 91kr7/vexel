@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import '../truncation.css';
 import './section-header.css';
 
 export interface SectionHeaderProps {
@@ -16,6 +17,12 @@ export interface SectionHeaderProps {
   trailing?: ReactNode;
   /** `eyebrow` renders a small uppercase label for a column/group heading instead of a full title. */
   variant?: 'default' | 'eyebrow';
+  /**
+   * The title gives way instead of pushing what sits beside it out of place: it
+   * keeps one line and ellipsises at its end. For a header standing in a row
+   * with something anchored to its right.
+   */
+  truncate?: boolean;
 }
 
 /**
@@ -26,12 +33,18 @@ export interface SectionHeaderProps {
  * this component (see `Card`), so a screen that titles a section has one
  * component to reach for and no local treatment to invent.
  */
-export function SectionHeader({ title, sublabel, description, trailing, variant = 'default' }: SectionHeaderProps) {
-  const className = variant === 'eyebrow' ? 'ui-section-header ui-section-header--eyebrow' : 'ui-section-header';
+export function SectionHeader({ title, sublabel, description, trailing, variant = 'default', truncate = false }: SectionHeaderProps) {
+  const className = [
+    'ui-section-header',
+    variant === 'eyebrow' ? 'ui-section-header--eyebrow' : '',
+    truncate ? 'ui-section-header--truncate' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
   return (
     <div className={className}>
-      <div>
-        <h2 className="ui-section-header__title">
+      <div className="ui-section-header__text">
+        <h2 className={truncate ? 'ui-section-header__title ui-truncating-line' : 'ui-section-header__title'} title={truncate ? title : undefined}>
           {title}
           {sublabel ? <span className="ui-section-header__sublabel">{sublabel}</span> : null}
         </h2>

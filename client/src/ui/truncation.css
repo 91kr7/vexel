@@ -56,3 +56,17 @@
 .ui-truncating-meta {
   flex: none;
 }
+
+/* Truncating at the **front**, on a line that already carries `.ui-truncating-line`.
+   For a value whose tail is what identifies it — an image reference, where the
+   registry host is the sacrificial half and `name:tag` is the half that says
+   which image this is — a default end-ellipsis throws away the only part worth
+   reading. `direction: rtl` moves the overflow, and with it the ellipsis, to the
+   start of the line; `text-align: left` keeps the line itself where it was. The
+   value's own characters stay in reading order, being strong left-to-right; a
+   value made only of neutral characters (punctuation, digits alone) is not a
+   case this covers. */
+.ui-truncating-line--start {
+  direction: rtl;
+  text-align: left;
+}

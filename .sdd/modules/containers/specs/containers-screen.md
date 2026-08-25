@@ -30,8 +30,8 @@ Shows:
 - One card per matching container, whose own arrangement and values are `container-card.md`'s. Every
   value the delivered table row showed is on it — state, name, image reference, its ports, the
   status/uptime sentence, CPU and memory — and it adds NET I/O, the CPU and memory capacities and a
-  fill against each. Past four ports the card draws three and a `+n` (`container-card.md`); the full
-  set is in the detail panel.
+  fill against each. Past three ports the card draws two and a `+n` (`container-card.md`, where the number is a
+  measurement of the row's one line); the full set is in the detail panel.
 - **Three lifecycle slots, fixed in number, order and position on every card and in every state** —
   the state-appropriate run/halt action, then `Pause`, then `Restart`. An action the state does not
   allow keeps its slot, disabled, stating why. The legality is the one the delivered row already
@@ -95,9 +95,11 @@ Actions:
   read.
 - Every disabled control — button or menu entry — carries the reason it is unavailable, so a greyed
   control is legible as "not now, because…" rather than as broken.
-- The card's action cluster is the card's only action-bearing area: nothing else on the card is
-  clickable except the card itself, which opens the detail panel. A click on any of the four
-  controls never also selects the card.
+- The card's **footer** is the card's only action-bearing area: nothing else on the card is
+  clickable except the card itself, which opens the detail panel — and the inert detail control at
+  the card's top right, which swallows its own click and does nothing with it (`container-card.md`,
+  a decision of the human's dated 2026-08-25). A click on any of the four controls never also
+  selects the card.
 - A menu's entries are bound to the container its card was rendered for, so the list re-reading or
   re-sorting under an open menu can never point an entry at another container; the menu belongs to
   the card's identity (the container id) and goes with it if that container leaves the list.
@@ -113,10 +115,11 @@ Actions:
 - **Three cards to a row, against the mock's one card at full width** — a departure decided by the
   human on the running product on 2026-08-25, on evidence the mock could not supply: at full width
   the three metric columns spread across ~1000px, leaving a void in the middle with `NET I/O` pushed
-  to the far right. The mock stays normative for everything else — the bands, their contents, their
-  order, the accent bar, the action arrangement and the *no sample* state. The metrics are
-  consequently **stacked** on the card rather than laid side by side (`container-card.md`), the
-  second half of the same departure.
+  to the far right. The metrics are consequently **stacked** on the card rather than laid side by
+  side (`container-card.md`), the second half of the same departure.
+- **The card's internal arrangement is `containers-refactor-b3.png`'s, from 2026-08-25**, the
+  original `containers-refactor.png` standing as the record of what was first asked. This screen
+  composes the cards and the grid; which band an element of a card sits in is `container-card.md`'s.
 - **The cards of a row are equal in height; rows are not equal to each other.** No minimum height is
   imposed on a card. The alternative — one height for every card on the screen — was put to the human
   and refused: rows that match, at the cost of empty space inside most cards.

@@ -15,6 +15,20 @@ type: UI component
   (default `'md'`) — `'sm'` is a compact variant sized for inline use inside dense content (e.g. a
   table cell); `disabled?: boolean` (default `false`) disables the native button.
 
+## Rules and invariants
+
+- **The size decides the rounding, and there is one rule per size.** The compact box takes the
+  tighter radius of the library's scale, because the ordinary one is 42% of a 24px square's own side
+  and reads as a soft blob rather than as a quiet control — measured beside a card's name, 23.2px
+  tall, which the control was already taller than (2026-08-25). It is declared on the **size**, not
+  on a variant of the one call site that noticed: every compact icon button in the product is the
+  same box, and the reasoning belongs to the box rather than to the caller. Neither size states a
+  radius of its own invention; both name a step of the scale.
+- A control given no `onClick` renders **present and inert** rather than disabled: it takes every
+  treatment an operable one takes and does nothing when pressed. That is a legitimate state to ask
+  for — a control whose behaviour arrives later — and it is the caller's business to record why,
+  where a reader will find it.
+
 ## Requirements served
 
 - plan-docker_management_app/REQ-6

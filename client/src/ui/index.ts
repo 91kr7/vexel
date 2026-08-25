@@ -127,6 +127,7 @@ export {
   type MetricStripColumn,
   type MetricStripReading,
   type MetricStripReadings,
+  type MetricStripRow,
 } from './metrics/MetricStrip';
 export { Sparkline, type SparklineProps } from './metrics/Sparkline';
 export { UsageBreakdown, type UsageBreakdownProps, type UsageBreakdownItem } from './metrics/UsageBreakdown';

@@ -18,7 +18,7 @@ too (see `form-section.md`), and a field's label is a label rather than a fourth
 
 ## Contract
 
-- `<SectionHeader title sublabel? description? trailing? variant? />`
+- `<SectionHeader title sublabel? description? trailing? variant? truncate? />`
   - `title: string`.
   - `sublabel?: string` — a qualifier belonging to the title: what the section holds, a count, a
     scope. Rendered **on the title's own line and its own baseline**, in a smaller muted treatment.
@@ -26,6 +26,10 @@ too (see `form-section.md`), and a field's label is a label rather than a fourth
   - `trailing?: ReactNode` — the section's actions.
   - `variant?: 'default' | 'eyebrow'` (default `'default'`) — `'eyebrow'` is the small uppercase
     label for a column or group heading rather than a full title.
+  - `truncate?: boolean` (default `false`) — the title gives way instead of pushing what stands
+    beside it out of place: it keeps one line and ellipsises at its end, carrying the whole title as
+    its `title` attribute. For a header standing in a row with something anchored to its right — a
+    card's name against its identifier. A header that does not ask for it wraps as it always did.
 
 ## Rules and invariants
 
@@ -35,6 +39,10 @@ too (see `form-section.md`), and a field's label is a label rather than a fourth
   prevent, measured rather than judged by eye.
 - The space before the sublabel is a margin, not a text node, so it survives a line break between
   the title and its qualifier.
+- **`truncate` is the library's one truncation contract, applied** (`truncation-contract.md`): the
+  line class on the title, and the minimum widths without which a flex item never shrinks far enough
+  for an ellipsis to appear. The header declares no ellipsis of its own, and the value stays
+  obtainable in full on the object's detail surface.
 - The sublabel resets the treatment the header's variant applies to the title (letter-spacing, case),
   so an eyebrow header's sublabel reads as a qualifier rather than as more of the same label.
 - **No other component carries a heading treatment.** `Card` used to render a title through this one;

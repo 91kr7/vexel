@@ -20,7 +20,8 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   - `state`: `'created' | 'running' | 'paused' | 'restarting' | 'removing' | 'exited' | 'dead'`.
   - `status` is the daemon's own human-readable status text (e.g. `"Up 3 days"`,
     `"Exited (0) 2 hours ago"`).
-  - `ports`: `{ privatePort, publicPort?, type }[]`, **each mapping appearing exactly once**.
+  - `ports`: `{ privatePort, publicPort?, type }[]`, **each mapping appearing exactly once**, in a
+    **total order of this service's own**: by private port, then public port, then protocol.
   - `cpuPercent`/`memoryUsageBytes`/`memoryLimitBytes`/`onlineCpus`/`networkRxBytes`/
     `networkTxBytes` are present only for a `running` container that the sampler has read at least
     once since it started running; all six come from **one** sample and are absent together.
@@ -90,6 +91,19 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   rather than escaping it. This is a rule about **this shape only**: `inspectContainer`'s bindings
   carry the host IP, so they are not indistinguishable and are not collapsed — the detail panel still
   shows a dual-stack publication as the two bindings it is.
+- **`ports` is ordered by this service, and the order is imposed rather than observed.** The
+  daemon's own order is **not stable across reads**: three consecutive reads of the same unchanged
+  container return the same mappings rotated. That is invisible to a consumer showing all of them
+  and decisive for one showing a **subset** — the containers card draws the first two mappings and
+  then a `+n`, so an unstable order hands it a *different subset* each poll and two chips swap
+  identity while the container has not changed (found 2026-08-25 on the running product, measured
+  over three consecutive reads). Sorting by private port, then public port, then protocol makes the
+  key **total**: no two mappings of one container can tie, so the sequence is identical read to
+  read, a subset of it is the same subset, and the detail panel agrees with the card by
+  construction instead of by coincidence. The delivered table read the same field in the same
+  unstable order and simply never showed the instability; it is deterministic now too. **A later
+  reader must not remove this sort as redundant** — what it prevents cannot be seen in a single
+  read.
 - **The widened fields cost the daemon nothing** (plan-docker_management_app-containers_card_view/REQ-13).
   `onlineCpus` and the network totals are read out of the **same stats frame** the sampler already
   fetched for `cpuPercent` — the CPU count was computed inside it and thrown away, the `networks`

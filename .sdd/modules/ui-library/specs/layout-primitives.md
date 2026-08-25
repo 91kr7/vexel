@@ -18,9 +18,15 @@ writing a wrapper `<div>`.
     than by a control of its own — for a stack that *is* a list whose expansion opens inside it. It
     adds no stop of its own to the tab order, and a stack that does not ask for it renders exactly
     what it rendered before the prop existed.
-- `<Row gap? align? justify? wrap? onClick? children?>` — horizontal flex row; `align`: `'start' |
-  'center'`; `justify`: `'start' | 'between'`; `wrap`: boolean (default `false`); `onClick?` — passed
-  through to the underlying element (e.g. to stop propagation inside a clickable ancestor).
+- `<Row gap? align? justify? wrap? truncating? onClick? children?>` — horizontal flex row; `align`:
+  `'start' | 'center'`; `justify`: `'start' | 'between'`; `wrap`: boolean (default `false`);
+  `onClick?` — passed through to the underlying element (e.g. to stop propagation inside a clickable
+  ancestor).
+  - `truncating?: boolean` (default `false`) — applies the library's truncation contract
+    (`truncation-contract.md`) to the row's own groups, **read positionally**: the last group is the
+    trailing metadata and keeps its natural width, every group before it may shrink. That is what
+    lets a name ellipsise while the identifier anchored to the right of it never does. A row that
+    does not ask for it renders exactly what it rendered before the prop existed.
 - `<Grid columns? gap? arrangement? dismissalFocusTarget? children?>` — CSS grid; `columns` is a
   `grid-template-columns` value (default `repeat(auto-fill, minmax(220px, 1fr))`).
   - `arrangement?: 'pair' | 'even-row' | 'cards'` — a **named** arrangement the library owns end to
@@ -46,6 +52,10 @@ writing a wrapper `<div>`.
 
 ## Rules and invariants
 
+- **`Row`'s `truncating` is positional, and deliberately so.** The contract's own classes are put on
+  the run and the meta by the component that draws them; a row whose groups are composed by its
+  caller has no way to hand them out, so the row reads the order instead. A caller that wants the
+  first group anchored has the groups in the wrong order, not a missing prop.
 - `Stack`'s `dismissalFocusTarget` is the same contract `DataTable` already carries for its own list
   region, taken from the one place that defines it (`escape-arbitration`): the stack knows nothing
   about panels, and the panel knows nothing about the stack.
