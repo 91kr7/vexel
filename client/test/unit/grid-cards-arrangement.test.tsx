@@ -7,15 +7,9 @@ import { Grid, GridSpan } from '../../src/ui';
 afterEach(cleanup);
 
 /**
- * `ui-library/specs/layout-primitives.md` — "`cards` — a list of entity cards, **three to a row**;
- * two tracks where three would each fall under a readable card width (≤1200px), one below the phone
- * breakpoint. Every card of a row is as tall as the tallest card of that row; rows are **not**
- * matched to each other and no minimum height is imposed."
- * (`plan-docker_management_app-containers_card_view/REQ-1`, `REQ-23`, `REQ-32`).
- *
- * jsdom performs no layout, so what a track *resolves* to is measured in the browser
- * (`e2e/containers-card-geometry.spec.ts`). What is pinned here is what the arrangement is required
- * to declare — a stated count rather than an auto-fit, and the two breakpoints that change it.
+ * `ui-library/specs/layout-primitives.md`'s `cards` arrangement and `GridSpan`. jsdom performs no
+ * layout, so what a track resolves to is measured in `e2e/containers-card-geometry.spec.ts`; what is
+ * pinned here is what the arrangement is required to declare.
  */
 
 /** The style rules of the layout stylesheet, selector and declarations, comments stripped. */
@@ -64,8 +58,7 @@ describe('Grid — the cards arrangement (containers_card_view/REQ-1)', () => {
     expect(grid.style.gap, "the caller's gap reached the element").toBe('');
   });
 
-  // "three to a row; two tracks at ≤1200px, one below the phone breakpoint" — the count is stated,
-  // never discovered from whatever the widest card's content happened to be.
+  // layout-primitives.md — the count is stated rather than auto-fitted, and changes at two widths.
   it('states three tracks, two at 1200px and one at the phone breakpoint, and auto-fits nothing', () => {
     const base = declarationsOf('.ui-grid--cards');
 
@@ -76,7 +69,7 @@ describe('Grid — the cards arrangement (containers_card_view/REQ-1)', () => {
     expect(trackCount(declarationsOf('.ui-grid--cards', /max-width:\s*720px/))).toBe(1);
   });
 
-  // "Its two breakpoints are the only widths at which the stated count changes."
+  // layout-primitives.md — those two breakpoints are the only widths at which the count changes.
   it('changes its count at those two widths and at no third one', () => {
     const widths = layoutRules()
       .filter((rule) => rule.selector.split(',').some((one) => one.trim() === '.ui-grid--cards'))
@@ -86,8 +79,7 @@ describe('Grid — the cards arrangement (containers_card_view/REQ-1)', () => {
     expect(new Set(widths)).toEqual(new Set(['1200', '720']));
   });
 
-  // "Every card of a row is as tall as the tallest card of that row; rows are not matched to each
-  // other and no minimum height is imposed."
+  // layout-primitives.md — heights are equalised per row, and no minimum height is imposed.
   it('equalises the cards of a row and imposes no height of its own', () => {
     const base = declarationsOf('.ui-grid--cards');
 

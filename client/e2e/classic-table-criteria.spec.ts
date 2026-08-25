@@ -5,10 +5,7 @@
  * … `REQ-6`, `REQ-8` … `REQ-12`, `REQ-14`, `REQ-15`, `REQ-29`, `REQ-30`,
  * `REQ-32`, `REQ-36`, `REQ-39`, `REQ-40`).
  *
- * **Every character on these screens is identical before and after**, so
- * *"eleven volumes are listed"* and *"the mount path is displayed"* are true of
- * the build the human rejected. What changed is the boxes, so what is asserted
- * here is boxes: the gap between two rows, the corners a row carries, the number
+ * **What changed is the boxes, not the characters**, so what is asserted here is boxes: the gap between two rows, the corners a row carries, the number
  * of enclosing surfaces, the distance between a header cell's left edge and its
  * column's, and the row's own height and alignment. Content assertions stand
  * **beside** them and never instead of them (REQ-30).
@@ -21,11 +18,6 @@
  * the reference legitimately changes. That is the whole correction the 2026-08-16
  * amendment makes: the first attempt met four geometric criteria, measured, and
  * was still not the containers table.
- *
- * **The delivered build is measured too, and recorded failing** (REQ-29): the
- * revision this branch left is checked out, built and served on a port of its
- * own (`support/delivered-build.ts`), and the same figures are read on it. A
- * "before: failed" with no numbers is not evidence on a layout defect.
  *
  * Every interaction is driven with a **real pointer at the visible control's own
  * coordinates**, never `element.click()` and never a dispatched event
@@ -55,7 +47,6 @@ import { startRegistryFixtureServer, type RegistryFixtureServer } from './suppor
 // browses the same list, and two definitions of the same two rows would drift.
 // The rows, the routes and the reason no test reaches Docker Hub are unchanged.
 import { stubRepositories } from './support/screen-inventories.js';
-import { startDeliveredBuild, type DeliveredBuild } from './support/delivered-build.js';
 import {
   expectLinesReadAsLines,
   expectNothingClippedOrOverlapped,
@@ -79,12 +70,6 @@ import {
   type ListGeometry,
   type Viewport,
 } from './support/classic-table.js';
-
-/**
- * The revision the batch was implemented on top of — the merge this branch
- * starts from, byte-identical over `client/` and `server/` to the plan commit.
- */
-const DELIVERED_REF = process.env.VEXEL_DELIVERED_REF ?? 'd17e1df';
 
 const DESKTOP: Viewport = VIEWPORTS[0];
 const PHONE: Viewport = VIEWPORTS[2];
@@ -571,112 +556,11 @@ test('the certified predecessors still hold on these rows and the panels they op
   expectLinesReadAsLines(section, 'volumes → inline inspect, at 1440×1000');
 });
 
-/**
- * REQ-29 — the delivered figures, on record, before the change.
- *
- * The build this branch started from is checked out, built and served on a port
- * of its own, and the same measurements are read on it. Both halves are asserted:
- * the criteria **fail** there — which is what makes this check discriminating
- * rather than merely green — and they hold on the build under test, with the
- * reference's own figures beside them.
- */
-test('the delivered build fails these criteria, and the numbers are on record', async ({ page, browser, baseURL }) => {
+// plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-29 — the converted
+// lists, measured against the reference read in the same run.
+test('the converted lists hold the criteria, with the reference’s own figures beside them', async ({ page, browser, baseURL }) => {
   test.setTimeout(600_000);
-  expect(baseURL, 'this run has no origin of its own to compare the delivered build against').toBeTruthy();
-  let delivered: DeliveredBuild | undefined;
-  try {
-    delivered = await startDeliveredBuild({ revision: DELIVERED_REF });
-    const context = await browser.newContext({ baseURL: delivered.origin, viewport: DESKTOP });
-    const before = await context.newPage();
-    try {
-      await openApp(before, 'volumes-networks');
-      await expect(before.getByRole('heading', { level: 1, name: 'Volumes & networks' })).toBeVisible({ timeout: 30_000 });
-      const deliveredVolumes = await settledList(before, LISTS.volumes);
-      const deliveredNetworks = await settledList(before, LISTS.networks);
-      reportList(`delivered ${delivered.revision.slice(0, 7)}`, 'volumes', deliveredVolumes);
-      reportList(`delivered ${delivered.revision.slice(0, 7)}`, 'networks', deliveredNetworks);
-
-      // Recorded failing, with its measurements — not "before: failed".
-      expect(deliveredVolumes.rows.length, 'the delivered build listed fewer than two volumes').toBeGreaterThan(1);
-      expect(
-        deliveredVolumes.rowJunctions.map((junction) => round(junction.gap)).filter((gap) => gap > 0.5).length,
-        'the delivered build already drew its volume rows flush, so this check discriminates nothing',
-      ).toBeGreaterThan(0);
-      expect(
-        Math.max(...deliveredVolumes.rows.map((row) => row.carrierRadius)),
-        'the delivered build already drew square volume rows',
-      ).toBeGreaterThan(0);
-      expect(deliveredVolumes.surfacesInside, 'the delivered build already drew no surface inside its list').toBeGreaterThan(0);
-      // …and the two the amendment added, which the first attempt satisfied the
-      // four geometric criteria without satisfying.
-      expect(
-        deliveredVolumes.rows.every((row) => row.modifiers.length === 0),
-        'the delivered build already stated no row modifier',
-      ).toBe(false);
-      expect(
-        Math.abs(deliveredVolumes.table.x - (deliveredVolumes.card?.x ?? 0)),
-        'the delivered build already ran its table edge to edge in its card',
-      ).toBeGreaterThan(1);
-      expect(
-        deliveredVolumes.sectionHeaderInsideCard,
-        'the delivered build already put the section header outside the list’s card',
-      ).toBe(true);
-    } finally {
-      await context.close();
-    }
-
-    // The fourth converted list's own before-figures.
-    //
-    // **These rows are stubbed, where every other list's are real fixtures**, and
-    // the reason is the same one `registries-row-geometry.spec.ts` states: the
-    // only registry every machine has configured is the public index, and no test
-    // here reaches it (CLAUDE.md, "No test reaches Docker Hub"). The stub is
-    // `stubRepositories` — **the same one the after-pass below uses**, so the two
-    // readings differ in the build and in nothing else — and it serves the browse
-    // endpoints alone: the table, its card and the tag chips under each row are
-    // the product's own.
-    const deliveredRegistries = await openRegistries(browser, DESKTOP, delivered.origin);
-    try {
-      const beforeRepositories = await settledList(deliveredRegistries.page, LISTS.repositories);
-      const beforeRegistries = await settledList(deliveredRegistries.page, LISTS.registries);
-      reportList(`delivered ${delivered.revision.slice(0, 7)}`, 'registries', beforeRegistries);
-      reportList(`delivered ${delivered.revision.slice(0, 7)}`, 'repositories', beforeRepositories);
-
-      expect(beforeRepositories.rows.length, 'the stub put fewer than two repositories on the delivered build').toBeGreaterThan(1);
-      expect(
-        beforeRepositories.rowJunctions.map((junction) => round(junction.gap)).filter((gap) => gap > 0.5).length,
-        'the delivered build already drew its repository rows flush',
-      ).toBeGreaterThan(0);
-      expect(
-        Math.max(...beforeRepositories.rows.map((row) => row.carrierRadius)),
-        'the delivered build already drew square repository rows',
-      ).toBeGreaterThan(0);
-      expect(
-        beforeRepositories.surfacesInside,
-        'the delivered build already drew no surface inside its repositories list',
-      ).toBeGreaterThan(0);
-      expect(
-        beforeRepositories.rows.every((row) => row.modifiers.length === 0),
-        'the delivered build already stated no row modifier on a repository row',
-      ).toBe(false);
-      expect(
-        Math.abs(beforeRepositories.table.x - (beforeRepositories.card?.x ?? 0)),
-        'the delivered build already ran the repositories table edge to edge in its card',
-      ).toBeGreaterThan(1);
-      // …and the content below those rows was there before, which is the count the
-      // conversion has to reproduce rather than merely not error on.
-      expect(
-        beforeRepositories.rowContentBlocks,
-        'the delivered build drew no tag chips under its repository rows, so the count after proves nothing',
-      ).toBe(beforeRepositories.rows.length);
-    } finally {
-      await deliveredRegistries.close();
-    }
-  } finally {
-    await delivered?.stop();
-  }
-
-  // …and the same figures on the build under test, measured minutes apart against the same daemon.
+  expect(baseURL, 'this run has no origin of its own').toBeTruthy();
   await page.setViewportSize(DESKTOP);
   await openApp(page, 'images-layers');
   await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible({ timeout: 20_000 });
@@ -694,10 +578,7 @@ test('the delivered build fails these criteria, and the numbers are on record', 
   expectSameTableAsReference('after', 'volumes', volumes, [{ name: 'images', list: reference }]);
   expectSameTableAsReference('after', 'networks', networks, [{ name: 'images', list: reference }]);
 
-  // The repositories list's after-figures, read through **the same stub** and on
-  // the operator's own registry inventory, exactly as the before-pass read them:
-  // the two sides differ in the build and in nothing else. (Its rows are stubbed;
-  // the note above the before-pass says why, and it applies to both.)
+  // Stubbed rows: the only registry every machine has configured is the public index.
   const afterRegistries = await openRegistries(browser, DESKTOP, baseURL as string);
   try {
     const repositories = await settledList(afterRegistries.page, LISTS.repositories);
@@ -706,7 +587,7 @@ test('the delivered build fails these criteria, and the numbers are on record', 
     expectSameTableAsReference('after', 'repositories', repositories, [{ name: 'images', list: reference }]);
     expect(
       repositories.rowContentBlocks,
-      `after: ${repositories.rowContentBlocks} tag group(s) under ${repositories.rows.length} repository row(s), where the delivered build drew one per row`,
+      `after: ${repositories.rowContentBlocks} tag group(s) under ${repositories.rows.length} repository row(s), where one per row is required`,
     ).toBe(repositories.rows.length);
   } finally {
     await afterRegistries.close();

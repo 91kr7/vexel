@@ -3,15 +3,6 @@
  * and everything else it stated said in the same words
  * (`plan-ui-coherence-optimisation/REQ-70`, `REQ-71`, `REQ-72`).
  *
- * Two of the three claims are **negative** — a treatment that is no longer
- * drawn, a panel that is no longer there — and a negative claim about an
- * interface can only be checked against the build that came before it. So the
- * predecessor is checked out, built and served on a port of its own
- * (`support/delivered-build.ts`, the same one `library-layer-screens-unmoved`
- * uses), and each claim is measured on both: what the delivered build drew is
- * asserted as the **premise**, so a check that would have passed before the
- * batch fails here rather than certifying it.
- *
  * A "treatment" is what the browser resolves, not what the source says: the
  * font, its size, its weight, its letter-spacing, the case the element is drawn
  * in and the colour it is drawn in. Two titles are in one treatment when all of
@@ -24,13 +15,11 @@
  * unchanged where it stays — is the assertion that moved to the Dashboard with
  * it (`connectivity.spec.ts`, `plan-docker_management_app/REQ-11`, `REQ-12`).
  *
- * Nothing here creates a fixture on the daemon: the screens are read as the
- * operator's own daemon fills them, and both builds read the same one.
+ * Nothing here creates a fixture on the daemon: the screens are read as the operator's own fills them.
  */
 import { expect, test, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
 import { boxOf } from './support/settled.js';
-import { startDeliveredBuild, type DeliveredBuild } from './support/delivered-build.js';
 
 /** The screen's internal id, which the rename to "About" deliberately left alone. */
 const ABOUT_SCREEN_ID = 'coverage-matrix';
@@ -199,11 +188,6 @@ async function readCard(page: Page, title: string): Promise<string | null> {
   }, title);
 }
 
-/** The running version is the one part of the notice entitled to differ between two builds. */
-function withoutVersion(text: string): string {
-  return text.replace(/version \d+\.\d+\.\d+/gi, 'version <build>');
-}
-
 /**
  * The About screen, once every read behind it has settled: the connectivity
  * probe fills the CLI availability card, and the baseline read fills the
@@ -234,41 +218,17 @@ function describeTreatments(titles: SectionTitle[]): string {
 }
 
 test.describe('F16 — About states one thing one way', () => {
-  let delivered: DeliveredBuild;
-
-  test.beforeAll(async () => {
-    delivered = await startDeliveredBuild();
-  });
-
-  test.afterAll(async () => {
-    await delivered?.stop();
-  });
-
   // plan-ui-coherence-optimisation/REQ-70, REQ-26 — every section title of this screen renders in
   // one treatment, the primitive's, and none of them is styled locally
-  test('every section title on the About screen renders in one treatment', async ({ browser, page }) => {
+  test('every section title on the About screen renders in one treatment', async ({ page }) => {
     test.setTimeout(300_000);
-    const deliveredContext = await browser.newContext({ baseURL: delivered.origin });
-    const before = await deliveredContext.newPage();
-
-    try {
-      await openAbout(before);
+    {
       await openAbout(page);
-      const deliveredTitles = await measureTitles(before);
       const titles = await measureTitles(page);
 
       console.log(
-        `[REQ-70] delivered (${delivered.revision.slice(0, 7)}): ${deliveredTitles.length} section title(s) in ` +
-          `${treatmentsOf(deliveredTitles).size} treatment(s) — ${describeTreatments(deliveredTitles)}`,
-      );
-      console.log(
         `[REQ-70] now: ${titles.length} section title(s) in ${treatmentsOf(titles).size} treatment(s) — ${describeTreatments(titles)}`,
       );
-
-      expect(
-        treatmentsOf(deliveredTitles).size,
-        'the delivered build already titled every section of this screen one way, so REQ-70 has nothing to repair here',
-      ).toBeGreaterThan(1);
 
       expect(treatmentsOf(titles).size, 'the screen carries more than one section-header treatment').toBe(1);
       expect(titles.map((title) => title.text), 'the screen draws a different set of sections').toEqual(SECTIONS);
@@ -290,27 +250,14 @@ test.describe('F16 — About states one thing one way', () => {
           expect(title.y, `"${title.text}" is not drawn under "${titles[index - 1]!.text}"`).toBeGreaterThan(titles[index - 1]!.y);
         }
       });
-    } finally {
-      await deliveredContext.close();
     }
   });
 
   // plan-ui-coherence-optimisation/REQ-71 — the daemon event stream is presented in one place in
   // the product, and that place is the Dashboard
-  test('no daemon event stream is drawn on About, and exactly one screen draws one', async ({ browser, page }) => {
+  test('no daemon event stream is drawn on About, and exactly one screen draws one', async ({ page }) => {
     test.setTimeout(300_000);
-    const deliveredContext = await browser.newContext({ baseURL: delivered.origin });
-    const before = await deliveredContext.newPage();
-
-    try {
-      await openAbout(before);
-      const deliveredStream = await measureStreamPresence(before);
-      console.log(
-        `[REQ-71] delivered (${delivered.revision.slice(0, 7)}): About presents ${deliveredStream.panels} stream panel(s), ` +
-          `drawing ${deliveredStream.surfaces} stream surface(s)`,
-      );
-      expect(deliveredStream.panels, 'the delivered build presented no stream on About, so REQ-71 has nothing to remove here').toBe(1);
-
+    {
       const presentedBy: string[] = [];
       const surfacesDrawnBy: string[] = [];
       for (const screen of SCREENS) {
@@ -330,56 +277,31 @@ test.describe('F16 — About states one thing one way', () => {
         surfacesDrawnBy.filter((screen) => !screen.startsWith('Dashboard')),
         'a stream surface is drawn on a screen that does not present the stream',
       ).toEqual([]);
-    } finally {
-      await deliveredContext.close();
     }
   });
 
-  // plan-ui-coherence-optimisation/REQ-72 — everything else About states is preserved, in the same
-  // words: the notice, the identity and licence block, and the CLI availability block
-  test('everything else the About screen states reads exactly as the delivered build states it', async ({ browser, page }) => {
+  // plan-ui-coherence-optimisation/REQ-72 — everything else About states is preserved: the notice,
+  // the identity and licence block, and the CLI availability block
+  test('everything else the About screen states is still on it, in its own words', async ({ page }) => {
     test.setTimeout(300_000);
-    const deliveredContext = await browser.newContext({ baseURL: delivered.origin });
-    const before = await deliveredContext.newPage();
+    await openAbout(page);
 
-    try {
-      await openAbout(before);
-      await openAbout(page);
+    const notice = await readNotice(page, ATTRIBUTION);
+    expect(notice, 'the About screen draws no notice at all').not.toBeNull();
+    expect(notice!.body, 'the notice no longer carries the attribution term 1 specifies').toContain(ATTRIBUTION);
+    expect(notice!.routes.length, 'the notice no longer offers its three routes').toBe(3);
+    expect(notice!.body, 'the notice no longer states the running version beside its source').toMatch(/version \d+\.\d+\.\d+/);
 
-      const deliveredNotice = await readNotice(before, ATTRIBUTION);
-      const notice = await readNotice(page, ATTRIBUTION);
-      expect(deliveredNotice, 'the delivered build draws no notice to compare against').not.toBeNull();
-      expect(notice, 'the About screen draws no notice at all').not.toBeNull();
+    const cli = await readCard(page, 'CLI availability');
+    expect(cli, 'the CLI availability card is no longer on the screen').not.toBeNull();
 
-      // Compared against something rather than against nothing: an equality between two readings
-      // that both failed to find the notice's body would pass while measuring neither.
-      expect(deliveredNotice!.body, 'the delivered notice was read as an empty block').toContain(ATTRIBUTION);
-      expect(deliveredNotice!.routes.length, 'the delivered notice was read without its routes').toBe(3);
+    const storage = await readCard(page, 'Local storage');
+    expect(storage, 'the Local storage card is no longer on the screen').not.toBeNull();
+    expect(storage, 'the Local storage card no longer names the analysis cache').toContain('Analysis cache');
+    expect(storage, 'the Local storage card no longer offers its Clear action').toContain('Clear');
 
-      expect(withoutVersion(notice!.body), 'the notice no longer reads as the certified plan delivered it').toBe(
-        withoutVersion(deliveredNotice!.body),
-      );
-      expect(notice!.routes, 'the notice offers a different set of routes').toEqual(deliveredNotice!.routes);
-      expect(notice!.body, 'the notice no longer states the running version beside its source').toMatch(/version \d+\.\d+\.\d+/);
-
-      const deliveredCli = await readCard(before, 'CLI availability');
-      const cli = await readCard(page, 'CLI availability');
-      expect(deliveredCli, 'the delivered build draws no CLI availability card to compare against').not.toBeNull();
-      expect(cli, 'the CLI availability card is no longer on the screen').not.toBeNull();
-      expect(cli, 'the CLI availability block no longer states what it stated').toBe(deliveredCli);
-
-      const storage = await readCard(page, 'Local storage');
-      expect(storage, 'the Local storage card is no longer on the screen').not.toBeNull();
-      expect(storage, 'the Local storage card no longer names the analysis cache').toContain('Analysis cache');
-      expect(storage, 'the Local storage card no longer offers its Clear action').toContain('Clear');
-
-      const titles = await measureTitles(page);
-      expect(titles.map((title) => title.text), 'the screen lost or gained a section beyond the stream REQ-71 removes').toEqual(
-        SECTIONS,
-      );
-      expect(titles.map((title) => title.text), 'the removed section is still titled on the screen').not.toContain(REMOVED_SECTION);
-    } finally {
-      await deliveredContext.close();
-    }
+    const titles = await measureTitles(page);
+    expect(titles.map((title) => title.text), 'the screen lost or gained a section beyond the stream REQ-71 removes').toEqual(SECTIONS);
+    expect(titles.map((title) => title.text), 'the removed section is still titled on the screen').not.toContain(REMOVED_SECTION);
   });
 });

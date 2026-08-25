@@ -54,7 +54,6 @@ import { CASE_LABEL, OWNER_LABEL, RUN_ID, openApp, ownershipArgs } from './suppo
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { stubRepositories, stubTheInventories } from './support/screen-inventories.js';
-import { startDeliveredBuild, type DeliveredBuild } from './support/delivered-build.js';
 import { startRegistryFixtureServer, type RegistryFixtureServer } from './support/registry-fixture-server.js';
 import {
   buildEfficiencyFixtureImage,
@@ -81,11 +80,6 @@ import {
 
 const DESKTOP: Viewport = VIEWPORTS[0];
 const PHONE: Viewport = VIEWPORTS[2];
-
-/** The revision the plan was delivered on top of — the merge this branch starts from. */
-const DELIVERED_REF = process.env.VEXEL_DELIVERED_REF ?? 'd17e1df';
-/** Its own port: neither the suite's 3100, nor batches 1 to 4's 3101 to 3104. */
-const DELIVERED_PORT = Number(process.env.VEXEL_DELIVERED_SWEEP_PORT ?? 3105);
 
 const CASE_NAME = 'classic-table-sweep';
 const SUFFIX = RUN_ID.slice(-10);
@@ -506,93 +500,6 @@ for (const viewport of [DESKTOP, PHONE]) {
     }
   });
 }
-
-// ---------------------------------------------------------------------------
-// REQ-29 — the same walk on the build the report was written about.
-// ---------------------------------------------------------------------------
-
-/**
- * **The sweep's own criteria, observed red on the delivered build.**
- *
- * The four claims above are asserted over the whole product, so what makes them
- * criteria rather than descriptions is that the build this plan starts from
- * fails them — on every converted screen, not on one. `d17e1df` is checked out,
- * built, served on a port of its own and walked by **this same walker**, through
- * the same stubs: what differs between the two readings is the client build and
- * nothing else.
- *
- * Two stops of the walk above are deliberately not repeated here, each for a
- * stated reason rather than a convenience: the **registries** screen, whose rows
- * come from a fixture server serving the build under test (batch 1's criteria
- * file records its delivered figures), and the **efficiency dialog**, whose
- * delivered figures are recorded in full by
- * `classic-table-criteria-layer-efficiency.spec.ts`, analysis and all.
- */
-test('the delivered build fails this sweep, and the numbers are on record', async ({ browser, baseURL }) => {
-  test.setTimeout(1_800_000);
-  expect(baseURL, 'this run has no origin of its own to compare the delivered build against').toBeTruthy();
-  let delivered: DeliveredBuild | undefined;
-  try {
-    delivered = await startDeliveredBuild({ revision: DELIVERED_REF, port: DELIVERED_PORT });
-    const revision = delivered.revision.slice(0, 7);
-    const context = await browser.newContext({ baseURL: delivered.origin, viewport: DESKTOP });
-    const before = await context.newPage();
-    try {
-      await stubTheInventories(before);
-      await stubRepositories(before);
-
-      const offences: string[] = [];
-      const cleanScreens: string[] = [];
-      for (const stop of WALK) {
-        await openApp(before, stop.screen);
-        await expect(before.getByRole('heading', { level: 1, name: stop.heading })).toBeVisible({ timeout: 30_000 });
-        const found = await measureEveryList(before);
-        const converted = found.filter(({ list }) => excludedBy(list, stop.screen) === undefined);
-        expect(
-          converted.length,
-          `delivered ${revision} ${stop.screen}: ${converted.length} object list(s) found where the screen draws at least ${stop.lists}`,
-        ).toBeGreaterThanOrEqual(stop.lists);
-
-        for (const { name, list } of converted) {
-          const rowsOnASurface = list.rows.filter((row) => row.isSurface).length;
-          const gaps = list.rowJunctions.map((junction) => round(junction.gap)).filter((gap) => gap > 0.5).length;
-          const radius = Math.max(0, ...list.rows.map((row) => row.carrierRadius));
-          const modifiers = [...new Set(list.rows.flatMap((row) => row.modifiers))];
-          const inset = list.card ? round(list.table.x - list.card.x) : Number.NaN;
-          console.log(
-            `[b4/REQ-29] delivered ${revision} ${stop.screen} · ${name}: ${list.rows.length} row(s), ${rowsOnASurface} on a surface of their own, ` +
-              `${gaps} gap(s), worst corner ${round(radius)}px, modifiers ${JSON.stringify(modifiers)}, table inset ${round(inset)}px in its surface`,
-          );
-          if (rowsOnASurface > 0 || gaps > 0 || radius > 0 || modifiers.length > 0) {
-            offences.push(`${stop.screen} · ${name}`);
-          } else {
-            cleanScreens.push(`${stop.screen} · ${name}`);
-          }
-        }
-      }
-
-      console.log(
-        `[b4/REQ-29] delivered ${revision}: ${offences.length} list(s) drawn the retired way, ${cleanScreens.length} already the reference — ` +
-          `${JSON.stringify(offences)} against ${JSON.stringify(cleanScreens)}`,
-      );
-      // The lists the reference itself is made of were already the classic table
-      // on the delivered build — that is what makes them the reference — so the
-      // claim is about the **converted** ones, and it is that every screen the
-      // plan touched failed there.
-      const referenceLists = cleanScreens.filter((name) => name.startsWith('containers ·') || name.startsWith('images-layers ·'));
-      expect(referenceLists.length, `delivered ${revision}: the reference lists were not already the classic table there`).toBe(2);
-      expect(
-        cleanScreens.filter((name) => !referenceLists.includes(name)),
-        `delivered ${revision}: a converted list already satisfied this sweep, so it discriminates nothing there`,
-      ).toEqual([]);
-      expect(offences.length, `delivered ${revision}: the sweep found nothing drawn the retired way`).toBeGreaterThan(10);
-    } finally {
-      await context.close();
-    }
-  } finally {
-    await delivered?.stop();
-  }
-});
 
 /**
  * **The three exclusions the walk cannot meet, met on purpose** — so that

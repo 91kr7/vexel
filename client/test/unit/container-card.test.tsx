@@ -8,14 +8,8 @@ import type { ContainerSummary } from '../../src/data/containers-client';
 import type { MenuEntry, RowAction } from '../../src/ui';
 
 /**
- * `containers/specs/container-card.md` — the rules the card decides for itself: which state maps to
- * which tone (and the four the mock never drew), how a port is worded, how a figure is stated over
- * its capacity, and how "nothing was measured" is told apart from a measured zero.
- *
- * The arrangement asserted here is the one `containers-refactor-b3.png` fixes: identity → state and
- * duration → image → metrics → footer actions. Its **measured** form — bands, columns, edges, the
- * cluster flush right — is `client/e2e/containers-card-geometry.spec.ts`; jsdom lays nothing out, so
- * what is checked here is what the card says, in which order, and in which treatment.
+ * `containers/specs/container-card.md` — what the card says, in which order and in which treatment.
+ * Its measured arrangement is `client/e2e/containers-card-geometry.spec.ts`; jsdom lays nothing out.
  */
 
 afterEach(cleanup);
@@ -58,7 +52,7 @@ function renderCard(container: ContainerSummary, props: Partial<Parameters<typeo
   return view.container.querySelector<HTMLElement>('.ui-surface')!;
 }
 
-/** The card's content bands, in the order they are drawn — the footer is not one of them. */
+/** The card's content bands, in the order they are drawn; the footer is not one of them. */
 function contentBands(card: HTMLElement): HTMLElement[] {
   const body = card.querySelector<HTMLElement>('.ui-surface__body')!;
   return Array.from((body.firstElementChild as HTMLElement).children) as HTMLElement[];
@@ -82,9 +76,7 @@ function portChips(card: HTMLElement): string[] {
   return Array.from(portsRow(card).querySelectorAll('.ui-chip')).map((chip) => chip.textContent ?? '');
 }
 
-// container-card.md — "one rule maps state to presentation, and the dot, the pill and the accent
-// always agree… every state the product can display has an entry", the metric fills taking that
-// same tone (REQ-18, REQ-19).
+// container-card.md — one state, one tone, on every state the product can display (REQ-18, REQ-19).
 describe('ContainerCard — one state, one tone, on every state the product can display (REQ-18, REQ-19)', () => {
   const STATES: Array<{ state: ContainerSummary['state']; tone: string }> = [
     { state: 'running', tone: 'success' },
@@ -103,10 +95,9 @@ describe('ContainerCard — one state, one tone, on every state the product can 
     expect(card.querySelector('.ui-table-status-dot')?.className).toContain(`ui-table-status-dot--tone-${tone}`);
     const pill = card.querySelector('.ui-badge') as HTMLElement;
     expect(pill.textContent).toBe(state.toUpperCase());
-    // No card shows two states at once: exactly one accent class, one dot, one pill.
-    expect(card.className.match(/ui-surface--accent-\w+/g)).toHaveLength(1);
-    expect(card.querySelectorAll('.ui-table-status-dot')).toHaveLength(1);
-    expect(card.querySelectorAll('.ui-badge')).toHaveLength(1);
+    expect(card.className.match(/ui-surface--accent-\w+/g), 'the card carries more than one state accent').toHaveLength(1);
+    expect(card.querySelectorAll('.ui-table-status-dot'), 'the card carries more than one status dot').toHaveLength(1);
+    expect(card.querySelectorAll('.ui-badge'), 'the card shows two states at once').toHaveLength(1);
   });
 
   it('gives the metric fills the container\'s own state tone', () => {
@@ -118,10 +109,7 @@ describe('ContainerCard — one state, one tone, on every state the product can 
   });
 });
 
-// container-card.md — the ports are a row of the metric strip, always drawn, its label anchoring it:
-// one chip per port, worded exactly as the delivered list worded it, at most two before the rest
-// become one `+n`, and `none` where the container reports no port (REQ-5 as reversed and then
-// lowered on 2026-08-25, REQ-12, REQ-22).
+// container-card.md — the ports as a row of the metric strip (REQ-5, REQ-12, REQ-22).
 describe('ContainerCard — the ports (REQ-5, REQ-12, REQ-22)', () => {
   it('words a published mapping as public→private and an exposed port as the bare private port', () => {
     const card = renderCard(
@@ -166,8 +154,7 @@ describe('ContainerCard — the ports (REQ-5, REQ-12, REQ-22)', () => {
   });
 });
 
-// container-card.md — the values the delivered row showed, and the ones the card adds: the CPU
-// capacity, the memory capacity, and NET I/O in and out (REQ-12, REQ-13).
+// container-card.md — the values the delivered row showed, and the ones the card adds (REQ-12, REQ-13).
 describe('ContainerCard — the values it states (REQ-12, REQ-13)', () => {
   it('shows the name, the image, the short id and the daemon\'s own status sentence', () => {
     const card = renderCard(makeContainer({ status: 'Exited (0) 2 hours ago', state: 'exited' }));
@@ -185,8 +172,10 @@ describe('ContainerCard — the values it states (REQ-12, REQ-13)', () => {
     expect(cpu.querySelector('.ui-meter__label--eyebrow')?.textContent).toBe('CPU');
     expect(cpu.querySelector('.ui-meter__value')?.textContent).toBe('40.0%');
     expect(cpu.querySelector('.ui-meter__reading')?.textContent).toBe('of 8 cores');
-    // Full scale is `cores × 100`, so 40% of one core out of eight is 5% of the track.
-    expect(cpu.querySelector('[role="meter"]')?.getAttribute('aria-valuenow')).toBe('5');
+    expect(
+      cpu.querySelector('[role="meter"]')?.getAttribute('aria-valuenow'),
+      'the track is not filled against `onlineCpus × 100`: 40% of one core out of eight is 5% of it',
+    ).toBe('5');
   });
 
   it('says "core" rather than "cores" on a single-CPU host', () => {
@@ -205,8 +194,7 @@ describe('ContainerCard — the values it states (REQ-12, REQ-13)', () => {
     expect(memory.querySelector('[role="meter"]')?.getAttribute('aria-valuenow')).toBe('25');
   });
 
-  // metric-primitives.md — a container with no measurable maximum is measured, and must not be
-  // drawn as an unmeasured one: it keeps its number and takes the unbounded track, not the empty one.
+  // metric-primitives.md — no measurable maximum is measured, and is not drawn as unmeasured.
   it('draws the unbounded track, and no capacity note, for a container with no memory limit', () => {
     const card = renderCard(makeContainer({ memoryUsageBytes: 512 * 1024 * 1024, memoryLimitBytes: 0 }));
 
@@ -229,8 +217,7 @@ describe('ContainerCard — the values it states (REQ-12, REQ-13)', () => {
   });
 });
 
-// container-card.md — "any tracked metric with no sample reads `—`, `no sample` in the capacity
-// note's place, and an empty track", visibly distinguishable from a measured zero (REQ-16).
+// container-card.md — a tracked metric with no sample, told apart from a measured zero (REQ-16).
 describe('ContainerCard — a metric with no sample (REQ-16)', () => {
   it('states the absence of a CPU and a memory sample in words and in an empty track', () => {
     const card = renderCard(makeContainer({ state: 'exited' }));
@@ -258,8 +245,7 @@ describe('ContainerCard — a metric with no sample (REQ-16)', () => {
   });
 });
 
-// container-card.md — the b3 arrangement: five content bands then a footer, in this order on every
-// card and in every state (REQ-9, REQ-22). The metrics are stacked at any width (REQ-6).
+// container-card.md — the b3 bands, in one order on every card and in every state (REQ-6, REQ-9, REQ-22).
 describe('ContainerCard — the bands and their order (REQ-6, REQ-9, REQ-22)', () => {
   it('draws identity, then state and duration, then the image, then the metrics, then the footer', () => {
     const card = renderCard(makeContainer({ ports: [{ privatePort: 80, publicPort: 8080, type: 'tcp' }] }));
@@ -281,7 +267,6 @@ describe('ContainerCard — the bands and their order (REQ-6, REQ-9, REQ-22)', (
     expect(metrics.querySelector('.ui-metric-strip')).not.toBeNull();
     expect(metrics.querySelector('.ui-metric-strip__row .ui-meter__label--eyebrow')?.textContent).toBe('PORTS');
 
-    // Read and act are two gestures: the actions close the card in a band of their own.
     const footer = card.querySelector<HTMLElement>('.ui-surface__footer');
     expect(footer, 'the actions are not in a footer of their own').not.toBeNull();
     expect(footer!.querySelectorAll('.ui-action-button-group')).toHaveLength(2);
@@ -313,26 +298,23 @@ describe('ContainerCard — the bands and their order (REQ-6, REQ-9, REQ-22)', (
   });
 });
 
-// container-card.md — the identity row: the name gives way, the id is anchored at the right and
-// never truncates, and beside it the control that will open the detail in a modal (REQ-3).
+// container-card.md — the identity row: the name gives way, the id is anchored (REQ-3).
 describe('ContainerCard — the identity row (REQ-3)', () => {
   it('lets the name ellipsise and anchors the id, which never does', () => {
     const card = renderCard(makeContainer({ name: 'a-very-long-container-name-that-cannot-fit' }));
 
     const [identity] = contentBands(card);
-    // `Row`'s truncation contract is read positionally: the last group is the trailing metadata and
-    // keeps its natural width, every group before it may shrink (`layout-primitives.md`).
     expect(identity.className, 'the identity row applies no truncation contract').toContain('ui-row--truncating');
-    expect(identity.lastElementChild!.contains(identity.querySelector('.ui-table-identifier-cell')), 'the id is not the anchored trailing group').toBe(true);
+    expect(
+      identity.lastElementChild!.contains(identity.querySelector('.ui-table-identifier-cell')),
+      'the id is not in the row’s trailing group, which is what anchors it',
+    ).toBe(true);
     const title = identity.querySelector('.ui-section-header__title')!;
     expect(title.className).toContain('ui-truncating-line');
     expect(title.getAttribute('title'), 'the whole name is not recoverable from the ellipsised one').toBe(
       'a-very-long-container-name-that-cannot-fit',
     );
-    // Whether the id really keeps its characters is geometry, and is measured in
-    // `e2e/containers-card-geometry.spec.ts`; what holds it here is its position — the row's own
-    // contract exempts the last group from shrinking, and the id is it.
-    expect(identity.lastElementChild, 'the anchored group is not the row’s last').toBe(
+    expect(identity.lastElementChild, 'the anchored group is not the row’s last, so nothing exempts the id from shrinking').toBe(
       identity.querySelector('.ui-table-identifier-cell')!.closest('.ui-row'),
     );
   });
@@ -347,12 +329,7 @@ describe('ContainerCard — the identity row (REQ-3)', () => {
     expect(contentBands(card)[0].contains(control), 'the detail control is not on the identity row').toBe(true);
   });
 
-  /**
-   * **A deliberately inert control** (`container-card.md`, the human's decision of 2026-08-25):
-   * present, named, not disabled, and doing nothing at all when clicked — including not selecting
-   * the card, since its click arrives with the intervention that moves the detail into a modal.
-   * This asserts the decision, not a defect.
-   */
+  // container-card.md — the detail control is inert by the human's decision of 2026-08-25 (REQ-3, REQ-23).
   it('does nothing when the detail control is clicked, the card’s own selection included', async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
@@ -374,8 +351,7 @@ describe('ContainerCard — the identity row (REQ-3)', () => {
   });
 });
 
-// container-card.md — the image reference takes a line of its own and truncates at the **front**, so
-// the registry host is what is lost and `name:tag` survives (REQ-5, REQ-12).
+// container-card.md — the image reference on a line of its own, front-truncating (REQ-5, REQ-12).
 describe('ContainerCard — the image line (REQ-5, REQ-12)', () => {
   it('gives the reference a full-width field of its own, ellipsised at its front', () => {
     const reference = 'registry.io/acme-platform/payments-service:2.14.0-rc3';
@@ -390,8 +366,7 @@ describe('ContainerCard — the image line (REQ-5, REQ-12)', () => {
   });
 });
 
-// container-card.md — what the card deliberately does not carry: Block I/O and PIDS stay in the
-// detail panel (REQ-14), and no card shows the age of a sample (REQ-53).
+// container-card.md — what the card deliberately does not carry (REQ-14, REQ-53).
 describe('ContainerCard — what it leaves out (REQ-14, REQ-53)', () => {
   it('carries neither Block I/O nor PIDS', () => {
     const card = renderCard(makeContainer({ cpuPercent: 10, onlineCpus: 4, memoryUsageBytes: 1024, memoryLimitBytes: 4096 }));
@@ -409,8 +384,7 @@ describe('ContainerCard — what it leaves out (REQ-14, REQ-53)', () => {
   });
 });
 
-// container-card.md — the four action slots are the caller's, and the footer is the card's only
-// action-bearing area: a click on a control never also selects the card (REQ-20, REQ-23).
+// container-card.md — the four action slots, and the footer as the card's only action-bearing area (REQ-20, REQ-23).
 describe('ContainerCard — its actions and its selection (REQ-20, REQ-23)', () => {
   it('renders the primary slot apart from the joined Pause · Restart · … cluster, in that order', () => {
     const card = renderCard(makeContainer());
@@ -461,10 +435,7 @@ describe('ContainerCard — its actions and its selection (REQ-20, REQ-23)', () 
   });
 });
 
-// container-card.md — "the card owns none of its own material… this file writes no colour, radius,
-// spacing, shadow, font size or z-index, emits no raw DOM tag and imports no stylesheet" (REQ-29,
-// REQ-31). The screen-wide guard is `check-ui-conformance.mjs`; this is the same claim about the one
-// file the guard admits by name, so that admitting the path never becomes admitting its content.
+// container-card.md — the card owns none of its own material, which is why its path may be admitted (REQ-29, REQ-31).
 describe('ContainerCard — it owns none of its material (REQ-29, REQ-31)', () => {
   const source = readFileSync(join(process.cwd(), 'src/containers/ContainerCard.tsx'), 'utf8');
 
@@ -479,15 +450,11 @@ describe('ContainerCard — it owns none of its material (REQ-29, REQ-31)', () =
     const card = renderCard(makeContainer());
 
     expect(card.className).toContain('ui-surface');
-    // The one surface on the card is the card itself: nothing inside it re-declares the material.
-    expect(card.querySelectorAll('.ui-surface')).toHaveLength(0);
+    expect(card.querySelectorAll('.ui-surface'), 'a surface inside the card re-declares the material').toHaveLength(0);
   });
 });
 
-// REQ-27 — "every string is unchanged and stays in the product's current language; the only new
-// strings are the labels the new metrics genuinely require… authored in English. No Italian from the
-// mock reaches the product." Three more were added by the rearrangement: the `PORTS` label, `none`,
-// and the detail control's accessible name.
+// container-card.md — the strings the card authors, all English (REQ-27).
 describe('ContainerCard — the strings it authors (REQ-27)', () => {
   it('authors these English labels and nothing else, every other word coming from the daemon or the caller', () => {
     const card = renderCard(
@@ -511,7 +478,6 @@ describe('ContainerCard — the strings it authors (REQ-27)', () => {
       .filter((node) => node.nodeType === Node.TEXT_NODE)
       .map((node) => (node.nodeValue ?? '').trim())
       .filter(Boolean)
-      // What the daemon supplies, what the caller supplies, and the figures themselves.
       .filter((text) => !['web-nginx', 'abcdef123456', 'nginx:1.27', 'Up 3 days', 'RUNNING', 'Stop', 'Pause', 'Restart', '…', '↗'].includes(text))
       .filter((text) => !/^\d/.test(text));
 

@@ -249,9 +249,7 @@ describe('The images list is still the classic table (plan-docker_management_app
     expect(imagesFingerprint.actionGroupClass).toContain('ui-action-button-group');
   });
 
-  // images-screen.md — Images alone carries the leading multi-select checkbox column (and
-  // BulkActionBar) because it alone has a bulk action needing a selection ("Save to tarball…").
-  // Containers has no per-row bulk action and carries no selection at all
+  // images-screen.md — Images alone has a bulk action needing a selection; Containers carries none
   // (plan-docker_management_app-containers_card_view/REQ-25).
   it('gives Images alone the multi-select checkbox column, which Containers still does not carry', () => {
     const imagesRoot = renderImages();
@@ -293,9 +291,8 @@ describe('The images list is still the classic table (plan-docker_management_app
     }
   });
 
-  // plan-docker_management_app-image_row_actions/REQ-18 — the images row came down to its overflow
-  // control alone and reserves the narrower of the library's two action-column tokens. The
-  // containers screen no longer reserves an action column at all, having no columns.
+  // plan-docker_management_app-image_row_actions/REQ-18 — the images row reserves the narrower of the
+  // two action-column tokens, its own having come down to the overflow control alone.
   it('sizes its action column from the library token matching what its rows carry', () => {
     const imagesRoot = renderImages();
 
@@ -311,9 +308,8 @@ describe('The images list is still the classic table (plan-docker_management_app
   });
 });
 
-// The containers half of this file: the claim that stopped applying is replaced by the card's own
-// arrangement, never deleted (plan-docker_management_app-containers_card_view/REQ-38). What is
-// asserted here is the arrangement jsdom can see; the measured boxes are the e2e spec's.
+// The containers half, restated against the card rather than deleted
+// (plan-docker_management_app-containers_card_view/REQ-1, REQ-9, REQ-38).
 describe('The containers list is a card per container (plan-docker_management_app-containers_card_view/REQ-1, REQ-9)', () => {
   it('draws one surface per container and no table on the screen at all', () => {
     const containersRoot = renderContainers();
@@ -324,9 +320,7 @@ describe('The containers list is a card per container (plan-docker_management_ap
     expect(containersRoot.querySelector('.ui-data-table__row')).toBeNull();
   });
 
-  // container-card.md — five content bands then a footer, in this order on every card and in every
-  // state: identity → state and duration → image → metrics → the actions (REQ-9, as superseded on
-  // 2026-08-25 by the b3 arrangement).
+  // container-card.md — five content bands then a footer, in one order on every card (REQ-9).
   it('lays its bands out in order: identity, state, image, metrics, then the footer’s actions', () => {
     const [card] = containerCards(renderContainers());
 
@@ -377,10 +371,8 @@ describe('The containers list is a card per container (plan-docker_management_ap
   });
 });
 
-// The part of REQ-3 that survives the card view: the two lists no longer share a layout, and were
-// never asked to share one after 2026-08-25 — but the card's material is still the table row's,
-// **by reference**, and that is checkable where it is written
-// (plan-docker_management_app-containers_card_view/REQ-28, REQ-29).
+// The part of plan-docker_management_app/REQ-3 that survives the card view: the material is still
+// the table row's, by reference (plan-docker_management_app-containers_card_view/REQ-28, REQ-29).
 describe('The card takes the table row\'s material by reference (containers_card_view/REQ-28, REQ-29)', () => {
   const tableCss = stylesheet('src/ui/data/data-table.css');
   const surfaceCss = stylesheet('src/ui/glass/surface.css');

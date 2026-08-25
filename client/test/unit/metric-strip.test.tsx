@@ -5,13 +5,8 @@ import { cleanup, render } from '@testing-library/react';
 import { MetricStrip, type MetricStripColumn, type MetricStripReadings } from '../../src/ui';
 
 /**
- * `ui-library/specs/metric-strip.md` — the row of metric columns an object presents its readings
- * in.
- *
- * Its central claim is about **width**: a column's width is the strip's to decide and never the
- * content's, which is the whole reason it is one component rather than three columns composed by
- * hand at each call site. jsdom lays nothing out, so that claim is read where it is written — the
- * stylesheet — and measured for real, across several cards of a list, in
+ * `ui-library/specs/metric-strip.md`. Its central claim is about width, which jsdom cannot lay out,
+ * so it is read where it is written — the stylesheet — and measured in
  * `client/e2e/containers-card-geometry.spec.ts`.
  */
 
@@ -35,7 +30,7 @@ function renderStrip(readings?: MetricStripReadings): HTMLElement {
   return view.container.querySelector<HTMLElement>('.ui-metric-strip')!;
 }
 
-/** The strip's stylesheet, comments stripped, so a value named in a comment is never read as a declaration. */
+/** The strip's stylesheet, comments stripped, so a value named in a comment is not read as a declaration. */
 const css = readFileSync(join(process.cwd(), 'src/ui/metrics/metrics.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
 
 interface Rule {
@@ -81,9 +76,7 @@ function declarationsOf(selector: string, inCondition?: RegExp): string {
     .join(' ');
 }
 
-// metric-strip.md — "every tracked column has the same width, whatever it holds; the trailing
-// readings column is narrower than one of them", and "widths are flex proportions against a zero
-// basis with the content's automatic minimum waived" (REQ-6, REQ-10).
+// metric-strip.md — a column's width is the strip's to decide and never the content's (REQ-6, REQ-10).
 describe('MetricStrip — the columns\' widths are the strip\'s (REQ-6, REQ-10)', () => {
   it('gives every tracked column one flex proportion against a zero basis, with the automatic minimum waived', () => {
     const column = declarationsOf('.ui-metric-strip__column');
@@ -110,8 +103,7 @@ describe('MetricStrip — the columns\' widths are the strip\'s (REQ-6, REQ-10)'
   });
 });
 
-// metric-strip.md — "the second line of every column starts at the same y… however tall each
-// column's first line would otherwise have been" (REQ-8).
+// metric-strip.md — the readings sit on the tracks' own line (REQ-8).
 describe('MetricStrip — the readings sit on the tracks\' own line (REQ-8)', () => {
   it('reserves one line of the same height for a tracked column\'s head and for the readings\' head', () => {
     const head = declarationsOf('.ui-meter--prominent .ui-meter__head');
@@ -123,8 +115,7 @@ describe('MetricStrip — the readings sit on the tracks\' own line (REQ-8)', ()
   });
 });
 
-// metric-strip.md — "below the phone breakpoint (720px) the strip stacks: one full-width column per
-// metric, each keeping its label, its value, its reading and its track" (REQ-34).
+// metric-strip.md — the strip stacks below the phone breakpoint, dropping nothing (REQ-34).
 describe('MetricStrip — it stacks below the phone breakpoint (REQ-34)', () => {
   it('turns into one full-width column per metric under 720px, tracked and untracked alike', () => {
     const phone = /max-width:\s*720px/;
@@ -140,16 +131,14 @@ describe('MetricStrip — it stacks below the phone breakpoint (REQ-34)', () => 
   it('drops nothing on the way there: the same columns are rendered at every width', () => {
     const strip = renderStrip(READINGS);
 
-    // One markup at every width — the stacking is the stylesheet's, so nothing can be dropped by it.
-    expect(strip.querySelectorAll('.ui-metric-strip__column')).toHaveLength(3);
+    expect(strip.querySelectorAll('.ui-metric-strip__column'), 'a column is dropped by the markup rather than laid out by the stylesheet').toHaveLength(3);
     expect(strip.querySelectorAll('.ui-meter__track')).toHaveLength(2);
     expect(strip.textContent).toContain('of 8 cores');
     expect(strip.textContent).toContain('of 100MB');
   });
 });
 
-// metric-strip.md — the contract: a column is exactly a Meter, and the trailing column carries a
-// label over a pair of readings and no bar.
+// metric-strip.md — a column is exactly a Meter; the trailing one carries readings and no bar (REQ-6, REQ-7, REQ-8).
 describe('MetricStrip — what it draws (REQ-6, REQ-7, REQ-8)', () => {
   it('renders one Meter per tracked column, with its label, value, reading and track', () => {
     const strip = renderStrip(READINGS);
@@ -187,8 +176,7 @@ describe('MetricStrip — what it draws (REQ-6, REQ-7, REQ-8)', () => {
   });
 });
 
-// metric-strip.md — "nothing is animated or transitioned: a value that changes is redrawn where it
-// stood", and "it declares no typography of its own" (REQ-17, REQ-30).
+// metric-strip.md — nothing animated, and no typography of its own (REQ-17, REQ-30).
 describe('MetricStrip — what it deliberately does not do (REQ-17, REQ-30)', () => {
   it('animates and transitions nothing, on the strip or on any part of it', () => {
     const stripRules = rules().filter((rule) => rule.selector.includes('.ui-metric-strip'));
@@ -202,20 +190,18 @@ describe('MetricStrip — what it deliberately does not do (REQ-17, REQ-30)', ()
   it('takes the label and value treatments from the metric primitives, by selector, declaring neither again', () => {
     const strip = renderStrip(READINGS);
 
-    // The readings label and the readings' values are the primitives' own single declarations.
-    expect(strip.querySelector('.ui-metric-strip__readings-head p')?.className).toBe('ui-meter__label--eyebrow');
-    expect(strip.querySelector('.ui-metric-strip__reading .ui-meter__value')).not.toBeNull();
-    // The strip's own rules size and place columns; they declare no font of their own.
+    expect(strip.querySelector('.ui-metric-strip__readings-head p')?.className, 'the readings label is not the primitives’ own declaration').toBe(
+      'ui-meter__label--eyebrow',
+    );
+    expect(strip.querySelector('.ui-metric-strip__reading .ui-meter__value'), 'a reading’s value is not the primitives’ own declaration').not.toBeNull();
     for (const rule of rules().filter((one) => one.selector === '.ui-metric-strip' || one.selector === '.ui-metric-strip__column')) {
       expect(rule.declarations, `${rule.selector} declares typography of its own`).not.toMatch(/font-(size|weight|family)\s*:/);
     }
   });
 });
 
-// metric-strip.md, widened on 2026-08-25 — `stacked` asks for the one-per-row shape at **any**
-// width, for a strip inside a card standing in a grid rather than across the page. "The stacked
-// shape is one shape, not two": what `stacked` asks for and what the phone breakpoint falls into are
-// the same declarations (plan-docker_management_app-containers_card_view/REQ-6, REQ-34).
+// metric-strip.md — `stacked` asks at any width for the shape the phone breakpoint falls into
+// (plan-docker_management_app-containers_card_view/REQ-6, REQ-34).
 describe('MetricStrip — stacked at any width (containers_card_view/REQ-6)', () => {
   it('marks the strip as stacked only when it is asked for, and renders exactly as before when it is not', () => {
     const { container: stacked, unmount } = render(<MetricStrip stacked columns={COLUMNS} readings={READINGS} />);
@@ -249,7 +235,6 @@ describe('MetricStrip — stacked at any width (containers_card_view/REQ-6)', ()
     expect(stacked, 'the stacked shape is declared nowhere').not.toBe('');
     expect(stacked).toMatch(/flex-direction:\s*column/);
     expect(declarationsOf('.ui-metric-strip', phone)).toMatch(/flex-direction:\s*column/);
-    // One shape: what the strip is asked for and what it falls into cannot diverge.
     for (const selector of ['.ui-metric-strip__column', '.ui-metric-strip__column--readings']) {
       const asked = rules().filter((rule) =>
         rule.selector.split(',').some((one) => one.trim() === `.ui-metric-strip--stacked ${selector}`),
@@ -273,9 +258,8 @@ describe('MetricStrip — stacked at any width (containers_card_view/REQ-6)', ()
   });
 });
 
-// metric-strip.md, widened on 2026-08-25 — track-less rows drawn after the metrics on the metrics'
-// own rhythm: the label at the left anchoring the row, the content right-aligned. It is what the
-// card's `PORTS` row is (plan-docker_management_app-containers_card_view/REQ-5, REQ-6).
+// metric-strip.md — track-less labelled rows on the metrics' own rhythm
+// (plan-docker_management_app-containers_card_view/REQ-5, REQ-6).
 describe('MetricStrip — its track-less labelled rows (containers_card_view/REQ-6)', () => {
   const ROWS = [
     { id: 'ports', label: 'PORTS', content: <span className="probe">8080→80</span> },

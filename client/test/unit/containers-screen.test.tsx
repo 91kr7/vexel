@@ -97,9 +97,7 @@ async function openOverflow(user: ReturnType<typeof userEvent.setup>, name = 'we
   return screen.getAllByRole('menuitem');
 }
 
-// containers-screen.md — the action area is exactly four controls: three fixed lifecycle slots and,
-// last, the overflow control; an action the state does not allow keeps its slot, disabled, stating
-// why (REQ-1, REQ-2, REQ-3, REQ-4, REQ-5).
+// containers-screen.md — four controls: three fixed lifecycle slots, then the overflow (REQ-1, REQ-2, REQ-5).
 describe('ContainersScreen — the card\'s four controls (REQ-1, REQ-2, REQ-5)', () => {
   const SLOTS: Array<{ state: ContainerSummary['state']; first: string }> = [
     { state: 'running', first: 'Stop' },
@@ -123,10 +121,8 @@ describe('ContainersScreen — the card\'s four controls (REQ-1, REQ-2, REQ-5)',
     expect(controls[3]).toHaveAttribute('aria-haspopup', 'menu');
   });
 
-  // The card's footer is its only action-bearing area. The one other control it carries is the
-  // detail opener at its top right, which is **deliberately inert** — present, named, not disabled,
-  // and doing nothing when clicked (`container-card.md`, the human's decision of 2026-08-25). It is
-  // named here rather than counted away, so a control that started doing something would be seen.
+  // container-card.md — the footer is the card's only action-bearing area; the detail opener beside
+  // the id is inert by the human's decision of 2026-08-25, and is named rather than counted away.
   it.each(SLOTS)('puts no other action-bearing control anywhere on the card of a $state container', ({ state }) => {
     renderScreen([makeContainer({ state })]);
 
@@ -154,10 +150,7 @@ describe('ContainersScreen — the card\'s four controls (REQ-1, REQ-2, REQ-5)',
   });
 });
 
-// containers-screen.md — the legality matrix the row already offered, carried onto the card:
-// nothing became
-// legal that the product did not allow before, and every disabled control states its reason
-// (REQ-3, REQ-4).
+// containers-screen.md — the delivered legality matrix, carried onto the card (REQ-3, REQ-4).
 describe('ContainersScreen — the lifecycle slots follow the state (REQ-3, REQ-4)', () => {
   it('enables all three slots for a running container', () => {
     renderScreen([makeContainer({ state: 'running' })]);
@@ -296,9 +289,7 @@ describe('ContainersScreen — the overflow menu (REQ-6, REQ-7, REQ-8, REQ-9)', 
   });
 });
 
-// The operations these checks drove before this change are all still driven, through the entry
-// point each of them now has: the lifecycle ones from their fixed slot, kill and remove from the
-// overflow menu (REQ-20, REQ-21, REQ-22, REQ-23).
+// containers-screen.md — every operation still driven, from the entry point it now has (REQ-20, REQ-21, REQ-22).
 describe('ContainersScreen — running lifecycle actions (REQ-20, REQ-21, REQ-22)', () => {
   it('applies a non-destructive action immediately and re-reads the list, without asking for confirmation', async () => {
     const user = userEvent.setup();
@@ -442,9 +433,7 @@ describe('ContainersScreen — running lifecycle actions (REQ-20, REQ-21, REQ-22
   });
 });
 
-// containers-screen.md — "Export filesystem…" is started from the card's menu, with the
-// behaviour it had in the detail panel: a browser download of "<container name>.tar", no dialog,
-// and a "Download started" toast naming the file (REQ-19, REQ-20, REQ-21).
+// containers-screen.md — "Export filesystem…" downloads `<name>.tar` with no dialog, and reports a toast (REQ-20, REQ-21).
 describe('ContainersScreen — export filesystem from the card (REQ-20, REQ-21)', () => {
   it('downloads the container filesystem as <name>.tar with no dialog opened first, and reports a toast', async () => {
     const user = userEvent.setup();
@@ -616,12 +605,8 @@ describe('ContainersScreen — text/state filtering (REQ-23)', () => {
   });
 });
 
-// containers-screen.md — the card is the panel's only pointer route, so selection is what the
-// panel's dismissal rests on: selecting the selected card closes it (REQ-3), selecting another
-// re-points it (REQ-4), a container that leaves the list closes it (REQ-15), and a container merely
-// filtered out of view keeps its selection, renders neither card nor panel, and comes back with its
-// panel intact (REQ-16). The panel is the next item of the list's own stack, directly beneath the
-// card that owns it (plan-docker_management_app-containers_card_view/REQ-23).
+// containers-screen.md — the card is the panel's only pointer route, so selection is what its
+// dismissal rests on (container_detail_close/REQ-3, REQ-4, REQ-15, REQ-16; containers_card_view/REQ-23).
 describe('ContainersScreen — card selection opens and closes the detail panel (REQ-3, REQ-4, REQ-15, REQ-16)', () => {
   const web = makeContainer({ id: 'container-1', shortId: 'container1', name: 'web-nginx', image: 'nginx:1.27', state: 'running' });
   const cache = makeContainer({ id: 'container-2', shortId: 'container2', name: 'cache-redis', image: 'redis:7', state: 'running' });
@@ -792,16 +777,10 @@ describe('ContainersScreen — card selection opens and closes the detail panel 
   });
 });
 
-// Exec and attach (REQ-34, REQ-35) are no longer duplicated as card buttons —
-// which is what overflowed the lifecycle column — and are reached through the
-// detail panel's tabs instead. Their absence from the card is asserted above;
-// the tabs themselves are covered by container-detail-panel.test.tsx, which
-// mounts the panel with a realistic inspect payload and the browser stubs it
-// needs.
+// Exec and attach are reached through the panel's tabs, covered by container-detail-panel.test.tsx.
 
-// containers-screen.md — one card per container in the table's place: no header row, no rules
-// between them, no single surface around the list, and the panel as the next item of the same
-// stack (plan-docker_management_app-containers_card_view/REQ-1, REQ-23).
+// containers-screen.md — one card per container in the table's place
+// (plan-docker_management_app-containers_card_view/REQ-1, REQ-23).
 describe('ContainersScreen — the list is a stack of cards (REQ-1)', () => {
   const three = [
     makeContainer({ id: 'a', name: 'alpha', state: 'running' }),
@@ -818,9 +797,7 @@ describe('ContainersScreen — the list is a stack of cards (REQ-1)', () => {
     expect(screen.queryAllByRole('columnheader')).toHaveLength(0);
   });
 
-  // containers-screen.md — "a grid of cards, three to a row… separated by one uniform gap and by
-  // nothing else"; the arrangement owns the tracks and the gap, so the screen states neither
-  // (REQ-1, REQ-31).
+  // containers-screen.md — the arrangement owns the tracks and the gap, so the screen states neither (REQ-1, REQ-31).
   it('lays the cards as siblings of one cards grid, with no surface enclosing the list', () => {
     renderScreen(three);
 

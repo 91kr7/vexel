@@ -241,3 +241,53 @@ changes, and what must hold is that the two stay the same, whatever the value be
 | --- | --- |
 | REQ-39 | **A converted row is the reference row.** On every converted list, a body row resolves to the **same height**, the **same vertical alignment** and the **same set of row modifiers** as a row of the containers and images lists, read from those lists as they stand. In particular **no converted list asks for content-sized rows**: the reference's own two-line cell — the same component, a title over a monospace subtitle — sits unclipped inside the reference's fixed-height row, so a second line is **not** a reason for a taller row and REQ-8 is satisfied without one. A list whose content genuinely cannot fit the reference row **reports the measurement that proves it** and records the exception on the spot; the exception is never taken silently, and "it looked tight" is not a measurement. |
 | REQ-40 | **The table sits edge to edge in its own surface, and that surface is the reference's composition.** A converted screen composes as containers and images do: the section header and the screen toolbar **above** the surface, and **one unpadded card holding the table and nothing else**. The table's left and right edges lie within **1px** of that card's, so the header band runs the full width of the surface and is cropped by its radius instead of floating inset with glass either side. Still exactly one surface (REQ-4) — a card inside a card is two, and is not the answer. **The order of preference for getting there is part of the requirement**: reuse the pattern the reference already uses; extend the library only if a panel genuinely cannot be composed from what exists, recording the reason; never a local workaround in feature code (REQ-33). |
+
+## Amendment — 2026-08-25: REQ-29's delivered-build half is removed from the coverage
+
+**What was removed.** `client/e2e/support/delivered-build.ts`, and in every spec of this plan the
+half that read the past build through it: the five tests named *"the delivered build fails these
+criteria / this sweep, and the numbers are on record"*
+(`classic-table-criteria.spec.ts`, `classic-table-criteria-plain-lists.spec.ts`,
+`classic-table-criteria-nested-lists.spec.ts`, `classic-table-criteria-layer-efficiency.spec.ts`,
+`classic-table-sweep.spec.ts`), plus the delivered half of the scroll-cost check in
+`table-row-layout-uniform.spec.ts`.
+
+**Why.** The harness refused to run whenever the server tree differed from the pinned `d17e1df` —
+correctly, since one process cannot serve two builds whose servers disagree — which froze the
+repository against that revision. `plan-docker_management_app-containers_card_view` widened
+`ContainerSummary` in `server/src/containers/containers-service.ts` and the five tests stopped
+running from that batch's first commit (`4082d97`); the next batch would have broken them again.
+
+**REQ-29 is not withdrawn, and it is not being re-proved.** The delivered figures **are** on record:
+they were measured, reported and read at the time each batch was certified, and they are in this
+plan's batch files and `closing-state.md`. What is removed is the machinery that re-measured them on
+every run forever after.
+
+**What survived, spec by spec.** In each of the five, the "after" half became a test of its own and
+still runs — the converted lists measured against the reference list read in the same run:
+
+- `classic-table-criteria.spec.ts` — volumes, networks and repositories are the reference table
+  (REQ-2 … REQ-12, REQ-39, REQ-40), and the repositories list still draws its tag chips per row.
+- `classic-table-criteria-plain-lists.spec.ts` — the four plain lists are the reference table, and
+  the named case (`WHY UNAVAILABLE`) has its label on its column's own left edge with no surface and
+  no gap cutting the run of it (REQ-18). What went with the comparison: *"the column runs shorter
+  than the delivered one"* and the scrollbar-gutter drift, which was a reading of the delivered
+  build alone.
+- `classic-table-criteria-nested-lists.spec.ts` — the outer lists are the reference table and the
+  nested ones are their parent's row inset by one spacing step, in the same surface. What went:
+  *"the conversion changed which children the row carries"*, which compared child labels across
+  builds.
+- `classic-table-criteria-layer-efficiency.spec.ts` — the dialog's three lists are the reference
+  table at all three viewports, inside one enclosing surface. What went: *"the conversion changed
+  which findings the list reports"*, which compared finding labels across builds.
+- `classic-table-sweep.spec.ts` — the product-wide walk, the "goes red when the region draws no
+  list" guard and the exclusions check all stay. **The delivered test was removed whole**: it walked
+  the past build and asserted nothing else, so nothing of it survived.
+- `table-row-layout-uniform.spec.ts` — every table shows one row layout, an open expansion holds the
+  table's left edge under a real wheel, and a scrolled list carries no filter, transition or
+  animation while a converted row costs no more to paint than the reference row read in the same
+  run. What went: *"no more layers per row than the build this plan replaced"*.
+
+**Not to be reinstated from the old argument.** Re-pinning a newer revision only moves the day the
+next server change breaks it. A criterion is shown red where it is written, once, in the batch that
+introduces it — and that reading is recorded, not repeated.

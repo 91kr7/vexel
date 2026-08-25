@@ -196,9 +196,7 @@ describe('ChipGroup (ui-library/specs/chip.md)', () => {
   });
 });
 
-// chip.md, widened on 2026-08-25 — the muted prefix that names what the label is, and the accent
-// tone that marks the salient chip among its neighbours. What makes a value salient is the
-// caller's: the library states the emphasis, never the reason for it
+// chip.md — the muted prefix and the accent tone
 // (plan-docker_management_app-containers_card_view/REQ-5, REQ-30).
 /** The controls stylesheet, comments stripped, so a value named in a comment is never read as a declaration. */
 const css = readFileSync(join(process.cwd(), 'src', 'ui', 'controls', 'controls.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
@@ -259,9 +257,7 @@ describe('Chip — the prefix and the accent tone (containers_card_view/REQ-5)',
   });
 });
 
-// chip.md, widened on 2026-08-25 — `block` takes a line of its own as a **field** rather than a
-// pill, and `truncate` decides which end of the label gives way. `'start'` keeps the tail, for a
-// value whose tail identifies it: an image's `name:tag` against its registry host
+// chip.md — the block field and the end of the label that gives way
 // (plan-docker_management_app-containers_card_view/REQ-5, REQ-12, REQ-30).
 describe('Chip — the block field and its front truncation (containers_card_view/REQ-5)', () => {
   it('fills its line as a field, the prefix keeping its width and the label giving way', () => {

@@ -6,9 +6,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Button, DataTable, DetailPanel, Frame, Grid, Menu, Modal, Stack, Terminal, type DataTableColumn } from '../../src/ui';
 import * as libraryEntryPoint from '../../src/ui';
-// Internal to the library on purpose (ui-library/specs/escape-arbitration.md):
-// it is reached from inside the library and from nowhere else, so a test that
-// needs the primitive imports the module rather than the public entry point.
+// Internal to the library on purpose (ui-library/specs/escape-arbitration.md).
 import { useKeystrokeRegion } from '../../src/ui/controls/escape-arbitration';
 
 afterEach(cleanup);
@@ -449,13 +447,8 @@ describe('Escape arbitration — a region that owns its keystrokes (REQ-8)', () 
   });
 });
 
-// The containers list lost its `DataTable` on 2026-08-25 and with it the region
-// `focusDismissalTarget` walked to (`plan-docker_management_app-containers_card_view/REQ-1`). The
-// certified promise — the point of interaction is left on the list when `Escape` closes a panel
-// opened inside it (`plan-docker_management_app-container_detail_close/REQ-11`) — is now carried by
-// the two primitives a list of cards can be made of: `Stack`, and the `Grid` the containers screen
-// actually stands its cards in. Both are asserted, because the promise is only kept by the one the
-// screen uses and only durable if the other cannot quietly lose it.
+// The list that lost its `DataTable` carries the dismissal target on the primitive it is made of
+// (`plan-docker_management_app-container_detail_close/REQ-11`, `containers_card_view/REQ-1`).
 describe.each([
   { name: 'Stack', selector: '.ui-stack', Region: Stack },
   { name: 'Grid', selector: '.ui-grid', Region: Grid },

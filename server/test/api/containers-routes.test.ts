@@ -7,10 +7,7 @@ import { ownershipArgs } from "../support/fixtures.js";
 import { INTERNAL_CONTAINER_LABEL } from "../../src/image-analysis/filesystem-extraction-service.js";
 import { ALPINE_IMAGE, ensureImages } from "../support/base-images.js";
 
-// A pruned daemon is a starting state like any other: the base images this
-// file's fixtures are built on are ensured here, before the first test, so no
-// test has to assume a warm daemon nor depend on another file having pulled
-// them. They are shared infrastructure, not fixtures: nothing removes them.
+// Shared infrastructure, not fixtures: ensured before the first test, and removed by nothing.
 await ensureImages([ALPINE_IMAGE]);
 import type {
   ContainerConfigUpdateResult,
@@ -112,14 +109,8 @@ test("GET /api/containers lists a running container with its name, short id, sta
   }
 });
 
-// plan-docker_management_app-containers_card_view/REQ-5, REQ-12, REQ-15 — the ports of the list
-// summary, against the daemon's own answer. Two defects were found here on the running product on
-// 2026-08-25 and both are invisible in a careless read: the daemon reports **one entry per host
-// binding**, so a port published on both IP stacks arrives twice and, once the host IP the summary
-// does not carry is dropped, indistinguishably; and the daemon's order is **not stable across
-// reads**, so a card drawing the first two mappings drew a different two each poll. The first is
-// asserted as "no mapping appears twice", the second as "three reads, one sequence" — neither of
-// which a single read of a single-port container could ever fail.
+// plan-docker_management_app-containers_card_view/REQ-5, REQ-12, REQ-15 — each mapping reported
+// once, in one order, on every read, against the daemon's own answer.
 test("GET /api/containers reports each published mapping once, in one order, on every read", async () => {
   const name = `vexel-test-ports-${Date.now()}`;
   const app = buildApp();
@@ -168,9 +159,7 @@ test("GET /api/containers reports each published mapping once, in one order, on 
   }
 });
 
-// plan-docker_management_app-containers_card_view/REQ-12 — an exposed-but-unpublished port is a port
-// here too: the delivered row showed it as the bare private port, and no value the row showed may
-// disappear from the card.
+// plan-docker_management_app-containers_card_view/REQ-12 — an exposed-but-unpublished port is a port here too.
 test("GET /api/containers reports an exposed-but-unpublished port with no public port of its own", async () => {
   const name = `vexel-test-exposed-${Date.now()}`;
   const app = buildApp();
@@ -274,9 +263,7 @@ test("DELETE /api/containers/:id removes the container so it no longer appears i
   }
 });
 
-// plan-docker_management_app/REQ-54 — an intermediate filesystem-extraction container is never
-// shown as a container anywhere in the application: excluded from the list, and therefore from the
-// count derived from it (app-shell/specs/shell.md — the Containers nav badge is the list's own length).
+// plan-docker_management_app/REQ-54 — an intermediate filesystem-extraction container is never listed.
 test("GET /api/containers excludes an intermediate filesystem-extraction container from the list, and so from its count", async () => {
   const ordinaryName = `vexel-test-int7-ordinary-${Date.now()}`;
   const internalName = `vexel-test-int7-internal-${Date.now()}`;

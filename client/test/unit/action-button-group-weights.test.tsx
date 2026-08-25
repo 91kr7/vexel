@@ -183,9 +183,7 @@ describe('ActionButtonGroup — the overflow menu (REQ-27)', () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 
-  // action-button-group.md — "An `'overflow'`-weight action with no `overflow` menu to go to is not
-  // rendered, rather than being silently promoted back to a button: a trigger needs an accessible
-  // name, and inventing one would be the component deciding an appearance the caller declined."
+  // action-button-group.md — an overflow-weight action with no menu to go to is not rendered.
   it('renders nothing at all for an overflow-weight action with no menu to go to', () => {
     render(
       <ActionButtonGroup
@@ -245,9 +243,7 @@ describe('ActionButtonGroup — the cluster’s own behaviour (REQ-27)', () => {
     expect(onRowSelect).not.toHaveBeenCalled();
   });
 
-  // action-button-group.md — "Never wraps to a second line: the group stays on a single row
-  // regardless of how many actions it holds, clipped by its containing cell rather than
-  // overflowing it."
+  // action-button-group.md — the group stays on a single row however many actions it holds.
   it('states, in its own stylesheet, that it never wraps to a second line', () => {
     const css = readFileSync(join(process.cwd(), 'src', 'ui', 'controls', 'controls.css'), 'utf8').replace(
       /\/\*[\s\S]*?\*\//g,
@@ -259,12 +255,8 @@ describe('ActionButtonGroup — the cluster’s own behaviour (REQ-27)', () => {
   });
 });
 
-// action-button-group.md, widened on 2026-08-25: the `segmented` variant draws the cluster as one
-// control with hairline dividers between its slots — the shared boundary
-// `plan-docker_management_app-containers_card_view/REQ-4` asks the card's `Pause` · `Restart` · `…`
-// cluster for. **Appearance only**: the actions, their order, their positions and the overflow menu
-// are exactly what they are without it, which is what makes every delivered call site render
-// identically.
+// action-button-group.md — `segmented` draws the cluster as one control, appearance only
+// (plan-docker_management_app-containers_card_view/REQ-4).
 describe('ActionButtonGroup — the segmented variant (containers_card_view/REQ-4)', () => {
   const ACTIONS: RowAction[] = [
     { id: 'pause', label: 'Pause', onClick: vi.fn() },
@@ -300,9 +292,7 @@ describe('ActionButtonGroup — the segmented variant (containers_card_view/REQ-
     expect(group.querySelectorAll('.ui-action-button-group__segment')).toHaveLength(0);
   });
 
-  // REQ-4 asks for "one boundary with internal dividers between them": the slots do not stand
-  // apart (no gap), two neighbouring slots share one hairline rather than drawing two, and the
-  // outer corners belong to the cluster rather than to each slot.
+  // REQ-4 — one boundary with internal dividers: no gap, one shared hairline, the corners the cluster's.
   it('states the shared boundary and its internal dividers in the stylesheet', () => {
     const css = readFileSync(join(process.cwd(), 'src', 'ui', 'controls', 'controls.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
     // The whole prelude, compared as written: a selector of this block carries `:is(a, b)`, whose
@@ -324,10 +314,8 @@ describe('ActionButtonGroup — the segmented variant (containers_card_view/REQ-
   });
 });
 
-// action-button-group.md, widened on 2026-08-25 — `size` decides how large the cluster's controls
-// are drawn, and nothing else. `'sm'` is the density every list row uses and is what every delivered
-// call site still gets; `'md'` is the library's ordinary button size, for the band that closes a
-// card (plan-docker_management_app-containers_card_view/REQ-4, REQ-30).
+// action-button-group.md — `size` decides how large the controls are drawn and nothing else
+// (plan-docker_management_app-containers_card_view/REQ-4, REQ-30).
 describe('ActionButtonGroup — the control size (containers_card_view/REQ-4)', () => {
   const SIZED: RowAction[] = [
     { id: 'pause', label: 'Pause', onClick: vi.fn() },
@@ -369,10 +357,8 @@ describe('ActionButtonGroup — the control size (containers_card_view/REQ-4)', 
     expect(read(medium)).toEqual(asSmall);
   });
 
-  // "Segmented, every slot is one height, and the group is what owns it" — derived per member they
-  // came out at 27px and 24px, and a cluster whose members differ in height has no shared boundary
-  // at all. The measured heights are in `e2e/containers-card-geometry.spec.ts`; what is pinned here
-  // is that the height is owned by the group rather than left to each member.
+  // action-button-group.md — the group owns the slots' height; the measured heights are in
+  // `e2e/containers-card-geometry.spec.ts`.
   it('resolves every slot to the group’s own height rather than to each member’s content', () => {
     const css = readFileSync(join(process.cwd(), 'src', 'ui', 'controls', 'controls.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
     const declarationsOf = (selector: string): string =>

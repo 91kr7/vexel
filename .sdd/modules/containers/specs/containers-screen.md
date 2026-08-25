@@ -77,8 +77,8 @@ Actions:
 - The search field matches name, image or state (case-insensitive substring); state chips narrow to
   running / stopped (`created`, `exited`, `dead`) / paused (`paused`, `restarting`) / all.
 - Selecting a card (anywhere outside its action cluster) opens a `ContainerDetailPanel` directly
-  beneath it, **spanning the whole row** of the grid, as the next item of that grid (REQ-24) — so it
-  opens under the row holding the card that owns it and the cards below move down; selecting the
+  beneath **the card that owns it**, **spanning the whole width** of the grid, as the next item of
+  that grid (REQ-24) — the cards after it move down; selecting the
   same card again closes it — the card is the panel's only pointer route, the panel offering no close control
   of its own — and so does `Escape`, after which the point of interaction is left on the list. At
   most one panel is open at a time. A selected container that is removed from the daemon closes its
@@ -88,6 +88,19 @@ Actions:
   `attach` sessions (REQ-34, REQ-35) are reached as tabs of that same panel.
 
 ## Rules and invariants
+
+- **The panel splits its card's grid row, and that is not being corrected** (2026-08-25). It is
+  emitted as the next grid item after the owning card, so the grid's auto-flow carries the rest of
+  that row past it: selecting the first card of a three-card row leaves that card alone above the
+  panel and its two row-mates below it (measured at 1440×1000 — row-mates from y=367.8 to y=954.8,
+  the panel at y=623.6). REQ-23's amendment asked for the panel to open beneath the **row**; the
+  product opens it beneath the **card**. The human's decision of the same date is **not to fix it**,
+  the coming intervention that moves the detail into a modal removing this inline panel and its
+  placement with it — the annotation on REQ-23 in the plan's `requirements.md` is the record. The
+  e2e check that asserted "beneath the row" was **removed for that withdrawal, not because it
+  failed**; what the panel does beneath its own card — opening, spanning the grid's width, pushing
+  the cards after it down, closing on a second selection or on `Escape`, its tabs — is unchanged and
+  still checked.
 
 - A card's controls disable while that container's own action is in flight, so a second click cannot race
   the first: the three lifecycle buttons and all four menu entries state that another action on the

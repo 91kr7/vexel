@@ -22,9 +22,8 @@
  * exemption is stated here rather than left as a silently missing assertion.
  *
  * **The named case is the CLI plugins list's `WHY UNAVAILABLE` column**, which
- * the reference analysis read roughly 1100px from the values under it on the
- * delivered build. It is asserted as boxes, at 1440×1000, with the delivered
- * distance recorded beside it (REQ-18, REQ-29).
+ * the reference analysis read roughly 1100px from the values under it. It is
+ * asserted as boxes, at 1440×1000 (REQ-18, REQ-29).
  *
  * **The four inventories are stubbed at the browser's own request**, as the
  * per-screen geometry specs already stub them, and for the same reasons: a
@@ -46,7 +45,6 @@ import { expect, test, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
-import { startDeliveredBuild, type DeliveredBuild } from './support/delivered-build.js';
 import { stubTheInventories } from './support/screen-inventories.js';
 import { boxOf, boxThisFrame, clickAtItsCentre, movePointerOverTheRow } from './support/settled.js';
 import {
@@ -68,17 +66,6 @@ import {
 
 const DESKTOP: Viewport = VIEWPORTS[0];
 const PHONE: Viewport = VIEWPORTS[2];
-
-/**
- * The revision the plan was delivered on top of — the merge this branch starts
- * from, and the build the human read the `WHY UNAVAILABLE` drift on. Batch 1 did
- * not touch any screen of this batch, so it is the delivered build for these
- * lists exactly as it was for that one.
- */
-const DELIVERED_REF = process.env.VEXEL_DELIVERED_REF ?? 'd17e1df';
-
-/** Its own port: neither the suite's 3100, nor a developer's 3000, nor batch 1's 3101. */
-const DELIVERED_PORT = Number(process.env.VEXEL_DELIVERED_PLAIN_PORT ?? 3102);
 
 /**
  * A list is named by a column only it has, which is what makes the locator
@@ -341,7 +328,7 @@ test('the columns of a converted list hold their header at every pan offset — 
  * confession"). A compensated header measures 0px of left drift while the value
  * is still unreadable as belonging to its column.
  *
- * So what the named case is measured as, here and on the delivered build:
+ * So what the named case is measured as:
  *
  * - the **left edge** of the header cell against its column's, which REQ-18
  *   requires to be one edge and REQ-5 requires to hold by construction rather
@@ -529,107 +516,11 @@ test('the switch does not move the surface it sits on, and no row offers a copy 
   expect(copyControls, 'a row of these lists offers a copy affordance').toEqual([]);
 });
 
-/**
- * REQ-29 — the delivered figures, on record, before the change.
- *
- * The build this plan started from is checked out, built and served on a port of
- * its own, and the same measurements are read on it through **the same stubs**,
- * so the two readings differ in the build and in nothing else. Both halves are
- * asserted: the criteria **fail** there — which is what makes this check
- * discriminating rather than merely green — and they hold on the build under
- * test, with the reference's own figures beside them.
- *
- * The named case is the headline of it: the distance between the
- * `WHY UNAVAILABLE` header's left edge and the values under it, in px, on the
- * build the human read it on and on this one.
- */
-test('the delivered build fails these criteria, and the numbers are on record', async ({ page, browser, baseURL }) => {
+// plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-29, REQ-18 — the
+// converted lists, and the named case, against the reference read in the same run.
+test('the converted lists hold the criteria, and the named case runs unbroken from its label', async ({ page, baseURL }) => {
   test.setTimeout(900_000);
-  expect(baseURL, 'this run has no origin of its own to compare the delivered build against').toBeTruthy();
-  let delivered: DeliveredBuild | undefined;
-  let deliveredNamedCase: ReturnType<typeof namedCase> | undefined;
-  let deliveredScrollbarDrift = 0;
-  try {
-    delivered = await startDeliveredBuild({ revision: DELIVERED_REF, port: DELIVERED_PORT });
-    const revision = delivered.revision.slice(0, 7);
-    const context = await browser.newContext({ baseURL: delivered.origin, viewport: DESKTOP });
-    const before = await context.newPage();
-    try {
-      await stubTheInventories(before);
-      const measured = await readTheConvertedLists(before, `delivered ${revision}`);
-
-      // The named case, in px, on the build the human read it on.
-      deliveredNamedCase = namedCase(measured['CLI plugins']);
-      expect(
-        Number.isNaN(deliveredNamedCase.leftDrift),
-        `delivered ${revision}: the CLI plugins list states no WHY UNAVAILABLE column`,
-      ).toBe(false);
-      reportNamedCase(`delivered ${revision}`, deliveredNamedCase, measured['CLI plugins'].rows.length);
-
-      // …and the **second** cause of a label parting company with its column, on
-      // the same list and the same build: the header was a sibling of the box
-      // that scrolls, so a vertical scrollbar narrowed the rows' box and not the
-      // header's. Playwright's Chromium draws overlay scrollbars here — a
-      // scrollbar takes 0px — so the gutter a classic one occupies is asked for
-      // explicitly, exactly as `data-table-header-column-alignment.spec.ts` does
-      // and for the reason stated there at length. The measurement is taken on
-      // the plugins screen, which has to be the one on screen for it to mean
-      // anything.
-      await openApp(before, 'plugins');
-      await expect(before.getByRole('heading', { level: 1, name: 'Plugins' })).toBeVisible({ timeout: 20_000 });
-      await before.addStyleTag({ content: '.ui-scroll-area { scrollbar-gutter: stable; }' });
-      await before.waitForTimeout(600);
-      const withAScrollbar = await measureList(before, LISTS.cliPlugins);
-      deliveredScrollbarDrift = Math.max(...withAScrollbar.columnEdges.map((edge) => edge.worstDelta));
-      const gutter = await before.evaluate(() => {
-        const areas = Array.from(document.querySelectorAll<HTMLElement>('.ui-frame__content .ui-scroll-area'));
-        return Math.max(0, ...areas.map((area) => area.offsetWidth - area.clientWidth));
-      });
-      console.log(
-        `[b2/REQ-5] delivered ${revision} CLI plugins, with a ${round(gutter)}px scrollbar gutter reserved: ` +
-          `${JSON.stringify(withAScrollbar.columnEdges.map((edge) => `${edge.header || '·'}=${round(edge.worstDelta)}`))}`,
-      );
-      expect(gutter, `delivered ${revision}: no scrollbar gutter was reserved, so this reading shows nothing`).toBeGreaterThanOrEqual(8);
-
-      // Recorded failing, with its measurements — not "before: failed".
-      for (const [name, list] of Object.entries(measured)) {
-        expect(list.rows.length, `delivered ${revision} ${name}: fewer than two rows, so nothing here discriminates`).toBeGreaterThan(1);
-        expect(
-          list.rowJunctions.map((junction) => round(junction.gap)).filter((gap) => gap > 0.5).length,
-          `delivered ${revision} ${name}: the delivered build already drew its rows flush`,
-        ).toBeGreaterThan(0);
-        expect(
-          Math.max(...list.rows.map((row) => row.carrierRadius)),
-          `delivered ${revision} ${name}: the delivered build already drew square rows`,
-        ).toBeGreaterThan(0);
-        expect(
-          list.surfacesInside,
-          `delivered ${revision} ${name}: the delivered build already drew no surface inside its list`,
-        ).toBeGreaterThan(0);
-        // …and the two the amendment added, which the first attempt satisfied
-        // the four geometric criteria without satisfying.
-        expect(
-          list.rows.every((row) => row.modifiers.length === 0),
-          `delivered ${revision} ${name}: the delivered build already stated no row modifier`,
-        ).toBe(false);
-        expect(
-          Math.abs(list.table.x - (list.card?.x ?? 0)),
-          `delivered ${revision} ${name}: the delivered build already ran its table edge to edge in its card`,
-        ).toBeGreaterThan(1);
-        expect(
-          list.sectionHeaderInsideCard,
-          `delivered ${revision} ${name}: the delivered build already put the section header outside the list’s card`,
-        ).toBe(true);
-      }
-    } finally {
-      await context.close();
-    }
-  } finally {
-    await delivered?.stop();
-  }
-
-  // …and the same figures on the build under test, measured minutes apart in the
-  // same browser and through the same stubs.
+  expect(baseURL, 'this run has no origin of its own').toBeTruthy();
   await page.setViewportSize(DESKTOP);
   await stubTheInventories(page);
   const references = await readTheReference(page, 'after');
@@ -640,52 +531,18 @@ test('the delivered build fails these criteria, and the numbers are on record', 
     expectSameTableAsReference('after', name, list, references);
   }
 
-  // The named case, side by side, in the two figures it is made of.
   const afterNamedCase = namedCase(after['CLI plugins']);
   reportNamedCase('after', afterNamedCase, after['CLI plugins'].rows.length);
   console.log(
-    `[b2/REQ-18] the named case, before → after: left edge ${round(deliveredNamedCase!.leftDrift)} → ${round(
-      afterNamedCase.leftDrift,
-    )}px; the column's run from its label to its last value ${round(deliveredNamedCase!.verticalRun)} → ${round(
-      afterNamedCase.verticalRun,
-    )}px; surfaces cut across it ${deliveredNamedCase!.surfacesBetween} → ${afterNamedCase.surfacesBetween}; ` +
-      `gaps between one value and the next ${deliveredNamedCase!.gaps.filter((gap) => gap > 0.5).length} → ${
-        afterNamedCase.gaps.filter((gap) => gap > 0.5).length
-      }`,
+    `[b2/REQ-18] the named case: left edge ${round(afterNamedCase.leftDrift)}px; the column's run from its label to its ` +
+      `last value ${round(afterNamedCase.verticalRun)}px; surfaces cut across it ${afterNamedCase.surfacesBetween}; ` +
+      `gaps between one value and the next ${afterNamedCase.gaps.filter((gap) => gap > 0.5).length}`,
   );
 
-  // **The left edge is not what the delivered build failed**, and the assertion
-  // says so rather than pretending otherwise: the retired presentation carried a
-  // header inset written to keep exactly these two edges together, which is why
-  // it measures what it measures there. What the delivered build failed is the
-  // rest of the same sentence — the line of sight from the label to the value,
-  // cut by a surface and a gap per row down a column a thousand pixels long.
-  expect(
-    deliveredNamedCase!.surfacesBetween,
-    'the delivered build drew no surface between the WHY UNAVAILABLE label and its values, so the named case shows nothing',
-  ).toBeGreaterThan(0);
-  expect(
-    deliveredNamedCase!.gaps.filter((gap) => gap > 0.5).length,
-    'the delivered build already ran the column unbroken',
-  ).toBeGreaterThan(0);
-  expect(
-    afterNamedCase.verticalRun,
-    `the column runs ${round(afterNamedCase.verticalRun)}px from its label to its last value, against the delivered ${round(
-      deliveredNamedCase!.verticalRun,
-    )}px`,
-  ).toBeLessThan(deliveredNamedCase!.verticalRun);
   expect(afterNamedCase.leftDrift, 'the WHY UNAVAILABLE column drifts from the header naming it').toBeLessThanOrEqual(0.5);
   expect(afterNamedCase.surfacesBetween, 'a surface still cuts the line of sight from the label to its values').toBe(0);
-
-  // …and the second cause, the one the library fix repairs: with a scrollbar
-  // really taking layout space, the delivered build's own columns parted company
-  // with their labels. The after-figures for it are
-  // `data-table-header-column-alignment.spec.ts`, which drives the same harness.
-  console.log(
-    `[b2/REQ-5] the header's own drift under a reserved scrollbar gutter: ${round(deliveredScrollbarDrift)}px on the delivered build`,
-  );
   expect(
-    deliveredScrollbarDrift,
-    'the delivered build held every column on its header with a scrollbar taking real width, so the library repair shows nothing',
-  ).toBeGreaterThan(1);
+    afterNamedCase.gaps.filter((gap) => gap > 0.5).length,
+    'the WHY UNAVAILABLE column is still broken by a gap between one value and the next',
+  ).toBe(0);
 });

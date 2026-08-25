@@ -307,3 +307,50 @@ Spec section 5, kept by the gate's decision, scheduled last and droppable as a w
 | REQ-90 | **Each check is observed failing on the delivered build, with its figures**, and the implementer reports the before and after measurements side by side. The delivered figures are on record for that purpose: `grid-template-columns: 20px 0px 0px 0px 0px 0px 0px 296px`; three navigation entries unreachable at 1280×800; a nav list of ~849px intrinsic height and a phone list of 810px against 812px; a Search control with no `onClick` and no key handler in the client; overlapping text rectangles on three screens; one fact stated five times on swarm; `13.0MB` against `3.9MB`. "Before: failed" with no figures is not evidence. |
 | REQ-91 | **Verified against the real daemon, under the project's test discipline**: own fixtures carrying the ownership labels, full cleanup in a `finally`, `docker rm -fv`, no assumption of an empty daemon, no inherited application state, its own data directory, no test reaching Docker Hub, and every spec passing on its own. English only in source, identifiers and comments; kebab-case for every new file and folder. |
 | REQ-92 | **The measure of success is stated as a requirement because it is the point of the programme**: a screen not yet written has no design decisions left to make. At the end, a new screen is composed from the primitives without inventing a list, a panel, an empty state, a section header or an action rule — and that is demonstrated by the fact that the last migrated screen added no new primitive, no new variant and no new prop to the library. |
+
+## Amendment — 2026-08-25: the delivered-build comparison is removed from the coverage
+
+**What was removed.** `client/e2e/support/delivered-build.ts` — the harness that checked out a past
+revision of the product, built it and served it beside the build under test — and, in every spec
+that used it, the half that read that past build. `client/e2e/library-layer-screens-unmoved.spec.ts`
+went with it: every one of its assertions was a comparison against the predecessor, so nothing of it
+survived the removal (see below).
+
+**Why.** The harness froze the repository against one revision. It refused to run whenever the
+server tree differed from the pinned `d17e1df`, which is a correct refusal — one process cannot
+serve two builds whose servers disagree — but it made every later server change break coverage that
+has nothing to do with it. That is what happened: `plan-docker_management_app-containers_card_view`
+widened `ContainerSummary` in `server/src/containers/containers-service.ts`, and the five
+"the delivered build fails these criteria" tests stopped running from that batch's first commit
+(`4082d97`) onwards. The next batch of that plan would have broken them again. The mechanism exists
+to prove a negative — *the delivered build failed this* — which is now certified and recorded here
+and in the batch files; it does not have to be re-proved on every run for the rest of the product's
+life.
+
+**What survived, spec by spec.** Everything each spec asserts about the **current** build stays and
+still runs: it is real coverage and never depended on the comparison.
+
+- `about-one-treatment.spec.ts` (REQ-70, REQ-71, REQ-72) — one section-header treatment on About,
+  the stream presented on exactly one screen, and every other block still on the screen in its own
+  words. What went: the three "the delivered build drew it otherwise" premises, and the
+  character-for-character comparison of the notice and the CLI card against the predecessor.
+- `system-prune-preserved.spec.ts` (REQ-73, REQ-74, REQ-75) — the eight daemon properties in one
+  property grid, the five prune rows with their tint, line and size, the standing warning, the
+  enablement rule, and the ink check on every prune row at three viewports. What went: the
+  statement-by-statement equality with the predecessor's reading.
+- `dialog-one-form.spec.ts` (REQ-78, REQ-79, REQ-80, REQ-86, REQ-87) — the sheet holding one painted
+  box, its groups sectioned by their headings, one label treatment for every field, the add
+  affordances drawn as controls against a run of prose, the sheet's sizing rules, the privileged
+  switch moving nothing, and the chip row the height of its own list. What went: "measurably
+  shorter than the delivered build", the label/control-name equality, and the chip action's width
+  and height compared across builds.
+- `library-layer-screens-unmoved.spec.ts` (REQ-30, REQ-25) — **removed whole, and it is the one
+  spec left with no subject.** Its claim was "the thirteen screens are where they were", which is
+  comparative by construction: every assertion in it was a delta between two builds. REQ-30 and
+  REQ-25 stay certified on the record of the run that certified them; what still guards the screens
+  today is the per-screen geometry the migration batches left behind
+  (`*-row-geometry.spec.ts`, `table-row-layout-uniform.spec.ts`, `classic-table-sweep.spec.ts`).
+
+**Not to be reinstated from the old argument.** The comparison's value was in the batch that made
+the change, where it was read once and recorded. Re-pinning a newer revision only moves the day the
+next server change breaks it.

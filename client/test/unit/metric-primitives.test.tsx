@@ -61,9 +61,7 @@ describe('MetricTile (REQ-32)', () => {
     expect(screen.getByText('4')).toBeInTheDocument();
   });
 
-  // metric-primitives.md — "onActivate?() — makes the whole tile a single activatable control: a
-  // pointer click and a keyboard activation (it is reachable by Tab, and Enter/Space activate it)
-  // both call it once" / "ariaLabel — the activatable tile's accessible name" (REQ-18)
+  // metric-primitives.md — an activatable tile is one control, by pointer and by keyboard (REQ-18).
   it('makes an activatable tile one control, reachable by Tab and activated once per activation', async () => {
     const onActivate = vi.fn();
     const user = userEvent.setup();
@@ -140,9 +138,8 @@ describe('Meter (REQ-32)', () => {
     expect(meterValueNow()).toBe(0);
   });
 
-  // metric-primitives.md — "… the track is drawn in a distinct, deliberate treatment instead of as
-  // an empty one, so it does not read as a bar whose fill failed to render"
-  // (plan-ui-coherence-optimisation/REQ-64)
+  // metric-primitives.md — no measurable maximum is a treatment of its own, not an empty track
+  // (plan-ui-coherence-optimisation/REQ-64).
   it('draws the track of a metric with no measurable maximum differently from an unfilled one', () => {
     const { container: bounded, unmount } = render(<Meter label="Memory" value={0} max={512} />);
     const boundedTrack = bounded.querySelector('.ui-meter__track')!.className;
@@ -165,9 +162,7 @@ describe('Meter (REQ-32)', () => {
     expect(screen.getByRole('meter').getAttribute('aria-valuetext')).toBeNull();
   });
 
-  // metric-primitives.md — "It occupies the same box as a filled bar, to the pixel, so a reading
-  // with a ceiling and a reading without one are the same height." jsdom performs no layout, so the
-  // box is read where it is declared: the state may repaint the track, never resize it.
+  // metric-primitives.md — the unbounded state repaints the track and never resizes it.
   it('gives the no-maximum state no box of its own', () => {
     const css = readFileSync(join(process.cwd(), 'src/ui/metrics/metrics.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
     const declarations = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
@@ -254,8 +249,7 @@ describe('Sparkline (REQ-32)', () => {
   });
 });
 
-// metric-primitives.md, as widened on 2026-08-25: the prominent value beside the label, and the
-// third state of a track — nothing was measured
+// metric-primitives.md — the prominent value beside the label, and the track's third state
 // (plan-docker_management_app-containers_card_view/REQ-7, REQ-13, REQ-16).
 describe('Meter — the prominent value and the no-sample state (containers_card_view/REQ-7, REQ-16)', () => {
   // metric-primitives.md — "valueText — the reading shown beside the label, prominently… its
@@ -292,9 +286,7 @@ describe('Meter — the prominent value and the no-sample state (containers_card
     expect(screen.getByRole('meter').getAttribute('aria-valuetext')).toBe('no sample');
   });
 
-  // metric-primitives.md — "it is a third state, distinct from both of its neighbours": an
-  // unlimited container is measured and must not be shown as unmeasured, and a measured zero keeps
-  // its number and its reading.
+  // metric-primitives.md — a third state, distinct from an unlimited reading and from a measured zero.
   it('draws the three states of a track distinguishably', () => {
     const tracks = [
       <Meter key="measured" label="CPU" valueText="0.0%" value={0} max={800} reading="of 8 cores" />,
@@ -318,9 +310,7 @@ describe('Meter — the prominent value and the no-sample state (containers_card
     expect(tracks[2].reading).toBe('no sample');
   });
 
-  // metric-primitives.md — "a non-zero measurement always draws a visible fill, never a sub-pixel
-  // sliver that would read as an empty track. A measured zero draws none." Product-wide, so the
-  // minimum is a length in the stylesheet rather than a decision of the caller's.
+  // metric-primitives.md — a non-zero measurement always draws a visible fill; a measured zero draws none.
   it('keeps a non-zero measurement visible and draws nothing for a measured zero', () => {
     const { container: tiny, unmount } = render(<Meter label="CPU" valueText="0.1%" value={0.1} max={800} />);
     const fill = tiny.querySelector('.ui-meter__fill')!;

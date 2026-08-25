@@ -31,9 +31,7 @@ async function openOverflow(page: Page, name: string) {
 }
 
 test.beforeEach(async ({ page }) => {
-  // Pinned, not inherited: the last active screen survives by design (REQ-115),
-  // and the Dashboard the application otherwise lands on names this screen in a
-  // cross-navigation tile of its own, which an unscoped rail click matches too.
+  // Pinned, not inherited: the last active screen survives by design (REQ-115).
   await openApp(page, 'containers');
   await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
 });
@@ -73,11 +71,8 @@ async function summaryOf(page: Page, name: string): Promise<SampledSummary | und
   return list.find((one) => one.name === name);
 }
 
-// plan-docker_management_app-containers_card_view/REQ-13 — the two figures the card adds come out of
-// the frame the sampler already fetched, and reach the client on the list it already reads:
-// `containers-service.md` states that the six sampled fields "all come from one sample and are
-// absent together". Read at the REST API, then read again on the card, so the number the operator
-// sees is the one the daemon gave.
+// plan-docker_management_app-containers_card_view/REQ-13 — the six sampled fields come from one
+// sample and are absent together, read at the REST API and then on the card.
 test('the list carries the online CPU count and the network totals, and the card states them', async ({ page }) => {
   const name = `vexel-e2e-sampled-${Date.now()}`;
   try {
@@ -153,9 +148,8 @@ test('stopping a running container updates its card to the stopped state and its
   }
 });
 
-// plan-docker_management_app-container_row_actions/REQ-1, REQ-2, REQ-3, REQ-4, REQ-5 — the action area is exactly four
-// controls, the three lifecycle slots fixed in number, order and position, the inapplicable ones present and disabled
-// with the reason they are unavailable, and the overflow control always last
+// plan-docker_management_app-container_row_actions/REQ-1, REQ-2, REQ-3, REQ-4, REQ-5 — four controls,
+// the inapplicable ones present and disabled with their reason, the overflow always last
 test('every card ends with the same four controls, the inapplicable ones disabled and saying why', async ({ page }) => {
   const name = `vexel-e2e-slots-${Date.now()}`;
   try {
@@ -169,11 +163,8 @@ test('every card ends with the same four controls, the inapplicable ones disable
     await expect(controls.nth(1)).toHaveText('Pause');
     await expect(controls.nth(2)).toHaveText('Restart');
     await expect(controls.nth(3)).toHaveAttribute('aria-haspopup', 'menu');
-    // The card's only action-bearing area: no pencil beside the name, nothing else. The one other
-    // control it carries is the detail opener at its top right, which is **deliberately inert** —
-    // present, named, not disabled, doing nothing when clicked (`container-card.md`, the human's
-    // decision of 2026-08-25). Named rather than counted away, so a control that started doing
-    // something would be seen here.
+    // container-card.md — the detail opener beside the id is inert by the human's decision of
+    // 2026-08-25, and is named here rather than counted away.
     await expect(card.getByRole('button')).toHaveCount(5);
     const inert = card.getByRole('button', { name: `Open ${name} details`, exact: true });
     await expect(inert).toBeEnabled();
@@ -272,9 +263,7 @@ test('an outside click that lands on a card closes the menu and still selects th
   }
 });
 
-// plan-docker_management_app-container_row_actions/REQ-12 — the menu is fully operable without a pointer: the trigger is
-// reachable and activatable from the keyboard, opening moves focus into the menu, the arrows move between entries, an
-// entry can be activated and Escape closes it
+// plan-docker_management_app-container_row_actions/REQ-12 — the menu is fully operable from the keyboard
 test('the card menu is reachable, walked and activated from the keyboard alone', async ({ page }) => {
   const name = `vexel-e2e-keyboard-${Date.now()}`;
   try {
@@ -282,9 +271,7 @@ test('the card menu is reachable, walked and activated from the keyboard alone',
     const card = containerCard(page, name);
     await expect(card).toBeVisible({ timeout: 15_000 });
 
-    // Tab from the control before it: the overflow control is one stop in tab order, not a trap.
-    // Retried as a whole, because the list keeps re-reading from daemon events while the fixture
-    // settles and a re-render between the focus and the key drops the focus on the floor.
+    // Retried as a whole: a re-render between the focus and the key drops the focus on the floor.
     await expect(async () => {
       await card.getByRole('button', { name: 'Restart', exact: true }).press('Tab');
       await expect(overflowTrigger(page, name)).toBeFocused({ timeout: 1_000 });
@@ -313,9 +300,7 @@ test('the card menu is reachable, walked and activated from the keyboard alone',
 // unambiguously attached to the card it belongs to
 test('opening a second card menu closes the first', async ({ page }) => {
   const stem = `vexel-e2e-onemenu-${Date.now()}`;
-  // Which of the two is the card above is decided by the list's order, not by which was created
-  // first: containers are ordered by name (plan-docker_management_app-list_ordering/REQ-8), so `-a`
-  // is above `-b` whatever order the daemon returns them in.
+  // The order is the server's, by name (plan-docker_management_app-list_ordering/REQ-8), not the creation order.
   const above = `${stem}-a`;
   const below = `${stem}-b`;
   try {
@@ -327,10 +312,8 @@ test('opening a second card menu closes the first', async ({ page }) => {
     await expect(containerCard(page, above)).toBeVisible({ timeout: 15_000 });
     await expect(containerCard(page, below)).toBeVisible({ timeout: 15_000 });
 
-    // The second menu is opened on the card the list puts **first**, and that is load-bearing: a
-    // card's menu opens below its own trigger and covers whatever it hangs over, so a click aimed at
-    // a trigger under an open menu lands on the open menu instead — on `Kill` or `Remove`, at that.
-    // Driving it the other way round is a click no operator could make.
+    // Opened on the card the list puts first, and that is load-bearing: a click aimed at a trigger
+    // under an open menu lands on the menu instead — on `Kill` or `Remove`, at that.
     await openOverflow(page, below);
     await overflowTrigger(page, above).click();
 
@@ -384,9 +367,8 @@ test('clicking the overflow control does not open the card detail panel', async 
   }
 });
 
-// plan-docker_management_app-container_row_actions/REQ-16, REQ-24 — the list keeps updating from daemon events while a
-// menu is open, and the open menu stays bound to the container it was opened for: an entry chosen never applies to
-// another one
+// plan-docker_management_app-container_row_actions/REQ-16, REQ-24 — the list keeps updating while a
+// menu is open, and the menu stays bound to the container it was opened for
 test('the list keeps updating while a menu is open and the menu stays bound to its own container', async ({ page }) => {
   const stem = `vexel-e2e-live-${Date.now()}`;
   const owner = `${stem}-owner`;
@@ -422,9 +404,7 @@ test('killing a container asks for confirmation naming it, does nothing on cance
     const card = containerCard(page, name);
     await expect(card).toBeVisible({ timeout: 15_000 });
 
-    // Kill is reached from the card's overflow menu; the confirmation in
-    // front of it is unchanged — the menu is a step before it, not instead of
-    // it (REQ-22).
+    // The menu is a step before the confirmation, not instead of it (REQ-22).
     await chooseCardAction(page, name, 'Kill');
     const confirmHeading = page.getByRole('heading', { name: `Confirm: ${name}` });
     await expect(confirmHeading).toBeVisible();
@@ -486,13 +466,8 @@ test('searching narrows the list to containers whose name matches the search tex
   }
 });
 
-// The container detail panel has no close control any more: the card that opened it closes it, and
-// `Escape` closes it from the keyboard — arbitrated against the other consumers of that key on this
-// screen. Nothing here covered the panel's dismissal before this change: it was opened and never
-// closed (plan-docker_management_app-container_detail_close/REQ-19).
-//
-// Serial for the same reason as the group below: these tests keep a panel open across several
-// steps, and the list re-reads under them on every daemon event.
+// The panel has no close control: the card that opened it closes it, and so does `Escape`
+// (plan-docker_management_app-container_detail_close/REQ-19). Serial, the list re-reading under it.
 test.describe('Container detail panel dismissal (REQ-1, REQ-3, REQ-4, REQ-5, REQ-7, REQ-9, REQ-12, REQ-16)', () => {
   test.describe.configure({ mode: 'serial' });
 
@@ -724,11 +699,7 @@ test.describe('Container detail panel dismissal (REQ-1, REQ-3, REQ-4, REQ-5, REQ
   });
 });
 
-// These tests keep a container's detail panel open across several UI steps
-// (tab switch, edit, save). The list re-reads on every daemon event and the
-// panel is an item of that same stack, so another worker's containers appearing
-// mid-interaction move the card and the panel with it; serial mode keeps the
-// list stable for the length of one interaction.
+// Serial: these tests hold a panel open across several steps, and the list re-reads under them.
 test.describe('Container detail panel (REQ-24, REQ-25, REQ-26)', () => {
   test.describe.configure({ mode: 'serial' });
 
@@ -752,10 +723,8 @@ test.describe('Container detail panel (REQ-24, REQ-25, REQ-26)', () => {
     }
   });
 
-  // plan-docker_management_app/REQ-26, **narrowed on 2026-08-14** to viewable and selectable as-is
-  // (plan-docker_management_app-remove_copy_controls/REQ-23). The copy step and the clipboard
-  // permission it needed go with the affordance; the assertion around them stays — the payload is
-  // shown, in full, as real selectable text (REQ-30).
+  // plan-docker_management_app/REQ-26, narrowed to viewable and selectable as-is
+  // (plan-docker_management_app-remove_copy_controls/REQ-23, REQ-30).
   test('the Inspect tab shows the raw payload as selectable text', async ({ page }) => {
     const name = `vexel-e2e-inspect-${Date.now()}`;
     try {
@@ -828,9 +797,7 @@ test.describe('Container detail panel (REQ-24, REQ-25, REQ-26)', () => {
   // and the outcome is reported
   test('confirming a recreate replaces the container while preserving its name and reports the outcome', async ({ page }) => {
     const name = `vexel-e2e-config-recreate-${Date.now()}`;
-    // The recreate keeps the replaced container's volumes on purpose, so the
-    // anonymous volume of the image's own `VOLUME` declaration outlives it and
-    // is this test's to remove.
+    // The recreate keeps the replaced container's volumes, so the orphan is this test's to remove.
     const volumesBefore = await anonymousVolumes();
     try {
       await createSleepingContainer(name, ['-e', 'FOO=bar']);

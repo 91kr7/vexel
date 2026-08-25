@@ -1,11 +1,8 @@
 import { test, mock, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 
-// The service talks to the daemon only through the shared EngineClient: the
-// mock stands in for it, so the order `listContainers` returns its rows in
-// (containers-service.md) is the only behaviour under test here. A stubbed
-// payload is what makes a genuine tie constructible — two names the ordering
-// rule calls equal — which a real daemon cannot be asked for.
+// The mock stands in for the shared EngineClient: a stubbed payload is what makes a genuine tie —
+// or an unstable port order — constructible, which a real daemon cannot be asked for.
 let containersBody = "[]";
 
 mock.module(new URL("../../src/connectivity/connection-status-service.ts", import.meta.url).href, {
@@ -89,9 +86,7 @@ test("listContainers separates two containers whose names differ only in leading
   assert.deepEqual(backwards, forwards);
 });
 
-// containers-service.md — "The same containers produce the same sequence on every read, whatever
-// order the daemon supplied them in" (REQ-6, REQ-12): the only check that detects a missing
-// tiebreak, since a sort that is stable keeps whatever the payload happened to say.
+// containers-service.md — one sequence whatever order the daemon supplied (REQ-6, REQ-12).
 test("listContainers produces one sequence whichever order the daemon supplied the containers in", async () => {
   const payload = [
     container("c-5", "app-1"),
@@ -137,11 +132,8 @@ async function portsFrom(ports: RawPort[]): Promise<string[]> {
   return listed.ports.map((port) => `${port.type}:${port.publicPort ?? "-"}->${port.privatePort}`);
 }
 
-// containers-service.md — "`ports` carries no duplicates, and the daemon's own answer does. The
-// daemon reports one entry per host binding, so a port published on both IP stacks arrives twice…
-// Once the IP is dropped the two entries are indistinguishable, so they are collapsed to one here
-// rather than in each reader" (plan-docker_management_app-containers_card_view/REQ-5, REQ-12).
-// Found through the card, which draws one chip per entry and was given duplicate React keys by it.
+// containers-service.md — `ports` carries no duplicates where the daemon's own answer does
+// (plan-docker_management_app-containers_card_view/REQ-5, REQ-12).
 test("listContainers reports a port published on both IP stacks exactly once", async () => {
   const dualStack = await portsFrom([
     { IP: "0.0.0.0", PrivatePort: 5432, PublicPort: 49_153, Type: "tcp" },
@@ -151,9 +143,7 @@ test("listContainers reports a port published on both IP stacks exactly once", a
   assert.deepEqual(dualStack, ["tcp:49153->5432"]);
 });
 
-// The same rule must not collapse mappings that genuinely differ: two host ports for one container
-// port, two protocols for one number, and an exposed port beside a published one are three
-// mappings, not one.
+// containers-service.md — the dedup collapses only what the shape cannot tell apart (REQ-5, REQ-12).
 test("listContainers keeps mappings that differ in anything the shape carries", async () => {
   const distinct = await portsFrom([
     { IP: "0.0.0.0", PrivatePort: 5432, PublicPort: 49_153, Type: "tcp" },
@@ -165,11 +155,8 @@ test("listContainers keeps mappings that differ in anything the shape carries", 
   assert.deepEqual(distinct, ["tcp:-->5432", "tcp:49153->5432", "udp:49153->5432", "tcp:49154->5432"]);
 });
 
-// containers-service.md — "`ports` is ordered by this service, and the order is imposed rather than
-// observed… Sorting by private port, then public port, then protocol makes the key **total**: no two
-// mappings of one container can tie, so the sequence is identical read to read, a subset of it is
-// the same subset" (REQ-5, REQ-15). The card draws the first two and then a `+n`, so an unstable
-// order hands it a different subset each poll.
+// containers-service.md — the order is imposed and total: private port, then public, then protocol
+// (plan-docker_management_app-containers_card_view/REQ-5, REQ-15).
 test("listContainers orders a container's ports by private port, then public port, then protocol", async () => {
   const ordered = await portsFrom([
     { IP: "0.0.0.0", PrivatePort: 8080, PublicPort: 32_770, Type: "tcp" },
@@ -181,9 +168,8 @@ test("listContainers orders a container's ports by private port, then public por
   assert.deepEqual(ordered, ["tcp:32768->80", "tcp:32769->80", "udp:32769->80", "tcp:32770->8080"]);
 });
 
-// The daemon returns the same mappings **rotated** between reads (measured over three consecutive
-// reads on 2026-08-25). What the imposed order guarantees is that the rotation cannot be seen: three
-// reads of an unchanged container, each handed a different rotation, produce one sequence.
+// containers-service.md — the daemon's rotation between reads cannot be seen through the imposed
+// order (plan-docker_management_app-containers_card_view/REQ-5, REQ-15).
 test("listContainers returns one sequence whichever rotation the daemon supplies the ports in", async () => {
   const reported: RawPort[] = [
     { IP: "0.0.0.0", PrivatePort: 5432, PublicPort: 49_153, Type: "tcp" },

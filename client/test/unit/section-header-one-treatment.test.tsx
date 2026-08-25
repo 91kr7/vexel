@@ -108,9 +108,7 @@ describe('SectionHeader — the sublabel that moves no baseline (REQ-26)', () =>
     expect(declaration(body, 'display')).toBeUndefined();
   });
 
-  // section-header.md — "The sublabel resets the treatment the header's variant applies to the
-  // title (letter-spacing, case), so an eyebrow header's sublabel reads as a qualifier rather than
-  // as more of the same label."
+  // section-header.md — the sublabel resets the variant's letter-spacing and case on itself.
   it('resets the letter-spacing and the case the variant applies to the title', () => {
     const body = ruleBody('glass', 'section-header.css', '.ui-section-header__sublabel');
 
@@ -177,9 +175,7 @@ describe('Card — a card titles nothing (REQ-26, REQ-81)', () => {
   // card.md — the prop is retired, not merely unused: a component still accepting one would title
   // itself again the moment a screen passed one, which is the second answer this closes.
   it('draws nothing at all from a title handed to it', () => {
-    // Untyped on purpose: the compiler already refuses the prop, and what is under test here is
-    // what the component *does* with one — a call site written in JavaScript, or a spread of a
-    // wider object, reaches it without the compiler ever being asked.
+    // Untyped on purpose: the compiler refuses the prop, and what is under test is what the component does with one.
     const withRetiredProp = { title: 'Identity and license' } as Record<string, unknown>;
     render(<Card {...withRetiredProp}>body</Card>);
 
@@ -205,9 +201,7 @@ describe('Card — a card titles nothing (REQ-26, REQ-81)', () => {
   });
 });
 
-// section-header.md, widened on 2026-08-25 — "the title gives way instead of pushing what sits
-// beside it out of place: it keeps one line and ellipsises at its end. For a header standing in a
-// row with something anchored to its right" — the containers card's name beside its short id
+// section-header.md — the title gives way instead of pushing what is anchored beside it
 // (plan-docker_management_app-containers_card_view/REQ-3, REQ-30).
 describe('SectionHeader — the title that gives way (containers_card_view/REQ-3)', () => {
   it('carries the library’s own one-line rule on the title, and the whole title as its tooltip', () => {

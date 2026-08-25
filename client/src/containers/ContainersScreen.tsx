@@ -313,8 +313,8 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
         }
       />
       {error ? <ErrorBanner title="Could not load containers" detail={error} onRetry={onRefresh} /> : null}
-      {/* Three cards to a row, and the selected container's panel spanning a row
-          of its own (containers-screen.md). */}
+      {/* Three cards to a row, the selected container's panel spanning the grid's
+          width beneath its own card (containers-screen.md). */}
       <Grid arrangement="cards" dismissalFocusTarget>
         {filtered.length === 0 ? (
           <GridSpan>

@@ -6,15 +6,9 @@ import userEvent from '@testing-library/user-event';
 import { Button, Card, Surface } from '../../src/ui';
 
 /**
- * `ui-library/specs/surface.md`, as widened on 2026-08-25: a Surface can be **selectable** — with
- * the object table's own hover and selected highlights — and can carry a **state accent** down its
- * left edge. That is where the card's material lives, and there is one of it
- * (`plan-docker_management_app-containers_card_view/REQ-28, REQ-29, REQ-30`).
- *
- * Two halves, because the contract has two. What the component *renders* is asserted on the markup;
- * what it *paints* is asserted on the stylesheet, since jsdom applies none — including the half of
- * the contract that matters most here, that no value is written which is written somewhere else
- * already.
+ * `ui-library/specs/surface.md` — the selectable treatment, the state accent and the footer band.
+ * What the component renders is asserted on the markup; what it paints is asserted on the
+ * stylesheet, jsdom applying none.
  */
 
 afterEach(cleanup);
@@ -34,8 +28,7 @@ function surface(root: HTMLElement): HTMLElement {
   return root.querySelector<HTMLElement>('.ui-surface')!;
 }
 
-// surface.md — "a Surface asked for no accent, no onSelect and no selected renders exactly what it
-// rendered before those existed: same markup, same classes, no click handler and no aria-selected".
+// surface.md — the additions are reachable only by asking (containers_card_view/REQ-30).
 describe('Surface — the additions are reachable only by asking (REQ-30)', () => {
   it('renders a plain Surface exactly as it did before the two props existed', async () => {
     const user = userEvent.setup();
@@ -44,7 +37,6 @@ describe('Surface — the additions are reachable only by asking (REQ-30)', () =
     const plain = surface(container);
     expect(plain.className).toBe('ui-surface ui-surface--flat ui-surface--pad-none');
     expect(plain.hasAttribute('aria-selected')).toBe(false);
-    // Nothing to swallow a click: a plain Surface is not a control.
     await user.click(plain);
     expect(plain.className).toBe('ui-surface ui-surface--flat ui-surface--pad-none');
   });
@@ -57,9 +49,7 @@ describe('Surface — the additions are reachable only by asking (REQ-30)', () =
   });
 });
 
-// surface.md — "onSelect() — makes the surface selectable: it takes the pointer cursor, the hover
-// highlight, and reports which one is selected. Called on a click anywhere on the surface that a
-// control inside it did not swallow."
+// surface.md — selectable: the pointer cursor, the hover highlight, and which one is selected (REQ-23, REQ-28, REQ-29).
 describe('Surface — selectable (REQ-23, REQ-28, REQ-29)', () => {
   it('reports a click anywhere on it, and says whether it is the selected one', async () => {
     const user = userEvent.setup();
@@ -104,9 +94,7 @@ describe('Surface — selectable (REQ-23, REQ-28, REQ-29)', () => {
     expect(onSelect).not.toHaveBeenCalled();
   });
 
-  // surface.md — "referenced and not re-declared, so a list drawn as one surface per object wears
-  // the object table's own material". One declaration of each value exists in the product, and it
-  // is the table's.
+  // surface.md — the highlights are the table row's own tokens, referenced and not re-declared.
   it('takes the hover and selected highlights from the tokens the table row already carries', () => {
     const hover = declarationsOf(surfaceCss, '.ui-surface--selectable:hover');
     const selected = declarationsOf(surfaceCss, '.ui-surface--selected');
@@ -120,9 +108,7 @@ describe('Surface — selectable (REQ-23, REQ-28, REQ-29)', () => {
     }
   });
 
-  // surface.md — "the highlight is laid over the surface's fill rather than replacing it… a fill
-  // swap would leave a flat surface with no visible hover at all". The `flat` elevation is already
-  // `--color-surface-2`, which is exactly the case that fails.
+  // surface.md — the highlight is laid over the fill, not swapped for it.
   it('lays the highlight over the fill instead of replacing it, so a flat surface still highlights', () => {
     expect(declarationsOf(surfaceCss, '.ui-surface--flat')).toContain('var(--color-surface-2)');
     expect(declarationsOf(surfaceCss, '.ui-surface--selectable:hover')).toMatch(/background-image:/);
@@ -137,9 +123,7 @@ describe('Surface — selectable (REQ-23, REQ-28, REQ-29)', () => {
   });
 });
 
-// surface.md — "accent: draws a bar down the surface's left edge, running its full height and
-// following the surface's own left rounding rather than cutting across the corner"
-// (containers_card_view/REQ-2).
+// surface.md — the state accent edge (containers_card_view/REQ-2, REQ-18).
 describe('Surface — the state accent edge (REQ-2, REQ-18)', () => {
   it.each(['success', 'warning', 'danger', 'neutral'] as const)('marks a %s surface with that state and no other', (accent) => {
     const { container } = render(<Surface accent={accent}>content</Surface>);
@@ -172,8 +156,7 @@ describe('Surface — the state accent edge (REQ-2, REQ-18)', () => {
     expect(bar).toMatch(/pointer-events:\s*none/);
   });
 
-  // surface.md — "::before belongs to the overlay material, and the two are never asked for
-  // together", which is also what keeps the accent out of the blur allow-list (REQ-33).
+  // surface.md — the bar is painted on `::after`, which keeps it out of the blur allow-list (REQ-33).
   it('paints the bar on ::after, and introduces no blur of any kind', () => {
     expect(declarationsOf(surfaceCss, '.ui-surface--accent::before'), 'the accent took the overlay material\'s own layer').toBe('');
     for (const selector of ['.ui-surface--accent::after', '.ui-surface--selectable:hover', '.ui-surface--selected']) {
@@ -198,9 +181,7 @@ describe('Surface — the state accent edge (REQ-2, REQ-18)', () => {
   });
 });
 
-// surface.md, widened on 2026-08-25 — the **footer band**: a slot closing the surface on its own
-// ground under a hairline, spanning the full width from edge to edge and following the bottom
-// rounding. It is what takes the containers card's actions out of the middle of the card
+// surface.md — the footer band that closes the surface
 // (plan-docker_management_app-containers_card_view/REQ-4, REQ-28, REQ-29, REQ-30).
 describe('Surface — the closing footer band (containers_card_view/REQ-4, REQ-28)', () => {
   it('parts the surface into a content band and a footer, in that order', () => {
@@ -236,9 +217,7 @@ describe('Surface — the closing footer band (containers_card_view/REQ-4, REQ-2
     expect(readFileSync(join(process.cwd(), 'src/ui/glass/Card.tsx'), 'utf8')).not.toMatch(/import\s+['"]\.\/card\.css['"]/);
   });
 
-  // "A footer parts the surface into two bands, and the padding goes with them… which is what lets
-  // the footer's ground and its hairline reach the surface's edges instead of stopping short of
-  // them. The two bands therefore share one inset."
+  // surface.md — the inset leaves the surface and is taken by each band, which share it.
   it('moves the inset off the surface and onto its two bands, which share it', () => {
     const parted = declarationsOf(surfaceCss, '.ui-surface--parted');
     const body = declarationsOf(surfaceCss, '.ui-surface__body');
@@ -250,8 +229,7 @@ describe('Surface — the closing footer band (containers_card_view/REQ-4, REQ-2
     expect(footer, 'the footer does not stand at the same x as the content above it').toContain('var(--surface-pad');
   });
 
-  // "The footer's ground is a wash over the surface's own fill, not a second surface colour, and its
-  // bottom corners inherit the surface's radius rather than restating it."
+  // surface.md — a wash under a hairline, its corners inheriting the surface's radius.
   it('grounds the footer in a wash under a hairline, inheriting the surface’s own rounding', () => {
     const footer = declarationsOf(surfaceCss, '.ui-surface__footer');
 
@@ -266,8 +244,7 @@ describe('Surface — the closing footer band (containers_card_view/REQ-4, REQ-2
     expect(footer).toMatch(/border-bottom-right-radius:\s*inherit/);
   });
 
-  // "The footer sits on the card's bottom edge whatever the card's height, the stretch slack of a
-  // card shorter than its row-mates opening above the hairline and never below it."
+  // surface.md — the content band absorbs the slack, so the footer stays on the bottom edge.
   it('lets the content band absorb the slack, so the footer stays on the bottom edge', () => {
     const parted = declarationsOf(surfaceCss, '.ui-surface--parted');
     const body = declarationsOf(surfaceCss, '.ui-surface__body');
