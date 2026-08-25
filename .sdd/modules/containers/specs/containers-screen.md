@@ -89,6 +89,12 @@ Actions:
 
 ## Rules and invariants
 
+- **The screen is a consumer of the sampled figures and holds the subscription that keeps them
+  coming** (`useStatsSubscription`), for as long as it is the screen being shown and the tab is
+  visible. Moving to another section unmounts it and the daemon stops being sampled; coming back
+  mounts it again and a sample is taken at once. It is held here rather than in the shell: the shell
+  is open on every screen, so a subscription taken there would mean "a browser is open" instead of
+  "somebody is being shown these figures".
 - **The panel splits its card's grid row, and that is not being corrected** (2026-08-25). It is
   emitted as the next grid item after the owning card, so the grid's auto-flow carries the rest of
   that row past it: selecting the first card of a three-card row leaves that card alone above the
@@ -163,7 +169,7 @@ Actions:
 - ui-library: ScreenToolbar, SearchField, FilterChips, TextField, IconButton, ErrorBanner,
   EmptyState, Row, Stack, Grid (as the list's dismissal focus target) and GridSpan, triggerDownload,
   useToast
-- Containers client, Container transfer client, Images client (`ImageSummary`)
+- Containers client, Container transfer client, Images client (`ImageSummary`), useStatsSubscription
 - ContainerCard, ContainerDetailPanel, ContainerCreateForm
 - app-shell: ConfirmationService, ProgressService, ErrorReportingService
 
@@ -214,3 +220,5 @@ Actions:
 - plan-docker_management_app-containers_card_view/REQ-32
 - plan-docker_management_app-containers_card_view/REQ-33
 - plan-docker_management_app-containers_card_view/REQ-36
+- plan-docker_management_app-containers_card_view/REQ-42
+- plan-docker_management_app-containers_card_view/REQ-48

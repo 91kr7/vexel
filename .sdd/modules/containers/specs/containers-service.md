@@ -23,8 +23,10 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   - `ports`: `{ privatePort, publicPort?, type }[]`, **each mapping appearing exactly once**, in a
     **total order of this service's own**: by private port, then public port, then protocol.
   - `cpuPercent`/`memoryUsageBytes`/`memoryLimitBytes`/`onlineCpus`/`networkRxBytes`/
-    `networkTxBytes` are present only for a `running` container that the sampler has read at least
-    once since it started running; all six come from **one** sample and are absent together.
+    `networkTxBytes` are present only for a `running` container whose latest sample is **less than
+    30 seconds old**; all six come from **one** sample and are absent together, and a container the
+    sampler has never read, one that has stopped, and one whose reading has gone stale are
+    indistinguishable to a caller — each simply has no figures.
   - `onlineCpus` is the number of host CPUs `cpuPercent` is measured against, so `cpuPercent`
     reaches `onlineCpus × 100` at full load and a caller can state the reading over its capacity.
   - `networkRxBytes`/`networkTxBytes` are the bytes received and sent since the container started,
@@ -42,8 +44,13 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 - `renameContainer(id, name): Promise<void>` — `POST /containers/{id}/rename?name=...`.
 - `pruneStoppedContainers(): Promise<PruneResult>` — `POST /containers/prune`;
   `PruneResult`: `{ removedIds: string[], reclaimedBytes: number }`.
-- `startStatsSampler(): void` — starts the background CPU/memory sampler; idempotent (a second call
-  is a no-op).
+- `STATS_SAMPLE_INTERVAL_MS: 10000` — the sampling interval, and the period the subscription
+  endpoint writes at.
+- `startStatsSampling(): void` — starts the CPU/memory sampler **and takes a sample immediately**,
+  so a consumer that has just arrived waits for figures for the duration of one daemon call rather
+  than for a whole interval; idempotent (a second call while it runs is a no-op).
+- `stopStatsSampling(): void` — stops it: no further stats request reaches the daemon; idempotent.
+- `isStatsSamplingActive(): boolean` — whether the sampler is running.
 - `getContainerInspect(id): Promise<ContainerInspect>` — full inspect data via `GET
   /containers/{id}/json` (REQ-24, REQ-26).
   - `ContainerInspect`: `{ id, name, image, command, entrypoint, createdAt, state: { status,
@@ -74,12 +81,22 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 
 ## Rules and invariants
 
-- The sampler polls `GET /containers/json` (running only) plus one `GET
-  /containers/{id}/stats?stream=false` per running container every 3 seconds (REQ-19): a bounded
-  refresh rate, not a per-request fetch, so listing containers never blocks on the daemon's stats
-  endpoint.
+- One pass is `GET /containers/json` (running only) plus one `GET
+  /containers/{id}/stats?stream=false` per running container: a bounded refresh rate, not a
+  per-request fetch, so listing containers never blocks on the daemon's stats endpoint.
+- **The sampler runs only while it is started, and nothing here starts it.** It is started and
+  stopped by `StatsDemandRegistry`, on the count of consumers being shown the figures; a process
+  with no consumer issues no stats request at all, on any screen and with no browser attached.
+- **Passes never overlap and never queue.** A tick arriving while the previous pass is still out is
+  dropped, so a pass slower than the interval gains no second pass beside it and no backlog builds
+  up — however slow the daemon is and however many containers are running.
 - A container's cached sample is dropped as soon as it no longer appears in the running set, so a
   stopped container never reports a stale CPU/memory reading.
+- **A reading older than three intervals reaches no consumer**, by the same route a stopped
+  container's absent sample already takes: the bound is stated in exactly one place, as a multiple
+  of the interval, and it is what stops a number measured before the gate closed from being
+  redisplayed on return as though it had just been taken. Nothing exposes the age of a sample; the
+  choice is between a current figure and none.
 - **`ports` carries no duplicates, and the daemon's own answer does.** The daemon reports one entry
   per host binding, so a port published on both IP stacks arrives twice — same private port, same
   public port, same protocol, differing only by a host IP this shape does not carry. Once the IP is
@@ -130,6 +147,7 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 ## Dependencies
 
 - docker-access: EngineClient (via `getEngineClient()`), DockerDaemonError
+- containers: StatsDemandRegistry (the caller of the start/stop pair; no import in this direction)
 - image-analysis: `INTERNAL_CONTAINER_LABEL`
 - list-order: List order (`byNameThenIdentity`)
 
@@ -147,3 +165,8 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 - plan-docker_management_app-list_ordering/REQ-12
 - plan-docker_management_app-containers_card_view/REQ-5
 - plan-docker_management_app-containers_card_view/REQ-13
+- plan-docker_management_app-containers_card_view/REQ-39
+- plan-docker_management_app-containers_card_view/REQ-40
+- plan-docker_management_app-containers_card_view/REQ-52
+- plan-docker_management_app-containers_card_view/REQ-55
+- plan-docker_management_app-containers_card_view/REQ-58

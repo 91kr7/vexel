@@ -17,6 +17,7 @@ import {
 } from '../ui';
 import type { ContainerState, ContainerSummary } from '../data/containers-client';
 import type { DiskUsageTotalCategoryId } from '../data/system-client';
+import { useStatsSubscription } from '../data/use-stats-subscription';
 import { useSystemOverview } from '../data/use-system-overview';
 import { useDaemonEventStream } from '../shell/services/EventStreamService';
 import { useCrossNavigation } from '../shell/services/CrossNavigationService';
@@ -79,8 +80,11 @@ function uptimeLabel(container: ContainerSummary): string {
   return match ? match[1] : container.status;
 }
 
+// No sample is stated as one rather than drawn as a zero or a blank, with the
+// dash the card already uses (plan-docker_management_app-containers_card_view/REQ-16,
+// REQ-52).
 function cpuLabel(container: ContainerSummary): string {
-  return container.cpuPercent === undefined ? '' : `${container.cpuPercent.toFixed(0)}% cpu`;
+  return container.cpuPercent === undefined ? '—' : `${container.cpuPercent.toFixed(0)}% cpu`;
 }
 
 /**
@@ -94,6 +98,9 @@ function cpuLabel(container: ContainerSummary): string {
  * the rest of the application already follows.
  */
 export function DashboardScreen({ containers, containersLoaded, containersError, onRefreshContainers }: DashboardScreenProps) {
+  // The second consumer of the sampled figures: the gate is on consumers, not
+  // on one named screen (plan-docker_management_app-containers_card_view/REQ-45).
+  useStatsSubscription();
   const { overview, loaded, error, refresh } = useSystemOverview();
   const { events } = useDaemonEventStream();
   const { navigateTo } = useCrossNavigation();

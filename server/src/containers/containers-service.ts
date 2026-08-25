@@ -1,6 +1,7 @@
 // Container listing and lifecycle over the Engine API (REQ-19, REQ-20, REQ-21,
-// REQ-22), plus a bounded-rate CPU/memory sampler for running containers
-// (REQ-19) whose latest reading is merged into every list response.
+// REQ-22), plus the CPU/memory sampler for running containers whose latest
+// reading is merged into every list response — started and stopped by the
+// demand registry, never by process boot.
 import { getEngineClient } from "../connectivity/connection-status-service.js";
 import { INTERNAL_CONTAINER_LABEL } from "../image-analysis/filesystem-extraction-service.js";
 import { byNameThenIdentity } from "../list-order/list-order.js";
@@ -167,11 +168,17 @@ interface SampledUsage {
   onlineCpus: number;
   networkRxBytes: number;
   networkTxBytes: number;
+  /** When the frame this reading came from was taken (`Date.now()`). */
+  sampledAt: number;
 }
 
-const STATS_SAMPLE_INTERVAL_MS = 3000;
+export const STATS_SAMPLE_INTERVAL_MS = 10000;
+// The one place the staleness bound is stated: three intervals, the smallest
+// multiple that survives one missed pass (plan-docker_management_app-containers_card_view/REQ-52).
+const STATS_STALE_AFTER_MS = STATS_SAMPLE_INTERVAL_MS * 3;
 const statsCache = new Map<string, SampledUsage>();
-let samplerStarted = false;
+let sampleTimer: ReturnType<typeof setInterval> | undefined;
+let passInFlight = false;
 
 export async function listContainers(): Promise<ContainerSummary[]> {
   const response = await getEngineClient().request("/containers/json?all=true");
@@ -419,17 +426,42 @@ function toInspect(raw: RawInspect): ContainerInspect {
   };
 }
 
-/** Starts the background CPU/memory sampler for running containers; idempotent. */
-export function startStatsSampler(): void {
-  if (samplerStarted) return;
-  samplerStarted = true;
-  void sampleLoop();
+/**
+ * Starts the sampler and samples at once, so a consumer that has just arrived
+ * is not shown dashes for a whole interval; idempotent. Called by the demand
+ * registry alone, never at boot (plan-docker_management_app-containers_card_view/REQ-41, REQ-44, REQ-51).
+ */
+export function startStatsSampling(): void {
+  if (sampleTimer) return;
+  sampleTimer = setInterval(() => void runSamplePass(), STATS_SAMPLE_INTERVAL_MS);
+  sampleTimer.unref?.();
+  void runSamplePass();
 }
 
-async function sampleLoop(): Promise<void> {
-  for (;;) {
-    await sampleOnce().catch(() => undefined);
-    await delay(STATS_SAMPLE_INTERVAL_MS);
+/** Stops the sampler: no further request reaches the daemon. Idempotent. */
+export function stopStatsSampling(): void {
+  if (!sampleTimer) return;
+  clearInterval(sampleTimer);
+  sampleTimer = undefined;
+}
+
+/** True while the sampler is running — the observable state of the gate. */
+export function isStatsSamplingActive(): boolean {
+  return sampleTimer !== undefined;
+}
+
+// A tick arriving while the previous pass is still out is dropped, never
+// queued: no second pass beside a slow one, and no backlog
+// (plan-docker_management_app-containers_card_view/REQ-40).
+async function runSamplePass(): Promise<void> {
+  if (passInFlight) return;
+  passInFlight = true;
+  try {
+    await sampleOnce();
+  } catch {
+    // an unreachable daemon is not fatal to the gate: the next tick retries
+  } finally {
+    passInFlight = false;
   }
 }
 
@@ -473,6 +505,7 @@ function computeUsage(raw: RawStats): SampledUsage {
     onlineCpus,
     networkRxBytes,
     networkTxBytes,
+    sampledAt: Date.now(),
   };
 }
 
@@ -497,8 +530,17 @@ function portMappingKey(mapping: ContainerPort): string {
   return `${mapping.type}-${mapping.publicPort ?? ""}-${mapping.privatePort}`;
 }
 
+// A reading older than the staleness bound reaches no consumer at all, by the
+// route a stopped container's absent sample already takes
+// (plan-docker_management_app-containers_card_view/REQ-52).
+function freshSample(id: string): SampledUsage | undefined {
+  const usage = statsCache.get(id);
+  if (!usage) return undefined;
+  return Date.now() - usage.sampledAt <= STATS_STALE_AFTER_MS ? usage : undefined;
+}
+
 function toSummary(raw: RawContainer): ContainerSummary {
-  const usage = statsCache.get(raw.Id);
+  const usage = freshSample(raw.Id);
   return {
     id: raw.Id,
     shortId: raw.Id.slice(0, 12),
@@ -514,8 +556,4 @@ function toSummary(raw: RawContainer): ContainerSummary {
     networkRxBytes: usage?.networkRxBytes,
     networkTxBytes: usage?.networkTxBytes,
   };
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

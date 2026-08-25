@@ -17,7 +17,6 @@ import { contextsRouter } from "./contexts/contexts-routes.js";
 import { publishActiveEndpoint } from "./contexts/contexts-service.js";
 import { handleContainerSessionUpgrade } from "./containers/container-sessions-routes.js";
 import { containersRouter } from "./containers/containers-routes.js";
-import { startStatsSampler } from "./containers/containers-service.js";
 import { eventsRouter } from "./events/events-routes.js";
 import { eventStreamService } from "./events/event-stream-service.js";
 import { hostPathsRouter } from "./host-fs/host-path-routes.js";
@@ -79,7 +78,10 @@ mountClientApp(app);
 void publishActiveEndpoint();
 
 eventStreamService.start();
-startStatsSampler();
+// No sampler is started here: the per-container stats sampler runs only while a
+// consumer holds a subscription to the sampled figures, so a server left running
+// with no browser attached asks the daemon for nothing
+// (plan-docker_management_app-containers_card_view/REQ-41, REQ-44).
 reclaimOrphans();
 // The daemon may not be reachable yet at startup; a failed sweep here is not
 // fatal, it only means a leftover container waits for the next successful one.

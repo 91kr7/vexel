@@ -35,6 +35,7 @@ import type { ImageSummary } from '../data/images-client';
 import { ContainerCard } from './ContainerCard';
 import { ContainerCreateForm } from './ContainerCreateForm';
 import { ContainerDetailPanel } from './ContainerDetailPanel';
+import { useStatsSubscription } from '../data/use-stats-subscription';
 import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
 import { useProgress } from '../shell/services/ProgressService';
@@ -105,6 +106,10 @@ function matchesStateFilter(container: ContainerSummary, filter: string): boolea
  * container, each with its lifecycle slots, its overflow menu and its detail panel.
  */
 export function ContainersScreen({ containers, loaded, error, onRefresh, images = [], imagesLoaded = true }: ContainersScreenProps) {
+  // This screen consumes the sampled figures, so it is what keeps the server
+  // sampling; mounted only while the section is open
+  // (plan-docker_management_app-containers_card_view/REQ-42, REQ-45).
+  useStatsSubscription();
   const { confirm } = useConfirmation();
   const { push } = useToast();
   const { run } = useProgress();
