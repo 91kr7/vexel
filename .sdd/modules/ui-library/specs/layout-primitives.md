@@ -11,8 +11,13 @@ writing a wrapper `<div>`.
 
 ## Contract
 
-- `<Stack gap? children?>` — vertical flex column; `gap` is a CSS length or token (default
-  `var(--space-4)`).
+- `<Stack gap? dismissalFocusTarget? children?>` — vertical flex column; `gap` is a CSS length or
+  token (default `var(--space-4)`).
+  - `dismissalFocusTarget?: boolean` (default `false`) — marks the stack as the region the point of
+    interaction returns to when a dismissible surface **inside it** is dismissed by `Escape` rather
+    than by a control of its own — for a stack that *is* a list whose expansion opens inside it. It
+    adds no stop of its own to the tab order, and a stack that does not ask for it renders exactly
+    what it rendered before the prop existed.
 - `<Row gap? align? justify? wrap? onClick? children?>` — horizontal flex row; `align`: `'start' |
   'center'`; `justify`: `'start' | 'between'`; `wrap`: boolean (default `false`); `onClick?` — passed
   through to the underlying element (e.g. to stop propagation inside a clickable ancestor).
@@ -29,6 +34,10 @@ writing a wrapper `<div>`.
 - `<Spacer />` — a flexible spacer (`flex: 1 1 auto`) that pushes Row/Stack siblings apart.
 
 ## Rules and invariants
+
+- `Stack`'s `dismissalFocusTarget` is the same contract `DataTable` already carries for its own list
+  region, taken from the one place that defines it (`escape-arbitration`): the stack knows nothing
+  about panels, and the panel knows nothing about the stack.
 
 - `Grid`'s `pair` arrangement is **intrinsic**, not keyed to the viewport: it collapses the tracks its
   two children do not occupy, so the two that remain always share the full width equally, and it

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Button, type ButtonVariant } from './Button';
 import { Menu, type MenuEntry } from './Menu';
 import './controls.css';
@@ -48,6 +49,13 @@ export interface ActionButtonGroupOverflow {
 export interface ActionButtonGroupProps {
   actions: RowAction[];
   /**
+   * Draws the cluster as one segmented control: the controls share a single
+   * boundary, with a hairline divider between them, instead of standing apart.
+   * Appearance only — the actions, their order, their positions and the
+   * overflow menu are exactly what they are without it.
+   */
+  segmented?: boolean;
+  /**
    * The menu the `overflow`-weight actions are collected into, always the
    * group's last, trailing slot. Required as soon as an action weighs
    * `overflow`, because its trigger needs a name; an overflow-weighted action
@@ -67,7 +75,7 @@ function actionWeight(action: RowAction): ActionWeight {
  * overflow menu. Stops click propagation so an action never also triggers the
  * containing row's `onRowSelect`.
  */
-export function ActionButtonGroup({ actions, overflow }: ActionButtonGroupProps) {
+export function ActionButtonGroup({ actions, overflow, segmented = false }: ActionButtonGroupProps) {
   const buttons = actions.filter((action) => actionWeight(action) !== 'overflow');
   const demoted: MenuEntry[] = actions
     .filter((action) => actionWeight(action) === 'overflow')
@@ -80,21 +88,39 @@ export function ActionButtonGroup({ actions, overflow }: ActionButtonGroupProps)
     }));
   const entries = [...(overflow?.entries ?? []), ...demoted];
 
+  // Segmented, each control is wrapped in a segment: the stylesheet then has one
+  // element per slot to round, whether the slot holds a bare button or a button
+  // carrying the tooltip that states why it is disabled.
+  const wrap = (key: string, control: ReactNode) =>
+    segmented ? (
+      <span key={key} className="ui-action-button-group__segment">
+        {control}
+      </span>
+    ) : (
+      control
+    );
+
   return (
-    <div className="ui-action-button-group" onClick={(event) => event.stopPropagation()}>
-      {buttons.map((action) => (
-        <Button
-          key={action.id}
-          size="sm"
-          variant={weightVariant[actionWeight(action) as Exclude<ActionWeight, 'overflow'>]}
-          disabled={action.disabled}
-          description={action.disabled ? action.disabledReason : undefined}
-          onClick={action.onClick}
-        >
-          {action.label}
-        </Button>
-      ))}
-      {overflow ? <Menu label={overflow.label} entries={entries} /> : null}
+    <div
+      className={segmented ? 'ui-action-button-group ui-action-button-group--segmented' : 'ui-action-button-group'}
+      onClick={(event) => event.stopPropagation()}
+    >
+      {buttons.map((action) =>
+        wrap(
+          action.id,
+          <Button
+            key={action.id}
+            size="sm"
+            variant={weightVariant[actionWeight(action) as Exclude<ActionWeight, 'overflow'>]}
+            disabled={action.disabled}
+            description={action.disabled ? action.disabledReason : undefined}
+            onClick={action.onClick}
+          >
+            {action.label}
+          </Button>,
+        ),
+      )}
+      {overflow ? wrap('overflow', <Menu key="overflow" label={overflow.label} entries={entries} />) : null}
     </div>
   );
 }

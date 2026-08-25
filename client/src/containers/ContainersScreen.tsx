@@ -1,26 +1,19 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import {
-  ActionButtonGroup,
-  Card,
-  DataTable,
   EmptyState,
   ErrorBanner,
   FilterChips,
   IconButton,
-  MetaCell,
   Row,
   ScreenToolbar,
   SearchField,
   Stack,
-  StatusDotCell,
   TextField,
   triggerDownload,
-  TwoLineCell,
   useToast,
-  type DataTableColumn,
+  type ActionWeight,
   type MenuEntry,
   type RowAction,
-  type StatusTone,
 } from '../ui';
 import {
   killContainer,
@@ -32,12 +25,12 @@ import {
   startContainer,
   stopContainer,
   unpauseContainer,
-  type ContainerPort,
   type ContainerState,
   type ContainerSummary,
 } from '../data/containers-client';
 import { exportContainerUrl } from '../data/container-transfer-client';
 import type { ImageSummary } from '../data/images-client';
+import { ContainerCard } from './ContainerCard';
 import { ContainerCreateForm } from './ContainerCreateForm';
 import { ContainerDetailPanel } from './ContainerDetailPanel';
 import { useConfirmation } from '../shell/services/ConfirmationService';
@@ -91,22 +84,6 @@ function formatBytes(bytes: number): string {
   return `${value.toFixed(1)}${units[unitIndex]}`;
 }
 
-function formatMemory(container: ContainerSummary): string | undefined {
-  if (container.memoryUsageBytes === undefined || container.memoryLimitBytes === undefined) return undefined;
-  return `${formatBytes(container.memoryUsageBytes)} / ${formatBytes(container.memoryLimitBytes)}`;
-}
-
-function formatPorts(ports: ContainerPort[]): string | undefined {
-  if (ports.length === 0) return undefined;
-  return ports.map((port) => (port.publicPort ? `${port.publicPort}→${port.privatePort}` : `${port.privatePort}`)).join(', ');
-}
-
-function stateTone(state: ContainerState): StatusTone {
-  if (state === 'running') return 'success';
-  if (state === 'paused' || state === 'restarting') return 'warning';
-  return 'neutral';
-}
-
 function matchesSearch(container: ContainerSummary, term: string): boolean {
   if (!term.trim()) return true;
   const needle = term.trim().toLowerCase();
@@ -127,15 +104,22 @@ function matchesStateFilter(container: ContainerSummary, filter: string): boolea
 
 /**
  * Containers screen (REQ-19–23, REQ-24–26, REQ-109): toolbar with search/state
- * filters and a bulk "Prune stopped" action, and a dense virtualised table whose
- * every row ends in the same four controls — three fixed lifecycle slots
- * (run/halt, pause, restart), each present in every state and disabled with its
- * reason where the state does not allow it, and one overflow control opening the
- * row's secondary actions (rename, export filesystem, kill, remove). Selecting a
- * row (outside that action area) opens its detail panel inline below it;
- * exec/attach live there as panel tabs. Destructive actions (kill, remove,
- * prune) go through the shell's confirmation service, the menu being a step in
- * front of that confirmation rather than a substitute for it.
+ * filters and a bulk "Prune stopped" action, over one card per container — the
+ * one list in the product drawn as a surface per object, admitted by name in
+ * `check-ui-conformance.mjs`. Every card carries the same four controls — three
+ * fixed lifecycle slots (run/halt, pause, restart), each present in every state
+ * and disabled with its reason where the state does not allow it, and one
+ * overflow control opening the container's secondary actions (rename, export
+ * filesystem, kill, remove). Selecting a card (outside that action area) opens
+ * its detail panel directly beneath it; exec/attach live there as panel tabs.
+ * Destructive actions (kill, remove, prune) go through the shell's confirmation
+ * service, the menu being a step in front of that confirmation rather than a
+ * substitute for it.
+ *
+ * The cards mount all at once, where the table mounted only the rows near the
+ * viewport: a card's height follows its content (the ports chip wraps), which is
+ * the one case `DataTable` itself declines to virtualise. Accepted deliberately
+ * and recorded in the plan's `batches.md`.
  */
 export function ContainersScreen({ containers, loaded, error, onRefresh, images = [], imagesLoaded = true }: ContainersScreenProps) {
   const { confirm } = useConfirmation();
@@ -246,9 +230,10 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
    */
   function lifecycleActionsFor(container: ContainerSummary): RowAction[] {
     const busy = busyIds.has(container.id);
-    const make = (id: string, label: string, task: () => Promise<void>, unavailable?: string): RowAction => ({
+    const make = (id: string, label: string, task: () => Promise<void>, unavailable?: string, weight?: ActionWeight): RowAction => ({
       id,
       label,
+      weight,
       disabled: busy || unavailable !== undefined,
       disabledReason: busy ? BUSY_REASON : unavailable,
       // The operation's own name, not the button's label, is what the
@@ -263,13 +248,18 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
     const restarting = state === 'restarting';
     const stateReason = restarting ? RESTARTING_REASON : NOT_RUNNING_REASON;
 
+    // The first slot is the affirmative one where the container is not running —
+    // starting or resuming it is what the operator came for — and merely one
+    // control among the others where it is: halting a running container is not
+    // the card's suggestion. Weight only; the action, its position and its
+    // legality are unchanged.
     const runHalt = restarting
       ? make('stop', 'Stop', () => stopContainer(container.id), RESTARTING_REASON)
       : running
         ? make('stop', 'Stop', () => stopContainer(container.id))
         : paused
-          ? make('unpause', 'Resume', () => unpauseContainer(container.id))
-          : make('start', 'Start', () => startContainer(container.id));
+          ? make('unpause', 'Resume', () => unpauseContainer(container.id), undefined, 'primary')
+          : make('start', 'Start', () => startContainer(container.id), undefined, 'primary');
 
     return [
       runHalt,
@@ -316,68 +306,42 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
   }
 
   /**
-   * The row is the panel's only pointer route now that the panel has no close
-   * control: selecting the selected row closes it, selecting another one leaves
+   * The card is the panel's only pointer route now that the panel has no close
+   * control: selecting the selected card closes it, selecting another one leaves
    * it open on that container. A container filtered or searched out of view
-   * deliberately keeps its selection — the panel is the table's expansion of its
-   * own row, so neither is rendered while the row is out of the list and both
-   * come back together when it re-enters.
+   * deliberately keeps its selection — the panel is the card's own expansion, so
+   * neither is rendered while the card is out of the list and both come back
+   * together when it re-enters.
    */
   function toggleSelection(container: ContainerSummary) {
     setSelectedId((current) => (current === container.id ? undefined : container.id));
   }
 
-  function renderNameCell(container: ContainerSummary) {
-    if (renamingId === container.id) {
-      return (
-        <Row gap="var(--space-1)" align="center" onClick={(event) => event.stopPropagation()}>
-          <TextField
-            value={renameValue}
-            onChange={setRenameValue}
-            ariaLabel={`New name for ${container.name}`}
-            autoFocus
-            onSubmit={() => submitRename(container)}
-          />
-          <IconButton label="Save name" onClick={() => submitRename(container)}>
-            ✓
-          </IconButton>
-          <IconButton label="Cancel rename" onClick={cancelRename}>
-            ✕
-          </IconButton>
-        </Row>
-      );
-    }
-    // No action on the name cell: renaming is started from the row's overflow
-    // menu, which is the row's only action-bearing area.
-    return <TwoLineCell title={container.name} subtitle={`${container.shortId} · ${container.state}`} />;
-  }
-
-  const columns: DataTableColumn<ContainerSummary>[] = [
-    { id: 'status', header: '', width: '20px', render: (container) => <StatusDotCell tone={stateTone(container.state)} /> },
-    { id: 'name', header: 'NAME', width: '1.8fr', render: renderNameCell },
-    { id: 'image', header: 'IMAGE', render: (container) => <MetaCell>{container.image}</MetaCell> },
-    {
-      id: 'cpu',
-      header: 'CPU',
-      align: 'end',
-      width: '0.6fr',
-      render: (container) => <MetaCell>{container.cpuPercent === undefined ? undefined : `${container.cpuPercent.toFixed(0)}%`}</MetaCell>,
-    },
-    { id: 'memory', header: 'MEMORY', width: '1.2fr', render: (container) => <MetaCell>{formatMemory(container)}</MetaCell> },
-    { id: 'ports', header: 'PORTS', width: '1fr', render: (container) => <MetaCell>{formatPorts(container.ports)}</MetaCell> },
-    { id: 'uptime', header: 'UPTIME', width: '1fr', render: (container) => <MetaCell>{container.status}</MetaCell> },
-    {
-      id: 'lifecycle',
-      header: 'LIFECYCLE',
-      width: 'var(--data-table-action-column-width)',
-      render: (container) => (
-        <ActionButtonGroup
-          actions={lifecycleActionsFor(container)}
-          overflow={{ label: `More actions for ${container.name}`, entries: overflowEntriesFor(container) }}
+  /**
+   * The name's place while this container is being renamed. It is the card's
+   * only editable area: renaming is started from the overflow menu, which is
+   * where it was started from before.
+   */
+  function renameControlFor(container: ContainerSummary) {
+    if (renamingId !== container.id) return undefined;
+    return (
+      <Row gap="var(--space-1)" align="center" onClick={(event) => event.stopPropagation()}>
+        <TextField
+          value={renameValue}
+          onChange={setRenameValue}
+          ariaLabel={`New name for ${container.name}`}
+          autoFocus
+          onSubmit={() => submitRename(container)}
         />
-      ),
-    },
-  ];
+        <IconButton label="Save name" onClick={() => submitRename(container)}>
+          ✓
+        </IconButton>
+        <IconButton label="Cancel rename" onClick={cancelRename}>
+          ✕
+        </IconButton>
+      </Row>
+    );
+  }
 
   const filtered = containers.filter((container) => matchesStateFilter(container, stateFilter) && matchesSearch(container, search));
   const hasStoppedContainers = containers.some((container) => (STOPPED_STATES as string[]).includes(container.state));
@@ -396,33 +360,43 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
         }
       />
       {error ? <ErrorBanner title="Could not load containers" detail={error} onRetry={onRefresh} /> : null}
-      <Card padding="none">
-        <DataTable
-          columns={columns}
-          rows={filtered}
-          rowKey={(container) => container.id}
-          maxHeight="60vh"
-          selectedRowKey={selectedId}
-          onRowSelect={toggleSelection}
-          expandedRowKey={selectedId}
-          renderExpanded={(container) => (
-            <ContainerDetailPanel
+      {/* One card per container, at full width, separated by one gap and by
+          nothing else: no header row, no rules between them, no surface around
+          the list. The panel of the selected container is the next item of this
+          same stack, so it opens directly under the card that owns it and the
+          list below simply moves down. The stack is where the point of
+          interaction returns when `Escape` closes that panel. */}
+      <Stack gap="var(--space-3)" dismissalFocusTarget>
+        {filtered.length === 0 ? (
+          <EmptyState
+            title={loaded ? 'No containers match' : 'Loading containers…'}
+            description={loaded ? 'Try a different search or filter.' : null}
+            action={null}
+          />
+        ) : null}
+        {filtered.map((container) => (
+          <Fragment key={container.id}>
+            <ContainerCard
               container={container}
-              onClose={() => setSelectedId(undefined)}
-              onContainerReplaced={(newId) => {
-                setSelectedId(newId);
-                onRefresh();
-              }}
+              lifecycleActions={lifecycleActionsFor(container)}
+              overflowEntries={overflowEntriesFor(container)}
+              selected={container.id === selectedId}
+              onSelect={() => toggleSelection(container)}
+              renameControl={renameControlFor(container)}
             />
-          )}
-          emptyState={
-            <EmptyState
-              title={loaded ? 'No containers match' : 'Loading containers…'}
-              description={loaded ? 'Try a different search or filter.' : null}
-             action={null} />
-          }
-        />
-      </Card>
+            {container.id === selectedId ? (
+              <ContainerDetailPanel
+                container={container}
+                onClose={() => setSelectedId(undefined)}
+                onContainerReplaced={(newId) => {
+                  setSelectedId(newId);
+                  onRefresh();
+                }}
+              />
+            ) : null}
+          </Fragment>
+        ))}
+      </Stack>
 
       <ContainerCreateForm
         open={createMode !== null}

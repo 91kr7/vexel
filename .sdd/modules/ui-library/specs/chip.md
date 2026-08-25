@@ -13,21 +13,30 @@ weighs).
 
 ## Contract
 
-- `<Chip label meta? actionLabel? onAction? onSelect? />`
+- `<Chip label prefix? meta? tone? actionLabel? onAction? onSelect? />`
+  - `prefix?` — a muted qualifier shown **before** the label, naming what the label is (e.g.
+    `image` before an image reference); omitted when absent. Same muted treatment as `meta`, one
+    declaration serving both positions.
   - `meta?` — a secondary reading shown after the label, muted (e.g. `256MB`); omitted when absent.
+  - `tone?: 'neutral' | 'accent'` (default `'neutral'`) — `'accent'` marks the chip the caller
+    wants read as the salient one among its neighbours, rather than as one more plain attribute
+    beside them; it takes the accent role's own border, tint and text tokens and declares no
+    colour of its own. What makes a value salient is the caller's to decide: the library states
+    the emphasis, never the reason for it.
   - `actionLabel` and `onAction` must both be given for the action to show; either missing renders a
     plain, action-less chip.
   - `onSelect?` — makes the whole chip the click target, for a chip that is itself a starting point
     (e.g. a suggested command put into an input) rather than a label carrying a secondary action.
     A chip with `onSelect` carries no inline action.
 - `<ChipGroup items addLabel? onAdd? emptyLabel? />`
-  - `items: { key, label, meta?, actionLabel?, onAction?, onSelect? }[]` — each rendered as a `Chip`.
+  - `items: { key, label, prefix?, meta?, tone?, actionLabel?, onAction?, onSelect? }[]` — each
+    rendered as a `Chip`, every field forwarded unchanged.
   - `addLabel` and `onAdd` must both be given for the trailing add affordance to show.
   - `emptyLabel?` — shown in place of any chip when `items` is empty.
 
 Shows:
-- One chip per item: its label, its meta reading when given, then its own inline action when given —
-  in that order.
+- One chip per item: its prefix when given, its label, its meta reading when given, then its own
+  inline action when given — in that order.
 - A trailing add affordance when `addLabel`/`onAdd` are both given.
 - The empty-state label when there are no items and `emptyLabel` is given.
 Actions:
@@ -48,6 +57,7 @@ Actions:
   The dashed pill it used to be read as a placeholder waiting to be filled; it still calls `onAdd`
   and nothing else about the group changed.
 - A chip that carries neither an action nor `onSelect` is a statement and holds no control at all.
+- A chip asked for no `prefix` and no `tone` renders exactly what it rendered before those existed.
 
 ## Dependencies
 
@@ -61,3 +71,5 @@ Actions:
 - plan-docker_management_app/REQ-74
 - plan-docker_management_app/REQ-86
 - plan-docker_management_app/REQ-103
+- plan-docker_management_app-containers_card_view/REQ-5
+- plan-docker_management_app-containers_card_view/REQ-30

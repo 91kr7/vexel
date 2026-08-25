@@ -30,7 +30,12 @@
   min-width: 0;
 }
 
-.ui-metric-tile__label {
+/* The one small-uppercase-muted label treatment of the metric primitives. The
+   meter's own label takes it as soon as the meter carries a prominent value
+   beside it, and takes it *instead of* `.ui-meter__label` rather than on top of
+   it — the two would otherwise cascade by source order rather than by intent. */
+.ui-metric-tile__label,
+.ui-meter__label--eyebrow {
   margin: 0;
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
@@ -65,7 +70,8 @@
   color: var(--color-danger-strong);
 }
 
-.ui-metric-tile__sub-label {
+.ui-metric-tile__sub-label,
+.ui-metric-strip__reading-label {
   margin: 0;
   font-family: var(--font-family-mono);
   font-size: var(--font-size-xs);
@@ -93,6 +99,32 @@
   min-width: 0;
 }
 
+/* The label and the prominent value read as one group at the left, with the
+   reading kept at the right edge of the meter's own box. */
+.ui-meter__name {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* One line of the value's own height, whatever a given column happens to carry,
+   so that meters laid side by side start their tracks at the same y — and so
+   does a column that carries readings instead of a track. */
+.ui-meter--prominent .ui-meter__head,
+.ui-metric-strip__readings-head {
+  min-height: calc(var(--font-size-md) * var(--line-height-tight));
+}
+
+.ui-meter__value {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
 .ui-meter__label {
   margin: 0;
   font-size: var(--font-size-sm);
@@ -113,6 +145,14 @@
   overflow: hidden;
 }
 
+/* Nothing was measured: an empty track, fainter than a measured one, and never
+   the dashed treatment below — an unlimited container is measured, and must not
+   be shown as an unmeasured one. What tells it apart from a measured zero is the
+   value and the reading, which say it in words. */
+.ui-meter__track--no-sample {
+  background: var(--color-wash-1);
+}
+
 /* No measurable maximum: a dashed rule where the pill would be, so the missing
    fill reads as "there is no ceiling here" rather than as a bar that failed.
    Background only — the box, and therefore the tile's height, is the filled
@@ -129,6 +169,14 @@
   height: 100%;
   border-radius: var(--radius-full);
   background: var(--color-accent);
+}
+
+/* A non-zero measurement never rounds away to nothing: under this width the
+   fill is a sub-pixel sliver and reads as an empty track. Carried by a modifier
+   the meter adds only to a fill it actually drew, so a measured zero keeps an
+   empty track. */
+.ui-meter__fill--present {
+  min-width: var(--space-2);
 }
 
 .ui-meter__fill--success {
@@ -366,4 +414,59 @@
 
 .ui-usage-breakdown__empty {
   min-width: 0;
+}
+
+/* ── Metric strip ────────────────────────────────────────────────────────────
+   A row of metric columns: the tracked ones, of equal width, then a narrower
+   trailing column carrying a pair of readings and no track. The widths are flex
+   proportions against a zero basis, so a column's width is the strip's to decide
+   and never the content's — which is what makes the columns land at the same x
+   on every strip of a list, whatever each one holds. */
+.ui-metric-strip {
+  display: flex;
+  align-items: start;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.ui-metric-strip__column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: 1.6 1 0;
+  min-width: 0;
+}
+
+.ui-metric-strip__column--readings {
+  flex: 1 1 0;
+}
+
+.ui-metric-strip__readings {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.ui-metric-strip__reading {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* The phone breakpoint: one full-width column per metric, each keeping its
+   label, value, reading and track. Nothing is dropped and nothing is scrolled
+   sideways — the strip only stops being a row. */
+@media (max-width: 720px) {
+  .ui-metric-strip {
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  .ui-metric-strip__column,
+  .ui-metric-strip__column--readings {
+    flex: 1 1 auto;
+    width: 100%;
+  }
 }

@@ -19,6 +19,11 @@ export interface ContainerSummary {
   cpuPercent?: number;
   memoryUsageBytes?: number;
   memoryLimitBytes?: number;
+  /** Host CPUs the percentage above is measured against. */
+  onlineCpus?: number;
+  /** Bytes received / sent, summed over the container's interfaces since it started. */
+  networkRxBytes?: number;
+  networkTxBytes?: number;
 }
 
 export interface PruneResult {

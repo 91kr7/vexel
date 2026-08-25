@@ -25,6 +25,11 @@ export interface ContainerSummary {
   cpuPercent?: number;
   memoryUsageBytes?: number;
   memoryLimitBytes?: number;
+  /** Host CPUs the percentage above is measured against, so a reading can be shown over its capacity. */
+  onlineCpus?: number;
+  /** Bytes received / sent, summed over the container's interfaces since it started. */
+  networkRxBytes?: number;
+  networkTxBytes?: number;
 }
 
 export interface PruneResult {
@@ -152,12 +157,16 @@ interface RawStats {
   cpu_stats: { cpu_usage: { total_usage: number; percpu_usage?: number[] }; system_cpu_usage?: number; online_cpus?: number };
   precpu_stats: { cpu_usage: { total_usage: number }; system_cpu_usage?: number };
   memory_stats: { usage?: number; limit?: number; stats?: { cache?: number; inactive_file?: number } };
+  networks?: Record<string, { rx_bytes?: number; tx_bytes?: number }>;
 }
 
 interface SampledUsage {
   cpuPercent: number;
   memoryUsageBytes: number;
   memoryLimitBytes: number;
+  onlineCpus: number;
+  networkRxBytes: number;
+  networkTxBytes: number;
 }
 
 const STATS_SAMPLE_INTERVAL_MS = 3000;
@@ -446,6 +455,12 @@ async function sampleOnce(): Promise<void> {
   );
 }
 
+/**
+ * Everything the list shows, read out of the one frame the sampler already
+ * fetched: the CPU count the percentage is measured against and the network
+ * totals were both in it and both discarded. Nothing here asks the daemon for
+ * anything — the request count per pass is unchanged.
+ */
 function computeUsage(raw: RawStats): SampledUsage {
   const cpuDelta = raw.cpu_stats.cpu_usage.total_usage - raw.precpu_stats.cpu_usage.total_usage;
   const systemDelta = (raw.cpu_stats.system_cpu_usage ?? 0) - (raw.precpu_stats.system_cpu_usage ?? 0);
@@ -453,7 +468,22 @@ function computeUsage(raw: RawStats): SampledUsage {
   const cpuPercent = systemDelta > 0 && cpuDelta > 0 ? (cpuDelta / systemDelta) * onlineCpus * 100 : 0;
   const cache = raw.memory_stats.stats?.cache ?? raw.memory_stats.stats?.inactive_file ?? 0;
   const memoryUsageBytes = Math.max((raw.memory_stats.usage ?? 0) - cache, 0);
-  return { cpuPercent, memoryUsageBytes, memoryLimitBytes: raw.memory_stats.limit ?? 0 };
+  // Summed over the frame's interfaces, the reading `ContainerStatsService`
+  // normalises for the detail panel, so the list and the panel cannot disagree.
+  let networkRxBytes = 0;
+  let networkTxBytes = 0;
+  for (const entry of Object.values(raw.networks ?? {})) {
+    networkRxBytes += entry.rx_bytes ?? 0;
+    networkTxBytes += entry.tx_bytes ?? 0;
+  }
+  return {
+    cpuPercent,
+    memoryUsageBytes,
+    memoryLimitBytes: raw.memory_stats.limit ?? 0,
+    onlineCpus,
+    networkRxBytes,
+    networkTxBytes,
+  };
 }
 
 function toSummary(raw: RawContainer): ContainerSummary {
@@ -469,6 +499,9 @@ function toSummary(raw: RawContainer): ContainerSummary {
     cpuPercent: usage?.cpuPercent,
     memoryUsageBytes: usage?.memoryUsageBytes,
     memoryLimitBytes: usage?.memoryLimitBytes,
+    onlineCpus: usage?.onlineCpus,
+    networkRxBytes: usage?.networkRxBytes,
+    networkTxBytes: usage?.networkTxBytes,
   };
 }
 

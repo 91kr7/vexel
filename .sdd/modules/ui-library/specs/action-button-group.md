@@ -15,7 +15,7 @@ with which to ask for an appearance, which is what makes the rule un-re-answerab
 
 ## Contract
 
-- `<ActionButtonGroup actions overflow? />`
+- `<ActionButtonGroup actions overflow? segmented? />`
   - `actions: { id, label, onClick, weight?, destructive?, disabled?, disabledReason? }[]`.
   - `weight?: 'primary' | 'secondary' | 'destructive' | 'overflow'` (default `'secondary'`) — how
     much the action weighs, and **the only thing said about it**:
@@ -34,6 +34,11 @@ with which to ask for an appearance, which is what makes the rule un-re-answerab
     after every action button; omitting it leaves the group exactly as it was. `entries` is optional:
     a cluster whose menu holds only `'overflow'`-weight actions states the trigger's accessible name
     and nothing else.
+  - `segmented?: boolean` (default `false`) — draws the cluster as **one segmented control**: its
+    slots share a single outer boundary, with one hairline divider between two of them instead of
+    two borders and a gap. Appearance only: the actions, their number, their order, their positions,
+    their disabled reasons and the overflow menu are exactly what they are without it, and a group
+    that does not ask for it renders exactly what it rendered before the prop existed.
 
 ## Rules and invariants
 
@@ -51,6 +56,9 @@ with which to ask for an appearance, which is what makes the rule un-re-answerab
 - The overflow control, when present, is always the trailing slot: it is never the control that
   moves as the actions before it change.
 - The group itself carries no overlay material and computes no filter: it exists once per row.
+- Segmented, the outer corners are the cluster's: only its first and last slot keep a radius, and the
+  radius, the border and the divider are the button's own tokens — no second declaration of any of
+  them.
 
 ## Dependencies
 
@@ -58,6 +66,10 @@ with which to ask for an appearance, which is what makes the rule un-re-answerab
 - Menu
 
 ## Requirements served
+
+- plan-docker_management_app-containers_card_view/REQ-4
+- plan-docker_management_app-containers_card_view/REQ-20
+- plan-docker_management_app-containers_card_view/REQ-30
 
 - plan-docker_management_app/REQ-20
 - plan-docker_management_app-container_row_actions/REQ-1

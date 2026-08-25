@@ -46,3 +46,65 @@
 .ui-surface--pad-lg {
   padding: var(--space-7);
 }
+
+/* Selectable: the object table's own highlights, by reference. The hover value
+   is `--color-surface-2` and the selected one `--color-accent-tint` — the two
+   `.ui-data-table__row:hover` and `.ui-data-table__row--selected` already carry,
+   and no value is written here that is not written there.
+
+   Laid as an image layer rather than as a `background-color`, because a Surface
+   already fills itself with one of those tokens: a table row highlights by
+   painting the token *over* the card beneath it, and a layer over the fill
+   composites to the same colour. Swapping the fill instead would leave a
+   `flat` surface — already `--color-surface-2` — with no visible hover at all. */
+.ui-surface--selectable {
+  cursor: pointer;
+}
+
+.ui-surface--selectable:hover {
+  background-image: linear-gradient(var(--color-surface-2), var(--color-surface-2));
+}
+
+/* The compound selector is what keeps the selected highlight in place while the
+   pointer is over it: the hover rule above is one class more specific. */
+.ui-surface--selected,
+.ui-surface--selectable.ui-surface--selected:hover {
+  background-image: linear-gradient(var(--color-accent-tint), var(--color-accent-tint));
+}
+
+/* State accent: a bar down the left edge, running the surface's full height and
+   following its own left rounding rather than cutting across the corner. The
+   bar is a gradient painted on a layer the size of the surface and clipped by
+   the surface's radius, which is what makes that clip exact.
+
+   On `::after`, not `::before`: `::before` is the overlay material's layer
+   (overlay-glass.css), and the two are never asked for together. The layer
+   takes no pointer event, so nothing on the surface becomes unclickable. */
+.ui-surface--accent::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image: linear-gradient(
+    to right,
+    var(--surface-accent-color) 0 var(--space-1),
+    transparent var(--space-1)
+  );
+}
+
+.ui-surface--accent-success {
+  --surface-accent-color: var(--color-success);
+}
+
+.ui-surface--accent-warning {
+  --surface-accent-color: var(--color-warning);
+}
+
+.ui-surface--accent-danger {
+  --surface-accent-color: var(--color-danger);
+}
+
+.ui-surface--accent-neutral {
+  --surface-accent-color: var(--color-text-muted);
+}

@@ -16,13 +16,18 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   `INTERNAL_CONTAINER_LABEL` (an intermediate filesystem-extraction container never appears here,
   REQ-54).
   - `ContainerSummary`: `{ id, shortId, name, image, state, status, ports, cpuPercent?,
-    memoryUsageBytes?, memoryLimitBytes? }`.
+    memoryUsageBytes?, memoryLimitBytes?, onlineCpus?, networkRxBytes?, networkTxBytes? }`.
   - `state`: `'created' | 'running' | 'paused' | 'restarting' | 'removing' | 'exited' | 'dead'`.
   - `status` is the daemon's own human-readable status text (e.g. `"Up 3 days"`,
     `"Exited (0) 2 hours ago"`).
   - `ports`: `{ privatePort, publicPort?, type }[]`.
-  - `cpuPercent`/`memoryUsageBytes`/`memoryLimitBytes` are present only for a `running` container
-    that the sampler has read at least once since it started running.
+  - `cpuPercent`/`memoryUsageBytes`/`memoryLimitBytes`/`onlineCpus`/`networkRxBytes`/
+    `networkTxBytes` are present only for a `running` container that the sampler has read at least
+    once since it started running; all six come from **one** sample and are absent together.
+  - `onlineCpus` is the number of host CPUs `cpuPercent` is measured against, so `cpuPercent`
+    reaches `onlineCpus × 100` at full load and a caller can state the reading over its capacity.
+  - `networkRxBytes`/`networkTxBytes` are the bytes received and sent since the container started,
+    summed over its interfaces.
   - **Ordered by container name** under the list-order rule (`compareNames`), with the container's
     `id` as the final comparison: `app-2` before `app-10`, `Redis` next to `redis-cache`, and two
     containers whose names differ only in case or in leading zeros separated by their ids.
@@ -74,6 +79,12 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   endpoint.
 - A container's cached sample is dropped as soon as it no longer appears in the running set, so a
   stopped container never reports a stale CPU/memory reading.
+- **The widened fields cost the daemon nothing** (plan-docker_management_app-containers_card_view/REQ-13).
+  `onlineCpus` and the network totals are read out of the **same stats frame** the sampler already
+  fetched for `cpuPercent` — the CPU count was computed inside it and thrown away, the `networks`
+  block was never read. No request, endpoint, rate or lifecycle changed to obtain them. The network
+  sum is the one `ContainerStatsService` normalises for the detail panel, so the list and the panel
+  cannot report different figures for the same container.
 - `cpuPercent` follows the Docker CLI's own formula: `(cpuDelta / systemDelta) * onlineCpus * 100`,
   `0` when either delta is not positive. `memoryUsageBytes` subtracts the cgroup page cache
   (`stats.cache`, falling back to `stats.inactive_file`) from the raw usage, matching `docker stats`.
@@ -106,3 +117,4 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 - plan-docker_management_app/REQ-54
 - plan-docker_management_app-list_ordering/REQ-8
 - plan-docker_management_app-list_ordering/REQ-12
+- plan-docker_management_app-containers_card_view/REQ-13

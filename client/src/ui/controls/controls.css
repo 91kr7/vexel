@@ -397,6 +397,45 @@
   min-width: 0;
 }
 
+/* Segmented: the cluster's controls share one boundary instead of standing
+   apart, the hairline between two of them being one border and not two — which
+   is what the negative inline offset buys. The outer corners are the cluster's,
+   so only the first and the last slot keep a radius. Appearance only: the slots,
+   their order and their number are untouched. */
+.ui-action-button-group--segmented {
+  gap: 0;
+}
+
+.ui-action-button-group__segment {
+  display: inline-flex;
+  min-width: 0;
+}
+
+.ui-action-button-group__segment + .ui-action-button-group__segment {
+  margin-inline-start: calc(-1 * var(--border-width-hairline));
+}
+
+.ui-action-button-group__segment :is(.ui-button, .ui-menu__trigger) {
+  border-radius: 0;
+}
+
+.ui-action-button-group__segment:first-child :is(.ui-button, .ui-menu__trigger) {
+  border-start-start-radius: var(--radius-md);
+  border-end-start-radius: var(--radius-md);
+}
+
+.ui-action-button-group__segment:last-child :is(.ui-button, .ui-menu__trigger) {
+  border-start-end-radius: var(--radius-md);
+  border-end-end-radius: var(--radius-md);
+}
+
+/* The hovered or focused slot draws its own border over its neighbour's rather
+   than under it, so the shared hairline never looks half-lit. */
+.ui-action-button-group__segment:hover,
+.ui-action-button-group__segment:focus-within {
+  position: relative;
+}
+
 /* The tooltip carrier of a disabled action's reason. A disabled control
    dispatches no pointer event of its own, so the `title` has to sit on an
    element around it for the pointer to ever find it; the same text is also the
@@ -1010,6 +1049,22 @@
   white-space: nowrap;
 }
 
+/* The chip's muted parts: what the value is (`image`) before it, and the
+   secondary reading after it. One declaration, two positions. */
+.ui-chip__prefix,
+.ui-chip__meta {
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* Accented: the salient chip of a group, told apart from the plain attribute
+   chips beside it. Every value is the accent role's own token. */
+.ui-chip--accent {
+  border-color: var(--color-accent);
+  background: var(--color-accent-tint);
+  color: var(--color-accent-strong);
+}
+
 .ui-chip--clickable {
   cursor: pointer;
   text-align: left;
@@ -1018,11 +1073,6 @@
 .ui-chip--clickable:hover {
   border-color: var(--color-accent);
   color: var(--color-accent-strong);
-}
-
-.ui-chip__meta {
-  color: var(--color-text-muted);
-  white-space: nowrap;
 }
 
 /* A chip's inline action is a control: it carries a surface and a shape of its
