@@ -34,6 +34,12 @@ Answered by the human during this analysis, and binding:
   quando si cambia sezione va disabilitato al fine di evitare chiamate massive a docker. io
   campionerei ogni 20 secondi, che dici?"* — settled at **10 seconds**, and at a gate that closes on
   more than a section change (see Requirements).
+- **How the gate is signalled**, raised by the human in the same exchange: *"nel momento in cui apro
+  il client parte una chiamata http che attiva il sampling lato backend. nel momento in cui viene
+  distrutto il frontend, o per chiusura del browser o per qualsiasi altro motivo stoppi il sampling.
+  non ricordo, è possibile intercettare la chiusura del browser da chrome, giusto?"* — the answer to
+  the closing question is *not reliably*, and the design was settled on **liveness** instead of an
+  explicit start/stop pair for that reason (see Requirements).
 
 ## Reference
 
@@ -115,6 +121,12 @@ requirements below hang on the difference:
 - **A longer interval does not make a sample less accurate.** Each CPU percentage is derived from a
   delta carried *within a single frame*, so every sample stands on its own and a longer gap between
   samples degrades nothing. The cost of a long interval is purely perceptual.
+- **The product already holds a connection open per client, and the server already notices when one
+  goes away.** The daemon event stream the client opens is exactly that: a connection held for as
+  long as the client is there, whose per-connection resources the server releases when the socket
+  closes — without being told, and without the page's cooperation. This matters to the requirements
+  below because the gate's mechanism is a property this product already demonstrates in working code,
+  not infrastructure to be invented for it.
 - **A different mechanism, not governed here:** the detail panel's Stats tab uses a separate
   per-container stream (`/api/containers/:id/stats/stream`) carrying the daemon's own native frames,
   opened for one container while its panel is open. Different lifecycle, different consumer,
@@ -264,6 +276,57 @@ stream with its own lifecycle and is untouched.
   which is a regression on a screen nobody asked to change — and it would be the kind that shows as a
   dash rather than as an error.
 
+- **A consumer proves it exists by holding a connection open, and the server observes that the
+  connection is there. It does not announce itself, and it never announces that it is leaving.** This
+  is the mechanism, and it is a requirement rather than an implementation detail, because the obvious
+  alternative is unsound. The human's first proposal was the obvious one — *"nel momento in cui apro
+  il client parte una chiamata http che attiva il sampling lato backend. nel momento in cui viene
+  distrutto il frontend… stoppi il sampling"* — and it was refined for this reason: a start signal
+  plus a stop signal is only as good as the stop signal, and the stop signal cannot be made reliable.
+  A browser close or a navigation can be caught; **a crash, a force-quit, an OS shutdown, a sleeping
+  or closed laptop, a dropped network, or a tab Chrome discards to reclaim memory cannot**, and a
+  request issued as the page goes away may never leave. So a missed stop leaves the sampler running
+  for ever, with nothing on screen to show for it — which is today's defect exactly, with more
+  machinery on top and a new way to believe it was fixed. Liveness inverts that: the sampling exists
+  only while something keeps proving a consumer does, and it stops **on its own** when the proof
+  stops. Every failure mode above then converges on the correct outcome **without having to be
+  detected**.
+
+- **Sampling is counted against live subscriptions, not switched by the last event seen.** More than
+  zero live subscriptions means sampling; zero means stopped. Counting is what makes two windows or
+  two tabs behave correctly — one of them closing must not stop the sampling the other is still
+  reading, and both closing must stop it.
+
+- **A subscription is held only while a screen that displays the figures is actually being shown**,
+  and is released on leaving that section or on the tab being hidden. This is how the three closing
+  cases required above are all carried by this one mechanism.
+
+- **"The browser was closed" therefore needs no handling of its own.** It is the subscription going
+  away, indistinguishable from a section change or a hidden tab. One mechanism, three cases, nothing
+  to detect — and that, not economy of code, is the point: the case that cannot be detected is the
+  case that no longer has to be.
+
+- **Nothing is signalled at unload. No `beforeunload`, no `pagehide`, no `unload`, no beacon.**
+  Recorded as a prohibition with its reason, because it will otherwise be reintroduced as an
+  improvement — it looks like a tidy way to release the subscription sooner, and it is: on the
+  occasions it fires. Building on it makes the correct outcome depend on the browser's cooperation in
+  precisely the circumstances where there is none, and it makes the unreliable path the normal one
+  and the reliable path the fallback nobody tests.
+
+- **A connection that has died without closing must not be mistaken for a live one.** A network
+  yanked rather than a page closed leaves a socket that looks open and never delivers anything; if
+  that counts as a consumer, the sampler runs on for a reader who has gone. So the liveness must be
+  actively maintained — the server writing to the connection periodically, so that a connection with
+  nobody at the other end fails and is closed rather than lingering. Without this, the one gap in the
+  mechanism is the same silent-overrun failure it was chosen to avoid.
+
+- **This is not novel infrastructure, and the plan should not treat it as such.** The product already
+  holds exactly this kind of connection for its daemon event stream, and the server already notices
+  when one closes and tears down what belonged to it. **Whether that existing stream is extended to
+  carry this subscription or a dedicated one is added is the technical plan's decision**, to be made
+  against the code and recorded there; what this analysis fixes is the property — liveness observed
+  by the server, counted, self-terminating — and not the route to it.
+
 - **Re-entering costs no wait.** When the gate opens — the screen is selected, the tab comes back,
   a client connects — a sample is taken promptly rather than after a full interval. With a 10-second
   cadence, an operator who returns to the screen and is shown nothing for ten seconds will read the
@@ -408,11 +471,18 @@ stream with its own lifecycle and is untouched.
   number of running containers, for a figure that may have no reader.
 - **Idling must be genuine.** A gate that stops updating the interface while the requests continue
   satisfies nothing. What must stop is the traffic to the daemon.
-- **No leak, and no wedge.** The gate opens and closes many times in a session — every section
-  change, every tab switch, every client that connects or drops. It must not accumulate anything per
-  cycle, must not leave sampling running after the last consumer has gone, and must not fail to
-  restart when a consumer returns. A sampler wedged shut is a screen of dashes; a sampler wedged open
-  is the defect this requirement exists to remove, silently reinstated.
+- **No leak, no drift and no wedge.** The gate opens and closes many times in a session — every
+  section change, every tab switch, every client that connects or drops, every reload. It must not
+  accumulate anything per cycle, must not leave sampling running after the last consumer has gone,
+  and must not fail to restart when a consumer returns. The count of live consumers must **return to
+  zero** when the last one goes, from every route out: a clean close, a reload, a crash, a killed
+  browser, a pulled network. A count that drifts upward is the failure mode of this design, it is
+  invisible from the interface, and its symptom is the original defect — so it is checked directly by
+  bringing consumers up and down repeatedly and confirming the daemon goes quiet each time.
+- **The correct outcome must not depend on the browser's cooperation.** Every way a client can
+  disappear — including the ones that fire no event at all — must end the sampling by the same route
+  as an orderly departure. A design that is correct only when the page gets a chance to say goodbye
+  has not met this requirement, however well it behaves in a demonstration.
 - **The card must remain readable below the desktop breakpoint.** The mock is a desktop arrangement.
   At narrow widths the card reflows — this is the one thing a card does better than a row, and it is
   the failure mode the product has already been bitten by, where the containers row collapsed six of
@@ -481,6 +551,17 @@ stream with its own lifecycle and is untouched.
   queue up behind each other, since that would reproduce the massed calls at a different rhythm.
 - **The gate is about the daemon's load, not about correctness of the display.** No figure becomes
   wrong because sampling paused; it becomes *old*, which the *no sample* state already exists to say.
+- **More than one client at a time is a normal state, not an edge case.** A second tab, a second
+  window, a second browser on another machine pointed at the same server: all ordinary. It is why the
+  gate counts consumers instead of holding a single on/off flag, and why "the last one leaves" rather
+  than "one leaves" is the condition that stops the sampling.
+- **A client that is present but showing an unrelated section is not a consumer.** Being connected is
+  not the same as being shown the figures; the subscription is taken by the screens that display them
+  and released by everything else. Otherwise the gate would reduce to "is a browser open", which is
+  most of the day.
+- **The interval between liveness checks on a held connection is a later-phase decision**, bounded by
+  the requirement that a connection whose other end has vanished is discovered in a time comparable
+  to the sampling interval — discovering it in an hour would leave the sampler running for an hour.
 - **The dashboard is a consumer and is otherwise untouched.** Its container list stays a table and
   its layout does not change; it appears in these requirements only because it reads the same sampled
   figures, and so must keep them.
@@ -619,6 +700,22 @@ choice for a resource list, and whether per-container metrics belong on the list
   dashes that looks like a broken daemon), or does not stop when they leave (the defect reinstated,
   invisibly, while the code reads as though it were fixed). The second is worse because nothing on
   screen betrays it.
+- **The consumer count drifts upward and never returns to zero.** The specific form the risk above
+  takes in a counted design, and the most likely single defect in this whole change: one route out —
+  a reload, a crash, a duplicated subscription on remount, a connection closed twice or not at all —
+  that adds without subtracting. After a day's work the count is never zero, the daemon is sampled
+  for ever, and the interface looks perfect. Only a check that drives consumers up and down and then
+  watches the daemon go quiet can see it.
+- **A half-open connection counts as a reader who has gone.** A network pulled rather than a page
+  closed leaves a socket that looks alive indefinitely. Without something periodically proving the
+  connection still works, this is a leak that no amount of correct close-handling catches, because
+  nothing ever closes.
+- **Unload-time signalling comes back as an improvement.** `beforeunload` and a beacon look like a
+  tidy way to release the subscription immediately, and they work most of the time — which is exactly
+  what makes them dangerous here: they move the correct outcome onto a path that is absent in every
+  case that matters, and they make the reliable path the one nobody exercises. It is prohibited in the
+  requirements for this reason, and the prohibition is the kind that gets reversed by someone acting
+  in good faith.
 - **Ten seconds reads as frozen.** The metrics become the most prominent band of the card, and a bar
   that steps every ten seconds on a container the operator has just started may read as a product
   that has stopped updating rather than as one that samples. The prompt sample on re-entry and the
@@ -678,11 +775,18 @@ choice for a resource list, and whether per-container metrics belong on the list
   always-on to **demand-driven**: active while the containers screen or the dashboard is being
   consumed, idle on a section change, idle when the tab is hidden, and idle — asking the daemon for
   nothing at all — when no client is connected.
+- Carrying that gate on a **consumer's liveness** — a connection held open while a consuming screen
+  is shown, whose disappearance the server observes rather than is told about — counted, so that
+  several tabs behave correctly, and kept honest by a periodic write so a dead-but-unclosed
+  connection cannot pass for a live one. Whether the product's existing held-open stream carries this
+  or a dedicated one is added is the technical plan's decision.
 - Sampling promptly when the gate reopens, and falling back to the *no sample* presentation rather
   than redisplaying a figure that is too old to stand behind.
 - Verifying the reduction as a count of stats requests reaching the daemon in each of those states,
-  the connected-to-nobody case included, and verifying that the gate neither wedges open nor wedges
-  shut across repeated section changes and tab switches.
+  the connected-to-nobody case included; that the gate neither wedges open nor wedges shut across
+  repeated section changes, tab switches and reloads; that two tabs behave correctly, one closing
+  while the other reads; and that the consumer count returns to zero by every route out, including
+  the ones that send no notice at all.
 - Keeping the dashboard's CPU figure working across all of it.
 - Providing the card's material through a UI-library component that acts as the card's container and
   owns its background, highlight, shadow, border and radius — reusing or extending an existing
@@ -718,6 +822,10 @@ choice for a resource list, and whether per-container metrics belong on the list
   not grow with the number of containers, and it is what keeps state changes prompt.
 - Any per-metric history, sparkline, chart, alerting or threshold on the card, and any operator
   setting for the sampling interval.
+- Any explicit start/stop signalling of the sampler by the client, and any unload-time signal —
+  ruled out in the requirements rather than merely left undone.
+- What the product's existing held-open stream carries for its own purposes, and the lifecycle of
+  anything else that rides on it.
 - The dashboard's layout, list presentation or content — it appears here only as a consumer of the
   sampled figures.
 - Block I/O and PIDS on the card.
