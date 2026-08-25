@@ -1,0 +1,513 @@
+---
+request_slug: docker_management_app-containers_card_view
+date: 2026-08-25
+type: evolution
+reference: .sdd/analysis/docker_management_app.md
+---
+
+## Request
+
+> voglio rivedere la grafica della sezione containers. a tal proposito o realizzato un mock
+> .sdd/analysis/ui-mock/containers-refactor.png ti chiedo di analizzarlo nel dettaglio in quanto
+> voglio utilizzare una vista a card anzichè l'attuale tabella in quanto la card rappresenta meglio
+> il ftto che un container sia un entità.
+> è fondamentale che si dia indicazione al dev che deve seguire il mock per determinare dove
+> risporre gli elementi.
+> è fondamentale utilizzare gli stessi stili css, higlighr e shadow della tabella e non riscriverli!
+
+Three statements, and all three are requirements rather than context: the containers list becomes a
+card view because **a container is an entity, not a row**; the mock decides **where every element
+goes**; and the card is made of the **table's existing material**, not of new material that
+resembles it.
+
+Answered by the human during this analysis, and binding:
+
+- **Containers only.** *"solo containers ma predisponi un componente di UI nuovo (se non puoi
+  riutilizzarne nessuno) che deve fungere da contenitore e gestirmi le grafica della card (sfondo,
+  highlight, shadow ecc)"* — with the added requirement that the card's material is owned by a
+  **UI-library component acting as the card's container**: an existing one if one can carry it, a
+  new one only if none can.
+- **The metrics are live**, as drawn: *"Sì, live come oggi"*.
+
+## Reference
+
+Evolution of [`.sdd/analysis/docker_management_app.md`](./docker_management_app.md), the product
+analysis that specifies Vexel as a complete, faithful front end to the Docker daemon presented
+through one coherent visual language, with containers as the screen the operator spends the most
+time on.
+
+**Starting point — what the containers list is today.** One classic table: a header row over rows
+flush against each other, separated by hairline rules, on a single surface. Each row carries a
+status dot, the container's name, its image, CPU, memory, ports and uptime, and a fixed cluster of
+four controls — the state-appropriate lifecycle action (`Stop` / `Start` / `Resume`), then `Pause`,
+then `Restart`, then a `…` overflow menu holding `Rename…`, `Export filesystem…`, `Kill`, `Remove`
+([`container_row_actions`](./docker_management_app-container_row_actions.md)). Selecting a row opens
+a full-width inline detail expansion, tabbed — Logs, Stats, Config, Processes, Inspect, Exec, Attach
+— and selecting the same row again closes it
+([`container_detail_close`](./docker_management_app-container_detail_close.md)). The list has **no
+operator-facing sort control** and **no selection or bulk actions**: ordering is decided server-side,
+alphabetically by name and totally ([`list_ordering`](./docker_management_app-list_ordering.md)), and
+a checkbox column exists on images only.
+
+**The record this evolution amends.**
+[`ui-coherence-optimisation-comfortable_variant_retired-classic_table`](./ui-coherence-optimisation-comfortable_variant_retired-classic_table.md)
+(2026-08-16) retired the card-per-row presentation across the whole product, removed it from the UI
+library's public interface, and required an **automated check** that fails when feature code
+reproduces a detached card row. Its acceptance criteria are geometric and are contradicted by this
+mock: *"rows are flush… no row carries a rounded corner, an outline or a detached surface of its
+own… one enclosing surface boundary"*. That decision is not being reversed, and this analysis does
+not re-argue it. It is being given **one named exception, on one screen**, for a reason that
+analysis itself supplies: what it condemned was a **hybrid** — a column header promising columns,
+over detached cards promising self-contained objects, with the labels left up in the header — and it
+recorded that *"where a row does legitimately become a card it… carries each column's label inside
+the card, because the shared header stops being reachable once rows detach."* The mock does exactly
+that: no header row survives, and `CPU`, `MEMORY`, `NET I/O` and `image` are written inside the card
+beside their values. This is the card the retirement described as legitimate, not the one it
+retired.
+
+**Changes with respect to the reference.**
+
+1. The containers list changes presentation: one card per container, replacing the table. Every
+   other object list in the product stays a classic table.
+2. The card carries three values the list does not show today — **NET I/O (in/out)**, the **capacity
+   each metric is a share of** (`of 8 cores`, `of 31.0GB`) and a **usage bar per metric** — plus an
+   explicit *no sample* state. These are re-presentations of data the product already obtains for
+   the detail panel's Stats tab, not new daemon capabilities.
+3. The state is stated twice and explicitly: a coloured pill (`RUNNING` / `PAUSED` / `EXITED`) beside
+   the name, and a full-height accent bar on the card's left edge, in addition to the dot the row
+   already carries.
+4. The product will ship **two list presentations**, deliberately: cards on containers, tables
+   everywhere else. The 2026-08-16 decision and its automated guard are amended in the open to say
+   so.
+
+Nothing about what the actions do, what the detail panel contains, how the list is ordered, or what
+the daemon is asked changes.
+
+## Summary
+
+The containers list stops being a table and becomes a vertical stack of one card per container, laid
+out exactly as `.sdd/analysis/ui-mock/containers-refactor.png` arranges it, built from the material
+the object table already ships — its surface, highlight, shadow, border, radius and state colours —
+carried by a UI-library component that owns that material so no feature file ever re-authors it.
+
+## Business goal
+
+**A container is an entity, and the presentation should say so.** This is the human's stated reason
+and it is the whole of the value: a container has a name, an identity, a state, a lifecycle, an
+image it came from, ports it publishes and resources it is consuming *right now*. A table row says
+"one of many things to be compared down a column"; a card says "this thing, with everything true
+about it gathered in one place". Containers are the objects in this product the operator works
+**one at a time** — start it, watch it, read its logs, restart it — far more often than they compare
+twenty of them by a column. The presentation should match the task, and on this screen it currently
+does not.
+
+**The card lets the screen answer "how is this container doing?" without a click.** Today CPU and
+memory are two narrow numbers in two columns, with nothing to read them against: `6.1MB` means
+nothing until you know the host has 31.0GB. The mock states each metric as a share of a stated
+capacity, with a bar, and adds the third number an operator actually watches — network in/out. That
+turns the list from an inventory into a status board, which is what the operator has it open for.
+This is also where the nearest competitor is visibly weaker: Portainer shows per-container stats only
+after you click into a container, and "show stats of all containers on one page" is a standing open
+request against it.
+
+**The values are already paid for; only the presentation was withholding them.** NET I/O, the host's
+capacity and the sampling that produces them already exist behind the detail panel's Stats tab. The
+table had no room for them; the card does. Delivering them costs the surface, not new capability.
+
+**One screen, one exception, stated once.** The product's rule is one visual language, and its
+2026-08-16 decision is one presentation for every object list. Both stay in force. What this change
+buys is worth an exception on exactly one screen — the most used one, whose objects are the least
+table-like in the product — and the exception is worth having **only if it is named, bounded and
+enforced as an exception**. An unrecorded exception is how a rule quietly stops being one; a recorded
+one is how a rule survives a legitimate special case.
+
+## Requirements
+
+### Functional
+
+#### The presentation
+
+- **The containers screen lists one card per container, stacked vertically, full width.** The table
+  presentation on this screen — its header row, its hairline row rules, its single enclosing surface
+  — is gone. Cards are detached from one another with a uniform gap between them, as the mock draws
+  them.
+
+- **The mock is normative for placement.** `.sdd/analysis/ui-mock/containers-refactor.png` decides
+  **where every element sits**: which band of the card it belongs to, its order within that band, its
+  alignment, and what it is aligned to. A developer deciding an element's position must derive that
+  position from the mock, not from the current table's column order and not from their own judgement.
+  What the mock does *not* decide is pixels: exact spacings, sizes, colours and weights come from the
+  library's existing design tokens, as in every previous mock-driven change in this product. **The
+  element map below is the mock read out in words; where it and the image disagree, the image
+  wins.**
+
+  | Band | Position | Element |
+  | --- | --- | --- |
+  | Card edge | Left edge, full height, following the card's left rounding | State accent bar — green running, amber paused, neutral exited |
+  | 1 — identity & actions | Left, in reading order | Status dot · container **name** (most prominent text on the card) · state pill, uppercase (`RUNNING` / `PAUSED` / `EXITED`) · short container id, monospace, muted |
+  | 1 — identity & actions | Right, flush to the card's inner right edge, vertically centred with the identity group | Primary lifecycle action (`Stop` / `Resume` / `Start`), detached by a gap from — then — a segmented cluster `Pause` · `Restart` · `…`, in that order, sharing one boundary with internal dividers |
+  | 2 — provenance | Left, in reading order | `image <reference>` chip (label muted, value monospace) · ports chip (monospace, accented, **present only when the container publishes ports**) · status sentence in muted plain text (`Up 44 seconds`, `Paused 12 minutes ago`, `Exited (0) 2 hours ago`) |
+  | 3 — metrics | Three columns spanning the card's inner width: `CPU` and `MEMORY` of equal width side by side, then a narrower `NET I/O` | see the two rows below |
+  | 3 — `CPU` / `MEMORY` | First line: label (small, uppercase, muted) then value, left; capacity note right-aligned to that column's right edge (`of 8 cores`, `of 31.0GB`). Second line: a thin track spanning the column's full width, with a fill | |
+  | 3 — `NET I/O` | First line: label only. Second line, aligned with the tracks beside it: `in <value>` and `out <value>`, label muted, value prominent. **No bar.** | |
+
+- **The card's bands are ordered by decreasing prominence** — identity and actions first, provenance
+  second, live metrics third — and that order is the same on every card, in every state.
+
+- **Everything the row shows today, the card still shows.** Status, name, image, ports, uptime, CPU
+  and memory all survive the change, and so does every one of the four action slots. A value that
+  quietly leaves the list is a defect of this work, not a simplification of it.
+
+- **The card adds NET I/O, the capacity each metric is a share of, and a bar per metric**, exactly as
+  the mock draws them: `in` and `out` for the network, `of <n> cores` for CPU, `of <total>` for
+  memory, and a proportional fill for CPU and memory. Block I/O and PIDS are **not** on the card —
+  the mock omits them and they stay where they are, in the detail panel.
+
+- **The metrics are live, at the cadence the list's CPU and memory already update at.** Confirmed by
+  the human. A card updates its numbers and its bars in place, without the card moving, without the
+  list reordering and without any other card being disturbed.
+
+- **The absence of a sample is a stated state, not a blank or a zero.** As the exited card in the
+  mock shows: the value reads `—`, the capacity note is replaced by the *no sample* wording, and the
+  track is drawn empty. "No measurement" and "measured zero" must be distinguishable, because a
+  running container genuinely idling at 0.0% is a different fact from a stopped one that reports
+  nothing — and the mock draws both.
+
+- **The state is legible three ways and they always agree**: the accent bar, the dot and the pill all
+  derive from the same container state, and the metric bars' fill takes the same state colour (the
+  mock's paused card fills its bars amber, its running card blue). No card may show two states at
+  once.
+
+#### Behaviour that must not change
+
+- **The four action slots keep their contract exactly.** Fixed number, fixed order, fixed position in
+  every state; the first slot carries the state-appropriate lifecycle action; an action that is not
+  legal for the current state is **shown in place and disabled, not removed** (the mock's exited card
+  shows `Pause` and `Restart` dimmed, which means present and inert); the `…` control is always
+  last and never moves; the menu's entries, order, wording, destructive marking, hints, disabled
+  entries, one-menu-at-a-time rule, keyboard operation and binding-to-its-own-container all behave
+  as delivered.
+- **The action cluster's geometry is fixed down the list.** The reason the row's slots were fixed was
+  so that a given position always means the same thing; cards do not relax that. The cluster occupies
+  the same place on every card, and a card in one state is not laid out differently from a card in
+  another beyond the elements the mock itself varies (the ports chip, the primary action's label and
+  tone, the disabled states, the *no sample* metrics).
+- **Selecting a card opens that container's detail; selecting it again closes it.** The tabbed detail
+  expansion — Logs, Stats, Config, Processes, Inspect, Exec, Attach — keeps its current content and
+  behaviour, at full width, opening directly beneath the selected card, and at most one is open at a
+  time.
+- **Order is unchanged and is still the server's.** Alphabetical by name, total, stable across
+  re-reads; the client presents the order it receives and derives none of its own. There is no sort
+  control on this screen today and this change adds none — which is why removing the table's header
+  row costs the operator no affordance, only labels, and the card carries its labels inside itself.
+- **No selection and no bulk actions are introduced.** The containers list has neither today; the
+  mock shows neither; a card view is not a reason to add them.
+- **The screen's toolbar, filters and empty state are untouched**, and filtering still preserves
+  relative order.
+- **The copy is unchanged and stays in the product's current language.** The mock's Italian strings
+  (`Up 44 secondi`, `In pausa da 12 minuti`, `di 8 core`, `nessun campione`) are the author's
+  shorthand for values the product already renders in English. No string in this product is
+  translated, reworded or newly authored by this change, beyond the labels the new metrics genuinely
+  require.
+
+#### The material, and who owns it
+
+- **The card is made of the table's existing material, and that material is not rewritten.** The
+  human's words: *"è fondamentale utilizzare gli stessi stili css, higlighr e shadow della tabella e
+  non riscriverli!"*. Concretely, the card takes the object table's **surface treatment, hover
+  highlight, selected highlight, shadow, border, radius, typography scale, muted/monospace text
+  treatments and state colours** by **referencing where they already live**. Re-declaring a value
+  that already exists — even to an identical value, even "just this once", even inside the library —
+  is the defect this requirement exists to prevent, because two declarations of one look diverge the
+  first time either is touched.
+
+- **The card's graphics are owned by a UI-library component that acts as the card's container.**
+  Stated by the human as a requirement. That component holds the background, the highlight, the
+  shadow, the border, the radius and the selected/hover treatment; the containers screen supplies
+  content and callbacks to it and owns none of that material.
+
+- **Reuse first; a new component only if nothing can carry it.** In this order: (1) an existing
+  library component that already carries this material, used as it stands; (2) that component
+  extended with a prop or a variant, which CLAUDE.md explicitly prefers over a near-duplicate; (3) a
+  new library component, only if neither of the first two can carry it. **Which of the three applies
+  is a decision for the technical plan**, taken against the library as it actually is, and recorded
+  there with its reason. What is fixed here is the ordering and the outcome: exactly one place in the
+  library defines the card's material.
+
+- **No visual asset of this change lives in feature code.** No raw tag, no stylesheet, no CSS module,
+  no inline style prop, no visual utility class, no hard-coded colour, radius, blur, spacing, shadow,
+  font size or z-index anywhere under `client/src/` outside `client/src/ui/`. This is a standing rule
+  of the project and it is restated because a card is precisely the kind of thing that gets
+  hand-built in a screen file.
+
+- **Nothing is copied out of the mock into the product.** The image is the visual target; it is not
+  source.
+
+#### The exception is recorded and enforced as an exception
+
+- **The 2026-08-16 decision is amended in the open, not bypassed.** That analysis's requirements, the
+  downstream artefacts that carry them and the automated check that guards them are updated
+  deliberately, each stating **what changed, why, and on 2026-08-25**, so that a later reader finds
+  a recorded exception rather than a contradiction between the record and the product.
+
+- **The check must keep failing everywhere else.** The guard that fails when a list draws its rows as
+  detached surfaces stays in force for every other list in the product. It is widened to admit the
+  containers card presentation **by name**, and by nothing wider than that. Silencing the check,
+  deleting it, or exempting it with a blanket comment would trade a one-screen exception for the loss
+  of the rule — and this codebase has already paid once for a decision whose only guard was that
+  someone remembered it.
+
+- **Reproducing the card presentation outside the containers screen still fails.** The exception is a
+  screen, not a licence.
+
+### Non-functional
+
+- **The list stays cheap to scroll.** Cards are taller than rows, so a viewport holds fewer of them
+  and a long list scrolls further. Whatever the count of containers, scrolling and resizing must stay
+  smooth: no new per-card cost that scales with the list, no animation or transition on a scrolled
+  surface, and no new compositing layer per card beyond what the table's own material already costs.
+- **No blur is introduced anywhere.** The containers list is main view. The allow-list, the
+  conformance check's blur half and the static pre-blurred background are untouched; an edit to any
+  of them is a signal that something has gone wrong and is reported rather than made.
+- **Live metrics on every visible card must not degrade the screen.** The list already re-reads on
+  every daemon event and already updates CPU and memory; adding NET I/O, two bars and a capacity
+  denominator must not make the screen stutter, must not delay the daemon event stream, and must not
+  make an action feel slower to acknowledge. If sampling every visible container proves to cost more
+  than the screen can afford, the answer is to bound *how often* or *for which cards* it is sampled —
+  never to make the numbers stale without saying so, since the *no sample* state exists precisely to
+  be honest about a missing measurement.
+- **The card must remain readable below the desktop breakpoint.** The mock is a desktop arrangement.
+  At narrow widths the card reflows — this is the one thing a card does better than a row, and it is
+  the failure mode the product has already been bitten by, where the containers row collapsed six of
+  eight columns to zero width and could not be scrolled to reveal them. No value may be clipped to
+  nothing or hidden without a route to it at 375×812.
+- **Legibility over the glass material.** Muted text, monospace identifiers, disabled controls, the
+  metric tracks and their fills must all stay readable on the translucent surface, including the
+  low-contrast case the mock itself demonstrates — its third card sits where the background is
+  lightest and its accent bar and surface nearly vanish.
+- **Verified in the delivered product against the real daemon**, under the project's test discipline:
+  own labelled fixtures, cleanup in a `finally`, `docker rm -fv`, no assumption of an empty daemon or
+  of another test's state, its own data directory, nothing reaching Docker Hub, every spec passing on
+  its own.
+- **Interactions are driven with a real pointer at the visible control's coordinates, and the checks
+  assert geometry.** This screen's whole change is geometry, and this project has already shipped a
+  defect that content-counting coverage passed on twice: the card's element arrangement, the action
+  cluster's position, the three metric columns and the card's own viewport box are asserted as boxes
+  and edges, with content assertions standing beside them and never instead of them.
+- **The existing coverage of the containers list is restated, not neutered.** Assertions that reach a
+  container through a table row, or that assert the table's geometry on this screen, are rewritten
+  against the card — never weakened into passing while what they named goes unchecked.
+- **English only** in source, identifiers, comments and amended artefacts; kebab-case for any new
+  file.
+
+## Assumptions
+
+- **This is an evolution of `docker_management_app.md`, not a fix.** Decided by the human. Nothing is
+  broken: the table does what it was specified to do. This restates how containers are presented, as
+  the sibling evolutions on this screen did.
+- **The mock is normative for arrangement, not for pixels.** The precedent is this screen's own
+  `container_row_actions` analysis, which took its screenshot as deciding which actions are primary,
+  their order, wording and tone, and left measurements and colours to the later phases within the
+  existing tokens. The human's insistence here strengthens the first half — placement is mandatory —
+  and leaves the second half unchanged.
+- **The mock's bars are indicative, not measured.** Its memory bar shows a visible fill for `6.1MB`
+  against `31.0GB`, which is not proportional. The intent is a fill proportional to the value against
+  the stated capacity, with a non-zero measurement remaining visible rather than disappearing; the
+  mock's own fills are a sketch of the element, not a specification of its arithmetic.
+- **The third card is the same width as the other two.** In the image it appears to end earlier; it
+  does not — its translucent surface simply loses contrast over the lighter region of the background,
+  and its action cluster sits at the same horizontal position as the other two cards'. Recorded so
+  nobody implements a narrower card for stopped containers.
+- **`RUNNING` / `PAUSED` / `EXITED` in the mock are examples of the container's state, not the whole
+  set.** The daemon also reports created, restarting, removing and dead. Every state the product can
+  display gets a pill, an accent and a dot, following the same rule; the three drawn are the three
+  the mock happened to need.
+- **The ports chip appears only when there is something to show.** The mock draws it on the running
+  card and on neither other. A container publishing several ports shows them in that chip's place;
+  how many fit before the chip must summarise is a presentation detail for the later phases, bounded
+  by the rule that no identifier is silently clipped into illegibility.
+- **NET I/O, the capacity denominators and the bars are re-presentations, not new capability.** The
+  product already obtains per-container CPU, memory, network and block I/O for the detail panel's
+  Stats tab, and already knows the host's capacity. If a later phase finds any of these genuinely
+  unavailable where the list is built, that is a finding to report — not a licence to drop a value
+  the mock draws.
+- **The short container id on the card is the identifier the product already shows for a container**,
+  in its existing short form. The mock shows twelve hexadecimal characters, which is the daemon's own
+  convention.
+- **The tabbed detail expansion opens beneath the selected card**, full width, with its current
+  content and its current close behaviour. The mock does not draw it; this is the smallest change
+  from delivered behaviour, and this analysis says nothing else about that panel.
+- **The dashboard's container list is not in scope.** It is a different screen with a different
+  purpose (an overview), it was not named in the request, and the human confirmed *"solo
+  containers"*.
+- **The primary action's tone follows the direction of the action.** The mock draws `Resume` and
+  `Start` accented and `Stop` neutral-filled, all three more prominent than `Pause` and `Restart`.
+  Read as: the first slot is always the most prominent control of the cluster, and bringing a
+  container up is accented while halting one is not. Recorded as a reading of the image rather than
+  as a new rule; the exact tones come from existing tokens.
+- **No usage data decides any of this.** The product collects no telemetry; the arrangement is the
+  requester's operational judgement, and it is accepted as given.
+
+## Constraints
+
+- **One visual language, defined in exactly one place.** `client/src/ui/` is the only place in the
+  client allowed to emit raw DOM or contain CSS. This change is made there and consumed from the
+  containers screen.
+- **The library changes before the feature code does.** Whatever carries the card's material exists
+  and is exported before the containers screen asks for it.
+- **The material is the table's, referenced and not restated.** This is the human's explicit
+  constraint and it bounds the whole change: no second definition of the surface, the highlight, the
+  shadow, the border, the radius or the state colours may exist when this is done.
+- **No near-duplicate component.** If an existing component almost fits, it is extended. Two
+  components that look ninety per cent alike are the divergence the project's rules exist to prevent.
+- **The blur allow-list, the conformance check's blur half and the pre-blurred background asset are
+  untouchable.** The only legal blur value in the codebase is the single overlay token, and this
+  screen is not entitled to it.
+- **The 2026-08-16 one-presentation decision stands everywhere except the containers screen**, and
+  the exception is recorded and machine-enforced rather than assumed.
+- **The certified predecessors on this screen stay certified** and are named in the checks rather
+  than assumed: the four-slot action contract and its overflow menu, the detail panel's close
+  behaviour, the server-side total ordering, the dialog sizing rules, and the switch that must not
+  drag its surface out of the viewport.
+- **The list re-reads on every daemon event**, so whatever the card does per update it does
+  constantly, under concurrent change, while the operator watches.
+- **The daemon is the operator's own.** Their containers are in this list; verification creates its
+  own labelled fixtures, cleans up in a `finally`, and asserts on what it created rather than on
+  totals or emptiness.
+- **No server file, no API and no daemon behaviour is in scope** — unless the later phases establish
+  that a value the mock draws is genuinely not obtainable where the list is built, which is a finding
+  to be reported before anything server-side is touched.
+
+## Market trends
+
+Relevant, and consulted on the two points the decision turns on: whether a card view is a defensible
+choice for a resource list, and whether per-container metrics belong on the list at all.
+
+- **The published trade-off is density against self-containment, and the test is the task, not
+  taste.** Current guidance is explicit — a table wins on information density and cross-record
+  comparison and pays for it on narrow screens; a card grid trades density for scannability and wins
+  when each item should feel *self-contained*. The stated rule of thumb is close to the human's own
+  wording: *if you would naturally describe the data as "rows", it wants a table; if you would
+  describe it as "items", it probably wants cards*. A container — named, stateful, with a lifecycle
+  and live telemetry of its own — is an item. This is the same body of guidance the 2026-08-16
+  analysis cited against the hybrid, applied to a genuine card, and it does not contradict that
+  decision: what it condemns is column headers over detached cards, and this presentation has no
+  header.
+  ([UX Patterns for Developers — Table vs list view vs card grid](https://uxpatterns.dev/pattern-guide/table-vs-list-vs-cards);
+  [Smart Interface Design Patterns — Cards vs. lists vs. tables vs. data grids](https://smart-interface-design-patterns.com/articles/cards-vs-lists-vs-tables-vs-data-grids/))
+- **The cost of cards is the one this change must watch: fewer objects per screen.** The same
+  guidance scores a card grid as medium density against a table's high, which on a host with dozens
+  of containers is the real price of this change and is recorded under Risks rather than waved away.
+  ([UX Patterns for Developers — Card grid pattern](https://uxpatterns.dev/patterns/data-display/card-grid))
+- **Per-container stats on the list page is a known gap in the nearest competitor, not an
+  indulgence.** Portainer shows CPU and memory only after clicking into a container and opening its
+  Stats view; "show statistics about memory and CPU usage of all containers" is an open request
+  against it. The mock puts on the list precisely what that request asks for.
+  ([portainer#8144 — show statistics about memory and CPU usage of all containers](https://github.com/portainer/portainer/issues/8144);
+  [Viewing container resource usage in Portainer](https://oneuptime.com/blog/post/2026-03-20-view-container-resource-usage-portainer/view))
+- **The mock's metric set is the CLI's own, minus two.** `docker stats` reports CPU %, memory
+  usage/limit, net I/O, block I/O and PIDS. The card takes the first three — including the *usage
+  against limit* framing that the mock's `of 8 cores` / `of 31.0GB` reproduces — and leaves block I/O
+  and PIDS to the detail panel. An operator who knows `docker stats` will recognise the card's
+  numbers, which matters for a product whose promise is a faithful front end to the daemon.
+- **Card presentations are established in this exact product category.** Dockge, one of the two most
+  cited Docker web UIs alongside Portainer, presents each stack as a card. So a card view here is
+  within the vocabulary of the category rather than a departure from it.
+  ([Portainer vs Dockge comparison](https://homelabcompass.com/compare/dockge-vs-portainer))
+
+## Risks
+
+- **Fewer containers fit on screen, and that is the price of the change.** A card is several times
+  the height of a row, so a host with thirty containers goes from a screenful to a long scroll. The
+  human has weighed this and chosen the card; the mitigation is that the card carries its own labels
+  and its own status, so a single card answers questions the row could not — but if the screen proves
+  unworkable at scale, the remedy is a density decision on this presentation, not a return to the
+  table.
+- **Comparison across containers gets harder.** Without a header and shared column tracks, "which of
+  these is eating the CPU" is a scan rather than a glance. The mock mitigates it — the metric columns
+  sit at the same position on every card, so the numbers still line up vertically down the list — and
+  that alignment is therefore load-bearing, not decorative. A card whose metric columns drift with
+  its content would lose the last of the table's advantage.
+- **The live metrics cost more than the screen can pay.** Sampling and re-rendering CPU, memory and
+  network for every visible card, on a list that also re-reads on every daemon event, is the most
+  likely source of a regression in a product whose main view is required to pay nothing for its
+  material. It will not announce itself as a bug; it will show up as a list that stutters when
+  scrolled.
+- **The material gets re-authored instead of reused.** The most likely way this request is answered
+  wrongly, and the one the human pre-empted in writing: a new card stylesheet that *looks* like the
+  table's surface. It passes the eye on day one and diverges on the first day either is touched. Two
+  weaker forms of the same failure are copying the mock's markup into the screen, and adding a
+  "temporary" local style with a promise to extract it.
+- **The exception becomes the rule's undoing.** The guard against detached card rows must be widened
+  by name and by nothing more. Disabling it, or exempting the containers screen with a blanket
+  comment, would leave the product with no defence anywhere — and this codebase has already recorded
+  a decision that was taken, written down, never enforced, and silently reversed by the next batch
+  of work.
+- **The record and the product end up disagreeing.** The 2026-08-16 requirements and the artefacts
+  carrying them still assert that no object list draws a detached row. Left unamended while the code
+  changes, a later reader would be doing the correct thing by the record if they converted containers
+  back to a table.
+- **A value is dropped silently in the conversion.** Ports, uptime, the image reference and the short
+  id are easy to lose when a row becomes a card, and nothing errors when they go — the card simply
+  gets shorter. The before/after comparison must be against the delivered list, value by value.
+- **"No sample" reads as zero.** If the empty state is drawn as `0` or as a blank rather than as the
+  mock's `—` plus its explicit wording, the operator cannot tell a stopped container from an idle
+  one, and will eventually trust a stale number.
+- **The redesign widens.** Redrawing this screen is a standing invitation to reorder the actions,
+  reword the labels, add a sort control or add selection. Any of it makes the result impossible to
+  compare against what shipped, and every one of those was deliberately excluded by an earlier
+  analysis on this very screen.
+- **The narrow breakpoint regresses unnoticed.** This screen has already shipped a row that collapsed
+  its columns to zero width with no way to scroll to them. A card is more forgiving, which is exactly
+  why nobody will think to measure it.
+- **The mock is read as a specification of capability.** It draws three states, one ports chip and one
+  set of numbers. Building only what the image contains — three states, one port, one bar arithmetic
+  — reproduces the sketch rather than the screen.
+
+## Scope
+
+**In scope**
+
+- Replacing the containers screen's table with a vertical stack of one card per container, arranged
+  as `.sdd/analysis/ui-mock/containers-refactor.png` arranges it, element by element, per the map
+  under Requirements.
+- The card's three bands and everything in them: the state accent bar, dot, name, state pill, short
+  id, the primary action and the `Pause` / `Restart` / `…` cluster, the image chip, the conditional
+  ports chip, the status sentence, and the `CPU` / `MEMORY` / `NET I/O` metric strip with its
+  capacity notes, its bars and its explicit *no sample* state.
+- Adding NET I/O, the capacity denominators and the per-metric bars to the list, live at the cadence
+  CPU and memory already use.
+- Providing the card's material through a UI-library component that acts as the card's container and
+  owns its background, highlight, shadow, border and radius — reusing or extending an existing
+  component where one can carry it, and creating a new library component only if none can, with the
+  choice made and justified in the technical plan.
+- Reusing the object table's existing surface, highlight, shadow, border, radius, typography and
+  state colours by reference, leaving exactly one definition of that material in the product.
+- Preserving, unchanged: the four action slots and their contract, the overflow menu, the detail
+  panel and its open/close behaviour, the server-side ordering, filtering, the toolbar, the empty
+  state, and every string.
+- Amending the 2026-08-16 one-presentation decision, the downstream artefacts that carry it and the
+  automated check that guards it, in the open and by name, so the containers screen is a recorded
+  exception and every other list is still guarded.
+- Restating the existing containers coverage against the card, and verifying the result with a real
+  pointer and on geometry, at the project's reference viewports including 375×812, against the real
+  daemon under the project's test discipline.
+
+**Out of scope**
+
+- **Every other list in the product** — images, volumes, networks, compose, swarm, registries,
+  contexts, plugins, builders, build cache — and **the dashboard's container list**. All stay classic
+  tables. The human's answer was *"solo containers"*.
+- Any change to what a container action does, to its confirmation, to its feedback, or to the API
+  behind it.
+- New per-container capabilities of any kind, including anything that merely appears in the mock and
+  does not exist today.
+- Selection, bulk actions, an operator-facing sort control, grouping, pagination, a density toggle,
+  or a card/table switch on this screen.
+- The contents of the container detail panel and its tabs, beyond where it opens.
+- Block I/O and PIDS on the card.
+- Translating or rewording any part of the interface.
+- The blur allow-list, the conformance check's blur half, and the background asset.
+- Server-side behaviour, the API and the daemon — unless a value the mock draws proves genuinely
+  unavailable where the list is built, which is reported before anything is changed.
+- Re-arguing the 2026-08-16 retirement itself, which stands for the rest of the product.
