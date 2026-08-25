@@ -20,6 +20,7 @@ import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { readOnceSettled } from './support/settled.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { containerDetail, openContainerDetail } from './support/container-cards.js';
 
 const DESKTOP_VIEWPORTS = [
   { width: 1440, height: 1000 },
@@ -92,15 +93,9 @@ async function removeContainerQuietly(name: string): Promise<void> {
   await execFileAsync('docker', ['rm', '-fv', name]).catch(() => undefined);
 }
 
-function containerRow(page: Page, name: string): Locator {
-  return page.locator('.ui-data-table__row', { hasText: name });
-}
-
 async function openTab(page: Page, name: string, tab: string): Promise<Locator> {
-  const row = containerRow(page, name);
-  await expect(row).toBeVisible({ timeout: 15_000 });
-  await row.getByText(name, { exact: true }).click();
-  const detail = page.locator('.ui-data-table__expanded');
+  await openContainerDetail(page, name);
+  const detail = containerDetail(page);
   await expect(detail).toBeVisible();
   await detail.getByRole('tab', { name: tab }).click();
   return detail;

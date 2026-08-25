@@ -7,6 +7,7 @@ import { expectCompletedAndStillWaiting } from './support/progress-completion.js
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
 import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
+import { chooseCardAction, containerCard, containerDetail } from './support/container-cards.js';
 
 // Every test in this file drives a real save/load or export/import round
 // trip against the daemon, so it runs one at a time.
@@ -193,19 +194,19 @@ test('exporting a container filesystem and importing it back builds an image und
     // screens, so an unscoped locator matches more than the entry meant here.
     await navEntry(page, 'Containers').click();
     await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
-    const row = page.locator('.ui-data-table__row', { hasText: containerName });
+    const row = containerCard(page, containerName);
     await expect(row).toBeVisible({ timeout: 10_000 });
-    // Started from the row's overflow menu: the detail panel no longer offers
-    // the export, so the row is not selected on the way (REQ-19). The download is awaited from
+    // Started from the card's overflow menu: the detail panel no longer offers
+    // the export, so the card is not selected on the way (REQ-19). The download is awaited from
     // before the gesture, which is now one retried unit — the menu dismisses itself on a scroll or a
     // re-read (ui-library/specs/menu.md) and a split gesture waits out its budget on a vanished
     // entry. At most one export is ever started: the retry stops at the first delivered activation.
     const downloadPromise = page.waitForEvent('download');
-    await chooseFromRowOverflowMenu(page, row, 'Export filesystem…', { trigger: `More actions for ${containerName}` });
+    await chooseCardAction(page, containerName, 'Export filesystem…');
     download = await downloadPromise;
     expect(download.suggestedFilename()).toBe(`${containerName}.tar`);
     await expect(page.locator('.ui-modal')).toHaveCount(0);
-    await expect(page.locator('.ui-data-table__expanded')).toHaveCount(0);
+    await expect(containerDetail(page)).toHaveCount(0);
     tarPath = (await download.path()) ?? undefined;
     expect(tarPath).toBeTruthy();
 

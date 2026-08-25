@@ -13,30 +13,17 @@ export interface ChipProps {
   /** Label of the inline secondary action (e.g. "detach"); omitted when the chip carries no action. */
   actionLabel?: string;
   onAction?: () => void;
-  /**
-   * Makes the whole chip the click target — for a chip that is itself a
-   * starting point (e.g. a suggestion put into an input), rather than a label
-   * carrying a secondary action.
-   */
+  /** Makes the whole chip the click target, for a chip that is itself a starting point. */
   onSelect?: () => void;
-  /** `accent` marks the salient chip among its neighbours; what makes it salient is the caller's. */
+  /** `accent` marks the salient chip among its neighbours. */
   tone?: ChipTone;
-  /**
-   * Takes a line of its own and fills it, as a field rather than a pill — for a
-   * value long enough that nothing may share its line without being pushed out
-   * of place.
-   */
+  /** Takes a line of its own and fills it, as a field rather than a pill. */
   block?: boolean;
-  /**
-   * Which end of the label gives way when it does not fit. `'start'` keeps the
-   * tail, for a value whose tail identifies it (an image's `name:tag` against
-   * its registry host); `'end'` is the ordinary ellipsis. Absent, the label is
-   * never truncated and the chip takes the width its value needs.
-   */
+  /** Which end of the label gives way; absent, the label is never truncated. */
   truncate?: 'start' | 'end';
 }
 
-/** A short label chip with an optional muted prefix and meta reading, an optional inline secondary action, and optionally clickable as a whole. */
+/** A short label chip: optional muted prefix and meta reading, optional inline action, optionally clickable. */
 export function Chip({ label, prefix, meta, actionLabel, onAction, onSelect, tone = 'neutral', block = false, truncate }: ChipProps) {
   const classes = [
     'ui-chip',
@@ -101,12 +88,7 @@ export interface ChipGroupProps {
   emptyLabel?: string;
 }
 
-/**
- * A row of Chips with an optional trailing "add" affordance and an empty-state
- * label. The add affordance is the library's own button — the dashed outline it
- * used to carry read as a placeholder waiting to be filled rather than as
- * something to press.
- */
+/** A row of Chips with an optional trailing "add" affordance (the library's own button) and an empty label. */
 export function ChipGroup({ items, addLabel, onAdd, emptyLabel }: ChipGroupProps) {
   return (
     <span className="ui-chip-group">

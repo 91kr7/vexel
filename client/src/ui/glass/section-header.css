@@ -5,10 +5,8 @@
   gap: var(--space-4);
 }
 
-/* A header asked to give way: both boxes down to the title must be allowed to
-   shrink, or the ellipsis on the title never gets the chance to appear — a flex
-   item's automatic minimum is its content, and a Docker container name is as
-   long as its author made it. */
+/* Both boxes down to the title must be allowed to shrink, or the ellipsis never appears:
+   a flex item's automatic minimum is its content. */
 .ui-section-header--truncate,
 .ui-section-header--truncate .ui-section-header__text {
   min-width: 0;

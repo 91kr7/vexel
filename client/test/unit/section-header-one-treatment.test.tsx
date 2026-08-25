@@ -204,3 +204,36 @@ describe('Card — a card titles nothing (REQ-26, REQ-81)', () => {
     }
   });
 });
+
+// section-header.md, widened on 2026-08-25 — "the title gives way instead of pushing what sits
+// beside it out of place: it keeps one line and ellipsises at its end. For a header standing in a
+// row with something anchored to its right" — the containers card's name beside its short id
+// (plan-docker_management_app-containers_card_view/REQ-3, REQ-30).
+describe('SectionHeader — the title that gives way (containers_card_view/REQ-3)', () => {
+  it('carries the library’s own one-line rule on the title, and the whole title as its tooltip', () => {
+    render(<SectionHeader title="a-very-long-container-name-that-cannot-fit" truncate />);
+
+    const title = document.querySelector('.ui-section-header__title') as HTMLElement;
+    expect(title.className).toContain('ui-truncating-line');
+    expect(title.getAttribute('title')).toBe('a-very-long-container-name-that-cannot-fit');
+    expect(document.querySelector('.ui-section-header')?.className).toContain('ui-section-header--truncate');
+  });
+
+  it('leaves a header asked for nothing exactly as it was: no truncation, no tooltip', () => {
+    render(<SectionHeader title="Containers" />);
+
+    const title = document.querySelector('.ui-section-header__title') as HTMLElement;
+    expect(title.className).toBe('ui-section-header__title');
+    expect(title.hasAttribute('title')).toBe(false);
+    expect(document.querySelector('.ui-section-header')?.className).toBe('ui-section-header');
+  });
+
+  it('declares no truncation rule of its own, taking the contract’s classes instead', () => {
+    const css = readFileSync(join(process.cwd(), 'src', 'ui', 'glass', 'section-header.css'), 'utf8').replace(
+      /\/\*[\s\S]*?\*\//g,
+      '',
+    );
+
+    expect(css, 'the header restates the truncation contract instead of carrying it').not.toMatch(/text-overflow\s*:/);
+  });
+});

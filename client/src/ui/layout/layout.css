@@ -128,12 +128,8 @@
   flex-wrap: wrap;
 }
 
-/* The truncation contract (truncation.css) stated as a row arrangement, for a
-   row whose groups are composed by a caller and so cannot be given the
-   contract's classes one by one. Read positionally: the last group is the
-   trailing metadata and keeps its natural width, everything before it may
-   shrink — which is what lets a name ellipsise while the identifier beside it
-   never does. */
+/* The truncation contract (truncation.css) read positionally: the last group keeps
+   its natural width, everything before it may shrink. */
 .ui-row--truncating > * {
   min-width: 0;
 }
@@ -182,19 +178,12 @@
   }
 }
 
-/* Three cards to a row. Explicit tracks rather than auto-fill: how many cards
-   belong on a row is a decision about the list, not something a track's minimum
-   width should discover — auto-fill would hand the count to whatever the widest
-   card's content happened to be. Two tracks where three would each fall under a
-   readable card width, one below the phone breakpoint. */
+/* Explicit tracks rather than auto-fill: how many cards belong on a row is a
+   decision about the list, not something a track's minimum width discovers. */
 .ui-grid--cards {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-3);
-  /* Stretched, not started: every card of a row takes the height of the
-     tallest, so a row reads as a row of equals rather than as a ragged edge.
-     Equality is per row and no minimum height is imposed, so rows may differ
-     from one another — chosen over one height for the whole grid, which would
-     have matched every row at the cost of empty space in most of them. */
+  /* Every card of a row takes the height of the tallest; rows are not matched to each other. */
   align-items: stretch;
 }
 
@@ -210,8 +199,6 @@
   }
 }
 
-/* A child that takes the whole row whatever the track count is: a list's
-   expansion, an empty state, a banner standing among tiles. */
 .ui-grid__span-full {
   grid-column: 1 / -1;
 }

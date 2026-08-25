@@ -62,6 +62,7 @@ import {
   openTheAnalysedDialog,
   removeEfficiencyFixtureImage,
 } from './support/layer-efficiency-dialog.js';
+import { containerCard, containerDetail, openContainerDetail } from './support/container-cards.js';
 import {
   LARGE_DIALOG_REGION,
   VIEWPORTS,
@@ -96,7 +97,7 @@ const MULTI_PROJECT = `vexel-e2e-sweep-multi-${SUFFIX}`;
 const SOLO_PROJECT = `vexel-e2e-sweep-solo-${SUFFIX}`;
 
 /** The two reference lists, named by a column only each of them carries. */
-const REFERENCE = { containers: 'UPTIME', images: 'DISK USAGE' } as const;
+const REFERENCE = { images: 'DISK USAGE' } as const;
 
 // ---------------------------------------------------------------------------
 // What the sweep is not about, named one by one.
@@ -258,7 +259,10 @@ test.afterAll(async () => {
  */
 const WALK: { screen: string; heading: string; lists: number }[] = [
   { screen: 'dashboard', heading: 'Dashboard', lists: 0 },
-  { screen: 'containers', heading: 'Containers', lists: 1 },
+  // Zero on purpose since 2026-08-25: the containers screen draws one card per container and no
+  // table at all (`plan-docker_management_app-containers_card_view/REQ-1`). It stays on the walk so
+  // that a list reappearing there is swept like any other rather than going unvisited.
+  { screen: 'containers', heading: 'Containers', lists: 0 },
   { screen: 'images-layers', heading: 'Images & layers', lists: 1 },
   { screen: 'volumes-networks', heading: 'Volumes & networks', lists: 2 },
   { screen: 'builders-cache', heading: 'Builders & cache', lists: 2 },
@@ -316,28 +320,25 @@ function assertSwept(at: string, swept: Swept, references: { name: string; list:
   expectSameTableAsReference(at, `${swept.screen} · ${swept.name}`, swept.list, references);
 }
 
-/** The two reference lists, read from the tree in this same run and in this same browser. */
+/**
+ * The reference list, read from the tree in this same run and in this same browser.
+ *
+ * **It was two, and the containers list left it on 2026-08-25**
+ * (`plan-docker_management_app-containers_card_view/REQ-1`, `REQ-63`): that screen draws one card
+ * per container now and is the single named exception to the classic table, so it cannot be the
+ * table every other list is swept against. The images list — still the classic table, and already
+ * the second reference here — is what remains.
+ */
 async function readTheReference(page: Page, at: string): Promise<{ name: string; list: ListGeometry }[]> {
-  await openApp(page, 'containers');
-  await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible({ timeout: 20_000 });
-  const containers = await settledList(page, REFERENCE.containers);
   await openApp(page, 'images-layers');
   await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible({ timeout: 20_000 });
+  // The row this file created is what the reference is read on: never a total, never an emptiness.
+  await expect(
+    page.locator('.ui-data-table__row', { hasText: imageTag }).first(),
+    `${at}: the image this spec created is not listed, so the reference row may be anybody's`,
+  ).toBeVisible({ timeout: 30_000 });
   const images = await settledList(page, REFERENCE.images);
-
-  // The rows this file created are what the reference is read on: never a total, never an emptiness.
-  expect(
-    containers.rows.some((row) => row.label.startsWith('vexel-e2e-sweep-')),
-    `${at}: the containers this spec created are not listed, so the reference row may be anybody's`,
-  ).toBe(true);
-  expect(
-    images.rows.length,
-    `${at}: the images list draws no row, so there is no reference row to compare anything against`,
-  ).toBeGreaterThan(0);
-  return [
-    { name: 'containers', list: containers },
-    { name: 'images', list: images },
-  ];
+  return [{ name: 'images', list: images }];
 }
 
 /**
@@ -355,12 +356,15 @@ async function readTheReference(page: Page, at: string): Promise<{ name: string;
 test('the sweep goes red when the region it walks draws no list — 1440×1000', async ({ page }) => {
   test.setTimeout(300_000);
   await page.setViewportSize(DESKTOP);
-  await openApp(page, 'containers');
-  await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible({ timeout: 30_000 });
+  // Read on the images screen since 2026-08-25: the containers screen this stood on draws no table
+  // at all now (`plan-docker_management_app-containers_card_view/REQ-1`), and a screen drawing none
+  // is exactly the state this test must **not** stand on — it would pass by accident.
+  await openApp(page, 'images-layers');
+  await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible({ timeout: 30_000 });
   // The screen behind genuinely draws a converted list, so what is asserted is
   // the walker refusing to wander outside its region, not an empty page.
   const onTheScreen = await measureEveryList(page);
-  expect(onTheScreen.length, 'the containers screen draws no list, so this proves nothing about scoping').toBeGreaterThan(0);
+  expect(onTheScreen.length, 'the images screen draws no list, so this proves nothing about scoping').toBeGreaterThan(0);
 
   // No dialog is open, so the dialog region matches nothing at all.
   const nowhere = await measureEveryList(page, { region: LARGE_DIALOG_REGION });
@@ -375,7 +379,7 @@ test('the sweep goes red when the region it walks draws no list — 1440×1000',
 for (const viewport of [DESKTOP, PHONE]) {
   const at = `${viewport.width}×${viewport.height}`;
 
-  test(`every list in the product is the containers table, and none draws a row on a surface of its own — ${at}`, async ({
+  test(`every list in the product is the reference table, and none draws a row on a surface of its own — ${at}`, async ({
     page,
     browser,
   }) => {
@@ -646,10 +650,11 @@ test('the exclusions the walk cannot reach still name the lists they were writte
   await page.locator('.ui-modal-overlay').first().click({ position: { x: 5, y: 5 } });
   await openApp(page, 'containers');
   await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible({ timeout: 30_000 });
-  const row = page.locator('.ui-data-table__row', { hasText: containerNames[0] }).first();
-  await expect(row, 'the container this spec created is not listed').toBeVisible({ timeout: 30_000 });
-  await clickAt(page, row.locator('.ui-data-table__cell').first(), 'the container row');
-  const detail = page.locator('.ui-data-table__expanded').first();
+  await expect(containerCard(page, containerNames[0]), 'the container this spec created is not listed').toBeVisible({
+    timeout: 30_000,
+  });
+  await openContainerDetail(page, containerNames[0]);
+  const detail = containerDetail(page).first();
   await expect(detail, 'selecting the container opened no detail panel').toBeVisible({ timeout: 20_000 });
   await clickAt(page, detail.getByRole('tab', { name: 'Processes' }), 'the Processes tab');
 
@@ -658,7 +663,7 @@ test('the exclusions the walk cannot reach still name the lists they were writte
   // not the list being on screen. The walk below stops as soon as two readings
   // 500ms apart agree, and "not started yet" reads exactly like "settled": on
   // 2026-08-17 a complete run counted `1 table drawn` here — the containers list
-  // alone — and this test reported its exclusion matching nothing, on a build
+  // alone, in the build that still drew one — and this test reported its exclusion matching nothing, on a build
   // whose exclusion is correct and which counts 2 whenever the list has landed.
   // Waited for by the view's own table, and reported by what the view shows
   // instead when it never arrives, so a daemon that refuses `top` is named as

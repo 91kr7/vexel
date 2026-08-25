@@ -7,6 +7,7 @@ import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
 import { clickAtItsCentre } from './support/settled.js';
 import { ALPINE_IMAGE, TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
+import { containerCard, containerDetail, openContainerDetail } from './support/container-cards.js';
 
 /**
  * **Every copy affordance has left the client — checked at runtime, over all
@@ -201,8 +202,9 @@ function imageRow(page: Page, text: string): Locator {
   return page.locator('.ui-data-table__row', { hasText: text }).first();
 }
 
+/** The container's card on the containers screen — the surface that carries its name and its values. */
 function containerRow(page: Page, name: string): Locator {
-  return page.locator('.ui-data-table__row', { hasText: name }).first();
+  return containerCard(page, name).first();
 }
 
 /**
@@ -348,11 +350,10 @@ test('containers: the Inspect tab offers no copy on its Id, its Image, any healt
     await createSleepingContainer(name, ['--health-cmd', 'echo ok', '--health-interval', '1s', '--health-retries', '1', '--health-start-period', '0s']);
     await openApp(page, 'containers');
     await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible({ timeout: 20_000 });
-    const row = containerRow(page, name);
-    await expect(row).toBeVisible({ timeout: 20_000 });
-    await row.locator('.ui-data-table__cell').first().click();
+    await expect(containerRow(page, name)).toBeVisible({ timeout: 20_000 });
+    await openContainerDetail(page, name);
 
-    const detail = page.locator('.ui-data-table__expanded');
+    const detail = containerDetail(page);
     await expect(detail).toBeVisible();
     await detail.getByRole('tab', { name: 'Inspect' }).click();
 
@@ -398,10 +399,9 @@ test('containers: the logs view offers no copy, and Download still delivers the 
     ]);
     await openApp(page, 'containers');
     await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible({ timeout: 20_000 });
-    const row = containerRow(page, name);
-    await expect(row).toBeVisible({ timeout: 20_000 });
-    await row.locator('.ui-data-table__cell').first().click();
-    const detail = page.locator('.ui-data-table__expanded');
+    await expect(containerRow(page, name)).toBeVisible({ timeout: 20_000 });
+    await openContainerDetail(page, name);
+    const detail = containerDetail(page);
     await detail.getByRole('tab', { name: 'Logs' }).click();
     await expect(detail.getByText('hello-from-stdout')).toBeVisible({ timeout: 20_000 });
 

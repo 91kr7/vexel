@@ -10,6 +10,7 @@ import {
 } from './support/property-bands.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
+import { containerCard, openContainerDetail } from './support/container-cards.js';
 
 /**
  * **The container detail panel, measured** — the other half of what the human
@@ -73,10 +74,6 @@ const CLIPPING_VIEWPORTS = [
  */
 const FIXTURE_ENV = ['PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', 'NODE_ENV=production'];
 
-function containerRow(page: Page, name: string): Locator {
-  return page.locator('.ui-data-table__row', { hasText: name }).first();
-}
-
 /** The first definition list of the open panel: the runtime list on Config, the ten properties on Inspect. */
 function firstSection(page: Page): Locator {
   return page.locator('.ui-detail-panel .ui-definition-list').first();
@@ -105,14 +102,13 @@ async function removeFixtureContainer(name: string): Promise<void> {
   await execFileAsync('docker', ['rm', '-fv', name]).catch(() => undefined);
 }
 
-/** Opens the panel on the row the test created, with a real pointer on the row's own first cell. */
+/** Opens the panel on the card the test created, with a real pointer on the container's own name. */
 async function openContainerPanel(page: Page, name: string, viewport: { width: number; height: number }): Promise<void> {
   await page.setViewportSize(viewport);
   await openApp(page, 'containers');
   await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
-  const row = containerRow(page, name);
-  await expect(row, 'the fixture container never appeared in the list').toBeVisible({ timeout: 20_000 });
-  await row.locator('.ui-data-table__cell').first().click();
+  await expect(containerCard(page, name), 'the fixture container never appeared in the list').toBeVisible({ timeout: 20_000 });
+  await openContainerDetail(page, name);
   await expect(firstSection(page)).toBeVisible({ timeout: 20_000 });
 }
 

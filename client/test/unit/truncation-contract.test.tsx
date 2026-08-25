@@ -28,8 +28,16 @@ import { DefinitionList, MetaCell, StorageUsageRow, TwoLineCell } from '../../sr
 const SOURCE_ROOT = join(process.cwd(), 'src');
 const LIBRARY_ROOT = join(SOURCE_ROOT, 'ui');
 
-/** The four classes `truncation-contract.md` names, and nothing else. */
-const CONTRACT_CLASSES = ['ui-truncating-row', 'ui-truncating-run', 'ui-truncating-line', 'ui-truncating-meta'];
+/** The five classes `truncation-contract.md` names, and nothing else. */
+const CONTRACT_CLASSES = [
+  'ui-truncating-row',
+  'ui-truncating-run',
+  'ui-truncating-line',
+  'ui-truncating-meta',
+  // Added 2026-08-25 with the containers card's image field
+  // (plan-docker_management_app-containers_card_view/REQ-5, REQ-28, REQ-31).
+  'ui-truncating-line--start',
+];
 
 /** Every stylesheet shipped under `client/src/`, path and content. */
 function stylesheets(directory = SOURCE_ROOT): { path: string; css: string }[] {
@@ -71,7 +79,7 @@ function stylesheetsDeclaring(className: string): string[] {
 afterEach(cleanup);
 
 describe('the truncation contract is written once, in the library (REQ-17)', () => {
-  // truncation-contract.md: "The stylesheet declares four classes and nothing
+  // truncation-contract.md: "The stylesheet declares five classes and nothing
   // else ... Written once, in client/src/ui/, and carried by every primitive
   // that draws such a row."
   it.each(CONTRACT_CLASSES)('declares .%s in exactly one stylesheet of the library', (className) => {
@@ -111,6 +119,24 @@ describe('the truncation contract is written once, in the library (REQ-17)', () 
     // "when the row cannot hold the floored run and the trailing group side by
     // side, the trailing group takes a line of its own"
     expect(ruleBody(css, '.ui-truncating-row')).toMatch(/flex-wrap:\s*wrap/);
+  });
+
+  // truncation-contract.md, widened 2026-08-25: ".ui-truncating-line--start → the same one line,
+  // ellipsised at its **front** instead of its end, for a value whose tail is the half that
+  // identifies it… Carried together with .ui-truncating-line, never instead of it."
+  it('moves the ellipsis to the front of the line without moving the line', () => {
+    const path = join(LIBRARY_ROOT, stylesheetsDeclaring('ui-truncating-line--start')[0].replace(/^ui\//, ''));
+    const css = readFileSync(path, 'utf8');
+    const front = ruleBody(css, '.ui-truncating-line--start');
+
+    // The overflow, and with it the ellipsis, moves to the start of the line…
+    expect(front).toMatch(/direction:\s*rtl/);
+    // …and the line itself stays where it was.
+    expect(front).toMatch(/text-align:\s*left/);
+    // Carried together with the one-line rule, never instead of it: it restates none of it.
+    expect(front, 'the front variant restates the one-line rule instead of carrying it').not.toMatch(
+      /overflow\s*:|text-overflow\s*:|white-space\s*:/,
+    );
   });
 
   // REQ-17 — "No feature file expresses this itself, and no screen solves it

@@ -21,7 +21,7 @@ export interface ContainerSummary {
   memoryLimitBytes?: number;
   /** Host CPUs the percentage above is measured against. */
   onlineCpus?: number;
-  /** Bytes received / sent, summed over the container's interfaces since it started. */
+  /** Bytes received / sent since the container started, summed over its interfaces. */
   networkRxBytes?: number;
   networkTxBytes?: number;
 }

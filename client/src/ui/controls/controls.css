@@ -138,14 +138,8 @@
   cursor: pointer;
 }
 
-/* The compact box takes a tighter radius, and it is the box's size that asks
-   for it: the ordinary radius on a 24px square is 42% of its own side, which
-   reads as a soft blob rather than as a quiet control — visible beside a card's
-   name, which is 23.2px tall and so *shorter* than the control standing next to
-   it (measured 2026-08-25). Eased corners on a square is what a discreet
-   affordance looks like at this size. Declared on the size rather than on a
-   variant of one call site: every compact icon button in the product is the same
-   24px box and the reasoning is the box's, not the caller's. */
+/* The tighter radius belongs to the box, not to a caller: the ordinary one on a
+   24px square is 42% of its side and reads as a blob (icon-button.md). */
 .ui-icon-button--sm {
   width: 24px;
   height: 24px;
@@ -406,22 +400,9 @@
   min-width: 0;
 }
 
-/* Segmented: the cluster's controls share one boundary instead of standing
-   apart, the hairline between two of them being one border and not two — which
-   is what the negative inline offset buys. The outer corners are the cluster's,
-   so only the first and the last slot keep a radius. Appearance only: the slots,
-   their order and their number are untouched.
-
-   **The group owns the height, and every slot takes it.** `stretch` instead of
-   the base rule's `center`, so each slot resolves to the tallest slot's height
-   rather than to its own content's: the members of a segmented cluster are not
-   all the same kind of control — a lifecycle `Button` sits beside the overflow
-   `Menu`'s trigger, which carries its own padding and a tighter line height —
-   and derived individually they came out 27px and 24px, leaving the rounded end
-   of the cluster reading as a bulge escaping a boundary it did not actually
-   share (measured on the containers card, 2026-08-25). Owning it at the group
-   is what makes that hold for a member added later with a different glyph or
-   size, which deriving it per member never would. */
+/* Segmented: one shared boundary, the hairline between two slots being one border
+   and not two — what the negative inline offset buys. `stretch`, so the group owns
+   the height and a slot of another kind cannot resolve to its own. */
 .ui-action-button-group--segmented {
   gap: 0;
   align-items: stretch;
@@ -818,24 +799,13 @@
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
-  /*
-   * The band's own size is the size of the controls it holds, on whichever axis
-   * it is placed: no growth, and no basis of its own. It used to declare
-   * `flex: 1 1 240px` unconditionally — a rule written for a row, which reads as
-   * "240px tall" the moment the band is stacked in a column, and drew a 37px
-   * control in the middle of a 240px band with 103px of nothing above and below
-   * it. `flex-grow` is worse still on the block axis: it turns a 240px void into
-   * a "takes everything left" one.
-   */
+  /* The band's own size is that of the controls it holds, on whichever axis it is
+     placed: a basis written here reads as a height the moment it is stacked. */
   flex: 0 0 auto;
 }
 
-/*
- * In a row, the delivered contract, unchanged: at least 240px wide and growing
- * to fill the row. The decision is made here, by the axis the band was actually
- * placed on, and never by a prop asking the call site which axis it is on —
- * that prop is this defect written down.
- */
+/* In a row: at least 240px and growing to fill it. Decided by the axis the band was
+   placed on, never by a prop asking the call site which axis it is on. */
 .ui-row > .ui-stream-search {
   flex: 1 1 240px;
 }
@@ -1070,11 +1040,8 @@
   white-space: nowrap;
 }
 
-/* A field rather than a pill: the chip takes a line of its own and fills it,
-   for a value long enough that anything sharing its line would be pushed out of
-   place. Rectangular rounding, because a stadium as wide as its container reads
-   as a button; the label is the part that gives way, the prefix naming the
-   value is not. */
+/* A field rather than a pill: rectangular rounding, since a stadium as wide as its
+   container reads as a button. The label gives way, the prefix does not. */
 .ui-chip--block {
   display: flex;
   width: 100%;
@@ -1091,16 +1058,14 @@
   min-width: 0;
 }
 
-/* The chip's muted parts: what the value is (`image`) before it, and the
-   secondary reading after it. One declaration, two positions. */
+/* The chip's muted parts: the prefix before the value, the meta reading after it. */
 .ui-chip__prefix,
 .ui-chip__meta {
   color: var(--color-text-muted);
   white-space: nowrap;
 }
 
-/* Accented: the salient chip of a group, told apart from the plain attribute
-   chips beside it. Every value is the accent role's own token. */
+/* Accented: the salient chip of a group, in the accent role's own tokens. */
 .ui-chip--accent {
   border-color: var(--color-accent);
   background: var(--color-accent-tint);

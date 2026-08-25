@@ -3,6 +3,7 @@ import { navEntry, openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
 import { ensurePullableImage } from '../../server/test/support/base-images.js';
+import { containerCard } from './support/container-cards.js';
 
 // The tests that need an image to be missing locally share one reference — the
 // run's own pullable fixture — and each of them removes it, so this file runs
@@ -30,8 +31,9 @@ async function removePullableImage(): Promise<void> {
   await execFileAsync('docker', ['rmi', '-f', pullableReference]).catch(() => undefined);
 }
 
+/** The container's card on the containers screen — the surface that carries its name and its values. */
 function containerRow(page: Page, name: string) {
-  return page.locator('.ui-data-table__row', { hasText: name });
+  return containerCard(page, name);
 }
 
 function imageField(page: Page) {
@@ -84,7 +86,7 @@ test('running a container from the toolbar creates it with its configuration and
     await searchField(page).fill(name);
     const row = containerRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
-    await expect(row).toContainText('running');
+    await expect(row).toContainText('RUNNING');
     await expect(row).toContainText('alpine:3.20');
 
     const { stdout } = await execFileAsync('docker', ['inspect', name, '--format', '{{.Config.Env}} {{.State.Running}}']);
@@ -111,7 +113,7 @@ test('creating from an image without starting it leaves the container stopped in
     await searchField(page).fill(name);
     const row = containerRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
-    await expect(row).toContainText('created');
+    await expect(row).toContainText('CREATED');
     // The first of the row's three fixed lifecycle slots, carrying the
     // state-appropriate run/halt action for a container that is not running.
     await expect(row.getByRole('button', { name: 'Start', exact: true })).toBeVisible();

@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -14,29 +16,30 @@ import { ProgressProvider } from '../../src/shell/services/ProgressService';
 import { ToastProvider } from '../../src/ui';
 
 /**
- * plan-docker_management_app/REQ-3, batch-images-table-alignment's "Human
- * acceptance" — the two core list screens must apply the same `DataTable`
- * treatment uniformly: same header style, same column typography, same row
- * height, same hover/selected treatment. Per images-screen.md's and
- * containers-screen.md's own documented rationale, this is deliberately
- * **not** a promise that the two screens share an identical column set:
- * Images alone carries a leading multi-select checkbox column (and
- * `BulkActionBar`) because it alone has a bulk action needing a selection
- * ("Save to tarball…"); Containers has no per-row bulk action, so it carries
- * none. A test asserting identical column counts or an identical header/cell
- * class fingerprint therefore over-specifies REQ-3 and would forbid either
- * screen from ever gaining a feature the other does not need. What is
- * compared below is exactly what is promised — table/wrapper/header/row
- * treatment and the treatment of the columns both screens do share — plus an
- * explicit, spec-grounded assertion of each documented difference: the
- * selection column, and the width of the action column, which the two screens
- * deliberately no longer share since the images row came down to its overflow
- * control alone (plan-docker_management_app-image_row_actions/REQ-18) while a
- * containers row still carries three lifecycle buttons beside its own. In
- * jsdom no stylesheet is applied, so what is
- * comparable here is the markup the visual language is carried by: class
- * names, row height, selected-row class. The computed-style side of the
- * comparison is covered by the e2e suite.
+ * plan-docker_management_app/REQ-3 asked the two core list screens to apply the same `DataTable`
+ * treatment uniformly — same header style, same column typography, same row height, same
+ * hover/selected treatment. **On 2026-08-25 the containers screen stopped being a table**
+ * (plan-docker_management_app-containers_card_view/REQ-1), so half of that claim stopped having a
+ * subject: there is no containers header to compare, no containers row height, no containers
+ * column typography.
+ *
+ * What is left is restated rather than removed
+ * (plan-docker_management_app-containers_card_view/REQ-38), in three parts:
+ *
+ * - **the images half is exactly what it was** — the images list is still the classic table, with
+ *   its own treatment, its own selection column and its own action-column token, and it is still
+ *   not a stack of cards;
+ * - **the containers half is the card's own arrangement** — one surface per container, its three
+ *   bands in order, its four controls, its selected treatment;
+ * - **and what the two still genuinely share is their material**, which is the part of REQ-3 that
+ *   survives: the card's hover and selected highlights are the table row's own tokens, taken by
+ *   reference and declared in exactly one place each
+ *   (plan-docker_management_app-containers_card_view/REQ-28, REQ-29).
+ *
+ * In jsdom no stylesheet is applied, so what is comparable here is the markup the visual language
+ * is carried by — class names, arrangement, the row height the images table still writes — and the
+ * stylesheet is read as source where a token has to be shown to be referenced rather than
+ * re-declared. The **measured** geometry of the card is `client/e2e/containers-card-geometry.spec.ts`.
  */
 
 const container: ContainerSummary = {
@@ -215,120 +218,202 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('Images and Containers present the same table (plan-docker_management_app/REQ-3)', () => {
-  it('renders both lists with the same table component, wrapper, header, row and shared-column cell treatment', () => {
-    const imagesRoot = renderImages();
-    const imagesFingerprint = fingerprint(imagesRoot);
-    cleanup();
-    const containersRoot = renderContainers();
-    const containersFingerprint = fingerprint(containersRoot);
+/** One container's card: the surface the containers screen draws per container, in the row's place. */
+function containerCards(root: HTMLElement): HTMLElement[] {
+  return Array.from(root.querySelectorAll<HTMLElement>('.ui-surface--selectable'));
+}
 
-    expect(imagesFingerprint).toEqual(containersFingerprint);
+/** A stylesheet with its comments stripped, so a token named in a comment cannot be read as a declaration. */
+function stylesheet(relativePath: string): string {
+  return readFileSync(join(process.cwd(), relativePath), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+}
+
+/** The declarations of one selector, in source order, as written. */
+function declarationsOf(css: string, selector: string): string[] {
+  return [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter((rule) => rule[1].split(',').some((one) => one.trim() === selector))
+    .map((rule) => rule[2].trim());
+}
+
+describe('The images list is still the classic table (plan-docker_management_app/REQ-3)', () => {
+  it('renders it through the one DataTable, with its wrapper, header, row and data-cell treatment', () => {
+    const imagesFingerprint = fingerprint(renderImages());
+
+    expect(imagesFingerprint.tableCount).toBe(1);
+    expect(imagesFingerprint.tableClass).toContain('ui-data-table');
+    expect(imagesFingerprint.wrapperClass).not.toBe('');
+    expect(imagesFingerprint.headerClass).toContain('ui-data-table__header');
+    expect(imagesFingerprint.rowClass).toContain('ui-data-table__row');
+    expect(imagesFingerprint.dataHeaderCellClasses).not.toHaveLength(0);
+    expect(imagesFingerprint.dataCellClasses).not.toHaveLength(0);
+    expect(imagesFingerprint.actionGroupClass).toContain('ui-action-button-group');
   });
 
-  // images-screen.md, containers-screen.md — Images alone carries the leading multi-select
-  // checkbox column (and BulkActionBar) because it alone has a bulk action needing a selection
-  // ("Save to tarball…"); Containers deliberately carries none ("Prune stopped" needs no per-row
-  // selection). This is the one documented, intentional column-set difference REQ-3 does not forbid.
-  it("gives Images alone the multi-select checkbox column, which Containers deliberately does not carry", () => {
+  // images-screen.md — Images alone carries the leading multi-select checkbox column (and
+  // BulkActionBar) because it alone has a bulk action needing a selection ("Save to tarball…").
+  // Containers has no per-row bulk action and carries no selection at all
+  // (plan-docker_management_app-containers_card_view/REQ-25).
+  it('gives Images alone the multi-select checkbox column, which Containers still does not carry', () => {
     const imagesRoot = renderImages();
     expect(hasSelectionColumn(imagesRoot)).toBe(true);
     cleanup();
 
     const containersRoot = renderContainers();
-    expect(hasSelectionColumn(containersRoot)).toBe(false);
+    expect(containersRoot.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
+    expect(containersRoot.querySelector('.ui-bulk-action-bar')).toBeNull();
   });
 
-  it('gives both lists the same row height', () => {
-    const imagesRoot = renderImages();
-    const imagesRowHeight = fingerprint(imagesRoot).rowHeight;
-    cleanup();
-    const containersRoot = renderContainers();
+  it('still writes a row height on every row of it', () => {
+    const imagesFingerprint = fingerprint(renderImages());
 
-    expect(imagesRowHeight).toBe(fingerprint(containersRoot).rowHeight);
-    expect(imagesRowHeight).not.toBe('');
+    expect(imagesFingerprint.rowHeight).not.toBe('');
   });
 
-  it('gives both lists the same selected-row treatment', async () => {
+  it('still marks its selected row with the library\'s own selected class', async () => {
     const user = userEvent.setup();
     const imagesRoot = renderImages();
+
     await user.click(imagesRoot.querySelector<HTMLElement>('.ui-data-table__row')!);
-    const imagesSelectedRow = imagesRoot.querySelector<HTMLElement>('.ui-data-table__row')!;
-    const imagesSelectedClass = imagesSelectedRow.className;
-    const imagesAriaSelected = imagesSelectedRow.getAttribute('aria-selected');
-    cleanup();
 
-    const containersRoot = renderContainers();
-    await user.click(containersRoot.querySelector<HTMLElement>('.ui-data-table__row')!);
-    const containersSelectedRow = containersRoot.querySelector<HTMLElement>('.ui-data-table__row')!;
-
-    expect(imagesSelectedClass).toBe(containersSelectedRow.className);
-    expect(imagesSelectedClass).toContain('ui-data-table__row--selected');
-    expect(imagesAriaSelected).toBe(containersSelectedRow.getAttribute('aria-selected'));
+    const selected = imagesRoot.querySelector<HTMLElement>('.ui-data-table__row')!;
+    expect(selected.className).toContain('ui-data-table__row--selected');
+    expect(selected.getAttribute('aria-selected')).toBe('true');
   });
 
-  // Every header label is uppercase on both screens, and every genuine data-column header (the
-  // selection column excluded — it carries no label) uses the exact same class on both screens.
-  // What is *not* asserted is that the two screens have the same number of headers: REQ-3 promises
-  // shared column typography, not an identical column set (images-screen.md, containers-screen.md).
-  it('gives both lists the same header column typography and uppercase headers on their own columns', () => {
+  // Every header label is uppercase, and every genuine data-column header (the selection column
+  // excluded — it carries no label) uses the library's own header-cell class.
+  it('keeps its headers uppercase and its data-column typography the library\'s', () => {
     const imagesRoot = renderImages();
-    const imagesHeaders = Array.from(imagesRoot.querySelectorAll('.ui-data-table__header-cell')).map((cell) => cell.textContent ?? '');
-    const imagesDataHeaderClasses = fingerprint(imagesRoot).dataHeaderCellClasses;
-    cleanup();
-    const containersRoot = renderContainers();
-    const containersHeaders = Array.from(containersRoot.querySelectorAll('.ui-data-table__header-cell')).map((cell) => cell.textContent ?? '');
-    const containersDataHeaderClasses = fingerprint(containersRoot).dataHeaderCellClasses;
 
-    for (const label of [...imagesHeaders, ...containersHeaders]) {
-      expect(label).toBe(label.toUpperCase());
+    const labels = Array.from(imagesRoot.querySelectorAll('.ui-data-table__header-cell')).map((cell) => cell.textContent ?? '');
+    expect(labels.length).toBeGreaterThan(0);
+    for (const label of labels) expect(label).toBe(label.toUpperCase());
+    for (const cellClass of fingerprint(imagesRoot).dataHeaderCellClasses) {
+      expect(cellClass).toContain('ui-data-table__header-cell');
     }
-    expect(imagesDataHeaderClasses).toEqual(containersDataHeaderClasses);
   });
 
-  // The two lists no longer reserve the same action column width, and that is
-  // plan-docker_management_app-image_row_actions/REQ-18 rather than a drift: the images row came
-  // down to its overflow control alone and gives that width back to its own data columns, while a
-  // containers row still carries three lifecycle buttons plus its overflow. Each screen is held to
-  // the library token that matches what its rows carry, and neither writes a length of its own.
-  // REQ-3's promise — one shared `DataTable` treatment — is everything else in this file and is
-  // untouched by the difference.
-  it('sizes each list\'s action column from the library token matching what its rows carry', () => {
+  // plan-docker_management_app-image_row_actions/REQ-18 — the images row came down to its overflow
+  // control alone and reserves the narrower of the library's two action-column tokens. The
+  // containers screen no longer reserves an action column at all, having no columns.
+  it('sizes its action column from the library token matching what its rows carry', () => {
     const imagesRoot = renderImages();
-    const imagesTrack = actionColumnTrack(imagesRoot);
-    cleanup();
-    const containersRoot = renderContainers();
 
-    expect(imagesTrack).toBe('var(--data-table-menu-action-column-width)');
-    expect(actionColumnTrack(containersRoot)).toBe('var(--data-table-action-column-width)');
+    expect(actionColumnTrack(imagesRoot)).toBe('var(--data-table-menu-action-column-width)');
   });
 
-  it('no longer renders the images list as stacked cards', () => {
+  it('is not, and has not become, a stack of cards', () => {
     const imagesRoot = renderImages();
 
     expect(imagesRoot.querySelector('.ui-card-list')).toBeNull();
+    expect(containerCards(imagesRoot)).toHaveLength(0);
     expect(imagesRoot.querySelector('.ui-data-table')).not.toBeNull();
   });
 });
 
-// The containers table is the reference layout: this batch must leave it
-// untouched (batch-images-table-alignment, "Constraints").
-describe('ContainersScreen remains the reference layout (plan-docker_management_app/REQ-3)', () => {
-  it('still renders its own eight columns, in order, with the lifecycle action column last', () => {
+// The containers half of this file: the claim that stopped applying is replaced by the card's own
+// arrangement, never deleted (plan-docker_management_app-containers_card_view/REQ-38). What is
+// asserted here is the arrangement jsdom can see; the measured boxes are the e2e spec's.
+describe('The containers list is a card per container (plan-docker_management_app-containers_card_view/REQ-1, REQ-9)', () => {
+  it('draws one surface per container and no table on the screen at all', () => {
     const containersRoot = renderContainers();
 
-    const headers = Array.from(containersRoot.querySelectorAll('.ui-data-table__header-cell')).map((cell) => cell.textContent ?? '');
-    expect(headers).toEqual(['', 'NAME', 'IMAGE', 'CPU', 'MEMORY', 'PORTS', 'UPTIME', 'LIFECYCLE']);
+    expect(containerCards(containersRoot)).toHaveLength(1);
+    expect(containersRoot.querySelector('.ui-data-table')).toBeNull();
+    expect(containersRoot.querySelector('.ui-data-table__header')).toBeNull();
+    expect(containersRoot.querySelector('.ui-data-table__row')).toBeNull();
   });
 
-  // Same check, at the entry points the row's actions now have: three fixed
-  // lifecycle slots and, last, the overflow control that holds the rest
-  // (plan-docker_management_app-container_row_actions/REQ-1, REQ-2, REQ-5).
-  it('still shows its lifecycle actions on the row', () => {
+  // container-card.md — five content bands then a footer, in this order on every card and in every
+  // state: identity → state and duration → image → metrics → the actions (REQ-9, as superseded on
+  // 2026-08-25 by the b3 arrangement).
+  it('lays its bands out in order: identity, state, image, metrics, then the footer’s actions', () => {
+    const [card] = containerCards(renderContainers());
+
+    const body = card.querySelector<HTMLElement>('.ui-surface__body')!;
+    const bands = Array.from((body.firstElementChild as HTMLElement).children);
+    expect(bands).toHaveLength(4);
+    expect(bands[0].querySelector('.ui-section-header__title')?.textContent).toBe('web-nginx');
+    expect(bands[0].querySelector('.ui-table-identifier-cell')?.textContent).toBe('container1');
+    expect(bands[1].querySelector('.ui-badge')?.textContent).toBe('RUNNING');
+    expect(bands[1].textContent).toContain('Up 3 days');
+    expect(bands[2].className, 'the image does not take a field of its own').toContain('ui-chip--block');
+    expect(bands[3].querySelector('.ui-metric-strip__column')).not.toBeNull();
+    expect(bands[3].querySelectorAll('.ui-metric-strip__column')).toHaveLength(3);
+    expect(bands[3].querySelector('.ui-metric-strip__row .ui-meter__label--eyebrow')?.textContent).toBe('PORTS');
+
+    // Read and act are two gestures: no action stands between two bands of content.
+    const footer = card.querySelector<HTMLElement>('.ui-surface__footer')!;
+    expect(footer.querySelectorAll('.ui-action-button-group')).toHaveLength(2);
+    expect(body.querySelector('.ui-action-button-group')).toBeNull();
+  });
+
+  // container-card.md — the identity row's reading order, and the four action slots in the footer.
+  it('carries the dot and the name at the left, the id anchored right, then its four controls below', () => {
+    const [card] = containerCards(renderContainers());
+
+    const identity = card.querySelector('.ui-surface__body .ui-row') as HTMLElement;
+    expect(identity.querySelector('.ui-table-status-dot')).not.toBeNull();
+    expect(identity.querySelector('.ui-section-header__title')?.textContent).toBe('web-nginx');
+    expect(identity.lastElementChild!.querySelector('.ui-table-identifier-cell')?.textContent).toBe('container1');
+    expect(identity.querySelector('.ui-icon-button')?.getAttribute('aria-label')).toBe('Open web-nginx details');
+
+    const controls = Array.from(card.querySelectorAll<HTMLButtonElement>('.ui-action-button-group button'));
+    expect(controls.map((control) => control.textContent?.trim())).toEqual(['Stop', 'Pause', 'Restart', '…']);
+    // `Pause` · `Restart` · `…` share one boundary; the primary slot stands apart from them (REQ-4).
+    expect(card.querySelectorAll('.ui-action-button-group--segmented')).toHaveLength(1);
+    expect(card.querySelector('.ui-action-button-group--segmented')?.querySelectorAll('button')).toHaveLength(3);
+  });
+
+  it('marks the selected card with the surface\'s own selected treatment', async () => {
+    const user = userEvent.setup();
     const containersRoot = renderContainers();
 
-    const row = containersRoot.querySelector<HTMLElement>('.ui-data-table__row')!;
-    const labels = Array.from(row.querySelectorAll('.ui-action-button-group button')).map((button) => button.textContent?.trim());
-    expect(labels).toEqual(['Stop', 'Pause', 'Restart', '…']);
+    await user.click(containerCards(containersRoot)[0]);
+
+    const [card] = containerCards(containersRoot);
+    expect(card.className).toContain('ui-surface--selected');
+    expect(card.getAttribute('aria-selected')).toBe('true');
+  });
+});
+
+// The part of REQ-3 that survives the card view: the two lists no longer share a layout, and were
+// never asked to share one after 2026-08-25 — but the card's material is still the table row's,
+// **by reference**, and that is checkable where it is written
+// (plan-docker_management_app-containers_card_view/REQ-28, REQ-29).
+describe('The card takes the table row\'s material by reference (containers_card_view/REQ-28, REQ-29)', () => {
+  const tableCss = stylesheet('src/ui/data/data-table.css');
+  const surfaceCss = stylesheet('src/ui/glass/surface.css');
+
+  it('highlights a hovered card with the very token the hovered row uses', () => {
+    const rowHover = declarationsOf(tableCss, '.ui-data-table__row:hover').join(' ');
+    const cardHover = declarationsOf(surfaceCss, '.ui-surface--selectable:hover').join(' ');
+
+    expect(rowHover).toContain('var(--color-surface-2)');
+    expect(cardHover, 'the card declares no hover highlight at all').not.toBe('');
+    expect(cardHover).toContain('var(--color-surface-2)');
+    expect(cardHover, 'the card writes a colour of its own for the hover highlight').not.toMatch(/#[0-9a-f]{3,8}|rgba?\(|hsla?\(/i);
+  });
+
+  it('highlights the selected card with the very token the selected row uses', () => {
+    const rowSelected = declarationsOf(tableCss, '.ui-data-table__row--selected').join(' ');
+    const cardSelected = declarationsOf(surfaceCss, '.ui-surface--selected').join(' ');
+
+    expect(rowSelected).toContain('var(--color-accent-tint)');
+    expect(cardSelected, 'the card declares no selected highlight at all').not.toBe('');
+    expect(cardSelected).toContain('var(--color-accent-tint)');
+    expect(cardSelected, 'the card writes a colour of its own for the selected highlight').not.toMatch(
+      /#[0-9a-f]{3,8}|rgba?\(|hsla?\(/i,
+    );
+  });
+
+  it('leaves the box, the border and the radius to the one surface declaration', () => {
+    const surface = declarationsOf(surfaceCss, '.ui-surface').join(' ');
+
+    expect(surface).toContain('var(--radius-xl)');
+    expect(surface).toContain('var(--color-border-subtle)');
+    // The containers feature owns none of it: no stylesheet of its own, and no card stylesheet either.
+    expect(existsSync(join(process.cwd(), 'src/ui/glass/card.css')), 'a card stylesheet was created').toBe(false);
+    expect(readFileSync(join(process.cwd(), 'src/containers/ContainerCard.tsx'), 'utf8')).not.toMatch(/import\s+['"].*\.css['"]/);
   });
 });

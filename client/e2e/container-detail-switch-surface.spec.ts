@@ -66,6 +66,7 @@ import { openApp, ownershipArgs } from './support/fixtures.js';
 import { clickAndExpectSurfaceUnmoved } from './support/surface-stability.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
+import { containerCard, containerDetail, openContainerDetail } from './support/container-cards.js';
 
 // The viewport the defect was measured at, so what this file reports can be put
 // beside the measurement taken by hand on the create sheet.
@@ -75,7 +76,7 @@ const CASE_NAME = 'detail-panel-health-switch';
 
 /** The expanded panel under the owning row — the surface that must not move. */
 function detailPanel(page: Page): Locator {
-  return page.locator('.ui-data-table__expanded .ui-detail-panel');
+  return containerDetail(page);
 }
 
 /** The health-check switch's visually hidden input: what it reads, never where a pointer is sent. */
@@ -125,12 +126,11 @@ test('operating the health-check switch leaves the container detail panel where 
 
     // Asserted on this spec's own fixture, and searched for rather than looked
     // for in a list: the operator's own containers are none of its business,
-    // and narrowing the table keeps the expanded row where it was put.
+    // and narrowing the list keeps the open panel where it was put.
     await page.getByPlaceholder('Search name, image or state…').fill(name);
-    const row = page.locator('.ui-data-table__row', { hasText: name });
-    await expect(row).toBeVisible({ timeout: 15_000 });
+    await expect(containerCard(page, name)).toBeVisible({ timeout: 15_000 });
 
-    await row.getByText(name, { exact: true }).click();
+    await openContainerDetail(page, name);
     await expect(detailPanel(page)).toBeVisible();
 
     // Config is the tab the panel opens on; its edit mode is where the switch

@@ -100,7 +100,6 @@ const LISTS = {
   networks: 'SCOPE',
   registries: 'CREDENTIAL STORE',
   repositories: 'PULLS',
-  containers: 'UPTIME',
   images: 'DISK USAGE',
 } as const;
 
@@ -197,27 +196,29 @@ for (const viewport of VIEWPORTS) {
   const at = `${viewport.width}×${viewport.height}`;
 
   // REQ-2 … REQ-5, REQ-8, REQ-12, REQ-14, REQ-15, REQ-39, REQ-40 — the whole of
-  // the criteria on the four converted lists, with the two reference lists read
-  // in the same run so the equality is a comparison and not a coincidence.
-  test(`the converted lists are the containers table, not a table like it — ${at}`, async ({ page, browser }) => {
+  // the criteria on the four converted lists, with the reference list read in the
+  // same run so the equality is a comparison and not a coincidence.
+  //
+  // **The reference was two lists, and the containers one left it on 2026-08-25**
+  // (`plan-docker_management_app-containers_card_view/REQ-1`, `REQ-63`): that screen draws one card
+  // per container now and is the single named exception to the classic table, so it cannot be the
+  // table every other list is compared against. The images list, still the classic table and already
+  // the second reference here, is what remains.
+  test(`the converted lists are the reference table, not a table like it — ${at}`, async ({ page, browser }) => {
     test.setTimeout(300_000);
     await page.setViewportSize(viewport);
 
-    // The reference, first and from the tree: containers and images as they stand.
-    await openApp(page, 'containers');
-    await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible({ timeout: 20_000 });
-    const containers = await settledList(page, LISTS.containers);
-    reportList(at, 'containers (reference)', containers);
-
+    // The reference, first and from the tree: the images list as it stands.
     await openApp(page, 'images-layers');
     await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible({ timeout: 20_000 });
+    await expect(
+      page.locator('.ui-data-table__row', { hasText: referenceImage }).first(),
+      `${at}: the image this spec created is not listed, so the reference row may be anybody's`,
+    ).toBeVisible({ timeout: 20_000 });
     const images = await settledList(page, LISTS.images);
     reportList(at, 'images (reference)', images);
 
-    const references = [
-      { name: 'containers', list: containers },
-      { name: 'images', list: images },
-    ];
+    const references = [{ name: 'images', list: images }];
 
     await openApp(page, 'volumes-networks');
     await expect(page.getByRole('heading', { level: 1, name: 'Volumes & networks' })).toBeVisible({ timeout: 20_000 });
@@ -677,21 +678,21 @@ test('the delivered build fails these criteria, and the numbers are on record', 
 
   // …and the same figures on the build under test, measured minutes apart against the same daemon.
   await page.setViewportSize(DESKTOP);
-  await openApp(page, 'containers');
-  await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible({ timeout: 20_000 });
-  const containers = await settledList(page, LISTS.containers);
+  await openApp(page, 'images-layers');
+  await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible({ timeout: 20_000 });
+  const reference = await settledList(page, LISTS.images);
   await openApp(page, 'volumes-networks');
   await expect(page.getByRole('heading', { level: 1, name: 'Volumes & networks' })).toBeVisible({ timeout: 20_000 });
   const volumes = await settledList(page, LISTS.volumes);
   const networks = await settledList(page, LISTS.networks);
-  reportList('after', 'containers (reference)', containers);
+  reportList('after', 'images (reference)', reference);
   reportList('after', 'volumes', volumes);
   reportList('after', 'networks', networks);
 
   expectClassicTable('after', 'volumes', volumes);
   expectClassicTable('after', 'networks', networks);
-  expectSameTableAsReference('after', 'volumes', volumes, [{ name: 'containers', list: containers }]);
-  expectSameTableAsReference('after', 'networks', networks, [{ name: 'containers', list: containers }]);
+  expectSameTableAsReference('after', 'volumes', volumes, [{ name: 'images', list: reference }]);
+  expectSameTableAsReference('after', 'networks', networks, [{ name: 'images', list: reference }]);
 
   // The repositories list's after-figures, read through **the same stub** and on
   // the operator's own registry inventory, exactly as the before-pass read them:
@@ -702,7 +703,7 @@ test('the delivered build fails these criteria, and the numbers are on record', 
     const repositories = await settledList(afterRegistries.page, LISTS.repositories);
     reportList('after', 'repositories', repositories);
     expectClassicTable('after', 'repositories', repositories);
-    expectSameTableAsReference('after', 'repositories', repositories, [{ name: 'containers', list: containers }]);
+    expectSameTableAsReference('after', 'repositories', repositories, [{ name: 'images', list: reference }]);
     expect(
       repositories.rowContentBlocks,
       `after: ${repositories.rowContentBlocks} tag group(s) under ${repositories.rows.length} repository row(s), where the delivered build drew one per row`,

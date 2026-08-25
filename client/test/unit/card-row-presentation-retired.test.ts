@@ -39,6 +39,14 @@ const repositoryRoot = join(clientRoot, '..');
  */
 const DELIVERED = 'd17e1df';
 
+/**
+ * The revision this plan **ends** at — its last commit, the closing e2e follow-up included. It is
+ * the other end of the one claim below that is about the plan's own arithmetic rather than about a
+ * state the product must stay in; every other claim in this file reads the working tree, so the
+ * retirement goes on being enforced at whatever `HEAD` happens to be.
+ */
+const RETIREMENT_COMPLETE = 'e800961';
+
 function git(...args: string[]): string {
   return execFileSync('git', args, { cwd: repositoryRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 }
@@ -165,6 +173,18 @@ describe('the card-per-row presentation is gone from the product (REQ-22)', () =
    * a compatibility wrapper is precisely something a plan adds while removing
    * what it replaces: the plan may take a name away and may take nothing new in
    * exchange.
+   *
+   * **Bounded at both ends, and it has to be** (2026-08-25). Read against `HEAD`,
+   * this claim stops being about *this* plan the moment any later one extends the
+   * library at all — and the first to do so, the containers card view, extends it
+   * for exactly the reason its own REQ-30 demands a new component only where
+   * neither reuse nor a variant carries the material (`MetricStrip`, and the
+   * prop types of two widened components). None of those is a list primitive, a
+   * list card or a compatibility wrapper, so nothing REQ-1 forbids came back;
+   * what a `HEAD` reading would report is later work, under this plan's name. The
+   * durable half of the promise — the retired vocabulary is named by the guard
+   * and by nobody else, and neither retired name is exported again — is asserted
+   * against `HEAD` in the two tests above, and stays there.
    */
   it('cost the library’s public interface exactly one name over this plan, and gained none', () => {
     const namesAt = (source: string): string[] =>
@@ -176,7 +196,7 @@ describe('the card-per-row presentation is gone from the product (REQ-22)', () =
         .sort();
 
     const before = namesAt(git('show', `${DELIVERED}:client/src/ui/index.ts`));
-    const after = namesAt(readFileSync(join(clientRoot, 'src', 'ui', 'index.ts'), 'utf8'));
+    const after = namesAt(git('show', `${RETIREMENT_COMPLETE}:client/src/ui/index.ts`));
     // The premise: the two readings are of a real entry point, not of a path that has moved.
     expect(before.length, `${DELIVERED} exports nothing at all, so this comparison reads the wrong file`).toBeGreaterThan(10);
 

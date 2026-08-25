@@ -68,16 +68,30 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-/** The row's action area, which is the row's only action-bearing area. */
-function actionArea(index = 0): HTMLElement {
-  return document.querySelectorAll('.ui-action-button-group')[index] as HTMLElement;
+/** One container's card — the surface the screen now draws per container, in the table row's place. */
+function cardFor(name = 'web-nginx'): HTMLElement {
+  const card = Array.from(document.querySelectorAll<HTMLElement>('.ui-surface--selectable')).find((candidate) =>
+    candidate.textContent?.includes(name),
+  );
+  if (!card) throw new Error(`no card for ${name}`);
+  return card;
 }
 
-function actionControls(index = 0): HTMLButtonElement[] {
-  return Array.from(actionArea(index).querySelectorAll('button'));
+/**
+ * The card's action-bearing areas: the primary lifecycle slot and the joined
+ * `Pause` · `Restart` · `…` cluster are two groups, so the card's own action
+ * area is both of them and nothing else.
+ */
+function actionAreas(name = 'web-nginx'): HTMLElement[] {
+  return Array.from(cardFor(name).querySelectorAll<HTMLElement>('.ui-action-button-group'));
 }
 
-/** Opens the row's overflow menu and returns its entries, in the order they are listed. */
+/** The four controls in the order they are drawn: the lifecycle slot, Pause, Restart, then the overflow. */
+function actionControls(name = 'web-nginx'): HTMLButtonElement[] {
+  return Array.from(cardFor(name).querySelectorAll<HTMLButtonElement>('.ui-action-button-group button'));
+}
+
+/** Opens the card's overflow menu and returns its entries, in the order they are listed. */
 async function openOverflow(user: ReturnType<typeof userEvent.setup>, name = 'web-nginx'): Promise<HTMLElement[]> {
   await user.click(screen.getByRole('button', { name: `More actions for ${name}` }));
   return screen.getAllByRole('menuitem');
@@ -86,7 +100,7 @@ async function openOverflow(user: ReturnType<typeof userEvent.setup>, name = 'we
 // containers-screen.md — the action area is exactly four controls: three fixed lifecycle slots and,
 // last, the overflow control; an action the state does not allow keeps its slot, disabled, stating
 // why (REQ-1, REQ-2, REQ-3, REQ-4, REQ-5).
-describe('ContainersScreen — the row\'s four controls (REQ-1, REQ-2, REQ-5)', () => {
+describe('ContainersScreen — the card\'s four controls (REQ-1, REQ-2, REQ-5)', () => {
   const SLOTS: Array<{ state: ContainerSummary['state']; first: string }> = [
     { state: 'running', first: 'Stop' },
     { state: 'paused', first: 'Resume' },
@@ -109,28 +123,39 @@ describe('ContainersScreen — the row\'s four controls (REQ-1, REQ-2, REQ-5)', 
     expect(controls[3]).toHaveAttribute('aria-haspopup', 'menu');
   });
 
-  it.each(SLOTS)('puts no other action-bearing control anywhere on the row of a $state container', ({ state }) => {
+  // The card's footer is its only action-bearing area. The one other control it carries is the
+  // detail opener at its top right, which is **deliberately inert** — present, named, not disabled,
+  // and doing nothing when clicked (`container-card.md`, the human's decision of 2026-08-25). It is
+  // named here rather than counted away, so a control that started doing something would be seen.
+  it.each(SLOTS)('puts no other action-bearing control anywhere on the card of a $state container', ({ state }) => {
     renderScreen([makeContainer({ state })]);
 
-    const row = document.querySelector('.ui-data-table__row') as HTMLElement;
-    const rowButtons = within(row).getAllByRole('button');
-    expect(rowButtons).toHaveLength(4);
-    for (const button of rowButtons) expect(actionArea().contains(button)).toBe(true);
+    const cardButtons = within(cardFor()).getAllByRole('button');
+    const areas = actionAreas();
+    const inert = screen.getByRole('button', { name: 'Open web-nginx details' });
+    expect(cardButtons).toHaveLength(5);
+    for (const button of cardButtons) {
+      if (button === inert) continue;
+      expect(areas.some((area) => area.contains(button))).toBe(true);
+    }
+    expect(areas.some((area) => area.contains(inert)), 'the inert detail control sits in the action area').toBe(false);
+    expect(inert).toBeEnabled();
   });
 
-  it('offers no exec or attach control on the row, in any state', () => {
+  it('offers no exec or attach control on the card, in any state', () => {
     for (const state of ['running', 'paused', 'restarting', 'exited'] as const) {
       cleanup();
       renderScreen([makeContainer({ state })]);
 
       for (const label of ['exec', 'attach', 'Exec', 'Attach']) {
-        expect(within(actionArea()).queryByRole('button', { name: label })).not.toBeInTheDocument();
+        expect(within(cardFor()).queryByRole('button', { name: label })).not.toBeInTheDocument();
       }
     }
   });
 });
 
-// containers-screen.md — the legality matrix the row already offered, re-rendered: nothing became
+// containers-screen.md — the legality matrix the row already offered, carried onto the card:
+// nothing became
 // legal that the product did not allow before, and every disabled control states its reason
 // (REQ-3, REQ-4).
 describe('ContainersScreen — the lifecycle slots follow the state (REQ-3, REQ-4)', () => {
@@ -253,7 +278,7 @@ describe('ContainersScreen — the overflow menu (REQ-6, REQ-7, REQ-8, REQ-9)', 
     },
   );
 
-  it('binds its entries to the container its row was rendered for', async () => {
+  it('binds its entries to the container its card was rendered for', async () => {
     const user = userEvent.setup();
     renderScreen([
       makeContainer({ id: 'container-1', name: 'web-nginx', state: 'running' }),
@@ -319,7 +344,7 @@ describe('ContainersScreen — running lifecycle actions (REQ-20, REQ-21, REQ-22
     expect((fetchMock.mock.calls[0] as [string])[0]).toContain('/api/containers/container-1/start');
   });
 
-  it("disables the row's controls while its own request is in flight, so a second click cannot race it", async () => {
+  it("disables the card's controls while its own request is in flight, so a second click cannot race it", async () => {
     const user = userEvent.setup();
     let resolveFetch!: (value: unknown) => void;
     fetchMock.mockImplementation(() => new Promise((resolve) => { resolveFetch = resolve; }));
@@ -417,10 +442,10 @@ describe('ContainersScreen — running lifecycle actions (REQ-20, REQ-21, REQ-22
   });
 });
 
-// containers-screen.md — "Export filesystem…" is started from the row's menu now, with the
+// containers-screen.md — "Export filesystem…" is started from the card's menu, with the
 // behaviour it had in the detail panel: a browser download of "<container name>.tar", no dialog,
 // and a "Download started" toast naming the file (REQ-19, REQ-20, REQ-21).
-describe('ContainersScreen — export filesystem from the row (REQ-20, REQ-21)', () => {
+describe('ContainersScreen — export filesystem from the card (REQ-20, REQ-21)', () => {
   it('downloads the container filesystem as <name>.tar with no dialog opened first, and reports a toast', async () => {
     const user = userEvent.setup();
     const downloadedHrefs: string[] = [];
@@ -448,16 +473,16 @@ describe('ContainersScreen — export filesystem from the row (REQ-20, REQ-21)',
   });
 });
 
-// Rename is started from the row's overflow menu now — the pencil on the name cell is gone
-// (REQ-18) — and the inline editor it opens is the one it always was (REQ-21).
+// Rename is started from the card's overflow menu — the pencil beside the name is gone (REQ-18) —
+// and the inline editor it opens is the one it always was (REQ-21), now in the card's name place.
 describe('ContainersScreen — rename (REQ-18, REQ-21)', () => {
-  it('offers no rename control on the name cell any more', () => {
+  it('offers no rename control beside the name any more', () => {
     renderScreen([makeContainer({ name: 'web-nginx', state: 'running' })]);
 
     expect(screen.queryByRole('button', { name: 'Rename web-nginx' })).not.toBeInTheDocument();
   });
 
-  it('starts the rename from the row menu and from nowhere else on the list', async () => {
+  it('starts the rename from the card menu and from nowhere else on the list', async () => {
     const user = userEvent.setup();
     renderScreen([makeContainer({ name: 'web-nginx', state: 'running' })]);
 
@@ -467,7 +492,7 @@ describe('ContainersScreen — rename (REQ-18, REQ-21)', () => {
     expect(screen.getByRole('textbox', { name: 'New name for web-nginx' })).toBeInTheDocument();
   });
 
-  it('replaces the name cell with a pre-filled field and renames on submit', async () => {
+  it('replaces the name with a pre-filled field and renames on submit', async () => {
     const user = userEvent.setup();
     const { onRefresh } = renderScreen([makeContainer({ id: 'container-1', name: 'web-nginx', state: 'running' })]);
 
@@ -591,12 +616,13 @@ describe('ContainersScreen — text/state filtering (REQ-23)', () => {
   });
 });
 
-// containers-screen.md — the row is the panel's only pointer route now, so selection is what the
-// panel's dismissal rests on: selecting the selected row closes it (REQ-3), selecting another
+// containers-screen.md — the card is the panel's only pointer route, so selection is what the
+// panel's dismissal rests on: selecting the selected card closes it (REQ-3), selecting another
 // re-points it (REQ-4), a container that leaves the list closes it (REQ-15), and a container merely
-// filtered out of view keeps its selection, renders neither row nor panel, and comes back with its
-// panel intact (REQ-16).
-describe('ContainersScreen — row selection opens and closes the detail panel (REQ-3, REQ-4, REQ-15, REQ-16)', () => {
+// filtered out of view keeps its selection, renders neither card nor panel, and comes back with its
+// panel intact (REQ-16). The panel is the next item of the list's own stack, directly beneath the
+// card that owns it (plan-docker_management_app-containers_card_view/REQ-23).
+describe('ContainersScreen — card selection opens and closes the detail panel (REQ-3, REQ-4, REQ-15, REQ-16)', () => {
   const web = makeContainer({ id: 'container-1', shortId: 'container1', name: 'web-nginx', image: 'nginx:1.27', state: 'running' });
   const cache = makeContainer({ id: 'container-2', shortId: 'container2', name: 'cache-redis', image: 'redis:7', state: 'running' });
 
@@ -643,121 +669,221 @@ describe('ContainersScreen — row selection opens and closes the detail panel (
     });
   });
 
-  function rowFor(name: string): HTMLElement {
-    const row = Array.from(document.querySelectorAll<HTMLElement>('.ui-data-table__row')).find((candidate) =>
-      candidate.textContent?.includes(name),
-    );
-    if (!row) throw new Error(`no row for ${name}`);
-    return row;
+  /** The panel the card opens: the library's control-less detail panel, drawn as the next item of the list's stack. */
+  function detailPanel(): HTMLElement | null {
+    return document.querySelector<HTMLElement>('.ui-detail-panel--no-close');
   }
 
-  function expandedRegion(): HTMLElement | null {
-    return document.querySelector<HTMLElement>('.ui-data-table__expanded');
-  }
-
-  /** The name on the row the expanded panel is rendered directly below — which container the panel is pointing at. */
+  /**
+   * The name on the card the panel is rendered directly below — which container the panel is
+   * pointing at. The panel spans the whole row of the grid, so what stands before it is the
+   * row-spanning wrapper's own previous sibling: the card that owns it (REQ-23).
+   */
   function panelOwner(): string {
-    const expanded = expandedRegion();
-    if (!expanded) throw new Error('no panel is open');
-    return expanded.previousElementSibling?.textContent ?? '';
+    const panel = detailPanel();
+    if (!panel) throw new Error('no panel is open');
+    const span = panel.closest('.ui-grid__span-full');
+    if (!span) throw new Error('the panel does not span the row of the grid');
+    return span.previousElementSibling?.textContent ?? '';
   }
 
-  it('opens the detail panel below the selected row, with that row marked as the selected one', async () => {
+  it('opens the detail panel below the selected card, with that card marked as the selected one', async () => {
     const user = userEvent.setup();
     renderScreen([web, cache]);
 
-    await user.click(rowFor('web-nginx'));
+    await user.click(cardFor('web-nginx'));
 
-    expect(expandedRegion()).not.toBeNull();
-    expect(await within(expandedRegion()!).findByRole('tab', { name: 'Config' })).toBeInTheDocument();
+    expect(detailPanel()).not.toBeNull();
+    expect(await within(detailPanel()!).findByRole('tab', { name: 'Config' })).toBeInTheDocument();
     expect(panelOwner()).toContain('web-nginx');
-    expect(rowFor('web-nginx')).toHaveAttribute('aria-selected', 'true');
-    expect(rowFor('cache-redis')).toHaveAttribute('aria-selected', 'false');
+    expect(cardFor('web-nginx')).toHaveAttribute('aria-selected', 'true');
+    expect(cardFor('cache-redis')).toHaveAttribute('aria-selected', 'false');
   });
 
-  it('closes the panel when the already-selected row is selected again', async () => {
+  // REQ-23, as amended: the panel spans the whole row of the grid rather than the width of one card.
+  it('opens the detail panel as a row-spanning child of the same grid', async () => {
     const user = userEvent.setup();
     renderScreen([web, cache]);
 
-    await user.click(rowFor('web-nginx'));
-    expect(expandedRegion()).not.toBeNull();
+    await user.click(cardFor('web-nginx'));
 
-    await user.click(rowFor('web-nginx'));
-
-    expect(expandedRegion()).toBeNull();
-    expect(rowFor('web-nginx')).toHaveAttribute('aria-selected', 'false');
+    const span = detailPanel()!.closest('.ui-grid__span-full');
+    expect(span, 'the panel does not span the row of the grid').not.toBeNull();
+    expect(span!.parentElement).toHaveClass('ui-grid--cards');
   });
 
-  it('keeps the panel open and re-points it when a different row is selected', async () => {
+  it('closes the panel when the already-selected card is selected again', async () => {
     const user = userEvent.setup();
     renderScreen([web, cache]);
 
-    await user.click(rowFor('web-nginx'));
-    await user.click(rowFor('cache-redis'));
+    await user.click(cardFor('web-nginx'));
+    expect(detailPanel()).not.toBeNull();
 
-    expect(expandedRegion()).not.toBeNull();
+    await user.click(cardFor('web-nginx'));
+
+    expect(detailPanel()).toBeNull();
+    expect(cardFor('web-nginx')).toHaveAttribute('aria-selected', 'false');
+  });
+
+  it('keeps the panel open and re-points it when a different card is selected', async () => {
+    const user = userEvent.setup();
+    renderScreen([web, cache]);
+
+    await user.click(cardFor('web-nginx'));
+    await user.click(cardFor('cache-redis'));
+
+    expect(detailPanel()).not.toBeNull();
     expect(panelOwner()).toContain('cache-redis');
-    expect(document.querySelectorAll('.ui-data-table__expanded')).toHaveLength(1);
-    expect(rowFor('cache-redis')).toHaveAttribute('aria-selected', 'true');
-    expect(rowFor('web-nginx')).toHaveAttribute('aria-selected', 'false');
+    expect(document.querySelectorAll('.ui-detail-panel--no-close')).toHaveLength(1);
+    expect(cardFor('cache-redis')).toHaveAttribute('aria-selected', 'true');
+    expect(cardFor('web-nginx')).toHaveAttribute('aria-selected', 'false');
   });
 
   it('closes the panel when its container leaves the list', async () => {
     const user = userEvent.setup();
     const { withContainers } = renderScreen([web, cache]);
 
-    await user.click(rowFor('web-nginx'));
-    expect(expandedRegion()).not.toBeNull();
+    await user.click(cardFor('web-nginx'));
+    expect(detailPanel()).not.toBeNull();
 
     // The daemon removed it; the live list re-reads without it.
     withContainers([cache]);
 
-    await waitFor(() => expect(expandedRegion()).toBeNull());
+    await waitFor(() => expect(detailPanel()).toBeNull());
     expect(screen.queryByText('web-nginx')).not.toBeInTheDocument();
   });
 
-  it('renders neither row nor panel while the selected container is searched out of view, and brings both back unchanged', async () => {
+  it('renders neither card nor panel while the selected container is searched out of view, and brings both back unchanged', async () => {
     const user = userEvent.setup();
     renderScreen([web, cache]);
 
-    await user.click(rowFor('web-nginx'));
-    expect(expandedRegion()).not.toBeNull();
+    await user.click(cardFor('web-nginx'));
+    expect(detailPanel()).not.toBeNull();
 
     const search = screen.getByPlaceholderText('Search name, image or state…');
     await user.type(search, 'cache');
 
     expect(screen.queryByText('web-nginx')).not.toBeInTheDocument();
-    expect(expandedRegion()).toBeNull();
+    expect(detailPanel()).toBeNull();
 
     await user.clear(search);
 
-    expect(expandedRegion()).not.toBeNull();
+    expect(detailPanel()).not.toBeNull();
     expect(panelOwner()).toContain('web-nginx');
-    expect(rowFor('web-nginx')).toHaveAttribute('aria-selected', 'true');
+    expect(cardFor('web-nginx')).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('renders neither row nor panel while a state filter excludes the selected container, and brings both back unchanged', async () => {
+  it('renders neither card nor panel while a state filter excludes the selected container, and brings both back unchanged', async () => {
     const user = userEvent.setup();
     renderScreen([web, makeContainer({ id: 'container-3', name: 'db-alpine', state: 'exited' })]);
 
-    await user.click(rowFor('web-nginx'));
-    expect(expandedRegion()).not.toBeNull();
+    await user.click(cardFor('web-nginx'));
+    expect(detailPanel()).not.toBeNull();
 
     await user.click(screen.getByRole('button', { name: 'Stopped' }));
 
     expect(screen.queryByText('web-nginx')).not.toBeInTheDocument();
-    expect(expandedRegion()).toBeNull();
+    expect(detailPanel()).toBeNull();
 
     await user.click(screen.getByRole('button', { name: 'All' }));
 
-    expect(expandedRegion()).not.toBeNull();
+    expect(detailPanel()).not.toBeNull();
     expect(panelOwner()).toContain('web-nginx');
   });
 });
 
-// Exec and attach (REQ-34, REQ-35) are no longer duplicated as row buttons —
+// Exec and attach (REQ-34, REQ-35) are no longer duplicated as card buttons —
 // which is what overflowed the lifecycle column — and are reached through the
-// detail panel's tabs instead. Their absence from the row is asserted above;
+// detail panel's tabs instead. Their absence from the card is asserted above;
 // the tabs themselves are covered by container-detail-panel.test.tsx, which
 // mounts the panel with a realistic inspect payload and the browser stubs it
 // needs.
+
+// containers-screen.md — one card per container in the table's place: no header row, no rules
+// between them, no single surface around the list, and the panel as the next item of the same
+// stack (plan-docker_management_app-containers_card_view/REQ-1, REQ-23).
+describe('ContainersScreen — the list is a stack of cards (REQ-1)', () => {
+  const three = [
+    makeContainer({ id: 'a', name: 'alpha', state: 'running' }),
+    makeContainer({ id: 'b', name: 'bravo', state: 'paused' }),
+    makeContainer({ id: 'c', name: 'charlie', state: 'exited' }),
+  ];
+
+  it('draws one card per container and no table at all', () => {
+    renderScreen(three);
+
+    expect(document.querySelectorAll('.ui-surface--selectable')).toHaveLength(3);
+    expect(document.querySelector('.ui-data-table')).toBeNull();
+    expect(document.querySelector('.ui-data-table__header')).toBeNull();
+    expect(screen.queryAllByRole('columnheader')).toHaveLength(0);
+  });
+
+  // containers-screen.md — "a grid of cards, three to a row… separated by one uniform gap and by
+  // nothing else"; the arrangement owns the tracks and the gap, so the screen states neither
+  // (REQ-1, REQ-31).
+  it('lays the cards as siblings of one cards grid, with no surface enclosing the list', () => {
+    renderScreen(three);
+
+    const cards = Array.from(document.querySelectorAll<HTMLElement>('.ui-surface--selectable'));
+    const list = cards[0].parentElement as HTMLElement;
+    expect(cards.every((card) => card.parentElement === list)).toBe(true);
+    expect(list).toHaveClass('ui-grid');
+    expect(list).toHaveClass('ui-grid--cards');
+    expect(list.style.gap, 'the screen states a gap the arrangement owns').toBe('');
+    expect(list.style.gridTemplateColumns, 'the screen states a template the arrangement owns').toBe('');
+    expect(list.classList.contains('ui-surface'), 'a surface encloses the list of cards').toBe(false);
+  });
+
+
+  it('renders the containers in the order it was given them, and offers no sort control', () => {
+    // The server's order, handed over unchanged: a client-side sort would show these three
+    // alphabetically (REQ-24).
+    renderScreen([three[2], three[0], three[1]]);
+
+    const names = Array.from(document.querySelectorAll<HTMLElement>('.ui-surface--selectable')).map(
+      (card) => card.querySelector('.ui-section-header__title')?.textContent ?? '',
+    );
+    expect(names).toEqual(['charlie', 'alpha', 'bravo']);
+    for (const control of screen.getAllByRole('button')) {
+      expect(control).not.toHaveAccessibleName(/sort/i);
+    }
+  });
+
+  it('offers no selection and no bulk actions', () => {
+    renderScreen(three);
+
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
+    expect(document.querySelector('.ui-bulk-action-bar')).toBeNull();
+  });
+
+  it('shows the empty state in the list\'s place when nothing matches, and the cards again when it does', async () => {
+    const user = userEvent.setup();
+    renderScreen(three);
+
+    await user.type(screen.getByPlaceholderText('Search name, image or state…'), 'no-such-container');
+
+    expect(screen.getByText('No containers match')).toBeInTheDocument();
+    expect(document.querySelectorAll('.ui-surface--selectable')).toHaveLength(0);
+
+    await user.clear(screen.getByPlaceholderText('Search name, image or state…'));
+
+    expect(screen.queryByText('No containers match')).not.toBeInTheDocument();
+    expect(document.querySelectorAll('.ui-surface--selectable')).toHaveLength(3);
+  });
+
+  it('keeps the relative order of the cards a filter leaves standing', async () => {
+    const user = userEvent.setup();
+    renderScreen([
+      makeContainer({ id: 'a', name: 'zulu', state: 'running' }),
+      makeContainer({ id: 'b', name: 'mike', state: 'exited' }),
+      makeContainer({ id: 'c', name: 'alpha', state: 'running' }),
+    ]);
+
+    await user.click(screen.getByRole('button', { name: 'Running' }));
+
+    const names = Array.from(document.querySelectorAll<HTMLElement>('.ui-surface--selectable')).map(
+      (card) => card.querySelector('.ui-section-header__title')?.textContent ?? '',
+    );
+    expect(names).toEqual(['zulu', 'alpha']);
+  });
+});

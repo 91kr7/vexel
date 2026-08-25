@@ -23,7 +23,7 @@ export interface MetricStripRow {
   id: string;
   /** The row's label, in the strip's own small uppercase muted treatment. */
   label: string;
-  /** What the row reports, right-aligned against the strip's right edge. Already-built elements; the strip reads none of it. */
+  /** What the row reports, right-aligned; already-built elements the strip never reads. */
   content: ReactNode;
 }
 
@@ -32,34 +32,15 @@ export interface MetricStripProps {
   columns: MetricStripColumn[];
   /** The narrower trailing column: a label over a pair of readings, and no track. */
   readings?: MetricStripReadings;
-  /**
-   * Lays the metrics one per row instead of side by side, at any width. For a
-   * strip inside a box too narrow to carry its columns as a row — a card
-   * standing in a grid rather than across the page. Below the phone breakpoint
-   * the strip stacks regardless.
-   */
+  /** Lays the metrics one per row at any width; below the phone breakpoint the strip stacks regardless. */
   stacked?: boolean;
-  /**
-   * Track-less rows drawn after the metrics, on the metrics' own rhythm: the
-   * label at the left anchoring the row, the content right-aligned. For a fact
-   * that is read like a metric and measured like nothing — a set of chips, a
-   * count — so it keeps its shape whatever it holds.
-   */
+  /** Track-less rows drawn after the metrics, on their rhythm: label at the left, content right-aligned. */
   rows?: MetricStripRow[];
 }
 
 /**
- * A row of metric columns spanning its container's width: tracked columns of
- * equal width, then a narrower one carrying readings on the tracks' own line.
- *
- * It exists as one component because the columns' alignment **across several
- * strips** is a property of the arrangement: three columns composed by hand on
- * each object of a list would drift with that object's content, and the values
- * would stop lining up down the list. Below the phone breakpoint it stacks to
- * one full-width column per metric, each keeping everything it showed.
- *
- * Domain-agnostic: it receives already-formatted strings, plain numbers and —
- * for its track-less rows — elements it never reads.
+ * A row of metric columns spanning its container's width: tracked columns of equal width, then a
+ * narrower one carrying readings. One component so the columns line up across the strips of a list.
  */
 export function MetricStrip({ columns, readings, stacked = false, rows = [] }: MetricStripProps) {
   const strip = (

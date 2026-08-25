@@ -5,8 +5,8 @@
 // is a violation unless the rule carrying it targets one of the allow-listed
 // overlay surfaces below and is valued with the single `--blur-overlay` token.
 // And it refuses the card row: an object list is one table, and neither the
-// library nor a feature file may go back to drawing a surface per row — bar the
-// two containers files the card-row pass admits by name below, since 2026-08-25.
+// library nor a feature file may go back to drawing a surface per row, bar the
+// paths admitted by name below.
 // Wired into `npm run lint` and `npm run test` (client workspace).
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { extname, join, relative, sep } from 'node:path';
@@ -219,61 +219,25 @@ function checkFeatureFile(filePath, content) {
 }
 
 // ── The card row stays retired ───────────────────────────────────────────────
-//
-// A third pass, independent of the two above and sharing nothing with them but
-// the collector every violation lands in. What it refuses is the card-per-row
-// presentation: a list drawn as a stack of separated surfaces, one per object,
-// under a floating column header. The decision is that **an object list is one
-// table** — one header, ruled rows beneath it, no surface per row — taken on
-// 2026-08-15, recorded, and then quietly migrated onto by the next batch of
-// work, which is why it is enforced here instead of remembered.
-//
-// It refuses both ways back:
-//
-//  - **the library offering it again** — the retired names and classes, a list
-//    row given a radius, an outline or a shadow of its own, or a gap opened
-//    between the rows of a list body;
-//  - **a feature file rebuilding it by hand** — a list composed as one surface
-//    per row. (Its other form, a stylesheet or a visual prop in feature code, is
-//    already the boundary pass's above; the two together leave no way to draw a
-//    card row outside the library and none inside it.)
-//
-// **There is no exception comment for this pass**, deliberately, and that is not
-// an oversight of the blur half's `ui-blur-exception:` marker: a comment written
-// at the very call site that reintroduces the arrangement is how a decision
-// becomes a formality. Widening it is an edit here, in the open.
+// Refuses the card-per-row presentation, from the library and from feature code
+// alike. No exception comment widens it: an admission is an edit here, in the open.
 const cardRowDecision =
   'The card-per-row presentation is retired: an object list is one table — one header, ruled rows beneath it, no surface per row';
 const cardRowRecord = '.sdd/analysis/ui-coherence-optimisation-comfortable_variant_retired-classic_table.md';
 
-// **The one admission, 2026-08-25: the containers list, and nothing else.**
-//
-// Containers is drawn as one card per container from that date
-// (`.sdd/analysis/docker_management_app-containers_card_view.md`, amended into
-// the record above, which is not reversed). The reason is that record's own: what
-// it condemned was a **hybrid** — a column header promising columns, standing over
-// detached cards promising self-contained objects — and it said in as many words
-// that a row which does legitimately become a card carries each label inside
-// itself. The containers card does exactly that, and no header survives it.
-//
-// So the admission is **two literal paths**, listed here where widening it is an
-// edit in the open. Not a directory, not a pattern, not a component name, and
-// still no marker a call site may write for itself: every other feature file that
-// draws a surface per row is reported, containers' own included the day it moves.
+// The one admission (containers, 2026-08-25): two literal paths, never a pattern,
+// so widening it is an edit in the open.
 const cardRowAdmittedCardPerItemPaths = new Set([
   'client/src/containers/ContainersScreen.tsx',
   'client/src/containers/ContainerCard.tsx',
 ]);
 
-/** True when this file is one of the two paths admitted above, by its whole path. */
 function cardRowIsAdmittedCardPerItem(filePath) {
   return cardRowAdmittedCardPerItemPaths.has(`client/${relative(clientRoot, filePath).split(sep).join('/')}`);
 }
 
-// The retired presentation's own vocabulary. Written as the exact names it went
-// by, so that a check naming them in order to refuse them is the only place in
-// the product they survive; a looser pattern would fire on the prose of a plan
-// reference and teach the next reader to ignore it.
+// The retired presentation's own vocabulary, as the exact names it went by: a looser
+// pattern would fire on the prose of a plan reference.
 const cardRowRetiredNames = [
   [/\bui-data-table--comfortable\b|\bui-data-table__row--comfortable\b/g, 'a class of the retired card row'],
   [/\bDataTableVariant\b/g, 'the type that offered the retired card row'],
@@ -330,14 +294,9 @@ function cardRowStyleOffence(declaration) {
 }
 
 /**
- * A list built as one surface per row, in a feature file: a surface rendered
- * inside the callback a collection is mapped through. Read from the syntax tree
- * rather than from the text, so that `<Card>` standing on its own — a screen's
- * own panel, which is what a card is for — is untouched, and only a card drawn
- * once per item of a list is reported.
- *
- * The two admitted paths are exempt from this card-row form and from it alone:
- * the retired vocabulary and the stylesheet rules below still hold there.
+ * A surface rendered inside the callback a collection is mapped through, read from the
+ * syntax tree so a `<Card>` standing on its own is untouched. The admitted paths are
+ * exempt from this form alone.
  */
 function cardRowSurfacesPerItem(filePath, content) {
   if (cardRowIsAdmittedCardPerItem(filePath)) return;

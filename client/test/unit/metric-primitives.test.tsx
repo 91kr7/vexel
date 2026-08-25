@@ -253,3 +253,88 @@ describe('Sparkline (REQ-32)', () => {
     expect(container.innerHTML).not.toMatch(/transition|animation/i);
   });
 });
+
+// metric-primitives.md, as widened on 2026-08-25: the prominent value beside the label, and the
+// third state of a track — nothing was measured
+// (plan-docker_management_app-containers_card_view/REQ-7, REQ-13, REQ-16).
+describe('Meter — the prominent value and the no-sample state (containers_card_view/REQ-7, REQ-16)', () => {
+  // metric-primitives.md — "valueText — the reading shown beside the label, prominently… its
+  // presence is what gives label the small uppercase muted treatment"
+  it('shows the value beside the label and switches the label to the eyebrow treatment', () => {
+    const { container } = render(<Meter label="CPU" valueText="0.4%" value={0.4} max={800} reading="of 8 cores" />);
+
+    expect(container.querySelector('.ui-meter__value')?.textContent).toBe('0.4%');
+    expect(container.querySelector('.ui-meter__label--eyebrow')?.textContent).toBe('CPU');
+    expect(container.querySelector('.ui-meter__label')).toBeNull();
+    expect(container.querySelector('.ui-meter__reading')?.textContent).toBe('of 8 cores');
+  });
+
+  // metric-primitives.md — "without it the label keeps the plain one it always had, and the meter
+  // renders exactly as it did before this prop existed"
+  it('leaves a meter asked for no value exactly as it was', () => {
+    const { container } = render(<Meter label="Memory" value={128} max={512} reading="128MB / 512MB" />);
+
+    expect(container.querySelector('.ui-meter__label')?.textContent).toBe('Memory');
+    expect(container.querySelector('.ui-meter__label--eyebrow')).toBeNull();
+    expect(container.querySelector('.ui-meter__value')).toBeNull();
+    expect(container.querySelector('.ui-meter')?.className).toBe('ui-meter');
+  });
+
+  // metric-primitives.md — "noSample → nothing was measured: valueText is replaced by —, reading by
+  // the words no sample, and the track is drawn empty and fainter, with no fill at all"
+  it('states an unmeasured metric as one, in words and in an empty track', () => {
+    const { container } = render(<Meter label="CPU" valueText="0.4%" value={0.4} max={800} reading="of 8 cores" noSample />);
+
+    expect(container.querySelector('.ui-meter__value')?.textContent).toBe('—');
+    expect(container.querySelector('.ui-meter__reading')?.textContent).toBe('no sample');
+    expect(container.querySelector('.ui-meter__track')?.className).toContain('ui-meter__track--no-sample');
+    expect(container.querySelector('.ui-meter__fill')).toBeNull();
+    expect(screen.getByRole('meter').getAttribute('aria-valuetext')).toBe('no sample');
+  });
+
+  // metric-primitives.md — "it is a third state, distinct from both of its neighbours": an
+  // unlimited container is measured and must not be shown as unmeasured, and a measured zero keeps
+  // its number and its reading.
+  it('draws the three states of a track distinguishably', () => {
+    const tracks = [
+      <Meter key="measured" label="CPU" valueText="0.0%" value={0} max={800} reading="of 8 cores" />,
+      <Meter key="unbounded" label="MEMORY" valueText="12MB" value={12} reading={undefined} />,
+      <Meter key="unmeasured" label="CPU" value={0} noSample />,
+    ].map((element) => {
+      const { container, unmount } = render(element);
+      const rendered = {
+        track: container.querySelector('.ui-meter__track')!.className,
+        value: container.querySelector('.ui-meter__value')?.textContent ?? null,
+        reading: container.querySelector('.ui-meter__reading')?.textContent ?? null,
+      };
+      unmount();
+      return rendered;
+    });
+
+    expect(new Set(tracks.map((one) => one.track)).size, 'two of the three states draw the same track').toBe(3);
+    expect(tracks[0].value).toBe('0.0%');
+    expect(tracks[0].reading).toBe('of 8 cores');
+    expect(tracks[2].value).toBe('—');
+    expect(tracks[2].reading).toBe('no sample');
+  });
+
+  // metric-primitives.md — "a non-zero measurement always draws a visible fill, never a sub-pixel
+  // sliver that would read as an empty track. A measured zero draws none." Product-wide, so the
+  // minimum is a length in the stylesheet rather than a decision of the caller's.
+  it('keeps a non-zero measurement visible and draws nothing for a measured zero', () => {
+    const { container: tiny, unmount } = render(<Meter label="CPU" valueText="0.1%" value={0.1} max={800} />);
+    const fill = tiny.querySelector('.ui-meter__fill')!;
+    expect(fill.className).toContain('ui-meter__fill--present');
+    unmount();
+
+    const { container: zero } = render(<Meter label="CPU" valueText="0.0%" value={0} max={800} />);
+    expect(zero.querySelector('.ui-meter__fill')?.className).not.toContain('ui-meter__fill--present');
+
+    const css = readFileSync(join(process.cwd(), 'src/ui/metrics/metrics.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const present = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter((rule) => rule[1].trim() === '.ui-meter__fill--present')
+      .map((rule) => rule[2])
+      .join(' ');
+    expect(present, 'a fill that exists is left free to round away to nothing').toMatch(/min-width:\s*\S+/);
+  });
+});

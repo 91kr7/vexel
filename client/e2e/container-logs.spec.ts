@@ -2,6 +2,7 @@ import { expect, test, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { expectBandFillsItsRow, expectBandIsTheHeightOfItsControl, measureSearchBand } from './support/search-band-axis.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { containerCard, containerDetail } from './support/container-cards.js';
 
 // A tiny, already-cached image whose entrypoint is overridden to `sh`: the
 // container prints one line on each stream, then keeps ticking so the tail is
@@ -32,14 +33,14 @@ async function removeContainerQuietly(name: string): Promise<void> {
 }
 
 function containerRow(page: Page, name: string) {
-  return page.locator('.ui-data-table__row', { hasText: name });
+  return containerCard(page, name);
 }
 
 async function openLogsTab(page: Page, name: string) {
   const row = containerRow(page, name);
   await expect(row).toBeVisible({ timeout: 15_000 });
   await row.getByText(name, { exact: true }).click();
-  const detail = page.locator('.ui-data-table__expanded');
+  const detail = containerDetail(page);
   await expect(detail).toBeVisible();
   await detail.getByRole('tab', { name: 'Logs' }).click();
   return detail;

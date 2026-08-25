@@ -25,9 +25,9 @@ export interface ContainerSummary {
   cpuPercent?: number;
   memoryUsageBytes?: number;
   memoryLimitBytes?: number;
-  /** Host CPUs the percentage above is measured against, so a reading can be shown over its capacity. */
+  /** Host CPUs `cpuPercent` is measured against. */
   onlineCpus?: number;
-  /** Bytes received / sent, summed over the container's interfaces since it started. */
+  /** Bytes received / sent since the container started, summed over its interfaces. */
   networkRxBytes?: number;
   networkTxBytes?: number;
 }
@@ -230,11 +230,9 @@ export async function getContainerInspect(id: string): Promise<ContainerInspect>
 }
 
 /**
- * Applies a configuration change (REQ-25). Restart policy and resource limits
- * are updated in place via the Engine API's `/update`; env, ports, mounts or
- * health check require Docker to recreate the container (stop, remove, create
- * again with the merged config, reconnect its networks, restart if it was
- * running), since the Engine API offers no in-place update for those fields.
+ * Applies a configuration change (REQ-25). Restart policy and resource limits go through
+ * `/update`; env, ports, mounts and health check have no in-place update, so the container
+ * is recreated from its merged config.
  */
 export async function updateContainerConfig(id: string, update: ContainerConfigUpdate): Promise<ContainerConfigUpdateResult> {
   if (!requiresRecreate(update)) {
@@ -455,12 +453,6 @@ async function sampleOnce(): Promise<void> {
   );
 }
 
-/**
- * Everything the list shows, read out of the one frame the sampler already
- * fetched: the CPU count the percentage is measured against and the network
- * totals were both in it and both discarded. Nothing here asks the daemon for
- * anything — the request count per pass is unchanged.
- */
 function computeUsage(raw: RawStats): SampledUsage {
   const cpuDelta = raw.cpu_stats.cpu_usage.total_usage - raw.precpu_stats.cpu_usage.total_usage;
   const systemDelta = (raw.cpu_stats.system_cpu_usage ?? 0) - (raw.precpu_stats.system_cpu_usage ?? 0);
@@ -468,8 +460,6 @@ function computeUsage(raw: RawStats): SampledUsage {
   const cpuPercent = systemDelta > 0 && cpuDelta > 0 ? (cpuDelta / systemDelta) * onlineCpus * 100 : 0;
   const cache = raw.memory_stats.stats?.cache ?? raw.memory_stats.stats?.inactive_file ?? 0;
   const memoryUsageBytes = Math.max((raw.memory_stats.usage ?? 0) - cache, 0);
-  // Summed over the frame's interfaces, the reading `ContainerStatsService`
-  // normalises for the detail panel, so the list and the panel cannot disagree.
   let networkRxBytes = 0;
   let networkTxBytes = 0;
   for (const entry of Object.values(raw.networks ?? {})) {
@@ -486,43 +476,25 @@ function computeUsage(raw: RawStats): SampledUsage {
   };
 }
 
-/**
- * The container's ports, each mapping once and in a total order. The daemon
- * reports one entry per host binding, so a port published on both stacks
- * arrives twice — same private port, same public port, same protocol, differing
- * only by a host IP this shape does not carry. Once the IP is dropped the two
- * are indistinguishable, and a consumer keying by what it can see cannot tell a
- * real pair from an artefact of dual-stack binding. Deduped here rather than in
- * each reader: every consumer of this shape inherits the pair, and the card —
- * one chip per entry, keyed by the mapping — was given duplicate React keys by
- * it and accumulated chips in the DOM on every poll. The delivered table joined
- * the entries into one line, which hid the same duplication rather than
- * escaping it.
- *
- * **The order is imposed here, not observed, and that is the point of it.** The
- * daemon's own order is not stable across reads: three consecutive reads of the
- * same unchanged container return the same five mappings rotated. A consumer
- * that shows **a subset** — the card draws the first two and then a `+n` — is
- * therefore handed a different subset each poll, so two chips swap identity
- * under an operator watching a container that is not changing. Sorting by
- * private port, then public, then protocol makes the key **total**: two
- * mappings can never tie, so the sequence is identical read to read, the subset
- * is the same subset, and the detail panel agrees with the card by construction
- * rather than by coincidence. Removing this sort as redundant reinstates the
- * defect, which is invisible in a single read.
- */
+// The order is imposed, not observed: the daemon's own order of a container's
+// ports is not stable across reads, and a reader showing a subset of them would
+// be handed a different subset each time.
 function summaryPorts(ports: RawContainer["Ports"]): ContainerPort[] {
   const byMapping = new Map<string, ContainerPort>();
   for (const port of ports ?? []) {
     const mapping = { privatePort: port.PrivatePort, publicPort: port.PublicPort, type: port.Type };
-    byMapping.set(`${mapping.type}-${mapping.publicPort ?? ""}-${mapping.privatePort}`, mapping);
+    byMapping.set(portMappingKey(mapping), mapping);
   }
   return [...byMapping.values()].sort(
-    (left, right) =>
-      left.privatePort - right.privatePort ||
-      (left.publicPort ?? 0) - (right.publicPort ?? 0) ||
-      left.type.localeCompare(right.type),
+    byNameThenIdentity({
+      name: (mapping) => [String(mapping.privatePort), String(mapping.publicPort ?? 0)],
+      identity: portMappingKey,
+    }),
   );
+}
+
+function portMappingKey(mapping: ContainerPort): string {
+  return `${mapping.type}-${mapping.publicPort ?? ""}-${mapping.privatePort}`;
 }
 
 function toSummary(raw: RawContainer): ContainerSummary {

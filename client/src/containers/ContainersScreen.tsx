@@ -58,11 +58,7 @@ const STATE_FILTER_OPTIONS = [
 
 const STOPPED_STATES: ContainerState[] = ['created', 'exited', 'dead'];
 
-/**
- * Why a control of a row is unavailable. Every disabled control carries one, so
- * a greyed button or a greyed menu entry reads as "not now, because…" rather
- * than as broken.
- */
+/** Why a control is unavailable: every disabled control carries one, so none reads as broken. */
 const NOT_RUNNING_REASON = 'This container is not running.';
 const RESTARTING_REASON = 'This container is restarting.';
 const ALREADY_PAUSED_REASON = 'This container is already paused.';
@@ -105,23 +101,8 @@ function matchesStateFilter(container: ContainerSummary, filter: string): boolea
 }
 
 /**
- * Containers screen (REQ-19–23, REQ-24–26, REQ-109): toolbar with search/state
- * filters and a bulk "Prune stopped" action, over one card per container — the
- * one list in the product drawn as a surface per object, admitted by name in
- * `check-ui-conformance.mjs`. Every card carries the same four controls — three
- * fixed lifecycle slots (run/halt, pause, restart), each present in every state
- * and disabled with its reason where the state does not allow it, and one
- * overflow control opening the container's secondary actions (rename, export
- * filesystem, kill, remove). Selecting a card (outside that action area) opens
- * its detail panel directly beneath it; exec/attach live there as panel tabs.
- * Destructive actions (kill, remove, prune) go through the shell's confirmation
- * service, the menu being a step in front of that confirmation rather than a
- * substitute for it.
- *
- * The cards mount all at once, where the table mounted only the rows near the
- * viewport: a card's height follows its content (the ports chip wraps), which is
- * the one case `DataTable` itself declines to virtualise. Accepted deliberately
- * and recorded in the plan's `batches.md`.
+ * Containers screen (REQ-19–23, REQ-24–26, REQ-109): search and state filters over one card per
+ * container, each with its lifecycle slots, its overflow menu and its detail panel.
  */
 export function ContainersScreen({ containers, loaded, error, onRefresh, images = [], imagesLoaded = true }: ContainersScreenProps) {
   const { confirm } = useConfirmation();
@@ -215,21 +196,14 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
     }
   }
 
-  /** Downloads the container's current filesystem straight to the operator's own machine: the browser owns the transfer, so the app only announces it. */
+  /** The browser owns the transfer; the app only announces it. */
   function startExport(container: ContainerSummary) {
     const filename = `${container.name}.tar`;
     triggerDownload(exportContainerUrl(container.id, filename));
     push({ title: 'Download started', message: filename, tone: 'success' });
   }
 
-  /**
-   * The row's three lifecycle slots: fixed in number, order and position on
-   * every row and in every state — the state-appropriate run/halt action, then
-   * pause, then restart. An action the container's state does not allow keeps
-   * its slot, disabled and stating why, so a position means the same action on
-   * every row. The legality is exactly the one the row offered before: nothing
-   * became legal here that the product did not already allow.
-   */
+  /** Three slots, fixed in number, order and position; an illegal one keeps its slot, disabled. */
   function lifecycleActionsFor(container: ContainerSummary): RowAction[] {
     const busy = busyIds.has(container.id);
     const make = (id: string, label: string, task: () => Promise<void>, unavailable?: string, weight?: ActionWeight): RowAction => ({
@@ -238,9 +212,7 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
       weight,
       disabled: busy || unavailable !== undefined,
       disabledReason: busy ? BUSY_REASON : unavailable,
-      // The operation's own name, not the button's label, is what the
-      // confirmation, the progress line and the failure message read — they are
-      // the ones this change leaves untouched.
+      // The operation's own name, not the button's label, is what the messages read.
       onClick: () => runAction(container, id, task),
     });
 
@@ -250,11 +222,8 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
     const restarting = state === 'restarting';
     const stateReason = restarting ? RESTARTING_REASON : NOT_RUNNING_REASON;
 
-    // The first slot is the affirmative one where the container is not running —
-    // starting or resuming it is what the operator came for — and merely one
-    // control among the others where it is: halting a running container is not
-    // the card's suggestion. Weight only; the action, its position and its
-    // legality are unchanged.
+    // Affirmative only where the container is not running: halting one is not the
+    // card's suggestion. A weight, not a change of action or of legality.
     const runHalt = restarting
       ? make('stop', 'Stop', () => stopContainer(container.id), RESTARTING_REASON)
       : running
@@ -270,14 +239,7 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
     ];
   }
 
-  /**
-   * The secondary actions of a row, behind its overflow control: the same four
-   * entries in the same order whatever the state, an inapplicable one disabled
-   * with its reason. `Kill` and `Remove` are destructive and set apart from the
-   * two above them. The handlers are bound to this container, so a list that
-   * re-sorts or re-reads under an open menu can never redirect an entry at
-   * another one.
-   */
+  /** The same four entries in the same order in every state, each bound to this container. */
   function overflowEntriesFor(container: ContainerSummary): MenuEntry[] {
     const busy = busyIds.has(container.id);
     const reason = (unavailable?: string) => (busy ? BUSY_REASON : unavailable);
@@ -307,23 +269,12 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
     ];
   }
 
-  /**
-   * The card is the panel's only pointer route now that the panel has no close
-   * control: selecting the selected card closes it, selecting another one leaves
-   * it open on that container. A container filtered or searched out of view
-   * deliberately keeps its selection — the panel is the card's own expansion, so
-   * neither is rendered while the card is out of the list and both come back
-   * together when it re-enters.
-   */
+  // The card is the panel's only pointer route: selecting the selected card closes it.
+  // A container filtered out of view keeps its selection, panel and card returning together.
   function toggleSelection(container: ContainerSummary) {
     setSelectedId((current) => (current === container.id ? undefined : container.id));
   }
 
-  /**
-   * The name's place while this container is being renamed. It is the card's
-   * only editable area: renaming is started from the overflow menu, which is
-   * where it was started from before.
-   */
   function renameControlFor(container: ContainerSummary) {
     if (renamingId !== container.id) return undefined;
     return (
@@ -362,15 +313,8 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
         }
       />
       {error ? <ErrorBanner title="Could not load containers" detail={error} onRetry={onRefresh} /> : null}
-      {/* One card per container, three to a row, separated by one gap and by
-          nothing else: no header row, no rules between them, no surface around
-          the list. Three to a row against the mock's one card at full width —
-          decided by the human on the running product, where the metric columns
-          spread across the page read as a void with `NET I/O` pushed to the
-          far right. The panel of the selected container spans the whole row, so
-          it opens under the card that owns it and the cards below move down.
-          The grid is where the point of interaction returns when `Escape`
-          closes that panel. */}
+      {/* Three cards to a row, and the selected container's panel spanning a row
+          of its own (containers-screen.md). */}
       <Grid arrangement="cards" dismissalFocusTarget>
         {filtered.length === 0 ? (
           <GridSpan>

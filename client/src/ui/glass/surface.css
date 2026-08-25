@@ -30,8 +30,7 @@
     inset 0 1px 0 var(--color-highlight-top);
 }
 
-/* Each padding class also names its inset, so a surface that parts into bands
-   (below) can hand the same inset to each of them. */
+/* Each padding class also names its inset, so a parted surface can hand the same one to each band. */
 .ui-surface--pad-none {
   --surface-pad: 0;
   padding: 0;
@@ -53,28 +52,10 @@
   padding: var(--surface-pad);
 }
 
-/* Parted: a surface with a footer. The padding leaves the surface and is taken
-   by each band, which is what lets the footer's ground and its hairline run
-   edge to edge instead of stopping short of the border. These rules follow the
-   padding classes deliberately — same specificity, so source order is what
-   zeroes the surface's own padding.
-
-   The footer is denser than the content it closes, and its ground is the wash
-   over the surface's own fill rather than a second surface colour: a card ends
-   in a band to act in, not in an expanse of empty glass. Its bottom corners
-   inherit the surface's radius rather than restating it, so a surface with a
-   footer is exactly as round as one without.
-
-   **The footer sits on the surface's bottom edge whatever the surface's height,
-   and the slack goes above it.** A parted surface is a full-height column and
-   the content band is what absorbs the free space, so the footer is simply the
-   last band rather than a band pushed down by a margin or lifted out of flow by
-   a position — either of which would take its ground and its hairline off the
-   surface's edges. This is the case of a card standing in a grid row: its height
-   comes from the track, not from its content, so a card shorter than its
-   row-mates has slack to place, and placing it after the footer left the footer
-   floating over a band of bare surface (measured at 32px) with the footers of a
-   row out of line. */
+/* Parted: a surface with a footer. The padding moves onto each band so the footer's
+   ground and hairline reach the edges; these rules must stay after the padding classes,
+   which they zero by source order. The content band absorbs the free height, which is
+   what keeps the footer on the bottom edge of a card stretched by its grid row. */
 .ui-surface--parted {
   display: flex;
   flex-direction: column;
@@ -96,16 +77,8 @@
   background-color: var(--color-wash-1);
 }
 
-/* Selectable: the object table's own highlights, by reference. The hover value
-   is `--color-surface-2` and the selected one `--color-accent-tint` — the two
-   `.ui-data-table__row:hover` and `.ui-data-table__row--selected` already carry,
-   and no value is written here that is not written there.
-
-   Laid as an image layer rather than as a `background-color`, because a Surface
-   already fills itself with one of those tokens: a table row highlights by
-   painting the token *over* the card beneath it, and a layer over the fill
-   composites to the same colour. Swapping the fill instead would leave a
-   `flat` surface — already `--color-surface-2` — with no visible hover at all. */
+/* Selectable: the object table row's own highlight tokens, painted as an image layer
+   over the surface's fill — swapping the fill would leave a `flat` surface with no hover. */
 .ui-surface--selectable {
   cursor: pointer;
 }
@@ -121,14 +94,8 @@
   background-image: linear-gradient(var(--color-accent-tint), var(--color-accent-tint));
 }
 
-/* State accent: a bar down the left edge, running the surface's full height and
-   following its own left rounding rather than cutting across the corner. The
-   bar is a gradient painted on a layer the size of the surface and clipped by
-   the surface's radius, which is what makes that clip exact.
-
-   On `::after`, not `::before`: `::before` is the overlay material's layer
-   (overlay-glass.css), and the two are never asked for together. The layer
-   takes no pointer event, so nothing on the surface becomes unclickable. */
+/* State accent: a gradient on a layer clipped by the surface's radius, so the bar
+   follows the left rounding. On `::after` because `::before` is the overlay material's. */
 .ui-surface--accent::after {
   content: '';
   position: absolute;

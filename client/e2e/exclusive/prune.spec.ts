@@ -2,6 +2,7 @@ import { expect, test, type Page } from '../support/test.js';
 import { openApp, ownershipArgs } from '../support/fixtures.js';
 import { execFileAsync } from '../../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, TINY_IMAGE, ensureImage } from '../../../server/test/support/base-images.js';
+import { containerCard } from '../support/container-cards.js';
 
 // The two prune actions exercise the daemon's real prune, which acts on every
 // stopped container / every dangling image on the host — not only on the
@@ -29,8 +30,9 @@ async function removeTagQuietly(tag: string): Promise<void> {
   await execFileAsync('docker', ['rmi', '-f', tag]).catch(() => undefined);
 }
 
+/** The container's card on the containers screen — the surface that carries its name and its controls. */
 function containerRow(page: Page, name: string) {
-  return page.locator('.ui-data-table__row', { hasText: name });
+  return containerCard(page, name);
 }
 
 function searchField(page: Page) {
@@ -56,7 +58,7 @@ test('pruning stopped containers removes them from the list and reports the outc
     const row = containerRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
     await row.getByRole('button', { name: 'Stop', exact: true }).click();
-    await expect(row).toContainText('exited', { timeout: 10_000 });
+    await expect(row).toContainText('EXITED', { timeout: 10_000 });
 
     const pruneButton = screenContent(page).getByRole('button', { name: 'Prune stopped' });
     await expect(pruneButton).toBeEnabled();

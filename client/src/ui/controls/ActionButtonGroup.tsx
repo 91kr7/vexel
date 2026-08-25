@@ -4,15 +4,8 @@ import { Menu, type MenuEntry } from './Menu';
 import './controls.css';
 
 /**
- * How much an action weighs, which is the **only** thing a caller says about
- * it. What it then looks like — a filled button, a quiet one, a red one, an
- * entry in the overflow menu — is the cluster's to decide, and that is what
- * makes the rule un-re-answerable by a screen: there is no prop with which to
- * ask for an appearance.
- *
- * There is deliberately **no `text` weight**. Bare text is never a control:
- * every weight below renders a control, and the way to make an action quieter
- * than `secondary` is `overflow`, not the removal of its affordance.
+ * How much an action weighs — the only thing a caller says about it; the appearance is
+ * the cluster's. No `text` weight: quieter than `secondary` is `overflow`, never bare text.
  */
 export type ActionWeight = 'primary' | 'secondary' | 'destructive' | 'overflow';
 
@@ -26,11 +19,7 @@ export interface RowAction {
   id: string;
   label: string;
   onClick: () => void;
-  /**
-   * How much the action weighs (default `'secondary'`). `'destructive'` is a
-   * weight like any other; the `destructive` flag below is the same statement
-   * in the shape the delivered call sites already use.
-   */
+  /** How much the action weighs (default `'secondary'`). */
   weight?: ActionWeight;
   /** Shorthand for `weight: 'destructive'`; ignored when `weight` is given. */
   destructive?: boolean;
@@ -48,30 +37,11 @@ export interface ActionButtonGroupOverflow {
 
 export interface ActionButtonGroupProps {
   actions: RowAction[];
-  /**
-   * Draws the cluster as one segmented control: the controls share a single
-   * boundary, with a hairline divider between them, instead of standing apart.
-   * Appearance only — the actions, their order, their positions and the
-   * overflow menu are exactly what they are without it.
-   */
+  /** Draws the cluster as one segmented control: appearance only, the actions are untouched. */
   segmented?: boolean;
-  /**
-   * How large the cluster's controls are (default `'sm'`, the density every
-   * list row in the product is drawn at). A cluster standing on its own —
-   * closing a card rather than ending a row — asks for `'md'`, the library's
-   * ordinary button size. It is the size of the controls only: the actions,
-   * their order, their positions and the overflow menu are untouched, and a
-   * segmented cluster still resolves every slot to one height whichever size is
-   * asked for.
-   */
+  /** How large the controls are (default `'sm'`, the list row's density); the actions are untouched. */
   size?: ButtonSize;
-  /**
-   * The menu the `overflow`-weight actions are collected into, always the
-   * group's last, trailing slot. Required as soon as an action weighs
-   * `overflow`, because its trigger needs a name; an overflow-weighted action
-   * with no menu to go to is simply not rendered rather than silently promoted
-   * back to a button.
-   */
+  /** The trailing menu the `overflow`-weight actions go to; without it such an action is not rendered. */
   overflow?: ActionButtonGroupOverflow;
 }
 
@@ -80,10 +50,8 @@ function actionWeight(action: RowAction): ActionWeight {
 }
 
 /**
- * The one action cluster: a caller declares its actions and their weight, and
- * the cluster decides what is a button and what becomes an entry of the trailing
- * overflow menu. Stops click propagation so an action never also triggers the
- * containing row's `onRowSelect`.
+ * The one action cluster: the caller declares actions and weights, the cluster decides what is a
+ * button and what an overflow entry. Stops click propagation, so an action never also selects the row.
  */
 export function ActionButtonGroup({ actions, overflow, segmented = false, size = 'sm' }: ActionButtonGroupProps) {
   const buttons = actions.filter((action) => actionWeight(action) !== 'overflow');
@@ -98,9 +66,8 @@ export function ActionButtonGroup({ actions, overflow, segmented = false, size =
     }));
   const entries = [...(overflow?.entries ?? []), ...demoted];
 
-  // Segmented, each control is wrapped in a segment: the stylesheet then has one
-  // element per slot to round, whether the slot holds a bare button or a button
-  // carrying the tooltip that states why it is disabled.
+  // One segment element per slot, so the stylesheet has something to round whether
+  // the slot holds a bare button or one wrapped in its disabled-reason tooltip.
   const wrap = (key: string, control: ReactNode) =>
     segmented ? (
       <span key={key} className="ui-action-button-group__segment">

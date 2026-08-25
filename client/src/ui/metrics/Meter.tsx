@@ -3,11 +3,7 @@ import './metrics.css';
 
 export interface MeterProps {
   label?: string;
-  /**
-   * The prominent reading, shown beside the label — so a column reads
-   * `CPU 0.4%` in two typographic treatments rather than as one string. Its
-   * presence is what gives the label the smaller, uppercase treatment.
-   */
+  /** The prominent reading beside the label; its presence gives the label the eyebrow treatment. */
   valueText?: string;
   /** Consumed amount; negative values are treated as 0. */
   value: number;
@@ -17,11 +13,7 @@ export interface MeterProps {
   reading?: string;
   tone?: MetricTone;
   ariaLabel?: string;
-  /**
-   * Nothing was measured. Distinct from "no measurable maximum" — an unlimited
-   * container must not read as an unmeasured one — and distinct from a measured
-   * zero, which keeps its number and its reading.
-   */
+  /** Nothing was measured — distinct from an unmeasurable maximum and from a measured zero. */
   noSample?: boolean;
 }
 
@@ -35,10 +27,8 @@ export function Meter({ label, valueText, value, max, reading, tone = 'accent', 
   const bounded = !noSample && max !== undefined && max > 0;
   const ratio = bounded ? Math.min(safeValue / max, 1) : 0;
   const percent = ratio * 100;
-  /* A measurement that exists is drawn, however small: below a minimum the fill
-     is a sub-pixel sliver and reads as an empty track. A measured zero draws
-     nothing, and neither does an unmeasured column — those two are told apart by
-     the value and the reading, which state it in words. */
+  /* A measurement that exists is drawn, however small: below a minimum width the
+     fill is a sliver and reads as an empty track. */
   const fillClass = [
     'ui-meter__fill',
     tone === 'accent' ? '' : `ui-meter__fill--${tone}`,
@@ -49,8 +39,8 @@ export function Meter({ label, valueText, value, max, reading, tone = 'accent', 
   /* An unfilled track and a track that has no scale to fill against look the
      same, and the second is a fact about the metric rather than a bar that did
      not draw (plan-ui-coherence-optimisation/REQ-64). Same box, so a bounded
-     reading and an unbounded one are the same height. An unmeasured metric takes
-     neither: it is drawn empty, and fainter, which is the third state. */
+     reading and an unbounded one are the same height; an unmeasured one is the
+     third state, empty and fainter. */
   const trackClass = noSample
     ? 'ui-meter__track ui-meter__track--no-sample'
     : bounded

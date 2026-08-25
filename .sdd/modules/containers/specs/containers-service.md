@@ -103,7 +103,10 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   construction instead of by coincidence. The delivered table read the same field in the same
   unstable order and simply never showed the instability; it is deterministic now too. **A later
   reader must not remove this sort as redundant** — what it prevents cannot be seen in a single
-  read.
+  read. The comparison itself is not written here: it goes through the list-order rule
+  (`byNameThenIdentity`, the ports compared as a composite name of private then public port under
+  its numeric collation, with the mapping's own key as the final exact comparison), which is where
+  every ordering on the server is decided (plan-docker_management_app-list_ordering/REQ-1).
 - **The widened fields cost the daemon nothing** (plan-docker_management_app-containers_card_view/REQ-13).
   `onlineCpus` and the network totals are read out of the **same stats frame** the sampler already
   fetched for `cpuPercent` — the CPU count was computed inside it and thrown away, the `networks`

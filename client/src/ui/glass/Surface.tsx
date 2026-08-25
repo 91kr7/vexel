@@ -5,7 +5,7 @@ import './overlay-glass.css';
 export type SurfaceElevation = 'flat' | 'raised' | 'sunken';
 export type SurfacePadding = 'none' | 'sm' | 'md' | 'lg';
 export type SurfaceMaterial = 'base' | 'overlay';
-/** State colours a surface may edge itself with; they are the tokens the status tones already use. */
+/** State colours a surface may edge itself with: the status tones' own tokens. */
 export type SurfaceAccent = 'success' | 'warning' | 'danger' | 'neutral';
 
 const paddingClass: Record<SurfacePadding, string> = {
@@ -23,11 +23,11 @@ export interface SurfaceProps {
   material?: SurfaceMaterial;
   /** Draws a full-height bar down the surface's left edge in a state colour, following its own left rounding. */
   accent?: SurfaceAccent;
-  /** Makes the surface selectable: it takes the hover highlight and reports whether it is the selected one. */
+  /** Makes the surface selectable, with the object table's own hover and selected highlights. */
   onSelect?: () => void;
   /** Whether this is the selected surface; only meaningful together with `onSelect`. */
   selected?: boolean;
-  /** A band closing the surface: its own ground under a hairline, spanning the full width, holding the surface's actions. */
+  /** A band closing the surface: its own ground under a hairline, spanning the full width. */
   footer?: ReactNode;
 }
 
@@ -36,12 +36,8 @@ export interface SurfaceProps {
  * top highlight. The base material computes no blur; `material="overlay"` is
  * the one opt-in that does, bounded by the `--blur-overlay` token.
  *
- * `onSelect` and `selected` give it the object table's own hover and selected
- * highlights, by reference to the same tokens, so a list drawn as one surface
- * per object behaves as a list of rows does.
- *
- * With a `footer` the surface parts into two bands: the padding moves off the
- * surface and onto each band, so the footer's ground reaches its edges.
+ * With a `footer` the surface parts into two bands: the padding moves off the surface
+ * and onto each band, so the footer's ground reaches its edges.
  */
 export function Surface({
   children,

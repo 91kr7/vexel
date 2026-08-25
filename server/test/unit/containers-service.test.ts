@@ -118,3 +118,84 @@ test("listContainers returns the identical sequence when read again with nothing
 
   assert.deepEqual(second, first);
 });
+
+/** A raw port entry as the daemon reports one: one per host binding, so the host IP is part of it. */
+interface RawPort {
+  IP?: string;
+  PrivatePort: number;
+  PublicPort?: number;
+  Type: string;
+}
+
+function withPorts(id: string, name: string, ports: RawPort[]): RawFixture & { Ports: RawPort[] } {
+  return { ...container(id, name), Ports: ports };
+}
+
+async function portsFrom(ports: RawPort[]): Promise<string[]> {
+  containersBody = JSON.stringify([withPorts("c-1", "app", ports)]);
+  const [listed] = await listContainers();
+  return listed.ports.map((port) => `${port.type}:${port.publicPort ?? "-"}->${port.privatePort}`);
+}
+
+// containers-service.md — "`ports` carries no duplicates, and the daemon's own answer does. The
+// daemon reports one entry per host binding, so a port published on both IP stacks arrives twice…
+// Once the IP is dropped the two entries are indistinguishable, so they are collapsed to one here
+// rather than in each reader" (plan-docker_management_app-containers_card_view/REQ-5, REQ-12).
+// Found through the card, which draws one chip per entry and was given duplicate React keys by it.
+test("listContainers reports a port published on both IP stacks exactly once", async () => {
+  const dualStack = await portsFrom([
+    { IP: "0.0.0.0", PrivatePort: 5432, PublicPort: 49_153, Type: "tcp" },
+    { IP: "::", PrivatePort: 5432, PublicPort: 49_153, Type: "tcp" },
+  ]);
+
+  assert.deepEqual(dualStack, ["tcp:49153->5432"]);
+});
+
+// The same rule must not collapse mappings that genuinely differ: two host ports for one container
+// port, two protocols for one number, and an exposed port beside a published one are three
+// mappings, not one.
+test("listContainers keeps mappings that differ in anything the shape carries", async () => {
+  const distinct = await portsFrom([
+    { IP: "0.0.0.0", PrivatePort: 5432, PublicPort: 49_153, Type: "tcp" },
+    { IP: "0.0.0.0", PrivatePort: 5432, PublicPort: 49_154, Type: "tcp" },
+    { IP: "0.0.0.0", PrivatePort: 5432, PublicPort: 49_153, Type: "udp" },
+    { PrivatePort: 5432, Type: "tcp" },
+  ]);
+
+  assert.deepEqual(distinct, ["tcp:-->5432", "tcp:49153->5432", "udp:49153->5432", "tcp:49154->5432"]);
+});
+
+// containers-service.md — "`ports` is ordered by this service, and the order is imposed rather than
+// observed… Sorting by private port, then public port, then protocol makes the key **total**: no two
+// mappings of one container can tie, so the sequence is identical read to read, a subset of it is
+// the same subset" (REQ-5, REQ-15). The card draws the first two and then a `+n`, so an unstable
+// order hands it a different subset each poll.
+test("listContainers orders a container's ports by private port, then public port, then protocol", async () => {
+  const ordered = await portsFrom([
+    { IP: "0.0.0.0", PrivatePort: 8080, PublicPort: 32_770, Type: "tcp" },
+    { IP: "0.0.0.0", PrivatePort: 80, PublicPort: 32_769, Type: "udp" },
+    { IP: "0.0.0.0", PrivatePort: 80, PublicPort: 32_769, Type: "tcp" },
+    { IP: "0.0.0.0", PrivatePort: 80, PublicPort: 32_768, Type: "tcp" },
+  ]);
+
+  assert.deepEqual(ordered, ["tcp:32768->80", "tcp:32769->80", "udp:32769->80", "tcp:32770->8080"]);
+});
+
+// The daemon returns the same mappings **rotated** between reads (measured over three consecutive
+// reads on 2026-08-25). What the imposed order guarantees is that the rotation cannot be seen: three
+// reads of an unchanged container, each handed a different rotation, produce one sequence.
+test("listContainers returns one sequence whichever rotation the daemon supplies the ports in", async () => {
+  const reported: RawPort[] = [
+    { IP: "0.0.0.0", PrivatePort: 5432, PublicPort: 49_153, Type: "tcp" },
+    { IP: "0.0.0.0", PrivatePort: 6379, PublicPort: 49_154, Type: "tcp" },
+    { IP: "0.0.0.0", PrivatePort: 8080, PublicPort: 49_155, Type: "tcp" },
+    { IP: "0.0.0.0", PrivatePort: 9090, PublicPort: 49_156, Type: "tcp" },
+  ];
+  const rotate = (by: number): RawPort[] => [...reported.slice(by), ...reported.slice(0, by)];
+
+  const reads = [await portsFrom(rotate(0)), await portsFrom(rotate(1)), await portsFrom(rotate(3))];
+
+  for (const read of reads) assert.deepEqual(read, reads[0]);
+  // …and the first two of them — the pair the card draws — are the same pair every time.
+  assert.deepEqual(reads[0].slice(0, 2), ["tcp:49153->5432", "tcp:49154->6379"]);
+});

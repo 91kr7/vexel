@@ -96,7 +96,6 @@ const LISTS = {
   services: 'PUBLISHED PORTS',
   secrets: 'SECRET',
   tasks: 'SLOT',
-  containers: 'UPTIME',
   images: 'DISK USAGE',
 } as const;
 
@@ -142,28 +141,30 @@ test.afterAll(async () => {
   await execFileAsync('docker', ['rmi', '-f', referenceImage]).catch(() => undefined);
 });
 
-/** The two reference lists, read from the tree in this same run and in this same browser. */
+/**
+ * The reference list, read from the tree in this same run and in this same browser.
+ *
+ * **It was two, and the containers list left it on 2026-08-25**
+ * (`plan-docker_management_app-containers_card_view/REQ-1`): that screen deliberately draws one card
+ * per container now, and is the single named exception to the classic table
+ * (`.../containers_card_view/REQ-63`). A screen that draws no table cannot be the table every other
+ * list is compared against. The images list — still the classic table, and already the second
+ * reference here — is what remains, and the comparison it takes part in is unchanged: each converted
+ * list is measured against a reference row of this spec's own making, never against a total and
+ * never against an emptiness.
+ */
 async function readTheReference(page: Page, at: string): Promise<{ name: string; list: ListGeometry }[]> {
-  await openApp(page, 'containers');
-  await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible({ timeout: 20_000 });
-  const containers = await settledList(page, LISTS.containers);
-  reportList(at, 'containers (reference)', containers, 'b2');
-
   await openApp(page, 'images-layers');
   await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible({ timeout: 20_000 });
+  // The row this file created is what the reference is read on: never a total, never an emptiness.
+  await expect(
+    page.locator('.ui-data-table__row', { hasText: referenceImage }).first(),
+    `${at}: the image this spec created is not listed, so the reference row may be anybody's`,
+  ).toBeVisible({ timeout: 20_000 });
   const images = await settledList(page, LISTS.images);
   reportList(at, 'images (reference)', images, 'b2');
 
-  // The rows this file created are what the reference is read on: never a total, never an emptiness.
-  expect(
-    containers.rows.some((row) => row.label.startsWith('vexel-e2e-plain-ref-')),
-    `${at}: the container this spec created is not listed, so the reference row may be anybody's`,
-  ).toBe(true);
-
-  return [
-    { name: 'containers', list: containers },
-    { name: 'images', list: images },
-  ];
+  return [{ name: 'images', list: images }];
 }
 
 /** The four screens this batch converts, measured in one pass each. */
@@ -200,7 +201,7 @@ for (const viewport of VIEWPORTS) {
   // the whole of the criteria on the eight screen lists, with the two reference
   // lists read in the same run so the equality is a comparison and not a
   // coincidence.
-  test(`the plain lists are the containers table, not a table like it — ${at}`, async ({ page }) => {
+  test(`the plain lists are the reference table, not a table like it — ${at}`, async ({ page }) => {
     test.setTimeout(420_000);
     await page.setViewportSize(viewport);
     await stubTheInventories(page);

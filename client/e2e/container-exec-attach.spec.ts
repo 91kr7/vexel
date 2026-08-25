@@ -1,6 +1,7 @@
 import { expect, test, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { containerCard, containerDetail } from './support/container-cards.js';
 
 /** An idle container: its main process sleeps, so exec sessions run independently of it. */
 async function createIdleContainer(name: string): Promise<void> {
@@ -32,14 +33,14 @@ async function isRunning(name: string): Promise<boolean> {
 }
 
 function containerRow(page: Page, name: string) {
-  return page.locator('.ui-data-table__row', { hasText: name });
+  return containerCard(page, name);
 }
 
 async function openTab(page: Page, name: string, tab: string) {
   const row = containerRow(page, name);
   await expect(row).toBeVisible({ timeout: 15_000 });
   await row.getByText(name, { exact: true }).click();
-  const detail = page.locator('.ui-data-table__expanded');
+  const detail = containerDetail(page);
   await expect(detail).toBeVisible();
   await detail.getByRole('tab', { name: tab }).click();
   return detail;
@@ -218,7 +219,7 @@ test.describe('Container exec sessions (REQ-34, REQ-36)', () => {
         .toBe(true);
 
       // Nothing around the session was dismissed by it, and the session is still live.
-      await expect(page.locator('.ui-data-table__expanded')).toBeVisible();
+      await expect(containerDetail(page)).toBeVisible();
       await expect(detail.getByText('Connected')).toBeVisible();
       await expect(detail.locator('.ui-terminal-host')).toBeVisible();
     } finally {

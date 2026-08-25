@@ -5,6 +5,7 @@ import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
+import { containerCards, containerDetail, openContainerDetail, panelOwner } from './support/container-cards.js';
 
 /**
  * The order every list service now decides survives to the screen
@@ -197,15 +198,15 @@ test.describe('Containers', () => {
     const names = fixtureNames(stem);
     try {
       for (const name of names) await createSleepingContainer(name);
-      const rows = page.locator('.ui-data-table__row');
+      const cards = containerCards(page);
 
-      const shown = await settledOrder(rows, names);
+      const shown = await settledOrder(cards, names);
 
       expect(shown).toEqual(await servedOrder(page, '/api/containers', names));
       expectOrderedByTheRule(shown, [`${stem}-2`, `${stem}-10`], [`${stem}-A`, `${stem}-a`]);
 
       await page.reload();
-      expect(await settledOrder(rows, names), 'a re-read of the same containers must move no row').toEqual(shown);
+      expect(await settledOrder(cards, names), 'a re-read of the same containers must move no card').toEqual(shown);
     } finally {
       for (const name of names) await removeContainerQuietly(name);
     }
@@ -217,20 +218,22 @@ test.describe('Containers', () => {
     const names = fixtureNames(stem);
     try {
       for (const name of names) await createSleepingContainer(name);
-      const rows = page.locator('.ui-data-table__row');
-      const unfiltered = await settledOrder(rows, names);
+      const cards = containerCards(page);
+      const unfiltered = await settledOrder(cards, names);
 
       await page.getByPlaceholder('Search name, image or state…').fill(stem);
 
-      expect(await settledOrder(rows, names), 'a filter is a predicate: it removes rows, it does not re-rank them').toEqual(unfiltered);
+      expect(await settledOrder(cards, names), 'a filter is a predicate: it removes cards, it does not re-rank them').toEqual(
+        unfiltered,
+      );
     } finally {
       for (const name of names) await removeContainerQuietly(name);
     }
   });
 
-  // REQ-30 — a re-read that produces the same rows produces no visible movement: the selection and the
-  // open detail panel stay on the object they were on, identified by its identity and not by its position
-  test('a daemon event re-reads the list without moving the selected row or re-pointing its detail panel', async ({ page }) => {
+  // REQ-30 — a re-read that produces the same objects produces no visible movement: the selection and
+  // the open detail panel stay on the object they were on, identified by its identity and not by its position
+  test('a daemon event re-reads the list without moving the selected card or re-pointing its detail panel', async ({ page }) => {
     const stem = stemFor('containers-detail');
     const names = fixtureNames(stem);
     // Named rather than positional, and both free of case ambiguity: a locator matching text does so
@@ -239,24 +242,22 @@ test.describe('Containers', () => {
     const disturbed = `${stem}-10`;
     try {
       for (const name of names) await createSleepingContainer(name);
-      const rows = page.locator('.ui-data-table__row');
-      const before = await settledOrder(rows, names);
+      const cards = containerCards(page);
+      const before = await settledOrder(cards, names);
 
-      await rows.filter({ hasText: selected }).first().getByText(selected, { exact: true }).click();
-      const detail = page.locator('.ui-data-table__expanded');
+      await openContainerDetail(page, selected);
+      const detail = containerDetail(page);
       await expect(detail).toBeVisible();
-      const owner = async () =>
-        page.evaluate(() => document.querySelector('.ui-data-table__expanded')?.previousElementSibling?.textContent ?? '');
-      expect(await owner()).toContain(selected);
+      expect(await panelOwner(page)).toContain(selected);
 
       // A re-read the spec causes itself, exactly as the daemon's own events reach the application.
       await execFileAsync('docker', ['stop', '-t', '0', disturbed]);
-      await expect(rows.filter({ hasText: disturbed }).first()).toContainText('exited', { timeout: 20_000 });
+      await expect(cards.filter({ hasText: disturbed }).first()).toContainText('EXITED', { timeout: 20_000 });
 
-      expect(await shownOrder(rows, names), 'a re-read of the same containers must move no row').toEqual(before);
+      expect(await shownOrder(cards, names), 'a re-read of the same containers must move no card').toEqual(before);
       await expect(detail).toBeVisible();
-      expect(await owner(), 'the open detail panel stays on the container it was opened for').toContain(selected);
-      await expect(rows.filter({ hasText: selected }).first()).toHaveClass(/ui-data-table__row--selected/);
+      expect(await panelOwner(page), 'the open detail panel stays on the container it was opened for').toContain(selected);
+      await expect(cards.filter({ hasText: selected }).first()).toHaveClass(/ui-surface--selected/);
     } finally {
       for (const name of names) await removeContainerQuietly(name);
     }

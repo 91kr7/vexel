@@ -30,10 +30,8 @@
   min-width: 0;
 }
 
-/* The one small-uppercase-muted label treatment of the metric primitives. The
-   meter's own label takes it as soon as the meter carries a prominent value
-   beside it, and takes it *instead of* `.ui-meter__label` rather than on top of
-   it — the two would otherwise cascade by source order rather than by intent. */
+/* The one small-uppercase-muted label treatment of the metric primitives, taken
+   instead of `.ui-meter__label` rather than on top of it. */
 .ui-metric-tile__label,
 .ui-meter__label--eyebrow {
   margin: 0;
@@ -99,8 +97,7 @@
   min-width: 0;
 }
 
-/* The label and the prominent value read as one group at the left, with the
-   reading kept at the right edge of the meter's own box. */
+/* Label and prominent value as one group at the left, the reading at the right edge. */
 .ui-meter__name {
   display: inline-flex;
   align-items: baseline;
@@ -108,9 +105,7 @@
   min-width: 0;
 }
 
-/* One line of the value's own height, whatever a given column happens to carry,
-   so that meters laid side by side start their tracks at the same y — and so
-   does a column that carries readings instead of a track. */
+/* One line of the value's own height, so meters side by side start their tracks at the same y. */
 .ui-meter--prominent .ui-meter__head,
 .ui-metric-strip__readings-head {
   min-height: calc(var(--font-size-md) * var(--line-height-tight));
@@ -145,10 +140,8 @@
   overflow: hidden;
 }
 
-/* Nothing was measured: an empty track, fainter than a measured one, and never
-   the dashed treatment below — an unlimited container is measured, and must not
-   be shown as an unmeasured one. What tells it apart from a measured zero is the
-   value and the reading, which say it in words. */
+/* Nothing was measured: an empty, fainter track — never the dashed treatment below,
+   which means an unmeasurable maximum. */
 .ui-meter__track--no-sample {
   background: var(--color-wash-1);
 }
@@ -171,10 +164,8 @@
   background: var(--color-accent);
 }
 
-/* A non-zero measurement never rounds away to nothing: under this width the
-   fill is a sub-pixel sliver and reads as an empty track. Carried by a modifier
-   the meter adds only to a fill it actually drew, so a measured zero keeps an
-   empty track. */
+/* A non-zero measurement never rounds away to nothing: under this width the fill
+   reads as an empty track. */
 .ui-meter__fill--present {
   min-width: var(--space-2);
 }
@@ -417,11 +408,8 @@
 }
 
 /* ── Metric strip ────────────────────────────────────────────────────────────
-   A row of metric columns: the tracked ones, of equal width, then a narrower
-   trailing column carrying a pair of readings and no track. The widths are flex
-   proportions against a zero basis, so a column's width is the strip's to decide
-   and never the content's — which is what makes the columns land at the same x
-   on every strip of a list, whatever each one holds. */
+   Flex proportions against a zero basis: a column's width is the strip's to decide
+   and never the content's, so the columns land at the same x on every strip of a list. */
 .ui-metric-strip {
   display: flex;
   align-items: start;
@@ -455,12 +443,8 @@
   min-width: 0;
 }
 
-/* The same shape asked for at any width: one full-width column per metric,
-   for a strip inside a box too narrow to carry its columns side by side — a
-   card standing in a grid rather than across the page. These are the phone
-   breakpoint's own declarations below: one stacked form written in two places,
-   because a media query's rules cannot be shared with a rule outside it.
-   Change them together. */
+/* The stacked form asked for at any width. Same declarations as the phone
+   breakpoint below: one form written in two places — change them together. */
 .ui-metric-strip--stacked {
   flex-direction: column;
   gap: var(--space-4);
@@ -472,10 +456,7 @@
   width: 100%;
 }
 
-/* Stacked, the untracked column has no track to sit above and no neighbour to
-   share a baseline with: it becomes one line — label at the left, readings at
-   the right — which is the rhythm every other row of a stacked strip reads in.
-   Written in both stacked forms, as above. */
+/* Stacked, the untracked column becomes one line: label at the left, readings at the right. */
 .ui-metric-strip--stacked .ui-metric-strip__column--readings {
   flex-direction: row;
   align-items: baseline;
@@ -483,9 +464,7 @@
   gap: var(--space-4);
 }
 
-/* The phone breakpoint: one full-width column per metric, each keeping its
-   label, value, reading and track. Nothing is dropped and nothing is scrolled
-   sideways — the strip only stops being a row. */
+/* The phone breakpoint: one full-width column per metric, nothing dropped. */
 @media (max-width: 720px) {
   .ui-metric-strip {
     flex-direction: column;
@@ -507,11 +486,8 @@
 }
 
 /* ── The strip and its track-less rows ───────────────────────────────────────
-   A row reports something read like a metric and measured like nothing: its
-   label anchors the left, its content is pushed against the right edge and
-   wraps there rather than widening the strip. The rows take the stacked strip's
-   own gap, so a strip and its rows read as one rhythm and not as two blocks
-   set side by side. */
+   The label anchors the left, the content wraps against the right edge rather than
+   widening the strip, on the stacked strip's own gap. */
 .ui-metric-strip-group {
   display: flex;
   flex-direction: column;

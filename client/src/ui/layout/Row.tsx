@@ -7,11 +7,7 @@ export interface RowProps {
   align?: 'start' | 'center';
   justify?: 'start' | 'between';
   wrap?: boolean;
-  /**
-   * Applies the truncation contract to the row's own groups: the leading group
-   * gives way when the width runs out (its lines ellipsise, if they asked to),
-   * the trailing group keeps its natural width and never shrinks.
-   */
+  /** The truncation contract over the row's groups: the leading one gives way, the trailing one never shrinks. */
   truncating?: boolean;
   onClick?: (event: MouseEvent<HTMLDivElement>) => void;
 }

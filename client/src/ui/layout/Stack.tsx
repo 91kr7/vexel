@@ -5,12 +5,7 @@ import './layout.css';
 export interface StackProps {
   children?: ReactNode;
   gap?: string;
-  /**
-   * Marks the stack as the region the point of interaction returns to when a
-   * dismissible surface inside it is dismissed by `Escape` rather than by a
-   * control of its own — for a stack that *is* a list, its expansion opening
-   * inside it. It adds no stop of its own to the tab order.
-   */
+  /** Where the point of interaction returns when `Escape` dismisses a surface inside; adds no tab stop. */
   dismissalFocusTarget?: boolean;
 }
 
