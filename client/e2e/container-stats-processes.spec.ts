@@ -1,7 +1,7 @@
 import { expect, test, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
-import { containerCard, containerDetail } from './support/container-cards.js';
+import { closeContainerDetail, containerDetail, openContainerDetail } from './support/container-cards.js';
 
 interface TrackedStream {
   url: string;
@@ -45,14 +45,8 @@ async function removeContainerQuietly(name: string): Promise<void> {
   await execFileAsync('docker', ['rm', '-fv', name]).catch(() => undefined);
 }
 
-function containerRow(page: Page, name: string) {
-  return containerCard(page, name);
-}
-
 async function openTab(page: Page, name: string, tab: string) {
-  const row = containerRow(page, name);
-  await expect(row).toBeVisible({ timeout: 15_000 });
-  await row.getByText(name, { exact: true }).click();
+  await openContainerDetail(page, name);
   const detail = containerDetail(page);
   await expect(detail).toBeVisible();
   await detail.getByRole('tab', { name: tab }).click();
@@ -268,10 +262,10 @@ test.describe('Container stats and processes (REQ-32, REQ-33)', () => {
         'the panel stream delivered no more readings than the shared ten-second sampler would',
       ).toBeGreaterThan(2);
 
-      // Its lifecycle is the panel's: closing the panel ends it, and leaves the screen's own
-      // subscription standing.
-      await page.keyboard.press('Escape');
-      await expect(containerDetail(page)).toHaveCount(0);
+      // Its lifecycle is the dialog's: dismissing the dialog ends it, and leaves the screen's own
+      // subscription standing. Dismissed by the dialog's own close control now — `Escape` closes
+      // nothing (detail_modal/REQ-11, REQ-23).
+      await closeContainerDetail(page);
 
       await expect
         .poll(

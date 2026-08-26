@@ -1,11 +1,12 @@
 /**
- * Reaching a container on the containers screen, now that it is a card and not a table row
- * (`plan-docker_management_app-containers_card_view/REQ-1`, `REQ-23`). Named in one place, so the
- * next change to the presentation edits this file rather than twenty.
+ * Reaching a container on the containers screen — its card, and the dialog its card's own control
+ * opens (`plan-docker_management_app-containers_card_view/REQ-1`,
+ * `plan-docker_management_app-containers_card_view-detail_modal/REQ-1`, `REQ-5`, `REQ-6`). Named in
+ * one place, so the next change to the presentation edits this file rather than twenty.
  *
  * Two rules of CLAUDE.md are built in rather than left to each caller: a real pointer at the visible
- * control's own coordinates, and aiming at the container's **name** — never the card's centre, which
- * may be a control the card contracts never to select on.
+ * control's own coordinates, and aiming at the **detail control** — the only route into the detail,
+ * the card's body having stopped being one.
  */
 import { expect, type Locator, type Page } from '@playwright/test';
 import { boxOf } from './settled.js';
@@ -13,7 +14,7 @@ import { chooseFromRowOverflowMenu } from './row-overflow-menu.js';
 
 /** Every container card of the list, in the order the screen draws them. */
 export function containerCards(page: Page): Locator {
-  return page.locator('.ui-frame__content .ui-surface--selectable');
+  return page.locator('.ui-frame__content .ui-grid--cards > .ui-surface');
 }
 
 /** The card of one container, found by the name it carries. */
@@ -26,44 +27,60 @@ export function overflowTrigger(page: Page, name: string): Locator {
   return containerCard(page, name).getByRole('button', { name: `More actions for ${name}`, exact: true });
 }
 
+/** The card's top-right control: the only route into that container's detail. */
+export function detailControl(page: Page, name: string): Locator {
+  return containerCard(page, name).getByRole('button', { name: `Open ${name} details`, exact: true });
+}
+
 /**
- * The detail panel the selected card opens: a child of the list's own grid, spanning the whole row
- * and carrying no close control of its own.
+ * The detail the card's control opens: the product's own dialog surface at its large size, over the
+ * whole screen rather than inside the list's grid.
  */
 export function containerDetail(page: Page): Locator {
-  return page.locator('.ui-frame__content .ui-detail-panel');
+  return page.locator('.ui-modal--size-large');
+}
+
+/** The dimmed area beside the dialog — one of its two ways out. */
+export function containerDetailScrim(page: Page): Locator {
+  return page.locator('.ui-modal-overlay');
+}
+
+/** The dialog's own close control — the other way out, and the only labelled one. */
+export function containerDetailCloseControl(page: Page): Locator {
+  return containerDetail(page).getByRole('button', { name: 'Close dialog', exact: true });
+}
+
+/** What the dialog says it belongs to: the identity is carried on the dialog itself (REQ-16). */
+export async function detailOwner(page: Page): Promise<string> {
+  return (await containerDetail(page).locator('.ui-modal__title').textContent()) ?? '';
 }
 
 /**
- * The name on the card the panel is rendered after — which container the panel is pointing at.
- *
- * The panel spans the whole row of the grid, so what stands before it is its **row-spanning
- * wrapper's** own previous sibling: the card that owns it
- * (`plan-docker_management_app-containers_card_view/REQ-23`).
- */
-export async function panelOwner(page: Page): Promise<string> {
-  return await page.evaluate(
-    () =>
-      document
-        .querySelector('.ui-frame__content .ui-detail-panel')
-        ?.closest('.ui-grid__span-full')
-        ?.previousElementSibling?.textContent ?? '',
-  );
-}
-
-/**
- * Selects a container's card with a real pointer aimed at its name. Playwright's own click rather
- * than a press at coordinates read beforehand: this list re-reads on every daemon event, so a press
- * aimed at a frame-old box lands on whatever the re-read has since put there.
+ * Opens a container's detail with a real pointer aimed at the card's own control. Playwright's own
+ * click rather than a press at coordinates read beforehand: this list re-reads on every daemon
+ * event, so a press aimed at a frame-old box lands on whatever the re-read has since put there.
  */
 export async function openContainerDetail(page: Page, name: string): Promise<void> {
   const card = containerCard(page, name);
   await expect(card).toBeVisible();
-  const heading = card.getByRole('heading', { name, exact: true });
-  await heading.scrollIntoViewIfNeeded();
-  const box = await boxOf(heading, `the name on the card of ${name}`);
+  const control = detailControl(page, name);
+  await control.scrollIntoViewIfNeeded();
+  const box = await boxOf(control, `the detail control on the card of ${name}`);
   expect(box.y, `the card of ${name} sits above the top of the viewport`).toBeGreaterThanOrEqual(0);
-  await heading.click();
+  await control.click();
+  await expect(containerDetail(page)).toBeVisible();
+}
+
+/** Dismisses the open detail by the dialog's close control, and waits for it to be gone. */
+export async function closeContainerDetail(page: Page): Promise<void> {
+  await containerDetailCloseControl(page).click();
+  await expect(containerDetail(page)).toHaveCount(0);
+}
+
+/** Dismisses the open detail by a click on the dimmed area beside it, and waits for it to be gone. */
+export async function dismissContainerDetailByScrim(page: Page): Promise<void> {
+  await containerDetailScrim(page).click({ position: { x: 4, y: 4 } });
+  await expect(containerDetail(page)).toHaveCount(0);
 }
 
 /**

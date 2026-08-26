@@ -5,7 +5,7 @@ import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
-import { containerCards, containerDetail, openContainerDetail, panelOwner } from './support/container-cards.js';
+import { containerCards, containerDetail, detailOwner, openContainerDetail } from './support/container-cards.js';
 
 /**
  * The order every list service now decides survives to the screen
@@ -231,9 +231,11 @@ test.describe('Containers', () => {
     }
   });
 
-  // REQ-30 — a re-read that produces the same objects produces no visible movement: the selection and
-  // the open detail panel stay on the object they were on, identified by its identity and not by its position
-  test('a daemon event re-reads the list without moving the selected card or re-pointing its detail panel', async ({ page }) => {
+  // REQ-30 — a re-read that produces the same objects produces no visible movement: the open detail
+  // stays on the object it was on, identified by its identity and not by its position. The card no
+  // longer carries a selected treatment, so the bond is read off the dialog's own title, which is
+  // where it now lives (detail_modal/REQ-8, REQ-16).
+  test('a daemon event re-reads the list without moving a card or re-pointing the open detail', async ({ page }) => {
     const stem = stemFor('containers-detail');
     const names = fixtureNames(stem);
     // Named rather than positional, and both free of case ambiguity: a locator matching text does so
@@ -248,7 +250,7 @@ test.describe('Containers', () => {
       await openContainerDetail(page, selected);
       const detail = containerDetail(page);
       await expect(detail).toBeVisible();
-      expect(await panelOwner(page)).toContain(selected);
+      expect(await detailOwner(page)).toContain(selected);
 
       // A re-read the spec causes itself, exactly as the daemon's own events reach the application.
       await execFileAsync('docker', ['stop', '-t', '0', disturbed]);
@@ -256,8 +258,8 @@ test.describe('Containers', () => {
 
       expect(await shownOrder(cards, names), 'a re-read of the same containers must move no card').toEqual(before);
       await expect(detail).toBeVisible();
-      expect(await panelOwner(page), 'the open detail panel stays on the container it was opened for').toContain(selected);
-      await expect(cards.filter({ hasText: selected }).first()).toHaveClass(/ui-surface--selected/);
+      expect(await detailOwner(page), 'the open detail stays on the container it was opened for').toContain(selected);
+      await expect(page.locator('.ui-surface--selected'), 'a card marks itself as the open one').toHaveCount(0);
     } finally {
       for (const name of names) await removeContainerQuietly(name);
     }

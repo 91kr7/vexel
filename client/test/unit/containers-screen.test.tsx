@@ -68,11 +68,18 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/**
+ * The cards, in the order the grid draws them: the surfaces the screen puts in the table row's
+ * place. Read as the grid's own children rather than by a selectable treatment the card no longer
+ * asks for (`containers-screen.md`, detail_modal/REQ-7).
+ */
+function cards(): HTMLElement[] {
+  return Array.from(document.querySelectorAll<HTMLElement>('.ui-grid--cards > .ui-surface'));
+}
+
 /** One container's card — the surface the screen now draws per container, in the table row's place. */
 function cardFor(name = 'web-nginx'): HTMLElement {
-  const card = Array.from(document.querySelectorAll<HTMLElement>('.ui-surface--selectable')).find((candidate) =>
-    candidate.textContent?.includes(name),
-  );
+  const card = cards().find((candidate) => candidate.textContent?.includes(name));
   if (!card) throw new Error(`no card for ${name}`);
   return card;
 }
@@ -121,21 +128,21 @@ describe('ContainersScreen — the card\'s four controls (REQ-1, REQ-2, REQ-5)',
     expect(controls[3]).toHaveAttribute('aria-haspopup', 'menu');
   });
 
-  // container-card.md — the footer is the card's only action-bearing area; the detail opener beside
-  // the id is inert by the human's decision of 2026-08-25, and is named rather than counted away.
+  // container-card.md — the footer is the card's only action-bearing area; the detail opener stands
+  // beside the id and outside the footer, and is named rather than counted away (detail_modal/REQ-9).
   it.each(SLOTS)('puts no other action-bearing control anywhere on the card of a $state container', ({ state }) => {
     renderScreen([makeContainer({ state })]);
 
     const cardButtons = within(cardFor()).getAllByRole('button');
     const areas = actionAreas();
-    const inert = screen.getByRole('button', { name: 'Open web-nginx details' });
+    const detailControl = screen.getByRole('button', { name: 'Open web-nginx details' });
     expect(cardButtons).toHaveLength(5);
     for (const button of cardButtons) {
-      if (button === inert) continue;
+      if (button === detailControl) continue;
       expect(areas.some((area) => area.contains(button))).toBe(true);
     }
-    expect(areas.some((area) => area.contains(inert)), 'the inert detail control sits in the action area').toBe(false);
-    expect(inert).toBeEnabled();
+    expect(areas.some((area) => area.contains(detailControl)), 'the detail control sits in the action area').toBe(false);
+    expect(detailControl).toBeEnabled();
   });
 
   it('offers no exec or attach control on the card, in any state', () => {
@@ -605,13 +612,17 @@ describe('ContainersScreen — text/state filtering (REQ-23)', () => {
   });
 });
 
-// containers-screen.md — the card is the panel's only pointer route, so selection is what its
-// dismissal rests on (container_detail_close/REQ-3, REQ-4, REQ-15, REQ-16; containers_card_view/REQ-23).
-describe('ContainersScreen — card selection opens and closes the detail panel (REQ-3, REQ-4, REQ-15, REQ-16)', () => {
+// containers-screen.md — the card's top-right control opens the detail on the library's dialog
+// surface at its large size, and it is the only route in; the dialog has two ways out and `Escape`
+// is not one of them (detail_modal/REQ-1, REQ-2, REQ-5, REQ-6, REQ-16, REQ-18).
+//
+// Restates the delivered "card selection opens and closes the detail panel" checks: the gesture,
+// the surface and the dismissal routes all moved, and none of what they named goes unchecked.
+describe('ContainersScreen — the card control opens the detail as a dialog (REQ-1, REQ-2, REQ-3, REQ-5, REQ-16, REQ-18)', () => {
   const web = makeContainer({ id: 'container-1', shortId: 'container1', name: 'web-nginx', image: 'nginx:1.27', state: 'running' });
   const cache = makeContainer({ id: 'container-2', shortId: 'container2', name: 'cache-redis', image: 'redis:7', state: 'running' });
 
-  // The panel's read hook subscribes to daemon events through a module-level
+  // The detail's read hook subscribes to daemon events through a module-level
   // EventSource, which jsdom does not provide.
   class FakeEventSource {
     url: string;
@@ -654,126 +665,420 @@ describe('ContainersScreen — card selection opens and closes the detail panel 
     });
   });
 
-  /** The panel the card opens: the library's control-less detail panel, drawn as the next item of the list's stack. */
-  function detailPanel(): HTMLElement | null {
-    return document.querySelector<HTMLElement>('.ui-detail-panel--no-close');
+  /** The dialog the card's control opens: the library's own surface, at its large size. */
+  function detailDialog(): HTMLElement | null {
+    return document.querySelector<HTMLElement>('.ui-modal--size-large');
   }
 
-  /**
-   * The name on the card the panel is rendered directly below — which container the panel is
-   * pointing at. The panel spans the whole row of the grid, so what stands before it is the
-   * row-spanning wrapper's own previous sibling: the card that owns it (REQ-23).
-   */
-  function panelOwner(): string {
-    const panel = detailPanel();
-    if (!panel) throw new Error('no panel is open');
-    const span = panel.closest('.ui-grid__span-full');
-    if (!span) throw new Error('the panel does not span the row of the grid');
-    return span.previousElementSibling?.textContent ?? '';
+  /** What the dialog says it belongs to — carried on the dialog itself, not by proximity to a card. */
+  function dialogTitle(): string {
+    return detailDialog()?.querySelector('.ui-modal__title')?.textContent ?? '';
   }
 
-  it('opens the detail panel below the selected card, with that card marked as the selected one', async () => {
+  async function openDetail(user: ReturnType<typeof userEvent.setup>, name: string): Promise<void> {
+    await user.click(within(cardFor(name)).getByRole('button', { name: `Open ${name} details` }));
+  }
+
+  it('opens that container’s detail on the large dialog surface, naming the container it belongs to', async () => {
     const user = userEvent.setup();
     renderScreen([web, cache]);
 
-    await user.click(cardFor('web-nginx'));
+    await openDetail(user, 'web-nginx');
 
-    expect(detailPanel()).not.toBeNull();
-    expect(await within(detailPanel()!).findByRole('tab', { name: 'Config' })).toBeInTheDocument();
-    expect(panelOwner()).toContain('web-nginx');
-    expect(cardFor('web-nginx')).toHaveAttribute('aria-selected', 'true');
-    expect(cardFor('cache-redis')).toHaveAttribute('aria-selected', 'false');
+    const dialog = detailDialog();
+    expect(dialog, 'the detail did not open on the library’s large dialog surface').not.toBeNull();
+    expect(dialogTitle()).toBe('Container — web-nginx');
+    expect(await within(dialog!).findByRole('tab', { name: 'Config' })).toBeInTheDocument();
   });
 
-  // REQ-23, as amended: the panel spans the whole row of the grid rather than the width of one card.
-  it('opens the detail panel as a row-spanning child of the same grid', async () => {
+  // detail_modal/REQ-4 — the same tabs in the same order, the same one active on open.
+  it('shows the delivered tab row, Config active, inside the dialog', async () => {
     const user = userEvent.setup();
     renderScreen([web, cache]);
 
-    await user.click(cardFor('web-nginx'));
+    await openDetail(user, 'web-nginx');
+    const dialog = within(detailDialog()!);
+    await dialog.findByRole('tab', { name: 'Config' });
 
-    const span = detailPanel()!.closest('.ui-grid__span-full');
-    expect(span, 'the panel does not span the row of the grid').not.toBeNull();
-    expect(span!.parentElement).toHaveClass('ui-grid--cards');
+    expect(dialog.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+      'Logs',
+      'Stats',
+      'Config',
+      'Processes',
+      'Inspect',
+      'Exec',
+      'Attach',
+    ]);
+    expect(dialog.getByRole('tab', { name: 'Config' })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('closes the panel when the already-selected card is selected again', async () => {
+  // detail_modal/REQ-2, REQ-3 — the inline expansion is gone: nothing opens beneath a card or
+  // beneath a row of cards, and the grid still holds one card per matching container and nothing else.
+  it('draws no expansion inside the grid, leaving the list exactly as it was', async () => {
+    const user = userEvent.setup();
+    renderScreen([web, cache]);
+    const before = cards().map((card) => card.querySelector('.ui-section-header__title')?.textContent ?? '');
+
+    await openDetail(user, 'web-nginx');
+    await within(detailDialog()!).findByRole('tab', { name: 'Config' });
+
+    expect(document.querySelector('.ui-grid__span-full'), 'the grid still holds a row-spanning expansion').toBeNull();
+    expect(document.querySelector('.ui-detail-panel'), 'the detail is still drawn as the shared panel').toBeNull();
+    expect(detailDialog()!.closest('.ui-grid--cards'), 'the dialog is a child of the list’s grid').toBeNull();
+    expect(cards().map((card) => card.querySelector('.ui-section-header__title')?.textContent ?? '')).toEqual(before);
+  });
+
+  // detail_modal/REQ-8 — nothing on any card marks it as the one whose detail is open.
+  it('marks no card as the one whose detail is open', async () => {
     const user = userEvent.setup();
     renderScreen([web, cache]);
 
-    await user.click(cardFor('web-nginx'));
-    expect(detailPanel()).not.toBeNull();
+    await openDetail(user, 'web-nginx');
+    await within(detailDialog()!).findByRole('tab', { name: 'Config' });
 
-    await user.click(cardFor('web-nginx'));
-
-    expect(detailPanel()).toBeNull();
-    expect(cardFor('web-nginx')).toHaveAttribute('aria-selected', 'false');
+    expect(document.querySelectorAll('.ui-surface--selected')).toHaveLength(0);
+    for (const card of cards()) {
+      expect(card.getAttribute('aria-selected')).toBeNull();
+      expect(card.getAttribute('aria-expanded')).toBeNull();
+    }
   });
 
-  it('keeps the panel open and re-points it when a different card is selected', async () => {
+  // detail_modal/REQ-6 — the control is the only route in: clicking the card anywhere else opens nothing.
+  it('opens nothing when the card is clicked anywhere but its control', async () => {
     const user = userEvent.setup();
     renderScreen([web, cache]);
 
-    await user.click(cardFor('web-nginx'));
-    await user.click(cardFor('cache-redis'));
+    const card = cardFor('web-nginx');
+    await user.click(card.querySelector('.ui-section-header__title') as HTMLElement);
+    await user.click(card.querySelector('.ui-chip--block') as HTMLElement);
+    await user.click(card.querySelector('.ui-metric-strip') as HTMLElement);
 
-    expect(detailPanel()).not.toBeNull();
-    expect(panelOwner()).toContain('cache-redis');
-    expect(document.querySelectorAll('.ui-detail-panel--no-close')).toHaveLength(1);
-    expect(cardFor('cache-redis')).toHaveAttribute('aria-selected', 'true');
-    expect(cardFor('web-nginx')).toHaveAttribute('aria-selected', 'false');
+    expect(detailDialog(), 'the card body is still a route into the detail').toBeNull();
   });
 
-  it('closes the panel when its container leaves the list', async () => {
-    const user = userEvent.setup();
-    const { withContainers } = renderScreen([web, cache]);
-
-    await user.click(cardFor('web-nginx'));
-    expect(detailPanel()).not.toBeNull();
-
-    // The daemon removed it; the live list re-reads without it.
-    withContainers([cache]);
-
-    await waitFor(() => expect(detailPanel()).toBeNull());
-    expect(screen.queryByText('web-nginx')).not.toBeInTheDocument();
-  });
-
-  it('renders neither card nor panel while the selected container is searched out of view, and brings both back unchanged', async () => {
+  // detail_modal/REQ-15 — at most one detail stands at a time, and it is the one last opened.
+  it('holds one detail at a time, on the container last asked for', async () => {
     const user = userEvent.setup();
     renderScreen([web, cache]);
 
-    await user.click(cardFor('web-nginx'));
-    expect(detailPanel()).not.toBeNull();
+    await openDetail(user, 'web-nginx');
+    await within(detailDialog()!).findByRole('tab', { name: 'Config' });
+    expect(document.querySelectorAll('.ui-modal--size-large')).toHaveLength(1);
+
+    // The dialog covers the cards, so the second one is reached by leaving the first: whichever
+    // route gets there, two never stand at once.
+    await user.click(within(detailDialog()!).getByRole('button', { name: 'Close dialog' }));
+    await openDetail(user, 'cache-redis');
+
+    expect(document.querySelectorAll('.ui-modal--size-large')).toHaveLength(1);
+    expect(dialogTitle()).toBe('Container — cache-redis');
+  });
+});
+
+// containers-screen.md — two ways out and only those two, both returning the point of interaction
+// to the control that opened the dialog (detail_modal/REQ-10, REQ-11, REQ-13, REQ-17).
+describe('ContainersScreen — the detail dialog’s two ways out (REQ-10, REQ-11, REQ-13, REQ-17)', () => {
+  const web = makeContainer({ id: 'container-1', shortId: 'container1', name: 'web-nginx', image: 'nginx:1.27', state: 'running' });
+
+  class FakeEventSource {
+    url: string;
+    constructor(url: string) {
+      this.url = url;
+    }
+    addEventListener() {}
+    close() {}
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal('EventSource', FakeEventSource);
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(
+        String(url).includes(`/containers/${web.id}/inspect`)
+          ? {
+              ok: true,
+              status: 200,
+              json: () =>
+                Promise.resolve({
+                  id: web.id,
+                  name: web.name,
+                  image: web.image,
+                  command: ['sleep'],
+                  entrypoint: [],
+                  createdAt: '2026-01-01T00:00:00Z',
+                  state: { status: web.state, startedAt: '2026-01-01T00:00:01Z' },
+                  restartPolicy: { name: 'no' },
+                  resourceLimits: {},
+                  env: [],
+                  ports: [],
+                  mounts: [],
+                  networks: [],
+                  labels: {},
+                  raw: { Id: web.id },
+                }),
+            }
+          : { ok: true, status: 204, json: () => Promise.resolve({}) },
+      ),
+    );
+  });
+
+  function detailDialog(): HTMLElement | null {
+    return document.querySelector<HTMLElement>('.ui-modal--size-large');
+  }
+
+  function opener(): HTMLElement {
+    return within(cardFor('web-nginx')).getByRole('button', { name: 'Open web-nginx details' });
+  }
+
+  async function openDetail(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+    await user.click(opener());
+    await within(detailDialog()!).findByRole('tab', { name: 'Config' });
+  }
+
+  it('carries one labelled close control that dismisses it, and hands the point of interaction back', async () => {
+    const user = userEvent.setup();
+    renderScreen([web]);
+    await openDetail(user);
+
+    expect(document.querySelectorAll('.ui-modal--size-large button[aria-label="Close dialog"]')).toHaveLength(1);
+    await user.click(within(detailDialog()!).getByRole('button', { name: 'Close dialog' }));
+
+    expect(detailDialog()).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(opener()));
+  });
+
+  it('is dismissed by a click on the dimmed area beside it, handing the point of interaction back too', async () => {
+    const user = userEvent.setup();
+    renderScreen([web]);
+    await openDetail(user);
+
+    await user.click(document.querySelector('.ui-modal-overlay') as HTMLElement);
+
+    expect(detailDialog()).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(opener()));
+  });
+
+  // detail_modal/REQ-11 — a change against the starting point, stated rather than inferred: the
+  // inline panel this replaces closed on the key, and the dialog does not.
+  it('is left standing by Escape, from the dialog and from a control inside it', async () => {
+    const user = userEvent.setup();
+    renderScreen([web]);
+    await openDetail(user);
+
+    await user.keyboard('{Escape}');
+    expect(detailDialog(), 'Escape closed the dialog').not.toBeNull();
+
+    await user.click(within(detailDialog()!).getByRole('tab', { name: 'Inspect' }));
+    within(detailDialog()!).getByRole('tab', { name: 'Inspect' }).focus();
+    await user.keyboard('{Escape}');
+
+    expect(detailDialog(), 'Escape closed the dialog from a control inside it').not.toBeNull();
+    expect(within(detailDialog()!).getByRole('tab', { name: 'Inspect' })).toHaveAttribute('aria-selected', 'true');
+  });
+});
+
+// container-detail-panel.md — "nothing the panel owns outlives the dialog, and opening and closing
+// detail after detail accumulates none of them" (detail_modal/REQ-23, REQ-24). Every stream the
+// detail opened is counted, so a stream left running behind a dismissed dialog is named rather than
+// inferred from the screen still working.
+describe('ContainersScreen — nothing outlives a dismissed dialog (REQ-23, REQ-24)', () => {
+  const containers = ['web-nginx', 'cache-redis', 'db-alpine'].map((name, index) =>
+    makeContainer({ id: `container-${index + 1}`, shortId: `container${index + 1}`, name, state: 'running' }),
+  );
+
+  /** Every stream the page opened, and whether it is still open: the count the requirement is about. */
+  class TrackingEventSource {
+    static instances: TrackingEventSource[] = [];
+    url: string;
+    closed = false;
+
+    constructor(url: string) {
+      this.url = url;
+      TrackingEventSource.instances.push(this);
+    }
+
+    addEventListener() {}
+    removeEventListener() {}
+
+    close() {
+      this.closed = true;
+    }
+  }
+
+  function detailStreams(): TrackingEventSource[] {
+    return TrackingEventSource.instances.filter((instance) => /\/(logs|stats)\/stream/.test(instance.url));
+  }
+
+  beforeEach(() => {
+    TrackingEventSource.instances = [];
+    vi.stubGlobal('EventSource', TrackingEventSource);
+    fetchMock.mockImplementation((url: string) => {
+      const id = /\/containers\/([^/]+)\/inspect/.exec(String(url))?.[1];
+      return Promise.resolve(
+        id
+          ? {
+              ok: true,
+              status: 200,
+              json: () =>
+                Promise.resolve({
+                  id,
+                  name: id,
+                  image: 'nginx:1.27',
+                  command: ['sleep'],
+                  entrypoint: [],
+                  createdAt: '2026-01-01T00:00:00Z',
+                  state: { status: 'running', startedAt: '2026-01-01T00:00:01Z' },
+                  restartPolicy: { name: 'no' },
+                  resourceLimits: {},
+                  env: [],
+                  ports: [],
+                  mounts: [],
+                  networks: [],
+                  labels: {},
+                  raw: { Id: id },
+                }),
+            }
+          : { ok: true, status: 200, json: () => Promise.resolve({ titles: [], processes: [] }) },
+      );
+    });
+  });
+
+  it('ends every stream the detail opened, over detail after detail, by both dismissal routes', async () => {
+    const user = userEvent.setup();
+    renderScreen(containers);
+    const dialog = () => document.querySelector<HTMLElement>('.ui-modal--size-large');
+
+    for (const [index, container] of containers.entries()) {
+      await user.click(within(cardFor(container.name)).getByRole('button', { name: `Open ${container.name} details` }));
+      const open = within(dialog()!);
+      await open.findByRole('tab', { name: 'Config' });
+
+      // The two tabs that own a live stream, visited on every container.
+      await user.click(open.getByRole('tab', { name: 'Logs' }));
+      await waitFor(() => expect(detailStreams().length).toBeGreaterThan(index));
+      await user.click(open.getByRole('tab', { name: 'Stats' }));
+
+      // Both ways out, alternated: neither may leave a stream behind.
+      if (index % 2 === 0) await user.click(open.getByRole('button', { name: 'Close dialog' }));
+      else await user.click(document.querySelector('.ui-modal-overlay') as HTMLElement);
+
+      await waitFor(() => expect(dialog()).toBeNull());
+    }
+
+    expect(detailStreams().length, 'the detail opened no stream at all, so this would prove nothing').toBeGreaterThanOrEqual(
+      containers.length,
+    );
+    expect(
+      detailStreams().filter((stream) => !stream.closed).map((stream) => stream.url),
+      'a stream is still running behind a dismissed dialog',
+    ).toEqual([]);
+    expect(document.querySelectorAll('.ui-modal'), 'a dialog is still standing').toHaveLength(0);
+  });
+});
+
+// containers-screen.md — the dialog is bound to its container by id, read from the whole list
+// rather than the filtered one. Restates the delivered checks that had a filter take the panel off
+// screen with its card (detail_modal/REQ-32, arriving with the construction of F1).
+describe('ContainersScreen — the dialog follows its container, not the filter (REQ-32)', () => {
+  const web = makeContainer({ id: 'container-1', shortId: 'container1', name: 'web-nginx', image: 'nginx:1.27', state: 'running' });
+  const cache = makeContainer({ id: 'container-2', shortId: 'container2', name: 'cache-redis', image: 'redis:7', state: 'running' });
+
+  class FakeEventSource {
+    url: string;
+    constructor(url: string) {
+      this.url = url;
+    }
+    addEventListener() {}
+    close() {}
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal('EventSource', FakeEventSource);
+    fetchMock.mockImplementation((url: string) => {
+      const id = /\/containers\/([^/]+)\/inspect/.exec(String(url))?.[1];
+      return Promise.resolve(
+        id
+          ? {
+              ok: true,
+              status: 200,
+              json: () =>
+                Promise.resolve({
+                  id,
+                  name: id,
+                  image: 'nginx:1.27',
+                  command: ['sleep'],
+                  entrypoint: [],
+                  createdAt: '2026-01-01T00:00:00Z',
+                  state: { status: 'running', startedAt: '2026-01-01T00:00:01Z' },
+                  restartPolicy: { name: 'no' },
+                  resourceLimits: {},
+                  env: [],
+                  ports: [],
+                  mounts: [],
+                  networks: [],
+                  labels: {},
+                  raw: { Id: id },
+                }),
+            }
+          : { ok: true, status: 204, json: () => Promise.resolve({}) },
+      );
+    });
+  });
+
+  function detailDialog(): HTMLElement | null {
+    return document.querySelector<HTMLElement>('.ui-modal--size-large');
+  }
+
+  function dialogTitle(): string {
+    return detailDialog()?.querySelector('.ui-modal__title')?.textContent ?? '';
+  }
+
+  async function openDetail(user: ReturnType<typeof userEvent.setup>, name: string): Promise<void> {
+    await user.click(within(cardFor(name)).getByRole('button', { name: `Open ${name} details` }));
+    expect(detailDialog()).not.toBeNull();
+  }
+
+  it('stays open on its container while a search narrows the cards behind it', async () => {
+    const user = userEvent.setup();
+    renderScreen([web, cache]);
+    await openDetail(user, 'web-nginx');
 
     const search = screen.getByPlaceholderText('Search name, image or state…');
     await user.type(search, 'cache');
 
-    expect(screen.queryByText('web-nginx')).not.toBeInTheDocument();
-    expect(detailPanel()).toBeNull();
+    expect(cards().some((card) => card.textContent?.includes('web-nginx')), 'the filtered-out card is still drawn').toBe(false);
+    expect(detailDialog(), 'a filter behind the dialog dismissed it').not.toBeNull();
+    expect(dialogTitle()).toBe('Container — web-nginx');
 
     await user.clear(search);
 
-    expect(detailPanel()).not.toBeNull();
-    expect(panelOwner()).toContain('web-nginx');
-    expect(cardFor('web-nginx')).toHaveAttribute('aria-selected', 'true');
+    expect(detailDialog()).not.toBeNull();
+    expect(dialogTitle()).toBe('Container — web-nginx');
   });
 
-  it('renders neither card nor panel while a state filter excludes the selected container, and brings both back unchanged', async () => {
+  it('stays open on its container while a state filter excludes it', async () => {
     const user = userEvent.setup();
     renderScreen([web, makeContainer({ id: 'container-3', name: 'db-alpine', state: 'exited' })]);
-
-    await user.click(cardFor('web-nginx'));
-    expect(detailPanel()).not.toBeNull();
+    await openDetail(user, 'web-nginx');
 
     await user.click(screen.getByRole('button', { name: 'Stopped' }));
 
-    expect(screen.queryByText('web-nginx')).not.toBeInTheDocument();
-    expect(detailPanel()).toBeNull();
+    expect(cards().some((card) => card.textContent?.includes('web-nginx'))).toBe(false);
+    expect(detailDialog()).not.toBeNull();
+    expect(dialogTitle()).toBe('Container — web-nginx');
+  });
 
-    await user.click(screen.getByRole('button', { name: 'All' }));
+  // containers-screen.md — "a container that leaves the daemon's list closes it", exactly as
+  // delivered; F2 (`modal-container-bond`) is where that answer is restated.
+  it('closes when its container leaves the list', async () => {
+    const user = userEvent.setup();
+    const { withContainers } = renderScreen([web, cache]);
+    await openDetail(user, 'web-nginx');
 
-    expect(detailPanel()).not.toBeNull();
-    expect(panelOwner()).toContain('web-nginx');
+    // The daemon removed it; the live list re-reads without it.
+    withContainers([cache]);
+
+    await waitFor(() => expect(detailDialog()).toBeNull());
+    expect(cards().some((card) => card.textContent?.includes('web-nginx'))).toBe(false);
   });
 });
 
@@ -791,7 +1096,7 @@ describe('ContainersScreen — the list is a stack of cards (REQ-1)', () => {
   it('draws one card per container and no table at all', () => {
     renderScreen(three);
 
-    expect(document.querySelectorAll('.ui-surface--selectable')).toHaveLength(3);
+    expect(cards()).toHaveLength(3);
     expect(document.querySelector('.ui-data-table')).toBeNull();
     expect(document.querySelector('.ui-data-table__header')).toBeNull();
     expect(screen.queryAllByRole('columnheader')).toHaveLength(0);
@@ -801,9 +1106,8 @@ describe('ContainersScreen — the list is a stack of cards (REQ-1)', () => {
   it('lays the cards as siblings of one cards grid, with no surface enclosing the list', () => {
     renderScreen(three);
 
-    const cards = Array.from(document.querySelectorAll<HTMLElement>('.ui-surface--selectable'));
-    const list = cards[0].parentElement as HTMLElement;
-    expect(cards.every((card) => card.parentElement === list)).toBe(true);
+    const list = cards()[0].parentElement as HTMLElement;
+    expect(cards().every((card) => card.parentElement === list)).toBe(true);
     expect(list).toHaveClass('ui-grid');
     expect(list).toHaveClass('ui-grid--cards');
     expect(list.style.gap, 'the screen states a gap the arrangement owns').toBe('');
@@ -817,9 +1121,7 @@ describe('ContainersScreen — the list is a stack of cards (REQ-1)', () => {
     // alphabetically (REQ-24).
     renderScreen([three[2], three[0], three[1]]);
 
-    const names = Array.from(document.querySelectorAll<HTMLElement>('.ui-surface--selectable')).map(
-      (card) => card.querySelector('.ui-section-header__title')?.textContent ?? '',
-    );
+    const names = cards().map((card) => card.querySelector('.ui-section-header__title')?.textContent ?? '');
     expect(names).toEqual(['charlie', 'alpha', 'bravo']);
     for (const control of screen.getAllByRole('button')) {
       expect(control).not.toHaveAccessibleName(/sort/i);
@@ -840,12 +1142,12 @@ describe('ContainersScreen — the list is a stack of cards (REQ-1)', () => {
     await user.type(screen.getByPlaceholderText('Search name, image or state…'), 'no-such-container');
 
     expect(screen.getByText('No containers match')).toBeInTheDocument();
-    expect(document.querySelectorAll('.ui-surface--selectable')).toHaveLength(0);
+    expect(cards()).toHaveLength(0);
 
     await user.clear(screen.getByPlaceholderText('Search name, image or state…'));
 
     expect(screen.queryByText('No containers match')).not.toBeInTheDocument();
-    expect(document.querySelectorAll('.ui-surface--selectable')).toHaveLength(3);
+    expect(cards()).toHaveLength(3);
   });
 
   it('keeps the relative order of the cards a filter leaves standing', async () => {
@@ -858,9 +1160,7 @@ describe('ContainersScreen — the list is a stack of cards (REQ-1)', () => {
 
     await user.click(screen.getByRole('button', { name: 'Running' }));
 
-    const names = Array.from(document.querySelectorAll<HTMLElement>('.ui-surface--selectable')).map(
-      (card) => card.querySelector('.ui-section-header__title')?.textContent ?? '',
-    );
+    const names = cards().map((card) => card.querySelector('.ui-section-header__title')?.textContent ?? '');
     expect(names).toEqual(['zulu', 'alpha']);
   });
 });

@@ -3,7 +3,7 @@ import { navEntry, openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
 import { ensurePullableImage } from '../../server/test/support/base-images.js';
-import { containerCard } from './support/container-cards.js';
+import { containerCard, containerDetail } from './support/container-cards.js';
 
 // The tests that need an image to be missing locally share one reference — the
 // run's own pullable fixture — and each of them removes it, so this file runs
@@ -83,6 +83,13 @@ test('running a container from the toolbar creates it with its configuration and
     // The sheet closes on success and the new container shows up, running.
     await expect(imageField(page)).toHaveCount(0, { timeout: 30_000 });
     await expect(page.locator('.ui-toast-viewport')).toContainText(name, { timeout: 10_000 });
+
+    // detail_modal/REQ-26, REQ-31 — creating selects nothing and opens no detail: the new container
+    // is a card among the others, in the list's own order, and the screen is left as it was.
+    await expect(containerDetail(page), 'creating a container opened its detail').toHaveCount(0);
+    await expect(page.locator('.ui-surface--selected'), 'the created container was made the selected card').toHaveCount(0);
+    await expect(searchField(page), 'creating a container changed the search field').toHaveValue('');
+
     await searchField(page).fill(name);
     const row = containerRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });

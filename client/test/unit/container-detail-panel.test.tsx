@@ -6,7 +6,7 @@ import type { ContainerInspect, ContainerSummary } from '../../src/data/containe
 import { ConfirmationProvider } from '../../src/shell/services/ConfirmationService';
 import { ErrorReportingProvider, useErrorReporter } from '../../src/shell/services/ErrorReportingService';
 import { ProgressProvider } from '../../src/shell/services/ProgressService';
-import { ToastProvider } from '../../src/ui';
+import { DetailPanel, ToastProvider } from '../../src/ui';
 
 const container: ContainerSummary = {
   id: 'container-1',
@@ -49,20 +49,20 @@ function ReportedErrors() {
   );
 }
 
-function renderPanel(onContainerReplaced = vi.fn(), onClose = vi.fn()) {
-  render(
+function renderPanel(onContainerReplaced = vi.fn()) {
+  const view = render(
     <ErrorReportingProvider>
       <ProgressProvider>
         <ConfirmationProvider>
           <ToastProvider>
-            <ContainerDetailPanel container={container} onClose={onClose} onContainerReplaced={onContainerReplaced} />
+            <ContainerDetailPanel container={container} onContainerReplaced={onContainerReplaced} />
             <ReportedErrors />
           </ToastProvider>
         </ConfirmationProvider>
       </ProgressProvider>
     </ErrorReportingProvider>,
   );
-  return { onContainerReplaced, onClose };
+  return { onContainerReplaced, view };
 }
 
 // The panel's read hook subscribes to daemon events via a module-level
@@ -393,7 +393,7 @@ describe('ContainerDetailPanel — Exec/Attach tabs (REQ-34, REQ-35, REQ-36)', (
         <ProgressProvider>
           <ConfirmationProvider>
             <ToastProvider>
-              <ContainerDetailPanel container={{ ...container, state: 'exited' }} onClose={vi.fn()} onContainerReplaced={vi.fn()} />
+              <ContainerDetailPanel container={{ ...container, state: 'exited' }} onContainerReplaced={vi.fn()} />
             </ToastProvider>
           </ConfirmationProvider>
         </ProgressProvider>
@@ -413,7 +413,7 @@ describe('ContainerDetailPanel — Exec/Attach tabs (REQ-34, REQ-35, REQ-36)', (
         <ProgressProvider>
           <ConfirmationProvider>
             <ToastProvider>
-              <ContainerDetailPanel container={container} onClose={vi.fn()} onContainerReplaced={vi.fn()} />
+              <ContainerDetailPanel container={container} onContainerReplaced={vi.fn()} />
             </ToastProvider>
           </ConfirmationProvider>
         </ProgressProvider>
@@ -437,7 +437,7 @@ describe('ContainerDetailPanel — Exec/Attach tabs (REQ-34, REQ-35, REQ-36)', (
         <ProgressProvider>
           <ConfirmationProvider>
             <ToastProvider>
-              <ContainerDetailPanel container={container} onClose={vi.fn()} onContainerReplaced={vi.fn()} />
+              <ContainerDetailPanel container={container} onContainerReplaced={vi.fn()} />
             </ToastProvider>
           </ConfirmationProvider>
         </ProgressProvider>
@@ -477,38 +477,65 @@ describe('ContainerDetailPanel — no filesystem export any more (REQ-19)', () =
 
 });
 
-// container-detail-panel.md — the panel asks the shared panel for the presentation without a close
-// control: the row that opened it closes it, and `Escape` closes it from the keyboard. Nothing
-// replaces the `✕`, exactly as nothing replaced the export.
-describe('ContainerDetailPanel — dismissal without a close control (REQ-1, REQ-2, REQ-5)', () => {
-  it('offers no close control anywhere on the panel', async () => {
+// container-detail-panel.md — the panel is a body and not a surface: no surface of its own, no
+// header, no title, no close control and no dismissal route, all of which are the dialog's now.
+// Restates the delivered "dismissal without a close control" checks, whose `Escape` half is
+// superseded by detail_modal/REQ-11 rather than dropped.
+describe('ContainerDetailPanel — a body, not a surface (REQ-4, REQ-11, REQ-23)', () => {
+  it('wraps itself in no panel surface and declares no chrome of its own', async () => {
     renderPanel();
 
     // Awaited on the panel's own content, so the absence is asserted on a
-    // rendered panel rather than on one that has not drawn its header yet.
+    // rendered panel rather than on one that has not drawn its content yet.
     expect(await screen.findByRole('tab', { name: 'Config' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Close detail' })).not.toBeInTheDocument();
+    expect(document.querySelector('.ui-detail-panel'), 'the detail still draws a surface of its own').toBeNull();
     expect(document.querySelector('.ui-detail-panel__close')).toBeNull();
+    expect(document.querySelector('.ui-detail-panel__actions')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Close detail' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Close dialog' }), 'the body draws the dialog’s own control').not.toBeInTheDocument();
   });
 
-  it('closes on Escape', async () => {
+  // detail_modal/REQ-11 — the key closes nothing here. This supersedes
+  // plan-docker_management_app-container_detail_close/REQ-5, which had it close this panel.
+  it('is dismissed by no Escape, from the outside and from a control inside its own contents', async () => {
     const user = userEvent.setup();
-    const { onClose } = renderPanel();
+    renderPanel();
     expect(await screen.findByRole('tab', { name: 'Config' })).toBeInTheDocument();
 
     await user.keyboard('{Escape}');
+    expect(screen.getByRole('tab', { name: 'Config' })).toBeInTheDocument();
 
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
-
-  it('closes on Escape from a control inside its own contents', async () => {
-    const user = userEvent.setup();
-    const { onClose } = renderPanel();
-
-    await user.click(await screen.findByRole('tab', { name: 'Inspect' }));
+    await user.click(screen.getByRole('tab', { name: 'Inspect' }));
     screen.getByRole('tab', { name: 'Inspect' }).focus();
     await user.keyboard('{Escape}');
 
-    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('tab', { name: 'Inspect' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getAllByRole('tab')).toHaveLength(7);
+  });
+
+  // container-detail-panel.md — "the panel offers none and claims no key": a dismissible surface
+  // beside it still receives the key, so the panel swallows nothing on its way past.
+  it('claims the key for nothing, leaving a dismissible surface beside it free to take it', async () => {
+    const user = userEvent.setup();
+    const claimed = vi.fn();
+    render(
+      <ErrorReportingProvider>
+        <ProgressProvider>
+          <ConfirmationProvider>
+            <ToastProvider>
+              <DetailPanel dismissal="opening-gesture" onClose={claimed}>
+                a dismissible surface on the screen
+              </DetailPanel>
+              <ContainerDetailPanel container={container} onContainerReplaced={vi.fn()} />
+            </ToastProvider>
+          </ConfirmationProvider>
+        </ProgressProvider>
+      </ErrorReportingProvider>,
+    );
+    expect(await screen.findByRole('tab', { name: 'Config' })).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+
+    expect(claimed, 'the detail body took the key from the surface beside it').toHaveBeenCalledTimes(1);
   });
 });

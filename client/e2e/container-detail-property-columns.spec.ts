@@ -10,7 +10,7 @@ import {
 } from './support/property-bands.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
-import { containerCard, openContainerDetail } from './support/container-cards.js';
+import { containerCard, containerDetail, openContainerDetail } from './support/container-cards.js';
 
 /**
  * **The container detail panel, measured** — the other half of what the human
@@ -76,7 +76,7 @@ const FIXTURE_ENV = ['PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sb
 
 /** The first definition list of the open panel: the runtime list on Config, the ten properties on Inspect. */
 function firstSection(page: Page): Locator {
-  return page.locator('.ui-detail-panel .ui-definition-list').first();
+  return containerDetail(page).locator('.ui-definition-list').first();
 }
 
 async function createFixtureContainer(name: string): Promise<void> {
@@ -119,7 +119,7 @@ async function openContainerPanel(page: Page, name: string, viewport: { width: n
  * build instead of merely failing to find anything there.
  */
 function configSplit(page: Page): Locator {
-  return page.locator('.ui-detail-panel .ui-grid').first();
+  return containerDetail(page).locator('.ui-grid').first();
 }
 
 /**
@@ -128,12 +128,12 @@ function configSplit(page: Page): Locator {
  * the same reason.
  */
 function environmentEntries(page: Page): Locator {
-  return page.locator('.ui-detail-panel .ui-table-meta-cell');
+  return containerDetail(page).locator('.ui-table-meta-cell');
 }
 
 /** A tab of the open panel, selected with a real pointer at its own coordinates (REQ-41). */
 async function selectTab(page: Page, label: string): Promise<void> {
-  await page.locator('.ui-detail-panel').getByRole('tab', { name: label, exact: true }).click();
+  await containerDetail(page).getByRole('tab', { name: label, exact: true }).click();
   await expect(firstSection(page)).toBeVisible({ timeout: 20_000 });
 }
 
@@ -255,11 +255,11 @@ test('Config: the environment · mounts entries flow by their own column’s wid
     ).toBeGreaterThan(atWide.perLine);
 
     // Beside the geometry (REQ-40, REQ-31): the entries keep their wording and their values in full.
-    for (const entry of FIXTURE_ENV) await expect(page.locator('.ui-detail-panel')).toContainText(entry);
+    for (const entry of FIXTURE_ENV) await expect(containerDetail(page)).toContainText(entry);
 
     // REQ-34 — the editing form was never opened, and this states it: the read view's own action is
     // still there, unpressed.
-    await expect(page.locator('.ui-detail-panel').getByRole('button', { name: 'Edit configuration' })).toBeVisible();
+    await expect(containerDetail(page).getByRole('button', { name: 'Edit configuration' })).toBeVisible();
   } finally {
     await removeFixtureContainer(name);
   }
@@ -302,8 +302,8 @@ test('Inspect: the tab’s property section and its Labels section follow the ru
     await selectTab(page, 'Inspect');
     const properties = await measureSection(firstSection(page), 'the Inspect tab property section');
     // Located by its own title: the header button's accessible name carries the chevron glyph too.
-    const labelsSection = page
-      .locator('.ui-detail-panel .ui-collapsible-section')
+    const labelsSection = containerDetail(page)
+      .locator('.ui-collapsible-section')
       .filter({ has: page.locator('.ui-collapsible-section__title', { hasText: /^Labels$/ }) })
       .first();
     await labelsSection.locator('.ui-collapsible-section__header').click();

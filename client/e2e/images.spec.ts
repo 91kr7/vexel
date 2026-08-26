@@ -733,11 +733,17 @@ test('selecting an image expands its detail panel with structured inspect data a
 // (plan-docker_management_app-containers_card_view/REQ-38, REQ-28):
 //
 //   - the images table still carries the treatment it carried — a header, a column typography, a row
-//     height, a hover and a selected state that actually differ from a resting row;
-//   - and the containers card wears **that table's own material**: the hover and selected highlights
-//     are the very colours the row paints, taken by reference from one declaration each. Read as
-//     painted colour, in the browser, which is the only place "one declaration" can be seen.
-test('the images table keeps its treatment, and the containers card paints the row’s own hover and selected colours', async ({
+//     height, a hover and a selected state that actually differ from a resting row (REQ-27 of
+//     detail_modal: the images screen is untouched, and this half is unedited);
+//   - and the containers card, which **wore that table's own material until 2026-08-26**, now wears
+//     neither highlight: it is not an interactive surface and carries no selected state in any form
+//     (detail_modal/REQ-7, REQ-8). Read as painted colour, in the browser, which is the only place
+//     an absent highlight can be told from a declaration that no longer resolves.
+//
+// The library's own two declarations are untouched and are read where they are declared, by
+// `test/unit/images-containers-table-alignment.test.tsx`; what changed is that the card stopped
+// asking for them.
+test('the images table keeps its treatment, and the containers card wears neither of its highlights', async ({
   page,
 }) => {
   const containerName = `vexel-e2e-homogeneity-${Date.now()}`;
@@ -808,10 +814,9 @@ test('the images table keeps its treatment, and the containers card paints the r
     expect(imagesLook.hoverBackground).not.toBe(imagesLook.restingBackground);
     expect(imagesLook.selectedBackground).not.toBe(imagesLook.restingBackground);
 
-    // …and the card wears the row's own two highlights. The card paints them **over** its fill
-    // rather than as its fill (`ui-library/specs/surface.md`), so what is compared is the colour
-    // each one paints: the same token resolves to the same rgb wherever it is referenced, and a
-    // second declaration of either value is what this comparison exists to catch.
+    // …and the card wears neither highlight. It painted them **over** its fill rather than as its
+    // fill (`ui-library/specs/surface.md`), so what is read is the colour it paints there: an empty
+    // reading is the treatment being absent, not a token failing to resolve.
     await navEntry(page, 'Containers').click();
     await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
     const card = containerCard(page, containerName);
@@ -822,19 +827,19 @@ test('the images table keeps its treatment, and the containers card paints the r
     await card.hover();
     const cardHover = await highlightOf();
     await card.getByRole('heading', { name: containerName }).click();
-    // Off the card for the same reason, and it is the one place the two treatments differ: the card
-    // keeps its selected highlight under the pointer (a compound selector says so in `surface.css`),
-    // where the row does not. What is compared is therefore each one's selected colour, read with
-    // the pointer away from both.
+    // Off the card before reading, as the row's own reading is taken.
     await page.mouse.move(0, 0);
     const cardSelected = await highlightOf();
 
-    expect(cardHover, `the hovered card paints ${cardHover} and the hovered row ${imagesLook.hoverBackground}`).toBe(
-      imagesLook.hoverBackground,
-    );
-    expect(cardSelected, `the selected card paints ${cardSelected} and the selected row ${imagesLook.selectedBackground}`).toBe(
-      imagesLook.selectedBackground,
-    );
+    expect(cardHover, `the hovered card paints ${cardHover}, a hover treatment the card no longer asks for`).toBe('');
+    expect(
+      cardSelected,
+      `clicking the card's body painted ${cardSelected}: the body is not a gesture and the card carries no selected state`,
+    ).toBe('');
+    await expect(card, 'the card still asks the library for the selectable treatment').not.toHaveClass(/ui-surface--selectable/);
+    await expect(card, 'the card still carries a selected treatment').not.toHaveClass(/ui-surface--selected/);
+    // The click on its body opened nothing, either: the corner control is the only route in (REQ-6).
+    await expect(page.locator('.ui-modal--size-large')).toHaveCount(0);
   } finally {
     await execFileAsync('docker', ['rm', '-fv', containerName]).catch(() => undefined);
     await removeTagQuietly(tag);

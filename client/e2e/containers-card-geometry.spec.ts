@@ -19,7 +19,7 @@ import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { boxOf, readOnceSettled } from './support/settled.js';
 import { clickAt } from './support/pointer.js';
-import { containerCard, containerCards } from './support/container-cards.js';
+import { closeContainerDetail, containerCard, containerCards, containerDetail, detailControl, detailOwner } from './support/container-cards.js';
 
 const DESKTOP = { width: 1440, height: 1000 };
 const TWO_TRACKS = { width: 1100, height: 1000 };
@@ -232,7 +232,7 @@ async function measureListThisFrame(page: Page): Promise<ListGeometry> {
       };
     };
 
-    const cards = Array.from(document.querySelectorAll<HTMLElement>('.ui-frame__content .ui-surface--selectable')).map((card) => {
+    const cards = Array.from(document.querySelectorAll<HTMLElement>('.ui-frame__content .ui-grid--cards > .ui-surface')).map((card) => {
       const cardBox = card.getBoundingClientRect();
       const after = getComputedStyle(card, '::after');
       const body = card.querySelector<HTMLElement>('.ui-surface__body');
@@ -1020,16 +1020,15 @@ test('at 375×812 the card reflows and carries the same values as at desktop wid
 });
 
 /**
- * REQ-23, REQ-37 — the panel spans the whole row of the grid, opens beneath the card that owns it and
- * closes on a second selection.
+ * detail_modal/REQ-2, REQ-3, REQ-29 — the inline expansion is gone, and what replaces it is drawn
+ * over the list rather than inside it: opening and closing the detail moves no card, changes no
+ * card's height, reorders nothing and scrolls nothing.
  *
- * **What it deliberately does not assert**: that the panel opens beneath the *row* rather than
- * beneath the *card*. It does not — the cards sharing the row of the selected one are pushed below
- * the panel — and that is annotated on REQ-23 as known, measured and not being fixed: the inline
- * panel is withdrawn by a coming intervention, which makes its placement moot. The check was removed
- * for that reason and not because it failed.
+ * Restates the delivered "the panel spans the grid and opens beneath the card that owns it": its
+ * subject has been withdrawn, so what it measured — where the list stands before and after the
+ * gesture — is measured against the dialog instead of deleted with the panel.
  */
-test('the detail panel spans the grid and opens beneath the card that owns it', async ({ page }) => {
+test('the detail opens over the list, and the list does not move while it opens or closes', async ({ page }) => {
   const stem = `vexel-e2e-card-panel-${Date.now()}`;
   const names = ['a', 'b', 'c', 'd'].map((suffix) => `${stem}-${suffix}`);
   try {
@@ -1039,29 +1038,41 @@ test('the detail panel spans the grid and opens beneath the card that owns it', 
     const before = await measureList(page);
     expect(rowOf(before, 0), 'the first row does not hold three cards').toHaveLength(3);
 
-    await clickAt(page, containerCard(page, names[0]).getByRole('heading', { name: names[0] }), `the name on the card of ${names[0]}`);
-    const panel = page.locator('.ui-frame__content .ui-detail-panel');
-    await expect(panel).toBeVisible();
-    const panelBox = await boxOf(panel, 'the container detail panel');
+    await clickAt(page, detailControl(page, names[0]), `the detail control on the card of ${names[0]}`);
+    const detail = containerDetail(page);
+    await expect(detail).toBeVisible();
+
+    // Not a grid item, and not the shared panel: nothing of the detail is inside the list at all.
+    await expect(page.locator('.ui-grid__span-full')).toHaveCount(0);
+    await expect(page.locator('.ui-frame__content .ui-detail-panel')).toHaveCount(0);
+    expect(await detail.evaluate((element) => element.closest('.ui-grid--cards') !== null)).toBe(false);
+
+    const dialogBox = await boxOf(detail, 'the container detail dialog');
     const after = await measureList(page);
-    const owner = after.cards.find((candidate) => candidate.name === names[0])!;
-
-    expect(round(panelBox.width), `the panel is ${round(panelBox.width)}px wide and the grid ${round(after.grid!.width)}px`).toBeCloseTo(
-      after.grid!.width,
-      0,
+    console.log(`[REQ-3] the dialog is ${describeBox(dialogBox)} over a list of ${after.cards.length} cards`);
+    expect(dialogBox.x, 'the dialog starts left of the viewport').toBeGreaterThanOrEqual(-TOLERANCE);
+    expect(dialogBox.x + dialogBox.width, 'the dialog runs off the right of the viewport').toBeLessThanOrEqual(
+      after.viewport.width + TOLERANCE,
     );
-    expect(round(panelBox.x), 'the panel does not start at the grid’s own left edge').toBeCloseTo(after.grid!.x, 0);
-    expect(panelBox.y, `the panel is at y=${round(panelBox.y)} and its card ends at ${round(owner.box.y + owner.box.height)}`).toBeGreaterThanOrEqual(
-      owner.box.y + owner.box.height - TOLERANCE,
-    );
+    expect(dialogBox.height, 'the dialog is taller than the viewport').toBeLessThanOrEqual(after.viewport.height + TOLERANCE);
 
-    const below = after.cards.find((candidate) => candidate.name === names[3])!;
-    expect(below.box.y, 'the panel does not sit between the card that owns it and the cards after it').toBeGreaterThanOrEqual(
-      panelBox.y + panelBox.height - TOLERANCE,
+    // The cards are exactly where they were, in the order they were, at the height they were.
+    expect(after.cards.map((card) => card.name), 'the grid reordered while the detail opened').toEqual(
+      before.cards.map((card) => card.name),
     );
+    for (let index = 0; index < before.cards.length; index += 1) {
+      const was = before.cards[index];
+      const now = after.cards[index];
+      expect(
+        { x: round(now.box.x), y: round(now.box.y + after.scrollTop), height: round(now.box.height) },
+        `${was.name} moved or changed height while the detail opened: ${describeBox(was.box)} → ${describeBox(now.box)}`,
+      ).toEqual({ x: round(was.box.x), y: round(was.box.y + before.scrollTop), height: round(was.box.height) });
+    }
+    expect(round(after.scrollTop), 'the list scrolled while the detail opened').toBe(round(before.scrollTop));
+    expect(round(after.windowScrollY), 'the document scrolled while the detail opened').toBe(round(before.windowScrollY));
 
-    await clickAt(page, containerCard(page, names[0]).getByRole('heading', { name: names[0] }), `the name on the card of ${names[0]}`);
-    await expect(panel).toHaveCount(0);
+    await closeContainerDetail(page);
+
     const closed = await measureList(page);
     for (let index = 0; index < before.cards.length; index += 1) {
       expect(
@@ -1074,16 +1085,21 @@ test('the detail panel spans the grid and opens beneath the card that owns it', 
   }
 });
 
-// REQ-3, REQ-23, REQ-37 — the detail control is present and inert by the human's decision of
-// 2026-08-25; this asserts that decision, not a defect.
-test('the detail control is present, not disabled, and changes nothing at all when pressed', async ({ page }) => {
-  const stem = `vexel-e2e-card-inert-${Date.now()}`;
+/**
+ * detail_modal/REQ-5, REQ-7, REQ-8, REQ-29 — the control shipped present and inert on 2026-08-25,
+ * with its click declared to arrive with the intervention that moved the detail onto the dialog
+ * surface. It has. Restates the delivered "present, not disabled, and changes nothing at all when
+ * pressed": the geometry it asserted is kept, and what it asserted about the *absence* of an effect
+ * is now asserted about the effect.
+ */
+test('the detail control keeps its geometry and opens the detail, the card staying where it was and unmarked', async ({ page }) => {
+  const stem = `vexel-e2e-card-open-${Date.now()}`;
   const name = `${stem}-a`;
   try {
     await createSleepingContainer(name);
     await openNarrowedTo(page, stem, 1);
 
-    const control = containerCard(page, name).getByRole('button', { name: `Open ${name} details`, exact: true });
+    const control = detailControl(page, name);
     await control.scrollIntoViewIfNeeded();
 
     const before = await measureList(page);
@@ -1095,18 +1111,21 @@ test('the detail control is present, not disabled, and changes nothing at all wh
       round(card.detailControl!.box.height),
     );
     console.log(
-      `[REQ-3] the detail control is ${describeBox(card.detailControl!.box)} beside a name ${round(card.nameBox.height)}px tall`,
+      `[REQ-5] the detail control is ${describeBox(card.detailControl!.box)} beside a name ${round(card.nameBox.height)}px tall`,
     );
 
     await clickAt(page, control, 'the detail control');
-    await page.waitForTimeout(500);
 
-    await expect(page.locator('.ui-frame__content .ui-detail-panel')).toHaveCount(0);
+    await expect(containerDetail(page)).toBeVisible();
+    expect(await detailOwner(page)).toBe(`Container — ${name}`);
+    // No card marks itself as the one whose detail is open (REQ-8), and none asks for the
+    // selectable treatment (REQ-7).
     await expect(page.locator('.ui-surface--selected')).toHaveCount(0);
+    await expect(page.locator('.ui-frame__content .ui-surface--selectable')).toHaveCount(0);
 
     const after = await measureList(page);
     console.log(
-      `[REQ-37] before: card ${describeBox(card.box)}, toolbar ${before.toolbar === null ? 'none' : describeBox(before.toolbar)}, ` +
+      `[REQ-3] before: card ${describeBox(card.box)}, toolbar ${before.toolbar === null ? 'none' : describeBox(before.toolbar)}, ` +
         `scrollers ${JSON.stringify(before.scrollers)}, window ${before.windowScrollY} — after: card ${describeBox(after.cards[0].box)}, ` +
         `toolbar ${after.toolbar === null ? 'none' : describeBox(after.toolbar)}, scrollers ${JSON.stringify(after.scrollers)}, window ${after.windowScrollY}`,
     );
@@ -1117,13 +1136,17 @@ test('the detail control is present, not disabled, and changes nothing at all wh
     });
     expect(
       inDocument(after),
-      `the card moved when the inert control was pressed: from (${describeBox(card.box)}) to (${describeBox(after.cards[0].box)})`,
+      `the card moved when its detail control was pressed: from (${describeBox(card.box)}) to (${describeBox(after.cards[0].box)})`,
     ).toEqual(inDocument(before));
     const now = after.cards[0].detailControl!.box;
     expect(now.y, `the control it pressed is at y=${round(now.y)}, outside the viewport`).toBeGreaterThanOrEqual(0);
     expect(now.y + now.height, 'the control it pressed is below the viewport').toBeLessThanOrEqual(after.viewport.height);
     expect(now.x, 'the control it pressed is left of the viewport').toBeGreaterThanOrEqual(0);
     expect(now.x + now.width, 'the control it pressed is right of the viewport').toBeLessThanOrEqual(after.viewport.width);
+
+    // The point of interaction comes back to the control that opened it (REQ-17).
+    await closeContainerDetail(page);
+    await expect(control).toBeFocused();
   } finally {
     await removeContainerQuietly(name);
   }

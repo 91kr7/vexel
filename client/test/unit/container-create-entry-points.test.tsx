@@ -197,10 +197,11 @@ describe('ContainersScreen — create/run entry points (plan-docker_management_a
     expect(onRefresh).toHaveBeenCalled();
   });
 
-  // containers-screen.md — the created container becomes the selected card
-  // (plan-docker_management_app-containers_card_view/REQ-23: the list is a stack of cards now, and
-  // the selected one is the surface carrying the selected treatment)
-  it('selects the created container in the list', async () => {
+  // containers-screen.md — "nothing is selected and no detail opens": with the card's control the
+  // sole route in and no selected state left on a card, opening one here would be a second route no
+  // gesture of the operator's asked for (detail_modal/REQ-26, REQ-31). Restates the delivered check
+  // that had the created container become the selected card.
+  it('selects nothing and opens no detail once the container is created', async () => {
     const user = userEvent.setup();
     const { container } = render(
       providers(<ContainersScreen containers={[makeContainer(), makeContainer({ id: 'created-1', shortId: 'created-1', name: 'new-container' })]} loaded onRefresh={vi.fn()} />),
@@ -210,8 +211,14 @@ describe('ContainersScreen — create/run entry points (plan-docker_management_a
     await user.type(screen.getByRole('combobox', { name: 'Image reference' }), 'nginx:1.27');
     await user.click(screen.getByRole('button', { name: 'Create and start' }));
 
-    await waitFor(() => expect(container.querySelector('.ui-surface--selected')).not.toBeNull());
-    expect(container.querySelector('.ui-surface--selected')?.textContent).toContain('new-container');
+    await waitFor(() => expect(screen.queryByRole('combobox', { name: 'Image reference' })).not.toBeInTheDocument());
+    expect(container.querySelector('.ui-surface--selected'), 'the created container was made the selected card').toBeNull();
+    expect(document.querySelector('.ui-modal--size-large'), 'creating a container opened its detail').toBeNull();
+    // The new container is a card among the others, in the list's own order.
+    const names = Array.from(container.querySelectorAll<HTMLElement>('.ui-grid--cards > .ui-surface')).map(
+      (card) => card.querySelector('.ui-section-header__title')?.textContent ?? '',
+    );
+    expect(names).toEqual(['web-nginx', 'new-container']);
   });
 
   // containers-screen.md — cancelling the form changes nothing

@@ -1,7 +1,7 @@
 import { expect, test, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
-import { containerCard, containerDetail } from './support/container-cards.js';
+import { containerCard, containerDetail, openContainerDetail } from './support/container-cards.js';
 
 /** An idle container: its main process sleeps, so exec sessions run independently of it. */
 async function createIdleContainer(name: string): Promise<void> {
@@ -38,9 +38,7 @@ function containerRow(page: Page, name: string) {
 }
 
 async function openTab(page: Page, name: string, tab: string) {
-  const row = containerRow(page, name);
-  await expect(row).toBeVisible({ timeout: 15_000 });
-  await row.getByText(name, { exact: true }).click();
+  await openContainerDetail(page, name);
   const detail = containerDetail(page);
   await expect(detail).toBeVisible();
   await detail.getByRole('tab', { name: tab }).click();
@@ -197,10 +195,11 @@ test.describe('Container exec sessions (REQ-34, REQ-36)', () => {
     }
   });
 
-  // plan-docker_management_app-container_detail_close/REQ-8 — an Escape typed into a live session reaches the session and
-  // dismisses nothing around it. Both halves are asserted: the panel is still open *and* the keystroke was observed on
-  // the session's own channel — a session that quietly stops receiving one key still looks like a working session.
-  test('Escape typed in a live exec session reaches the session and leaves the panel open', async ({ page }) => {
+  // detail_modal/REQ-12 (restating plan-docker_management_app-container_detail_close/REQ-8 on the dialog) — an Escape
+  // typed into a live session inside the dialog reaches the session, and dismisses nothing anywhere. Both halves are
+  // asserted: the dialog is still open *and* the keystroke was observed on the session's own channel — a session that
+  // quietly stops receiving one key still looks like a working session.
+  test('Escape typed in a live exec session reaches the session and leaves the dialog open', async ({ page }) => {
     const name = `vexel-e2e-exec-escape-${Date.now()}`;
     try {
       await installInputFrameRecorder(page);

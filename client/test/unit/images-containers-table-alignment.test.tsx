@@ -218,9 +218,13 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-/** One container's card: the surface the containers screen draws per container, in the row's place. */
+/**
+ * One container's card: the surface the containers screen draws per container, in the row's place.
+ * Read as the cards grid's own children — the card asks the library for no selectable treatment any
+ * more (`container-card.md`, detail_modal/REQ-7).
+ */
 function containerCards(root: HTMLElement): HTMLElement[] {
-  return Array.from(root.querySelectorAll<HTMLElement>('.ui-surface--selectable'));
+  return Array.from(root.querySelectorAll<HTMLElement>('.ui-grid--cards > .ui-surface'));
 }
 
 /** A stylesheet with its comments stripped, so a token named in a comment cannot be read as a declaration. */
@@ -359,15 +363,19 @@ describe('The containers list is a card per container (plan-docker_management_ap
     expect(card.querySelector('.ui-action-button-group--segmented')?.querySelectorAll('button')).toHaveLength(3);
   });
 
-  it('marks the selected card with the surface\'s own selected treatment', async () => {
+  // container-card.md — the card is not an interactive surface and marks nothing as selected
+  // (detail_modal/REQ-7, REQ-8). Restates the delivered check that read the selected treatment on
+  // this consumer; the images row keeps its own, above.
+  it('takes no selected treatment from the surface, whatever is clicked on it', async () => {
     const user = userEvent.setup();
     const containersRoot = renderContainers();
 
     await user.click(containerCards(containersRoot)[0]);
 
     const [card] = containerCards(containersRoot);
-    expect(card.className).toContain('ui-surface--selected');
-    expect(card.getAttribute('aria-selected')).toBe('true');
+    expect(card.className).not.toContain('ui-surface--selectable');
+    expect(card.className).not.toContain('ui-surface--selected');
+    expect(card.getAttribute('aria-selected')).toBeNull();
   });
 });
 
