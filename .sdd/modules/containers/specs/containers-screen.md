@@ -8,8 +8,8 @@ type: UI component
 
 **Purpose** → the Containers screen: one card per container, each with three fixed lifecycle
 controls and an overflow menu holding its secondary actions (rename, export filesystem, kill,
-remove), bulk prune and text/state filtering; exec/attach are reached through the card's detail
-panel.
+remove), bulk prune and text/state filtering; the card's top-right control opens that container's
+detail as a large-format dialog over the screen, and exec/attach are reached through its tabs.
 
 ## Contract
 
@@ -21,7 +21,8 @@ panel.
 Description:
 - A `ScreenToolbar` with a "Run container…" primary action, a "Create from image…" secondary
   action, a "Prune stopped" destructive action and a filters row (a `SearchField` and
-  state `FilterChips`: all/running/stopped/paused), above a **grid of cards, three to a row**: one
+  state `FilterChips`: all/running/stopped/paused), above a **grid of cards, three to a row**, with
+  the open container's detail drawn as a dialog over the whole screen rather than inside the grid: one
   `ContainerCard` per container matching the current search/filter, separated by one uniform gap and
   by nothing else — no header row, no rules between them, and no single surface around the list. Two
   to a row at ≤1200px and one below the phone breakpoint; the empty/loading state spans the whole
@@ -72,41 +73,46 @@ Actions:
   opened. This is the only place the export is offered; the detail panel no longer offers it.
 - "Run container…" and "Create from image…" both open the same `ContainerCreateForm` (REQ-27); the
   first makes "Create and start" the primary commit action, the second "Create only". A created
-  container closes the form, becomes the selected card and the list is re-read; cancelling changes
-  nothing.
+  container closes the form and the list is re-read; **nothing is selected and no detail opens** —
+  with the card's control the sole route in and no selected state left on a card, opening one here
+  would be a second route no gesture of the operator's asked for; cancelling changes nothing.
 - The search field matches name, image or state (case-insensitive substring); state chips narrow to
   running / stopped (`created`, `exited`, `dead`) / paused (`paused`, `restarting`) / all.
-- Selecting a card (anywhere outside its action cluster) opens a `ContainerDetailPanel` directly
-  beneath **the card that owns it**, **spanning the whole width** of the grid, as the next item of
-  that grid (REQ-24) — the cards after it move down; selecting the
-  same card again closes it — the card is the panel's only pointer route, the panel offering no close control
-  of its own — and so does `Escape`, after which the point of interaction is left on the list. At
-  most one panel is open at a time. A selected container that is removed from the daemon closes its
-  detail panel; one merely filtered out of view stays selected (its panel reappears if the filter
-  changes back). After a configuration change recreates
-  the container, the panel stays open on the new container's id. A running container's `exec`/
-  `attach` sessions (REQ-34, REQ-35) are reached as tabs of that same panel.
+- **The card's top-right control opens that container's detail**, and it is the only route in: the
+  card body opens nothing. The detail is presented on the library's dialog surface at its large size
+  (`Modal size="large"`), titled `Container — <name>` so the dialog states which container it belongs
+  to without the operator acting, carrying the dialog's opt-in close control and asking for the
+  return of the point of interaction on dismissal. Its body is a `ContainerDetailPanel`, which
+  declares no chrome and no dismissal of its own.
+- **Two ways out, and only those two**: the dialog's close control, and a click on the dimmed area
+  beside it. `Escape` closes nothing — the dialog claims the key and does nothing with it, so nothing
+  on the screen it covers is dismissed behind it either. Either route leaves the point of interaction
+  on the control that opened the dialog, or — when that card has gone — on the list region.
+- **At most one detail stands at a time**, the screen holding one container id and no more; no route
+  presents a second while one is open.
+- Opening or closing it **moves nothing on the screen underneath**: the dialog is not a grid item, so
+  no card moves or changes height, the grid does not reorder and the list does not scroll.
+- The dialog is bound to its container by id, read from the **whole** list rather than the filtered
+  one: narrowing the cards behind it by search or state filter is not a dismissal. A container that
+  leaves the daemon's list closes it. After a configuration change recreates the container, it stays
+  open on the new container's id. A running container's `exec`/`attach` sessions (REQ-34, REQ-35) are
+  reached as tabs inside it.
 
 ## Rules and invariants
 
 - **The screen is a consumer of the sampled figures and holds the subscription that keeps them
   coming** (`useStatsSubscription`), for as long as it is the screen being shown and the tab is
-  visible. Moving to another section unmounts it and the daemon stops being sampled; coming back
+  visible. **An open detail dialog does not close that gate**: the screen is still the screen being
+  shown while the dialog stands over it, so the daemon goes on being sampled at its certified cadence
+  and closing the dialog blanks no card. Moving to another section unmounts it and the daemon stops being sampled; coming back
   mounts it again and a sample is taken at once. It is held here rather than in the shell: the shell
   is open on every screen, so a subscription taken there would mean "a browser is open" instead of
   "somebody is being shown these figures".
-- **The panel splits its card's grid row, and that is not being corrected** (2026-08-25). It is
-  emitted as the next grid item after the owning card, so the grid's auto-flow carries the rest of
-  that row past it: selecting the first card of a three-card row leaves that card alone above the
-  panel and its two row-mates below it (measured at 1440×1000 — row-mates from y=367.8 to y=954.8,
-  the panel at y=623.6). REQ-23's amendment asked for the panel to open beneath the **row**; the
-  product opens it beneath the **card**. The human's decision of the same date is **not to fix it**,
-  the coming intervention that moves the detail into a modal removing this inline panel and its
-  placement with it — the annotation on REQ-23 in the plan's `requirements.md` is the record. The
-  e2e check that asserted "beneath the row" was **removed for that withdrawal, not because it
-  failed**; what the panel does beneath its own card — opening, spanning the grid's width, pushing
-  the cards after it down, closing on a second selection or on `Escape`, its tabs — is unchanged and
-  still checked.
+- **The inline expansion is gone, and with it the placement question it raised.** The detail used to
+  be emitted as the next grid item after the owning card, splitting that card's row; the human's
+  decision of 2026-08-25 was to leave that uncorrected because the intervention moving the detail
+  onto the dialog surface would remove the inline panel and its placement together. It has. No detail
+  opens beneath a card or beneath a row of cards, and no preference, flag or gesture brings it back.
 
 - A card's controls disable while that container's own action is in flight, so a second click cannot race
   the first: the three lifecycle buttons and all four menu entries state that another action on the
@@ -114,11 +120,9 @@ Actions:
   read.
 - Every disabled control — button or menu entry — carries the reason it is unavailable, so a greyed
   control is legible as "not now, because…" rather than as broken.
-- The card's **footer** is the card's only action-bearing area: nothing else on the card is
-  clickable except the card itself, which opens the detail panel — and the inert detail control at
-  the card's top right, which swallows its own click and does nothing with it (`container-card.md`,
-  a decision of the human's dated 2026-08-25). A click on any of the four controls never also
-  selects the card.
+- The card's **footer** and the card's **detail control** are the only clickable areas of a card: the
+  card body is not, and carries no hover or selected treatment implying it is (`container-card.md`).
+  None of the four footer controls ever opens the detail.
 - A menu's entries are bound to the container its card was rendered for, so the list re-reading or
   re-sorting under an open menu can never point an entry at another container; the menu belongs to
   the card's identity (the container id) and goes with it if that container leaves the list.
@@ -167,8 +171,8 @@ Actions:
 ## Dependencies
 
 - ui-library: ScreenToolbar, SearchField, FilterChips, TextField, IconButton, ErrorBanner,
-  EmptyState, Row, Stack, Grid (as the list's dismissal focus target) and GridSpan, triggerDownload,
-  useToast
+  EmptyState, Row, Stack, Grid (as the list's dismissal focus target) and GridSpan, Modal (at
+  `size="large"`, with its close control and its focus return), triggerDownload, useToast
 - Containers client, Container transfer client, Images client (`ImageSummary`), useStatsSubscription
 - ContainerCard, ContainerDetailPanel, ContainerCreateForm
 - app-shell: ConfirmationService, ProgressService, ErrorReportingService
@@ -222,3 +226,18 @@ Actions:
 - plan-docker_management_app-containers_card_view/REQ-36
 - plan-docker_management_app-containers_card_view/REQ-42
 - plan-docker_management_app-containers_card_view/REQ-48
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-1
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-2
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-3
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-5
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-11
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-12
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-13
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-15
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-16
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-17
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-18
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-22
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-26
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-30
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-31

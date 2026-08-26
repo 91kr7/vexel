@@ -10,13 +10,21 @@ type: UI component
 
 ## Contract
 
-- `<Modal open title children? actions? onClose size?>`
+- `<Modal open title children? actions? onClose size? closeControl? restoreFocus?>`
   - `open` — when `false`, renders nothing.
   - `onClose` — called when the dimmed overlay is clicked; content clicks do not propagate to it.
   - `actions` — optional trailing action row (e.g. Cancel/Confirm buttons).
   - `size`: `'default' | 'large'` (default `'default'`) — `'large'` widens the dialog and caps its
     height with its own scroll, for richer content (e.g. a data table) that would not fit the
     default short-message/form width.
+  - `closeControl?: boolean` (default `false`) — presents one labelled close control on the dialog's
+    own chrome, beside the title, with the accessible name `Close dialog`; operating it calls
+    `onClose`. It is reachable by pointer and by keyboard, and it is the dialog's first focusable
+    element.
+  - `restoreFocus?: boolean` (default `false`) — on dismissal, by **every** route the dialog offers,
+    the point of interaction returns to whatever held it when the dialog opened. Where that element
+    no longer exists, it goes to the nearest dismissal focus target enclosing it
+    (`escape-arbitration.md`); where neither exists, nothing is focused.
 
 ## Rules and invariants
 
@@ -66,6 +74,20 @@ type: UI component
   effect.
 - Everything built on Modal — `ConfirmDialog`, `FormDialog`, `TransferProgressDialog` — carries the
   material by construction, none of them declaring it itself.
+- **Both presentations are opt-in, and a dialog that asks for neither renders exactly what it
+  rendered before they existed**: the bare title, no close control, no focus return. They are asked
+  for by the caller and by nothing else, so adding one to a surface is a decision taken at that
+  surface — never a default drifted into and never acquired by every dialog at once.
+- **`closeControl` answers the rule `container_detail_close` states, one surface over**: the control
+  is present exactly where it is the only labelled way out, and absent where the gesture that opened
+  the surface also closes it. A dialog whose opening gesture is underneath it — covered by the scrim
+  — cannot be that gesture, which is what makes the control required there.
+- **The dialog's ways out are unchanged in number**: the dimmed overlay, and the close control where
+  one was asked for. `Escape` is not one of them, at either size, with or without the control.
+- **The focus return happens while the dialog is being dismissed, not after**, and it resolves the
+  enclosing dismissal focus target **when the dialog opens** rather than when it closes: an element
+  detached from the document leads to no ancestor, so a fallback looked up at dismissal time would
+  find nothing exactly when it is needed.
 - **`Escape` closes no dialog** — unchanged — **and, while a dialog is open, dismisses nothing behind
   it either.** An open dialog holds the innermost claim on the key (`escape-arbitration.md`) and does
   nothing with it, so a dismissible surface on the screen the dialog covers is not dismissed out from
@@ -73,8 +95,9 @@ type: UI component
 
 ## Dependencies
 
-- Surface, Overlay glass material
-- Escape arbitration
+- Surface, Overlay glass material, IconButton
+- Escape arbitration (the `Escape` claim, and the dismissal focus target the focus return falls back
+  to)
 - BandStack (recognised in the stylesheet, not imported: a `'large'` dialog holding one becomes a
   column so the arrangement has a height to distribute)
 
@@ -101,3 +124,6 @@ type: UI component
 - plan-docker_management_app-dialog_sizing/REQ-14
 - plan-docker_management_app-dialog_sizing/REQ-15
 - plan-docker_management_app-filesystem_browser_layout/REQ-6
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-10
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-14
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-17

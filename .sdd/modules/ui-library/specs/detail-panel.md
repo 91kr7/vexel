@@ -6,7 +6,7 @@ type: UI component
 
 # DetailPanel
 
-**Purpose** → the detail surface for a selected object (e.g. a container opened from its row):
+**Purpose** → the detail surface for a selected object (e.g. an image opened from its row):
 an optional header with title/subtitle, a trailing actions slot, an optional property grid, a
 content body, and — depending on how the panel is left — a close control or `Escape`.
 

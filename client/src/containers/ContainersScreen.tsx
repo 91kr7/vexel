@@ -1,9 +1,10 @@
-import { Fragment, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   EmptyState,
   ErrorBanner,
   FilterChips,
   IconButton,
+  Modal,
   Row,
   ScreenToolbar,
   SearchField,
@@ -102,8 +103,8 @@ function matchesStateFilter(container: ContainerSummary, filter: string): boolea
 }
 
 /**
- * Containers screen (REQ-19–23, REQ-24–26, REQ-109): search and state filters over one card per
- * container, each with its lifecycle slots, its overflow menu and its detail panel.
+ * Containers screen: search and state filters over one card per container, each with its lifecycle
+ * slots, its overflow menu and the control that opens its detail as a large-format dialog.
  */
 export function ContainersScreen({ containers, loaded, error, onRefresh, images = [], imagesLoaded = true }: ContainersScreenProps) {
   // This screen consumes the sampled figures, so it is what keeps the server
@@ -120,12 +121,12 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
-  const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
+  const [detailContainerId, setDetailContainerId] = useState<string | undefined>(undefined);
   const [createMode, setCreateMode] = useState<'run' | 'create' | null>(null);
 
   useEffect(() => {
-    if (selectedId && !containers.some((container) => container.id === selectedId)) setSelectedId(undefined);
-  }, [containers, selectedId]);
+    if (detailContainerId && !containers.some((container) => container.id === detailContainerId)) setDetailContainerId(undefined);
+  }, [containers, detailContainerId]);
 
   function setBusy(id: string, busy: boolean) {
     setBusyIds((current) => {
@@ -274,16 +275,10 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
     ];
   }
 
-  // The card is the panel's only pointer route: selecting the selected card closes it.
-  // A container filtered out of view keeps its selection, panel and card returning together.
-  function toggleSelection(container: ContainerSummary) {
-    setSelectedId((current) => (current === container.id ? undefined : container.id));
-  }
-
   function renameControlFor(container: ContainerSummary) {
     if (renamingId !== container.id) return undefined;
     return (
-      <Row gap="var(--space-1)" align="center" onClick={(event) => event.stopPropagation()}>
+      <Row gap="var(--space-1)" align="center">
         <TextField
           value={renameValue}
           onChange={setRenameValue}
@@ -303,6 +298,9 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
 
   const filtered = containers.filter((container) => matchesStateFilter(container, stateFilter) && matchesSearch(container, search));
   const hasStoppedContainers = containers.some((container) => (STOPPED_STATES as string[]).includes(container.state));
+  // Read from the whole list, not from the filtered one: the dialog belongs to its
+  // container, and a filter narrowing the cards behind it is not a dismissal.
+  const detailContainer = containers.find((container) => container.id === detailContainerId);
 
   return (
     <Stack gap="var(--space-4)">
@@ -318,8 +316,8 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
         }
       />
       {error ? <ErrorBanner title="Could not load containers" detail={error} onRetry={onRefresh} /> : null}
-      {/* Three cards to a row, the selected container's panel spanning the grid's
-          width beneath its own card (containers-screen.md). */}
+      {/* Three cards to a row; the detail stands over the grid as a dialog, so nothing
+          opens beneath a card (containers-screen.md). */}
       <Grid arrangement="cards" dismissalFocusTarget>
         {filtered.length === 0 ? (
           <GridSpan>
@@ -331,30 +329,35 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
           </GridSpan>
         ) : null}
         {filtered.map((container) => (
-          <Fragment key={container.id}>
-            <ContainerCard
-              container={container}
-              lifecycleActions={lifecycleActionsFor(container)}
-              overflowEntries={overflowEntriesFor(container)}
-              selected={container.id === selectedId}
-              onSelect={() => toggleSelection(container)}
-              renameControl={renameControlFor(container)}
-            />
-            {container.id === selectedId ? (
-              <GridSpan>
-                <ContainerDetailPanel
-                  container={container}
-                  onClose={() => setSelectedId(undefined)}
-                  onContainerReplaced={(newId) => {
-                    setSelectedId(newId);
-                    onRefresh();
-                  }}
-                />
-              </GridSpan>
-            ) : null}
-          </Fragment>
+          <ContainerCard
+            key={container.id}
+            container={container}
+            lifecycleActions={lifecycleActionsFor(container)}
+            overflowEntries={overflowEntriesFor(container)}
+            onOpenDetail={() => setDetailContainerId(container.id)}
+            renameControl={renameControlFor(container)}
+          />
         ))}
       </Grid>
+
+      <Modal
+        open={detailContainer !== undefined}
+        title={detailContainer ? `Container — ${detailContainer.name}` : ''}
+        size="large"
+        closeControl
+        restoreFocus
+        onClose={() => setDetailContainerId(undefined)}
+      >
+        {detailContainer ? (
+          <ContainerDetailPanel
+            container={detailContainer}
+            onContainerReplaced={(newId) => {
+              setDetailContainerId(newId);
+              onRefresh();
+            }}
+          />
+        ) : null}
+      </Modal>
 
       <ContainerCreateForm
         open={createMode !== null}
@@ -362,9 +365,8 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
         imagesLoaded={imagesLoaded}
         defaultStart={createMode !== 'create'}
         onCancel={() => setCreateMode(null)}
-        onCreated={(result) => {
+        onCreated={() => {
           setCreateMode(null);
-          setSelectedId(result.id);
           onRefresh();
         }}
       />

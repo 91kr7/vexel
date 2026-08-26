@@ -12,13 +12,14 @@ the presentation the containers list is built from.
 
 ## Contract
 
-- `<ContainerCard container lifecycleActions overflowEntries selected onSelect renameControl? />`
+- `<ContainerCard container lifecycleActions overflowEntries onOpenDetail renameControl? />`
   - `container: ContainerSummary`.
   - `lifecycleActions: RowAction[]` — the container's three lifecycle slots, in order: the
     state-appropriate run/halt action, then `Pause`, then `Restart`. The card decides none of them
     and changes none of them.
   - `overflowEntries: MenuEntry[]` — the entries of the trailing overflow menu, in their order.
-  - `selected` / `onSelect()` — whether this card is the selected one, and what selecting it does.
+  - `onOpenDetail()` — what the top-right control does: open this container's detail. The card has no
+    selected state and takes none.
   - `renameControl?` — rendered **in the name's place** while this container is being renamed;
     absent, the name is shown.
 
@@ -33,8 +34,8 @@ Description:
 Shows:
 - **Identity** — at the left: the status dot and the container name as the card's most prominent
   text (or `renameControl` in its place). At the right, anchored to the card's inner right edge: the
-  short container id in muted monospace, then the control that will open the container's detail in a
-  modal. **The name gives way**, truncating with an ellipsis when the row cannot hold both; **the id
+  short container id in muted monospace, then the control that opens the container's detail in a
+  dialog. **The name gives way**, truncating with an ellipsis when the row cannot hold both; **the id
   never truncates**.
 - **State and duration** — the state pill in uppercase (`RUNNING`, `PAUSED`, `EXITED`, and every
   other state by the same rule) followed by the daemon's own status sentence in muted plain text
@@ -63,15 +64,18 @@ Shows:
   it.
 
 Actions:
-- clicking the card anywhere outside its action cluster and outside the detail control → `onSelect()`.
-- the four action slots → their own `onClick` / `onSelect`, and never also `onSelect()` on the card.
-- the detail control → **nothing at all**, deliberately (see the invariant below).
+- the detail control → `onOpenDetail()`, by pointer and by keyboard alike. It is the card's only
+  route into the detail.
+- the four action slots → their own `onClick` / `onSelect`, and none of them ever opens the detail.
+- clicking the card's body — its name, its image line, its metrics, anywhere outside those five
+  controls → **nothing at all**.
 
 ## Rules and invariants
 
-- **The card owns none of its own material.** The box, the hover and selected highlights, the accent
-  edge, the footer's ground and hairline, the front-truncating image field and the metrics' rhythm
-  are all the library's, which takes them from the object table's own tokens. This file writes no
+- **The card owns none of its own material.** The box, the accent edge, the footer's ground and
+  hairline, the front-truncating image field and the metrics' rhythm are all the library's, which
+  takes them from the object table's own tokens; the hover and selected highlights are the library's
+  too and this card no longer asks for them. This file writes no
   colour, radius, spacing, shadow, font size or z-index, emits no raw DOM tag and imports no
   stylesheet.
 - **The arrangement above is `.sdd/analysis/ui-mock/containers-refactor-b3.png`'s** and governs from
@@ -120,13 +124,18 @@ Actions:
   container is made of, the ports say how it is reached — operational information, of a kind with
   the figures beside it. The row's label anchors it, so a container with one port and one with four
   keep the same shape, and a container with none says `none` rather than dropping the row.
-- **The detail control is present and does nothing, and that is a decision, not a defect.** Chosen
-  by the human on **2026-08-25**, with the alternatives — wiring it to today's inline detail panel,
-  or shipping it visibly disabled — put to them and refused. It renders at the card's top right with
-  an accessible name, it is **not** disabled, and its click arrives with the intervention that moves
-  the container's detail into a modal and removes the inline panel. It swallows its own click so the
-  card's selection gesture is not triggered by a control that will mean something else; clicking the
-  card anywhere else still opens the inline detail exactly as before.
+- **The detail control is live, and it is the only route into the detail.** It was shipped present
+  and inert by the human's decision of 2026-08-25, with its click declared to arrive with the
+  intervention that moved the container's detail onto the dialog surface; it has. It keeps the
+  geometry, the position and the accessible name (`Open <name> details`) it was delivered with — the
+  card's layout being out of that change's scope — and it is operable by keyboard as well as by
+  pointer. It no longer swallows its own click, because there is no longer a card gesture to protect
+  it from.
+- **The card is not an interactive surface, and carries no expanded and no selected state in any
+  form.** It asks the library for no selectable treatment, so it offers no hover and no selected
+  highlight, and nothing on any card marks it as the one whose detail is open. Withdrawing the card
+  body's click is a deliberate loss of the gesture operators had — the sole route in is now the
+  corner control — and the cheap reversal, if it is ever asked for, is one call site.
 - **At most two ports are drawn, the rest becoming one `+n` chip** (REQ-5, as reversed on
   2026-08-25). The split is at **three**, not two: a container reporting exactly three draws three
   chips, because one more chip costs precisely what the chip announcing it would and a `+1` is never
@@ -160,8 +169,9 @@ Actions:
 
 ## Dependencies
 
-- ui-library: Card (with its footer), Stack, Row, StatusDotCell, SectionHeader, Badge,
-  IdentifierCell, IconButton, Chip, FieldMessage, ActionButtonGroup (with its Menu), MetricStrip
+- ui-library: Card (with its footer, and without its selectable treatment), Stack, Row,
+  StatusDotCell, SectionHeader, Badge, IdentifierCell, IconButton, Chip, FieldMessage,
+  ActionButtonGroup (with its Menu), MetricStrip
 - Containers client (`ContainerSummary`, `ContainerPort`, `ContainerState`)
 
 ## Requirements served
@@ -188,3 +198,9 @@ Actions:
 - plan-docker_management_app-containers_card_view/REQ-34
 - plan-docker_management_app-containers_card_view/REQ-35
 - plan-docker_management_app-containers_card_view/REQ-53
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-5
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-6
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-7
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-8
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-9
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-30
