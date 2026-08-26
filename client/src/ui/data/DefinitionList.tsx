@@ -5,7 +5,16 @@ import './data-table.css';
 export interface DefinitionItem {
   label: string;
   value: ReactNode;
+  /** Draws the value in the danger role: it carries bad news. A value without one is drawn like every other. */
+  tone?: DefinitionValueTone;
 }
+
+/**
+ * The one distinguished reading a value has, and it is a severity: this value is
+ * bad news (a non-zero exit code). It is not the table cell's `attention`, which
+ * says "notable" and says nothing about whether it is good or bad.
+ */
+export type DefinitionValueTone = 'danger';
 
 /**
  * A named arrangement of the band's own two parts — the caller asks for the
@@ -43,7 +52,7 @@ export function DefinitionList({ items, contentClass = 'short-scalar', arrangeme
         // list's, and states no track template of any kind.
         <div className="ui-definition-list__row" key={index}>
           <span className="ui-definition-list__label">{item.label}</span>
-          <span className="ui-definition-list__value">{item.value}</span>
+          <span className={item.tone ? `ui-definition-list__value ui-definition-list__value--tone-${item.tone}` : 'ui-definition-list__value'}>{item.value}</span>
         </div>
       ))}
     </div>

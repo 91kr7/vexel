@@ -39,6 +39,7 @@ import { ContainerLogsView } from './ContainerLogsView';
 import { ContainerProcessesView } from './ContainerProcessesView';
 import { ContainerSessionView } from './ContainerSessionView';
 import { ContainerStatsView } from './ContainerStatsView';
+import { stateTone } from './container-status';
 import { useContainerDetail } from '../data/use-container-detail';
 import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
@@ -448,22 +449,44 @@ export function ContainerDetailPanel({ container, onContainerReplaced }: Contain
   }
 
   function renderInspectView(data: ContainerInspect) {
+    // Bad news, and only that: a container that exited cleanly, or has not
+    // exited at all, reports `0` and is drawn like every other value (REQ-36).
+    const exitedBadly = data.state.exitCode !== undefined && data.state.exitCode !== 0;
     return (
       <Stack gap="var(--space-4)">
-        <DefinitionList
-          items={[
-            { label: 'Id', value: data.id.slice(0, 12) },
-            { label: 'Name', value: data.name },
-            { label: 'Image', value: data.image },
-            { label: 'Command', value: data.command.join(' ') || '–' },
-            { label: 'Entrypoint', value: data.entrypoint.join(' ') || '–' },
-            { label: 'Created', value: data.createdAt },
-            { label: 'State', value: data.state.status },
-            { label: 'Started at', value: data.state.startedAt || '–' },
-            { label: 'Finished at', value: data.state.finishedAt || '–' },
-            { label: 'Exit code', value: data.state.exitCode ?? '–' },
-          ]}
-        />
+        {/*
+          Two questions instead of one list (REQ-34): what the container is, and how it has gone.
+          Each group states the class of the values it holds and nothing else, so the number of
+          columns each shows follows its own width, as one list of ten did before it.
+        */}
+        <Stack gap="var(--space-3)">
+          <SectionHeader variant="eyebrow" title="Identity" />
+          <DefinitionList
+            contentClass="short-scalar"
+            items={[
+              { label: 'Id', value: data.id.slice(0, 12) },
+              { label: 'Name', value: data.name },
+              { label: 'Image', value: data.image },
+              { label: 'Command', value: data.command.join(' ') || '–' },
+              { label: 'Entrypoint', value: data.entrypoint.join(' ') || '–' },
+              { label: 'Created', value: data.createdAt },
+            ]}
+          />
+        </Stack>
+        <Stack gap="var(--space-3)">
+          <SectionHeader variant="eyebrow" title="Lifecycle" />
+          <DefinitionList
+            contentClass="short-scalar"
+            items={[
+              // The state pill the card and the dialog's own header draw, from the module's one
+              // state→tone reading (REQ-35): a state is read here as it is read everywhere else.
+              { label: 'State', value: <Badge tone={stateTone(data.state.status)}>{data.state.status.toUpperCase()}</Badge> },
+              { label: 'Started at', value: data.state.startedAt || '–' },
+              { label: 'Finished at', value: data.state.finishedAt || '–' },
+              { label: 'Exit code', value: data.state.exitCode ?? '–', tone: exitedBadly ? 'danger' : undefined },
+            ]}
+          />
+        </Stack>
         {/*
           A section with a count of `0` is absent, not present and empty
           (plan-ui-coherence-optimisation/REQ-60) — one rule, shared with the
@@ -489,8 +512,16 @@ export function ContainerDetailPanel({ container, onContainerReplaced }: Contain
             ))}
           </CollapsibleSection>
         ) : null}
-        <SectionHeader variant="eyebrow" title="Raw payload" description="Exactly as received from the Engine API." />
-        <CodeViewer code={JSON.stringify(data.raw, null, 2)} maxHeight="320px" />
+        {/*
+          A section like the tab's others, and closed when the tab opens (REQ-37) instead of the one
+          section always open. Nothing of it is lost by that: opening it shows the whole payload as
+          real selectable text (plan-ui-coherence-optimisation/REQ-65), with no action of its own —
+          a hand-selection inside the block is how the full container id is obtained
+          (plan-docker_management_app-remove_copy_controls/REQ-19).
+        */}
+        <CollapsibleSection title="Raw payload" summary="JSON">
+          <CodeViewer code={JSON.stringify(data.raw, null, 2)} maxHeight="320px" />
+        </CollapsibleSection>
       </Stack>
     );
   }

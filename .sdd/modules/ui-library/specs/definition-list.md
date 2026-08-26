@@ -12,7 +12,11 @@ environment variables), arranged in as many columns as the list's own width can 
 ## Contract
 
 - `<DefinitionList items contentClass? arrangement? />`
-  - `items: { label, value: ReactNode }[]`.
+  - `items: { label, value: ReactNode, tone?: 'danger' }[]`.
+  - `tone?: 'danger'` on an item — **the one distinguished reading a value has, and it is a
+    severity**: this value is bad news (a non-zero exit code). A value without one is drawn like every
+    other. It is not the table cell's `attention`, which says "notable" and says nothing about whether
+    the reading is good or bad; a caller that wants "look at this one" is asking for that instead.
   - `contentClass?: 'short-scalar' | 'long-single-line' | 'free-text'` — default `'short-scalar'`.
     What the section holds; the minimum band width follows from it (`content-columns.md`).
   - **A caller states what its values are and which named arrangement it asks for, and nothing else
@@ -113,6 +117,11 @@ Shows:
   first line starts. Until this rule existed the value box declared `text-align: right`, inert for a
   value that fits on one line and live for one that wraps — which is how the network `Options` value
   came to be the one right-aligned value in the product.
+- **A toned value differs by colour and by nothing else.** The band keeps its type, its size, its
+  alignment and its wash, so a section holding one still scans as one section, and the colour is the
+  product's own danger role named from the tokens — never a colour written here. Nothing else about
+  the band is conditional on it: a toned value wraps, is bounded and is selected exactly as an
+  untoned one is.
 - Band padding, type, colour, the wash and the 37px band step are the delivered ones: this component
   moves space, it does not restyle and it does not buy density out of the type.
 - The row gap is `--space-1` (the delivered band step), the column gap `--space-6`; both are tokens.
@@ -161,4 +170,5 @@ Shows:
 - plan-ui-coherence-optimisation/REQ-21
 - plan-ui-coherence-optimisation/REQ-34
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-18
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-36
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-40

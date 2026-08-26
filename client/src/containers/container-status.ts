@@ -12,6 +12,15 @@ export const STATE_TONE: Record<ContainerState, StatusTone> = {
   dead: 'danger',
 };
 
+/**
+ * The tone of a state the daemon named as a plain string (the inspect payload's
+ * own `State.Status`), read off the one table above rather than off a second
+ * reading of it. A state the table does not name is drawn neutral.
+ */
+export function stateTone(status: string): StatusTone {
+  return STATE_TONE[status as ContainerState] ?? 'neutral';
+}
+
 export interface ContainerHealthOutcome {
   label: string;
   tone: StatusTone;

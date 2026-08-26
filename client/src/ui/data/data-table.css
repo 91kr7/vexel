@@ -582,6 +582,13 @@
   overflow-wrap: anywhere;
 }
 
+/* The value that carries bad news, told apart by colour alone: the band keeps its
+   type, its size and its alignment, so the section still scans as one section.
+   The role is the product's own danger role, referenced by name. */
+.ui-definition-list__value--tone-danger {
+  color: var(--color-danger);
+}
+
 .ui-code-viewer {
   display: flex;
   flex-direction: column;

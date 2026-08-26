@@ -21,6 +21,11 @@ from, so a card and a dialog header cannot disagree about the same container.
   | `dead` | danger |
   | `created`, `exited`, `removing` | neutral |
 
+- `stateTone(status) → tone` — the same table, read for a state the daemon named as a plain string
+  (the inspect payload's `State.Status`, where the summary's typed state is not to hand). A state the
+  table does not name is drawn neutral, so a caller never has to decide what an unknown state looks
+  like.
+
 - `readHealthOutcome(status) → { label, tone } | undefined` — the health outcome the daemon's own
   status sentence states, read from the container summary the list already carries and asking the
   daemon for nothing:
@@ -39,9 +44,9 @@ from, so a card and a dialog header cannot disagree about the same container.
 - **`undefined` means "the daemon states no outcome"** — a container declaring no health check, and
   equally one whose state has no outcome to report. A caller draws nothing at all for it, never a
   placeholder.
-- **Both readings are total and pure**: every state has a tone, no call reads or writes anything, and
-  neither issues a request.
-- **It is the only place either rule is written.** A surface rendering a container's state or health
+- **Every reading is total and pure**: every state has a tone, every string has one, no call reads or
+  writes anything, and none issues a request.
+- **It is the only place any of these rules is written.** A surface rendering a container's state or health
   takes it from here rather than declaring a map of its own; two maps is the divergence this rule
   exists to prevent.
 
@@ -49,3 +54,4 @@ from, so a card and a dialog header cannot disagree about the same container.
 
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-7
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-9
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-35
