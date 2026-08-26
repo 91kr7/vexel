@@ -44,6 +44,21 @@ import { useProgress } from '../shell/services/ProgressService';
 
 type ContainerDetailTab = 'logs' | 'stats' | 'config' | 'processes' | 'inspect' | 'exec' | 'attach';
 
+/**
+ * The tab row's order, and with it the tab the detail opens on: the first entry is both
+ * (tabs_composition_refactor/REQ-11). The seven are declared alike — `runningOnly` decides a tab's
+ * presence in the row, never its presentation (tabs_composition_refactor/REQ-12).
+ */
+const DETAIL_TABS: { id: ContainerDetailTab; label: string; runningOnly?: boolean }[] = [
+  { id: 'config', label: 'Config' },
+  { id: 'logs', label: 'Logs' },
+  { id: 'stats', label: 'Stats' },
+  { id: 'processes', label: 'Processes' },
+  { id: 'inspect', label: 'Inspect' },
+  { id: 'exec', label: 'Exec', runningOnly: true },
+  { id: 'attach', label: 'Attach', runningOnly: true },
+];
+
 export interface ContainerDetailPanelProps {
   container: ContainerSummary;
   /** Called after a recreate with the new container id, since the old one no longer exists. */
@@ -169,7 +184,7 @@ export function ContainerDetailPanel({ container, onContainerReplaced }: Contain
   const { run } = useProgress();
   const { reportError } = useErrorReporter();
 
-  const [activeTab, setActiveTab] = useState<ContainerDetailTab>('config');
+  const [activeTab, setActiveTab] = useState<ContainerDetailTab>(DETAIL_TABS[0].id);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<ConfigFormState | null>(null);
@@ -452,14 +467,7 @@ export function ContainerDetailPanel({ container, onContainerReplaced }: Contain
       bands={[
         <Tabs
           key="tabs"
-          tabs={[
-            { id: 'logs', label: 'Logs' },
-            { id: 'stats', label: 'Stats' },
-            { id: 'config', label: 'Config' },
-            { id: 'processes', label: 'Processes' },
-            { id: 'inspect', label: 'Inspect' },
-            ...(container.state === 'running' ? [{ id: 'exec', label: 'Exec' }, { id: 'attach', label: 'Attach' }] : []),
-          ]}
+          tabs={DETAIL_TABS.filter((tab) => !tab.runningOnly || container.state === 'running')}
           activeId={activeTab}
           onSelect={(id) => setActiveTab(id as ContainerDetailTab)}
         />,

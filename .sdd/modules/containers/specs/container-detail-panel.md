@@ -20,9 +20,14 @@ both live on the card instead (REQ-21), not in this panel.
     container id no longer exists.
 
 Description:
-- A `Tabs` row (Logs, Stats, Config, Processes, Inspect, and — only when the container is running —
-  Exec, Attach) above the active tab's content, and nothing else. Config is the tab selected when the
-  detail opens.
+- A `Tabs` row (Config, Logs, Stats, Processes, Inspect, and — only when the container is running —
+  Exec, Attach) above the active tab's content, and nothing else. **Config is both the first tab of
+  the row and the tab selected when the detail opens** — the tab drawn first and the tab opened on
+  are the same one (REQ-11).
+- **Every tab presented is drawn alike, with only the active one distinguished** (REQ-12). On a
+  running container the seven carry one treatment: Exec and Attach are not disabled, dimmed, ghosted
+  or otherwise set apart from the other five. Being running-only decides a tab's presence in the row,
+  never its presentation.
 - The interior is the library's **band arrangement** (`ui-library/specs/band-stack.md`): the tab row
   is a band, at the height of its own content, and the active tab's content is the one region that
   absorbs whatever height is left. That is also what makes the dialog hand its bounded height down,
@@ -139,11 +144,14 @@ Actions:
 - **Moving onto the dialog surface changed where the detail is drawn and nothing else**
   (`plan-docker_management_app-containers_card_view-detail_modal/REQ-4`): the same seven tabs in the
   same order, the same tab active on open, the same data, operations, confirmations and live
-  behaviour. That content parity is **superseded**, and only in what it said about size, by
-  `plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor` — the
-  clause "no view inside it re-sized" no longer holds: the log region and the terminal now take the
-  height of the region they are placed in. Everything else the requirement fixed stands, and any
-  observable difference in data, operations, confirmations or live behaviour is still a defect.
+  behaviour. That content parity is **superseded twice**, each time in one clause only, by
+  `plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor`: "no view
+  inside it re-sized" no longer holds — the log region and the terminal now take the height of the
+  region they are placed in — and neither does "the same order", Config having moved to the head of
+  the row by REQ-11. **The tab active on open is not one of the two**: it was Config before that move
+  and it is Config after it, so no stream and no session starts, or stops starting, when the detail
+  opens. Everything else the requirement fixed stands, and any observable difference in data,
+  operations, confirmations or live behaviour is still a defect.
 
 ## Dependencies
 
@@ -191,3 +199,5 @@ Actions:
 - plan-docker_management_app-containers_card_view-detail_modal/REQ-30
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-1
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-3
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-11
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-12
