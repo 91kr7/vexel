@@ -35,6 +35,18 @@
   width: min(1100px, 92vw);
 }
 
+/*
+ * The large format without its constant cap, for a dialog whose content is a
+ * screen's worth of property lists: the cap held the container detail at 1100px
+ * and cost the operator a property column above ~1200px against the inline panel
+ * it replaces. Compounded with the format it modifies, so it is inert anywhere
+ * else and independent of source order; the four other large dialogs, asking for
+ * nothing, keep `min(1100px, 92vw)`.
+ */
+.ui-modal__positioner--size-large.ui-modal__positioner--fluid-width {
+  width: 92vw;
+}
+
 .ui-modal {
   z-index: var(--z-modal);
   width: 100%;

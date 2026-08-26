@@ -84,6 +84,11 @@ Actions:
   to without the operator acting, carrying the dialog's opt-in close control and asking for the
   return of the point of interaction on dismissal. Its body is a `ContainerDetailPanel`, which
   declares no chrome and no dismissal of its own.
+- **The screen asks for the large format's fluid width** (`fluidWidth`), by name and with no length
+  of its own: this detail's property lists arrange themselves by the width of the box they are given,
+  and the format's 1100px cap held them at two columns where the inline panel this replaces showed
+  four at 1920 and five at 2560 (REQ-18, amended by the human on 2026-08-26 in REQ-4's favour). It is
+  the only surface in the product that asks for it.
 - **Two ways out, and only those two**: the dialog's close control, and a click on the dimmed area
   beside it. `Escape` closes nothing — the dialog claims the key and does nothing with it, so nothing
   on the screen it covers is dismissed behind it either. Either route leaves the point of interaction

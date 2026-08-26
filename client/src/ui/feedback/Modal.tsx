@@ -18,6 +18,8 @@ export interface ModalProps {
   closeControl?: boolean;
   /** Opt-in: on dismissal the point of interaction returns to whatever held it when the dialog opened. */
   restoreFocus?: boolean;
+  /** Opt-in on `size="large"`: the width goes on following the viewport instead of stopping at the format's designed constant. */
+  fluidWidth?: boolean;
 }
 
 const CLOSE_LABEL = 'Close dialog';
@@ -33,6 +35,7 @@ export function Modal({
   size = 'default',
   closeControl = false,
   restoreFocus = false,
+  fluidWidth = false,
 }: ModalProps) {
   // An open dialog claims `Escape` and does nothing with it: the key does not
   // close the dialog — that is unchanged — and, being claimed by the innermost
@@ -61,8 +64,13 @@ export function Modal({
   }, [open, restoreFocus]);
 
   if (!open) return null;
-  const positionerClass =
-    size === 'large' ? 'ui-modal__positioner ui-modal__positioner--size-large' : 'ui-modal__positioner';
+  const positionerClass = [
+    'ui-modal__positioner',
+    size === 'large' ? 'ui-modal__positioner--size-large' : '',
+    fluidWidth ? 'ui-modal__positioner--fluid-width' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
   const modalClass = size === 'large' ? 'ui-modal ui-modal--size-large' : 'ui-modal';
   return (
     <div className="ui-modal-overlay" onClick={onClose}>
