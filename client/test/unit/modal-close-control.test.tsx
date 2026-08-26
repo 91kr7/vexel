@@ -1,11 +1,12 @@
 /**
- * `ui-library/specs/modal.md` — the dialog's two **opt-in** presentations: the labelled close
- * control, and the return of the point of interaction on dismissal
- * (`plan-docker_management_app-containers_card_view-detail_modal/REQ-10`, `REQ-14`, `REQ-17`).
+ * `ui-library/specs/modal.md` — the dialog's **opt-in** presentations: the labelled close control,
+ * the return of the point of interaction on dismissal, and the large format's fluid width
+ * (`plan-docker_management_app-containers_card_view-detail_modal/REQ-10`, `REQ-14`, `REQ-17`,
+ * `REQ-18`).
  *
- * Both are asked for by the caller and by nothing else, so what this file guards as closely as the
- * presentations themselves is their absence: a dialog that asks for neither renders exactly what it
- * rendered before they existed.
+ * Each is asked for by the caller and by nothing else, so what this file guards as closely as the
+ * presentations themselves is their absence: a dialog that asks for none of them renders exactly
+ * what it rendered before they existed.
  */
 import { useState } from 'react';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -53,8 +54,9 @@ function DialogHarness({
 }
 
 // modal.md — "a dialog that asks for neither renders exactly what it rendered before they existed:
-// the bare title, no close control, no focus return" (REQ-14).
-describe('Modal — both presentations are opt-in (REQ-14)', () => {
+// the bare title, no close control, no focus return" (REQ-14), and the large format keeps the width
+// it has unless the caller asks otherwise (REQ-18, as amended on 2026-08-26).
+describe('Modal — the presentations are opt-in (REQ-14, REQ-18)', () => {
   it('draws the bare title and no close control when none is asked for', () => {
     render(
       <Modal open title="A dialog" onClose={vi.fn()}>
@@ -99,12 +101,49 @@ describe('Modal — both presentations are opt-in (REQ-14)', () => {
     expect(document.activeElement, 'a dialog that asked for no focus return handed the focus back').not.toBe(opener);
   });
 
-  // REQ-14 — "asked for by this one surface and by nothing else": the perimeter is the call sites,
-  // so it is read off them rather than trusted.
+  // REQ-18 — the fluid width is a modifier of the large format and not a third size: a large dialog
+  // that does not ask for it keeps `min(1100px, 92vw)`, which is what leaves the four other large
+  // dialogs rendering exactly what they rendered.
+  it('leaves a large dialog that does not ask for it at the format’s own width', () => {
+    render(
+      <Modal open title="A dialog" size="large" onClose={vi.fn()}>
+        the dialog body
+      </Modal>,
+    );
+
+    const positioner = document.querySelector<HTMLElement>('.ui-modal__positioner')!;
+    expect(positioner.className).toContain('ui-modal__positioner--size-large');
+    expect(positioner.className, 'a large dialog that asked for nothing widened itself').not.toContain(
+      'ui-modal__positioner--fluid-width',
+    );
+    expect(positioner.style.width, 'the dialog states a width of its own instead of taking the format’s').toBe('');
+  });
+
+  it('marks the positioner as fluid, on the large format, only when it is asked for', () => {
+    render(
+      <Modal open title="A dialog" size="large" fluidWidth onClose={vi.fn()}>
+        the dialog body
+      </Modal>,
+    );
+
+    const positioner = document.querySelector<HTMLElement>('.ui-modal__positioner')!;
+    expect(positioner.className).toContain('ui-modal__positioner--size-large');
+    expect(positioner.className).toContain('ui-modal__positioner--fluid-width');
+    // Compounded with the format it modifies, so it is inert anywhere else: the rule the browser
+    // resolves names both classes, and jsdom loads no stylesheet to read it from.
+    const css = readFileSync(join(process.cwd(), 'src', 'ui', 'feedback', 'feedback.css'), 'utf8');
+    expect(css).toMatch(/\.ui-modal__positioner--size-large\.ui-modal__positioner--fluid-width\s*\{/);
+    expect(css, 'the fluid width is declared on its own class, so it would widen an ordinary dialog too').not.toMatch(
+      /(^|[},])\s*\.ui-modal__positioner--fluid-width\s*\{/,
+    );
+  });
+
+  // REQ-14, REQ-18 — "asked for by this one surface and by nothing else": the perimeter is the call
+  // sites, so it is read off them rather than trusted.
   it('is asked for one of these presentations by exactly one place in the application', () => {
     const asking = sourceFiles(join(process.cwd(), 'src'))
       .filter((path) => !path.includes(join('src', 'ui')))
-      .filter((path) => /\bcloseControl\b|\brestoreFocus\b/.test(readFileSync(path, 'utf8')));
+      .filter((path) => /\bcloseControl\b|\brestoreFocus\b|\bfluidWidth\b/.test(readFileSync(path, 'utf8')));
 
     expect(asking.map((path) => path.slice(path.indexOf(join('src', ''))))).toEqual([join('src', 'containers', 'ContainersScreen.tsx')]);
   });

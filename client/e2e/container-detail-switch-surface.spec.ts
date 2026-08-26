@@ -1,41 +1,48 @@
 /**
- * The same switch, on a **different scrolling surface**: the container detail's health-check
- * `Enabled` control, now drawn inside the product's large dialog
+ * The same switch, on a **different surface**: the container detail's health-check `Enabled`
+ * control, now drawn inside the product's large dialog
  * (`plan-docker_management_app-containers_card_view-detail_modal/REQ-25`).
  *
  * This is the file that says whose defect it is. The reported symptom belongs to the "Run a
  * container" sheet, and a check that only ever looks there leaves open the reading that the create
- * form does something peculiar. The switch is one library control with four consumers, each of them
- * inside something that scrolls; observing the same displacement on a second surface — a different
- * screen, a different scrolling ancestor — is what makes the correction a library correction rather
- * than a repair of one dialog (plan-docker_management_app-toggle_focus_scroll/REQ-13).
+ * form does something peculiar. The switch is one library control with four consumers; observing it
+ * on a second surface — a different screen, a different anchoring, a different scrolling ancestor —
+ * is what makes the correction a library correction rather than a repair of one dialog
+ * (plan-docker_management_app-toggle_focus_scroll/REQ-13).
  *
- * **What the delivered inline panel measured, so the next reader inherits it instead of re-deriving
- * it.** On the unfixed build, at 1280×800, this check passed: the switch's hidden input was drawn at
- * `y=643` against a visible track at `y=634` — coincident — and the panel stood at `y=195.9` before
- * the click and after it. The condition is where the scroll container sits relative to the input's
- * offset parent: the create sheet scrolls *between* the switch and its nearest positioned ancestor,
- * so the input's static position ignores 1346px of scroll, and this surface does not.
+ * **The condition, so a reader can predict a new consumer instead of measuring it.** The drag is the
+ * browser scrolling a *focused* element into view, and it bites when the scrolling happens *between*
+ * the control's visually hidden input and the input's nearest positioned ancestor: the create
+ * sheet's static position then ignores 1346px of scroll. On the delivered inline panel it did not —
+ * hidden input at `y=643` against a visible track at `y=634`, coincident, the panel at `y=195.9`
+ * before the click and after it — and it does not on this dialog either: **10.3px**, measured
+ * 2026-08-26 through this very check.
+ *
+ * **What this file asserts, and why it is not the create sheet's assertion.** The delivered inline
+ * panel was top-anchored, so "its box did not move" was a statement its geometry could make. This
+ * dialog is **content-sized and centred**: revealing the five health-check fields grows it 85.2px
+ * and half of that comes off its top edge — measured 2026-08-26, and the reading that had the human
+ * narrow REQ-25 that day, since every field-revealing control would do the same and the switch is
+ * merely the first. What a centred surface keeps while it merely grows is its **centre**, and what
+ * it loses the instant a focus scroll carries it off is exactly that. So the centre is what is
+ * asserted, beside the switch still being in the viewport — and bug-2's 1044px drag, which changed
+ * no height at all, fails that by 1044px.
  *
  * **Three measured, two inferred, and the difference is not decoration.** With a real pointer, on
  * the unfixed build: the create sheet displaced (its own check), this detail clean, and the plugins
- * "Install daemon plugin" dialog clean. **Not measured**: the plugins screen's per-row switch and the
- * container logs view's `Timestamps` switch. Neither inference is a measurement, and neither may be
- * quoted as one.
+ * "Install daemon plugin" dialog clean. **Not measured**: the plugins screen's per-row switch and
+ * the container logs view's `Timestamps` switch. Neither inference is a measurement, and neither may
+ * be quoted as one.
  *
  * So this file is a **non-regression guard on a second consumer**, not a second reproduction, and it
- * is honest about it. The instrument is not thereby unproven: the same helper fails, in the same
- * run, on the create sheet.
- *
- * The measurement is `support/surface-stability.ts`'s: a real pointer at the visible switch, the
- * surface's viewport coordinates across the click, and the switch still within the viewport
- * afterwards (REQ-10, REQ-11) — which is exactly what detail_modal/REQ-25 asks of the dialog.
+ * is honest about it. The instrument is not thereby unproven: the same module's stricter check
+ * fails, in the same run, on the create sheet.
  *
  * plan-docker_management_app-toggle_focus_scroll/REQ-10, REQ-11, REQ-13, REQ-15.
  */
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
-import { clickAndExpectSurfaceUnmoved } from './support/surface-stability.js';
+import { clickAndExpectSurfaceNotDragged } from './support/surface-stability.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { containerCard, containerDetail, openContainerDetail } from './support/container-cards.js';
@@ -86,10 +93,10 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
 });
 
-// plan-docker_management_app-toggle_focus_scroll/REQ-10, REQ-11, REQ-13 and detail_modal/REQ-25 —
-// operating the switch inside the container detail leaves the dialog's viewport box unchanged and
-// the switch itself inside the viewport
-test('operating the health-check switch leaves the container detail dialog where it was', async ({ page }) => {
+// plan-docker_management_app-toggle_focus_scroll/REQ-10, REQ-11, REQ-13 and detail_modal/REQ-25 as
+// narrowed on 2026-08-26 — operating the switch inside the container detail does not drag the
+// dialog out of position, and leaves the switch itself inside the viewport
+test('operating the health-check switch does not drag the container detail dialog', async ({ page }) => {
   const name = `vexel-e2e-switch-panel-${Date.now()}`;
   try {
     await createNeverStartedContainer(name);
@@ -108,7 +115,7 @@ test('operating the health-check switch leaves the container detail dialog where
     await expect(healthToggle(page)).toHaveCount(1);
     await expect(healthToggle(page), 'the health-check switch is already on, so this test would prove nothing').not.toBeChecked();
 
-    await clickAndExpectSurfaceUnmoved({
+    const measured = await clickAndExpectSurfaceNotDragged({
       page,
       surface: detailPanel(page),
       surfaceName: 'the container detail dialog',
@@ -117,8 +124,28 @@ test('operating the health-check switch leaves the container detail dialog where
       hiddenControl: healthToggle(page),
     });
 
+    // Reported, so the displacement the assertion above allows is a number a reader can see rather
+    // than a clause they have to take on trust.
+    const grew = measured.surfaceAfter.height - measured.surfaceBefore.height;
+    const moved = measured.surfaceAfter.y - measured.surfaceBefore.y;
+    console.log(`[REQ-25] the dialog grew ${grew.toFixed(1)}px and its top edge moved ${moved.toFixed(1)}px`);
+
+    // The displacement is the growth's and nothing else's: on a centred surface the top edge takes
+    // exactly half of what the content added. Stated as its own assertion so that a dialog which
+    // both grew *and* was dragged cannot pass on the centre alone.
+    expect(
+      Math.round(moved * 10) / 10,
+      `the dialog's top edge moved ${moved.toFixed(1)}px against ${grew.toFixed(1)}px of content growth: that is not the growth's own half`,
+    ).toBe(Math.round(-grew / 2 * 10) / 10);
+
+    // And the growth is the switch's own doing rather than a coincidence: the five fields it reveals
+    // are on screen.
+    for (const field of ['Health check command', 'Interval seconds', 'Timeout seconds', 'Retries', 'Start period seconds']) {
+      await expect(detailPanel(page).getByLabel(field, { exact: true }), `the switch revealed no \`${field}\` field`).toBeVisible();
+    }
+
     // The switch still switches: the fix under check is about the surface, and
-    // a control that stopped working would satisfy the assertion above.
+    // a control that stopped working would satisfy the assertions above.
     await expect(healthToggle(page), 'the switch does not read as selected after being operated').toBeChecked();
   } finally {
     // Nothing was saved, so the daemon holds the container exactly as it was

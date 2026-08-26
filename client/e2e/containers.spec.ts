@@ -1,6 +1,7 @@
 import { expect, test, type Page } from './support/test.js';
 import { anonymousVolumes, openApp, ownershipArgs, removeAnonymousVolumesSince } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { boxOf } from './support/settled.js';
 import {
   chooseCardAction,
   closeContainerDetail,
@@ -32,6 +33,18 @@ function menuEntry(page: Page, label: string) {
 async function openOverflow(page: Page, name: string) {
   await overflowTrigger(page, name).click();
   await expect(page.getByRole('menu', { name: `More actions for ${name}`, exact: true })).toBeVisible();
+}
+
+/**
+ * The dialog's box, **once it has stopped moving**. The dialog is the size of its content and the
+ * Config tab's inspect data arrives after the dialog does, so a box read the instant it opens is a
+ * box of another layout — which is how a comparison across a keystroke ends up reporting the
+ * content's arrival as a displacement.
+ */
+async function settledDialogBox(page: Page) {
+  const detail = containerDetail(page);
+  await expect(detail.getByRole('button', { name: 'Edit configuration' })).toBeVisible({ timeout: 20_000 });
+  return await boxOf(detail, 'the container detail dialog');
 }
 
 test.beforeEach(async ({ page }) => {
@@ -547,7 +560,7 @@ test.describe('Container detail dialog dismissal (REQ-3, REQ-10, REQ-11, REQ-13,
       const detail = containerDetail(page);
       await expect(detail).toBeVisible();
 
-      const dialogBox = (await detail.boundingBox())!;
+      const dialogBox = await settledDialogBox(page);
       const viewport = page.viewportSize()!;
       expect(dialogBox.width, 'the dialog has no width of its own').toBeGreaterThan(0);
       expect(dialogBox.x, 'the dialog starts left of the viewport').toBeGreaterThanOrEqual(-0.5);
@@ -584,23 +597,27 @@ test.describe('Container detail dialog dismissal (REQ-3, REQ-10, REQ-11, REQ-13,
       await expect(detail).toBeVisible();
       // Measured across the keystroke alone: the dialog is the size of its content, so a tab change
       // legitimately changes its height and a box read across one would answer another question.
-      const onConfig = (await detail.boundingBox())!;
+      const onConfig = await settledDialogBox(page);
 
       await page.keyboard.press('Escape');
 
       await expect(detail).toBeVisible();
-      expect(await detail.boundingBox(), 'the key moved the dialog instead of leaving it alone').toEqual(onConfig);
+      expect(await boxOf(detail, 'the container detail dialog'), 'the key moved the dialog instead of leaving it alone').toEqual(
+        onConfig,
+      );
 
       // Again, this time with the focus on a control the operator reached inside the dialog.
       await detail.getByRole('tab', { name: 'Inspect' }).click();
       await expect(detail.getByRole('tab', { name: 'Inspect' })).toBeFocused();
-      const onInspect = (await detail.boundingBox())!;
+      const onInspect = await boxOf(detail, 'the container detail dialog');
 
       await page.keyboard.press('Escape');
 
       await expect(detail).toBeVisible();
       await expect(detail.getByRole('tab', { name: 'Inspect' })).toHaveAttribute('aria-selected', 'true');
-      expect(await detail.boundingBox(), 'the key moved the dialog instead of leaving it alone').toEqual(onInspect);
+      expect(await boxOf(detail, 'the container detail dialog'), 'the key moved the dialog instead of leaving it alone').toEqual(
+        onInspect,
+      );
 
       await closeContainerDetail(page);
     } finally {
@@ -768,12 +785,14 @@ test.describe('Container detail dialog dismissal (REQ-3, REQ-10, REQ-11, REQ-13,
       );
       expect(covering.hit, 'the surface covering the drawer trigger is not the dialog’s own scrim').toContain('ui-modal-overlay');
 
-      const before = (await detail.boundingBox())!;
+      const before = await settledDialogBox(page);
       await page.keyboard.press('Escape');
 
       await expect(detail).toBeVisible();
       await expect(page.locator('.ui-frame__rail--open')).toHaveCount(0);
-      expect(await detail.boundingBox(), 'the key moved the dialog instead of leaving it alone').toEqual(before);
+      expect(await boxOf(detail, 'the container detail dialog'), 'the key moved the dialog instead of leaving it alone').toEqual(
+        before,
+      );
 
       await closeContainerDetail(page);
     } finally {
