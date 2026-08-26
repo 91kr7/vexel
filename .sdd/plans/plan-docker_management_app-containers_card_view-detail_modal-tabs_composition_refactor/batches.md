@@ -15,7 +15,7 @@ this plan's (`requirements.md`); intervention ids are local to each batch file.
 | --- | --- | --- | --- | --- | --- |
 | `stable-detail-height` | F0 — One height for the whole detail, and the tab's content scrolls inside it | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5 | — | certified | The dialog stays exactly where it is while the operator moves between tabs |
 | `detail-identity-header` | F1 — The header carries the container's identity | REQ-6, REQ-7, REQ-8, REQ-9, REQ-10 | `stable-detail-height` | certified | The dialog's header says as much as the card the operator just left |
-| `config-first-tab` | F1b — Config is the first tab and the one active on open | REQ-11, REQ-12 | `stable-detail-height`, `detail-identity-header` | implemented | The detail opens on the tab it draws first |
+| `config-first-tab` | F1b — Config is the first tab and the one active on open | REQ-11, REQ-12 | `stable-detail-height`, `detail-identity-header` | certified | The detail opens on the tab it draws first |
 | `config-reading-layout` | F3 — Config in reading | REQ-18, REQ-19, REQ-20, REQ-21, REQ-22 | `stable-detail-height` | todo | The environment variables can be read down the keys |
 | `config-editing-cards` | F4 — Config in editing | REQ-23, REQ-24, REQ-25, REQ-26 | `stable-detail-height`, `config-reading-layout` | todo | The edit form reads as groups instead of one long column |
 | `stats-two-plus-three` | F2 — Stats is two metrics with a ceiling, then three without | REQ-13, REQ-14, REQ-15, REQ-16, REQ-17 | `stable-detail-height` | todo | The bars are only where a bar can mean something |
@@ -80,8 +80,15 @@ batch that touches it so nobody has to find this list first.
 Two more are **preserved and re-asserted rather than superseded**, and are named because a reader
 could reasonably expect them to be at risk:
 `plan-ui-coherence-optimisation/REQ-65` (the panel must not lose the seven tabs, the two-column
-property grid or the raw payload as real selectable text — collapsing the payload is not losing it),
-and `plan-docker_management_app-containers_card_view-detail_modal/REQ-25`, whose narrowing this plan
+property grid or the raw payload as real selectable text — collapsing the payload is not losing it).
+Its parenthesis `(Logs, Stats, Config, Processes, Inspect, Exec, Attach)` enumerates **which** tabs
+must survive the rewrite, not the order they are drawn in: its verb is `preserved`, and where that
+plan meant an order it said so — `detail_modal/REQ-4` reads "the same tabs, **in the same order**",
+which is why that one is superseded here and this one is not. Recorded because F1b leaves REQ-65
+naming an order the product no longer draws, and the next reader deserves the reading rather than
+the question.
+
+And `plan-docker_management_app-containers_card_view-detail_modal/REQ-25`, whose narrowing this plan
 does not reopen but satisfies more strictly: with a stable height the dialog's box is unchanged
 across the health-check reveal, which is what the narrowing gave up.
 

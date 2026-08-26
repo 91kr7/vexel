@@ -748,8 +748,10 @@ describe('ContainersScreen — the card control opens the detail as a dialog (RE
     expect(await within(dialog!).findByRole('tab', { name: 'Config' })).toBeInTheDocument();
   });
 
-  // detail_modal/REQ-4 — the same tabs in the same order, the same one active on open.
-  it('shows the delivered tab row, Config active, inside the dialog', async () => {
+  // detail_modal/REQ-4's "the same order" clause is superseded here: the row leads with Config
+  // (tabs_composition_refactor/REQ-11). The rest of that requirement stands — the same seven tabs,
+  // and the same one active on open, which this batch did not move.
+  it('shows the tab row led by Config, and Config active, inside the dialog', async () => {
     const user = userEvent.setup();
     renderScreen([web, cache]);
 
@@ -757,16 +759,19 @@ describe('ContainersScreen — the card control opens the detail as a dialog (RE
     const dialog = within(detailDialog()!);
     await dialog.findByRole('tab', { name: 'Config' });
 
-    expect(dialog.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+    const tabs = dialog.getAllByRole('tab');
+    expect(tabs.map((tab) => tab.textContent)).toEqual([
+      'Config',
       'Logs',
       'Stats',
-      'Config',
       'Processes',
       'Inspect',
       'Exec',
       'Attach',
     ]);
-    expect(dialog.getByRole('tab', { name: 'Config' })).toHaveAttribute('aria-selected', 'true');
+    // The first tab and the active one are the same element, not two names that happen to agree.
+    expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
+    expect(dialog.getByRole('tab', { name: 'Config' })).toBe(tabs[0]);
   });
 
   // detail_modal/REQ-2, REQ-3 — the inline expansion is gone: nothing opens beneath a card or

@@ -221,17 +221,63 @@ describe('ContainerDetailPanel — Config tab (REQ-24, REQ-25)', () => {
   });
 });
 
-describe('ContainerDetailPanel — Logs tab (REQ-30)', () => {
-  // container-detail-panel.md — the tab row is Logs, Stats, Config, Processes, Inspect and (for a running container) Exec, Attach; Config is the tab selected on open
-  it('offers a Logs tab first, Exec/Attach for a running container, and opens on the Config tab', async () => {
+describe('ContainerDetailPanel — the tab row (REQ-11, REQ-12)', () => {
+  /**
+   * container-detail-panel.md — Config is both the first tab of the row and the tab selected when
+   * the detail opens, the others following it as Logs, Stats, Processes, Inspect and, for a running
+   * container, Exec and Attach (REQ-11). This restates the check that named the old order
+   * (Logs first) rather than dropping it: the row is still read by position, at the new position.
+   */
+  it('draws Config first, opens on that same first tab, and offers Exec/Attach for a running container', async () => {
     renderPanel();
 
     await screen.findByRole('button', { name: 'Edit configuration' });
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Logs', 'Stats', 'Config', 'Processes', 'Inspect', 'Exec', 'Attach']);
-    expect(screen.getByRole('tab', { name: 'Config' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: 'Logs' })).toHaveAttribute('aria-selected', 'false');
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs.map((tab) => tab.textContent)).toEqual(['Config', 'Logs', 'Stats', 'Processes', 'Inspect', 'Exec', 'Attach']);
+    // The tab drawn first and the tab opened on are one and the same, read off the row rather than
+    // named twice: naming Config on both sides would still pass if the two ever drifted apart.
+    expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
+    expect(tabs.slice(1).map((tab) => tab.getAttribute('aria-selected'))).toEqual(['false', 'false', 'false', 'false', 'false', 'false']);
+    expect(screen.getByRole('tab', { name: 'Config' })).toBe(tabs[0]);
   });
 
+  /**
+   * container-detail-panel.md, ui-library/specs/tabs.md — every tab presented carries the same
+   * treatment, only the active one distinguished (REQ-12). The subject is what is *drawn*, so the
+   * six inactive tabs are compared to one another as rendered: Exec and Attach must be
+   * indistinguishable from Logs, Stats, Processes and Inspect, not merely present and enabled.
+   */
+  it('draws the seven tabs of a running container alike, with only the active one distinguished', async () => {
+    renderPanel();
+    await screen.findByRole('button', { name: 'Edit configuration' });
+
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs).toHaveLength(7);
+    const treatmentOf = (tab: HTMLElement) => ({
+      classes: [...tab.classList].sort(),
+      style: tab.getAttribute('style'),
+      disabled: (tab as HTMLButtonElement).disabled,
+      ariaDisabled: tab.getAttribute('aria-disabled'),
+      // Every attribute the tab carries besides the ones that must differ per tab.
+      attributes: tab.getAttributeNames().filter((name) => !['class', 'aria-selected'].includes(name)).sort(),
+    });
+
+    const inactive = tabs.filter((tab) => tab.getAttribute('aria-selected') === 'false');
+    expect(inactive.map((tab) => tab.textContent)).toEqual(['Logs', 'Stats', 'Processes', 'Inspect', 'Exec', 'Attach']);
+    const treatments = inactive.map((tab) => JSON.stringify(treatmentOf(tab)));
+    expect(new Set(treatments), `the tabs not showing are drawn differently from one another: ${treatments.join(' | ')}`).toHaveLength(1);
+    expect(tabs.some((tab) => (tab as HTMLButtonElement).disabled || tab.hasAttribute('aria-disabled'))).toBe(false);
+    expect(tabs.some((tab) => tab.hasAttribute('style'))).toBe(false);
+
+    // …and the one distinction there is, is the active one's: it adds a marker, and takes nothing away.
+    const active = tabs.find((tab) => tab.getAttribute('aria-selected') === 'true')!;
+    const inactiveClasses = treatmentOf(inactive[0]!).classes;
+    expect(inactiveClasses.every((name) => active.classList.contains(name))).toBe(true);
+    expect(active.classList.length).toBeGreaterThan(inactiveClasses.length);
+  });
+});
+
+describe('ContainerDetailPanel — Logs tab (REQ-30)', () => {
   // container-detail-panel.md — the Logs tab shows the container's logs, neither needing nor awaiting the inspect data
   it("shows the container's log stream without waiting for the inspect data", async () => {
     // The inspect request never settles here: the Logs tab must not depend on it.
@@ -403,6 +449,11 @@ describe('ContainerDetailPanel — Exec/Attach tabs (REQ-34, REQ-35, REQ-36)', (
     await screen.findByRole('button', { name: 'Edit configuration' });
     expect(screen.queryByRole('tab', { name: 'Exec' })).not.toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Attach' })).not.toBeInTheDocument();
+    // Being running-only decides the pair's presence and nothing else: the five that remain keep
+    // the order they have on a running container, Config still first and still the one shown (REQ-11).
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs.map((tab) => tab.textContent)).toEqual(['Config', 'Logs', 'Stats', 'Processes', 'Inspect']);
+    expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
   });
 
   // container-detail-panel.md — the Exec and Attach tabs reach their session for a running container

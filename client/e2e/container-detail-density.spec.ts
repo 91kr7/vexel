@@ -433,7 +433,7 @@ test.describe('Container detail — the expanded detail stops fighting for room 
       expect(stdout.width, 'the logs toolbar is clipped to nothing').toBeGreaterThan(0);
       expect(stdout.hitsItself, 'a pointer aimed at the logs toolbar reaches something else').toBe(true);
 
-      for (const tab of ['Stats', 'Config', 'Processes', 'Inspect', 'Exec', 'Attach', 'Logs']) {
+      for (const tab of ['Stats', 'Processes', 'Inspect', 'Exec', 'Attach', 'Config', 'Logs']) {
         const control = detail.getByRole('tab', { name: tab, exact: true });
         await control.scrollIntoViewIfNeeded();
         const box = await boxOf(`the ${tab} tab`, control);
@@ -478,7 +478,8 @@ test.describe('Container detail — the expanded detail stops fighting for room 
   });
 
   // plan-ui-coherence-optimisation/REQ-65 — "The container detail panel is the primitive, with its
-  // tabs (Logs, Stats, Config, Processes, Inspect, Exec, Attach) and its two-column property grid
+  // tabs (Config, Logs, Stats, Processes, Inspect, Exec, Attach — that order since
+  // tabs_composition_refactor/REQ-11) and its two-column property grid
   // preserved, and with REQ-60 applied to its empty `Labels` section."
   test('the panel keeps its seven tabs, its raw payload and no section headed with a count of zero', async ({ page }) => {
     test.setTimeout(180_000);
@@ -487,7 +488,7 @@ test.describe('Container detail — the expanded detail stops fighting for room 
       await createLoggingContainer(name);
       const detail = await openTab(page, name, 'Inspect');
 
-      for (const tab of ['Logs', 'Stats', 'Config', 'Processes', 'Inspect', 'Exec', 'Attach']) {
+      for (const tab of ['Config', 'Logs', 'Stats', 'Processes', 'Inspect', 'Exec', 'Attach']) {
         await expect(detail.getByRole('tab', { name: tab }), `[REQ-65] the ${tab} tab is not offered`).toBeVisible();
       }
 

@@ -1209,6 +1209,150 @@ test.describe('Container detail dialog, bound to its container (REQ-32, REQ-33, 
  * The tabs are read off the bar rather than listed here: REQ-43 refuses a check that names a tab by
  * position, and the plan reorders them two batches on.
  */
+test.describe('Container detail dialog, the tab row (REQ-11, REQ-12)', () => {
+  test.describe.configure({ mode: 'serial' });
+
+  /**
+   * Every tab the bar holds, **as the browser paints it**: where it sits, whether it is the one
+   * showing, and the treatment the eye reads. REQ-12 is about drawn appearance, so the comparison is
+   * made on computed style rather than on the elements merely existing and being enabled.
+   */
+  async function tabsAsDrawn(page: Page) {
+    return await containerDetail(page)
+      .locator('[role="tab"]')
+      .evaluateAll((tabs) =>
+        tabs.map((tab) => {
+          const style = getComputedStyle(tab);
+          const box = tab.getBoundingClientRect();
+          return {
+            label: (tab.textContent ?? '').trim(),
+            x: box.x,
+            y: box.y,
+            width: box.width,
+            height: box.height,
+            active: tab.getAttribute('aria-selected') === 'true',
+            unavailable: (tab as HTMLButtonElement).disabled || tab.hasAttribute('aria-disabled'),
+            treatment: [
+              `color=${style.color}`,
+              `background=${style.backgroundColor}`,
+              `opacity=${style.opacity}`,
+              `filter=${style.filter}`,
+              `weight=${style.fontWeight}`,
+              `size=${style.fontSize}`,
+              `style=${style.fontStyle}`,
+              `decoration=${style.textDecorationLine}`,
+              `border=${style.borderTopColor} ${style.borderTopStyle}`,
+              `cursor=${style.cursor}`,
+              `pointerEvents=${style.pointerEvents}`,
+              `visibility=${style.visibility}`,
+            ].join(' | '),
+          };
+        }),
+      );
+  }
+
+  /** The order the row is read in — line by line, left to right — rather than the order of the markup. */
+  function readingOrder(tabs: { label: string; x: number; y: number }[]): string[] {
+    return [...tabs].sort((a, b) => (Math.round(a.y) === Math.round(b.y) ? a.x - b.x : a.y - b.y)).map((tab) => tab.label);
+  }
+
+  /**
+   * The detail of a running container, opened with a real pointer on the card's own control, with
+   * the pointer then parked away from the bar: a tab under the pointer would be read hovered, and a
+   * treatment read hovered is not the treatment the row is drawn with.
+   */
+  async function openRunningDetail(page: Page, name: string) {
+    await createSleepingContainer(name);
+    await expect(containerCard(page, name)).toBeVisible({ timeout: 15_000 });
+    await openContainerDetail(page, name);
+    await settledDialogBox(page);
+    const detail = containerDetail(page);
+    // Polled, not assumed: a container just started still reads CREATED for a moment, and the two
+    // session tabs are offered only once the daemon calls it running.
+    await expect(detail.getByRole('tab', { name: 'Attach', exact: true })).toBeVisible({ timeout: 20_000 });
+    await page.mouse.move(2, 2);
+    return detail;
+  }
+
+  // REQ-11 — Config is the first tab of the bar **and** the tab active when the detail opens; the
+  // others follow it as Logs, Stats, Processes, Inspect and, for a running container, Exec, Attach.
+  test('the detail opens on the tab it draws first, and that tab is Config', async ({ page }) => {
+    const name = `vexel-e2e-tab-order-${Date.now()}`;
+    try {
+      const detail = await openRunningDetail(page, name);
+
+      const tabs = await tabsAsDrawn(page);
+      expect(tabs.map((tab) => tab.label), `the bar drew ${JSON.stringify(tabs.map((tab) => tab.label))}`).toEqual([
+        'Config',
+        'Logs',
+        'Stats',
+        'Processes',
+        'Inspect',
+        'Exec',
+        'Attach',
+      ]);
+      // Leftmost as painted, not merely first in the markup: read by coordinate, line by line, so a
+      // row reordered by CSS alone would still be caught.
+      expect(readingOrder(tabs), 'the order the row is painted in is not the order it is written in').toEqual(tabs.map((tab) => tab.label));
+      console.log(`[REQ-11] the bar draws ${tabs.map((tab) => tab.label).join(' · ')}, showing ${tabs.find((tab) => tab.active)?.label}`);
+
+      // The tab drawn first and the tab opened on are the same one — asserted off the row, so the
+      // two cannot pass by agreeing on a name while being different positions.
+      expect(tabs.filter((tab) => tab.active).map((tab) => tab.label)).toEqual(['Config']);
+      expect(tabs[0]!.active, 'the detail opened on a tab other than the one it draws first').toBe(true);
+      // …and what is shown under the bar is Config's own content, not an empty region above it.
+      await expect(detail.getByRole('button', { name: 'Edit configuration' })).toBeVisible();
+
+      await closeContainerDetail(page);
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+
+  // REQ-12 — every tab presented carries the same treatment, with only the active one distinguished:
+  // on a running container Exec and Attach are drawn exactly like the other five. The mock's muted
+  // drawing of that pair is a drafting device, and this is the check that keeps it out of the build.
+  test('draws the seven tabs alike, distinguishing only the one showing', async ({ page }) => {
+    const name = `vexel-e2e-tab-treatment-${Date.now()}`;
+    try {
+      const detail = await openRunningDetail(page, name);
+
+      const tabs = await tabsAsDrawn(page);
+      expect(tabs).toHaveLength(7);
+      const others = tabs.filter((tab) => !tab.active);
+      expect(others.map((tab) => tab.label)).toEqual(['Logs', 'Stats', 'Processes', 'Inspect', 'Exec', 'Attach']);
+      const painted = others.map((tab) => `${tab.label} → ${tab.treatment}`);
+      console.log(`[REQ-12] the six tabs not showing are painted ${others[0]!.treatment}`);
+      expect(new Set(others.map((tab) => tab.treatment)).size, `the tabs not showing are not painted alike:\n${painted.join('\n')}`).toBe(1);
+      expect(tabs.filter((tab) => tab.unavailable).map((tab) => tab.label), 'a tab is offered and refused at once').toEqual([]);
+      expect(tabs.every((tab) => tab.width > 0 && tab.height > 0), 'a tab is clipped to nothing').toBe(true);
+      // The other half of the same sentence: the active one *is* distinguished.
+      expect(tabs.find((tab) => tab.active)!.treatment).not.toBe(others[0]!.treatment);
+
+      // And the distinction belongs to whichever tab is showing, not to a pair held apart: Exec takes
+      // a real pointer at its own coordinates, becomes the shown one, and the six left — Config now
+      // among them — are painted alike again.
+      await clickAtItsCentre(page, detail.getByRole('tab', { name: 'Exec', exact: true }), 'the Exec tab');
+      await expect(detail.getByRole('tab', { name: 'Exec', exact: true })).toHaveAttribute('aria-selected', 'true');
+      await page.mouse.move(2, 2);
+
+      const afterExec = await tabsAsDrawn(page);
+      const restingAfterExec = afterExec.filter((tab) => !tab.active);
+      expect(afterExec.filter((tab) => tab.active).map((tab) => tab.label)).toEqual(['Exec']);
+      expect(restingAfterExec.map((tab) => tab.label)).toEqual(['Config', 'Logs', 'Stats', 'Processes', 'Inspect', 'Attach']);
+      expect(
+        new Set(restingAfterExec.map((tab) => tab.treatment)).size,
+        `with Exec showing, the tabs at rest are not painted alike:\n${restingAfterExec.map((tab) => `${tab.label} → ${tab.treatment}`).join('\n')}`,
+      ).toBe(1);
+      expect(restingAfterExec[0]!.treatment, 'the treatment a tab rests in changed with which tab is showing').toBe(others[0]!.treatment);
+
+      await closeContainerDetail(page);
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+});
+
 test.describe('Container detail dialog, one stable height (REQ-1, REQ-3, REQ-4)', () => {
   test.describe.configure({ mode: 'serial' });
 
@@ -1279,11 +1423,11 @@ test.describe('Container detail dialog, one stable height (REQ-1, REQ-3, REQ-4)'
       const reference = await boxOf(card, 'the container detail dialog');
 
       const tabs = await tabsOffered(page);
-      // The set, never the order: REQ-43 refuses a check that names a tab by position, and the two
-      // session tabs are named here because a running container offers them and this batch re-sized
-      // exactly them (containers/specs/container-detail-panel.md).
+      // The set, never the order: what this check needs is that the walk below covers every tab the
+      // bar offers, and the order itself is the subject of REQ-11's own check above. The two session
+      // tabs are named because a running container offers them (containers/specs/container-detail-panel.md).
       expect(new Set(tabs), `the bar offered ${JSON.stringify(tabs)}`).toEqual(
-        new Set(['Logs', 'Stats', 'Config', 'Processes', 'Inspect', 'Exec', 'Attach']),
+        new Set(['Config', 'Logs', 'Stats', 'Processes', 'Inspect', 'Exec', 'Attach']),
       );
       console.log(`[REQ-1] the dialog holds one ${reference.width.toFixed(1)}×${reference.height.toFixed(1)} box across ${tabs.length} tabs`);
       const seen: string[] = [];
@@ -1306,8 +1450,8 @@ test.describe('Container detail dialog, one stable height (REQ-1, REQ-3, REQ-4)'
       // the same one seven times.
       expect(seen, 'the walk did not reach every tab the bar offers').toEqual(tabs);
 
-      // …and back again, over a pair chosen for holding the least and the most: a return to a tab
-      // already visited is still the same box.
+      // …and back again, over the two ends of the row — Attach and, since REQ-11 moved it there,
+      // Config: a return to a tab already visited is still the same box.
       for (const tab of [tabs[tabs.length - 1]!, tabs[0]!]) {
         const control = containerDetail(page).getByRole('tab', { name: tab, exact: true });
         await clickAtItsCentre(page, control, `the ${tab} tab`);

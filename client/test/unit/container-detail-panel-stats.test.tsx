@@ -113,14 +113,29 @@ afterEach(() => {
 });
 
 describe('ContainerDetailPanel — Stats and Processes tabs (REQ-32, REQ-33)', () => {
-  // container-detail-panel.md — the panel holds the Logs, Stats, Config, Processes and Inspect tabs, Config selected on opening
+  // container-detail-panel.md — the panel holds the Config, Logs, Stats, Processes and Inspect tabs, Config first and selected on opening (REQ-11)
   it('offers the Stats and Processes tabs alongside the others, with Config selected on opening', async () => {
     renderPanel();
 
-    for (const name of ['Logs', 'Stats', 'Config', 'Processes', 'Inspect']) {
+    for (const name of ['Config', 'Logs', 'Stats', 'Processes', 'Inspect']) {
       expect(screen.getByRole('tab', { name })).toBeInTheDocument();
     }
     await waitFor(() => expect(screen.getByRole('tab', { name: 'Config' })).toHaveAttribute('aria-selected', 'true'));
+  });
+
+  /**
+   * REQ-41 — the detail's live behaviour is unchanged by the tab row's recomposition: the tab it
+   * opens on mounts no live view, so nothing is subscribed to until the operator asks for it. Proved
+   * rather than assumed, since "which tab opens" and "which stream starts" are one question here.
+   */
+  it('opens no stream of any kind on the tab it opens with', async () => {
+    renderPanel();
+    await screen.findByRole('button', { name: 'Edit configuration' });
+
+    const streams = FakeEventSource.instances.map((instance) => instance.url);
+    expect(streams.filter((url) => url.includes('/stats/stream'))).toEqual([]);
+    expect(streams.filter((url) => url.includes('/logs/stream'))).toEqual([]);
+    expect(fetchMock.mock.calls.map(([url]) => url as string).filter((url) => url.includes('/processes'))).toEqual([]);
   });
 
   // plan-docker_management_app/REQ-32 — the Stats tab shows the container's live resource usage
