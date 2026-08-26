@@ -1,0 +1,1036 @@
+<title>Container Detail Tabs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+
+<style>
+  /* ------------------------------------------------------------------
+     Token set lifted from client/src/ui/tokens.css so the mock reads as
+     the product. The app is a single, deliberately dark visual world
+     (liquid glass over a pre-blurred backdrop), so this page commits to
+     that one theme and paints every colour explicitly.
+     ------------------------------------------------------------------ */
+  :root {
+    --void: #0a0f1a;
+    --void-deep: #070b12;
+    --surface-1: rgba(32, 38, 54, 0.36);
+    --surface-2: rgba(38, 45, 64, 0.44);
+    --surface-raised: rgba(46, 54, 76, 0.52);
+    --surface-sunken: rgba(14, 18, 28, 0.42);
+    --surface-code: rgba(4, 10, 20, 0.6);
+    --surface-overlay: rgba(46, 54, 76, 0.44);
+
+    --border-subtle: rgba(255, 255, 255, 0.1);
+    --border-strong: rgba(255, 255, 255, 0.22);
+    --wash-1: rgba(255, 255, 255, 0.04);
+    --wash-2: rgba(255, 255, 255, 0.08);
+    --wash-3: rgba(255, 255, 255, 0.14);
+    --highlight-top: rgba(255, 255, 255, 0.12);
+
+    --text-primary: #eef0f5;
+    --text-secondary: #a4abbd;
+    --text-muted: #767f95;
+    --text-inverse: #0b0d13;
+
+    --accent: #4f8ff7;
+    --accent-strong: #7cabff;
+    --accent-tint: rgba(79, 143, 247, 0.16);
+    --success: #34d399;
+    --success-tint: rgba(52, 211, 153, 0.16);
+    --warning: #f5b83d;
+    --warning-tint: rgba(245, 184, 61, 0.16);
+    --danger: #f2545b;
+    --danger-tint: rgba(242, 84, 91, 0.16);
+    --violet: #a78bfa;
+
+    --r-sm: 6px;
+    --r-md: 10px;
+    --r-lg: 16px;
+    --r-xl: 22px;
+    --r-full: 999px;
+
+    --sans: 'IBM Plex Sans', -apple-system, 'Segoe UI', Roboto, sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Consolas, monospace;
+
+    --shadow-3: 0 20px 56px rgba(0, 0, 0, 0.5);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1200px 700px at 12% -8%, rgba(79, 143, 247, 0.14), transparent 62%),
+      radial-gradient(900px 620px at 96% 4%, rgba(52, 211, 153, 0.09), transparent 58%),
+      radial-gradient(1000px 800px at 50% 108%, rgba(167, 139, 250, 0.08), transparent 60%),
+      var(--void);
+    color: var(--text-primary);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page { max-width: 1180px; margin: 0 auto; padding: 64px 28px 120px; }
+
+  /* ---------- document chrome ---------- */
+
+  .masthead { margin-bottom: 64px; }
+  .kicker {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent-strong);
+    margin: 0 0 14px;
+  }
+  h1 {
+    font-size: clamp(30px, 4.4vw, 46px);
+    line-height: 1.1;
+    font-weight: 600;
+    letter-spacing: -0.022em;
+    margin: 0 0 18px;
+    text-wrap: balance;
+  }
+  .standfirst {
+    max-width: 68ch;
+    color: var(--text-secondary);
+    font-size: 16.5px;
+    margin: 0;
+  }
+  .standfirst strong { color: var(--text-primary); font-weight: 600; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin: 0 0 10px;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .eyebrow .tag {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  section.finding { margin-top: 76px; }
+  section.finding > h2 {
+    font-size: 25px;
+    font-weight: 600;
+    letter-spacing: -0.014em;
+    margin: 0 0 12px;
+    text-wrap: balance;
+  }
+  .lede {
+    max-width: 74ch;
+    color: var(--text-secondary);
+    margin: 0 0 26px;
+  }
+  .lede strong, .note strong { color: var(--text-primary); font-weight: 600; }
+  .lede code, .note code, .standfirst code {
+    font-family: var(--mono);
+    font-size: 0.88em;
+    background: var(--wash-1);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-sm);
+    padding: 1px 5px;
+    color: var(--accent-strong);
+  }
+
+  .note {
+    max-width: 74ch;
+    color: var(--text-secondary);
+    font-size: 14.5px;
+    margin: 22px 0 0;
+    padding-left: 16px;
+    border-left: 2px solid var(--border-subtle);
+  }
+
+  .verdict {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border-radius: var(--r-full);
+    padding: 4px 11px;
+    border: 1px solid;
+    margin-bottom: 16px;
+  }
+  .verdict.now { color: var(--danger); border-color: rgba(242, 84, 91, 0.4); background: var(--danger-tint); }
+  .verdict.next { color: var(--success); border-color: rgba(52, 211, 153, 0.4); background: var(--success-tint); }
+
+  .pair {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+    gap: 26px;
+    align-items: start;
+  }
+  .pair > figure { margin: 0; }
+  .pair figcaption {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-top: 14px;
+    max-width: 52ch;
+  }
+
+  /* ---------- the mocked product surfaces ---------- */
+
+  .stage {
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0)),
+      var(--void-deep);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-lg);
+    padding: 22px;
+    overflow-x: auto;
+  }
+  .stage.tight { padding: 16px; }
+
+  .dialog {
+    background:
+      linear-gradient(180deg, var(--highlight-top), rgba(255,255,255,0) 42%),
+      var(--surface-overlay);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-xl);
+    box-shadow: var(--shadow-3);
+    padding: 18px;
+    min-width: 620px;
+  }
+
+  /* dialog header */
+  .dlg-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 16px;
+  }
+  .dlg-title-plain {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .dot { width: 9px; height: 9px; border-radius: var(--r-full); flex: none; }
+  .dot.up { background: var(--success); box-shadow: 0 0 0 3px var(--success-tint); }
+  .dot.down { background: var(--text-muted); box-shadow: 0 0 0 3px var(--wash-2); }
+  .name { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+  .sid { font-family: var(--mono); font-size: 12.5px; color: var(--text-muted); }
+  .spacer { flex: 1 1 auto; }
+
+  .pill {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border-radius: var(--r-sm);
+    padding: 3px 8px;
+  }
+  .pill.run { color: var(--success); background: var(--success-tint); }
+  .pill.exited { color: var(--text-secondary); background: var(--wash-2); }
+  .pill.healthy { color: var(--success); background: var(--success-tint); }
+
+  .iconbtn {
+    width: 30px; height: 30px;
+    display: grid; place-items: center;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--border-subtle);
+    background: var(--wash-1);
+    color: var(--text-secondary);
+    font-size: 14px;
+    flex: none;
+  }
+
+  /* tabs */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 0;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+  }
+  .tab {
+    font-size: 13.5px;
+    color: var(--text-secondary);
+    padding: 8px 13px 10px;
+    border-radius: var(--r-sm) var(--r-sm) 0 0;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+  }
+  .tab.on {
+    color: var(--text-primary);
+    font-weight: 600;
+    background: var(--wash-1);
+    border-bottom-color: var(--accent);
+  }
+  .tab.ghost { color: var(--text-muted); opacity: 0.55; }
+
+  /* generic bits */
+  .lbl {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .val { font-family: var(--mono); font-size: 13px; color: var(--text-primary); }
+  .val.dim { color: var(--text-secondary); }
+  .big { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+  .sub { font-size: 11.5px; color: var(--text-muted); }
+
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--r-md);
+    padding: 13px;
+  }
+
+  .meter { height: 4px; border-radius: var(--r-full); background: var(--wash-2); overflow: hidden; }
+  .meter > i { display: block; height: 100%; border-radius: var(--r-full); }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 13px; font-weight: 500;
+    border-radius: var(--r-sm);
+    padding: 7px 13px;
+    border: 1px solid var(--border-subtle);
+    background: var(--wash-1);
+    color: var(--text-primary);
+    white-space: nowrap;
+  }
+  .btn.primary { background: var(--accent-tint); border-color: rgba(79,143,247,0.42); color: var(--accent-strong); }
+  .btn.sm { font-size: 12px; padding: 5px 10px; }
+
+  .chip {
+    font-family: var(--mono);
+    font-size: 11px;
+    border-radius: var(--r-sm);
+    padding: 2px 7px;
+    background: var(--wash-2);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-subtle);
+  }
+  .chip.ro { color: var(--warning); background: var(--warning-tint); border-color: rgba(245,184,61,0.3); }
+  .chip.rw { color: var(--success); background: var(--success-tint); border-color: rgba(52,211,153,0.3); }
+
+  .row { display: flex; align-items: center; gap: 10px; }
+  .stack { display: flex; flex-direction: column; }
+
+  /* callout of the rule being applied */
+  .rule {
+    margin-top: 26px;
+    background: var(--wash-1);
+    border: 1px solid var(--border-subtle);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 var(--r-md) var(--r-md) 0;
+    padding: 14px 18px;
+    max-width: 82ch;
+  }
+  .rule .lbl { color: var(--accent); display: block; margin-bottom: 6px; }
+  .rule p { margin: 0; color: var(--text-secondary); font-size: 14.5px; }
+
+  table.spec {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    margin-top: 22px;
+  }
+  table.spec th, table.spec td {
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-subtle);
+    vertical-align: top;
+  }
+  table.spec th {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+  table.spec td { color: var(--text-secondary); }
+  table.spec td:first-child { color: var(--text-primary); white-space: nowrap; font-weight: 500; }
+  .scroller { overflow-x: auto; }
+
+  hr.div { border: 0; border-top: 1px solid var(--border-subtle); margin: 76px 0 0; }
+</style>
+
+<div class="page">
+
+  <header class="masthead">
+    <p class="kicker">Vexel · Containers · analisi UI</p>
+    <h1>I sette tab del popup, letti uno per uno</h1>
+    <p class="standfirst">
+      Il dettaglio del container è appena passato dall'espansione inline al <code>Modal</code> grande.
+      Il contenuto è arrivato intatto — era il vincolo — ma quel contenuto era disegnato per una
+      superficie larga quanto la lista e alta quanto voleva. Su una superficie <strong>centrata e
+      dimensionata dal contenuto</strong> alcune scelte che funzionavano non funzionano più.
+      Qui sotto: una lettura tab per tab, e per ciascuno un mock di dove andrebbe portato.
+    </p>
+  </header>
+
+  <!-- ============================ F0 ============================ -->
+  <section class="finding" id="f0">
+    <p class="eyebrow"><span class="tag">F0</span> Trasversale · la più importante</p>
+    <h2>Il popup cambia altezza a ogni cambio di tab</h2>
+    <p class="lede">
+      Il dialog è dimensionato dal contenuto e centrato verticalmente. I sette tab hanno altezze
+      molto diverse — la griglia a cinque tile di <strong>Stats</strong>, la tabella a 320px di
+      <strong>Processes</strong>, lo stream continuo di <strong>Logs</strong>, il terminale di
+      <strong>Exec</strong>. Risultato: <strong>ogni click su un tab fa saltare la superficie</strong>,
+      e il salto è simmetrico, metà sopra e metà sotto, perché è il centraggio a redistribuirlo.
+    </p>
+    <p class="lede">
+      È lo stesso meccanismo che ha fatto fallire il check di REQ-25: lì lo switch health-check
+      rivelava cinque campi, il dialog cresceva di 85.2px e il bordo superiore saliva di 42.6px.
+      Abbiamo <strong>ristretto il requisito</strong> perché quel movimento non era il difetto che
+      REQ-25 cercava. Ma il movimento resta, e sul cambio di tab è molto più frequente di quanto
+      non fosse su quello switch.
+    </p>
+
+    <div class="pair">
+      <figure>
+        <span class="verdict now">Oggi</span>
+        <div class="stage tight">
+          <div style="display:flex; align-items:center; gap:14px;">
+            <div class="stack" style="gap:0; align-items:center; flex:1;">
+              <div style="width:100%; height:26px;"></div>
+              <div class="dialog" style="min-width:0; width:100%; padding:12px;">
+                <div class="row" style="padding-bottom:10px;"><span class="dot up"></span><span class="name" style="font-size:14px;">payments-service</span><span class="spacer"></span><span class="iconbtn" style="width:22px;height:22px;font-size:11px;">✕</span></div>
+                <div class="tabs" style="margin-bottom:10px;"><span class="tab">Logs</span><span class="tab on">Config</span><span class="tab">Inspect</span></div>
+                <div style="height:150px; display:grid; place-items:center;" class="lbl">Config · 150px</div>
+              </div>
+              <div style="width:100%; height:26px;"></div>
+            </div>
+            <div class="stack" style="gap:0; align-items:center; flex:1;">
+              <div class="dialog" style="min-width:0; width:100%; padding:12px;">
+                <div class="row" style="padding-bottom:10px;"><span class="dot up"></span><span class="name" style="font-size:14px;">payments-service</span><span class="spacer"></span><span class="iconbtn" style="width:22px;height:22px;font-size:11px;">✕</span></div>
+                <div class="tabs" style="margin-bottom:10px;"><span class="tab">Logs</span><span class="tab">Config</span><span class="tab on">Inspect</span></div>
+                <div style="height:202px; display:grid; place-items:center;" class="lbl">Inspect · 202px</div>
+              </div>
+            </div>
+          </div>
+          <p class="lbl" style="text-align:center; margin-top:14px; color:var(--danger);">↕ il bordo superiore sale di 26px, quello inferiore scende di 26px</p>
+        </div>
+        <figcaption>
+          Due tab, due altezze, una superficie che si ridisegna sotto il dito. E il cambio di tab
+          è il gesto più frequente che esista dentro questo popup.
+        </figcaption>
+      </figure>
+
+      <figure>
+        <span class="verdict next">Proposta</span>
+        <div class="stage tight">
+          <div style="display:flex; align-items:center; gap:14px;">
+            <div class="stack" style="gap:0; align-items:center; flex:1;">
+              <div class="dialog" style="min-width:0; width:100%; padding:12px;">
+                <div class="row" style="padding-bottom:10px;"><span class="dot up"></span><span class="name" style="font-size:14px;">payments-service</span><span class="spacer"></span><span class="iconbtn" style="width:22px;height:22px;font-size:11px;">✕</span></div>
+                <div class="tabs" style="margin-bottom:10px;"><span class="tab">Logs</span><span class="tab on">Config</span><span class="tab">Inspect</span></div>
+                <div style="height:202px; display:grid; place-items:center; background:var(--surface-sunken); border-radius:var(--r-md);" class="lbl">Config</div>
+              </div>
+            </div>
+            <div class="stack" style="gap:0; align-items:center; flex:1;">
+              <div class="dialog" style="min-width:0; width:100%; padding:12px;">
+                <div class="row" style="padding-bottom:10px;"><span class="dot up"></span><span class="name" style="font-size:14px;">payments-service</span><span class="spacer"></span><span class="iconbtn" style="width:22px;height:22px;font-size:11px;">✕</span></div>
+                <div class="tabs" style="margin-bottom:10px;"><span class="tab">Logs</span><span class="tab">Config</span><span class="tab on">Inspect</span></div>
+                <div style="height:202px; display:grid; place-items:center; background:var(--surface-sunken); border-radius:var(--r-md);" class="lbl">Inspect</div>
+              </div>
+            </div>
+          </div>
+          <p class="lbl" style="text-align:center; margin-top:14px; color:var(--success);">✓ la cornice non si muove — scorre il contenuto dentro</p>
+        </div>
+        <figcaption>
+          Un'altezza sola per tutto il dettaglio — <code>min(78vh, 860px)</code> — e i tab scorrono
+          dentro. La cornice diventa un posto fisso, non una conseguenza del tab attivo.
+        </figcaption>
+      </figure>
+    </div>
+
+    <div class="rule">
+      <span class="lbl">Perché è la prima da fare</span>
+      <p>
+        Risolve anche il residuo di REQ-25 senza ancorare nulla: se l'altezza è fissa, rivelare
+        i campi dell'health check non muove più il bordo, e il difetto che avevamo dichiarato
+        “non un difetto” smette di esistere del tutto. Una modifica, due problemi chiusi.
+      </p>
+    </div>
+  </section>
+
+  <hr class="div">
+
+  <!-- ============================ F1 ============================ -->
+  <section class="finding" id="f1">
+    <p class="eyebrow"><span class="tag">F1</span> Intestazione del dialog</p>
+    <h2>L'header ha perso l'identità che il mockup gli aveva dato</h2>
+    <p class="lede">
+      Il mock approvato mostrava punto di stato, nome, pill dello stato e id breve. Quello che è
+      stato costruito passa a <code>Modal</code> una stringa sola:
+      <code>Container — payments-service</code>. Il prefisso “Container —” dice quello che
+      l'operatore già sa, e lo stato — l'unica cosa che potrebbe essere cambiata da quando ha
+      aperto — non c'è.
+    </p>
+
+    <div class="pair">
+      <figure>
+        <span class="verdict now">Oggi</span>
+        <div class="stage">
+          <div class="dialog" style="min-width:0;">
+            <div class="dlg-head">
+              <span class="dlg-title-plain">Container — payments-service</span>
+              <span class="spacer"></span>
+              <span class="iconbtn">✕</span>
+            </div>
+            <div class="tabs" style="margin-bottom:0;">
+              <span class="tab">Logs</span><span class="tab">Stats</span><span class="tab on">Config</span>
+              <span class="tab">Processes</span><span class="tab">Inspect</span><span class="tab">Exec</span><span class="tab">Attach</span>
+            </div>
+          </div>
+        </div>
+        <figcaption>Una riga di testo. Nessuno stato, nessun id, e due parole di prefisso che non informano.</figcaption>
+      </figure>
+
+      <figure>
+        <span class="verdict next">Proposta</span>
+        <div class="stage">
+          <div class="dialog" style="min-width:0;">
+            <div class="dlg-head">
+              <span class="dot up"></span>
+              <span class="name">payments-service</span>
+              <span class="pill run">running</span>
+              <span class="pill healthy">healthy</span>
+              <span class="sid">13d8cf2f11e3</span>
+              <span class="spacer"></span>
+              <span class="iconbtn">✕</span>
+            </div>
+            <div class="tabs" style="margin-bottom:0;">
+              <span class="tab on">Config</span><span class="tab">Logs</span><span class="tab">Stats</span>
+              <span class="tab">Processes</span><span class="tab">Inspect</span><span class="tab">Exec</span><span class="tab">Attach</span>
+            </div>
+          </div>
+        </div>
+        <figcaption>
+          Lo stesso header della card, che l'operatore ha appena guardato per decidere di aprire.
+          In più <code>healthy</code>: il container ha un health check e oggi il suo esito è
+          sepolto dentro una sezione richiudibile di Inspect.
+        </figcaption>
+      </figure>
+    </div>
+
+    <p class="note">
+      <strong>Nel mock la prima tab è Config</strong>, ed è la seconda cosa che cambia. Oggi il
+      dettaglio apre su <code>config</code> mentre <code>logs</code> è disegnata per prima: la tab
+      attiva all'apertura non è quella in testa. O si apre sulla prima, o si sposta Config in
+      testa — la seconda, perché Config è la ragione più frequente per aprire il dettaglio.
+    </p>
+  </section>
+
+  <hr class="div">
+
+  <!-- ============================ F2 ============================ -->
+  <section class="finding" id="f2">
+    <p class="eyebrow"><span class="tag">F2</span> Tab Stats</p>
+    <h2>Cinque tile uguali, e tre hanno una barra che non può significare niente</h2>
+    <p class="lede">
+      <code>Grid arrangement="even-row"</code> mette cinque tile in cinque tracce uguali. Ma le
+      cinque metriche non sono uguali: <strong>CPU e Memory hanno un tetto</strong> — le percentuali
+      significano qualcosa — mentre <strong>Net I/O, Block I/O e PIDs non ne hanno</strong>. Per
+      quelle tre il <code>Meter</code> entra nello stato “nessun massimo misurabile”: una barra
+      disegnata che, per costruzione, non può riempirsi in proporzione a nulla.
+    </p>
+    <p class="lede">
+      La decisione di darle comunque un meter era giusta contro l'alternativa di allora (una barra
+      assente che sembrava una barra rotta). Ma la scelta vera è una terza: <strong>a quelle tre
+      serve una sparkline, non un meter</strong>. Un contatore che sale racconta la sua storia con
+      l'andamento, non con il riempimento.
+    </p>
+
+    <span class="verdict next">Proposta · 2 + 3</span>
+    <div class="stage">
+      <div class="dialog" style="min-width:0;">
+        <div class="dlg-head" style="padding-bottom:14px;">
+          <span class="dot up"></span><span class="name">payments-service</span>
+          <span class="pill run">running</span><span class="sid">13d8cf2f11e3</span>
+          <span class="spacer"></span><span class="iconbtn">✕</span>
+        </div>
+        <div class="tabs">
+          <span class="tab">Config</span><span class="tab">Logs</span><span class="tab on">Stats</span>
+          <span class="tab">Processes</span><span class="tab">Inspect</span><span class="tab ghost">Exec</span><span class="tab ghost">Attach</span>
+        </div>
+
+        <!-- two ceilinged metrics -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+          <div class="card">
+            <div class="row" style="justify-content:space-between; align-items:baseline;">
+              <span class="lbl">CPU</span>
+              <span class="sub">of 11 cores</span>
+            </div>
+            <div class="big" style="margin:6px 0 2px; color:var(--success);">18.4%</div>
+            <div class="meter" style="margin:8px 0 10px;"><i style="width:18.4%; background:var(--success);"></i></div>
+            <svg viewBox="0 0 260 40" preserveAspectRatio="none" style="width:100%; height:38px; display:block;" aria-label="Recent CPU usage">
+              <defs><linearGradient id="gcpu" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#34d399" stop-opacity="0.34"/><stop offset="100%" stop-color="#34d399" stop-opacity="0"/>
+              </linearGradient></defs>
+              <path d="M0,32 L20,29 L40,33 L60,22 L80,26 L100,17 L120,24 L140,12 L160,19 L180,14 L200,21 L220,11 L240,16 L260,13 L260,40 L0,40 Z" fill="url(#gcpu)"/>
+              <path d="M0,32 L20,29 L40,33 L60,22 L80,26 L100,17 L120,24 L140,12 L160,19 L180,14 L200,21 L220,11 L240,16 L260,13" fill="none" stroke="#34d399" stroke-width="1.6"/>
+              <circle cx="260" cy="13" r="2.6" fill="#34d399"/>
+            </svg>
+          </div>
+
+          <div class="card">
+            <div class="row" style="justify-content:space-between; align-items:baseline;">
+              <span class="lbl">Memory</span>
+              <span class="sub">of 512.0MB · 71%</span>
+            </div>
+            <div class="big" style="margin:6px 0 2px; color:var(--warning);">363.5MB</div>
+            <div class="meter" style="margin:8px 0 10px;"><i style="width:71%; background:var(--warning);"></i></div>
+            <svg viewBox="0 0 260 40" preserveAspectRatio="none" style="width:100%; height:38px; display:block;" aria-label="Recent memory usage">
+              <defs><linearGradient id="gmem" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#f5b83d" stop-opacity="0.32"/><stop offset="100%" stop-color="#f5b83d" stop-opacity="0"/>
+              </linearGradient></defs>
+              <path d="M0,30 L20,28 L40,27 L60,25 L80,24 L100,22 L120,21 L140,19 L160,18 L180,16 L200,15 L220,13 L240,12 L260,11 L260,40 L0,40 Z" fill="url(#gmem)"/>
+              <path d="M0,30 L20,28 L40,27 L60,25 L80,24 L100,22 L120,21 L140,19 L160,18 L180,16 L200,15 L220,13 L240,12 L260,11" fill="none" stroke="#f5b83d" stroke-width="1.6"/>
+              <circle cx="260" cy="11" r="2.6" fill="#f5b83d"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- three uncapped counters -->
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-top:14px;">
+          <div class="card">
+            <span class="lbl">Net I/O</span>
+            <div class="row" style="gap:6px; margin:5px 0 8px; align-items:baseline;">
+              <span class="val" style="font-size:15px; color:var(--accent-strong);">102.7MB</span>
+              <span class="sub">in</span>
+              <span class="val" style="font-size:15px; color:var(--violet);">4.0MB</span>
+              <span class="sub">out</span>
+            </div>
+            <svg viewBox="0 0 160 26" preserveAspectRatio="none" style="width:100%; height:24px; display:block;">
+              <path d="M0,22 L20,20 L40,21 L60,15 L80,17 L100,10 L120,13 L140,7 L160,9" fill="none" stroke="#4f8ff7" stroke-width="1.5"/>
+              <circle cx="160" cy="9" r="2.4" fill="#4f8ff7"/>
+            </svg>
+          </div>
+          <div class="card">
+            <span class="lbl">Block I/O</span>
+            <div class="row" style="gap:6px; margin:5px 0 8px; align-items:baseline;">
+              <span class="val" style="font-size:15px; color:var(--accent-strong);">18.2MB</span>
+              <span class="sub">r</span>
+              <span class="val" style="font-size:15px; color:var(--violet);">640.0KB</span>
+              <span class="sub">w</span>
+            </div>
+            <svg viewBox="0 0 160 26" preserveAspectRatio="none" style="width:100%; height:24px; display:block;">
+              <path d="M0,23 L20,23 L40,22 L60,22 L80,18 L100,18 L120,17 L140,17 L160,14" fill="none" stroke="#4f8ff7" stroke-width="1.5"/>
+              <circle cx="160" cy="14" r="2.4" fill="#4f8ff7"/>
+            </svg>
+          </div>
+          <div class="card">
+            <span class="lbl">PIDs</span>
+            <div class="row" style="gap:6px; margin:5px 0 8px; align-items:baseline;">
+              <span class="val" style="font-size:15px;">27</span>
+              <span class="sub">processes and threads</span>
+            </div>
+            <svg viewBox="0 0 160 26" preserveAspectRatio="none" style="width:100%; height:24px; display:block;">
+              <path d="M0,16 L20,16 L40,13 L60,13 L80,13 L100,10 L120,10 L140,12 L160,10" fill="none" stroke="#a78bfa" stroke-width="1.5"/>
+              <circle cx="160" cy="10" r="2.4" fill="#a78bfa"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="note">
+      Due cambi, entrambi dentro la libreria. <strong>La sparkline guadagna il riempimento e il punto
+      finale evidenziato</strong> — oggi è una polilinea nuda, e il valore corrente è l'unica cosa
+      che si guarda davvero. E <strong>Net I/O separa i due numeri in due colori</strong>: oggi
+      <code>102.7MB / 4.0MB</code> è una stringa sola in cui in e out si distinguono solo per
+      posizione.
+    </p>
+  </section>
+
+  <hr class="div">
+
+  <!-- ============================ F3 ============================ -->
+  <section class="finding" id="f3">
+    <p class="eyebrow"><span class="tag">F3</span> Tab Config · lettura</p>
+    <h2>Le variabili d'ambiente sono stringhe grezze, e i mount hanno una parola al posto di un'etichetta</h2>
+    <p class="lede">
+      La colonna destra impila <code>MetaCell</code> con dentro <code>KEY=value</code> così com'è
+      arrivato dal daemon, e i mount con il prefisso letterale
+      <code>mount: /src → /dst (ro)</code>. Quella parola “mount:” sta facendo il lavoro di
+      un'etichetta di sezione, ripetuta su ogni riga. E chiave e valore non sono allineati fra
+      loro: per leggere la terza variabile bisogna rileggere le prime due.
+    </p>
+    <p class="lede">
+      C'è anche un'azione fuori posto: <strong><code>Edit configuration</code> è in fondo alla
+      colonna destra</strong>. Agisce su tutto il tab, ma sta sotto una delle due colonne, come se
+      appartenesse a quella.
+    </p>
+
+    <span class="verdict next">Proposta</span>
+    <div class="stage">
+      <div class="dialog" style="min-width:0;">
+        <div class="dlg-head" style="padding-bottom:14px;">
+          <span class="dot up"></span><span class="name">payments-service</span>
+          <span class="pill run">running</span><span class="sid">13d8cf2f11e3</span>
+          <span class="spacer"></span><span class="iconbtn">✕</span>
+        </div>
+        <div class="tabs">
+          <span class="tab on">Config</span><span class="tab">Logs</span><span class="tab">Stats</span>
+          <span class="tab">Processes</span><span class="tab">Inspect</span><span class="tab ghost">Exec</span><span class="tab ghost">Attach</span>
+        </div>
+
+        <div class="row" style="justify-content:space-between; margin-bottom:14px;">
+          <span class="lbl">Runtime configuration</span>
+          <span class="btn sm">Edit configuration</span>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:22px;">
+          <div class="stack" style="gap:9px;">
+            <div class="row" style="justify-content:space-between; gap:16px;"><span class="lbl">Restart policy</span><span class="val">unless-stopped</span></div>
+            <div class="row" style="justify-content:space-between; gap:16px;"><span class="lbl">CPU limit</span><span class="val">2 cpus</span></div>
+            <div class="row" style="justify-content:space-between; gap:16px;"><span class="lbl">Memory limit</span><span class="val">512.0MB</span></div>
+            <div class="row" style="justify-content:space-between; gap:16px;"><span class="lbl">Port mapping</span><span class="val">8080→8080/tcp</span></div>
+            <div class="row" style="justify-content:space-between; gap:16px;"><span class="lbl">Health check</span><span class="val" style="color:var(--success);">curl -f localhost/healthz</span></div>
+            <div class="row" style="justify-content:space-between; gap:16px;"><span class="lbl">Networks</span><span class="val">acme-backend</span></div>
+          </div>
+
+          <div class="stack" style="gap:16px;">
+            <div class="stack" style="gap:7px;">
+              <span class="lbl">Environment · 4</span>
+              <div style="display:grid; grid-template-columns:auto 1fr; gap:4px 12px; align-items:baseline;">
+                <span class="val" style="color:var(--accent-strong);">NODE_ENV</span><span class="val dim">production</span>
+                <span class="val" style="color:var(--accent-strong);">PORT</span><span class="val dim">8080</span>
+                <span class="val" style="color:var(--accent-strong);">LOG_LEVEL</span><span class="val dim">info</span>
+                <span class="val" style="color:var(--accent-strong);">DATABASE_URL</span><span class="val dim" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">postgres://acme@db.internal:5432/payments</span>
+              </div>
+            </div>
+            <div class="stack" style="gap:7px;">
+              <span class="lbl">Mounts · 2</span>
+              <div class="stack" style="gap:6px;">
+                <div class="row" style="gap:8px;"><span class="val dim">/etc/acme/certs</span><span class="sub">→</span><span class="val">/certs</span><span class="chip ro">ro</span></div>
+                <div class="row" style="gap:8px;"><span class="val dim">payments-data</span><span class="sub">→</span><span class="val">/var/lib/data</span><span class="chip rw">rw</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="note">
+      Chiave in mono accentata, valore in mono attenuato, allineati su due tracce: si scorre la
+      colonna delle chiavi senza rileggere i valori. I mount diventano una sezione con il proprio
+      conteggio, e <code>ro</code>/<code>rw</code> un chip colorato invece di due lettere fra
+      parentesi — <code>ro</code> è la cosa che si va a cercare quando un container non riesce a
+      scrivere.
+    </p>
+  </section>
+
+  <hr class="div">
+
+  <!-- ============================ F4 ============================ -->
+  <section class="finding" id="f4">
+    <p class="eyebrow"><span class="tag">F4</span> Tab Config · modifica</p>
+    <h2>In edit il tab diventa una colonna lunga senza gerarchia</h2>
+    <p class="lede">
+      Quattro campi in una riga, poi <code>Environment variables</code>, <code>Port mappings</code>,
+      <code>Mounts</code>, <code>Health check</code> uno sotto l'altro, separati solo da
+      <code>SectionHeader</code>. Nessuna delle quattro sezioni ha un contenitore: sono titoli su
+      un fondo continuo, e a schermo pieno la lista è più alta del dialog. È anche il punto in cui
+      si è visto il salto di 85.2px.
+    </p>
+
+    <span class="verdict next">Proposta</span>
+    <div class="stage">
+      <div class="dialog" style="min-width:0;">
+        <div class="dlg-head" style="padding-bottom:14px;">
+          <span class="dot up"></span><span class="name">payments-service</span>
+          <span class="pill run">running</span><span class="sid">13d8cf2f11e3</span>
+          <span class="spacer"></span><span class="iconbtn">✕</span>
+        </div>
+        <div class="tabs">
+          <span class="tab on">Config</span><span class="tab">Logs</span><span class="tab">Stats</span>
+          <span class="tab">Processes</span><span class="tab">Inspect</span><span class="tab ghost">Exec</span><span class="tab ghost">Attach</span>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+          <div class="card">
+            <span class="lbl">Runtime</span>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px;">
+              <div class="row" style="justify-content:space-between; background:var(--surface-sunken); border:1px solid var(--border-subtle); border-radius:var(--r-sm); padding:6px 9px;"><span class="sub">Restart</span><span class="val" style="font-size:12px;">unless-stopped</span></div>
+              <div class="row" style="justify-content:space-between; background:var(--surface-sunken); border:1px solid var(--border-subtle); border-radius:var(--r-sm); padding:6px 9px;"><span class="sub">CPU</span><span class="val" style="font-size:12px;">2</span></div>
+              <div class="row" style="justify-content:space-between; background:var(--surface-sunken); border:1px solid var(--border-subtle); border-radius:var(--r-sm); padding:6px 9px;"><span class="sub">Memory MB</span><span class="val" style="font-size:12px;">512</span></div>
+              <div class="row" style="justify-content:space-between; background:var(--surface-sunken); border:1px solid var(--border-subtle); border-radius:var(--r-sm); padding:6px 9px;"><span class="sub">Retries</span><span class="val dim" style="font-size:12px;">—</span></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="row" style="justify-content:space-between;">
+              <span class="lbl">Health check</span>
+              <span style="width:30px; height:17px; border-radius:var(--r-full); background:var(--success-tint); border:1px solid rgba(52,211,153,0.4); position:relative; display:inline-block;">
+                <span style="position:absolute; right:2px; top:1.5px; width:12px; height:12px; border-radius:50%; background:var(--success);"></span>
+              </span>
+            </div>
+            <div style="background:var(--surface-sunken); border:1px solid var(--border-subtle); border-radius:var(--r-sm); padding:6px 9px; margin:10px 0 8px;"><span class="val" style="font-size:12px;">curl -f localhost/healthz</span></div>
+            <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:6px;">
+              <div style="background:var(--surface-sunken); border:1px solid var(--border-subtle); border-radius:var(--r-sm); padding:5px 7px;"><div class="sub" style="font-size:10px;">interval</div><span class="val" style="font-size:12px;">30s</span></div>
+              <div style="background:var(--surface-sunken); border:1px solid var(--border-subtle); border-radius:var(--r-sm); padding:5px 7px;"><div class="sub" style="font-size:10px;">timeout</div><span class="val" style="font-size:12px;">5s</span></div>
+              <div style="background:var(--surface-sunken); border:1px solid var(--border-subtle); border-radius:var(--r-sm); padding:5px 7px;"><div class="sub" style="font-size:10px;">retries</div><span class="val" style="font-size:12px;">3</span></div>
+              <div style="background:var(--surface-sunken); border:1px solid var(--border-subtle); border-radius:var(--r-sm); padding:5px 7px;"><div class="sub" style="font-size:10px;">start</div><span class="val" style="font-size:12px;">10s</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:14px;">
+          <div class="row" style="justify-content:space-between; margin-bottom:10px;">
+            <span class="lbl">Environment · 4</span>
+            <span class="btn sm">＋ Add variable</span>
+          </div>
+          <div class="stack" style="gap:6px;">
+            <div class="row" style="gap:8px;">
+              <span style="flex:0 0 190px; background:var(--surface-sunken); border:1px solid var(--border-subtle); border-radius:var(--r-sm); padding:6px 9px;" class="val">NODE_ENV</span>
+              <span style="flex:1; background:var(--surface-sunken); border:1px solid var(--border-subtle); border-radius:var(--r-sm); padding:6px 9px;" class="val dim">production</span>
+              <span class="iconbtn" style="width:28px;height:28px;font-size:12px;">✕</span>
+            </div>
+            <div class="row" style="gap:8px;">
+              <span style="flex:0 0 190px; background:var(--surface-sunken); border:1px solid var(--border-subtle); border-radius:var(--r-sm); padding:6px 9px;" class="val">DATABASE_URL</span>
+              <span style="flex:1; background:var(--surface-sunken); border:1px solid var(--border-subtle); border-radius:var(--r-sm); padding:6px 9px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" class="val dim">postgres://acme@db.internal:5432/payments</span>
+              <span class="iconbtn" style="width:28px;height:28px;font-size:12px;">✕</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:16px; padding-top:14px; border-top:1px solid var(--border-subtle);">
+          <span class="sub" style="color:var(--warning);">⚠ Environment e Mounts richiedono la ricreazione del container</span>
+          <span class="spacer"></span>
+          <span class="btn">Cancel</span>
+          <span class="btn primary">Save changes</span>
+        </div>
+      </div>
+    </div>
+
+    <p class="note">
+      Ogni gruppo dentro una <code>Card</code>, e i due gruppi piccoli affiancati invece che
+      impilati. <strong>L'avviso di ricreazione sale nel footer del form</strong>: oggi arriva solo
+      dopo il salvataggio, come dialog di conferma, quando l'operatore ha già deciso. Dirlo mentre
+      modifica è la stessa informazione al momento in cui serve.
+    </p>
+  </section>
+
+  <hr class="div">
+
+  <!-- ============================ F5 ============================ -->
+  <section class="finding" id="f5">
+    <p class="eyebrow"><span class="tag">F5</span> Tab Logs</p>
+    <h2>Quattro controlli di natura diversa in una riga sola che va a capo dove capita</h2>
+    <p class="lede">
+      <code>SegmentedControl</code>, <code>Toggle</code>, <code>TailSizeSelector</code> e
+      <code>TimeRangeField</code> stanno in un unico <code>Row wrap</code>. Ma due di questi
+      <strong>cambiano cosa si chiede al daemon</strong> (stream, tail, since/until — riaprono lo
+      stream) e due <strong>cambiano solo come si legge</strong> (timestamp, ricerca). Nella riga
+      unica sembrano intercambiabili, e a larghezze intermedie il punto in cui va a capo cade in
+      mezzo a un gruppo.
+    </p>
+
+    <span class="verdict next">Proposta</span>
+    <div class="stage">
+      <div class="dialog" style="min-width:0;">
+        <div class="dlg-head" style="padding-bottom:14px;">
+          <span class="dot up"></span><span class="name">payments-service</span>
+          <span class="pill run">running</span><span class="sid">13d8cf2f11e3</span>
+          <span class="spacer"></span><span class="iconbtn">✕</span>
+        </div>
+        <div class="tabs">
+          <span class="tab">Config</span><span class="tab on">Logs</span><span class="tab">Stats</span>
+          <span class="tab">Processes</span><span class="tab">Inspect</span><span class="tab ghost">Exec</span><span class="tab ghost">Attach</span>
+        </div>
+
+        <div class="row" style="justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
+          <div class="row" style="gap:8px;">
+            <span class="lbl" style="margin-right:2px;">Fetch</span>
+            <span style="display:inline-flex; border:1px solid var(--border-subtle); border-radius:var(--r-sm); overflow:hidden;">
+              <span class="chip" style="border:0; border-radius:0; background:var(--accent-tint); color:var(--accent-strong);">stdout</span>
+              <span class="chip" style="border:0; border-radius:0; border-left:1px solid var(--border-subtle); background:var(--accent-tint); color:var(--accent-strong);">stderr</span>
+            </span>
+            <span class="chip">tail 500</span>
+            <span class="chip">last 10m</span>
+          </div>
+          <div class="row" style="gap:8px;">
+            <span class="lbl" style="margin-right:2px;">Read</span>
+            <span class="chip">🔍 timeout <span style="color:var(--warning);">3/12</span></span>
+            <span class="chip" style="background:var(--wash-3); color:var(--text-primary);">timestamps</span>
+            <span class="chip">↓ .txt</span>
+          </div>
+        </div>
+
+        <div style="background:var(--surface-code); border:1px solid var(--border-subtle); border-radius:var(--r-md); padding:12px 14px; font-family:var(--mono); font-size:12px; line-height:1.85; position:relative;">
+          <div><span style="color:var(--text-muted);">18:42:11.004</span> <span style="color:var(--text-secondary);">listening on :8080</span></div>
+          <div><span style="color:var(--text-muted);">18:42:11.219</span> <span style="color:var(--text-secondary);">connected to postgres://…:5432</span></div>
+          <div><span style="color:var(--text-muted);">18:42:12.881</span> <span style="color:var(--text-secondary);">ready</span></div>
+          <div><span style="color:var(--text-muted);">18:47:03.117</span> <span style="color:var(--success);">POST /v1/payments 201 42ms</span></div>
+          <div style="background:var(--warning-tint); border-radius:var(--r-sm); margin:0 -4px; padding:0 4px;"><span style="color:var(--text-muted);">18:47:19.550</span> <span style="color:var(--warning);">upstream <mark style="background:var(--warning); color:var(--text-inverse); border-radius:2px; padding:0 2px;">timeout</mark> after 3000ms</span></div>
+          <div><span style="color:var(--text-muted);">18:47:44.520</span> <span style="color:var(--success);">POST /v1/payments 201 38ms</span></div>
+          <div><span style="color:var(--text-muted);">18:48:02.113</span> <span style="color:var(--danger);">ERR pool exhausted</span></div>
+          <div style="position:absolute; right:14px; bottom:12px; background:var(--surface-overlay); border:1px solid var(--border-strong); border-radius:var(--r-full); padding:5px 12px; font-size:11px; color:var(--text-primary);">↓ Jump to live</div>
+        </div>
+      </div>
+    </div>
+
+    <p class="note">
+      Due gruppi etichettati, <strong>Fetch</strong> a sinistra e <strong>Read</strong> a destra, che
+      vanno a capo come blocchi interi. E una cosa che oggi manca del tutto: <strong>le righe non
+      hanno colore</strong>. Un <code>ERR</code> e un <code>201</code> si leggono uguali, mentre il
+      motivo per cui si aprono i log è quasi sempre trovare il primo. Livello dedotto dal testo,
+      stderr distinto da stdout.
+    </p>
+  </section>
+
+  <hr class="div">
+
+  <!-- ============================ F6 ============================ -->
+  <section class="finding" id="f6">
+    <p class="eyebrow"><span class="tag">F6</span> Tab Processes e Inspect</p>
+    <h2>Una tabella da 320px in un dialog alto 860, e dieci proprietà senza gerarchia</h2>
+    <p class="lede">
+      <code>MAX_TABLE_HEIGHT = '320px'</code> era una misura giusta dentro un pannello inline che
+      divideva la riga della griglia. Dentro il dialog grande lascia <strong>metà superficie
+      vuota</strong> sotto la tabella e continua a far scorrere l'elenco dei processi in una
+      finestrella. Con l'altezza stabile di F0, la tabella riempie quello che c'è.
+    </p>
+    <p class="lede">
+      Su <strong>Inspect</strong> il problema è un altro: dieci proprietà in una lista sola, in cui
+      <code>Id</code>, <code>Name</code>, <code>Image</code>, <code>Command</code>,
+      <code>Entrypoint</code> e <code>Created</code> dicono <em>cos'è</em> il container, mentre
+      <code>State</code>, <code>Started at</code>, <code>Finished at</code> ed
+      <code>Exit code</code> dicono <em>com'è finita</em>. Sono due domande diverse presentate
+      come una lista sola — e <code>Exit code</code>, l'unica che può portare una cattiva notizia,
+      è l'ultima riga in fondo, della stessa identica grafica delle altre.
+    </p>
+
+    <div class="pair">
+      <figure>
+        <span class="verdict next">Processes</span>
+        <div class="stage tight">
+          <div class="dialog" style="min-width:0; padding:14px;">
+            <div class="row" style="justify-content:space-between; margin-bottom:10px;">
+              <span class="lbl">27 processes</span>
+              <span class="btn sm">Refresh</span>
+            </div>
+            <div class="scroller">
+            <table style="width:100%; border-collapse:collapse; font-family:var(--mono); font-size:12px;">
+              <tr style="color:var(--text-muted); font-size:10px; letter-spacing:0.1em; text-transform:uppercase;">
+                <td style="padding:5px 8px;">PID</td><td style="padding:5px 8px;">User</td>
+                <td style="padding:5px 8px;">Command</td>
+                <td style="padding:5px 8px; text-align:right;">%CPU</td><td style="padding:5px 8px; text-align:right;">%MEM</td>
+              </tr>
+              <tr style="border-top:1px solid var(--border-subtle);"><td style="padding:6px 8px;">1</td><td style="padding:6px 8px; color:var(--text-secondary);">root</td><td style="padding:6px 8px; color:var(--text-secondary);">node server.js</td><td style="padding:6px 8px; text-align:right; color:var(--warning);">12.4%</td><td style="padding:6px 8px; text-align:right;">4.1%</td></tr>
+              <tr style="border-top:1px solid var(--border-subtle);"><td style="padding:6px 8px;">28</td><td style="padding:6px 8px; color:var(--text-secondary);">node</td><td style="padding:6px 8px; color:var(--text-secondary);">node worker.js</td><td style="padding:6px 8px; text-align:right;">3.2%</td><td style="padding:6px 8px; text-align:right;">1.8%</td></tr>
+              <tr style="border-top:1px solid var(--border-subtle);"><td style="padding:6px 8px;">41</td><td style="padding:6px 8px; color:var(--text-secondary);">node</td><td style="padding:6px 8px; color:var(--text-secondary);">node worker.js</td><td style="padding:6px 8px; text-align:right;">2.9%</td><td style="padding:6px 8px; text-align:right;">1.7%</td></tr>
+              <tr style="border-top:1px solid var(--border-subtle);"><td style="padding:6px 8px;">55</td><td style="padding:6px 8px; color:var(--text-secondary);">root</td><td style="padding:6px 8px; color:var(--text-secondary);">/bin/sh -c healthcheck</td><td style="padding:6px 8px; text-align:right;">0.0%</td><td style="padding:6px 8px; text-align:right;">0.1%</td></tr>
+            </table>
+            </div>
+            <p class="sub" style="text-align:center; margin:10px 0 0; color:var(--success);">↕ la tabella prende l'altezza che c'è</p>
+          </div>
+        </div>
+        <figcaption>
+          <code>%CPU</code> colorato sopra soglia: in un elenco di 27 righe è così che si trova
+          il processo che sta consumando, senza rileggerle tutte.
+        </figcaption>
+      </figure>
+
+      <figure>
+        <span class="verdict next">Inspect</span>
+        <div class="stage tight">
+          <div class="dialog" style="min-width:0; padding:14px;">
+            <span class="lbl">Identity</span>
+            <div style="display:grid; grid-template-columns:auto 1fr; gap:5px 14px; margin:9px 0 16px;">
+              <span class="sub">Id</span><span class="val">13d8cf2f11e3</span>
+              <span class="sub">Image</span><span class="val" style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">…io/acme-platform/payments-service:2.14.0-rc3</span>
+              <span class="sub">Command</span><span class="val">node server.js</span>
+              <span class="sub">Created</span><span class="val dim">2026-08-25 18:42:09</span>
+            </div>
+
+            <span class="lbl">Lifecycle</span>
+            <div style="display:grid; grid-template-columns:auto 1fr; gap:5px 14px; margin:9px 0 16px;">
+              <span class="sub">State</span><span><span class="pill run">running</span></span>
+              <span class="sub">Started</span><span class="val dim">2026-08-25 18:42:11</span>
+              <span class="sub">Exit code</span><span class="val" style="color:var(--danger);">137 · SIGKILL (OOM)</span>
+            </div>
+
+            <div class="row" style="justify-content:space-between; background:var(--wash-1); border:1px solid var(--border-subtle); border-radius:var(--r-sm); padding:8px 11px; margin-bottom:7px;">
+              <span style="font-size:12.5px;">Networks</span><span class="row" style="gap:8px;"><span class="chip">1</span><span class="sub">▾</span></span>
+            </div>
+            <div class="row" style="justify-content:space-between; background:var(--wash-1); border:1px solid var(--border-subtle); border-radius:var(--r-sm); padding:8px 11px; margin-bottom:7px;">
+              <span style="font-size:12.5px;">Health</span><span class="row" style="gap:8px;"><span class="pill healthy">healthy</span><span class="sub">▾</span></span>
+            </div>
+            <div class="row" style="justify-content:space-between; background:var(--wash-1); border:1px solid var(--border-subtle); border-radius:var(--r-sm); padding:8px 11px;">
+              <span style="font-size:12.5px;">Raw payload</span><span class="row" style="gap:8px;"><span class="chip">JSON</span><span class="sub">▾</span></span>
+            </div>
+          </div>
+        </div>
+        <figcaption>
+          Due gruppi etichettati invece di dieci righe piatte, <code>State</code> come pill invece
+          che come parola, e un <code>Exit code</code> diverso da zero che si legge come una cattiva
+          notizia. Il payload grezzo diventa richiudibile come le altre sezioni: oggi è l'unico
+          sempre aperto, e occupa 320px in fondo a ogni Inspect.
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <hr class="div">
+
+  <!-- ============================ riepilogo ============================ -->
+  <section class="finding" id="riepilogo">
+    <p class="eyebrow">Riepilogo</p>
+    <h2>Cosa cambia, e dove</h2>
+    <p class="lede">
+      Nessuna di queste è una modifica al dominio: sono tutte o <strong>token e varianti nella
+      libreria</strong>, o <strong>composizione nel feature code</strong>. Tre toccano componenti
+      di libreria già esistenti (<code>Modal</code>, <code>Sparkline</code>,
+      <code>LogStream</code>), il resto è ricomposizione.
+    </p>
+
+    <div class="scroller">
+    <table class="spec">
+      <thead>
+        <tr><th>Punto</th><th>Dove</th><th>Natura</th><th>Peso</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>F0 · altezza stabile</td><td><code>Modal</code> + <code>ContainerDetailPanel</code></td><td>Nuovo opt-in di libreria; chiude anche il residuo di REQ-25</td><td>Media</td></tr>
+        <tr><td>F1 · header con identità</td><td><code>Modal</code> (title come nodo) + <code>ContainersScreen</code></td><td>Il <code>title</code> accetta contenuto, non solo stringa</td><td>Bassa</td></tr>
+        <tr><td>F1b · Config prima tab</td><td><code>ContainerDetailPanel</code></td><td>Riordino: la tab attiva all'apertura è anche la prima</td><td>Minima</td></tr>
+        <tr><td>F2 · Stats 2+3</td><td><code>ContainerStatsView</code> + <code>Sparkline</code></td><td>Meter solo dove c'è un tetto; sparkline con area e punto finale</td><td>Media</td></tr>
+        <tr><td>F3 · Config in lettura</td><td><code>ContainerDetailPanel</code></td><td>Env come coppie allineate, mount come sezione propria, azione in testa</td><td>Bassa</td></tr>
+        <tr><td>F4 · Config in modifica</td><td><code>ContainerDetailPanel</code></td><td>Gruppi in <code>Card</code>; avviso di ricreazione nel footer del form</td><td>Media</td></tr>
+        <tr><td>F5 · Logs</td><td><code>ContainerLogsView</code> + <code>LogStream</code></td><td>Controlli in due gruppi; livello di riga colorato</td><td>Media</td></tr>
+        <tr><td>F6 · Processes</td><td><code>ContainerProcessesView</code></td><td>Altezza dal contenitore invece che da <code>320px</code>; %CPU sopra soglia</td><td>Bassa</td></tr>
+        <tr><td>F6b · Inspect</td><td><code>ContainerDetailPanel</code></td><td>Identity / Lifecycle; exit code non-zero in tono danger; raw richiudibile</td><td>Bassa</td></tr>
+      </tbody>
+    </table>
+    </div>
+
+    <div class="rule">
+      <span class="lbl">Se se ne fa una sola</span>
+      <p>
+        <strong>F0.</strong> È l'unica che si nota senza saperla cercare, è quella che rende
+        possibili le altre — Processes e i terminali non possono prendere l'altezza disponibile
+        finché l'altezza disponibile dipende da loro — e chiude il residuo di REQ-25 senza
+        ancorare niente e senza toccare gli altri quattro dialog grandi.
+      </p>
+    </div>
+
+    <p class="note">
+      <strong>Questi sono mock, non specifiche.</strong> Il passo successivo, se le direzioni
+      convincono, è <code>/sdd-analyse</code> su quelle scelte: qui non c'è nessun requisito, e le
+      misure scritte (<code>min(78vh, 860px)</code>, le soglie di colore) sono proposte da
+      discutere, non valori decisi.
+    </p>
+  </section>
+
+</div>
