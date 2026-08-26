@@ -40,9 +40,14 @@ export interface BandGeometry {
   valueBox: Rect | null;
   /**
    * The number of **line boxes** the label's own text is drawn over, and the same
-   * for the value's — counted from the text's own client rects, not inferred
-   * from a height a control inside the band legitimately raises. This is what
-   * *"a 19-character digest wraps across three lines"* means as a number.
+   * for the value's — counted from the **distinct top edges** of the text's own
+   * client rects, not inferred from a height a control inside the band
+   * legitimately raises. This is what *"a 19-character digest wraps across three
+   * lines"* means as a number.
+   *
+   * Distinct tops and not the rect count: a value is a `ReactNode` and may be
+   * several nodes (a mount's destination beside its `ro` chip), which the browser
+   * reports as two rects **on one line**. Counting rects called that a wrap.
    */
   labelLines: number;
   valueLines: number;
@@ -164,6 +169,9 @@ export async function measureSectionThisFrame(section: Locator, name: string): P
       return rects;
     };
 
+    // How many lines a set of text rects is drawn over: one per distinct top edge.
+    const lineBoxes = (rects: DOMRect[]) => new Set(rects.map((rect) => Math.round(rect.top))).size;
+
     const bands = Array.from(element.children)
       .filter((band) => band.getBoundingClientRect().height > 0)
       .map((band) => {
@@ -176,8 +184,8 @@ export async function measureSectionThisFrame(section: Locator, name: string): P
         const valueRects = textRects(valueElement);
         return {
           label: labelElement?.textContent ?? band.textContent?.slice(0, 40) ?? '(no label)',
-          labelLines: Math.max(1, labelRects.length),
-          valueLines: Math.max(1, valueRects.length),
+          labelLines: Math.max(1, lineBoxes(labelRects)),
+          valueLines: Math.max(1, lineBoxes(valueRects)),
           labelInk: labelRects.reduce((total, line) => total + line.width, 0),
           valueInk: valueRects.reduce((total, line) => total + line.width, 0),
           box: rect(band),
@@ -290,45 +298,20 @@ export function expectClearOfTransition(width: number, evidence: string, transit
 }
 
 /**
- * A set of elements, measured and grouped into lines by their top edges — for a
- * list of single values, where the entries themselves are what an operator
- * counts per line.
+ * Whether a band's value is drawn over more than one line — read off the value's
+ * **own** line boxes, never off the band's height, which a control inside it
+ * legitimately raises.
  *
- * Deliberately measures **the entries and not their container**: the container
- * is a different element before this batch's correction and after it, and a
- * check that could only find one of the two could not be red on the other.
- */
-export async function measureEntries(entries: Locator, name: string): Promise<{ boxes: Rect[]; perLine: number; lines: number; spread: number }> {
-  const count = await entries.count();
-  expect(count, `${name} draws no entry at all, so nothing about its arrangement can be measured`).toBeGreaterThan(0);
-  const boxes = (await entries.evaluateAll((elements) =>
-    elements.map((element) => {
-      const box = element.getBoundingClientRect();
-      return { top: box.top, bottom: box.bottom, left: box.left, right: box.right, width: box.width, height: box.height };
-    }),
-  )) as Rect[];
-
-  const lineTops: number[] = [];
-  for (const box of boxes) {
-    if (!lineTops.some((top) => Math.abs(top - box.top) <= LINE_TOLERANCE_PX)) lineTops.push(box.top);
-  }
-  lineTops.sort((a, b) => a - b);
-  return {
-    boxes,
-    perLine: boxes.filter((box) => Math.abs(box.top - (lineTops[0] ?? 0)) <= LINE_TOLERANCE_PX).length,
-    lines: lineTops.length,
-    spread: Math.max(...boxes.map((box) => box.right)) - Math.min(...boxes.map((box) => box.left)),
-  };
-}
-
-/**
- * Whether a band's value is drawn over more than one line — measured against the
- * label beside it, which is always one line, rather than against the band's own
- * height, which a control inside it legitimately raises.
+ * It used to be a ratio against the label's height, on the premise that a label
+ * is always one line. **That premise died on 2026-08-26**: a property band's
+ * label now gives way when the band cannot hold both, so a value long enough to
+ * squeeze its label wraps them both — and the ratio then reports no wrap at all,
+ * which is how the image panel's wrapping-value check came to state that its own
+ * fixture had not reached the panel. A detector that goes blind exactly where the
+ * condition is strongest is worse than none: it makes a guard pass.
  */
 export function valueWraps(band: BandGeometry): boolean {
-  if (!band.valueBox || !band.labelBox) return false;
-  return band.valueBox.height > band.labelBox.height * 1.6;
+  return band.valueLines > 1;
 }
 
 /** The bands of a single-value arrangement (no label), measured the same way. */

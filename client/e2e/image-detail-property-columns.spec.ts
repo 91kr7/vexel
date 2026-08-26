@@ -222,6 +222,14 @@ test('clips nothing, overlaps nothing and leaves no dead margin, at 720 / 1280 /
 // (f) REQ-9 — a line reads as a line, checked with a value long enough to wrap: a wrapped two-line
 // value must not leave its neighbours as short pills against a tall one. The fixture's own values
 // are all short, so this test makes one long, on a tag of its own, and removes it in a `finally`.
+//
+// **The premise is measured, and how it is measured moved on 2026-08-26.** The wrap used to be
+// deduced from the value's height against its label's, on the premise that a label is always one
+// line; a property band's label now gives way when the band cannot hold both, so this fixture — a
+// `Tags` value past 100 characters in a ~420px band — wraps the label as well and the ratio read
+// that as *no value wrapped at all*, blaming a fixture that had in fact reached the panel. The wrap
+// is read off the value's own line boxes now (`support/property-bands.ts`), and every band's numbers
+// are reported below so a later failure of this guard states which of the two it is.
 test('keeps the bands of one line at one height, with a wrapped value present', async ({ page }) => {
   await ensureImage(ALPINE_IMAGE);
   // Long enough to pass the ~500px run bound in a ~420px band and therefore to wrap (REQ-8).
@@ -232,11 +240,21 @@ test('keeps the bands of one line at one height, with a wrapped value present', 
     const geometry = await measureSection(propertySection(page), 'the image panel property section');
     const evidence = report('2560 × 1440 with a wrapping value', geometry);
     console.log(`[REQ-9] ${evidence}`);
+    for (const band of geometry.bands) {
+      console.log(
+        `[REQ-9] band "${band.label.trim()}" ${band.box.width.toFixed(1)}px — label ${band.labelInk.toFixed(1)}px of ink in ${band.labelBox!.width.toFixed(
+          1,
+        )}px over ${band.labelLines} line(s) — value ${band.valueInk.toFixed(1)}px of ink in ${band.valueBox!.width.toFixed(1)}px over ${band.valueLines} line(s)`,
+      );
+    }
 
     // A band holding a control is legitimately taller than its neighbours, so the wrap is measured
-    // on the value itself, against the label beside it.
+    // on the value's own line boxes and never on the band's height.
     const wrapped = geometry.bands.filter(valueWraps);
-    expect(wrapped.map((band) => band.label), `${evidence} — no value wrapped, so this check would certify nothing: the long tag did not reach the panel`).not.toEqual([]);
+    expect(
+      wrapped.map((band) => band.label),
+      `${evidence} — no value wrapped, so this check would certify nothing: the long tag did not reach the panel, or it reached it and fits`,
+    ).not.toEqual([]);
     expectLinesReadAsLines(geometry, evidence);
     // Beside the geometry, never instead of it (REQ-40): the long value is present in full, not
     // truncated to make it fit.

@@ -68,11 +68,12 @@ Shows (Config tab, view mode):
 - Left: a `Runtime configuration` heading over a `DefinitionList` of restart policy, CPU limit,
   memory limit, port mapping, health check command and networks.
 - Right: **two counted sections of their own**, `Environment` and `Mounts` (REQ-19, REQ-20), each
-  headed by a `SectionHeader` whose sublabel is the number of entries it holds. No entry carries a
-  `mount:` prefix: the word that was repeated on every row is the section's heading.
+  headed by a `SectionHeader` carrying the number of entries it holds — a quiet `Badge` at the
+  heading's trailing edge, the same reading the Inspect tab's own counted sections have. No entry
+  carries a `mount:` prefix: the word that was repeated on every row is the section's heading.
   - `Environment` — one band per variable, its **key and its value on two aligned tracks**
-    (`DefinitionList alignment="tracks"`), so the keys read down as one column and every value
-    begins at one edge (REQ-18). The daemon's `KEY=value` string is split **on its first `=` only**,
+    (`DefinitionList arrangement="key-columns"`), so the keys read down as one column and every
+    value begins at one edge (REQ-18). The daemon's `KEY=value` string is split **on its first `=` only**,
     so a value that itself contains `=` arrives whole; an entry with no `=` at all is the key with an
     empty value.
   - `Mounts` — one band per mount, its **source as the band's label, its destination as the value,
@@ -177,7 +178,7 @@ Actions:
 - ContainerStatsView
 - ContainerProcessesView
 - ContainerSessionView
-- ui-library: BandStack, ScrollArea, Tabs, DefinitionList, Chip, CollapsibleSection, CodeViewer, Select, NumberField,
+- ui-library: BandStack, ScrollArea, Tabs, DefinitionList, Badge, Chip, CollapsibleSection, CodeViewer, Select, NumberField,
   Toggle, TextField, KeyValueEditor, RepeatableRowList, FormFooter, SectionHeader, Row, Spacer, Stack,
   Button, ErrorBanner, EmptyState, useToast
 - Containers client (updateContainerConfig)

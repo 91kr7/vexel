@@ -240,8 +240,23 @@ describe('the two reported call sites state no layout constant', () => {
     expect(labels).toMatch(/contentClass="long-single-line"/);
     // The Config tab's split is the library's named arrangement, not a template string.
     expect(text).toMatch(/<Grid arrangement="pair">/);
-    // The environment · mounts list is the shared rule's value form at the long-single-line class.
-    expect(text).toMatch(/<ContentColumns contentClass="long-single-line">/);
+    // **What the one `environment · mounts` list became** (`…-tabs_composition_refactor/REQ-18` …
+    // REQ-21): two counted sections, each a `DefinitionList` of its own. What this assertion named
+    // is unchanged — the right-hand column of the Config tab declares the long-single-line class
+    // and states nothing else about its layout — so it is re-pointed at the two lists that carry it
+    // now rather than dropped with the element it used to name (REQ-43).
+    // Read within the view mode alone: the edit form heads a group `Mounts` too, and it is a
+    // repeatable row list rather than a property section.
+    const readView = text.slice(text.indexOf('Edit configuration'));
+    const section = (title: string) => {
+      const start = readView.indexOf(`title="${title}"`);
+      expect(start, `the container panel's read view has no ${title} section`).toBeGreaterThan(-1);
+      return readView.slice(start, start + 600);
+    };
+    expect(section('Environment'), 'the Environment section does not declare the long-single-line class').toMatch(
+      /<DefinitionList[^>]*contentClass="long-single-line"/s,
+    );
+    expect(section('Mounts'), 'the Mounts section does not declare the long-single-line class').toMatch(/<DefinitionList[^>]*contentClass="long-single-line"/s);
   });
 });
 

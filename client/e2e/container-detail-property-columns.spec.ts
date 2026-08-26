@@ -1,13 +1,6 @@
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
-import {
-  COLUMN_GAP_PX,
-  expectNothingClippedOrOverlapped,
-  measureEntries,
-  measureSection,
-  measureValueBands,
-  report,
-} from './support/property-bands.js';
+import { COLUMN_GAP_PX, expectNothingClippedOrOverlapped, measureSection, measureValueBands, report } from './support/property-bands.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { containerCard, containerDetail, openContainerDetail } from './support/container-cards.js';
@@ -27,15 +20,24 @@ import { containerCard, containerDetail, openContainerDetail } from './support/c
  *   size".
  * - **The `Config` tab's own two-column split** (REQ-18): the mocked shape at
  *   desktop widths, stacking below the narrow breakpoint instead of handing each
- *   side ~180px, and its environment · mounts list arranging itself by the width
- *   its own column has (REQ-19).
+ *   side ~180px, and its `Environment` section arranging itself by the width its
+ *   own column has (REQ-19).
+ *
+ * **The right-hand column is two counted sections now**, `Environment` and
+ * `Mounts`, instead of one list of `KEY=value` runs
+ * (`…-tabs_composition_refactor/REQ-18` … REQ-21). What that plan changed is
+ * rewritten here rather than dropped: the count rule below is re-asserted on the
+ * `Environment` section, and the entries are read as key-in-its-track /
+ * value-in-its-track. The rest of this file is untouched — the two-column split,
+ * the two tabs' differing counts and the height ceilings are the same
+ * measurements on the same surfaces.
  *
  * The editing form is **not opened and not touched** (REQ-34): this report is
  * about the read view.
  *
  * The fixture is a container created (never started) from the suite's own
  * `vexel-test-tiny:1`, carrying the ownership labels, with environment of its own
- * so the environment · mounts list has something to arrange, and removed with
+ * so the `Environment` section has something to arrange, and removed with
  * `docker rm -fv` in a `finally` (REQ-44). Every interaction is a real pointer at
  * the visible control's coordinates: the row's first cell, and the tab's own
  * control (REQ-41).
@@ -71,8 +73,14 @@ const CLIPPING_VIEWPORTS = [
  * PATH-style value past 60 characters, and a short one. `vexel-test-tiny:1` is
  * built `FROM scratch` and declares none of its own, so what the panel shows is
  * exactly what the fixture states.
+ *
+ * `PATH`'s value carries `=`-free colons and the two keys are of different
+ * lengths, which is what the section's own alignment is read against.
  */
-const FIXTURE_ENV = ['PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', 'NODE_ENV=production'];
+const FIXTURE_ENV: Record<string, string> = {
+  PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+  NODE_ENV: 'production',
+};
 
 /** The first definition list of the open panel: the runtime list on Config, the ten properties on Inspect. */
 function firstSection(page: Page): Locator {
@@ -91,7 +99,7 @@ async function createFixtureContainer(name: string): Promise<void> {
     ...ownershipArgs(name),
     '--label',
     'org.opencontainers.image.description=a label value long enough to belong to the long-single-line class',
-    ...FIXTURE_ENV.flatMap((entry) => ['-e', entry]),
+    ...Object.entries(FIXTURE_ENV).flatMap(([key, value]) => ['-e', `${key}=${value}`]),
     TINY_IMAGE,
   ]);
 }
@@ -123,12 +131,13 @@ function configSplit(page: Page): Locator {
 }
 
 /**
- * The environment · mounts entries themselves — the pills an operator counts per
- * line. Measured directly rather than through whatever element holds them, for
- * the same reason.
+ * The `Environment` section's own list — located through the heading an operator
+ * reads and the sibling it titles, since the entries are bands of a definition
+ * list now and no longer the meta cells this file used to count
+ * (`…-tabs_composition_refactor/REQ-18`, REQ-19).
  */
-function environmentEntries(page: Page): Locator {
-  return containerDetail(page).locator('.ui-table-meta-cell');
+function environmentSection(page: Page): Locator {
+  return containerDetail(page).locator('.ui-section-header:has(.ui-section-header__title:text-matches("^Environment")) + .ui-definition-list');
 }
 
 /** A tab of the open panel, selected with a real pointer at its own coordinates (REQ-41). */
@@ -232,33 +241,50 @@ test('Config: two equal columns at desktop widths, stacked at full width below 7
   }
 });
 
-// REQ-19 — the environment · mounts list, measured where the count actually changes. The delivered
-// build shows one entry per row at every width; the correction is a wide-screen one, and that is
-// honest rather than a shortfall: the column is ~763px at 1920, which is legitimately one entry, and
-// ~1083px at 2560, which is two.
-test('Config: the environment · mounts entries flow by their own column’s width', async ({ page }) => {
+// REQ-19 — the `Environment` section, measured where the count actually changes: the count follows
+// the section's **own** width, and it rises with it.
+//
+// **The wide viewport is 2880 and not 2560**, and that is not a preference. This section declares
+// the long-single-line class, whose 560px minimum puts its transition at 1144px of section width
+// (`floor((W + 24) / 584)`); the detail dialog is 92vw and the section is half of it, so 2560 lands
+// the section within a few pixels of that boundary and a count asserted there would be an assertion
+// about a rounding rule rather than about the arrangement. 2880 clears it by ~140px. The entries
+// used to be the meta cells of one `environment · mounts` list, which is the reading
+// `…-tabs_composition_refactor/REQ-18` … REQ-21 replaced.
+test('Config: the Environment entries flow by their own column’s width', async ({ page }) => {
   const name = `vexel-e2e-bug4-env-${Date.now()}`;
   await createFixtureContainer(name);
   try {
     await openContainerPanel(page, name, { width: 1920, height: 1080 });
-    const atWide = await measureEntries(environmentEntries(page), 'the environment · mounts list');
-    console.log(`[REQ-19] 1920×1080: entries spread over ${atWide.spread.toFixed(1)}px, ${atWide.perLine} per line over ${atWide.lines} line(s)`);
-    expect(atWide.boxes.length, 'the environment · mounts list draws none of the fixture’s own entries').toBe(FIXTURE_ENV.length);
+    const atWide = await measureSection(environmentSection(page), 'the Environment section');
+    console.log(`[REQ-19] ${report('Environment at 1920×1080', atWide)}`);
+    expect(atWide.bands.length, 'the Environment section draws none of the fixture’s own variables').toBe(Object.keys(FIXTURE_ENV).length);
 
-    await openContainerPanel(page, name, { width: 2560, height: 1440 });
-    const atWider = await measureEntries(environmentEntries(page), 'the environment · mounts list');
-    console.log(`[REQ-19] 2560×1440: entries spread over ${atWider.spread.toFixed(1)}px, ${atWider.perLine} per line over ${atWider.lines} line(s)`);
+    await openContainerPanel(page, name, { width: 2880, height: 1440 });
+    const atWider = await measureSection(environmentSection(page), 'the Environment section');
+    console.log(`[REQ-19] ${report('Environment at 2880×1440', atWider)}`);
 
     expect(
-      atWider.perLine,
-      `the environment · mounts entries span ${atWider.spread.toFixed(1)}px at 2560 × 1440 and still sit ${atWider.perLine} per line, exactly as the delivered build does at every width`,
-    ).toBeGreaterThan(atWide.perLine);
+      atWider.columns,
+      `the Environment section spans ${atWider.box.width.toFixed(1)}px at 2880 × 1440 and still shows ${atWider.columns} column(s), against ${atWide.columns} at ${atWide.box.width.toFixed(1)}px`,
+    ).toBeGreaterThan(atWide.columns);
 
-    // Beside the geometry (REQ-40, REQ-31): the entries keep their wording and their values in full.
-    for (const entry of FIXTURE_ENV) await expect(containerDetail(page)).toContainText(entry);
+    // Beside the geometry (REQ-40, REQ-31): every variable keeps its key and its whole value, now
+    // read as key-in-its-track and value-in-its-track rather than as one `KEY=value` string
+    // (`…-tabs_composition_refactor/REQ-18`).
+    const bands = await environmentSection(page)
+      .locator('.ui-definition-list__row')
+      .evaluateAll((rows) =>
+        Object.fromEntries(
+          rows.map((row) => [row.querySelector('.ui-definition-list__label')?.textContent ?? '', row.querySelector('.ui-definition-list__value')?.textContent ?? '']),
+        ),
+      );
+    expect(bands).toEqual(FIXTURE_ENV);
 
     // REQ-34 — the editing form was never opened, and this states it: the read view's own action is
-    // still there, unpressed.
+    // still there, unpressed. Its place is the head of the tab now
+    // (`…-tabs_composition_refactor/REQ-22`), which
+    // `container-detail-config-reading.spec.ts` measures.
     await expect(containerDetail(page).getByRole('button', { name: 'Edit configuration' })).toBeVisible();
   } finally {
     await removeFixtureContainer(name);

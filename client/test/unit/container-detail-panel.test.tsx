@@ -590,3 +590,120 @@ describe('ContainerDetailPanel — a body, not a surface (REQ-4, REQ-11, REQ-23)
     expect(claimed, 'the detail body took the key from the surface beside it').toHaveBeenCalledTimes(1);
   });
 });
+
+/**
+ * The Config tab **in reading**: the two counted sections the environment and the mounts became
+ * (`…-tabs_composition_refactor/REQ-18`, REQ-19, REQ-20, REQ-21), and the zero-count rule they
+ * inherit from the Inspect tab above (`plan-ui-coherence-optimisation/REQ-60`).
+ *
+ * What is asserted here is what jsdom can answer: which sections are drawn, what each heading
+ * claims, how each entry is split and what each band reads. The **alignment** REQ-18 is about, the
+ * treatment that tells the `ro` chip from the `rw` one, and where `Edit configuration` sits are
+ * geometry, and are measured in `client/e2e/container-detail-config-reading.spec.ts`.
+ */
+describe('ContainerDetailPanel — Config tab in reading (REQ-18, REQ-19, REQ-20, REQ-21)', () => {
+  function withInspect(overrides: Partial<ContainerInspect>): void {
+    fetchMock.mockImplementation((url: string) =>
+      url.includes('/inspect')
+        ? Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ...baseInspect(), ...overrides }) })
+        : Promise.resolve({ ok: configResponse.ok, status: configResponse.status, json: () => Promise.resolve(configResponse.body) }),
+    );
+  }
+
+  interface ReadSection {
+    title: string;
+    /**
+     * What the heading claims it holds. Read from the badge in the header's trailing slot — the
+     * same reading the Inspect tab's collapsible sections use — and not from the title, which
+     * carries the section's name and nothing else.
+     */
+    count: string;
+    bands: { label: string; value: string }[];
+  }
+
+  /** The sections of the read view, each with the heading's own count and the bands under it. */
+  async function configSections(): Promise<ReadSection[]> {
+    renderPanel();
+    await screen.findByRole('button', { name: 'Edit configuration' });
+    return Array.from(document.querySelectorAll('.ui-section-header')).map((header) => {
+      const list = header.parentElement?.querySelector(':scope > .ui-definition-list');
+      return {
+        title: header.querySelector('.ui-section-header__title')?.textContent ?? '',
+        count: header.querySelector('.ui-badge')?.textContent ?? '',
+        bands: Array.from(list?.children ?? []).map((row) => ({
+          label: row.querySelector('.ui-definition-list__label')?.textContent ?? '',
+          value: row.querySelector('.ui-definition-list__value')?.textContent ?? '',
+        })),
+      };
+    });
+  }
+
+  function section(sections: ReadSection[], title: string): ReadSection {
+    const found = sections.find((candidate) => candidate.title === title);
+    expect(found, `no "${title}" section is drawn; the tab shows ${sections.map((one) => one.title).join(', ') || 'nothing'}`).toBeDefined();
+    return found!;
+  }
+
+  // REQ-18 — the daemon's `KEY=value` string is split on its **first** `=` only, so a value that
+  // itself contains one arrives whole; an entry with no `=` is the key with an empty value.
+  it('splits each environment entry on its first = only, and an entry with none is a key with no value', async () => {
+    withInspect({
+      env: ['PATH=/usr/local/sbin:/usr/local/bin:/bin', 'DATABASE_URL=postgres://u:p@host:5432/db?sslmode=require&retry=1', 'FLAG'],
+      mounts: [],
+    });
+
+    expect(section(await configSections(), 'Environment').bands).toEqual([
+      { label: 'PATH', value: '/usr/local/sbin:/usr/local/bin:/bin' },
+      { label: 'DATABASE_URL', value: 'postgres://u:p@host:5432/db?sslmode=require&retry=1' },
+      { label: 'FLAG', value: '' },
+    ]);
+  });
+
+  // REQ-19 — the heading carries the number of variables, and the number it claims is the number
+  // drawn under it.
+  it('heads the environment section with the number of variables it draws', async () => {
+    withInspect({ env: ['A=1', 'B=2', 'C=3', 'D=4'], mounts: [] });
+
+    const environment = section(await configSections(), 'Environment');
+    expect(/(\d+)/.exec(environment.count)?.[1], `the Environment heading states "${environment.count}" instead of a count`).toBe(
+      String(environment.bands.length),
+    );
+    expect(environment.bands).toHaveLength(4);
+  });
+
+  // REQ-20, REQ-21 — mounts are a section of their own with its own count; each entry reads source
+  // → destination with a `ro` / `rw` chip, and the word `mount:` is the heading rather than a
+  // prefix repeated on every row.
+  it('gives mounts their own counted section, each entry reading source, destination and a ro/rw chip', async () => {
+    withInspect({
+      env: [],
+      mounts: [
+        { type: 'bind', source: '/srv/config', destination: '/etc/app', readOnly: true },
+        { type: 'volume', source: 'app-data', destination: '/var/lib/app', readOnly: false },
+      ],
+    });
+
+    const sections = await configSections();
+    const mounts = section(sections, 'Mounts');
+    expect(/(\d+)/.exec(mounts.count)?.[1], `the Mounts heading states "${mounts.count}" instead of a count`).toBe(String(mounts.bands.length));
+    expect(mounts.bands).toEqual([
+      { label: '/srv/config', value: '/etc/appro' },
+      { label: 'app-data', value: '/var/lib/apprw' },
+    ]);
+    expect(document.body.textContent, 'an entry still carries the literal `mount:` prefix').not.toMatch(/mount:/i);
+  });
+
+  // plan-ui-coherence-optimisation/REQ-60 — a section with nothing in it is not drawn at all,
+  // heading included: a heading counting 0 is present-and-empty.
+  it('draws neither heading for a container with no environment and no mounts', async () => {
+    withInspect({ env: [], mounts: [] });
+
+    expect((await configSections()).map((one) => one.title)).toEqual(['Runtime configuration']);
+  });
+
+  it('draws the section that has entries and omits the one that has none', async () => {
+    withInspect({ env: ['FOO=bar'], mounts: [] });
+
+    expect((await configSections()).map((one) => one.title)).toEqual(['Runtime configuration', 'Environment']);
+  });
+});

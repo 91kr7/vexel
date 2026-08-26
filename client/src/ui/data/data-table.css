@@ -469,36 +469,66 @@
   padding-inline-end: max(var(--space-3), calc(100% - var(--space-3) - var(--band-run-max, 100%)));
 }
 
-/* Two aligned tracks inside the band, for a list of key→value pairs read down
-   the keys (an environment, say) rather than as properties of one object. Every
-   band of a content-columns line is the same width, so one track length gives
-   every value in the line the same starting edge — no measurement, and no
-   subgrid over the two spans, which would cost the band its own element.
-   Capped at a share of the band so the label never takes more room than its
-   value; a label past the track wraps inside it and is never shrunk. */
-.ui-definition-list--tracks .ui-definition-list__row {
-  display: grid;
-  grid-template-columns: min(var(--band-label-track), 38%) minmax(0, 1fr);
-  align-items: baseline;
-}
-
-/* In this alignment the label is a key of the data and not the name of a
-   property, so it is set in the same monospace as its value: that is what makes
-   the column of keys scan character by character. Its size and colour stay the
-   label's own. */
-.ui-definition-list--tracks .ui-definition-list__label {
+/* Two aligned tracks for a list of key→value pairs read down the keys (an
+   environment, say) rather than as properties of one object. **No track
+   template**: the band stays the flex row it already is and its label takes one
+   stated share of it, neither growing nor shrinking. Every band of a
+   content-columns line is the same width, so that one share puts every value in
+   the line on the same starting edge — no measurement, no subgrid, and nothing
+   said about the list's own tracks, which stay the shared arrangement's. The
+   share is capped at a fraction of the band, so a narrow one never gives the key
+   more room than the value it belongs to; a key past it wraps inside it and is
+   never shrunk. The value keeps its floor here too. */
+.ui-definition-list--key-columns .ui-definition-list__label {
+  flex: 0 0 min(var(--band-label-track), 38%);
+  /* The label is a key of the data here, not the name of a property, so it is
+     set in the value's monospace: that is what makes a column of keys scan
+     character by character. Size and colour stay the label's own. */
   font-family: var(--font-family-mono);
 }
 
-/* A label is not shrunk to fit — proportional shrinking would break `Created`
-   at five characters to make room for a long value. It wraps only when it alone
-   is wider than the band it sits in, which is what a 36-character label key in
-   a column does. */
+/* The two read from one baseline rather than from the middle of a key that
+   wrapped. */
+.ui-definition-list--key-columns .ui-definition-list__row {
+  align-items: baseline;
+}
+
+/* **The label's bound is what the band has left once the value's floor is
+   reserved** — a length, computed per band, and not a share of it. The label does
+   not shrink (below), so this is the only thing that ever narrows it, and it
+   binds only where the band genuinely cannot hold both: at 375px of band a
+   49-character mount source is drawn in 159px over two lines, while a 35-character
+   `Oldest Engine API the daemon accepts` needing 209px of the 375px its band gives
+   it, and a `Tags` needing 27px of a 395px one, are drawn on one line at their
+   full ink. It wraps inside the bound; it is never shortened, ellipsised or
+   hidden.
+
+   The `--space-4` here is the row's own gap, and the two are one value written
+   twice: change them together.
+
+   **Not a shrink factor, and not a fraction.** `flex: 0 1 auto` on the label was
+   tried and is the failure this rule is written against: flexbox splits a shortage
+   in proportion to shrink × base size, so it never asks where the value is — the
+   image panel's `Tags`, 26.7px of ink in a 418.8px band whose value was sitting
+   366px above its own floor, was drawn 12.5px wide over four lines, one character
+   per line. A fixed fraction was tried before that and fails the other way: half a
+   band took `Oldest Engine API the daemon accepts` at 187.5px and wrapped a band
+   that had 375px to give. The bound has to be conditional on the value, and this
+   is that condition.
+
+   The `max()` is the floorless-band case: where a band is too narrow to give both
+   their floor, the label keeps the same 96px the value does rather than being
+   clamped to nothing by a negative `calc()`. No section in the product is that
+   narrow — the narrowest band the phone width produces holds 271px — and a rule
+   whose failure mode is an invisible label does not get to rely on that. */
 .ui-content-columns > .ui-definition-list__row > .ui-definition-list__label {
-  max-width: 100%;
+  max-width: max(var(--band-value-min), calc(100% - var(--space-4) - var(--band-value-min)));
   overflow-wrap: anywhere;
 }
 
+/* The label is never shrunk to fit: it is laid out at its own width, which the
+   bound above is what limits. Proportional shrinking would break `Created` at
+   five characters to make room for a long value. */
 .ui-definition-list__label {
   font-size: var(--font-size-xs);
   color: var(--color-text-wash-muted);
@@ -518,6 +548,11 @@
   font-family: var(--font-family-mono);
   font-size: var(--font-size-xs);
   color: var(--color-text-primary);
+  /* The value takes the shortage first, wrapping as it goes: it is the item that
+     shrinks, down to what the label's bound above has reserved for it. `0` and
+     not a floor of its own — the floor is enforced on the label, in one place, so
+     a short value's box still hugs its content instead of being padded out to a
+     minimum it does not need. */
   min-width: 0;
   overflow-wrap: anywhere;
 }

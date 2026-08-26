@@ -251,6 +251,16 @@
      the label more room than the value it labels. */
   --band-label-track: 180px;
 
+  /* The width a property band keeps for its value, and the figure its label's own
+     maximum is computed from: the label takes what the band has left once this is
+     reserved, and gives way no further. ~13 characters of the 12px monospace the
+     values are drawn in (~7.2px each) — a short scalar, or the tail of a wrapped
+     path with its chip beside it. A floor with the label's bound derived from it,
+     because a band with room for both then never reaches it: a fixed fraction
+     binds at every width instead, and a flex shrink factor never asks where the
+     value is. See `data-table.css`. */
+  --band-value-min: 96px;
+
   /* Overflow menu popup — the width it opens at (wide enough for a label with
      its secondary hint beside it, so entries do not each size differently) and
      the height beyond which its entries scroll inside it.

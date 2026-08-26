@@ -11,22 +11,26 @@ environment variables), arranged in as many columns as the list's own width can 
 
 ## Contract
 
-- `<DefinitionList items contentClass? alignment? />`
+- `<DefinitionList items contentClass? arrangement? />`
   - `items: { label, value: ReactNode }[]`.
   - `contentClass?: 'short-scalar' | 'long-single-line' | 'free-text'` — default `'short-scalar'`.
-    What the section holds; the minimum band width follows from it (`content-columns.md`). **This is
-    the only thing a caller states about the layout**: no count, no track template, no length.
+    What the section holds; the minimum band width follows from it (`content-columns.md`).
+  - **A caller states what its values are and which named arrangement it asks for, and nothing else
+    about the layout**: no count, no track template, no length
+    (`plan-docker_management_app-detail_property_columns/REQ-27`). A named arrangement is none of
+    those three — it is a shape the library owns end to end, exactly as `Grid`'s is — and the caller
+    still cannot know, or state, the width it will be given.
   - **A caller states no column count, and the type refuses one.** A caller cannot know the width it
     will be given, and a component with both a stated count and a derived one has two answers to the
     same question. The delivered `columns?: 1 | 2` and its `--columns-2` two-track rule are removed,
     not deprecated.
-  - `alignment?: 'run' | 'tracks'` — default `'run'`. `run` is the property band's own reading: the
-    value follows its label immediately. `tracks` gives each of the two a track of the band, so the
-    values of every band of the list begin at one edge and the labels read down as a column of their
-    own — for a list scanned by its keys (an environment) rather than read as properties of one
-    object. It is an **alignment**, not a second component: everything else about the band — its
-    wash, its padding, its run bound, its content class and the derived column count — is the same
-    in both.
+  - `arrangement?: 'run' | 'key-columns'` — default `'run'`. `run` is the property band's own
+    reading: the value follows its label immediately. `key-columns` gives label and value a share
+    each of every band, so the values of the list all begin at one edge and the labels read down as a
+    column of their own — for a list scanned by its keys (an environment) rather than read as
+    properties of one object. It is an **arrangement of the band**, not a second component:
+    everything else — the wash, the padding, the run bound, the content class and the derived column
+    count — is the same in both.
   - A band renders its label and its value and nothing else. The `copyValue?: string` field, and
     the copy affordance it switched on, were **removed on 2026-08-14** by
     `plan-docker_management_app-remove_copy_controls` — removed from the type, not deprecated and not
@@ -39,21 +43,24 @@ Shows:
 
 ## Rules and invariants
 
-- **The band is the grid item, and it holds both spans**, in either alignment. They are never placed
+- **The band is the grid item, and it holds both spans**, in either arrangement. They are never placed
   in tracks of the *list*: a `display: contents` or subgrid arrangement over the two spans reads
   column-first to assistive technology and comes apart the moment one value wraps. The accessible
-  reading order is the declared order, label then its own value, whatever the alignment.
-- **`tracks` aligns without measuring anything.** Every band on a line of the content-columns grid is
-  the same width, so one track length inside the band gives every value on that line the same
-  starting edge — no `ResizeObserver`, no per-frame computation, and no shared grid over the list.
-  The label track is one token length (`--band-label-track`), capped at a share of the band so a
-  narrow band never gives the label more room than the value it labels; a label longer than the track
-  **wraps inside it** and is neither shrunk nor truncated, exactly as in `run`. Its label is set in
-  the value's monospace — in this alignment it is a key of the data, not the name of a property, and
-  that is what lets the column of keys be scanned character by character — while its size and its
-  colour stay the label's own. A label track sized
-  to the widest label of the list is deliberately not what this does: that needs one grid over every
-  band, which costs the band its own element and the list its derived column count.
+  reading order is the declared order, label then its own value, whatever the arrangement.
+- **`key-columns` aligns without measuring anything, and without stating a track template.** The band
+  stays the flex row it is in either arrangement; what changes is that its label takes one stated
+  share of it and neither grows nor shrinks. Every band on a line of the content-columns grid is the
+  same width, so that one share puts every value on the line at the same starting edge — no
+  `ResizeObserver`, no per-frame computation, no shared grid over the list, and nothing said about
+  the list's own tracks, which stay the shared arrangement's (`content-columns.md`). The share is one
+  token length (`--band-label-track`) capped at a share of the band, so a narrow band never gives the
+  key more room than the value it belongs to; a key longer than the share **wraps inside it** and is
+  neither shrunk nor truncated, exactly as in `run`. The `run` bound above applies here too and never
+  reaches: the share is the smaller of the two at every band width the product draws. Its label is set in the value's monospace — here it is a key of
+  the data, not the name of a property, and that is what lets the column of keys be scanned character
+  by character — while its size and its colour stay the label's own. A label share sized to the
+  widest label of the list is deliberately not what this does: that needs one grid over every band,
+  which costs the band its own element and the list its derived column count.
 - **The label→value run is bounded, the band is not.** The band fills its track — its wash reaches the
   section's edge, so no dead margin re-appears on the right — while the run from the label's left edge
   to the value's right edge stops at the content class's maximum (~500px short scalar, ~700px long
@@ -62,8 +69,33 @@ Shows:
 - **Bands on one line share a height**: a wrapped two-line value does not leave its neighbours as short
   pills against a tall one.
 - **A value longer than its band wraps inside it**, gaining no ellipsis, no tooltip-only presentation
-  and no hidden overflow. A label wraps only when it alone is wider than its band, and is never shrunk
-  to make room for a value.
+  and no hidden overflow. A label wraps only when it does not fit the bound below — never because of
+  what its value happens to hold — and is never shrunk, shortened, ellipsised or hidden.
+- **The value takes the shortage first, down to its floor; only then does the label give way.** That
+  ordering is the rule, and it is stated as a **bound on the label computed from the value's floor** —
+  the label is laid out at its own width, up to what the band has left once `--band-value-min` (~13
+  characters of the value's monospace) is reserved. So a band that can hold both draws the label at
+  its full ink and never touches it, whatever its value is doing: `Tags`, 27px of label in a 395px
+  band, is one line while its value wraps over four. A band that cannot hold both wraps the value
+  first, and takes what is still missing out of the label — 159px of the 271px band at a phone width,
+  for a 49-character mount source — and never out of the value's box.
+
+  > **Neither a share of the band nor a shrink factor can express that, and both were tried.** The
+  > label used not to give way at all (`flex: none`, bounded only by the whole band), and at 375px a
+  > mount's source past ~17 characters took all 271px of one: the value was laid out as a box of
+  > **0px beyond the band's own right edge**, the `ro` chip inside it painted off the side of a
+  > viewport that could not be scrolled to it. Capping the label at **half the band** closed that and
+  > broke the other case in the same stroke — the About screen's `Oldest Engine API the daemon
+  > accepts`, 199px of label in a band offering 375px, wrapped by a 187.5px cap on a band that was
+  > never in trouble (`plan-docker_management_app-detail_property_columns/REQ-26`) — because a
+  > constant fraction is evaluated on every band at every width. Making the label **shrinkable**
+  > (`flex: 0 1 auto`) failed a third way: flexbox splits a shortage in proportion to shrink × base
+  > size, so it never asks where the value is, and the image panel's `Tags` — 26.7px of ink in a
+  > 418.8px band whose value sat 270px above its own floor — was drawn 12.5px wide over four lines,
+  > one character per line. That is this component's oldest rule breaking (*proportional shrinking
+  > would break `Created` at five characters to make room for a long value*), and it is why the label
+  > does not shrink at all. **The bound has to be conditional on the value's floor and on nothing
+  > else.**
 
   > **A list row truncates, a property band wraps** — the boundary of the library's truncation
   > contract (`truncation-contract.md`), stated here because this is the side a later reader gets
@@ -129,3 +161,4 @@ Shows:
 - plan-ui-coherence-optimisation/REQ-21
 - plan-ui-coherence-optimisation/REQ-34
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-18
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-40

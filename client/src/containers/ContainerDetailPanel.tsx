@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  Badge,
   BandStack,
   Button,
   Chip,
@@ -363,13 +364,13 @@ export function ContainerDetailPanel({ container, onContainerReplaced }: Contain
           <Stack gap="var(--space-4)">
             {data.env.length > 0 ? (
               <Stack gap="var(--space-3)">
-                <SectionHeader variant="eyebrow" title="Environment" sublabel={`${data.env.length}`} />
-                <DefinitionList alignment="tracks" contentClass="long-single-line" items={data.env.map(parseEnvEntry).map((pair) => ({ label: pair.key, value: pair.value }))} />
+                <SectionHeader variant="eyebrow" title="Environment" trailing={<Badge variant="quiet">{data.env.length}</Badge>} />
+                <DefinitionList arrangement="key-columns" contentClass="long-single-line" items={data.env.map(parseEnvEntry).map((pair) => ({ label: pair.key, value: pair.value }))} />
               </Stack>
             ) : null}
             {data.mounts.length > 0 ? (
               <Stack gap="var(--space-3)">
-                <SectionHeader variant="eyebrow" title="Mounts" sublabel={`${data.mounts.length}`} />
+                <SectionHeader variant="eyebrow" title="Mounts" trailing={<Badge variant="quiet">{data.mounts.length}</Badge>} />
                 <DefinitionList
                   contentClass="long-single-line"
                   items={data.mounts.map((mount) => ({
