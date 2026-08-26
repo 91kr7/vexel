@@ -242,6 +242,15 @@
   --band-run-max-short-scalar: 500px;
   --band-run-max-long-single-line: 700px;
 
+  /* The label track of a band asked for two aligned tracks: one length for
+     every band of the list, so the values all begin at one edge and the labels
+     read down as a column. 180px carries ~25 monospace characters, about what a
+     set of environment keys needs; a longer label wraps inside the track rather
+     than widening it, which would put the bands out of line with each other.
+     Its consumer caps it at a share of the band, so a narrow band never gives
+     the label more room than the value it labels. */
+  --band-label-track: 180px;
+
   /* Overflow menu popup — the width it opens at (wide enough for a label with
      its secondary hint beside it, so entries do not each size differently) and
      the height beyond which its entries scroll inside it.

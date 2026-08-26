@@ -16,7 +16,7 @@ this plan's (`requirements.md`); intervention ids are local to each batch file.
 | `stable-detail-height` | F0 — One height for the whole detail, and the tab's content scrolls inside it | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5 | — | certified | The dialog stays exactly where it is while the operator moves between tabs |
 | `detail-identity-header` | F1 — The header carries the container's identity | REQ-6, REQ-7, REQ-8, REQ-9, REQ-10 | `stable-detail-height` | certified | The dialog's header says as much as the card the operator just left |
 | `config-first-tab` | F1b — Config is the first tab and the one active on open | REQ-11, REQ-12 | `stable-detail-height`, `detail-identity-header` | certified | The detail opens on the tab it draws first |
-| `config-reading-layout` | F3 — Config in reading | REQ-18, REQ-19, REQ-20, REQ-21, REQ-22 | `stable-detail-height` | todo | The environment variables can be read down the keys |
+| `config-reading-layout` | F3 — Config in reading | REQ-18, REQ-19, REQ-20, REQ-21, REQ-22 | `stable-detail-height` | implemented | The environment variables can be read down the keys |
 | `config-editing-cards` | F4 — Config in editing | REQ-23, REQ-24, REQ-25, REQ-26 | `stable-detail-height`, `config-reading-layout` | todo | The edit form reads as groups instead of one long column |
 | `stats-two-plus-three` | F2 — Stats is two metrics with a ceiling, then three without | REQ-13, REQ-14, REQ-15, REQ-16, REQ-17 | `stable-detail-height` | todo | The bars are only where a bar can mean something |
 | `log-controls-and-levels` | F5 — The log controls in two groups, and the lines distinguished | REQ-27, REQ-28, REQ-29, REQ-30, REQ-31 | `stable-detail-height` | todo | The controls that reopen the stream are told from the ones that do not |

@@ -2,22 +2,22 @@ import { useEffect, useState } from 'react';
 import {
   BandStack,
   Button,
+  Chip,
   CodeViewer,
   CollapsibleSection,
-  ContentColumns,
   DefinitionList,
   EmptyState,
   ErrorBanner,
   FormFooter,
   Grid,
   KeyValueEditor,
-  MetaCell,
   NumberField,
   RepeatableRowList,
   Row,
   ScrollArea,
   SectionHeader,
   Select,
+  Spacer,
   Stack,
   Tabs,
   TextField,
@@ -333,42 +333,60 @@ export function ContainerDetailPanel({ container, onContainerReplaced }: Contain
     }
 
     return (
-      <Grid arrangement="pair">
-        <Stack gap="var(--space-3)">
-          <SectionHeader variant="eyebrow" title="Runtime configuration" />
-          <DefinitionList
-            items={[
-              { label: 'Restart policy', value: data.restartPolicy.maximumRetryCount ? `${data.restartPolicy.name} (max ${data.restartPolicy.maximumRetryCount})` : data.restartPolicy.name },
-              { label: 'CPU limit', value: data.resourceLimits.cpus ? `${data.resourceLimits.cpus} cpus` : '–' },
-              { label: 'Memory limit', value: data.resourceLimits.memoryBytes ? formatBytes(data.resourceLimits.memoryBytes) : '–' },
-              { label: 'Port mapping', value: formatPorts(data.ports) },
-              { label: 'Health check', value: data.healthCheck ? data.healthCheck.test.join(' ') : 'none' },
-              { label: 'Networks', value: data.networks.map((network) => network.name).join(', ') || '–' },
-            ]}
-          />
-        </Stack>
-        <Stack gap="var(--space-3)">
-          <SectionHeader variant="eyebrow" title="Environment · Mounts" />
-          <ContentColumns contentClass="long-single-line">
-            {data.env.length === 0 && data.mounts.length === 0 ? <MetaCell>–</MetaCell> : null}
-            {data.env.map((entry) => (
-              <MetaCell key={entry} wrap>
-                {entry}
-              </MetaCell>
-            ))}
-            {data.mounts.map((mount) => (
-              <MetaCell key={`${mount.source}:${mount.destination}`} wrap>
-                {`mount: ${mount.source} → ${mount.destination} (${mount.readOnly ? 'ro' : 'rw'})`}
-              </MetaCell>
-            ))}
-          </ContentColumns>
-          <Row>
-            <Button variant="subtle" onClick={startEdit}>
-              Edit configuration
-            </Button>
-          </Row>
-        </Stack>
-      </Grid>
+      <Stack gap="var(--space-4)">
+        {/* The action is the tab's, not a column's: it sits above both and inside neither (REQ-22). */}
+        <Row>
+          <Spacer />
+          <Button variant="subtle" onClick={startEdit}>
+            Edit configuration
+          </Button>
+        </Row>
+        <Grid arrangement="pair">
+          <Stack gap="var(--space-3)">
+            <SectionHeader variant="eyebrow" title="Runtime configuration" />
+            <DefinitionList
+              items={[
+                { label: 'Restart policy', value: data.restartPolicy.maximumRetryCount ? `${data.restartPolicy.name} (max ${data.restartPolicy.maximumRetryCount})` : data.restartPolicy.name },
+                { label: 'CPU limit', value: data.resourceLimits.cpus ? `${data.resourceLimits.cpus} cpus` : '–' },
+                { label: 'Memory limit', value: data.resourceLimits.memoryBytes ? formatBytes(data.resourceLimits.memoryBytes) : '–' },
+                { label: 'Port mapping', value: formatPorts(data.ports) },
+                { label: 'Health check', value: data.healthCheck ? data.healthCheck.test.join(' ') : 'none' },
+                { label: 'Networks', value: data.networks.map((network) => network.name).join(', ') || '–' },
+              ]}
+            />
+          </Stack>
+          {/*
+            Two counted sections instead of one heading over a run of strings, each drawn only when
+            it holds something: a section headed `0` is absent, not present and empty
+            (plan-ui-coherence-optimisation/REQ-60), the rule the Inspect tab below already follows.
+          */}
+          <Stack gap="var(--space-4)">
+            {data.env.length > 0 ? (
+              <Stack gap="var(--space-3)">
+                <SectionHeader variant="eyebrow" title="Environment" sublabel={`${data.env.length}`} />
+                <DefinitionList alignment="tracks" contentClass="long-single-line" items={data.env.map(parseEnvEntry).map((pair) => ({ label: pair.key, value: pair.value }))} />
+              </Stack>
+            ) : null}
+            {data.mounts.length > 0 ? (
+              <Stack gap="var(--space-3)">
+                <SectionHeader variant="eyebrow" title="Mounts" sublabel={`${data.mounts.length}`} />
+                <DefinitionList
+                  contentClass="long-single-line"
+                  items={data.mounts.map((mount) => ({
+                    label: mount.source,
+                    value: (
+                      <>
+                        {mount.destination}
+                        <Chip label={mount.readOnly ? 'ro' : 'rw'} tone={mount.readOnly ? 'accent' : 'neutral'} />
+                      </>
+                    ),
+                  }))}
+                />
+              </Stack>
+            ) : null}
+          </Stack>
+        </Grid>
+      </Stack>
     );
   }
 

@@ -60,14 +60,32 @@ Shows (Attach tab):
 - The container's `ContainerSessionView` with `kind="attach"`; the inspect data is neither needed
   nor awaited for it.
 Shows (Config tab, view mode):
-- A `DefinitionList` of restart policy, CPU limit, memory limit, port mapping, health check command
-  and networks; collapsible sections for the full environment variable list and the mount list; an
-  "Edit configuration" action.
-- The two sides sit in the library's named `pair` arrangement (`Grid arrangement="pair"`), so they
-  are the mocked two equal columns at desktop widths and **stack, each at full width**, when the
-  panel cannot carry both — instead of each being squeezed to ~180px. The environment · mounts list
-  is a `ContentColumns` at the long-single-line class, so it flows as many entries per line as its
-  own column carries: one at ordinary widths, two once that column passes ~944px.
+- **The "Edit configuration" action at the head of the tab**, above both columns and inside neither
+  (REQ-22), at the tab's trailing edge. Its label and what it does are the delivered ones.
+- Under it, two columns in the library's named `pair` arrangement (`Grid arrangement="pair"`), so
+  they are the mocked two equal columns at desktop widths and **stack, each at full width**, when the
+  panel cannot carry both — instead of each being squeezed to ~180px.
+- Left: a `Runtime configuration` heading over a `DefinitionList` of restart policy, CPU limit,
+  memory limit, port mapping, health check command and networks.
+- Right: **two counted sections of their own**, `Environment` and `Mounts` (REQ-19, REQ-20), each
+  headed by a `SectionHeader` whose sublabel is the number of entries it holds. No entry carries a
+  `mount:` prefix: the word that was repeated on every row is the section's heading.
+  - `Environment` — one band per variable, its **key and its value on two aligned tracks**
+    (`DefinitionList alignment="tracks"`), so the keys read down as one column and every value
+    begins at one edge (REQ-18). The daemon's `KEY=value` string is split **on its first `=` only**,
+    so a value that itself contains `=` arrives whole; an entry with no `=` at all is the key with an
+    empty value.
+  - `Mounts` — one band per mount, its **source as the band's label, its destination as the value,
+    and a `ro` / `rw` `Chip` beside it** (REQ-21). The read-only chip carries the accent tone and the
+    read-write one the neutral tone, so the mount an operator goes looking for when a container
+    cannot write is told from its neighbours without reading either path.
+- **A section with no entries is not drawn at all** — neither its heading nor its list: a heading
+  counting `0` is present-and-empty, which `plan-ui-coherence-optimisation/REQ-60` refuses and the
+  Inspect tab below already refuses. A container with neither environment nor mounts therefore shows
+  the runtime column alone, and nothing occupies the other side.
+- Both right-hand sections declare the long-single-line class, so each flows as many bands per line
+  as its own column carries and the two — being of one measured width — show the same count as each
+  other.
 Shows (Config tab, edit mode):
 - Restart policy (select) with a max-retries field shown only for `on-failure`, CPU/memory limit
   fields, a key/value editor for environment variables, a repeatable row list for port mappings
@@ -159,9 +177,9 @@ Actions:
 - ContainerStatsView
 - ContainerProcessesView
 - ContainerSessionView
-- ui-library: BandStack, ScrollArea, Tabs, DefinitionList, ContentColumns, CollapsibleSection, CodeViewer, Select, NumberField,
-  Toggle, TextField, KeyValueEditor, RepeatableRowList, FormFooter, SectionHeader, Row, Stack,
-  Button, ErrorBanner, EmptyState, FormDialog, useToast
+- ui-library: BandStack, ScrollArea, Tabs, DefinitionList, Chip, CollapsibleSection, CodeViewer, Select, NumberField,
+  Toggle, TextField, KeyValueEditor, RepeatableRowList, FormFooter, SectionHeader, Row, Spacer, Stack,
+  Button, ErrorBanner, EmptyState, useToast
 - Containers client (updateContainerConfig)
 - useContainerDetail
 - app-shell: ConfirmationService, ProgressService, ErrorReportingService
@@ -201,3 +219,8 @@ Actions:
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-3
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-11
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-12
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-18
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-19
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-20
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-21
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-22

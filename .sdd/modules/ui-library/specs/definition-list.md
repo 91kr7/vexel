@@ -11,7 +11,7 @@ environment variables), arranged in as many columns as the list's own width can 
 
 ## Contract
 
-- `<DefinitionList items contentClass? />`
+- `<DefinitionList items contentClass? alignment? />`
   - `items: { label, value: ReactNode }[]`.
   - `contentClass?: 'short-scalar' | 'long-single-line' | 'free-text'` — default `'short-scalar'`.
     What the section holds; the minimum band width follows from it (`content-columns.md`). **This is
@@ -20,6 +20,13 @@ environment variables), arranged in as many columns as the list's own width can 
     will be given, and a component with both a stated count and a derived one has two answers to the
     same question. The delivered `columns?: 1 | 2` and its `--columns-2` two-track rule are removed,
     not deprecated.
+  - `alignment?: 'run' | 'tracks'` — default `'run'`. `run` is the property band's own reading: the
+    value follows its label immediately. `tracks` gives each of the two a track of the band, so the
+    values of every band of the list begin at one edge and the labels read down as a column of their
+    own — for a list scanned by its keys (an environment) rather than read as properties of one
+    object. It is an **alignment**, not a second component: everything else about the band — its
+    wash, its padding, its run bound, its content class and the derived column count — is the same
+    in both.
   - A band renders its label and its value and nothing else. The `copyValue?: string` field, and
     the copy affordance it switched on, were **removed on 2026-08-14** by
     `plan-docker_management_app-remove_copy_controls` — removed from the type, not deprecated and not
@@ -32,10 +39,21 @@ Shows:
 
 ## Rules and invariants
 
-- **The band is the grid item, and it holds both spans.** Label and value are never placed in tracks
-  of their own: a `display: contents` or subgrid arrangement over the two spans reads column-first to
-  assistive technology and comes apart the moment one value wraps. The accessible reading order is the
-  declared order.
+- **The band is the grid item, and it holds both spans**, in either alignment. They are never placed
+  in tracks of the *list*: a `display: contents` or subgrid arrangement over the two spans reads
+  column-first to assistive technology and comes apart the moment one value wraps. The accessible
+  reading order is the declared order, label then its own value, whatever the alignment.
+- **`tracks` aligns without measuring anything.** Every band on a line of the content-columns grid is
+  the same width, so one track length inside the band gives every value on that line the same
+  starting edge — no `ResizeObserver`, no per-frame computation, and no shared grid over the list.
+  The label track is one token length (`--band-label-track`), capped at a share of the band so a
+  narrow band never gives the label more room than the value it labels; a label longer than the track
+  **wraps inside it** and is neither shrunk nor truncated, exactly as in `run`. Its label is set in
+  the value's monospace — in this alignment it is a key of the data, not the name of a property, and
+  that is what lets the column of keys be scanned character by character — while its size and its
+  colour stay the label's own. A label track sized
+  to the widest label of the list is deliberately not what this does: that needs one grid over every
+  band, which costs the band its own element and the list its derived column count.
 - **The label→value run is bounded, the band is not.** The band fills its track — its wash reaches the
   section's edge, so no dead margin re-appears on the right — while the run from the label's left edge
   to the value's right edge stops at the content class's maximum (~500px short scalar, ~700px long
@@ -72,9 +90,11 @@ Shows:
 
   > **Its original occasion is gone, and the rule stands anyway.** Until 2026-08-14 the second node
   > was the copy affordance, and this gap was what separated the value from it; that affordance was
-  > removed by `plan-docker_management_app-remove_copy_controls`, and no caller in `client/src`
-  > passes a multi-node value today. Recorded here because from that state the rule reads as an
-  > orphan and the instinct is to delete it. **It is not an orphan.** The element still renders, and
+  > removed by `plan-docker_management_app-remove_copy_controls`, leaving the rule with no caller at
+  > all — until the container detail's `Mounts` section, whose value is a destination and a `ro`/`rw`
+  > `Chip`, became the first to exercise it again on 2026-08-26. Recorded here because from the state
+  > in between the rule read as an orphan and the instinct was to delete it. **It was not one.** The
+  > element still renders, and
   > the rule serves the **type**, not the current callers: `value: ReactNode` admits several nodes,
   > so a value composed of a text node and a `Badge`, or of two `Chip`s, is a thing this component
   > contracts to lay out today. REQ-10's orphan rule is about a component, an export or a style rule
@@ -108,3 +128,4 @@ Shows:
 - plan-ui-coherence-optimisation/REQ-20
 - plan-ui-coherence-optimisation/REQ-21
 - plan-ui-coherence-optimisation/REQ-34
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-18

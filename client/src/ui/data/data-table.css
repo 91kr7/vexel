@@ -469,6 +469,27 @@
   padding-inline-end: max(var(--space-3), calc(100% - var(--space-3) - var(--band-run-max, 100%)));
 }
 
+/* Two aligned tracks inside the band, for a list of key→value pairs read down
+   the keys (an environment, say) rather than as properties of one object. Every
+   band of a content-columns line is the same width, so one track length gives
+   every value in the line the same starting edge — no measurement, and no
+   subgrid over the two spans, which would cost the band its own element.
+   Capped at a share of the band so the label never takes more room than its
+   value; a label past the track wraps inside it and is never shrunk. */
+.ui-definition-list--tracks .ui-definition-list__row {
+  display: grid;
+  grid-template-columns: min(var(--band-label-track), 38%) minmax(0, 1fr);
+  align-items: baseline;
+}
+
+/* In this alignment the label is a key of the data and not the name of a
+   property, so it is set in the same monospace as its value: that is what makes
+   the column of keys scan character by character. Its size and colour stay the
+   label's own. */
+.ui-definition-list--tracks .ui-definition-list__label {
+  font-family: var(--font-family-mono);
+}
+
 /* A label is not shrunk to fit — proportional shrinking would break `Created`
    at five characters to make room for a long value. It wraps only when it alone
    is wider than the band it sits in, which is what a 36-character label key in

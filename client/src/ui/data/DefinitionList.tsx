@@ -7,6 +7,14 @@ export interface DefinitionItem {
   value: ReactNode;
 }
 
+/**
+ * How label and value sit inside the band. `run` — the value follows its label
+ * immediately, which is how a property band reads. `tracks` — the two occupy a
+ * track each, so the values of every band of the list begin at one edge and the
+ * labels read down as a column of their own.
+ */
+export type DefinitionAlignment = 'run' | 'tracks';
+
 export interface DefinitionListProps {
   items: DefinitionItem[];
   /**
@@ -15,17 +23,22 @@ export interface DefinitionListProps {
    * minimum — the caller states no count, no template and no length.
    */
   contentClass?: ContentClass;
+  /** Defaults to `run`, the property band's own reading. */
+  alignment?: DefinitionAlignment;
 }
 
 /** Label → value bands. */
-export function DefinitionList({ items, contentClass = 'short-scalar' }: DefinitionListProps) {
+export function DefinitionList({ items, contentClass = 'short-scalar', alignment = 'run' }: DefinitionListProps) {
+  const classes = ['ui-definition-list', alignment === 'tracks' ? 'ui-definition-list--tracks' : '', contentColumnsClassName('pair', contentClass)]
+    .filter(Boolean)
+    .join(' ');
   return (
-    <div className={`ui-definition-list ${contentColumnsClassName('pair', contentClass)}`}>
+    <div className={classes}>
       {items.map((item, index) => (
-        // The band is the grid item, label and value inside it. They are never
-        // placed in tracks of their own: a `display: contents` or subgrid
-        // arrangement over the two spans reads column-first to assistive
-        // technology and comes apart the moment one value wraps.
+        // The band is the grid item and holds both spans, in either alignment:
+        // never `display: contents` or subgrid over the two, which reads
+        // column-first to assistive technology and comes apart when a value
+        // wraps. `tracks` splits the band's own box, not the list's.
         <div className="ui-definition-list__row" key={index}>
           <span className="ui-definition-list__label">{item.label}</span>
           <span className="ui-definition-list__value">{item.value}</span>

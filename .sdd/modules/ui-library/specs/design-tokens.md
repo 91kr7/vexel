@@ -71,6 +71,13 @@ token by name, never a literal value.
     ~19px of rounding 341px up to 360px) and **100px for long single-line text** (459px rounded up
     to 460px, 559px to 560px) — two figures, not one. See `content-columns.md`; none of these is
     ever written at a call site.
+  - Aligned band label track: `--band-label-track` (180px) — the width of the label track in a
+    `DefinitionList` asked for two aligned tracks. One length for every band of the list, which is
+    what puts the values on one edge without measuring anything; ~25 characters at the same 12px
+    monospace, about what a set of environment keys needs, and a longer label wraps inside it rather
+    than widening it and putting the bands out of line. Its consumer caps it at a share of the band,
+    so a narrow band never gives the label more room than its value. See `definition-list.md`; never
+    written at a call site.
   - Overflow menu popup: `--menu-min-width` (236px) and `--menu-max-height` (480px) — the height
     beyond which a popup's entries scroll inside it. A last resort against a popup taller than the
     screen, never a size a menu is meant to reach: a scrolling menu hides the entries below its
