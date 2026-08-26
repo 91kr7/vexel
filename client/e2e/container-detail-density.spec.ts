@@ -259,14 +259,22 @@ test.describe('Container detail — the expanded detail stops fighting for room 
       await expect(detail.getByText('1/11')).toBeVisible();
 
       // The rearrangement moved the search onto the region's own action row: the row is one row, and
-      // it holds the download too.
+      // it holds the download too. Since …tabs_composition_refactor/REQ-27 the two share that row as
+      // the `Read` group, which is the composition this assertion now names.
       const rowMembers = await detail.locator('.ui-log-stream__actions').evaluate((row) => ({
         holdsSearch: row.querySelector('.ui-stream-search') !== null,
+        groups: [...row.querySelectorAll('.ui-control-group__label')].map((label) => (label.textContent ?? '').trim()),
+        searchGroup: row
+          .querySelector('.ui-stream-search')
+          ?.closest('.ui-control-group')
+          ?.querySelector('.ui-control-group__label')?.textContent,
         buttons: [...row.querySelectorAll('button')].map((button) => (button.textContent ?? '').trim()),
       }));
       console.log(`[REQ-62] the stream's action row — ${JSON.stringify(rowMembers)}`);
       expect(rowMembers.holdsSearch, '[REQ-62] the search is not on the stream’s action row').toBe(true);
       expect(rowMembers.buttons, '[REQ-62] the download left the row the search is on').toContain('Download');
+      expect(rowMembers.groups, '[REQ-27] the action row does not hold the two labelled groups').toEqual(['Fetch', 'Read']);
+      expect(rowMembers.searchGroup, '[REQ-27] the search is not in the Read group').toBe('Read');
     } finally {
       await removeContainerQuietly(name);
     }

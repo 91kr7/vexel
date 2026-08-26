@@ -27,12 +27,15 @@ export interface SearchBandGeometry {
   controlHeight: number;
   /** Every control measured, so a failure names which one the band was compared against. */
   controls: { className: string; height: number }[];
+  /** The control drawn after the band on its row, when the band is not the last one on it. */
+  nextSibling: { className: string; left: number } | null;
   /** The band's parent: the element whose axis decides how the band is expected to size itself. */
   parent: {
     className: string;
     flexDirection: string;
     contentLeft: number;
     contentRight: number;
+    columnGap: number;
   };
 }
 
@@ -60,6 +63,7 @@ export async function measureSearchBandThisFrame(band: Locator): Promise<SearchB
     const parentRect = parent.getBoundingClientRect();
     const parentStyle = getComputedStyle(parent);
     const box = element.getBoundingClientRect();
+    const next = element.nextElementSibling;
     return {
       height: box.height,
       width: box.width,
@@ -67,11 +71,13 @@ export async function measureSearchBandThisFrame(band: Locator): Promise<SearchB
       right: box.right,
       controlHeight: controls.reduce((tallest, control) => Math.max(tallest, control.height), 0),
       controls,
+      nextSibling: next ? { className: next.className, left: next.getBoundingClientRect().left } : null,
       parent: {
         className: parent.className,
         flexDirection: parentStyle.flexDirection,
         contentLeft: parentRect.left + Number.parseFloat(parentStyle.paddingLeft) + Number.parseFloat(parentStyle.borderLeftWidth),
         contentRight: parentRect.right - Number.parseFloat(parentStyle.paddingRight) - Number.parseFloat(parentStyle.borderRightWidth),
+        columnGap: Number.parseFloat(parentStyle.columnGap) || 0,
       },
     };
   });
@@ -118,5 +124,33 @@ export function expectBandFillsItsRow(label: string, geometry: SearchBandGeometr
     `${label} — the band stops ${(geometry.parent.contentRight - geometry.right).toFixed(1)}px short of its row's content edge (band right ${geometry.right.toFixed(
       1,
     )}px against row content right ${geometry.parent.contentRight.toFixed(1)}px): it is not growing to fill the row`,
+  ).toBeLessThanOrEqual(TOLERANCE_PX);
+}
+
+/**
+ * The row-axis half on a row the band is **not** the last control of
+ * (`…tabs_composition_refactor/REQ-28`, REQ-43): the band keeps the same 240px floor and still
+ * grows into everything its row leaves it — up to the control drawn after it, or to the row's
+ * content edge when nothing follows. The floor is not weakened and "grow" is still measured on the
+ * box; what the new composition moves is where the band's room ends, not how much of it it takes.
+ */
+export function expectBandGrowsWithinItsRow(label: string, geometry: SearchBandGeometry, minimumWidth = 240): void {
+  expect.soft(
+    geometry.parent.flexDirection,
+    `${label} — the band was measured for its row behaviour inside a parent whose axis is "${geometry.parent.flexDirection}" (${geometry.parent.className})`,
+  ).toBe('row');
+  expect.soft(
+    geometry.width,
+    `${label} — the band is ${geometry.width.toFixed(1)}px wide, under the ${minimumWidth}px floor it keeps in a row`,
+  ).toBeGreaterThanOrEqual(minimumWidth);
+  const limit = geometry.nextSibling ? geometry.nextSibling.left - geometry.parent.columnGap : geometry.parent.contentRight;
+  const reachedFor = geometry.nextSibling
+    ? `the control that follows it on the row (${geometry.nextSibling.className})`
+    : "its row's content edge";
+  expect.soft(
+    limit - geometry.right,
+    `${label} — the band stops ${(limit - geometry.right).toFixed(1)}px short of ${reachedFor} (band right ${geometry.right.toFixed(
+      1,
+    )}px against ${limit.toFixed(1)}px): it is not growing into the room its row leaves it`,
   ).toBeLessThanOrEqual(TOLERANCE_PX);
 }

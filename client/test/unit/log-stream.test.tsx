@@ -286,3 +286,235 @@ describe('LogStream (REQ-30, REQ-31)', () => {
     expect(onFollowChange).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * The `toolbar` slot's composer form, and the per-line level distinction
+ * (plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-27,
+ * REQ-29, REQ-30, REQ-31).
+ */
+describe('LogStream — the composed action row and the levelled lines', () => {
+  /** The classes a drawn line carries, found by the text it draws. */
+  function lineClasses(container: HTMLElement, text: string): string[] {
+    const row = [...container.querySelectorAll('.ui-log-stream__line')].find(
+      (line) => line.querySelector('.ui-log-stream__text')?.textContent === text,
+    );
+    if (!row) throw new Error(`no line is drawn for "${text}"`);
+    return [...row.classList].sort();
+  }
+
+  /** The CSS properties every rule whose selector names `fragment` declares. */
+  function declaredProperties(fragment: string): Set<string> {
+    const properties = new Set<string>();
+    for (const rule of regionRules().filter((rule) => rule.selector.includes(fragment))) {
+      for (const declaration of rule.declarations.split(';')) {
+        const property = declaration.split(':')[0]?.trim();
+        if (property) properties.add(property);
+      }
+    }
+    return properties;
+  }
+
+  // log-stream.md — "given as a composer — it is called with the download action … and returns the
+  // row's whole content, so the caller may present its controls as groups of its own **with the
+  // download among them** instead of fixed at the row's end. Nothing is added at the row's end in
+  // this form."
+  it('hands the download to a toolbar composer and appends nothing after what it returns', () => {
+    const { container } = render(
+      <LogStream
+        lines={lines(3)}
+        downloadFileName="web-nginx-logs.txt"
+        toolbar={(download) => (
+          <>
+            <button type="button">Search</button>
+            {download}
+            <button type="button">Last</button>
+          </>
+        )}
+      />,
+    );
+
+    const rows = container.querySelectorAll('.ui-log-stream__actions');
+    expect(rows, 'the composed toolbar did not get one action row').toHaveLength(1);
+    const row = rows[0]!;
+    const download = screen.getByRole('button', { name: 'Download' });
+    expect(row.contains(download), 'the composed download is not on the stream\'s action row').toBe(true);
+    // One download, and at the place the caller put it: nothing was appended at the row's end.
+    expect(screen.getAllByRole('button', { name: 'Download' })).toHaveLength(1);
+    const last = screen.getByRole('button', { name: 'Last' });
+    expect(
+      download.compareDocumentPosition(last) & Node.DOCUMENT_POSITION_FOLLOWING,
+      'the download was moved to the row\'s end instead of being left where the composer placed it',
+    ).toBeGreaterThan(0);
+  });
+
+  // log-stream.md — the composer "is called with the download action (or `null` when no
+  // `downloadFileName` is given)"
+  it('calls the composer with null when no download is offered', () => {
+    let handed: unknown = 'never called';
+    render(
+      <LogStream
+        lines={lines(3)}
+        toolbar={(download) => {
+          handed = download;
+          return <button type="button">Search</button>;
+        }}
+      />,
+    );
+
+    expect(handed).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Download' })).not.toBeInTheDocument();
+  });
+
+  // log-stream.md — "What `toolbar` holds — and which of its two forms is used — changes nothing
+  // about the region … The download action is the same action in both forms, saving the same buffer
+  // under the same name."
+  it('changes nothing about the region or the download when the toolbar is composed', async () => {
+    const user = userEvent.setup();
+    const buffer = lines(400);
+    const { container, rerender } = render(<LogStream lines={buffer} downloadFileName="web-nginx-logs.txt" />);
+    const mountedWithContentForm = container.querySelectorAll('.ui-log-stream__line').length;
+
+    rerender(
+      <LogStream
+        lines={buffer}
+        downloadFileName="web-nginx-logs.txt"
+        toolbar={(download) => (
+          <>
+            {download}
+            <button type="button">Search</button>
+          </>
+        )}
+      />,
+    );
+
+    expect(container.querySelectorAll('.ui-log-stream__line').length).toBe(mountedWithContentForm);
+
+    const created: Blob[] = [];
+    const originalCreate = Object.getOwnPropertyDescriptor(URL, 'createObjectURL');
+    const originalRevoke = Object.getOwnPropertyDescriptor(URL, 'revokeObjectURL');
+    Object.defineProperty(URL, 'createObjectURL', {
+      value: (blob: Blob) => {
+        created.push(blob);
+        return 'blob:log';
+      },
+      configurable: true,
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', { value: () => {}, configurable: true });
+    const downloadNames: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+      downloadNames.push(this.download);
+    });
+
+    try {
+      await user.click(screen.getByRole('button', { name: 'Download' }));
+
+      expect(downloadNames).toEqual(['web-nginx-logs.txt']);
+      // The whole buffer, not the mounted window: the region is virtualised.
+      expect((await created[0].text()).split('\n')).toHaveLength(buffer.length);
+    } finally {
+      if (originalCreate) Object.defineProperty(URL, 'createObjectURL', originalCreate);
+      if (originalRevoke) Object.defineProperty(URL, 'revokeObjectURL', originalRevoke);
+    }
+  });
+
+  // log-stream.md — "lines carrying a `level` are distinguished by it"; "a line carrying no `level`
+  // is drawn in the region's ordinary treatment" (REQ-29)
+  it('distinguishes a line by the level it carries and leaves one without a level ordinary', () => {
+    const { container } = render(
+      <LogStream
+        lines={[
+          { id: '1', text: 'plain line' },
+          { id: '2', text: 'levelled error line', level: 'error' },
+          { id: '3', text: 'levelled warn line', level: 'warn' },
+        ]}
+      />,
+    );
+
+    const ordinary = lineClasses(container, 'plain line');
+    const error = lineClasses(container, 'levelled error line');
+    const warn = lineClasses(container, 'levelled warn line');
+
+    expect(error, 'an error line is drawn exactly like an ordinary one').not.toEqual(ordinary);
+    expect(warn, 'a warn line is drawn exactly like an ordinary one').not.toEqual(ordinary);
+    expect(error, 'the two levels are drawn alike').not.toEqual(warn);
+    // The ordinary line carries the region's own treatment and nothing added to it.
+    expect(error).toEqual(expect.arrayContaining(ordinary));
+    expect(warn).toEqual(expect.arrayContaining(ordinary));
+  });
+
+  // log-stream.md — "The component deduces nothing from a line's text: the level is the caller's
+  // reading, never this component's." (REQ-29)
+  it('deduces no level from a line\'s own text', () => {
+    const { container } = render(
+      <LogStream
+        lines={[
+          { id: '1', text: 'plain line' },
+          { id: '2', text: 'ERROR: cannot connect' },
+          { id: '3', text: 'WARN retrying in 3s' },
+        ]}
+      />,
+    );
+
+    expect(lineClasses(container, 'ERROR: cannot connect')).toEqual(lineClasses(container, 'plain line'));
+    expect(lineClasses(container, 'WARN retrying in 3s')).toEqual(lineClasses(container, 'plain line'));
+  });
+
+  // log-stream.md — "The two distinctions are carried on **different channels** and are therefore
+  // readable at once … A line that is both an `stderr` line and an `error` line shows both, and
+  // neither replaces the other." (REQ-30)
+  it('shows the level and the stream at once, neither replacing the other', () => {
+    const { container } = render(
+      <LogStream
+        lines={[
+          { id: '1', text: 'stdout ordinary', stream: 'stdout' },
+          { id: '2', text: 'stdout error', stream: 'stdout', level: 'error' },
+          { id: '3', text: 'stderr ordinary', stream: 'stderr' },
+          { id: '4', text: 'stderr error', stream: 'stderr', level: 'error' },
+        ]}
+      />,
+    );
+
+    const ordinary = lineClasses(container, 'stdout ordinary');
+    const levelMark = lineClasses(container, 'stdout error').filter((name) => !ordinary.includes(name));
+    const streamMark = lineClasses(container, 'stderr ordinary').filter((name) => !ordinary.includes(name));
+
+    expect(levelMark, 'nothing distinguishes an error line from an ordinary one').not.toHaveLength(0);
+    expect(streamMark, 'nothing distinguishes an stderr line from an stdout one').not.toHaveLength(0);
+    expect(streamMark, 'the stream is marked the same way the level is').not.toEqual(levelMark);
+    // Both marks at once on the line that is both.
+    expect(lineClasses(container, 'stderr error')).toEqual(expect.arrayContaining([...levelMark, ...streamMark]));
+  });
+
+  // log-stream.md — the two distinctions ride different channels in the stylesheet as well, which
+  // is what makes them readable at once rather than one hiding the other (REQ-30)
+  it('declares the level and the stream distinctions on properties that cannot hide each other', () => {
+    const levelProperties = new Set([...declaredProperties('__line--error'), ...declaredProperties('__line--warn')]);
+    const streamProperties = declaredProperties('__line--stderr');
+
+    expect(levelProperties.size, 'the level classes declare nothing at all').toBeGreaterThan(0);
+    expect(streamProperties.size, 'the stderr class declares nothing at all').toBeGreaterThan(0);
+    const shared = [...levelProperties].filter((property) => streamProperties.has(property));
+    expect(shared, 'the level and the stream are drawn with the same property, so one hides the other').toEqual([]);
+  });
+
+  // log-stream.md — "The line's own text is rendered exactly as it was given, whatever distinction
+  // is applied to it … with every occurrence of `highlight` still marked over the distinction. No
+  // level, stream or match treatment adds, removes or rewrites a character of it." (REQ-31)
+  it('renders a distinguished line\'s text verbatim, with the matches still marked over it', () => {
+    const text = 'ERROR: connection refused for https://host/errors/list';
+    const { container } = render(
+      <LogStream
+        lines={[{ id: '1', text, stream: 'stderr', level: 'error' }]}
+        highlight="error"
+        activeMatchLineId="1"
+      />,
+    );
+
+    const row = container.querySelector('.ui-log-stream__line') as HTMLElement;
+    expect(row.textContent, 'the distinguished line no longer reads as the caller wrote it').toBe(text);
+    expect(row.querySelector('.ui-log-stream__text')?.textContent).toBe(text);
+    // The marks are inside the distinguished line, over its treatment rather than instead of it.
+    const marks = [...row.querySelectorAll('mark')].map((mark) => mark.textContent);
+    expect(marks).toEqual(['ERROR', 'error']);
+  });
+});

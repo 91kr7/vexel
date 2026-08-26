@@ -205,10 +205,12 @@ describe('ContainerLogsView (REQ-30, REQ-31)', () => {
     }
   });
 
-  // container-logs-view.md — "the second is the log region's own action row, holding the search box
-  // with its match count and previous/next at the start and `Download` at its end" / "No row holds
-  // a single button" (plan-ui-coherence-optimisation/REQ-62)
-  it('puts the search and the download on the log region\'s one action row', async () => {
+  // container-logs-view.md — "The controls form **two labelled groups**, on the log region's own
+  // action row: `Fetch` … the stream selection, the tail size, the since/until range; `Read` … the
+  // search box with its match count and previous/next, the timestamps control, and `Download`"
+  // (REQ-27). No row holds a single button, and the view draws none of its own
+  // (plan-ui-coherence-optimisation/REQ-62).
+  it('groups the controls as Fetch and Read on the log region\'s one action row', async () => {
     const { container: dom } = render(<ContainerLogsView container={container} />);
     emit([{ text: 'a line to search' }]);
     await screen.findByText('a line to search');
@@ -217,41 +219,112 @@ describe('ContainerLogsView (REQ-30, REQ-31)', () => {
     expect(actionRows, 'the stream draws no action row, or more than one').toHaveLength(1);
     const row = actionRows[0]!;
 
-    for (const control of [
-      screen.getByRole('textbox', { name: 'Search the stream' }),
-      screen.getByRole('button', { name: 'Previous' }),
-      screen.getByRole('button', { name: 'Next' }),
-      screen.getByRole('button', { name: 'Download' }),
-    ]) {
-      expect(row.contains(control), `${control.getAttribute('aria-label') ?? control.textContent} is not on the action row`).toBe(true);
+    const groups = new Map(
+      [...dom.querySelectorAll('.ui-control-group')].map((group) => [
+        group.querySelector('.ui-control-group__label')?.textContent ?? '',
+        group,
+      ]),
+    );
+    expect([...groups.keys()].sort(), 'the controls are not presented as the two labelled groups').toEqual(['Fetch', 'Read']);
+
+    const membership: [string, HTMLElement][] = [
+      ['Fetch', screen.getByRole('button', { name: 'stdout' })],
+      ['Fetch', screen.getByRole('button', { name: 'stderr' })],
+      ['Fetch', screen.getByRole('combobox', { name: 'Tail size' })],
+      ['Fetch', screen.getByRole('textbox', { name: 'Since' })],
+      ['Fetch', screen.getByRole('textbox', { name: 'Until' })],
+      ['Read', screen.getByRole('textbox', { name: 'Search the stream' })],
+      ['Read', screen.getByRole('button', { name: 'Previous' })],
+      ['Read', screen.getByRole('button', { name: 'Next' })],
+      ['Read', screen.getByRole('checkbox', { name: 'Timestamps' })],
+      ['Read', screen.getByRole('button', { name: 'Download' })],
+    ];
+    for (const [label, control] of membership) {
+      const name = control.getAttribute('aria-label') ?? control.textContent;
+      expect(row.contains(control), `${name} is not on the stream's action row`).toBe(true);
+      expect(groups.get(label)!.contains(control), `${name} is not in the ${label} group`).toBe(true);
+    }
+
+    // Every control is on that one row: the view keeps no control row of its own above it.
+    const stream = dom.querySelector('.ui-log-stream')!;
+    const outside = [...dom.querySelectorAll('button, input, select')].filter((control) => !stream.contains(control));
+    expect(outside.map((control) => control.getAttribute('aria-label') ?? control.textContent)).toEqual([]);
+  });
+
+  // container-logs-view.md — "each line distinguished by the level its own text states, read by
+  // `log-level.md` … **A line stating no recognised marker is left neutral**, which is the reading
+  // being conservative and not a gap in it" (REQ-29), and the line's text unchanged (REQ-31).
+  it('distinguishes a line by the level its text states and leaves an unmarked line neutral', async () => {
+    const neutralTexts = [
+      'GET /api/error-report 200',
+      'LOG_LEVEL=ERROR',
+      'no errors found',
+      'POST /v1/payments 500 42ms',
+    ];
+    const { container: dom } = render(<ContainerLogsView container={container} />);
+    emit([
+      { text: 'ordinary line' },
+      { text: 'ERROR: cannot connect' },
+      { text: 'WARN retrying in 3s' },
+      ...neutralTexts.map((text) => ({ text })),
+    ]);
+    await screen.findByText('ordinary line');
+
+    const classesOf = (text: string) => {
+      const line = [...dom.querySelectorAll('.ui-log-stream__line')].find(
+        (row) => row.querySelector('.ui-log-stream__text')?.textContent === text,
+      );
+      if (!line) throw new Error(`no line is drawn for "${text}"`);
+      return [...line.classList].sort();
+    };
+
+    const ordinary = classesOf('ordinary line');
+    expect(classesOf('ERROR: cannot connect'), 'the error line is drawn like an ordinary one').not.toEqual(ordinary);
+    expect(classesOf('WARN retrying in 3s'), 'the warned line is drawn like an ordinary one').not.toEqual(ordinary);
+    expect(classesOf('WARN retrying in 3s'), 'the two levels are drawn alike').not.toEqual(classesOf('ERROR: cannot connect'));
+
+    // The conservative half: a line that merely mentions an error is left exactly as an ordinary one.
+    for (const text of neutralTexts) {
+      expect(classesOf(text), `"${text}" was coloured although it states no level marker`).toEqual(ordinary);
+    }
+    // And nothing rewrote a line to say it: each is drawn exactly as it arrived.
+    for (const text of ['ERROR: cannot connect', ...neutralTexts]) {
+      expect(screen.getByText(text)).toBeInTheDocument();
     }
   });
 
-  // container-logs-view.md — "Two control rows above the log region, and no more"
-  // (plan-ui-coherence-optimisation/REQ-62): the delivered third row held `Download` alone.
-  it('draws one control row of its own above the stream, the stream carrying the other', async () => {
+  // container-logs-view.md — "the stream a line came from is a separate distinction the library
+  // draws on a channel of its own: a stderr line stays told from a stdout line whether or not it
+  // states a level, and an error line on stdout is not mistaken for a stderr one" (REQ-30)
+  it('keeps the stderr distinction independent of the level it reads', async () => {
     const { container: dom } = render(<ContainerLogsView container={container} />);
-    emit([{ text: 'a line' }]);
-    await screen.findByText('a line');
+    emit([
+      { text: 'ordinary on stdout' },
+      { text: 'ERROR: on stdout', stream: 'stdout' },
+      { text: 'ordinary on stderr', stream: 'stderr' },
+      { text: 'ERROR: on stderr', stream: 'stderr' },
+    ]);
+    await screen.findByText('ordinary on stdout');
 
-    const stream = dom.querySelector('.ui-log-stream')!;
-    const ownRows = [...dom.querySelectorAll('.ui-row')].filter(
-      (row) => !stream.contains(row) && row.parentElement?.closest('.ui-row') == null,
-    );
+    const classesOf = (text: string) => {
+      const line = [...dom.querySelectorAll('.ui-log-stream__line')].find(
+        (row) => row.querySelector('.ui-log-stream__text')?.textContent === text,
+      );
+      if (!line) throw new Error(`no line is drawn for "${text}"`);
+      return [...line.classList].sort();
+    };
 
-    expect(ownRows).toHaveLength(1);
-    // Every daemon-facing control is on it, and the download is not.
-    for (const control of [
-      screen.getByRole('button', { name: 'stdout' }),
-      screen.getByRole('button', { name: 'stderr' }),
-      screen.getByRole('checkbox', { name: 'Timestamps' }),
-      screen.getByRole('combobox', { name: 'Tail size' }),
-      screen.getByRole('textbox', { name: 'Since' }),
-      screen.getByRole('textbox', { name: 'Until' }),
-    ]) {
-      expect(ownRows[0]!.contains(control), `${control.getAttribute('aria-label') ?? control.textContent} left the first control row`).toBe(true);
-    }
-    expect(ownRows[0]!.contains(screen.getByRole('button', { name: 'Download' }))).toBe(false);
+    const ordinary = classesOf('ordinary on stdout');
+    const levelMark = classesOf('ERROR: on stdout').filter((name) => !ordinary.includes(name));
+    const streamMark = classesOf('ordinary on stderr').filter((name) => !ordinary.includes(name));
+
+    expect(levelMark, 'nothing distinguishes an error line from an ordinary one').not.toHaveLength(0);
+    expect(streamMark, 'nothing distinguishes an stderr line from a stdout one').not.toHaveLength(0);
+    expect(streamMark, 'the stream and the level are marked the same way, so one hides the other').not.toEqual(levelMark);
+    expect(
+      classesOf('ERROR: on stderr'),
+      'the line that is both an stderr line and an error line does not show both',
+    ).toEqual(expect.arrayContaining([...levelMark, ...streamMark]));
   });
 
   // container-logs-view.md — a stream failure is shown verbatim with a retry that reopens the stream
