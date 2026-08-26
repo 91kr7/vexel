@@ -21,6 +21,27 @@ function makeContainer(overrides: Partial<ContainerSummary> = {}): ContainerSumm
   };
 }
 
+/** One container's inspect payload, as far as the dialog's tabs read it. */
+function inspectFor(id: string) {
+  return {
+    id,
+    name: id,
+    image: 'nginx:1.27',
+    command: ['sleep'],
+    entrypoint: [],
+    createdAt: '2026-01-01T00:00:00Z',
+    state: { status: 'running', startedAt: '2026-01-01T00:00:01Z' },
+    restartPolicy: { name: 'no' },
+    resourceLimits: {},
+    env: [] as string[],
+    ports: [],
+    mounts: [],
+    networks: [],
+    labels: {},
+    raw: { Id: id },
+  };
+}
+
 function ReportedErrors() {
   const { errors } = useErrorReporter();
   return (
@@ -1067,18 +1088,263 @@ describe('ContainersScreen — the dialog follows its container, not the filter 
     expect(dialogTitle()).toBe('Container — web-nginx');
   });
 
-  // containers-screen.md — "a container that leaves the daemon's list closes it", exactly as
-  // delivered; F2 (`modal-container-bond`) is where that answer is restated.
-  it('closes when its container leaves the list', async () => {
+  // containers-screen.md — "neither is a list re-read that moves or redraws the cards": the bond is
+  // to the container's id, so the same container, the same tab and the same streams survive one
+  // (detail_modal/REQ-32).
+  it('stays open on its container, on the same tab, across a list re-read that redraws the cards', async () => {
+    const user = userEvent.setup();
+    const { withContainers } = renderScreen([web, cache]);
+    await openDetail(user, 'web-nginx');
+    await within(detailDialog()!).findByRole('tab', { name: 'Config' });
+    await user.click(within(detailDialog()!).getByRole('tab', { name: 'Inspect' }));
+
+    // The live list re-reads: the same container, redrawn, now behind a neighbour.
+    withContainers([{ ...cache, status: 'Up 4 days' }, { ...web, status: 'Up 4 days' }]);
+
+    expect(detailDialog(), 'a list re-read behind the dialog dismissed it').not.toBeNull();
+    expect(dialogTitle()).toBe('Container — web-nginx');
+    expect(
+      within(detailDialog()!).getByRole('tab', { name: 'Inspect' }),
+      'the re-read sent the dialog back to another tab',
+    ).toHaveAttribute('aria-selected', 'true');
+  });
+});
+
+// containers-screen.md — "a container that leaves the daemon's list does not close the dialog
+// silently: the dialog states it, in place", keeping its chrome so both ways out still work, with
+// every stream and session it owned gone with the tabs (detail_modal/REQ-33, REQ-34, REQ-36).
+// Restates the delivered check that had the same event close the panel without a word.
+describe('ContainersScreen — a container that ceases to exist is stated on the dialog (REQ-33, REQ-34, REQ-36)', () => {
+  const web = makeContainer({ id: 'container-1', shortId: 'container1', name: 'web-nginx', image: 'nginx:1.27', state: 'running' });
+  const cache = makeContainer({ id: 'container-2', shortId: 'container2', name: 'cache-redis', image: 'redis:7', state: 'running' });
+
+  /** Every stream the page opened, and whether it is still open — REQ-36's first half is a count. */
+  class TrackingEventSource {
+    static instances: TrackingEventSource[] = [];
+    url: string;
+    closed = false;
+
+    constructor(url: string) {
+      this.url = url;
+      TrackingEventSource.instances.push(this);
+    }
+
+    addEventListener() {}
+    removeEventListener() {}
+
+    close() {
+      this.closed = true;
+    }
+  }
+
+  function detailStreams(): TrackingEventSource[] {
+    return TrackingEventSource.instances.filter((instance) => /\/(logs|stats)\/stream/.test(instance.url));
+  }
+
+  beforeEach(() => {
+    TrackingEventSource.instances = [];
+    vi.stubGlobal('EventSource', TrackingEventSource);
+    fetchMock.mockImplementation((url: string) => {
+      const id = /\/containers\/([^/]+)\/inspect/.exec(String(url))?.[1];
+      return Promise.resolve(
+        id
+          ? { ok: true, status: 200, json: () => Promise.resolve(inspectFor(id)) }
+          : { ok: true, status: 200, json: () => Promise.resolve({ titles: [], processes: [] }) },
+      );
+    });
+  });
+
+  function detailDialog(): HTMLElement | null {
+    return document.querySelector<HTMLElement>('.ui-modal--size-large');
+  }
+
+  /** The dialog's stated end state, drawn on the library's one empty-result surface. */
+  function endStateTitle(): HTMLElement | null {
+    return (
+      Array.from(document.querySelectorAll<HTMLElement>('.ui-modal--size-large .ui-empty-state__title')).find((title) =>
+        /no longer exists/i.test(title.textContent ?? ''),
+      ) ?? null
+    );
+  }
+
+  async function openDetail(user: ReturnType<typeof userEvent.setup>, name: string): Promise<void> {
+    await user.click(within(cardFor(name)).getByRole('button', { name: `Open ${name} details` }));
+    await within(detailDialog()!).findByRole('tab', { name: 'Config' });
+  }
+
+  /** The removal, as the live list reports it: the container is simply no longer in the re-read. */
+  async function removeFromTheList(withContainers: (next: ContainerSummary[]) => void): Promise<void> {
+    withContainers([cache]);
+    await waitFor(() => {
+      expect(detailDialog(), 'the dialog closed silently instead of stating the removal').not.toBeNull();
+      expect(endStateTitle(), 'the dialog said nothing about the container having gone').not.toBeNull();
+    });
+  }
+
+  it('states in place of the tabs that the container no longer exists, and keeps the dialog’s chrome', async () => {
     const user = userEvent.setup();
     const { withContainers } = renderScreen([web, cache]);
     await openDetail(user, 'web-nginx');
 
-    // The daemon removed it; the live list re-reads without it.
-    withContainers([cache]);
+    await removeFromTheList(withContainers);
 
-    await waitFor(() => expect(detailDialog()).toBeNull());
+    const dialog = detailDialog()!;
+    expect(endStateTitle()!.textContent).toBe('This container no longer exists');
+    // The explanation and the resolving action are what the empty-result surface is made of.
+    expect(dialog.querySelector('.ui-empty-state__description')?.textContent ?? '').toMatch(/remov/i);
+    expect(within(dialog.querySelector('.ui-empty-state') as HTMLElement).getAllByRole('button').length).toBeGreaterThan(0);
+    // In place of the tabs: nothing of the detail is left standing on data that has stopped.
+    expect(within(dialog).queryAllByRole('tab'), 'the tabs are still drawn beside the statement').toHaveLength(0);
+    // The chrome is kept, so the dialog still says what it belonged to and still has its way out.
+    expect(dialog.querySelector('.ui-modal__title')?.textContent).toBe('Container — web-nginx');
+    expect(within(dialog).getAllByRole('button', { name: 'Close dialog' })).toHaveLength(1);
     expect(cards().some((card) => card.textContent?.includes('web-nginx'))).toBe(false);
+  });
+
+  it('has ended every stream the detail owned by the time it states the removal', async () => {
+    const user = userEvent.setup();
+    const { withContainers } = renderScreen([web, cache]);
+    await openDetail(user, 'web-nginx');
+
+    // The two tabs that own a live stream, so there is something to have ended.
+    await user.click(within(detailDialog()!).getByRole('tab', { name: 'Logs' }));
+    await waitFor(() => expect(detailStreams().length).toBeGreaterThan(0));
+    await user.click(within(detailDialog()!).getByRole('tab', { name: 'Stats' }));
+    await waitFor(() => expect(detailStreams().length).toBeGreaterThan(1));
+
+    await removeFromTheList(withContainers);
+
+    expect(
+      detailStreams().filter((stream) => !stream.closed).map((stream) => stream.url),
+      'a stream the detail opened is still running behind the stated end state',
+    ).toEqual([]);
+  });
+
+  it('is dismissed from the end state by the close control, landing the point of interaction on the list', async () => {
+    const user = userEvent.setup();
+    const { withContainers } = renderScreen([web, cache]);
+    await openDetail(user, 'web-nginx');
+    await removeFromTheList(withContainers);
+
+    await user.click(within(detailDialog()!).getByRole('button', { name: 'Close dialog' }));
+
+    expect(detailDialog()).toBeNull();
+    // The card that opened it left with the container, so the list region is what takes the focus.
+    await waitFor(() => expect(document.activeElement).toBe(document.querySelector('.ui-grid--cards')));
+  });
+
+  it('is dismissed from the end state by a click on the dimmed area beside it', async () => {
+    const user = userEvent.setup();
+    const { withContainers } = renderScreen([web, cache]);
+    await openDetail(user, 'web-nginx');
+    await removeFromTheList(withContainers);
+
+    await user.click(document.querySelector('.ui-modal-overlay') as HTMLElement);
+
+    expect(detailDialog()).toBeNull();
+    await waitFor(() => expect(document.activeElement).toBe(document.querySelector('.ui-grid--cards')));
+  });
+
+  it('is dismissed from the end state by the resolving action the statement offers', async () => {
+    const user = userEvent.setup();
+    const { withContainers } = renderScreen([web, cache]);
+    await openDetail(user, 'web-nginx');
+    await removeFromTheList(withContainers);
+
+    const emptyState = detailDialog()!.querySelector('.ui-empty-state') as HTMLElement;
+    await user.click(within(emptyState).getAllByRole('button')[0]);
+
+    expect(detailDialog(), 'the statement’s own action did not resolve it').toBeNull();
+  });
+});
+
+// containers-screen.md — "a recreate is not a disappearance": the dialog follows the container onto
+// its replacement, and draws no end state in the window before the list carries it
+// (detail_modal/REQ-35).
+describe('ContainersScreen — a recreate is not a disappearance (REQ-35)', () => {
+  const web = makeContainer({ id: 'container-1', shortId: 'container1', name: 'web-nginx', image: 'nginx:1.27', state: 'running' });
+  const cache = makeContainer({ id: 'container-2', shortId: 'container2', name: 'cache-redis', image: 'redis:7', state: 'running' });
+  const recreated = makeContainer({ id: 'container-9', shortId: 'container9', name: 'web-nginx', image: 'nginx:1.27', state: 'running' });
+
+  class FakeEventSource {
+    url: string;
+    constructor(url: string) {
+      this.url = url;
+    }
+    addEventListener() {}
+    removeEventListener() {}
+    close() {}
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal('EventSource', FakeEventSource);
+    fetchMock.mockImplementation((url: string) => {
+      const target = String(url);
+      if (target.includes('/config')) {
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ path: 'recreate', container: recreated }) });
+      }
+      const id = /\/containers\/([^/]+)\/inspect/.exec(target)?.[1];
+      return Promise.resolve(
+        id
+          ? { ok: true, status: 200, json: () => Promise.resolve({ ...inspectFor(id), env: ['FOO=bar'] }) }
+          : { ok: true, status: 204, json: () => Promise.resolve({}) },
+      );
+    });
+  });
+
+  function detailDialog(): HTMLElement | null {
+    return document.querySelector<HTMLElement>('.ui-modal--size-large');
+  }
+
+  function endStateTitle(): HTMLElement | null {
+    return (
+      Array.from(document.querySelectorAll<HTMLElement>('.ui-modal--size-large .ui-empty-state__title')).find((title) =>
+        /no longer exists/i.test(title.textContent ?? ''),
+      ) ?? null
+    );
+  }
+
+  /** The Config tab's edit, saved and confirmed: the change the daemon can only apply by recreating. */
+  async function recreateThroughConfig(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+    await user.click(within(cardFor('web-nginx')).getByRole('button', { name: 'Open web-nginx details' }));
+    await user.click(await within(detailDialog()!).findByRole('button', { name: 'Edit configuration' }));
+
+    const value = within(detailDialog()!).getByRole('textbox', { name: 'Environment Value 1' });
+    await user.clear(value);
+    await user.type(value, 'baz');
+    await user.click(within(detailDialog()!).getByRole('button', { name: 'Save changes' }));
+
+    const heading = await screen.findByRole('heading', { name: 'Confirm: web-nginx' });
+    await user.click(within(heading.closest('.ui-modal') as HTMLElement).getByRole('button', { name: 'Recreate container' }));
+    await waitFor(() => expect(document.querySelector('.ui-toast-viewport')?.textContent).toMatch(/Container recreated/));
+  }
+
+  it('leaves the dialog open on the recreated container, drawing no end state while the list catches up', async () => {
+    const user = userEvent.setup();
+    const { withContainers } = renderScreen([web]);
+
+    await recreateThroughConfig(user);
+
+    expect(detailDialog(), 'the recreate closed the dialog').not.toBeNull();
+    expect(endStateTitle(), 'the recreate was read as a disappearance').toBeNull();
+
+    // The list re-reads on the removal before it carries the replacement: still not a disappearance.
+    withContainers([cache]);
+    expect(detailDialog(), 'the re-read behind the recreate closed the dialog').not.toBeNull();
+    expect(endStateTitle(), 'the dialog stated a disappearance while the recreate was still landing').toBeNull();
+
+    // …and then it carries it, and the dialog is showing the new container.
+    withContainers([cache, recreated]);
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([called]) => String(called).includes(`/containers/${recreated.id}/inspect`)),
+        'the dialog never read the recreated container',
+      ).toBe(true),
+    );
+    expect(detailDialog()).not.toBeNull();
+    expect(endStateTitle()).toBeNull();
+    expect(detailDialog()!.querySelector('.ui-modal__title')?.textContent).toBe('Container — web-nginx');
+    expect(within(detailDialog()!).queryAllByRole('tab').length).toBeGreaterThan(0);
   });
 });
 

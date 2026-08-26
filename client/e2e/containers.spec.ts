@@ -942,3 +942,232 @@ test.describe('Container detail dialog (REQ-24, REQ-25, REQ-26)', () => {
     }
   });
 });
+
+/**
+ * The four things that can happen to a container while its detail stands over the screen, driven
+ * against the real daemon (`plan-docker_management_app-containers_card_view-detail_modal/REQ-32`,
+ * `REQ-33`, `REQ-34`, `REQ-35`, `REQ-36`). Serial: each holds the dialog open while the list
+ * re-reads under it.
+ */
+test.describe('Container detail dialog, bound to its container (REQ-32, REQ-33, REQ-34, REQ-35, REQ-36)', () => {
+  test.describe.configure({ mode: 'serial' });
+
+  /** The statement the dialog draws where its tabs were, when the container has ceased to exist. */
+  function detailEndState(page: Page) {
+    return containerDetail(page).locator('.ui-empty-state__title', { hasText: 'This container no longer exists' });
+  }
+
+  /**
+   * What a **centred, content-sized** surface keeps when its content merely changes, and loses the
+   * moment anything drags it: the same reading `support/surface-stability.ts` takes across a click,
+   * taken here across a daemon event.
+   */
+  function centreOf(box: { x: number; y: number; width: number; height: number }) {
+    return { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
+  }
+
+  /** The list region — where the point of interaction lands when the card that opened the dialog has gone. */
+  function listRegion(page: Page) {
+    return page.locator('.ui-frame__content .ui-grid--cards');
+  }
+
+  /** Opens the detail and settles it, then moves to one tab and settles the box the event is measured against. */
+  async function openDetailOn(page: Page, name: string, tab: string) {
+    await openContainerDetail(page, name);
+    await settledDialogBox(page);
+    const detail = containerDetail(page);
+    await detail.getByRole('tab', { name: tab }).click();
+    await expect(detail.getByRole('tab', { name: tab })).toHaveAttribute('aria-selected', 'true');
+    return await boxOf(detail, 'the container detail dialog');
+  }
+
+  // detail_modal/REQ-33, REQ-34, REQ-36 — removed by someone else on the same daemon: the dialog
+  // states it in place, keeps its chrome, and its close control leaves the operator on the list.
+  test('a container removed from outside the application is stated on the dialog, which stays where it is', async ({ page }) => {
+    const name = `vexel-e2e-detail-removed-${Date.now()}`;
+    try {
+      await createSleepingContainer(name);
+      await expect(containerCard(page, name)).toBeVisible({ timeout: 15_000 });
+      const detail = containerDetail(page);
+      const before = await openDetailOn(page, name, 'Logs');
+
+      // Removed by another client of the same daemon, exactly as the requirement puts it.
+      await execFileAsync('docker', ['rm', '-fv', name]);
+
+      await expect(detailEndState(page), 'the dialog closed silently or sat on data that had stopped').toBeVisible({
+        timeout: 20_000,
+      });
+      await expect(containerCard(page, name)).toHaveCount(0);
+      // In place of the tabs: nothing of the detail is left running behind the statement.
+      await expect(detail.getByRole('tab')).toHaveCount(0);
+      // The chrome is kept, so the dialog still names what it belonged to and still has its way out.
+      expect(await detailOwner(page)).toBe(`Container — ${name}`);
+      await expect(containerDetailCloseControl(page)).toHaveCount(1);
+      await expect(detail.locator('.ui-empty-state__description')).not.toBeEmpty();
+
+      const after = await boxOf(detail, 'the container detail dialog');
+      expect(
+        centreOf(after),
+        `the dialog was dragged when its container was removed: from (${JSON.stringify(before)}) to (${JSON.stringify(after)})`,
+      ).toEqual(centreOf(before));
+      const viewport = page.viewportSize()!;
+      expect(after.y, 'the dialog was carried above the top of the viewport').toBeGreaterThanOrEqual(-0.5);
+      expect(after.y + after.height, 'the dialog was carried below the viewport').toBeLessThanOrEqual(viewport.height + 0.5);
+
+      await closeContainerDetail(page);
+
+      // The card that opened it left with the container, so the list region takes the focus (REQ-36).
+      await expect(listRegion(page), 'the point of interaction was left on a control that no longer exists').toBeFocused();
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+
+  // detail_modal/REQ-34 — the other way out works there too: nothing strands the operator in the
+  // stated end state.
+  test('the stated end state is dismissed by a click on the dimmed area as well', async ({ page }) => {
+    const name = `vexel-e2e-detail-removed-scrim-${Date.now()}`;
+    try {
+      await createSleepingContainer(name);
+      await expect(containerCard(page, name)).toBeVisible({ timeout: 15_000 });
+      await openDetailOn(page, name, 'Logs');
+
+      await execFileAsync('docker', ['rm', '-fv', name]);
+      await expect(detailEndState(page)).toBeVisible({ timeout: 20_000 });
+
+      await dismissContainerDetailByScrim(page);
+
+      await expect(listRegion(page)).toBeFocused();
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+
+  // detail_modal/REQ-32 — a container dropping out of the *filtered* list has not gone anywhere:
+  // same container, same tab, no statement of a disappearance.
+  test('a container stopped out of the running filter leaves its dialog open on the same tab', async ({ page }) => {
+    const name = `vexel-e2e-detail-filtered-out-${Date.now()}`;
+    try {
+      await createSleepingContainer(name);
+      await expect(containerCard(page, name)).toBeVisible({ timeout: 15_000 });
+      await page.getByPlaceholder('Search name, image or state…').fill(name);
+      await page.getByRole('button', { name: 'Running' }).click();
+      await expect(containerCard(page, name)).toBeVisible();
+
+      const detail = containerDetail(page);
+      const before = await openDetailOn(page, name, 'Stats');
+
+      // Stopped from outside the application: it drops out of the filtered list behind the dialog.
+      await execFileAsync('docker', ['stop', '-t', '0', name]);
+
+      await expect(containerCard(page, name), 'the container never left the filtered list').toHaveCount(0, { timeout: 20_000 });
+      await expect(detail, 'a filter behind the dialog dismissed it').toBeVisible();
+      await expect(detailEndState(page), 'a filtered-out container was stated as no longer existing').toHaveCount(0);
+      expect(await detailOwner(page)).toBe(`Container — ${name}`);
+      await expect(detail.getByRole('tab', { name: 'Stats' })).toHaveAttribute('aria-selected', 'true');
+
+      const after = await boxOf(detail, 'the container detail dialog');
+      expect(centreOf(after), 'the dialog was dragged when its container left the filtered list').toEqual(centreOf(before));
+
+      await closeContainerDetail(page);
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+
+  // detail_modal/REQ-32 — a list re-read that moves and redraws the cards is not a dismissal
+  // either: the bond is to the container, not to the row it happens to occupy.
+  test('a list re-read that moves the cards behind the dialog leaves it untouched', async ({ page }) => {
+    const stem = `vexel-e2e-detail-reread-${Date.now()}`;
+    const opened = `${stem}-b`;
+    const arriving = `${stem}-a`;
+    try {
+      await createSleepingContainer(opened);
+      await page.getByPlaceholder('Search name, image or state…').fill(stem);
+      await expect(containerCards(page)).toHaveCount(1, { timeout: 20_000 });
+
+      const detail = containerDetail(page);
+      const before = await openDetailOn(page, opened, 'Inspect');
+      const cardBefore = await boxOf(containerCard(page, opened), `the card of ${opened}`);
+
+      // A daemon event the list re-reads on, landing a card ahead of the open one.
+      await createSleepingContainer(arriving);
+
+      await expect(containerCards(page)).toHaveCount(2, { timeout: 20_000 });
+      const cardAfter = await boxOf(containerCard(page, opened), `the card of ${opened}`);
+      expect(
+        { x: Math.round(cardAfter.x), y: Math.round(cardAfter.y) },
+        'the re-read did not move the open container’s card, so this proves nothing',
+      ).not.toEqual({ x: Math.round(cardBefore.x), y: Math.round(cardBefore.y) });
+
+      await expect(detail, 'a list re-read behind the dialog dismissed it').toBeVisible();
+      await expect(detailEndState(page)).toHaveCount(0);
+      expect(await detailOwner(page)).toBe(`Container — ${opened}`);
+      await expect(detail.getByRole('tab', { name: 'Inspect' })).toHaveAttribute('aria-selected', 'true');
+
+      const after = await boxOf(detail, 'the container detail dialog');
+      expect(after, 'the dialog moved or was resized by a re-read of the list behind it').toEqual(before);
+
+      await closeContainerDetail(page);
+    } finally {
+      await removeContainerQuietly(opened);
+      await removeContainerQuietly(arriving);
+    }
+  });
+
+  // detail_modal/REQ-35 — a configuration change that recreates the container is not a
+  // disappearance: the dialog follows it onto the new container, and states nothing in between.
+  test('a recreate through the Config tab keeps the dialog open and follows it onto the new container', async ({ page }) => {
+    const name = `vexel-e2e-detail-recreate-${Date.now()}`;
+    // The recreate keeps the replaced container's volumes, so the orphan is this test's to remove.
+    const volumesBefore = await anonymousVolumes();
+    try {
+      await createSleepingContainer(name, ['-e', 'FOO=bar']);
+      await expect(containerCard(page, name)).toBeVisible({ timeout: 15_000 });
+      const idBefore = (await execFileAsync('docker', ['inspect', '-f', '{{.Id}}', name])).stdout.trim();
+
+      await openContainerDetail(page, name);
+      const detail = containerDetail(page);
+      await settledDialogBox(page);
+      await detail.getByRole('button', { name: 'Edit configuration' }).click();
+      await detail.getByRole('textbox', { name: 'Value 1' }).fill('baz');
+      await detail.getByRole('button', { name: 'Save changes' }).click();
+
+      const confirmHeading = page.getByRole('heading', { name: `Confirm: ${name}` });
+      await expect(confirmHeading).toBeVisible();
+      await page.locator('.ui-modal').filter({ has: confirmHeading }).getByRole('button', { name: 'Recreate container' }).click();
+
+      // Sampled all the way through the window between the recreate and the refreshed list: the
+      // end state must never be drawn in it, not even for a frame this poll happens to catch.
+      const statedGone: string[] = [];
+      await expect
+        .poll(
+          async () => {
+            if ((await detailEndState(page).count()) > 0) statedGone.push(new Date().toISOString());
+            return (await page.locator('.ui-toast-viewport').textContent()) ?? '';
+          },
+          { timeout: 20_000 },
+        )
+        .toContain('Container recreated');
+      expect(statedGone, 'the dialog stated a disappearance while the recreate was landing').toEqual([]);
+
+      await expect(containerCard(page, name)).toBeVisible({ timeout: 15_000 });
+      await expect(detail, 'the recreate closed the dialog').toBeVisible();
+      await expect(detailEndState(page), 'the recreate was read as a disappearance').toHaveCount(0);
+      expect(await detailOwner(page)).toBe(`Container — ${name}`);
+
+      // …and it is the *new* container it is showing: the daemon's own id for it, in the payload.
+      const idAfter = (await execFileAsync('docker', ['inspect', '-f', '{{.Id}}', name])).stdout.trim();
+      expect(idAfter, 'the daemon did not recreate the container, so this proves nothing').not.toBe(idBefore);
+      await detail.getByRole('tab', { name: 'Inspect' }).click();
+      await expect
+        .poll(async () => (await detail.locator('.ui-code-viewer__code').last().textContent()) ?? '', { timeout: 20_000 })
+        .toContain(idAfter);
+
+      await closeContainerDetail(page);
+    } finally {
+      await removeContainerQuietly(name);
+      await removeAnonymousVolumesSince(volumesBefore);
+    }
+  });
+});
