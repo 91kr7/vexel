@@ -22,7 +22,7 @@ Description:
 
 Props:
 
-- `<LogStream lines showTimestamps? follow? onFollowChange? highlight? activeMatchLineId? maxHeight? lineHeight? emptyLabel? downloadFileName? toolbar? />`
+- `<LogStream lines showTimestamps? follow? onFollowChange? highlight? activeMatchLineId? maxHeight? fill? lineHeight? emptyLabel? downloadFileName? toolbar? />`
   - `lines: { id, text, timestamp?, stream?, source? }[]` — `timestamp` is display-ready text
     supplied by the caller; `stream` is `'stdout' | 'stderr'`; `source?` is an origin label (e.g. a
     compose service name) shown before the timestamp, for an aggregated stream.
@@ -31,6 +31,9 @@ Props:
   - `highlight?: string` — case-insensitive substring highlighted in every line that contains it.
   - `activeMatchLineId?: string` — the line to bring into view and emphasize as the current match.
   - `maxHeight?: string` (default `"320px"`), `lineHeight?: number` in px (default `20`).
+  - `fill?: boolean` (default `false`) — the region's bound comes from the region the stream is
+    placed in instead of `maxHeight`, and follows it as it follows the screen. A caller that does not
+    ask for it keeps the `maxHeight` behaviour exactly.
   - `emptyLabel?: string` — title shown when `lines` is empty (default `"No log output."`).
   - `downloadFileName?: string` — when given, the action row above the region holds a download action
     producing a plain-text file with that name.
@@ -70,6 +73,14 @@ Actions:
 - What `toolbar` holds changes nothing about the region: the same lines are mounted, the same buffer
   is downloaded, and the slot's content is rendered where it is placed rather than re-mounting the
   stream.
+- **`fill` changes where the bound comes from and nothing else.** Virtualisation, the follow
+  behaviour, the jump-to-live control, the match highlighting and the download are identical in both
+  modes: the scrollport is still what the window is measured against, so only its source differs — a
+  stated maximum, or the region, observed as it changes so that a screen made taller mounts the lines
+  it has just made room for. Nothing about which lines are streamed, buffered, rendered or downloaded
+  follows from it.
+- Under `fill` the region is still bounded, never content-driven: a caller may only ask for it inside
+  a region whose own height is bounded.
 - While `follow` is true, the region stays scrolled to the last line as new lines arrive.
 - Scrolling away from the bottom by hand calls `onFollowChange(false)`; scrolling back to the
   bottom by hand calls `onFollowChange(true)`.
@@ -102,3 +113,4 @@ Actions:
 - plan-docker_management_app/REQ-31
 - plan-liquid_glass_overlays/REQ-17
 - plan-ui-coherence-optimisation/REQ-62
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-3

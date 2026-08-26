@@ -10,7 +10,7 @@ type: UI component
 
 ## Contract
 
-- `<Modal open title children? actions? onClose size? closeControl? restoreFocus?>`
+- `<Modal open title children? actions? onClose size? closeControl? restoreFocus? fluidWidth? stableHeight?>`
   - `open` — when `false`, renders nothing.
   - `onClose` — called when the dimmed overlay is clicked; content clicks do not propagate to it.
   - `actions` — optional trailing action row (e.g. Cancel/Confirm buttons).
@@ -28,6 +28,11 @@ type: UI component
   - `fluidWidth?: boolean` (default `false`) — modifies `size="large"` and nothing else: the width
     keeps the format's viewport term and drops its constant cap, so it goes on widening with the
     viewport (`92vw`) instead of stopping at 1100px. Asked for on any other size it does nothing.
+  - `stableHeight?: boolean` (default `false`) — modifies `size="large"` and nothing else: the
+    format's viewport bound becomes the card's **height** instead of its maximum. The dialog's
+    viewport box — top edge, bottom edge and height — is then the same one whatever the content is
+    and whatever it becomes: a change of tab, a reveal inside a form, a stream that grows, an
+    arriving error banner move no edge of it. Asked for on any other size it does nothing.
 
 ## Rules and invariants
 
@@ -68,9 +73,25 @@ type: UI component
   ten-property section carries 2 / 4 / 6 columns there. Below the phone breakpoint nothing changes at
   all — `92vw` is already the operative term of the capped format at 375px.
 - The dialog answers its content in height as well: it grows with what it holds, and `'large'` caps
-  the height and scrolls inside the content, never on the positioner.
+  the height and scrolls inside the content, never on the positioner. **Unless `stableHeight` is
+  asked for**, which is the one way a dialog's height stops being an answer to its content.
+- **`stableHeight` states where the bound is taken from, never how large it is**: it is the same
+  viewport bound the large format already carries, read as a height. So a dialog asking for it is
+  bounded by the viewport on every viewport exactly as before — it fits inside the window with the
+  overlay's own margin, and no part of it falls outside — and retuning that bound stays one
+  declaration for both readings.
+- **A dialog that does not ask for it is untouched**: the rule is compounded with the large format's
+  own class, so it is inert elsewhere and independent of source order, and the image diff, the layer
+  explorer, the layer efficiency and the filesystem browser dialogs are still the size their content
+  makes them in height.
+- **A card given a height hands the leftover down instead of leaving it under the content.** The body
+  of a column-laid dialog grows as well as shrinks, so the arrangement inside it is given the whole
+  bounded height rather than its own content's — which is what lets a filling region take the height
+  the dialog is not using. Inert where the bound is only a cap: a column whose own height is `auto`
+  has no free space to distribute, so the dialogs sized by their content distribute nothing.
 - **A `'large'` dialog whose body holds a `BandStack` hands its own bounded height down to it**, and
-  only that kind of dialog does. The cap becomes the card's used height, the body shrinks against it,
+  only that kind of dialog does. `stableHeight` and that gate are independent and compose: the opt-in
+  decides *how much* height there is, the gate decides that it is *distributed*. The cap becomes the card's used height, the body shrinks against it,
   and the arrangement is given the definite height its filling region distributes — which is what
   stops the body from overflowing the card and leaving the card itself scrolling, a second scrollbar
   around content that already has one. Every dialog **without** an arrangement keeps exactly the
@@ -151,3 +172,7 @@ type: UI component
 - plan-docker_management_app-containers_card_view-detail_modal/REQ-14
 - plan-docker_management_app-containers_card_view-detail_modal/REQ-17
 - plan-docker_management_app-containers_card_view-detail_modal/REQ-18
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-1
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-2
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-4
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-5

@@ -13,7 +13,7 @@ this plan's (`requirements.md`); intervention ids are local to each batch file.
 
 | Batch | Feature | REQ closed | Depends | Status | Human acceptance |
 | --- | --- | --- | --- | --- | --- |
-| `stable-detail-height` | F0 — One height for the whole detail, and the tab's content scrolls inside it | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5 | — | todo | The dialog stays exactly where it is while the operator moves between tabs |
+| `stable-detail-height` | F0 — One height for the whole detail, and the tab's content scrolls inside it | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5 | — | implemented | The dialog stays exactly where it is while the operator moves between tabs |
 | `detail-identity-header` | F1 — The header carries the container's identity | REQ-6, REQ-7, REQ-8, REQ-9, REQ-10 | `stable-detail-height` | todo | The dialog's header says as much as the card the operator just left |
 | `config-first-tab` | F1b — Config is the first tab and the one active on open | REQ-11, REQ-12 | `stable-detail-height`, `detail-identity-header` | todo | The detail opens on the tab it draws first |
 | `config-reading-layout` | F3 — Config in reading | REQ-18, REQ-19, REQ-20, REQ-21, REQ-22 | `stable-detail-height` | todo | The environment variables can be read down the keys |

@@ -9,6 +9,15 @@
   height: 420px;
 }
 
+/* The region-bounded mode: the surface takes the height of the region it is
+   placed in, which has to be a bounded one — the height is then as definite as
+   the constant above, so the fit still settles in one pass. */
+.ui-session-surface--fill {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+}
+
 .ui-session-header {
   display: flex;
   align-items: center;

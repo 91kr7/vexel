@@ -25,6 +25,9 @@ Description:
   showing, and the download takes what the region is holding, so the row they share is the region's.
 - No row holds a single button. Nothing about which lines are streamed, buffered, rendered or
   downloaded follows from this: it is an arrangement, and the controls are the delivered ones.
+- The log region asks the library for its **fill** mode (`log-stream.md`) instead of a stated
+  maximum: its bound is the region this view is placed in, and it states no length of its own.
+  Nothing about which lines are streamed, buffered, rendered or downloaded follows from that either.
 
 Shows:
 
@@ -58,13 +61,16 @@ Actions:
   on the daemon.
 - `Download` delivers the **whole** buffer, not the rendered window: the region is virtualised, and
   which of its rows happen to be mounted is not a property of the file (`log-stream.md`).
+- The log region takes the height left by the two control rows, and the lines scroll inside it: the
+  control rows stay put however long the stream grows, and the stream never stretches whatever holds
+  this view.
 - Every control is where the operator can reach it: each is hit-testable at the centre of its own
   visible box, and none of them is behind another (`plan-ui-coherence-optimisation/REQ-62`).
 
 ## Dependencies
 
 - useContainerLogs
-- ui-library: LogStream (its `toolbar` slot), SegmentedControl, TailSizeSelector, TimeRangeField,
+- ui-library: LogStream (its `toolbar` slot and its `fill` mode), SegmentedControl, TailSizeSelector, TimeRangeField,
   StreamSearchField, Toggle, Row, Stack, MetaCell, ErrorBanner
 
 ## Requirements served
@@ -72,3 +78,4 @@ Actions:
 - plan-docker_management_app/REQ-30
 - plan-docker_management_app/REQ-31
 - plan-ui-coherence-optimisation/REQ-62
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-3

@@ -32,6 +32,31 @@
   flex: 1 1 auto;
 }
 
+/*
+ * The region-bounded mode: the stream's bound comes from the region it is placed
+ * in rather than from a stated maximum. The stream fills that region, the log
+ * surface takes what the action row leaves, and the scrollport inside it takes
+ * what is left of that — which is the definite height the virtualised window is
+ * measured against. Nothing here blurs, and the jump-to-live control keeps the
+ * same positioned parent it always had.
+ */
+.ui-log-stream--fill {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.ui-log-stream--fill > .ui-log-stream__surface {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.ui-log-stream--fill > .ui-log-stream__surface > .ui-scroll-area {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .ui-log-stream__surface {
   position: relative;
   border-radius: var(--radius-md);

@@ -376,6 +376,7 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
         title={detailName ? `Container — ${detailName}` : ''}
         size="large"
         fluidWidth
+        stableHeight
         closeControl
         restoreFocus
         onClose={closeDetail}

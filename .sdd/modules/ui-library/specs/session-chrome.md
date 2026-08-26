@@ -18,7 +18,7 @@ Description:
   button, in a row above the terminal.
 - `SessionEndedOverlay` — a centered message (and optional action) over the terminal once the
   session has ended, presenting the terminal behind it dimmed.
-- `SessionSurface` — wraps a `Terminal` (or its launch-form placeholder) in a fixed-height region and
+- `SessionSurface` — wraps a `Terminal` (or its launch-form placeholder) in a bounded region and
   positions an optional `SessionEndedOverlay` over it.
 
 Props:
@@ -29,8 +29,11 @@ Props:
   - `disconnectLabel?`/`onDisconnect?` — both required together to show the trailing action; it is
     disabled once `state` is `'closed'`.
 - `<SessionEndedOverlay message action? />` — `action` is typically a "Close" button.
-- `<SessionSurface overlay?>{children}</SessionSurface>` — `children` is the terminal content;
+- `<SessionSurface overlay? fill?>{children}</SessionSurface>` — `children` is the terminal content;
   `overlay` is rendered on top of it when given.
+  - `fill?: boolean` (default `false`) — the surface takes the height of the region it is placed in
+    instead of the delivered constant, so the terminal fills whatever the caller's own arrangement
+    leaves it. A caller that does not ask for it gets exactly the fixed-height region it got before.
 
 ## Rules and invariants
 
@@ -46,9 +49,14 @@ Props:
   rectangle in which no glass is legible. The blur was implemented, seen and withdrawn.
 - The overlay is a stacking context of its own (`z-index`), so it paints above the terminal it
   covers and below nothing else in the region.
-- `SessionSurface`'s height is a fixed value, never derived from its content: hosting a `Terminal`
-  inside an unbounded, content-driven height would grow every time the terminal's fit adds rows,
-  which its resize observer would then see as a resize and fit again, without ever settling.
+- **`SessionSurface`'s height is never derived from its content**, in either mode: hosting a
+  `Terminal` inside an unbounded, content-driven height would grow every time the terminal's fit adds
+  rows, which its resize observer would then see as a resize and fit again, without ever settling.
+  Without `fill` that guarantee is a fixed value; with it, it is the bounded region the surface is
+  placed in — the height is as definite either way, which is what makes the second mode legitimate
+  and what makes it illegitimate anywhere the enclosing region's own height is not bounded.
+- `fill` changes the region's height and nothing else: the session, its launch form, its controls,
+  the connection states and the ended overlay are the same in both modes.
 
 ## Dependencies
 
@@ -60,3 +68,4 @@ Props:
 - plan-docker_management_app/REQ-35
 - plan-docker_management_app/REQ-36
 - plan-liquid_glass_overlays/REQ-16
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-3

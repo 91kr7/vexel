@@ -26,6 +26,14 @@ export interface LogStreamProps {
   /** Line brought into view and emphasized as the current match. */
   activeMatchLineId?: string;
   maxHeight?: string;
+  /**
+   * Takes the height of the region the stream is placed in instead of a stated
+   * maximum, with virtualisation, the follow behaviour and the jump-to-live
+   * control working exactly as they do under `maxHeight`: the window is measured
+   * from the scroll container itself, so it follows the region as the region
+   * follows the screen. A caller that does not ask for it keeps `maxHeight`.
+   */
+  fill?: boolean;
   lineHeight?: number;
   emptyLabel?: string;
   /** When set, a download action saving the buffer under this name is offered. */
@@ -55,6 +63,7 @@ export function LogStream({
   highlight,
   activeMatchLineId,
   maxHeight = '320px',
+  fill = false,
   lineHeight = 20,
   emptyLabel = 'No log output.',
   downloadFileName,
@@ -66,7 +75,18 @@ export function LogStream({
 
   useLayoutEffect(() => {
     if (scrollRef.current) setViewportHeight(scrollRef.current.clientHeight);
-  }, [maxHeight, lines.length]);
+  }, [maxHeight, fill, lines.length]);
+
+  // In the region-bounded mode the scrollport's height is whatever the region
+  // currently offers, so it is observed rather than measured once: a screen that
+  // grows must mount the lines it has just made room for.
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!fill || !element || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => setViewportHeight(element.clientHeight));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [fill]);
 
   useLayoutEffect(() => {
     const element = scrollRef.current;
@@ -118,7 +138,7 @@ export function LogStream({
   const bottomSpacerHeight = (lines.length - endIndex) * lineHeight;
 
   return (
-    <div className="ui-log-stream">
+    <div className={fill ? 'ui-log-stream ui-log-stream--fill' : 'ui-log-stream'}>
       {/* Not rendered at all when it would have no children — a stream offered
           with neither controls nor a download filename, which is Compose
           whenever no project is selected. An empty flex child still consumes
@@ -141,7 +161,7 @@ export function LogStream({
         <EmptyState title={emptyLabel} description={null} action={null} />
       ) : (
         <div className="ui-log-stream__surface">
-          <ScrollArea ref={scrollRef} maxHeight={maxHeight} onScroll={handleScroll}>
+          <ScrollArea ref={scrollRef} maxHeight={fill ? undefined : maxHeight} onScroll={handleScroll}>
             <div className="ui-log-stream__lines">
               {topSpacerHeight > 0 ? <div style={{ height: topSpacerHeight }} /> : null}
               {visibleLines.map((line) => {

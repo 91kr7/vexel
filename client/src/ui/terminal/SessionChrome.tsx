@@ -62,12 +62,19 @@ export interface SessionSurfaceProps {
   children: ReactNode;
   /** A SessionEndedOverlay, shown over the terminal — which it dims — once the session ends. */
   overlay?: ReactNode;
+  /**
+   * Takes the height of the region the surface is placed in instead of the
+   * delivered constant. Only legitimate inside a region whose own height is
+   * bounded: the constant exists because an unbounded host grows every time the
+   * emulator's fit adds rows, and fits again on seeing itself grow.
+   */
+  fill?: boolean;
 }
 
 /** Positions an optional SessionEndedOverlay over its terminal content. */
-export function SessionSurface({ children, overlay }: SessionSurfaceProps) {
+export function SessionSurface({ children, overlay, fill = false }: SessionSurfaceProps) {
   return (
-    <div className="ui-session-surface">
+    <div className={fill ? 'ui-session-surface ui-session-surface--fill' : 'ui-session-surface'}>
       {children}
       {overlay}
     </div>

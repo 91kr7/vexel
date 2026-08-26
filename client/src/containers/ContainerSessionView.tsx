@@ -110,7 +110,11 @@ export function ContainerSessionView({ container, kind }: ContainerSessionViewPr
         disconnectLabel={kind === 'exec' ? 'Close' : 'Detach'}
         onDisconnect={handleDetach}
       />
+      {/* The terminal takes the height of the region the tab is given — the dialog's stable
+          height, less the bands above it — rather than a constant of its own. The session
+          itself, its launch form and its controls are unchanged. */}
       <SessionSurface
+        fill
         overlay={
           ended ? (
             <SessionEndedOverlay

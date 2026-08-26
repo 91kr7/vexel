@@ -89,6 +89,11 @@ Actions:
   and the format's 1100px cap held them at two columns where the inline panel this replaces showed
   four at 1920 and five at 2560 (REQ-18, amended by the human on 2026-08-26 in REQ-4's favour). It is
   the only surface in the product that asks for it.
+- **The screen also asks for the large format's stable height** (`stableHeight`), by name and with no
+  length of its own: the detail's frame is then the same box before and after a change of tab and
+  before and after a reveal inside one, and each tab's content scrolls inside it rather than
+  stretching it. Where the bound comes from is the library's decision, not this screen's, so the
+  dialog goes on fitting the viewport with its usual margin.
 - **Two ways out, and only those two**: the dialog's close control, and a click on the dimmed area
   beside it. `Escape` closes nothing — the dialog claims the key and does nothing with it, so nothing
   on the screen it covers is dismissed behind it either. Either route leaves the point of interaction
@@ -190,8 +195,8 @@ Actions:
 
 - ui-library: ScreenToolbar, SearchField, FilterChips, TextField, Button, IconButton, ErrorBanner,
   EmptyState (in the list's place, and in the dialog's when its container has gone), Row, Stack, Grid
-  (as the list's dismissal focus target) and GridSpan, Modal (at `size="large"`, with its close
-  control and its focus return), triggerDownload, useToast
+  (as the list's dismissal focus target) and GridSpan, Modal (at `size="large"`, with its fluid
+  width, its stable height, its close control and its focus return), triggerDownload, useToast
 - Containers client, Container transfer client, Images client (`ImageSummary`), useStatsSubscription
 - ContainerCard, ContainerDetailPanel, ContainerCreateForm
 - app-shell: ConfirmationService, ProgressService, ErrorReportingService
@@ -265,3 +270,5 @@ Actions:
 - plan-docker_management_app-containers_card_view-detail_modal/REQ-34
 - plan-docker_management_app-containers_card_view-detail_modal/REQ-35
 - plan-docker_management_app-containers_card_view-detail_modal/REQ-36
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-1
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-4

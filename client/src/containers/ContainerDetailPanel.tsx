@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  BandStack,
   Button,
   CodeViewer,
   CollapsibleSection,
@@ -14,6 +15,7 @@ import {
   NumberField,
   RepeatableRowList,
   Row,
+  ScrollArea,
   SectionHeader,
   Select,
   Stack,
@@ -403,34 +405,27 @@ export function ContainerDetailPanel({ container, onContainerReplaced }: Contain
     );
   }
 
-  return (
-    <Stack gap="var(--space-4)">
-      <Tabs
-        tabs={[
-          { id: 'logs', label: 'Logs' },
-          { id: 'stats', label: 'Stats' },
-          { id: 'config', label: 'Config' },
-          { id: 'processes', label: 'Processes' },
-          { id: 'inspect', label: 'Inspect' },
-          ...(container.state === 'running' ? [{ id: 'exec', label: 'Exec' }, { id: 'attach', label: 'Attach' }] : []),
-        ]}
-        activeId={activeTab}
-        onSelect={(id) => setActiveTab(id as ContainerDetailTab)}
-      />
-      {activeTab === 'logs' ? (
-        <ContainerLogsView container={container} />
-      ) : activeTab === 'stats' ? (
-        // Unmounting the view is what stops the live stats stream (REQ-32).
-        <ContainerStatsView container={container} />
-      ) : activeTab === 'processes' ? (
-        <ContainerProcessesView container={container} />
-      ) : activeTab === 'exec' ? (
-        // Unmounting the view is what closes the interactive session (REQ-36).
-        <ContainerSessionView container={container} kind="exec" />
-      ) : activeTab === 'attach' ? (
-        <ContainerSessionView container={container} kind="attach" />
-      ) : (
-        <>
+  function renderActiveTab() {
+    if (activeTab === 'logs') return <ContainerLogsView container={container} />;
+    // Unmounting the view is what stops the live stats stream (REQ-32).
+    if (activeTab === 'stats')
+      return (
+        <ScrollArea>
+          <ContainerStatsView container={container} />
+        </ScrollArea>
+      );
+    if (activeTab === 'processes')
+      return (
+        <ScrollArea>
+          <ContainerProcessesView container={container} />
+        </ScrollArea>
+      );
+    // Unmounting the view is what closes the interactive session (REQ-36).
+    if (activeTab === 'exec') return <ContainerSessionView container={container} kind="exec" />;
+    if (activeTab === 'attach') return <ContainerSessionView container={container} kind="attach" />;
+    return (
+      <ScrollArea>
+        <Stack gap="var(--space-4)">
           {error ? <ErrorBanner title="Could not load container details" detail={error} onRetry={refresh} /> : null}
           {!inspect ? (
             <EmptyState title={loaded ? 'No inspect data available' : 'Loading container details…'}  description={null} action={null} />
@@ -439,8 +434,37 @@ export function ContainerDetailPanel({ container, onContainerReplaced }: Contain
           ) : (
             renderInspectView(inspect)
           )}
-        </>
-      )}
-    </Stack>
+        </Stack>
+      </ScrollArea>
+    );
+  }
+
+  /*
+    The interior is the library's band arrangement: the tab row is a band, at the height of
+    its own content, and the active tab is the one region that absorbs whatever height is
+    left. It is also what makes the dialog hand its bounded height down (modal.md), which is
+    why nothing here states a height, a width or a minimum. A tab that is a document scrolls
+    inside that region; a tab that is a surface of its own (the logs, the two sessions) fills
+    it and scrolls inside itself.
+  */
+  return (
+    <BandStack
+      bands={[
+        <Tabs
+          key="tabs"
+          tabs={[
+            { id: 'logs', label: 'Logs' },
+            { id: 'stats', label: 'Stats' },
+            { id: 'config', label: 'Config' },
+            { id: 'processes', label: 'Processes' },
+            { id: 'inspect', label: 'Inspect' },
+            ...(container.state === 'running' ? [{ id: 'exec', label: 'Exec' }, { id: 'attach', label: 'Attach' }] : []),
+          ]}
+          activeId={activeTab}
+          onSelect={(id) => setActiveTab(id as ContainerDetailTab)}
+        />,
+      ]}
+      fill={renderActiveTab()}
+    />
   );
 }

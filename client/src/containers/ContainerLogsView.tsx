@@ -87,7 +87,11 @@ export function ContainerLogsView({ container }: ContainerLogsViewProps) {
       </Row>
       {error ? <ErrorBanner title="Could not stream the container logs" detail={error} onRetry={restart} /> : null}
       {ended && lines.length > 0 ? <MetaCell>Stream ended.</MetaCell> : null}
+      {/* The log region's bound is the region it is placed in — the dialog's stable height,
+          less the bands above it — instead of a stated maximum. What is streamed, buffered,
+          rendered or downloaded does not follow from it. */}
       <LogStream
+        fill
         lines={streamLines}
         showTimestamps={timestamps}
         follow={follow}

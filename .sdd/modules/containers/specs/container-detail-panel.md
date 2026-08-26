@@ -23,12 +23,16 @@ Description:
 - A `Tabs` row (Logs, Stats, Config, Processes, Inspect, and — only when the container is running —
   Exec, Attach) above the active tab's content, and nothing else. Config is the tab selected when the
   detail opens.
+- The interior is the library's **band arrangement** (`ui-library/specs/band-stack.md`): the tab row
+  is a band, at the height of its own content, and the active tab's content is the one region that
+  absorbs whatever height is left. That is also what makes the dialog hand its bounded height down,
+  by the gate `ui-library/specs/modal.md` documents.
 - **It is a body and not a surface**: no surface of its own, no header, no title, no header actions,
   no close control and no dismissal route. The container's identity, the chrome and both ways out
   are the dialog's (`ui-library/specs/modal.md`, `containers-screen.md`). "Export filesystem…" was
   this panel's only action and is started from the card's overflow menu.
-- It takes the whole width of the dialog body it is placed in and states no width, height or minimum
-  of its own.
+- It takes the whole width **and the whole height** of the dialog body it is placed in, and states no
+  width, height or minimum of its own.
 Dismissal:
 - The panel offers none and claims no key. It ends when the dialog that holds it does, by either of
   the dialog's two routes — its close control, or a click on the dimmed area.
@@ -103,6 +107,16 @@ Actions:
 
 ## Rules and invariants
 
+- **The panel's box does not follow its content.** The dialog carrying it asks for a stable height
+  (`containers-screen.md`), so the frame is the same one before and after a change of tab, for any
+  pair of tabs and whatever either holds, and the same one before and after a reveal inside a tab —
+  the Config health-check switch included. What changes when a tab is changed is what is drawn inside
+  the region, never where the region is.
+- **A tab taller than the region scrolls inside the region**, never outside the card and never on the
+  page behind it: the tab row and the dialog's own chrome stay put and every tab stays reachable
+  however long the active one is. A tab that is a document (Config, Stats, Processes, Inspect) scrolls
+  as one; a tab that is a surface of its own (Logs, Exec, Attach) fills the region and scrolls inside
+  itself.
 - Only the active tab's content exists: leaving the Stats tab (switching tab, or the dialog being
   dismissed by either route) unmounts the stats view and thereby stops the live stats stream
   (REQ-32); leaving the Exec or Attach tab likewise closes the interactive session (REQ-36). Nothing
@@ -125,8 +139,11 @@ Actions:
 - **Moving onto the dialog surface changed where the detail is drawn and nothing else**
   (`plan-docker_management_app-containers_card_view-detail_modal/REQ-4`): the same seven tabs in the
   same order, the same tab active on open, the same data, operations, confirmations and live
-  behaviour, and no view inside it re-sized. Any observable difference beyond the surface and the
-  routes in and out is a defect.
+  behaviour. That content parity is **superseded**, and only in what it said about size, by
+  `plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor` — the
+  clause "no view inside it re-sized" no longer holds: the log region and the terminal now take the
+  height of the region they are placed in. Everything else the requirement fixed stands, and any
+  observable difference in data, operations, confirmations or live behaviour is still a defect.
 
 ## Dependencies
 
@@ -134,7 +151,7 @@ Actions:
 - ContainerStatsView
 - ContainerProcessesView
 - ContainerSessionView
-- ui-library: Tabs, DefinitionList, ContentColumns, CollapsibleSection, CodeViewer, Select, NumberField,
+- ui-library: BandStack, ScrollArea, Tabs, DefinitionList, ContentColumns, CollapsibleSection, CodeViewer, Select, NumberField,
   Toggle, TextField, KeyValueEditor, RepeatableRowList, FormFooter, SectionHeader, Row, Stack,
   Button, ErrorBanner, EmptyState, FormDialog, useToast
 - Containers client (updateContainerConfig)
@@ -172,3 +189,5 @@ Actions:
 - plan-docker_management_app-containers_card_view-detail_modal/REQ-23
 - plan-docker_management_app-containers_card_view-detail_modal/REQ-24
 - plan-docker_management_app-containers_card_view-detail_modal/REQ-30
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-1
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-3

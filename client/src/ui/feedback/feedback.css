@@ -59,6 +59,22 @@
 }
 
 /*
+ * The large format's viewport bound, stated as the card's height instead of its
+ * maximum: the box is then the same one before and after a change of tab and
+ * before and after a reveal inside one, because nothing about it is read off the
+ * content any more. The same figure as the cap above, so the dialog goes on
+ * fitting the viewport with the overlay's own margin — this opt-in decides where
+ * the bound is taken from, never how large it is.
+ *
+ * Compounded with the large format's own class, like `fluidWidth`: inert
+ * anywhere else and independent of source order, so the four large dialogs that
+ * ask for nothing are still sized by their content in height.
+ */
+.ui-modal--size-large.ui-modal--stable-height {
+  height: 85vh;
+}
+
+/*
  * A dialog holding a band arrangement (`BandStack`) becomes a column, and hands
  * its own bounded height down to it.
  *
@@ -84,6 +100,15 @@
 .ui-modal--size-large:has(.ui-band-stack) > .ui-modal__body {
   display: flex;
   flex-direction: column;
+  /*
+   * Grows as well as shrinks, so a card given a *height* hands the leftover down
+   * instead of leaving it under the content: with `flex-grow: 0` a short tab left
+   * the arrangement at its content's height and the filling region had nothing to
+   * take. Inert under the cap alone — a column whose own height is `auto` has no
+   * free space to distribute — so the dialogs sized by their content are
+   * unaffected.
+   */
+  flex: 1 1 auto;
   min-height: 0;
 }
 
