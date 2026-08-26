@@ -301,11 +301,28 @@ describe('DashboardScreen — the container activity (plan-docker_management_app
   });
 
   // dashboard-screen.md — "a container that is not running has none and shows "–"" / "a CPU reading
-  // the daemon has not sampled shows "–""
-  it('shows no uptime for a container that is not running and no CPU where none was sampled', () => {
+  // the daemon has not sampled shows "—", stated as an absent sample rather than drawn as a zero or
+  // left blank" (plan-docker_management_app-containers_card_view/REQ-45, REQ-52)
+  it('shows no uptime for a container that is not running and states the absent CPU sample', () => {
     renderScreen({ containers: [container('stopped-one', 'exited', { status: 'Exited (0) 2 hours ago' })] });
 
-    expect(activityRows()).toEqual([['stopped-one', 'exited', NO_VALUE, NO_VALUE]]);
+    expect(activityRows()).toEqual([['stopped-one', 'exited', NO_READING, NO_VALUE]]);
+  });
+
+  // The same absent reading for a running container the gate left unsampled: a withheld figure is
+  // never drawn as a measured zero (plan-docker_management_app-containers_card_view/REQ-52)
+  it('states an absent CPU sample for a running container the sampler has not read', () => {
+    renderScreen({ containers: [container('running-unsampled', 'running', { status: 'Up 10 minutes' })] });
+
+    expect(activityRows()).toEqual([['running-unsampled', 'running', NO_READING, '10 minutes']]);
+  });
+
+  // A measured zero keeps its number: "no measurement" and "measured zero" are never rendered alike
+  // (plan-docker_management_app-containers_card_view/REQ-16, REQ-52)
+  it('draws a measured zero as its number, told apart from an absent sample', () => {
+    renderScreen({ containers: [container('idle-one', 'running', { status: 'Up 10 minutes', cpuPercent: 0 })] });
+
+    expect(activityRows()).toEqual([['idle-one', 'running', '0% cpu', '10 minutes']]);
   });
 
   // dashboard-screen.md — "a status dot coloured by state (running green, paused/restarting amber,

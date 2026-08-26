@@ -6,11 +6,20 @@ import { containerCard, containerDetail } from './support/container-cards.js';
 interface TrackedStream {
   url: string;
   closed: boolean;
+  /** Samples delivered on this stream, so its own cadence can be told from the shared sampler's. */
+  samples: number;
+}
+
+/** What the shared per-container sampler's gate is holding, counted apart from the panel's stream. */
+interface GateLog {
+  opened: number;
+  closed: number;
 }
 
 declare global {
   interface Window {
     __statsStreams?: TrackedStream[];
+    __gateSubscriptions?: GateLog;
   }
 }
 
@@ -54,24 +63,49 @@ function statsStreams(page: Page) {
   return page.evaluate(() => window.__statsStreams ?? []);
 }
 
+/** How many of the shared sampler's subscriptions the page is holding right now. */
+async function heldGateSubscriptions(page: Page): Promise<number> {
+  const log = await page.evaluate(() => window.__gateSubscriptions ?? { opened: 0, closed: 0 });
+  return log.opened - log.closed;
+}
+
 test.beforeEach(async ({ page }) => {
   // Records the stats subscriptions the page opens and closes: leaving the
   // Stats tab must close the one it opened (REQ-32).
   await page.addInitScript(() => {
     const tracked: TrackedStream[] = [];
     window.__statsStreams = tracked;
+    const gate: GateLog = { opened: 0, closed: 0 };
+    window.__gateSubscriptions = gate;
     const NativeEventSource = window.EventSource;
     class TrackedEventSource extends NativeEventSource {
       private entry: TrackedStream;
+      private gated = false;
 
       constructor(url: string | URL, init?: EventSourceInit) {
         super(url, init);
-        this.entry = { url: String(url), closed: false };
-        if (this.entry.url.includes('/stats/stream')) tracked.push(this.entry);
+        this.entry = { url: String(url), closed: false, samples: 0 };
+        if (this.entry.url.includes('/stats/stream')) {
+          tracked.push(this.entry);
+          this.addEventListener('sample', () => {
+            this.entry.samples += 1;
+          });
+        }
+        // The shared sampler's subscription is a different connection with a different lifecycle,
+        // and this file exists to keep them apart
+        // (plan-docker_management_app-containers_card_view/REQ-56).
+        if (this.entry.url.includes('/containers/stats/subscription')) {
+          this.gated = true;
+          gate.opened += 1;
+        }
       }
 
       close() {
         this.entry.closed = true;
+        if (this.gated) {
+          this.gated = false;
+          gate.closed += 1;
+        }
         super.close();
       }
     }
@@ -188,6 +222,67 @@ test.describe('Container stats and processes (REQ-32, REQ-33)', () => {
       await detail.getByRole('button', { name: 'Refresh' }).click();
 
       await expect(detail.getByText(new RegExp(`sleep ${marker}`))).toBeVisible({ timeout: 20_000 });
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+
+  // plan-docker_management_app-containers_card_view/REQ-56 — the panel's own per-container stream is
+  // untouched by the sampling gate: a different address, a rate of its own well inside the shared
+  // sampler's ten seconds, and a lifecycle that is the panel's rather than the gate's. "We did not
+  // touch it" is not an observation anyone can make in six months.
+  test('the panel keeps its own per-container stream: its own address, its own rate and its own lifecycle', async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    const name = `vexel-e2e-stats-untouched-${Date.now()}`;
+    try {
+      await createBusyContainer(name);
+      await openTab(page, name, 'Stats');
+
+      await expect
+        .poll(async () => (await statsStreams(page)).length, {
+          timeout: 20_000,
+          message: 'expected the Stats tab to open a per-container stream of its own',
+        })
+        .toBeGreaterThan(0);
+
+      const opened = await statsStreams(page);
+      for (const stream of opened) {
+        expect(stream.url, 'the panel is reading the shared sampler instead of its own stream').toContain('/stats/stream');
+        expect(stream.url).not.toContain('/containers/stats/subscription');
+      }
+
+      // The containers screen behind the panel is a consumer of the shared figures, and stays one:
+      // the two connections coexist rather than replacing one another.
+      expect(await heldGateSubscriptions(page), 'the screen behind the panel holds its own subscription').toBe(1);
+
+      const samplesBefore = (await statsStreams(page)).reduce((total, stream) => total + stream.samples, 0);
+      // One shared-sampler interval. The panel's stream carries the daemon's own cadence, so several
+      // readings land inside it; a stream that had been folded into the sampler would deliver one.
+      await page.waitForTimeout(10_000);
+      const samplesAfter = (await statsStreams(page)).reduce((total, stream) => total + stream.samples, 0);
+
+      expect(
+        samplesAfter - samplesBefore,
+        'the panel stream delivered no more readings than the shared ten-second sampler would',
+      ).toBeGreaterThan(2);
+
+      // Its lifecycle is the panel's: closing the panel ends it, and leaves the screen's own
+      // subscription standing.
+      await page.keyboard.press('Escape');
+      await expect(containerDetail(page)).toHaveCount(0);
+
+      await expect
+        .poll(
+          async () => {
+            const streams = await statsStreams(page);
+            return streams.length > 0 && streams.every((stream) => stream.closed);
+          },
+          { timeout: 10_000, message: 'expected the panel closing to end its own stream' },
+        )
+        .toBe(true);
+      expect(await heldGateSubscriptions(page), 'closing the panel took the screen\'s subscription with it').toBe(1);
     } finally {
       await removeContainerQuietly(name);
     }
