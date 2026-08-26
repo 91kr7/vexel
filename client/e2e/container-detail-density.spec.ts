@@ -6,6 +6,15 @@
  * stacked rows, the third holding `Download` alone; and five metrics in a four-column grid, leaving
  * `PIDS` orphaned on a second row while two tiles carried a bar and three did not.
  *
+ * **The stats half of that answer is superseded**, by name and deliberately, by
+ * `plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-13` …
+ * `REQ-17`: `plan-ui-coherence-optimisation/REQ-63` (five tiles on one row, one track per tile) and
+ * `REQ-64` (all five built alike, each carrying a meter) no longer hold. REQ-63's own reason
+ * survives and is answered differently — 2 + 3 orphans no metric either — and is asserted below
+ * where REQ-63 used to be. What REQ-64 protected against, an absence that reads as a bar which
+ * failed to render, survives too: a metric whose maximum is merely unknown still carries the
+ * meter's unbounded state, and only a counter with no maximum in principle carries no bar at all.
+ *
  * **Every assertion here is on a viewport box.** A toolbar that reflows and a grid that re-tracks
  * keep every child and every character they had; what they change is coordinates (CLAUDE.md, "What a
  * check drives, and what it measures"). The controls are hit-tested with a **real pointer at the
@@ -304,10 +313,19 @@ test.describe('Container detail — the expanded detail stops fighting for room 
     }
   });
 
-  // plan-ui-coherence-optimisation/REQ-63 — "the grid's column count and the metric count agree at
-  // 1440×1000 and 1280×800, with no orphan"; REQ-64 — "The tiles are uniform … a tile without a
-  // measurable maximum does not merely look like a tile whose bar failed to render."
-  test('the stats tiles share one row with no orphan, and every tile is built the same way', async ({ page }) => {
+  // REQ-13 — "Stats is arranged as two groups instead of five equal tiles on one row: CPU and Memory
+  // on a row of two, then Net I/O, Block I/O and PIDs on a row of three"; REQ-14 — "CPU and Memory
+  // each keep a meter, filled in proportion to the ceiling each of them has"; REQ-15 — "Net I/O,
+  // Block I/O and PIDs carry no meter at all — no bar, and no 'no measurable maximum' state of one".
+  //
+  // This is where `plan-ui-coherence-optimisation/REQ-63` ("the grid's column count and the metric
+  // count agree … with no orphan") and `REQ-64` ("the tiles are uniform … a tile without a
+  // measurable maximum does not merely look like a tile whose bar failed to render") used to be
+  // asserted. Both are **superseded here by name**. REQ-63's reason is answered by the assertion
+  // that no metric is left alone on a row and that a group's tracks are its own tiles; REQ-64's, by
+  // the memory tile, which keeps its bar and would announce no measurable maximum had this
+  // container been run without a limit.
+  test('the stats tiles are two groups — two metrics with a ceiling, then three without', async ({ page }) => {
     test.setTimeout(240_000);
     const name = `vexel-e2e-stats-grid-${Date.now()}`;
     try {
@@ -342,11 +360,14 @@ test.describe('Container detail — the expanded detail stops fighting for room 
               width: rect.width,
               height: rect.height,
               meters: element.querySelectorAll('[role="meter"]').length,
+              // Not merely "no meter role": no part of the bar is drawn at all, so an absence
+              // cannot come back as a track flattened to nothing.
+              bars: element.querySelectorAll('.ui-meter, .ui-meter__track, .ui-meter__fill').length,
               // The sparkline's own slot, whichever of its two states it is in: the line it draws
               // from the second sample on, or the label it shows until then.
               sparklines: element.querySelectorAll('svg, .ui-sparkline__empty').length,
               meterHeight: meterRect?.height ?? 0,
-              meterTreatment: meter === null ? '(no meter)' : getComputedStyle(meter).backgroundImage,
+              filled: Number(meter?.getAttribute('aria-valuenow') ?? Number.NaN),
               noMaximum: /no.*maximum/i.test(meter?.getAttribute('aria-valuetext') ?? ''),
             };
           }),
@@ -354,12 +375,12 @@ test.describe('Container detail — the expanded detail stops fighting for room 
 
         const rows = rowsOf(tiles);
         console.log(
-          `[REQ-63] ${at} — ${tiles.length} tiles over ${rows.length} row(s): `
+          `[REQ-13] ${at} — ${tiles.length} tiles over ${rows.length} row(s): `
           + rows.map((row) => `[${row.map((tile) => tile.name).join(', ')}]`).join(' ')
           + ` widths ${tiles.map((tile) => Math.round(tile.width)).join('/')}`,
         );
 
-        expect(tiles.map((tile) => tile.name), `[REQ-63] ${at}: the five metrics are not all drawn`).toEqual([
+        expect(tiles.map((tile) => tile.name), `[REQ-13] ${at}: the five metrics are not all drawn`).toEqual([
           'CPU',
           'Memory',
           'Net I/O',
@@ -367,42 +388,208 @@ test.describe('Container detail — the expanded detail stops fighting for room 
           'PIDs',
         ]);
         if (viewport.width > 720) {
-          // Above the phone breakpoint: one row, one track per tile, all of equal width.
-          expect(rows.length, `[REQ-63] ${at}: the tiles are laid over more than one row`).toBe(1);
-          const widths = tiles.map((tile) => Math.round(tile.width));
-          expect(Math.max(...widths) - Math.min(...widths), `[REQ-63] ${at}: the tracks are not equal`).toBeLessThanOrEqual(1);
+          // Above the phone breakpoint: two rows, the metrics with a ceiling on the first.
+          expect(
+            rows.map((row) => row.map((tile) => tile.name)),
+            `[REQ-13] ${at}: the tiles are not the two groups the metrics divide into`,
+          ).toEqual([['CPU', 'Memory'], ['Net I/O', 'Block I/O', 'PIDs']]);
+          // One track per tile **within its own group**: equal widths inside a row, and no metric
+          // left alone on a row the others do not share (REQ-63's surviving reason).
+          for (const row of rows) {
+            const widths = row.map((tile) => Math.round(tile.width));
+            expect(
+              Math.max(...widths) - Math.min(...widths),
+              `[REQ-13] ${at}: the tracks of [${row.map((tile) => tile.name).join(', ')}] are not equal`,
+            ).toBeLessThanOrEqual(1);
+            expect(row.length, `[REQ-13] ${at}: ${row[0]!.name} is alone on a row`).toBeGreaterThan(1);
+          }
         } else {
-          // Below it: one stacked column, which is the only division of five that leaves no orphan.
-          expect(rows.length, `[REQ-63] ${at}: the tiles are not stacked at the phone breakpoint`).toBe(tiles.length);
-          expect(new Set(tiles.map((tile) => Math.round(tile.x))).size, `[REQ-63] ${at}: the stacked tiles are not in one column`).toBe(1);
+          // Below it: one stacked column, exactly as the single row did (unchanged by this plan).
+          expect(rows.length, `[REQ-13] ${at}: the tiles are not stacked at the phone breakpoint`).toBe(tiles.length);
+          expect(new Set(tiles.map((tile) => Math.round(tile.x))).size, `[REQ-13] ${at}: the stacked tiles are not in one column`).toBe(1);
         }
 
-        // REQ-64 — every tile carries the same trailing block, and the tile with no ceiling says so
-        // rather than showing what looks like a bar that failed.
-        for (const tile of tiles) {
-          expect(tile.meters, `[REQ-64] ${at}: ${tile.name} carries no meter, or more than one`).toBe(1);
-          expect(tile.sparklines, `[REQ-64] ${at}: ${tile.name} carries no sparkline, or more than one`).toBe(1);
+        const named = new Map(tiles.map((tile) => [tile.name, tile]));
+        // REQ-14 — the two metrics that have a ceiling keep a bar filled against it.
+        for (const metric of ['CPU', 'Memory']) {
+          const tile = named.get(metric)!;
+          expect(tile.meters, `[REQ-14] ${at}: ${metric} carries no meter, or more than one`).toBe(1);
+          expect(tile.noMaximum, `[REQ-14] ${at}: ${metric} announces no measurable maximum though it has one`).toBe(false);
+          expect(tile.filled, `[REQ-14] ${at}: ${metric} is not filled against its ceiling`).toBeGreaterThanOrEqual(0);
+          expect(tile.filled, `[REQ-14] ${at}: ${metric} is filled past its ceiling`).toBeLessThanOrEqual(100);
         }
-        const meterHeights = tiles.map((tile) => Math.round(tile.meterHeight));
+        const meterHeights = ['CPU', 'Memory'].map((metric) => Math.round(named.get(metric)!.meterHeight));
         expect(
           Math.max(...meterHeights) - Math.min(...meterHeights),
-          `[REQ-64] ${at}: a tile without a measurable maximum is not the same height as one with it`,
+          `[REQ-14] ${at}: the two bars are not the same height`,
         ).toBeLessThanOrEqual(1);
 
-        const unbounded = tiles.filter((tile) => tile.noMaximum);
-        const bounded = tiles.filter((tile) => !tile.noMaximum);
-        console.log(
-          `[REQ-64] ${at} — no measurable maximum: [${unbounded.map((tile) => tile.name).join(', ')}];`
-          + ` treatments ${JSON.stringify(tiles.map((tile) => `${tile.name}: ${tile.meterTreatment}`))}`,
-        );
-        expect(unbounded.length, `[REQ-64] ${at}: no metric is drawn as having no measurable maximum`).toBeGreaterThan(0);
-        expect(bounded.length, `[REQ-64] ${at}: no metric with a ceiling is drawn, so nothing is being distinguished`).toBeGreaterThan(0);
-        for (const tile of unbounded) {
-          expect(
-            tile.meterTreatment,
-            `[REQ-64] ${at}: ${tile.name} draws its bar exactly as a bounded metric does, so an absence reads as a failure`,
-          ).not.toBe(bounded[0]!.meterTreatment);
+        // REQ-15 — the three counters carry no bar in any state, and each keeps its own line.
+        for (const metric of ['Net I/O', 'Block I/O', 'PIDs']) {
+          const tile = named.get(metric)!;
+          expect(tile.meters, `[REQ-15] ${at}: ${metric} still carries a meter`).toBe(0);
+          expect(tile.bars, `[REQ-15] ${at}: ${metric} still draws a bar, flattened or not`).toBe(0);
         }
+        for (const tile of tiles) {
+          expect(tile.sparklines, `[REQ-15] ${at}: ${tile.name} carries no sparkline, or more than one`).toBe(1);
+        }
+      }
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+
+  // REQ-16 — "A sparkline draws a filled area beneath its line and marks its final point, so the
+  // current value is findable without reading the line."
+  //
+  // Measured, not counted: a third path in the markup says nothing about what is drawn where the
+  // operator looks. The mark is found by geometry (the one shape that does not span the window),
+  // located against the line's own last sample, and **hit-tested outward from its own centre** —
+  // because the box a sparkline is stretched into is far wider than it is tall, and a mark that does
+  // not resist that stretch is drawn as a flat smear rather than as a point.
+  test('every sparkline marks its last sample, and the mark stays round however the line is stretched', async ({ page }) => {
+    test.setTimeout(240_000);
+    const name = `vexel-e2e-stats-mark-${Date.now()}`;
+    try {
+      await createBusyContainer(name);
+      const detail = await openTab(page, name, 'Stats');
+      await expect(detail.getByText(/Waiting for the first sample/i)).toHaveCount(0, { timeout: 30_000 });
+      await expect
+        .poll(async () => detail.locator('.ui-metric-tile svg').count(), {
+          timeout: 40_000,
+          message: 'expected every tile to have drawn its sparkline',
+        })
+        .toBe(5);
+
+      const marks = await detail.locator('.ui-metric-tile').evaluateAll((elements) =>
+        elements.map((element) => {
+          const label = (element.querySelector('.ui-metric-tile__label')?.textContent ?? '').trim();
+          const svg = element.querySelector('svg');
+          if (!svg) return { name: label, drawn: false, filledArea: false, offBy: 0, stretch: 0, horizontal: 0, vertical: 0 };
+          const box = svg.getBoundingClientRect();
+          const view = svg.viewBox.baseVal;
+          const shapes = [...svg.querySelectorAll('path, circle, rect, polyline, line')] as SVGGraphicsElement[];
+          const spanning = Math.max(...shapes.map((shape) => shape.getBBox().width));
+          // The line and the area beneath it span the whole window; whatever is drawn at one sample
+          // does not, whichever shape carries it.
+          const mark = shapes.find((shape) => shape.getBBox().width < spanning / 2);
+          // The area the line is drawn over: the closed one, painted rather than stroked.
+          const area = shapes.find((shape) => shape !== mark && /z/i.test(shape.getAttribute('d') ?? ''));
+          // Of the two that do span it, the line is the open one: the area is closed back down to
+          // the baseline, so its own last coordinate is a corner and not a sample.
+          const line = shapes
+            .filter((shape) => shape !== mark && shape.getBBox().width >= spanning / 2)
+            .find((shape) => !/z/i.test(shape.getAttribute('d') ?? ''));
+          if (!mark || !line) return { name: label, drawn: false, filledArea: false, offBy: 0, stretch: 0, horizontal: 0, vertical: 0 };
+
+          // Where the last sample of the line falls, in the box the svg is actually drawn in.
+          const points = [...(line.getAttribute('d') ?? '').matchAll(/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/g)];
+          const last = points[points.length - 1]!;
+          const lastSample = {
+            x: box.x + ((Number(last[1]) - view.x) / view.width) * box.width,
+            y: box.y + ((Number(last[2]) - view.y) / view.height) * box.height,
+          };
+
+          const markBox = mark.getBoundingClientRect();
+          const centre = { x: markBox.x + markBox.width / 2, y: markBox.y + markBox.height / 2 };
+          // How far the mark actually paints around its own centre: the reading a count of elements
+          // cannot give. Every point of a small grid is hit-tested, and the extent is taken from the
+          // ones the mark itself answers — so a single probe landing on a box edge, which resolves
+          // to whatever is behind, costs nothing. Only leftwards is scanned: the last sample sits on
+          // the right edge of the box, and what is painted past it is outside the svg's own hit
+          // area. The mark is symmetric, so half of it says how round it is.
+          let horizontal = 0;
+          let vertical = 0;
+          for (let dx = 0; dx >= -6; dx -= 0.25) {
+            for (let dy = -6; dy <= 6; dy += 0.25) {
+              if (document.elementFromPoint(centre.x + dx, centre.y + dy) !== mark) continue;
+              horizontal = Math.max(horizontal, Math.abs(dx));
+              vertical = Math.max(vertical, Math.abs(dy));
+            }
+          }
+          return {
+            name: label,
+            drawn: true,
+            filledArea: area !== undefined && getComputedStyle(area).fill !== 'none',
+            offBy: Math.hypot(centre.x - lastSample.x, centre.y - lastSample.y),
+            stretch: box.width / box.height,
+            horizontal,
+            vertical,
+          };
+        }),
+      );
+
+      console.log(`[REQ-16] ${JSON.stringify(marks)}`);
+      expect(marks.map((mark) => mark.name)).toEqual(['CPU', 'Memory', 'Net I/O', 'Block I/O', 'PIDs']);
+      for (const mark of marks) {
+        expect(mark.drawn, `[REQ-16] ${mark.name} draws nothing at the end of its line`).toBe(true);
+        expect(mark.filledArea, `[REQ-16] ${mark.name} draws no filled area beneath its line`).toBe(true);
+        expect(mark.offBy, `[REQ-16] ${mark.name} marks a point that is not its last sample`).toBeLessThanOrEqual(1.5);
+        // The box is stretched wide and short, which is the whole difficulty.
+        expect(mark.stretch, `[REQ-16] ${mark.name}'s line is not stretched, so this proves nothing`).toBeGreaterThan(2);
+        expect(mark.horizontal, `[REQ-16] ${mark.name}'s mark paints nothing around its own centre`).toBeGreaterThan(0);
+        expect(mark.vertical, `[REQ-16] ${mark.name}'s mark is flattened to a smear by the stretched box`).toBeGreaterThan(0);
+        expect(
+          Math.abs(mark.horizontal - mark.vertical) / Math.max(mark.horizontal, mark.vertical),
+          `[REQ-16] ${mark.name}'s mark reaches ${mark.horizontal}px sideways and ${mark.vertical}px vertically: an ellipse, not a point`,
+        ).toBeLessThanOrEqual(0.35);
+      }
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+
+  // REQ-17 — "Net I/O shows its inbound and its outbound value as two separately labelled and
+  // visually distinguished values, and Block I/O its read and its write value likewise; neither is
+  // one `a / b` string in which the two differ only by position."
+  test('Net I/O and Block I/O read as two labelled values told apart by their own treatment', async ({ page }) => {
+    test.setTimeout(240_000);
+    const name = `vexel-e2e-stats-readings-${Date.now()}`;
+    try {
+      await createBusyContainer(name);
+      const detail = await openTab(page, name, 'Stats');
+      await expect(detail.getByText(/Waiting for the first sample/i)).toHaveCount(0, { timeout: 30_000 });
+      await expect(detail.locator('.ui-metric-tile')).toHaveCount(5, { timeout: 30_000 });
+
+      const pairs = await detail.locator('.ui-metric-tile').evaluateAll((elements) =>
+        elements.map((element) => {
+          const value = element.querySelector('.ui-metric-tile__value');
+          const readings = [...(value?.querySelectorAll('.ui-metric-reading') ?? [])].map((reading) => {
+            const amount = reading.querySelector('.ui-metric-reading__value');
+            const box = (amount ?? reading).getBoundingClientRect();
+            return {
+              text: (reading.textContent ?? '').trim(),
+              colour: amount ? getComputedStyle(amount).color : '(none)',
+              y: box.y,
+              height: box.height,
+            };
+          });
+          return {
+            name: (element.querySelector('.ui-metric-tile__label')?.textContent ?? '').trim(),
+            text: (value?.textContent ?? '').trim(),
+            readings,
+          };
+        }),
+      );
+
+      console.log(`[REQ-17] ${JSON.stringify(pairs.map((tile) => ({ name: tile.name, readings: tile.readings })))}`);
+      const named = new Map(pairs.map((tile) => [tile.name, tile]));
+      for (const [metric, labels] of [['Net I/O', ['in', 'out']], ['Block I/O', ['read', 'written']]] as const) {
+        const tile = named.get(metric)!;
+        expect(tile.readings.length, `[REQ-17] ${metric} does not show two readings of its own`).toBe(2);
+        for (const [index, label] of labels.entries()) {
+          expect(tile.readings[index]!.text, `[REQ-17] ${metric}'s reading ${index + 1} is not labelled "${label}"`).toContain(label);
+        }
+        expect(
+          tile.readings[0]!.colour,
+          `[REQ-17] ${metric}'s two readings are drawn in one treatment, so only their position tells them apart`,
+        ).not.toBe(tile.readings[1]!.colour);
+        // On one baseline: the pair reads as one line, not as two stacked values.
+        expect(
+          Math.abs(tile.readings[0]!.y - tile.readings[1]!.y),
+          `[REQ-17] ${metric}'s two readings are not on one baseline`,
+        ).toBeLessThanOrEqual(1);
+        expect(tile.text, `[REQ-17] ${metric} still reads as one a / b string`).not.toMatch(/\d\s*(B|KB|MB|GB|TB)\s*\/\s*\d/);
       }
     } finally {
       await removeContainerQuietly(name);

@@ -120,7 +120,12 @@ test.beforeEach(async ({ page }) => {
 test.describe('Container stats and processes (REQ-32, REQ-33)', () => {
   test.describe.configure({ mode: 'serial' });
 
-  // plan-docker_management_app/REQ-32 — the live resource usage is shown and keeps updating while the view is open
+  // plan-docker_management_app/REQ-32 — the live resource usage is shown and keeps updating while
+  // the view is open. Re-asserted unchanged under
+  // plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-41:
+  // the recomposition of the Stats tab into two groups moves no sampling cadence and no liveness
+  // gate. The stream still starts when Stats becomes the active tab, and the readings still arrive
+  // with no action from the operator.
   test('the Stats tab shows the live CPU, memory, network and block-I/O usage and keeps updating it', async ({ page }) => {
     const name = `vexel-e2e-stats-live-${Date.now()}`;
     try {
@@ -137,12 +142,24 @@ test.describe('Container stats and processes (REQ-32, REQ-33)', () => {
       await expect
         .poll(async () => detail.locator('svg path').count(), { timeout: 30_000, message: 'expected the readings to keep arriving' })
         .toBeGreaterThan(0);
+
+      // And the samples keep arriving on the tab's own cadence, with nothing operated: the gate
+      // that opens the stream when Stats becomes active is where it was (REQ-41).
+      const delivered = async () => (await statsStreams(page)).reduce((total, stream) => total + stream.samples, 0);
+      const before = await delivered();
+      await expect
+        .poll(delivered, { timeout: 30_000, message: 'expected the sampling to go on with no action from the operator' })
+        .toBeGreaterThan(before);
     } finally {
       await removeContainerQuietly(name);
     }
   });
 
-  // plan-docker_management_app/REQ-32 — leaving the view stops the live stream
+  // plan-docker_management_app/REQ-32 — leaving the view stops the live stream. Re-asserted
+  // unchanged under
+  // plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-41:
+  // the liveness gate is where it was, so the stream still ends the moment Stats stops being the
+  // active tab.
   test('leaving the Stats tab closes the live stats subscription', async ({ page }) => {
     const name = `vexel-e2e-stats-leave-${Date.now()}`;
     try {

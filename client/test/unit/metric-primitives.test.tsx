@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Meter, MetricTile, Sparkline } from '../../src/ui';
+import { Meter, MetricReadingPair, MetricTile, Sparkline } from '../../src/ui';
 
 afterEach(() => {
   cleanup();
@@ -12,6 +12,46 @@ afterEach(() => {
 
 function meterValueNow(): number {
   return Number(screen.getByRole('meter').getAttribute('aria-valuenow'));
+}
+
+/** Every coordinate pair of an SVG path's `d`, in the order it draws them. */
+function pathPoints(d: string): { x: number; y: number }[] {
+  return [...d.matchAll(/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/g)].map((pair) => ({ x: Number(pair[1]), y: Number(pair[2]) }));
+}
+
+function samePoint(one: { x: number; y: number }, other: { x: number; y: number }): boolean {
+  return Math.abs(one.x - other.x) < 0.01 && Math.abs(one.y - other.y) < 0.01;
+}
+
+/** The polyline through the samples: the one shape carrying exactly one coordinate per sample. */
+function sampleLine(root: ParentNode, sampleCount: number): { x: number; y: number }[] {
+  for (const path of root.querySelectorAll('path')) {
+    const points = pathPoints(path.getAttribute('d') ?? '');
+    if (points.length === sampleCount) return points;
+  }
+  return [];
+}
+
+/**
+ * The single point the sparkline marks, whatever shape carries it: a shape drawn entirely at one
+ * coordinate. `null` when nothing is marked.
+ */
+function markedShape(root: ParentNode): { point: { x: number; y: number }; element: Element } | null {
+  const circle = root.querySelector('circle');
+  if (circle) return { point: { x: Number(circle.getAttribute('cx')), y: Number(circle.getAttribute('cy')) }, element: circle };
+  for (const path of root.querySelectorAll('path')) {
+    const points = pathPoints(path.getAttribute('d') ?? '');
+    if (points.length > 0 && points.every((point) => samePoint(point, points[0]!))) return { point: points[0]!, element: path };
+  }
+  return null;
+}
+
+/** The declarations of every rule whose selector matches `matches`, comments stripped. */
+function metricsRules(matches: (selector: string) => boolean): { selector: string; declarations: string }[] {
+  const css = readFileSync(join(process.cwd(), 'src/ui/metrics/metrics.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  return [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .map((rule) => ({ selector: rule[1]!.trim(), declarations: rule[2]! }))
+    .filter((rule) => matches(rule.selector));
 }
 
 describe('MetricTile (REQ-32)', () => {
@@ -247,6 +287,88 @@ describe('Sparkline (REQ-32)', () => {
     expect(setTimeout).not.toHaveBeenCalled();
     expect(container.innerHTML).not.toMatch(/transition|animation/i);
   });
+
+  // metric-primitives.md — the line is drawn "with a tinted area beneath it" (REQ-16)
+  it('draws a filled area beneath the line, closed back to the baseline', () => {
+    const { container } = render(<Sparkline values={[10, 90, 50]} />);
+
+    const line = sampleLine(container, 3);
+    const mark = markedShape(container);
+    const area = [...container.querySelectorAll('path')].find((path) => {
+      const points = pathPoints(path.getAttribute('d') ?? '');
+      return path !== mark?.element && points.length > line.length;
+    });
+    expect(area, '[REQ-16] nothing is drawn beneath the line').toBeDefined();
+
+    // It carries the line's own samples and closes back down to the baseline at both ends, so what
+    // it covers is the region under the line rather than a second curve.
+    const points = pathPoints(area!.getAttribute('d') ?? '');
+    for (const sample of line) {
+      expect(points.some((point) => samePoint(point, sample)), '[REQ-16] the area does not follow the line').toBe(true);
+    }
+    const baseline = Math.max(...points.map((point) => point.y));
+    expect(baseline, '[REQ-16] the area does not reach below the line').toBeGreaterThan(Math.max(...line.map((point) => point.y)));
+    const onBaseline = points.filter((point) => point.y === baseline);
+    expect(Math.min(...onBaseline.map((point) => point.x))).toBe(Math.min(...points.map((point) => point.x)));
+    expect(Math.max(...onBaseline.map((point) => point.x))).toBe(Math.max(...points.map((point) => point.x)));
+
+    // And it is filled rather than stroked: an outline beneath the line is not an area.
+    const painted = area!.getAttribute('class')!.split(' ')[0]!;
+    const declared = metricsRules((selector) => selector.split(',').some((one) => one.trim() === `.${painted}`))
+      .map((rule) => rule.declarations)
+      .join(' ');
+    expect(declared, '[REQ-16] the area beneath the line is given no fill').toMatch(/fill\s*:\s*var\(--[\w-]+\)/);
+  });
+
+  // metric-primitives.md — "marks the window's last sample with a point … so the current value is
+  // findable without following the line to its end" (REQ-16)
+  it('marks the window\'s last sample, and moves the mark when a newer sample arrives', () => {
+    const { container, rerender } = render(<Sparkline values={[10, 90, 50]} />);
+
+    const mark = markedShape(container);
+    expect(mark, '[REQ-16] nothing marks the end of the line').not.toBeNull();
+    const line = sampleLine(container, 3);
+    expect(samePoint(mark!.point, line[2]!), '[REQ-16] the mark is not on the window\'s last sample').toBe(true);
+
+    rerender(<Sparkline values={[10, 90, 50, 20]} />);
+    const moved = markedShape(container)!;
+    const grown = sampleLine(container, 4);
+    expect(samePoint(moved.point, grown[3]!), '[REQ-16] the mark stayed on the sample that is no longer the last').toBe(true);
+  });
+
+  // metric-primitives.md — "fewer than two values → … and no mark either: there is no last sample to mark"
+  it('marks nothing while there is no last sample to mark', () => {
+    const { container, unmount } = render(<Sparkline values={[]} />);
+    expect(markedShape(container)).toBeNull();
+    unmount();
+
+    const single = render(<Sparkline values={[5]} />);
+    expect(markedShape(single.container)).toBeNull();
+  });
+
+  // metric-primitives.md — the mark is drawn "in the line's own tone"
+  it('draws the mark in the tone the line is drawn in', () => {
+    const marks = (['neutral', 'accent', 'success', 'warning', 'danger'] as const).map((tone) => {
+      const { container, unmount } = render(<Sparkline values={[1, 2, 3]} tone={tone} />);
+      const rendered = markedShape(container)!.element.outerHTML;
+      unmount();
+      return rendered;
+    });
+
+    expect(new Set(marks).size, 'two tones draw the same mark').toBe(marks.length);
+  });
+
+  // metric-primitives.md — "it runs no animation loop, no timer, and no transition". The line and the
+  // mark are repainted by a new sample and by nothing else; a transition or a keyframe declared on
+  // either would put the compositor to work on every reading, on a surface that never blurs.
+  it('declares no transition and no animation on any part of the line', () => {
+    const declared = metricsRules((selector) => selector.includes('.ui-sparkline'));
+
+    expect(declared.length, 'the library declares no sparkline at all').toBeGreaterThan(0);
+    for (const rule of declared) {
+      expect(rule.declarations, `${rule.selector} animates`).not.toMatch(/(^|;|\s)(transition|animation)(-\w+)?\s*:/);
+    }
+  });
 });
 
 // metric-primitives.md — the prominent value beside the label, and the track's third state
@@ -326,5 +448,70 @@ describe('Meter — the prominent value and the no-sample state (containers_card
       .map((rule) => rule[2])
       .join(' ');
     expect(present, 'a fill that exists is left free to round away to nothing').toMatch(/min-width:\s*\S+/);
+  });
+});
+
+// metric-primitives.md — the two directions of one metric, as two readings rather than one string
+// (plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-17).
+describe('MetricReadingPair (tabs_composition_refactor/REQ-17)', () => {
+  // metric-primitives.md — "shows the two values on one baseline, each with its own label beside it"
+  it('shows both readings with their own labels, in the order it was given them', () => {
+    const { container } = render(
+      <MetricReadingPair readings={[{ label: 'in', value: '1.5KB' }, { label: 'out', value: '512B' }]} />,
+    );
+
+    const readings = [...container.querySelectorAll('.ui-metric-reading')];
+    expect(readings).toHaveLength(2);
+    expect(readings[0]!.textContent).toContain('1.5KB');
+    expect(readings[0]!.textContent).toContain('in');
+    expect(readings[1]!.textContent).toContain('512B');
+    expect(readings[1]!.textContent).toContain('out');
+  });
+
+  // metric-primitives.md — "gives each of the two a treatment of the library's own so that they are
+  // told apart by more than their position: a reader who does not know which comes first can still
+  // say which is which"
+  it('gives each of the two readings a treatment of its own', () => {
+    const { container } = render(
+      <MetricReadingPair readings={[{ label: 'read', value: '5.0GB' }, { label: 'written', value: '4.0KB' }]} />,
+    );
+
+    const readings = [...container.querySelectorAll('.ui-metric-reading')];
+    expect(readings[0]!.className, 'the two readings carry the same treatment').not.toBe(readings[1]!.className);
+
+    // "both are named design values": the distinction is two tokens, not two literals written here.
+    const roles = ['.ui-metric-reading--first', '.ui-metric-reading--second'].map((role) =>
+      metricsRules((selector) => selector.includes(role)).map((rule) => rule.declarations).join(' '),
+    );
+    for (const [index, declarations] of roles.entries()) {
+      expect(declarations, `role ${index + 1} carries no treatment of its own`).toMatch(/color\s*:\s*var\(--[\w-]+\)/);
+    }
+    expect(roles[0], 'the two roles resolve to the same value').not.toBe(roles[1]);
+  });
+
+  // metric-primitives.md — "too narrow a box wraps the second reading onto its own line rather than
+  // truncating either value"
+  it('wraps rather than truncating when the box cannot carry both', () => {
+    const pair = metricsRules((selector) => selector.split(',').some((one) => one.trim() === '.ui-metric-reading-pair'))
+      .map((rule) => rule.declarations)
+      .join(' ');
+
+    expect(pair, 'the pair does not wrap, so a narrow box has to cut a value').toMatch(/flex-wrap\s*:\s*wrap/);
+
+    const values = metricsRules((selector) => selector.includes('.ui-metric-reading__value'))
+      .map((rule) => rule.declarations)
+      .join(' ');
+    expect(values, 'a reading is truncated instead of wrapping').not.toMatch(/text-overflow\s*:|overflow\s*:\s*hidden/);
+  });
+
+  // metric-primitives.md — all of the primitives are domain-agnostic and take already-formatted
+  // strings: whatever the caller hands over is what is shown.
+  it('shows the strings it is handed, whatever they are', () => {
+    render(<MetricReadingPair readings={[{ label: 'sent', value: '—' }, { label: 'received', value: '0B' }]} />);
+
+    expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.getByText('0B')).toBeInTheDocument();
+    expect(screen.getByText('sent')).toBeInTheDocument();
+    expect(screen.getByText('received')).toBeInTheDocument();
   });
 });
