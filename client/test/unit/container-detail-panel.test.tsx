@@ -221,6 +221,133 @@ describe('ContainerDetailPanel — Config tab (REQ-24, REQ-25)', () => {
   });
 });
 
+/**
+ * The Config tab's edit form, recomposed into groups
+ * (`…-tabs_composition_refactor/REQ-23`, `REQ-24`, `REQ-25`, `REQ-26`).
+ *
+ * REQ-23 and REQ-24 are claims about what is drawn where, and jsdom draws nothing: what is settled
+ * here is the **structure** the geometry rests on — which element holds which group, and which two
+ * groups share a pair. The boxes are measured in `e2e/container-detail-config-editing.spec.ts`, and
+ * the health-check reveal's effect on the dialog's own box in
+ * `e2e/container-detail-switch-surface.spec.ts` (REQ-2).
+ *
+ * **REQ-26 is a certified behaviour this batch must not have moved**, and it is not restated in new
+ * tests: the four tests of the describe above — the restart-policy-only save that asks nothing, the
+ * environment change that asks and recreates, the decline that abandons the save, and the failure
+ * that leaves the form open — are the ones that certify it, and they run unchanged. What is added
+ * here is the one path the rearrangement touched and none of them drives: a mount added in the
+ * recomposed `Mounts` group still asks before the container is stopped, removed and recreated.
+ */
+describe('ContainerDetailPanel — the Config edit form in groups (REQ-23, REQ-24, REQ-25, REQ-26)', () => {
+  /** The five groups the form is composed of, each with a control that belongs to it and no other. */
+  const GROUPS: { title: string; own: () => HTMLElement }[] = [
+    { title: 'Runtime', own: () => screen.getByRole('combobox', { name: 'Restart policy' }) },
+    { title: 'Health check', own: () => screen.getByRole('checkbox', { name: 'Enabled' }) },
+    { title: 'Environment variables', own: () => screen.getByRole('textbox', { name: 'Environment Key 1' }) },
+    { title: 'Port mappings', own: () => screen.getByRole('button', { name: 'Add port' }) },
+    { title: 'Mounts', own: () => screen.getByRole('button', { name: 'Add mount' }) },
+  ];
+
+  function groupHeading(title: string): HTMLElement {
+    const heading = [...document.querySelectorAll('.ui-section-header__title')].find((node) => node.textContent === title);
+    expect(heading, `the edit form draws no \`${title}\` heading`).toBeDefined();
+    return heading as HTMLElement;
+  }
+
+  /** The footer's leading side: what the form states beside its save and cancel (`form-footer.md`). */
+  function footerLeadingSide(): HTMLElement {
+    const save = screen.getByRole('button', { name: /^(Save changes|Saving…)$/ });
+    const leading = save.closest('.ui-row')?.parentElement?.firstElementChild;
+    expect(leading, 'the form draws no footer of the library’s own').toBeDefined();
+    return leading as HTMLElement;
+  }
+
+  async function openEditForm() {
+    const user = userEvent.setup();
+    renderPanel();
+    await user.click(await screen.findByRole('button', { name: 'Edit configuration' }));
+    return user;
+  }
+
+  // REQ-23 — each group sits inside a container of its own rather than being a heading on one
+  // continuous ground: five distinct bounded surfaces, each holding one heading and its own fields.
+  it('draws each of its five groups inside a container of its own', async () => {
+    await openEditForm();
+
+    const containers = GROUPS.map(({ title, own }) => {
+      const container = groupHeading(title).closest('.ui-surface');
+      expect(container, `the \`${title}\` group has no container of its own: its heading sits on the form’s ground`).not.toBeNull();
+      expect(container!.contains(own()), `the \`${title}\` group’s own fields are drawn outside its container`).toBe(true);
+      const headings = [...container!.querySelectorAll('.ui-section-header__title')].map((node) => node.textContent);
+      expect(headings, `the container holding \`${title}\` also holds ${JSON.stringify(headings)}, so it is not that group’s own`).toEqual([title]);
+      return container as HTMLElement;
+    });
+
+    expect(new Set(containers).size, 'the five groups share fewer than five containers between them').toBe(5);
+  });
+
+  // REQ-24 — the two small groups share the library's named `pair`, which is what makes them stack
+  // at full width when the dialog cannot carry both; the other three are full-width rows of their own.
+  it('sits Runtime and Health check in one pair, and the other three outside it', async () => {
+    await openEditForm();
+
+    const pairs = [...document.querySelectorAll('.ui-grid--pair')];
+    expect(pairs, 'the edit form draws no two-column pair at all').toHaveLength(1);
+    const inThePair = [...pairs[0].querySelectorAll('.ui-section-header__title')].map((node) => node.textContent);
+    expect(inThePair, 'the pair does not hold exactly the two small groups').toEqual(['Runtime', 'Health check']);
+
+    for (const title of ['Environment variables', 'Port mappings', 'Mounts']) {
+      expect(pairs[0].contains(groupHeading(title)), `the \`${title}\` group is drawn inside the two-column pair`).toBe(false);
+    }
+  });
+
+  // REQ-25 — the footer states what a save would cost from the moment the form opens, before the
+  // operator has touched anything, and beside the dirty indicator rather than instead of it.
+  it('states the recreate cost in its footer from the moment the form opens', async () => {
+    await openEditForm();
+
+    const leading = footerLeadingSide();
+    const stated = leading.textContent ?? '';
+    expect(stated, 'the footer says nothing about the environment').toMatch(/environment/i);
+    expect(stated, 'the footer says nothing about the mounts').toMatch(/mounts/i);
+    expect(stated, 'the footer never states that a recreate is what those changes cost').toMatch(/recreat/i);
+    // Nothing has been touched: the statement above is standing, not a response to an edit.
+    expect(stated, 'the dirty indicator was replaced by the statement').toMatch(/No changes/);
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
+  });
+
+  // REQ-25 — and it goes on stating it, whatever has been edited: it says what *would* require a
+  // recreate, so it is not conditional on environment or mounts having been touched.
+  it('goes on stating it once a change the recreate does not concern has been made', async () => {
+    const user = await openEditForm();
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Restart policy' }), 'always');
+
+    const stated = footerLeadingSide().textContent ?? '';
+    expect(stated, 'the statement disappeared as soon as a field was edited').toMatch(/recreat/i);
+    expect(stated, 'the dirty indicator no longer reads the edit that was just made').toMatch(/Unsaved changes/);
+  });
+
+  // REQ-26 — the standing statement replaces no confirmation: a mount added in the recomposed
+  // `Mounts` group still asks explicitly, and declining still abandons the save.
+  it('still asks before recreating when a mount is added, and declining abandons the save', async () => {
+    const user = await openEditForm();
+
+    await user.click(screen.getByRole('button', { name: 'Add mount' }));
+    await user.type(screen.getByRole('textbox', { name: 'Source 1' }), '/tmp/source');
+    await user.type(screen.getByRole('textbox', { name: 'Destination 1' }), '/mnt/target');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    const dialogHeading = await screen.findByRole('heading', { name: 'Confirm: web-nginx' });
+    const dialog = dialogHeading.closest('.ui-modal') as HTMLElement;
+    // Scoped: the form's own footer carries a `Cancel` too, and an unscoped one would find it.
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+
+    expect(fetchMock.mock.calls.some(([url]) => (url as string).includes('/config'))).toBe(false);
+    expect(screen.getByRole('button', { name: 'Save changes' }), 'declining left the edit form').toBeInTheDocument();
+  });
+});
+
 describe('ContainerDetailPanel — the tab row (REQ-11, REQ-12)', () => {
   /**
    * container-detail-panel.md — Config is both the first tab of the row and the tab selected when
