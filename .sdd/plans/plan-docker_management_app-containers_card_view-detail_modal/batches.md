@@ -63,14 +63,35 @@ confirmed over three consecutive full-file runs.
 green, and the complete Playwright suite **588 passed / 1 failed / 2 skipped**, plus the `exclusive`
 project **11/11** run separately (it had been skipped by the project dependency).
 
-**The one e2e failure is outside this plan's perimeter and is not a regression of it**:
+**The one e2e failure is outside this plan's perimeter, and did not reproduce**:
 `client/e2e/classic-table-criteria.spec.ts:381`, the networks chips on the volumes/networks screen.
-It reproduces on its own, twice, on two different assertions — the detach control measured at
-y 1041.25 in a 720px viewport, and the detach then not removing the container from its network. This
-branch never touched that spec, the volumes/networks sources, `DetailPanel` or the table components;
-its only library changes are `Modal.tsx`, whose two new branches are gated on opt-ins that only
-`ContainersScreen` requests, and one `feedback.css` rule gated on that same opt-in plus one
-compounded on the fluid-width class. Left standing as a known red outside this plan.
+
+The tester reported it as reproducible on its own, twice, on two different assertions, and therefore
+as a standing red rather than a regression. **That was checked and does not hold.** Run with the same
+command on both commits, it passes:
+
+| what was run | commit | result |
+| --- | --- | --- |
+| that test alone (`--grep "networks chips"`) | `main` | **1 passed** (12.3s) |
+| that test alone, same command | this branch | **1 passed** (12.2s) |
+| the whole file | this branch | **8 passed** (35.7s) |
+
+So it is neither a regression of this plan nor a standing failure: it failed **once, under the full
+suite**, and does not reproduce in isolation on either commit. Cause not established — it is a flake
+under full-suite conditions on a spec this branch never touched.
+
+Independently of the run, this branch cannot reach that screen: it never touched that spec, the
+volumes/networks sources, `DetailPanel` or the table components. Its only library changes are
+`Modal.tsx`, whose two new branches are gated on opt-ins that only `ContainersScreen` requests — the
+`.ui-modal__header` band is rendered **only** when `closeControl` is asked for, so no other dialog's
+title layout changed — and `feedback.css`, one rule gated on that same opt-in plus one compounded on
+the fluid-width class.
+
+One thing in that file is worth a later look, and is not this plan's to fix: the test restores its
+fixture with a bare `docker network connect` on the **last line**, outside any `finally`. A failure
+at either of the two assertions above it leaves the container detached, which is the kind of
+leftover the project's own test rule exists to prevent — and a plausible reason a first failure
+would make a second run fail differently.
 
 ## Departures from the spec
 
