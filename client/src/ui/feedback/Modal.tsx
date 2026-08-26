@@ -8,7 +8,8 @@ export type ModalSize = 'default' | 'large';
 
 export interface ModalProps {
   open: boolean;
-  title: string;
+  /** A plain string renders as the dialog's own heading; composed content is drawn in that same place, on the same chrome band. */
+  title: ReactNode;
   children?: ReactNode;
   actions?: ReactNode;
   onClose: () => void;
@@ -67,6 +68,15 @@ export function Modal({
   }, [open, restoreFocus]);
 
   if (!open) return null;
+  // A string stays the heading it has always been; composed content is carried in
+  // the same slot by a box that may shrink, so a long name gives way to the close
+  // control instead of pushing it out.
+  const titleNode =
+    typeof title === 'string' ? (
+      <h2 className="ui-modal__title">{title}</h2>
+    ) : (
+      <div className="ui-modal__title ui-modal__title--composed">{title}</div>
+    );
   const positionerClass = [
     'ui-modal__positioner',
     size === 'large' ? 'ui-modal__positioner--size-large' : '',
@@ -88,13 +98,13 @@ export function Modal({
           <div className={modalClass}>
             {closeControl ? (
               <div className="ui-modal__header">
-                <h2 className="ui-modal__title">{title}</h2>
+                {titleNode}
                 <IconButton label={CLOSE_LABEL} onClick={onClose}>
                   {CLOSE_GLYPH}
                 </IconButton>
               </div>
             ) : (
-              <h2 className="ui-modal__title">{title}</h2>
+              titleNode
             )}
             <div className="ui-modal__body">{children}</div>
             {actions ? <div className="ui-modal__actions">{actions}</div> : null}

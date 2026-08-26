@@ -19,7 +19,8 @@ import {
   type RowAction,
   type StatusTone,
 } from '../ui';
-import type { ContainerPort, ContainerState, ContainerSummary } from '../data/containers-client';
+import type { ContainerPort, ContainerSummary } from '../data/containers-client';
+import { STATE_TONE } from './container-status';
 
 export interface ContainerCardProps {
   container: ContainerSummary;
@@ -32,17 +33,6 @@ export interface ContainerCardProps {
   /** Rendered in the name's place while this container is being renamed. */
   renameControl?: ReactNode;
 }
-
-// The one rule the dot, the pill, the accent edge and the metric fills all read.
-const STATE_TONE: Record<ContainerState, StatusTone> = {
-  created: 'neutral',
-  running: 'success',
-  paused: 'warning',
-  restarting: 'warning',
-  removing: 'neutral',
-  exited: 'neutral',
-  dead: 'danger',
-};
 
 const NET_IO_LABEL = 'NET I/O';
 const PORTS_LABEL = 'PORTS';

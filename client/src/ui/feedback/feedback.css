@@ -133,6 +133,13 @@
   color: var(--color-text-primary);
 }
 
+/* Composed title content: a shrinkable box, so a long value inside it ellipsises
+   instead of pushing the close control off the band. */
+.ui-modal__title--composed {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .ui-modal__body {
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);

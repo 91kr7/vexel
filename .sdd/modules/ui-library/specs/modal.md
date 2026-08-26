@@ -12,6 +12,10 @@ type: UI component
 
 - `<Modal open title children? actions? onClose size? closeControl? restoreFocus? fluidWidth? stableHeight?>`
   - `open` — when `false`, renders nothing.
+  - `title` — a plain string, or composed content. A string is the dialog's own heading, exactly as it
+    has always been; composed content is drawn **in that same place** — on the chrome band, beside the
+    close control where one was asked for, above the body where none was — and the caller owns what it
+    holds.
   - `onClose` — called when the dimmed overlay is clicked; content clicks do not propagate to it.
   - `actions` — optional trailing action row (e.g. Cancel/Confirm buttons).
   - `size`: `'default' | 'large'` (default `'default'`) — `'large'` widens the dialog and caps its
@@ -35,6 +39,18 @@ type: UI component
     arriving error banner move no edge of it. Asked for on any other size it does nothing.
 
 ## Rules and invariants
+
+- **A caller passing a string renders exactly what it rendered before composed titles existed**: the
+  same heading element, the same place, the same close control beside it. Composed content is not a
+  mode, a variant or a default drifted into — it is what the caller passed, and every dialog in the
+  product that passes a string is untouched by it.
+- **The composed title is a box that may shrink**, so a long value inside it ellipsises or wraps
+  according to what the caller composed, instead of pushing the close control off the band. What is
+  inside it is the caller's: the component adds no separator, no prefix and no typography of its own
+  beyond the band's.
+- **A composed title carries no heading of the component's own.** The caller composing one owns the
+  heading inside it — every composition in the product uses a library primitive that states one — so
+  the dialog is not given two.
 
 - **The dialog's positioner states the width and the content fills it, so the glass card and the
   content it holds cannot disagree** — in either direction, at either size, at any viewport. There is
@@ -176,3 +192,5 @@ type: UI component
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-2
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-4
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-5
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-6
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-10

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Button,
   EmptyState,
@@ -37,6 +37,7 @@ import type { ImageSummary } from '../data/images-client';
 import { ContainerCard } from './ContainerCard';
 import { ContainerCreateForm } from './ContainerCreateForm';
 import { ContainerDetailPanel } from './ContainerDetailPanel';
+import { ContainerIdentityHeader } from './ContainerIdentityHeader';
 import { useStatsSubscription } from '../data/use-stats-subscription';
 import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
@@ -132,6 +133,7 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
   const [renameValue, setRenameValue] = useState('');
   const [detailTarget, setDetailTarget] = useState<DetailTarget | null>(null);
   const [createMode, setCreateMode] = useState<'run' | 'create' | null>(null);
+  const lastKnownIdentity = useRef<ContainerSummary | null>(null);
 
   // The carried summary follows the list — which is also how a re-pointed dialog learns
   // its recreated container has arrived. A re-read that changes neither bails out.
@@ -144,6 +146,18 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
       return { container: live, awaitingList: false };
     });
   }, [containers]);
+
+  // The last summary the list carried for the open dialog's container, kept aside so the
+  // header has a state to freeze at once the container has gone. A ref and not state: it
+  // is read while rendering the header and never drives a render of its own.
+  useEffect(() => {
+    if (!detailTarget) {
+      lastKnownIdentity.current = null;
+      return;
+    }
+    const live = containers.find((container) => container.id === detailTarget.container.id);
+    if (live) lastKnownIdentity.current = live;
+  }, [containers, detailTarget]);
 
   /** The dialog's one dismissal: the panel it held unmounts with it, so nothing outlives it. */
   function closeDetail() {
@@ -327,7 +341,13 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
   // re-read arrives, so a recreate never reads as a disappearance.
   const liveDetail = detailTarget ? containers.find((container) => container.id === detailTarget.container.id) : undefined;
   const detailContainer = liveDetail ?? (detailTarget?.awaitingList ? detailTarget.container : undefined);
-  const detailName = liveDetail?.name ?? detailTarget?.container.name;
+  // Once the container has ceased to exist the header freezes at the last summary the
+  // list carried for it, rather than inventing a state or contradicting the end state
+  // the body states.
+  const identityContainer =
+    liveDetail ??
+    (lastKnownIdentity.current?.id === detailTarget?.container.id ? lastKnownIdentity.current : undefined) ??
+    detailTarget?.container;
 
   return (
     <Stack gap="var(--space-4)">
@@ -373,7 +393,7 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
           the container (containers-screen.md). */}
       <Modal
         open={detailTarget !== null}
-        title={detailName ? `Container — ${detailName}` : ''}
+        title={identityContainer ? <ContainerIdentityHeader container={identityContainer} /> : ''}
         size="large"
         fluidWidth
         stableHeight

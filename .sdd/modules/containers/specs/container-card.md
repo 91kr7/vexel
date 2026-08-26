@@ -106,11 +106,10 @@ Actions:
   quiet affordance. The box stays, because shrinking it would have bought a third icon-button size
   for a single call site; the rounding moved to an existing step, in the library and on the
   **size** rather than as a variant of this card (`icon-button.md`).
-- **One rule maps state to presentation, and the dot, the pill and the accent always agree.** Every
-  state the product can display has an entry — `created`, `restarting`, `removing` and `dead`
-  included, not only the three the mock drew: `running` → success, `paused`/`restarting` → warning,
-  `dead` → danger, `created`/`removing`/`exited` → neutral. The metric fills take that same tone.
-  No card ever shows two states at once.
+- **One rule maps state to presentation, and the dot, the pill and the accent always agree.** It is
+  the module's one shared reading (`container-status.md`), which every state the product can display
+  has an entry in — `created`, `restarting`, `removing` and `dead` included, not only the three the
+  mock drew. The metric fills take that same tone. No card ever shows two states at once.
 - **Which two ports are drawn is stable across polls**, because the order is: the list summary
   imposes a total order on a container's mappings (`containers-service.md`), the daemon's own order
   not being stable across reads. A card showing a subset of an unstably ordered set shows a
@@ -172,7 +171,8 @@ Actions:
 - ui-library: Card (with its footer, and without its selectable treatment), Stack, Row,
   StatusDotCell, SectionHeader, Badge, IdentifierCell, IconButton, Chip, FieldMessage,
   ActionButtonGroup (with its Menu), MetricStrip
-- Containers client (`ContainerSummary`, `ContainerPort`, `ContainerState`)
+- Container status reading (the state's tone)
+- Containers client (`ContainerSummary`, `ContainerPort`)
 
 ## Requirements served
 

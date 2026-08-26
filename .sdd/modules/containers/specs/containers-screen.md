@@ -80,10 +80,15 @@ Actions:
   running / stopped (`created`, `exited`, `dead`) / paused (`paused`, `restarting`) / all.
 - **The card's top-right control opens that container's detail**, and it is the only route in: the
   card body opens nothing. The detail is presented on the library's dialog surface at its large size
-  (`Modal size="large"`), titled `Container — <name>` so the dialog states which container it belongs
-  to without the operator acting, carrying the dialog's opt-in close control and asking for the
-  return of the point of interaction on dismissal. Its body is a `ContainerDetailPanel`, which
-  declares no chrome and no dismissal of its own.
+  (`Modal size="large"`), titled with the container's own identity — a `ContainerIdentityHeader`
+  handed to the dialog as composed title content, so the header says as much as the card the operator
+  just left — carrying the dialog's opt-in close control and asking for the return of the point of
+  interaction on dismissal. Its body is a `ContainerDetailPanel`, which declares no chrome and no
+  dismissal of its own.
+- **The header's values come from the container data the screen already holds** — the summary it
+  draws the card from — and from nothing else: a state or a health outcome that changes while the
+  dialog is open shows there on the screen's own re-read, without the operator acting, and no request,
+  endpoint or sampling cadence is added to make it so.
 - **The screen asks for the large format's fluid width** (`fluidWidth`), by name and with no length
   of its own: this detail's property lists arrange themselves by the width of the box they are given,
   and the format's 1100px cap held them at two columns where the inline panel this replaces showed
@@ -111,10 +116,13 @@ Actions:
   container no longer exists*, explaining that it was removed while its detail was open, and offering
   the dialog's own dismissal as its resolving action. The panel and its tabs are gone by then, so
   every stream and session the detail owned has ended with them (`container-detail-panel.md`). The
-  dialog **keeps its chrome** in that end state — the title, still naming the container it belonged
-  to, and the close control — so both ways out still work there and nothing strands the operator in
-  it; dismissing it leaves the point of interaction on the list region, the card that opened it
+  dialog **keeps its chrome** in that end state — the identity header and the close control — so both
+  ways out still work there and nothing strands the operator in it; dismissing it leaves the point of interaction on the list region, the card that opened it
   having left with the container.
+- **In that end state the header freezes at the container's last known identity**: the values are the
+  ones the list last carried for it — name, state, health outcome, short id — held exactly as they
+  were. The header states no new state of its own, so it never contradicts the end state the body
+  states, and it never empties out from under the operator either.
 - **A recreate is not a disappearance.** After a configuration change recreates the container, the
   dialog follows it onto the new container's id and goes on showing it, on the same tab; until the
   re-read list carries the new container the dialog stands on the summary it already holds, so no
@@ -196,9 +204,10 @@ Actions:
 - ui-library: ScreenToolbar, SearchField, FilterChips, TextField, Button, IconButton, ErrorBanner,
   EmptyState (in the list's place, and in the dialog's when its container has gone), Row, Stack, Grid
   (as the list's dismissal focus target) and GridSpan, Modal (at `size="large"`, with its fluid
-  width, its stable height, its close control and its focus return), triggerDownload, useToast
+  width, its stable height, its composed title, its close control and its focus return),
+  triggerDownload, useToast
 - Containers client, Container transfer client, Images client (`ImageSummary`), useStatsSubscription
-- ContainerCard, ContainerDetailPanel, ContainerCreateForm
+- ContainerCard, ContainerIdentityHeader, ContainerDetailPanel, ContainerCreateForm
 - app-shell: ConfirmationService, ProgressService, ErrorReportingService
 
 ## Requirements served
@@ -272,3 +281,7 @@ Actions:
 - plan-docker_management_app-containers_card_view-detail_modal/REQ-36
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-1
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-4
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-6
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-7
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-8
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-9
