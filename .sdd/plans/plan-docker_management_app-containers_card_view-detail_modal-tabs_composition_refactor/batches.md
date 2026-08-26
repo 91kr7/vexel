@@ -19,7 +19,7 @@ this plan's (`requirements.md`); intervention ids are local to each batch file.
 | `config-reading-layout` | F3 — Config in reading | REQ-18, REQ-19, REQ-20, REQ-21, REQ-22 | `stable-detail-height` | certified | The environment variables can be read down the keys |
 | `config-editing-cards` | F4 — Config in editing | REQ-23, REQ-24, REQ-25, REQ-26 | `stable-detail-height`, `config-reading-layout` | certified | The edit form reads as groups instead of one long column |
 | `stats-two-plus-three` | F2 — Stats is two metrics with a ceiling, then three without | REQ-13, REQ-14, REQ-15, REQ-16, REQ-17 | `stable-detail-height` | certified | The bars are only where a bar can mean something |
-| `log-controls-and-levels` | F5 — The log controls in two groups, and the lines distinguished | REQ-27, REQ-28, REQ-29, REQ-30, REQ-31 | `stable-detail-height` | todo | The controls that reopen the stream are told from the ones that do not |
+| `log-controls-and-levels` | F5 — The log controls in two groups, and the lines distinguished | REQ-27, REQ-28, REQ-29, REQ-30, REQ-31 | `stable-detail-height` | implemented | The controls that reopen the stream are told from the ones that do not |
 | `processes-fills-its-tab` | F6 — The process table takes the height it is offered | REQ-32, REQ-33 | `stable-detail-height` | todo | The process list uses the room the dialog gives it |
 | `inspect-grouped` | F6b — Inspect grouped, and a bad exit code that reads as one | REQ-34, REQ-35, REQ-36, REQ-37, REQ-38, REQ-39, REQ-40, REQ-41, REQ-42, REQ-43, REQ-44, REQ-45 | `stable-detail-height` | todo | What the container is, and how it has gone, read as two questions |
 

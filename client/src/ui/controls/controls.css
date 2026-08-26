@@ -1325,3 +1325,27 @@
   font-size: var(--font-size-xs);
   text-decoration: none;
 }
+
+/* A labelled group of controls on a toolbar row. The group is the unit the row
+   wraps by: as a flex item its hypothetical size is its whole content, so a row
+   of groups breaks between them and never inside one. It breaks internally only
+   when it alone is wider than the row — the narrow viewport, where wrapping
+   beats overflowing. */
+.ui-control-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  flex: 0 1 auto;
+}
+
+/* The product's eyebrow treatment (section-header.css), so a group reads as a
+   section of the row rather than as a field with a caption. */
+.ui-control-group__label {
+  flex: none;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}

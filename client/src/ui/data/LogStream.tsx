@@ -6,6 +6,9 @@ import { Row } from '../layout/Row';
 import '../glass/overlay-glass.css';
 import './log-stream.css';
 
+/** The severities a line can be drawn distinguished by. */
+export type LogStreamLevel = 'error' | 'warn';
+
 export interface LogStreamLine {
   id: string;
   text: string;
@@ -14,7 +17,21 @@ export interface LogStreamLine {
   stream?: 'stdout' | 'stderr';
   /** Origin label (e.g. a compose service name) shown before the timestamp, for an aggregated stream. */
   source?: string;
+  /**
+   * The line's severity, established by the caller. Reading one out of a line's
+   * text is a domain guess and stays in the feature layer: this component draws
+   * the level it is handed and deduces none.
+   */
+  level?: LogStreamLevel;
 }
+
+/**
+ * The action row's content: given as content, it is placed before the download
+ * action; given as a composer, it is called with the download action (or `null`)
+ * and returns the whole row, so a caller may place the download among groups of
+ * its own instead of at the row's end.
+ */
+export type LogStreamToolbar = ReactNode | ((download: ReactNode | null) => ReactNode);
 
 export interface LogStreamProps {
   lines: LogStreamLine[];
@@ -42,9 +59,11 @@ export interface LogStreamProps {
    * The stream's own controls (a search box, filters), placed on the same action
    * row as the download rather than on a row of their own — a row holding one
    * button is what this slot exists to remove
-   * (plan-ui-coherence-optimisation/REQ-62).
+   * (plan-ui-coherence-optimisation/REQ-62). In its composer form it hands the
+   * download over so the caller can place it among its own groups; that refines
+   * the same rule rather than lifting it, since the row stays one row.
    */
-  toolbar?: ReactNode;
+  toolbar?: LogStreamToolbar;
 }
 
 const OVERSCAN_LINES = 12;
@@ -53,7 +72,8 @@ const BOTTOM_TOLERANCE_PX = 8;
 /**
  * Virtualised monospace log surface (REQ-30, REQ-31): follow/auto-scroll with a
  * "jump to live" affordance, an optional timestamp column, stdout/stderr
- * tagging, match highlighting, and copy/download of the displayed buffer.
+ * tagging, per-line level distinction, match highlighting, and download of the
+ * displayed buffer.
  */
 export function LogStream({
   lines,
@@ -131,6 +151,16 @@ export function LogStream({
     URL.revokeObjectURL(url);
   }
 
+  // The download action is one action in both toolbar forms: composed here, then
+  // either handed to the caller to place or kept at the row's end.
+  const downloadAction = downloadFileName ? (
+    <Button size="sm" onClick={download}>
+      Download
+    </Button>
+  ) : null;
+  const composed = typeof toolbar === 'function';
+  const rowContent = composed ? toolbar(downloadAction) : toolbar;
+
   const startIndex = Math.max(0, Math.floor(scrollTop / lineHeight) - OVERSCAN_LINES);
   const endIndex = Math.min(lines.length, Math.ceil((scrollTop + viewportHeight) / lineHeight) + OVERSCAN_LINES);
   const visibleLines = lines.slice(startIndex, endIndex);
@@ -143,18 +173,16 @@ export function LogStream({
           with neither controls nor a download filename, which is Compose
           whenever no project is selected. An empty flex child still consumes
           its parent's gap. */}
-      {toolbar || downloadFileName ? (
+      {rowContent || downloadAction ? (
         <div className="ui-log-stream__actions">
-          {toolbar ? (
-            <Row align="center" gap="var(--space-2)" wrap>
-              {toolbar}
+          {/* The composer owns the row, so its groups are spread to the row's two
+              ends; content given as content keeps the row it always had. */}
+          {rowContent ? (
+            <Row align="center" gap="var(--space-2)" justify={composed ? 'between' : 'start'} wrap>
+              {rowContent}
             </Row>
           ) : null}
-          {downloadFileName ? (
-            <Button size="sm" onClick={download}>
-              Download
-            </Button>
-          ) : null}
+          {composed ? null : downloadAction}
         </div>
       ) : null}
       {lines.length === 0 ? (
@@ -165,8 +193,12 @@ export function LogStream({
             <div className="ui-log-stream__lines">
               {topSpacerHeight > 0 ? <div style={{ height: topSpacerHeight }} /> : null}
               {visibleLines.map((line) => {
+                // Three distinctions on three channels, so none of them hides
+                // another: the level colours the text, the stream marks the
+                // leading edge, the current match tints the line.
                 const classes = [
                   'ui-log-stream__line',
+                  line.level ? `ui-log-stream__line--${line.level}` : '',
                   line.stream === 'stderr' ? 'ui-log-stream__line--stderr' : '',
                   line.id === activeMatchLineId ? 'ui-log-stream__line--active' : '',
                 ]

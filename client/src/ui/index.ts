@@ -84,6 +84,7 @@ export {
   type CrossReferenceItem,
 } from './controls/CrossReference';
 export { SegmentedControl, type SegmentedControlProps, type SegmentedOption } from './controls/SegmentedControl';
+export { ControlGroup, type ControlGroupProps } from './controls/ControlGroup';
 export { TailSizeSelector, type TailSizeSelectorProps, type TailSize } from './controls/TailSizeSelector';
 export { TimeRangeField, type TimeRangeFieldProps, type TimeRange } from './controls/TimeRangeField';
 export { StreamSearchField, type StreamSearchFieldProps } from './controls/StreamSearchField';
@@ -114,7 +115,7 @@ export { PrivilegeList, type PrivilegeListProps, type PrivilegeItem } from './da
 export { CodeViewer, type CodeViewerProps } from './data/CodeViewer';
 export { CodeEditor, type CodeEditorProps } from './data/CodeEditor';
 export { TextViewer, type TextViewerProps, HexDumpViewer, type HexDumpViewerProps } from './data/ContentViewer';
-export { LogStream, type LogStreamProps, type LogStreamLine } from './data/LogStream';
+export { LogStream, type LogStreamProps, type LogStreamLine, type LogStreamLevel, type LogStreamToolbar } from './data/LogStream';
 export { TreeView, type TreeViewProps, type TreeNode, type TreeEntryKind } from './data/TreeView';
 export { DiffTreeView, type DiffTreeViewProps, type DiffTreeNode, type DiffStatus, type DiffStatusFilter } from './data/DiffTreeView';
 export { SideBySideViewer, type SideBySideViewerProps, type SideBySideSide } from './data/SideBySideViewer';

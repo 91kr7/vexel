@@ -18,7 +18,8 @@
    The row is also where a caller's own stream controls go, so that they and the
    download share one row instead of taking one each
    (plan-ui-coherence-optimisation/REQ-62). With no controls given there is one
-   child and the row is what it always was. */
+   child and the row is what it always was; with a caller composing the row
+   itself, the download is among its groups and this row has that one child. */
 .ui-log-stream__actions {
   display: flex;
   align-items: center;
@@ -74,20 +75,39 @@
   color: var(--color-text-wash-strong);
 }
 
+/* Every line leaves room for the leading accent bar, whether or not it carries
+   one: a gutter only stderr lines had would indent them alone. */
 .ui-log-stream__line {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   white-space: pre;
   overflow: hidden;
+  padding-left: var(--space-2);
 }
 
-.ui-log-stream__line--stderr {
+/* The three distinctions a line can carry are on three channels on purpose, so
+   that none of them can hide another: the level is the text's colour, the
+   stream is the leading accent bar, the current match is the tint. A line
+   written to stderr *and* stating an error shows both — which is why the stream
+   is no longer the text colour it was until this plan's F5.
+   The bar is the surface accent's own idiom (glass/surface.css): a gradient of
+   one --space-1 stop, which is why the tint below is a background *colour* and
+   not the shorthand that would erase it. */
+.ui-log-stream__line--error {
   color: var(--color-danger-strong);
 }
 
+.ui-log-stream__line--warn {
+  color: var(--color-warning);
+}
+
+.ui-log-stream__line--stderr {
+  background-image: linear-gradient(to right, var(--color-danger) 0 var(--space-1), transparent var(--space-1));
+}
+
 .ui-log-stream__line--active {
-  background: var(--color-accent-tint);
+  background-color: var(--color-accent-tint);
   border-radius: var(--radius-sm);
 }
 
