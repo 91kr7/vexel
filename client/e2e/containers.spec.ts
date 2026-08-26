@@ -13,7 +13,9 @@ import {
   detailIdentity,
   dismissContainerDetailByScrim,
   openContainerDetail,
+  openRawPayload,
   overflowTrigger,
+  rawPayloadSection,
 } from './support/container-cards.js';
 
 // A tiny, already-cached image whose entrypoint is overridden to `sleep` so the
@@ -855,8 +857,11 @@ test.describe('Container detail dialog (REQ-24, REQ-25, REQ-26)', () => {
   });
 
   // plan-docker_management_app/REQ-26, narrowed to viewable and selectable as-is
-  // (plan-docker_management_app-remove_copy_controls/REQ-23, REQ-30).
-  test('the Inspect tab shows the raw payload as selectable text', async ({ page }) => {
+  // (plan-docker_management_app-remove_copy_controls/REQ-23, REQ-30), and re-asserted **through the
+  // now-collapsed section** (`…-tabs_composition_refactor/REQ-37`, REQ-43): closed on arrival loses
+  // neither guarantee `plan-ui-coherence-optimisation/REQ-65` names — it is the same text, in full
+  // and still selectable by hand, one press later.
+  test('the Inspect tab shows the raw payload as selectable text, once its section is opened', async ({ page }) => {
     const name = `vexel-e2e-inspect-${Date.now()}`;
     try {
       await createSleepingContainer(name);
@@ -866,6 +871,15 @@ test.describe('Container detail dialog (REQ-24, REQ-25, REQ-26)', () => {
 
       const detail = containerDetail(page);
       await detail.getByRole('tab', { name: 'Inspect' }).click();
+
+      // Closed when the tab opens: nothing of the payload is on screen before its header is pressed.
+      const payload = rawPayloadSection(page);
+      await expect(payload).toBeVisible({ timeout: 20_000 });
+      await expect(payload.locator('.ui-collapsible-section__header')).toHaveAttribute('aria-expanded', 'false');
+      await expect(detail.locator('.ui-code-viewer')).toHaveCount(0);
+
+      await openRawPayload(page);
+
       await expect(detail.getByText(/"Image":\s*"alpine:3.20"/)).toBeVisible();
 
       // Selectable by hand is the fallback the removal leaves, so it is asserted rather than assumed.
@@ -1188,6 +1202,9 @@ test.describe('Container detail dialog, bound to its container (REQ-32, REQ-33, 
         .poll(async () => (await detailIdentity(page)).shortId, { timeout: 20_000 })
         .toBe(idAfter.slice(0, 12));
       await detail.getByRole('tab', { name: 'Inspect' }).click();
+      // The payload's section is closed when the tab opens (`…-tabs_composition_refactor/REQ-37`),
+      // so it is opened before it is read.
+      await openRawPayload(page);
       await expect
         .poll(async () => (await detail.locator('.ui-code-viewer__code').last().textContent()) ?? '', { timeout: 20_000 })
         .toContain(idAfter);
@@ -1485,10 +1502,13 @@ test.describe('Container detail dialog, one stable height (REQ-1, REQ-3, REQ-4)'
         const rowBefore = await boxOf(tabRow(page), 'the tab row');
 
         // Inspect is the tab that holds the whole raw payload, so it is the one certain to be taller
-        // than a 600px window leaves it.
+        // than a 600px window leaves it. The payload's own section is closed when the tab opens
+        // (`…-tabs_composition_refactor/REQ-37`), so it is opened here — with a real pointer at its
+        // header — and the premise is what it always was rather than a weaker one.
         const inspect = detail.getByRole('tab', { name: 'Inspect', exact: true });
         await clickAtItsCentre(page, inspect, 'the Inspect tab');
         await expect(inspect).toHaveAttribute('aria-selected', 'true');
+        await clickAtItsCentre(page, rawPayloadSection(page).locator('.ui-collapsible-section__header'), 'the Raw payload header');
         await expect(detail.locator('.ui-code-viewer__code').last()).toBeVisible({ timeout: 20_000 });
 
         const scrollersBefore = await scrollersInsideTheDialog(page);

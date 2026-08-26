@@ -7,7 +7,7 @@ import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
 import { clickAtItsCentre } from './support/settled.js';
 import { ALPINE_IMAGE, TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
-import { containerCard, containerDetail, openContainerDetail } from './support/container-cards.js';
+import { containerCard, containerDetail, openContainerDetail, openRawPayload, rawPayloadSection } from './support/container-cards.js';
 
 /**
  * **Every copy affordance has left the client — checked at runtime, over all
@@ -375,11 +375,22 @@ test('containers: the Inspect tab offers no copy on its Id, its Image, any healt
     await expect(health.locator('.ui-code-viewer').first()).toBeVisible({ timeout: 30_000 });
     await expectCodeBlocksHoldNoControl(health, 'Containers → Inspect, the health-log blocks', 1);
 
-    // Site 8 — the raw payload block, and REQ-19's fallback verified on this panel too.
+    // Site 8 — the raw payload block, and REQ-19's fallback verified on this panel too. The block is
+    // behind its own collapsible header since `…-tabs_composition_refactor/REQ-37`, so the absence is
+    // re-asserted **through** the section rather than dropped: the header is pressed, and what is
+    // then on screen must hold no control and still carry the whole id for a hand-selection.
+    await expect(rawPayloadSection(page).locator('.ui-collapsible-section__header'), 'the payload section is open when the tab opens').toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    await openRawPayload(page);
     await expectCodeBlocksHoldNoControl(detail, 'Containers → Inspect, raw payload', 2);
     const fullId = (await execFileAsync('docker', ['inspect', '--format', '{{.Id}}', name])).stdout.trim();
     await expect(detail.locator('.ui-code-viewer__code').last()).toContainText(fullId);
+    await expectSelectable(detail.locator('.ui-code-viewer__code').last(), 'Containers → Inspect, the raw payload block');
 
+    // Scoped to the property section, and deliberately: the collapsible's own header is a button, so
+    // the whole tab would answer this question with the disclosure the requirement never objected to.
     expect(await controlsOf(section), 'Containers → Inspect — the property section still holds a focusable control').toEqual([]);
     await expectNoClipboardWrite(page, 'Containers → Inspect');
   } finally {

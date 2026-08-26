@@ -1,6 +1,14 @@
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
-import { COLUMN_GAP_PX, expectNothingClippedOrOverlapped, measureSection, measureValueBands, report } from './support/property-bands.js';
+import {
+  COLUMN_GAP_PX,
+  SHORT_SCALAR_TRANSITIONS_PX,
+  TRANSITION_CLEARANCE_PX,
+  expectNothingClippedOrOverlapped,
+  measureSection,
+  measureValueBands,
+  report,
+} from './support/property-bands.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { containerCard, containerDetail, openContainerDetail } from './support/container-cards.js';
@@ -52,7 +60,12 @@ import { containerCard, containerDetail, openContainerDetail } from './support/c
  * **one entry per line at every one of the three**.
  *
  * The ceilings are stated against the plan's ~366px — ten bands at the delivered
- * 37px step — because it is the stricter of the two figures.
+ * 37px step — because it is the stricter of the two figures. **That baseline is
+ * bands and no chrome**, so the ceilings are read here against the ten bands of
+ * the two groups `…-tabs_composition_refactor/REQ-34` now draws them in — all
+ * ten of them and not whichever group happens to be first (REQ-43) — and the
+ * room the two headings add is weighed separately, against the flat list they
+ * replaced.
  */
 const DELIVERED_INSPECT_HEIGHT_PX = 366;
 const HEIGHT_CEILINGS = [
@@ -82,9 +95,53 @@ const FIXTURE_ENV: Record<string, string> = {
   NODE_ENV: 'production',
 };
 
-/** The first definition list of the open panel: the runtime list on Config, the ten properties on Inspect. */
+/**
+ * The first definition list of the open panel: the runtime list on Config, and on Inspect the
+ * `Identity` group — the ten properties being two headed groups since
+ * `…-tabs_composition_refactor/REQ-34`, of which this is the first. Whatever is measured through
+ * *this* locator on Inspect is therefore six of the ten, and the tests below that are about all ten
+ * say so by reading both groups.
+ */
 function firstSection(page: Page): Locator {
   return containerDetail(page).locator('.ui-definition-list').first();
+}
+
+/**
+ * One of the Inspect tab's two property groups, located through the heading an operator reads and
+ * the list it heads (`…-tabs_composition_refactor/REQ-34`).
+ */
+function inspectGroup(page: Page, title: string): Locator {
+  return containerDetail(page).locator(`.ui-section-header:has(.ui-section-header__title:text-is("${title}")) + .ui-definition-list`);
+}
+
+/** The gap between bands (`--space-6`) and the short-scalar minimum, the two figures the count follows from. */
+const SHORT_SCALAR_MIN_PX = 360;
+
+/** The count the short-scalar rule states for a section of a given width, bounded by what the group holds. */
+function derivedColumns(sectionWidth: number, bands: number): number {
+  return Math.min(bands, Math.max(1, Math.floor((sectionWidth + COLUMN_GAP_PX) / (SHORT_SCALAR_MIN_PX + COLUMN_GAP_PX))));
+}
+
+/**
+ * **The vertical room the ten properties occupy**, from the top edge of the first thing drawn for
+ * them — the `Identity` heading — to the bottom edge of the last, `Lifecycle`'s final band. This is
+ * the subject `plan-docker_management_app-detail_property_columns/REQ-22` names ("the `Inspect` tab,
+ * ten properties"); splitting them into two headed groups changed where they are drawn, not what is
+ * measured, so the ceilings go on being read against all ten and their headings rather than against
+ * whichever group happens to be first (REQ-43).
+ */
+async function inspectPropertyAreaHeight(page: Page): Promise<number> {
+  const height = await containerDetail(page).evaluate((panel) => {
+    const headers = Array.from(panel.querySelectorAll('.ui-section-header'));
+    const headed = (title: string) => headers.find((header) => header.querySelector('.ui-section-header__title')?.textContent === title);
+    const identity = headed('Identity');
+    const lifecycle = headed('Lifecycle');
+    const last = lifecycle?.parentElement?.querySelector(':scope > .ui-definition-list');
+    if (!identity || !last) return null;
+    return last.getBoundingClientRect().bottom - identity.getBoundingClientRect().top;
+  });
+  expect(height, 'the Inspect tab draws no Identity / Lifecycle pair, so its property area cannot be measured').not.toBeNull();
+  return height!;
 }
 
 async function createFixtureContainer(name: string): Promise<void> {
@@ -149,40 +206,88 @@ async function selectTab(page: Page, label: string): Promise<void> {
 // REQ-22, REQ-23, REQ-20 — the ten properties on the same rule as the image panel's nine: the count
 // follows the section's own measured width, and the height clears the three ceilings against the
 // delivered build's own 390px, which it measured identically at all three viewports.
+//
+// **The ten are two headed groups now** (`…-tabs_composition_refactor/REQ-34`), so the same three
+// questions are put to the new composition rather than to the first group alone (REQ-43): the
+// ceilings against the room all ten and their headings occupy, the width response against that same
+// room, and the derived count against **each** group's own width — `Lifecycle` included, which
+// nothing measured before this batch.
 test('Inspect: the ten properties spread with the width and clear the three height ceilings', async ({ page }) => {
   const name = `vexel-e2e-bug4-inspect-${Date.now()}`;
   await createFixtureContainer(name);
   try {
     const measured: string[] = [];
+    let narrowArea: number | undefined;
+    let wideArea: number | undefined;
     let narrow: Awaited<ReturnType<typeof measureSection>> | undefined;
     let wide: Awaited<ReturnType<typeof measureSection>> | undefined;
 
     for (const ceiling of HEIGHT_CEILINGS) {
       await openContainerPanel(page, name, ceiling.viewport);
       await selectTab(page, 'Inspect');
-      const geometry = await measureSection(firstSection(page), 'the Inspect tab property section');
-      const evidence = report(`Inspect at ${ceiling.viewport.width}×${ceiling.viewport.height}`, geometry);
+      const identity = await measureSection(inspectGroup(page, 'Identity'), 'the Inspect tab Identity group');
+      const lifecycle = await measureSection(inspectGroup(page, 'Lifecycle'), 'the Inspect tab Lifecycle group');
+      const area = await inspectPropertyAreaHeight(page);
+      const bands = identity.box.height + lifecycle.box.height;
+      const evidence = `Inspect at ${ceiling.viewport.width}×${ceiling.viewport.height}: the ten property bands measure ${bands.toFixed(
+        1,
+      )}px and the whole property area ${area.toFixed(1)}px — ${report('Identity', identity)} / ${report('Lifecycle', lifecycle)}`;
       measured.push(evidence);
 
       const bound = DELIVERED_INSPECT_HEIGHT_PX * ceiling.fraction;
       expect(
-        geometry.box.height,
-        `${evidence} — the section measures ${geometry.box.height.toFixed(1)}px, over the ${bound.toFixed(1)}px ceiling (${ceiling.fraction * 100}% of the delivered ${DELIVERED_INSPECT_HEIGHT_PX}px, which the delivered build measured identically at all three viewports)`,
+        bands,
+        `${evidence} — the ten bands measure ${bands.toFixed(1)}px, over the ${bound.toFixed(1)}px ceiling (${
+          ceiling.fraction * 100
+        }% of the delivered ${DELIVERED_INSPECT_HEIGHT_PX}px, which the delivered build measured identically at all three viewports)`,
       ).toBeLessThanOrEqual(bound);
-      // No transition guard here, and deliberately: what this test asserts is a **height** against
-      // the delivered build's, at the three viewports the requirement names. The guard belongs to a
-      // count assertion, where landing on a transition would make it an assertion about a rounding
-      // rule — and 1920 × 1080 puts this section at 1550px, 38px past the 1512px transition.
-      expectNothingClippedOrOverlapped(geometry, evidence);
 
-      if (ceiling.viewport.width === 1280) narrow = geometry;
-      if (ceiling.viewport.width === 2560) wide = geometry;
+      // Beside it, and about the room the eye actually pays: the two headings
+      // `…-tabs_composition_refactor/REQ-34` introduced are chrome the delivered flat list did not
+      // carry, so they are not weighed against a baseline of ten bare bands — but the composition
+      // that replaced that list must not cost more room than the list did.
+      expect(
+        area,
+        `${evidence} — the two groups and their headings occupy ${area.toFixed(1)}px, more than the ${DELIVERED_INSPECT_HEIGHT_PX}px flat list they replaced`,
+      ).toBeLessThan(DELIVERED_INSPECT_HEIGHT_PX);
+
+      // No transition guard on the heights, and deliberately: what those assert is a **height**
+      // against the delivered build's, at the three viewports the requirement names. The guard
+      // belongs to the count assertions below, where landing on a transition would make them
+      // assertions about a rounding rule.
+      expectNothingClippedOrOverlapped(identity, report('Identity', identity));
+      expectNothingClippedOrOverlapped(lifecycle, report('Lifecycle', lifecycle));
+
+      // REQ-34 — each group states its own content class, so each one's count follows **its own**
+      // width. Asserted on both, since the panel now holds two.
+      for (const group of [
+        { name: 'Identity', geometry: identity },
+        { name: 'Lifecycle', geometry: lifecycle },
+      ]) {
+        if (SHORT_SCALAR_TRANSITIONS_PX.some((transition) => Math.abs(group.geometry.box.width - transition) < TRANSITION_CLEARANCE_PX)) continue;
+        const expected = derivedColumns(group.geometry.box.width, group.geometry.bands.length);
+        expect(
+          group.geometry.columns,
+          `${report(group.name, group.geometry)} — a ${group.geometry.box.width.toFixed(1)}px section of ${
+            group.geometry.bands.length
+          } short-scalar bands carries ${expected}`,
+        ).toBe(expected);
+      }
+
+      if (ceiling.viewport.width === 1280) {
+        narrow = identity;
+        narrowArea = bands;
+      }
+      if (ceiling.viewport.width === 2560) {
+        wide = identity;
+        wideArea = bands;
+      }
     }
     console.log(`[REQ-22] ${measured.join('\n[REQ-22] ')}`);
 
     // REQ-23 — on the delivered build these two are identical, which is the red.
-    expect(wide!.box.height, 'the Inspect section is not shorter at 2560 × 1440 than at 1280 × 720').toBeLessThan(narrow!.box.height);
-    expect(wide!.columns, 'the Inspect section does not carry more columns at 2560 × 1440 than at 1280 × 720').toBeGreaterThan(narrow!.columns);
+    expect(wideArea!, 'the ten property bands are not shorter at 2560 × 1440 than at 1280 × 720').toBeLessThan(narrowArea!);
+    expect(wide!.columns, 'the Identity group does not carry more columns at 2560 × 1440 than at 1280 × 720').toBeGreaterThan(narrow!.columns);
   } finally {
     await removeFixtureContainer(name);
   }
@@ -202,8 +307,11 @@ test('Config and Inspect show different counts at one viewport, because the widt
     const halfEvidence = report('Config runtime configuration at 1920 × 1080', half);
 
     await selectTab(page, 'Inspect');
-    const full = await measureSection(firstSection(page), 'the Inspect tab property section');
-    const fullEvidence = report('Inspect at 1920 × 1080', full);
+    // The tab's first group, `Identity` (`…-tabs_composition_refactor/REQ-34`): what this test needs
+    // of it is that it sits at the whole of the panel while the Config list sits at half, which the
+    // split into two groups did not change.
+    const full = await measureSection(inspectGroup(page, 'Identity'), 'the Inspect tab Identity group');
+    const fullEvidence = report('Inspect Identity at 1920 × 1080', full);
     console.log(`[REQ-4] ${halfEvidence}\n[REQ-4] ${fullEvidence}`);
 
     expect(half.box.width, `${halfEvidence} / ${fullEvidence} — the two sections are the same width, so this comparison would prove nothing`).toBeLessThan(full.box.width - 200);
@@ -312,13 +420,17 @@ test('Inspect: the tab’s property section and its Labels section follow the ru
     for (const viewport of CLIPPING_VIEWPORTS) {
       await openContainerPanel(page, name, viewport);
       await selectTab(page, 'Inspect');
-      const geometry = await measureSection(firstSection(page), 'the Inspect tab property section');
-      const evidence = report(`Inspect at ${viewport.width}×${viewport.height}`, geometry);
-      measured.push(evidence);
-      expectNothingClippedOrOverlapped(geometry, evidence);
-      expect(geometry.rightEdgeGap, `${evidence} — ${geometry.rightEdgeGap.toFixed(1)}px of dead margin on the right`).toBeLessThanOrEqual(COLUMN_GAP_PX + 1);
-      if (viewport.width === 720) {
-        expect(geometry.columns, `${evidence} — the section is in columns below the 720px breakpoint, where the delivered build is one`).toBe(1);
+      // Both groups, not the first alone (`…-tabs_composition_refactor/REQ-34`, REQ-43): each is a
+      // section of its own and each has to clear the four widths on its own.
+      for (const title of ['Identity', 'Lifecycle']) {
+        const geometry = await measureSection(inspectGroup(page, title), `the Inspect tab ${title} group`);
+        const evidence = report(`${title} at ${viewport.width}×${viewport.height}`, geometry);
+        measured.push(evidence);
+        expectNothingClippedOrOverlapped(geometry, evidence);
+        expect(geometry.rightEdgeGap, `${evidence} — ${geometry.rightEdgeGap.toFixed(1)}px of dead margin on the right`).toBeLessThanOrEqual(COLUMN_GAP_PX + 1);
+        if (viewport.width === 720) {
+          expect(geometry.columns, `${evidence} — the section is in columns below the 720px breakpoint, where the delivered build is one`).toBe(1);
+        }
       }
     }
     console.log(`[REQ-24] ${measured.join('\n[REQ-24] ')}`);
@@ -326,7 +438,7 @@ test('Inspect: the tab’s property section and its Labels section follow the ru
     // The Labels section, on a fixture that carries a label long enough to belong to its class.
     await openContainerPanel(page, name, { width: 1920, height: 1080 });
     await selectTab(page, 'Inspect');
-    const properties = await measureSection(firstSection(page), 'the Inspect tab property section');
+    const properties = await measureSection(inspectGroup(page, 'Identity'), 'the Inspect tab Identity group');
     // Located by its own title: the header button's accessible name carries the chevron glyph too.
     const labelsSection = containerDetail(page)
       .locator('.ui-collapsible-section')

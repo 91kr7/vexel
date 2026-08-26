@@ -138,3 +138,30 @@ export async function chooseCardAction(page: Page, name: string, entry: string):
   await boxOf(card, `the card of ${name}`);
   await chooseFromRowOverflowMenu(page, card, entry, { trigger: `More actions for ${name}`, settle: false });
 }
+
+/**
+ * The Inspect tab's `Raw payload` section — a collapsible like the tab's others, **closed when the
+ * tab opens** (`…-tabs_composition_refactor/REQ-37`). Located by its own title: the header button's
+ * accessible name carries the chevron glyph too.
+ */
+export function rawPayloadSection(page: Page): Locator {
+  return containerDetail(page)
+    .locator('.ui-collapsible-section')
+    .filter({ has: page.locator('.ui-collapsible-section__title', { hasText: /^Raw payload$/ }) })
+    .first();
+}
+
+/**
+ * Opens it, with a real pointer at the header's own coordinates, and waits for the block to be on
+ * screen. What the header adds to reaching the payload is one press and nothing else, so every
+ * check that used to read the block simply makes it.
+ */
+export async function openRawPayload(page: Page): Promise<void> {
+  const section = rawPayloadSection(page);
+  await expect(section, 'the Inspect tab draws no `Raw payload` section').toBeVisible({ timeout: 20_000 });
+  const header = section.locator('.ui-collapsible-section__header');
+  if ((await header.getAttribute('aria-expanded')) === 'true') return;
+  await header.click();
+  await expect(header).toHaveAttribute('aria-expanded', 'true');
+  await expect(section.locator('.ui-code-viewer__code')).toBeVisible({ timeout: 20_000 });
+}

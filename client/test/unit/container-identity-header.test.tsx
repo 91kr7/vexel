@@ -13,7 +13,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render } from '@testing-library/react';
 import { ContainerIdentityHeader } from '../../src/containers/ContainerIdentityHeader';
-import { STATE_TONE, readHealthOutcome } from '../../src/containers/container-status';
+import { STATE_TONE, readHealthOutcome, stateTone } from '../../src/containers/container-status';
 import type { ContainerState, ContainerSummary } from '../../src/data/containers-client';
 
 afterEach(cleanup);
@@ -222,5 +222,25 @@ describe('Container status reading — the health outcome the daemon states (REQ
     expect(readHealthOutcome('Up 4 minutes (healthy)')).toEqual(readHealthOutcome('Up 4 minutes (healthy)'));
     expect(readHealthOutcome('Up 3 days')).toBeUndefined();
     expect(readHealthOutcome('Up 4 minutes (healthy)')).toEqual({ label: 'HEALTHY', tone: 'success' });
+  });
+});
+
+// container-status.md — `stateTone(status)`: the same table read for a state the daemon named as a
+// plain string (the inspect payload's own `State.Status`, which the Inspect tab's `Lifecycle` group
+// draws its pill from — `…-tabs_composition_refactor/REQ-35`). Total by contract, so a caller never
+// has to decide what an unknown state looks like.
+describe('Container status reading — the tone of a state named as a string (REQ-35)', () => {
+  it.each(Object.keys(STATE_TONE) as ContainerState[])('gives a %s state the tone the one table gives it', (state) => {
+    expect(stateTone(state)).toBe(STATE_TONE[state]);
+  });
+
+  it.each(['', 'unknown', 'zombie', 'exited (0)'])('draws the unnamed state "%s" neutral rather than nothing', (status) => {
+    expect(stateTone(status)).toBe('neutral');
+  });
+
+  it('reads the same tone every time it is asked, holding nothing between calls', () => {
+    expect(stateTone('running')).toBe('success');
+    expect(stateTone('nonsense')).toBe('neutral');
+    expect(stateTone('running')).toBe('success');
   });
 });

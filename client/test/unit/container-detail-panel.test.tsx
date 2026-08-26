@@ -465,32 +465,201 @@ describe('ContainerDetailPanel — Logs tab (REQ-30)', () => {
   });
 });
 
-describe('ContainerDetailPanel — Inspect tab (REQ-26)', () => {
-  /**
-   * plan-docker_management_app/REQ-26, **narrowed on 2026-08-14** to *viewable
-   * and selectable* as-is (plan-docker_management_app-remove_copy_controls/REQ-23).
-   *
-   * **Restated, not deleted**: the payload's completeness used to be checked
-   * through what a copy handed over, which was the strongest form available —
-   * the whole serialised payload, character for character. It still is, and it is
-   * still asserted; it is now read off the block that displays it rather than off
-   * the clipboard, which is the only thing that changed (REQ-30).
-   */
-  it('shows the raw inspect payload verbatim, exactly as the Engine returned it', async () => {
+/**
+ * **The Inspect tab, recomposed into two questions** —
+ * `…-tabs_composition_refactor/REQ-34` … REQ-37, read off
+ * `containers/specs/container-detail-panel.md`.
+ *
+ * The ten properties are two headed groups now, `State` is the pill every other
+ * surface draws, a non-zero exit code carries the danger tone, and the raw
+ * payload is a collapsible section closed on arrival. What the tab holds is read
+ * through the headings an operator reads; the **column counts** each group shows
+ * are geometry and belong to `container-detail-property-columns.spec.ts`, jsdom
+ * laying nothing out.
+ */
+describe('ContainerDetailPanel — Inspect tab (REQ-26, REQ-34, REQ-35, REQ-36, REQ-37)', () => {
+  function withInspect(overrides: Partial<ContainerInspect>): void {
+    fetchMock.mockImplementation((url: string) =>
+      url.includes('/inspect')
+        ? Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ...baseInspect(), ...overrides }) })
+        : Promise.resolve({ ok: configResponse.ok, status: configResponse.status, json: () => Promise.resolve(configResponse.body) }),
+    );
+  }
+
+  /** Opens the tab and waits for the inspect data, on the first group's heading rather than on the payload. */
+  async function openInspect(): Promise<ReturnType<typeof userEvent.setup>> {
     const user = userEvent.setup();
     renderPanel();
-
     await user.click(await screen.findByRole('tab', { name: 'Inspect' }));
+    await screen.findByText('Identity');
+    return user;
+  }
+
+  interface Group {
+    title: string;
+    bands: { label: string; value: string }[];
+  }
+
+  /** The tab's property groups: each `SectionHeader` and the definition list it heads. */
+  function propertyGroups(): Group[] {
+    return Array.from(document.querySelectorAll('.ui-section-header')).map((header) => {
+      const list = header.parentElement?.querySelector(':scope > .ui-definition-list');
+      return {
+        title: header.querySelector('.ui-section-header__title')?.textContent ?? '',
+        bands: Array.from(list?.children ?? []).map((row) => ({
+          label: row.querySelector('.ui-definition-list__label')?.textContent ?? '',
+          value: row.querySelector('.ui-definition-list__value')?.textContent ?? '',
+        })),
+      };
+    });
+  }
+
+  function group(title: string): Group {
+    const groups = propertyGroups();
+    const found = groups.find((candidate) => candidate.title === title);
+    expect(found, `no "${title}" group is drawn; the tab heads ${groups.map((one) => one.title).join(', ') || 'nothing'}`).toBeDefined();
+    return found!;
+  }
+
+  /** The `Raw payload` section, whichever state it is in. */
+  function payloadSection(): HTMLElement {
+    const section = Array.from(document.querySelectorAll<HTMLElement>('.ui-collapsible-section')).find(
+      (candidate) => candidate.querySelector('.ui-collapsible-section__title')?.textContent === 'Raw payload',
+    );
+    expect(section, 'the Inspect tab draws no `Raw payload` section').toBeDefined();
+    return section!;
+  }
+
+  // REQ-34 — what the container **is** and how it **has gone** are two headed groups, not ten rows
+  // presented as one list; each of the ten properties keeps the group its question belongs to.
+  it('splits the ten properties into Identity and Lifecycle, each under its own heading', async () => {
+    await openInspect();
+
+    expect(propertyGroups().map((one) => one.title)).toEqual(['Identity', 'Lifecycle']);
+    expect(group('Identity').bands.map((band) => band.label)).toEqual(['Id', 'Name', 'Image', 'Command', 'Entrypoint', 'Created']);
+    expect(group('Lifecycle').bands.map((band) => band.label)).toEqual(['State', 'Started at', 'Finished at', 'Exit code']);
+  });
+
+  // REQ-35 — `State` reads as the pill, in the tone the module's one state→tone reading gives it
+  // (`containers/specs/container-status.md`), and not as a word among the other values.
+  it.each([
+    ['running', 'success'],
+    ['exited', 'neutral'],
+    ['paused', 'warning'],
+    ['dead', 'danger'],
+  ])('draws the state of a %s container as a pill in that state’s own tone', async (status, tone) => {
+    withInspect({ state: { status } });
+
+    await openInspect();
+
+    const stateBand = Array.from(document.querySelectorAll('.ui-definition-list__row')).find(
+      (row) => row.querySelector('.ui-definition-list__label')?.textContent === 'State',
+    );
+    const pill = stateBand?.querySelector('.ui-badge');
+    expect(pill, 'the state is drawn as a plain value rather than as a pill').not.toBeNull();
+    expect(pill!.textContent).toBe(status.toUpperCase());
+    // The badge encodes `neutral` as the absence of a tone modifier (`ui-library/specs/badge.md`),
+    // so the tone is read the way the component writes it rather than by naming a class it never emits.
+    const drawn = pill!.className.split(' ').find((name) => name.startsWith('ui-badge--tone-'))?.replace('ui-badge--tone-', '') ?? 'neutral';
+    expect(drawn, `the state pill of a ${status} container is drawn ${drawn}, not in the ${tone} tone the module’s one reading gives it`).toBe(tone);
+  });
+
+  /** The tone class the `Exit code` value carries, or `null` when it carries none. */
+  function exitCodeToneClass(): string | null {
+    const band = Array.from(document.querySelectorAll('.ui-definition-list__row')).find(
+      (row) => row.querySelector('.ui-definition-list__label')?.textContent === 'Exit code',
+    );
+    const value = band?.querySelector('.ui-definition-list__value');
+    expect(value, 'the Lifecycle group draws no `Exit code` band').not.toBeNull();
+    return value!.className.split(' ').find((name) => name.startsWith('ui-definition-list__value--tone-')) ?? null;
+  }
+
+  // REQ-36 — a non-zero exit code reads as bad news, in the application's own danger tone.
+  it('draws a non-zero exit code in the danger tone', async () => {
+    withInspect({ state: { status: 'exited', finishedAt: '2026-01-02T00:00:00Z', exitCode: 137 } });
+
+    await openInspect();
+
+    expect(group('Lifecycle').bands).toContainEqual({ label: 'Exit code', value: '137' });
+    expect(exitCodeToneClass()).toBe('ui-definition-list__value--tone-danger');
+  });
+
+  // REQ-36 — and a zero one carries no tone at all: it is drawn like every other value.
+  it('draws a zero exit code like any other value, with no tone of its own', async () => {
+    withInspect({ state: { status: 'exited', finishedAt: '2026-01-02T00:00:00Z', exitCode: 0 } });
+
+    await openInspect();
+
+    expect(group('Lifecycle').bands).toContainEqual({ label: 'Exit code', value: '0' });
+    expect(exitCodeToneClass(), 'a container that exited cleanly is drawn as bad news').toBeNull();
+  });
+
+  // REQ-36 — neither does a container that has not exited at all.
+  it('gives the exit code of a running container no tone either', async () => {
+    await openInspect();
+
+    expect(exitCodeToneClass(), 'a running container’s absent exit code is drawn as bad news').toBeNull();
+  });
+
+  // REQ-41 — the signal name the mock draws beside the code ("137 · SIGKILL") is content the panel
+  // does not have and does not acquire: the value is the daemon's own number and nothing else.
+  it('adds no signal name beside the code it was given', async () => {
+    withInspect({ state: { status: 'exited', finishedAt: '2026-01-02T00:00:00Z', exitCode: 137 } });
+
+    await openInspect();
+
+    expect(group('Lifecycle').bands.find((band) => band.label === 'Exit code')!.value).toBe('137');
+  });
+
+  // REQ-37 — the payload is a section like the tab's others and is **closed when the tab opens**:
+  // nothing of it is on screen until its own header is pressed.
+  it('draws the raw payload as a section closed when the tab opens', async () => {
+    await openInspect();
+
+    const header = payloadSection().querySelector('.ui-collapsible-section__header')!;
+    expect(header.getAttribute('aria-expanded'), 'the raw payload section is open when the tab opens').toBe('false');
+    expect(payloadSection().querySelector('.ui-collapsible-section__summary')?.textContent).toBe('JSON');
+    expect(document.querySelectorAll('.ui-code-viewer'), 'the payload is drawn before its section has been opened').toHaveLength(0);
+  });
+
+  /**
+   * plan-docker_management_app/REQ-26, **narrowed on 2026-08-14** to *viewable
+   * and selectable* as-is (plan-docker_management_app-remove_copy_controls/REQ-23),
+   * and re-asserted **through the now-collapsed section**
+   * (`…-tabs_composition_refactor/REQ-37`, REQ-43): the payload's completeness is
+   * the whole serialised payload, character for character, once the section is
+   * open — `plan-ui-coherence-optimisation/REQ-65` names it among the three things
+   * this panel must not lose, and one press before it is on screen is not a loss.
+   */
+  it('shows the raw inspect payload verbatim once its section is opened, exactly as the Engine returned it', async () => {
+    const user = await openInspect();
+
+    await user.click(within(payloadSection()).getByRole('button'));
 
     expect(await screen.findByText(/raw-container-1-id/)).toBeInTheDocument();
     const blocks = Array.from(document.querySelectorAll('.ui-code-viewer__code'));
     expect(blocks.at(-1)).toHaveTextContent(JSON.stringify(baseInspect().raw, null, 2), { normalizeWhitespace: false });
   });
+
+  // container-detail-panel.md — the block offers no action of its own, in either state: obtaining
+  // the full id from it is a hand-selection inside it
+  // (`plan-docker_management_app-remove_copy_controls/REQ-19`), and what the header adds is one
+  // press and nothing else.
+  it('offers no action of its own inside the payload block once it is open', async () => {
+    const user = await openInspect();
+
+    await user.click(within(payloadSection()).getByRole('button'));
+
+    const block = document.querySelector('.ui-code-viewer')!;
+    expect(block.querySelectorAll('button, a, [role="button"]'), 'the payload block carries a control of its own').toHaveLength(0);
+    expect(block.querySelectorAll('.ui-code-viewer__actions'), 'the action row survived the control it held').toHaveLength(0);
+  });
 });
 
 // container-detail-panel.md — "A collapsible section with nothing in it is not drawn", one rule
 // shared with the image panel: `Networks` and `Labels` appear only when they hold at least one
-// entry, so a section headed with a count of `0` cannot occur.
+// entry, so a section headed with a count of `0` cannot occur. `Raw payload` is unconditional and
+// stands among them in every case (`…-tabs_composition_refactor/REQ-37`).
 describe('ContainerDetailPanel — an empty section is absent (plan-ui-coherence-optimisation/REQ-60)', () => {
   function withInspect(overrides: Partial<ContainerInspect>): void {
     fetchMock.mockImplementation((url: string) =>
@@ -504,23 +673,27 @@ describe('ContainerDetailPanel — an empty section is absent (plan-ui-coherence
     const user = userEvent.setup();
     renderPanel();
     await user.click(await screen.findByRole('tab', { name: 'Inspect' }));
-    await screen.findByText(/raw-container-1-id/);
+    // The tab's first heading, not the payload: the payload's section is closed on arrival now.
+    await screen.findByText('Identity');
     return Array.from(document.querySelectorAll('.ui-collapsible-section')).map((section) => ({
       title: section.querySelector('.ui-collapsible-section__title')?.textContent ?? '',
       summary: section.querySelector('.ui-collapsible-section__summary')?.textContent ?? '',
     }));
   }
 
-  it('draws no section at all for a container attached to no network and declaring no label', async () => {
+  it('draws no section at all for a container attached to no network and declaring no label, beyond the payload', async () => {
     withInspect({ networks: [], labels: {} });
 
-    expect(await inspectTabSections()).toEqual([]);
+    expect(await inspectTabSections()).toEqual([{ title: 'Raw payload', summary: 'JSON' }]);
   });
 
   it('draws no Labels section for a container declaring none, while Networks keeps its own', async () => {
     withInspect({ networks: [{ name: 'bridge' }], labels: {} });
 
-    expect(await inspectTabSections()).toEqual([{ title: 'Networks', summary: '1' }]);
+    expect(await inspectTabSections()).toEqual([
+      { title: 'Networks', summary: '1' },
+      { title: 'Raw payload', summary: 'JSON' },
+    ]);
   });
 
   it('draws both sections, each headed with its own count, when both have content', async () => {
@@ -529,6 +702,7 @@ describe('ContainerDetailPanel — an empty section is absent (plan-ui-coherence
     expect(await inspectTabSections()).toEqual([
       { title: 'Networks', summary: '1' },
       { title: 'Labels', summary: '2' },
+      { title: 'Raw payload', summary: 'JSON' },
     ]);
   });
 });

@@ -29,7 +29,7 @@ import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { readOnceSettled } from './support/settled.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
-import { containerDetail, openContainerDetail } from './support/container-cards.js';
+import { containerDetail, openContainerDetail, openRawPayload, rawPayloadSection } from './support/container-cards.js';
 
 const DESKTOP_VIEWPORTS = [
   { width: 1440, height: 1000 },
@@ -628,6 +628,31 @@ test.describe('Container detail — the expanded detail stops fighting for room 
       expect(stdout.width, 'the logs toolbar is clipped to nothing').toBeGreaterThan(0);
       expect(stdout.hitsItself, 'a pointer aimed at the logs toolbar reaches something else').toBe(true);
 
+      // `…-tabs_composition_refactor/REQ-40` — "no value clipped to nothing" is asserted on values
+      // and not only on controls: the Inspect tab's two property groups, band by band.
+      await detail.getByRole('tab', { name: 'Inspect', exact: true }).click();
+      for (const heading of ['Identity', 'Lifecycle']) {
+        const clipped = await detail.evaluate((panel, title) => {
+          const header = Array.from(panel.querySelectorAll('.ui-section-header')).find(
+            (candidate) => candidate.querySelector('.ui-section-header__title')?.textContent === title,
+          );
+          const list = header?.parentElement?.querySelector(':scope > .ui-definition-list');
+          if (!list) return ['(the group is not drawn at all)'];
+          return Array.from(list.querySelectorAll('.ui-definition-list__row')).flatMap((row) => {
+            const label = row.querySelector('.ui-definition-list__label')!;
+            const value = row.querySelector('.ui-definition-list__value')!;
+            const labelBox = label.getBoundingClientRect();
+            const valueBox = value.getBoundingClientRect();
+            const bad: string[] = [];
+            if (labelBox.width <= 0 || labelBox.height <= 0) bad.push(`${label.textContent}: the label has no box`);
+            if (valueBox.width <= 0 || valueBox.height <= 0) bad.push(`${label.textContent}: the value has no box`);
+            if (getComputedStyle(value).textOverflow === 'ellipsis') bad.push(`${label.textContent}: the value is clamped with an ellipsis`);
+            return bad;
+          });
+        }, heading);
+        expect(clipped, `[REQ-40] the ${heading} group loses a value at 375×812`).toEqual([]);
+      }
+
       for (const tab of ['Stats', 'Processes', 'Inspect', 'Exec', 'Attach', 'Config', 'Logs']) {
         const control = detail.getByRole('tab', { name: tab, exact: true });
         await control.scrollIntoViewIfNeeded();
@@ -688,6 +713,14 @@ test.describe('Container detail — the expanded detail stops fighting for room 
       }
 
       // The raw payload, as real selectable text: complete enough to parse, and this container's.
+      // Its section is closed when the tab opens (`…-tabs_composition_refactor/REQ-37`), which
+      // withdraws neither guarantee REQ-65 names — so the section is opened and the same reading is
+      // taken, rather than the claim being dropped.
+      await expect(rawPayloadSection(page).locator('.ui-collapsible-section__header'), '[REQ-37] the payload section is open when the tab opens').toHaveAttribute(
+        'aria-expanded',
+        'false',
+      );
+      await openRawPayload(page);
       const payload = detail.locator('.ui-code-viewer__code');
       await expect(payload).toBeVisible({ timeout: 20_000 });
       const raw = await payload.textContent();
