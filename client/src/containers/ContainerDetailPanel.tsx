@@ -3,6 +3,7 @@ import {
   Badge,
   BandStack,
   Button,
+  Card,
   Chip,
   CodeViewer,
   CollapsibleSection,
@@ -173,6 +174,9 @@ function buildUpdate(form: ConfigFormState, initial: ConfigFormState): Container
   return update;
 }
 
+/** What a save would cost, stated in the form's footer for as long as the operator is editing (REQ-25). */
+const RECREATE_NOTE = 'Environment and Mounts changes require the container to be recreated.';
+
 function updateRequiresRecreate(update: ContainerConfigUpdate): boolean {
   return update.env !== undefined || update.ports !== undefined || update.mounts !== undefined || update.healthCheck !== undefined;
 }
@@ -253,82 +257,134 @@ export function ContainerDetailPanel({ container, onContainerReplaced }: Contain
     if (editing && form) {
       const dirty = JSON.stringify(form) !== JSON.stringify(initialForm);
       return (
+        /*
+          Five groups, each inside a container of its own instead of a heading on a continuous
+          ground (REQ-23), and the two small ones side by side in the library's named `pair`
+          arrangement, which stacks them at full width when the dialog cannot carry both (REQ-24).
+          `FormSection` is deliberately not used: its rule is that a field group is not a card
+          (plan-ui-coherence-optimisation/REQ-78), and that rule and its own consumers stand.
+        */
         <Stack gap="var(--space-4)">
-          <Row gap="var(--space-3)" wrap>
-            <Select
-              ariaLabel="Restart policy"
-              value={form.restartPolicyName}
-              options={RESTART_POLICY_OPTIONS}
-              onChange={(value) => setForm({ ...form, restartPolicyName: value })}
-            />
-            {form.restartPolicyName === 'on-failure' ? (
-              <NumberField ariaLabel="Max retries" placeholder="Max retries" value={form.maxRetries} onChange={(value) => setForm({ ...form, maxRetries: value })} />
-            ) : null}
-            <NumberField ariaLabel="CPU limit" placeholder="CPU limit (cpus)" step={0.1} value={form.cpus} onChange={(value) => setForm({ ...form, cpus: value })} />
-            <NumberField ariaLabel="Memory limit" placeholder="Memory limit (MB)" value={form.memoryMb} onChange={(value) => setForm({ ...form, memoryMb: value })} />
-          </Row>
+          <Grid arrangement="pair">
+            <Card>
+              <Stack gap="var(--space-3)">
+                <SectionHeader variant="eyebrow" title="Runtime" />
+                <Row gap="var(--space-3)" wrap>
+                  <Select
+                    ariaLabel="Restart policy"
+                    value={form.restartPolicyName}
+                    options={RESTART_POLICY_OPTIONS}
+                    onChange={(value) => setForm({ ...form, restartPolicyName: value })}
+                  />
+                  {form.restartPolicyName === 'on-failure' ? (
+                    <NumberField ariaLabel="Max retries" placeholder="Max retries" value={form.maxRetries} onChange={(value) => setForm({ ...form, maxRetries: value })} />
+                  ) : null}
+                  <NumberField ariaLabel="CPU limit" placeholder="CPU limit (cpus)" step={0.1} value={form.cpus} onChange={(value) => setForm({ ...form, cpus: value })} />
+                  <NumberField ariaLabel="Memory limit" placeholder="Memory limit (MB)" value={form.memoryMb} onChange={(value) => setForm({ ...form, memoryMb: value })} />
+                </Row>
+              </Stack>
+            </Card>
 
-          <SectionHeader title="Environment variables" />
-          <KeyValueEditor pairs={form.env} onChange={(env) => setForm({ ...form, env })} name="Environment" />
+            <Card>
+              <Stack gap="var(--space-3)">
+                <SectionHeader variant="eyebrow" title="Health check" />
+                <Toggle label="Enabled" checked={form.healthEnabled} onChange={(value) => setForm({ ...form, healthEnabled: value })} />
+                {form.healthEnabled ? (
+                  <Stack gap="var(--space-2)">
+                    <TextField
+                      ariaLabel="Health check command"
+                      placeholder="Command (e.g. curl -f localhost/healthz)"
+                      value={form.healthCommand}
+                      onChange={(value) => setForm({ ...form, healthCommand: value })}
+                    />
+                    <Row gap="var(--space-3)" wrap>
+                      <NumberField ariaLabel="Interval seconds" placeholder="Interval (s)" value={form.healthIntervalSec} onChange={(value) => setForm({ ...form, healthIntervalSec: value })} />
+                      <NumberField ariaLabel="Timeout seconds" placeholder="Timeout (s)" value={form.healthTimeoutSec} onChange={(value) => setForm({ ...form, healthTimeoutSec: value })} />
+                      <NumberField ariaLabel="Retries" placeholder="Retries" value={form.healthRetries} onChange={(value) => setForm({ ...form, healthRetries: value })} />
+                      <NumberField
+                        ariaLabel="Start period seconds"
+                        placeholder="Start period (s)"
+                        value={form.healthStartPeriodSec}
+                        onChange={(value) => setForm({ ...form, healthStartPeriodSec: value })}
+                      />
+                    </Row>
+                  </Stack>
+                ) : null}
+              </Stack>
+            </Card>
+          </Grid>
 
-          <SectionHeader title="Port mappings" />
-          <RepeatableRowList
-            items={form.ports}
-            onChange={(ports) => setForm({ ...form, ports })}
-            createItem={(): PortBinding => ({ containerPort: 0, protocol: 'tcp' })}
-            addLabel="Add port"
-            renderRow={(port, index, update) => (
-              <>
-                <NumberField ariaLabel={`Container port ${index + 1}`} placeholder="Container port" value={port.containerPort || undefined} onChange={(value) => update({ containerPort: value ?? 0 })} />
-                <Select
-                  ariaLabel={`Protocol ${index + 1}`}
-                  value={port.protocol}
-                  options={[
-                    { value: 'tcp', label: 'tcp' },
-                    { value: 'udp', label: 'udp' },
-                  ]}
-                  onChange={(value) => update({ protocol: value === 'udp' ? 'udp' : 'tcp' })}
-                />
-                <NumberField ariaLabel={`Host port ${index + 1}`} placeholder="Host port" value={port.hostPort} onChange={(value) => update({ hostPort: value })} />
-              </>
-            )}
-          />
-
-          <SectionHeader title="Mounts" />
-          <RepeatableRowList
-            items={form.mounts}
-            onChange={(mounts) => setForm({ ...form, mounts })}
-            createItem={() => ({ type: 'bind', source: '', destination: '', readOnly: false })}
-            addLabel="Add mount"
-            renderRow={(mount, index, update) => (
-              <>
-                <TextField ariaLabel={`Source ${index + 1}`} placeholder="Source" value={mount.source} onChange={(value) => update({ source: value })} />
-                <TextField ariaLabel={`Destination ${index + 1}`} placeholder="Destination" value={mount.destination} onChange={(value) => update({ destination: value })} />
-                <Toggle ariaLabel={`Read only ${index + 1}`} label="ro" checked={mount.readOnly} onChange={(value) => update({ readOnly: value })} />
-              </>
-            )}
-          />
-
-          <SectionHeader title="Health check" />
-          <Toggle label="Enabled" checked={form.healthEnabled} onChange={(value) => setForm({ ...form, healthEnabled: value })} />
-          {form.healthEnabled ? (
-            <Stack gap="var(--space-2)">
-              <TextField
-                ariaLabel="Health check command"
-                placeholder="Command (e.g. curl -f localhost/healthz)"
-                value={form.healthCommand}
-                onChange={(value) => setForm({ ...form, healthCommand: value })}
-              />
-              <Row gap="var(--space-3)" wrap>
-                <NumberField ariaLabel="Interval seconds" placeholder="Interval (s)" value={form.healthIntervalSec} onChange={(value) => setForm({ ...form, healthIntervalSec: value })} />
-                <NumberField ariaLabel="Timeout seconds" placeholder="Timeout (s)" value={form.healthTimeoutSec} onChange={(value) => setForm({ ...form, healthTimeoutSec: value })} />
-                <NumberField ariaLabel="Retries" placeholder="Retries" value={form.healthRetries} onChange={(value) => setForm({ ...form, healthRetries: value })} />
-                <NumberField ariaLabel="Start period seconds" placeholder="Start period (s)" value={form.healthStartPeriodSec} onChange={(value) => setForm({ ...form, healthStartPeriodSec: value })} />
-              </Row>
+          <Card>
+            <Stack gap="var(--space-3)">
+              <SectionHeader variant="eyebrow" title="Environment variables" />
+              <KeyValueEditor pairs={form.env} onChange={(env) => setForm({ ...form, env })} name="Environment" />
             </Stack>
-          ) : null}
+          </Card>
 
-          <FormFooter dirty={dirty} saving={saving} onSave={handleSave} onCancel={cancelEdit} saveLabel="Save changes" />
+          <Card>
+            <Stack gap="var(--space-3)">
+              <SectionHeader variant="eyebrow" title="Port mappings" />
+              <RepeatableRowList
+                items={form.ports}
+                onChange={(ports) => setForm({ ...form, ports })}
+                createItem={(): PortBinding => ({ containerPort: 0, protocol: 'tcp' })}
+                addLabel="Add port"
+                renderRow={(port, index, update) => (
+                  <>
+                    <NumberField
+                      ariaLabel={`Container port ${index + 1}`}
+                      placeholder="Container port"
+                      value={port.containerPort || undefined}
+                      onChange={(value) => update({ containerPort: value ?? 0 })}
+                    />
+                    <Select
+                      ariaLabel={`Protocol ${index + 1}`}
+                      value={port.protocol}
+                      options={[
+                        { value: 'tcp', label: 'tcp' },
+                        { value: 'udp', label: 'udp' },
+                      ]}
+                      onChange={(value) => update({ protocol: value === 'udp' ? 'udp' : 'tcp' })}
+                    />
+                    <NumberField ariaLabel={`Host port ${index + 1}`} placeholder="Host port" value={port.hostPort} onChange={(value) => update({ hostPort: value })} />
+                  </>
+                )}
+              />
+            </Stack>
+          </Card>
+
+          <Card>
+            <Stack gap="var(--space-3)">
+              <SectionHeader variant="eyebrow" title="Mounts" />
+              <RepeatableRowList
+                items={form.mounts}
+                onChange={(mounts) => setForm({ ...form, mounts })}
+                createItem={() => ({ type: 'bind', source: '', destination: '', readOnly: false })}
+                addLabel="Add mount"
+                renderRow={(mount, index, update) => (
+                  <>
+                    <TextField ariaLabel={`Source ${index + 1}`} placeholder="Source" value={mount.source} onChange={(value) => update({ source: value })} />
+                    <TextField ariaLabel={`Destination ${index + 1}`} placeholder="Destination" value={mount.destination} onChange={(value) => update({ destination: value })} />
+                    <Toggle ariaLabel={`Read only ${index + 1}`} label="ro" checked={mount.readOnly} onChange={(value) => update({ readOnly: value })} />
+                  </>
+                )}
+              />
+            </Stack>
+          </Card>
+
+          {/*
+            Stated for the whole time the form is in editing, not once a group has been touched
+            (REQ-25): it says what a save *would* cost while the operator is still deciding. It adds
+            to the confirmation asked before a recreate and replaces nothing of it (REQ-26).
+          */}
+          <FormFooter
+            dirty={dirty}
+            saving={saving}
+            onSave={handleSave}
+            onCancel={cancelEdit}
+            saveLabel="Save changes"
+            note={RECREATE_NOTE}
+          />
         </Stack>
       );
     }

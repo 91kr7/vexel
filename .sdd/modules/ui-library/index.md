@@ -58,7 +58,7 @@
 | EndpointField | UI component | `client/src/ui/controls/EndpointField.tsx` | Endpoint form group: the endpoint kind and the single host value that kind needs, or the fixed host it uses | `specs/endpoint-field.md` |
 | KeyValueEditor | UI component | `client/src/ui/controls/KeyValueEditor.tsx` | Repeatable key/value row editor (e.g. environment variables), its add affordance a control drawn as one | `specs/key-value-editor.md` |
 | RepeatableRowList | UI component | `client/src/ui/controls/RepeatableRowList.tsx` | Generic repeatable list of custom-rendered rows with add/remove (e.g. ports, mounts), its add affordance a control drawn as one | `specs/repeatable-row-list.md` |
-| FormFooter | UI component | `client/src/ui/controls/FormFooter.tsx` | Save/cancel form footer with a dirty indicator | `specs/form-footer.md` |
+| FormFooter | UI component | `client/src/ui/controls/FormFooter.tsx` | Save/cancel form footer with a dirty indicator and an optional standing note stating what a save would cost | `specs/form-footer.md` |
 | FormField | UI component | `client/src/ui/controls/FormField.tsx` | Labelled form control with a hint line replaced by the validation message when invalid; its label carries the product's one label treatment, never a heading's | `specs/form-field.md` |
 | FormSection | UI component | `client/src/ui/controls/FormSection.tsx` | One titled group of fields inside a long, sectioned form — headed by SectionHeader and drawing no surface of its own, so a dialog of groups reads as one form rather than as boxes inside a box | `specs/form-section.md` |
 | Combobox | UI component | `client/src/ui/controls/Combobox.tsx` | Text input suggesting known (possibly asynchronously loaded) options while accepting any free text | `specs/combobox.md` |

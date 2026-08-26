@@ -88,11 +88,27 @@ Shows (Config tab, view mode):
   as its own column carries and the two — being of one measured width — show the same count as each
   other.
 Shows (Config tab, edit mode):
-- Restart policy (select) with a max-retries field shown only for `on-failure`, CPU/memory limit
-  fields, a key/value editor for environment variables, a repeatable row list for port mappings
-  (container port, protocol, host port) and one for mounts (source, destination, read-only), a
-  health-check toggle revealing command/interval/timeout/retries/start-period fields when enabled,
-  and a form footer (save/cancel, dirty indicator).
+- **Five groups, each inside a container of its own** (REQ-23) — `Runtime`, `Health check`,
+  `Environment variables`, `Port mappings` and `Mounts` — instead of five headings on one continuous
+  ground. Each is a `Card` holding its own `SectionHeader` and its own fields; `Port mappings` and
+  `Mounts` are treated exactly like the three the mock draws, so no group is left on the old ground.
+- **`Runtime` and `Health check` side by side** (REQ-24), in the library's named `pair` arrangement
+  (`Grid arrangement="pair"`) — the same one the reading view uses — so the two small groups stack,
+  each at full width, when the dialog cannot carry both. `Environment variables`, `Port mappings` and
+  `Mounts` follow underneath, one per row, at full width.
+- `Runtime` — restart policy (select) with a max-retries field shown only for `on-failure`, and the
+  CPU and memory limit fields.
+- `Health check` — the `Enabled` toggle, revealing the command, interval, timeout, retries and
+  start-period fields when it is on. Revealing them moves no edge of the dialog (REQ-2): the group
+  grows inside the tab's scrolled document, which the stable height already bounds.
+- `Environment variables` — the key/value editor. `Port mappings` — the repeatable row list of
+  container port, protocol and host port. `Mounts` — the repeatable row list of source, destination
+  and read-only.
+- A form footer (save/cancel, dirty indicator) closing the column, **stating for the whole time the
+  form is in editing that Environment and Mounts changes require the container to be recreated**
+  (REQ-25). The statement is present from the moment the form opens: it says what *would* cost a
+  recreate, and is not conditional on either group having been touched. It is a statement and not a
+  question — nothing about the save is decided on it.
 Shows (Inspect tab):
 - A `DefinitionList` of id, name, image, command, entrypoint, created date, state, started/finished
   dates and exit code; collapsible sections for networks, labels and (when the container defines a
@@ -117,7 +133,10 @@ Actions:
   - only restart policy and/or resource limits changed → applied directly, no warning.
   - env, ports, mounts or health check changed → the operator is asked to confirm a recreate first
     (via the shell's confirmation service, naming the container and stating the consequence);
-    declining leaves the container and its configuration unchanged.
+    declining leaves the container and its configuration unchanged. **The footer's standing statement
+    does not replace this confirmation** (REQ-26): the operator is still asked, explicitly, before the
+    container is stopped, removed and recreated, and refusing there still abandons the save. The
+    footer says it earlier as well, not instead.
   - the outcome (`in-place` or `recreate`) is reported via a toast; on `recreate`,
     `onContainerReplaced` is called with the new container id and the panel returns to view mode
     showing the new container's data; on `in-place`, the panel re-reads the same container.
@@ -149,8 +168,9 @@ Actions:
 - Switching `container` (a different container's detail opened) resets edit mode and any in-progress
   edit.
 - The Exec and Attach tabs are only offered for a running container.
-- **The file states no column count, no track template, no width, no `style` and no CSS import**, and
-  the editing form is not part of that arrangement: it is exactly as delivered.
+- **The file states no column count, no track template, no width, no `style` and no CSS import** —
+  the editing form included: its groups are the library's `Card`, and its two-column head is the
+  library's named `pair` arrangement, so the file asks for shapes and never for tracks.
 - The save action is disabled while there is nothing to save (no field differs from the value edit
   mode was seeded with) and while a save is in flight.
 - **The panel is the primitive, and the three things it must not lose are named**
@@ -178,7 +198,7 @@ Actions:
 - ContainerStatsView
 - ContainerProcessesView
 - ContainerSessionView
-- ui-library: BandStack, ScrollArea, Tabs, DefinitionList, Badge, Chip, CollapsibleSection, CodeViewer, Select, NumberField,
+- ui-library: BandStack, ScrollArea, Tabs, DefinitionList, Badge, Card, Chip, CollapsibleSection, CodeViewer, Grid, Select, NumberField,
   Toggle, TextField, KeyValueEditor, RepeatableRowList, FormFooter, SectionHeader, Row, Spacer, Stack,
   Button, ErrorBanner, EmptyState, useToast
 - Containers client (updateContainerConfig)
@@ -225,3 +245,7 @@ Actions:
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-20
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-21
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-22
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-23
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-24
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-25
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-26

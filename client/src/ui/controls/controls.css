@@ -746,6 +746,13 @@
   color: var(--color-text-muted);
 }
 
+/* The standing consequence, in the cautioning tone: stated while the operator
+   is still deciding, so it reads above the indicator rather than beside it. */
+.ui-form-footer__note {
+  font-size: var(--font-size-xs);
+  color: var(--color-warning);
+}
+
 .ui-segmented {
   display: inline-flex;
   padding: 2px;
