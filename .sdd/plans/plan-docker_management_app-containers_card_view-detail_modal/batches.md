@@ -13,8 +13,8 @@ intervention ids are local to each batch file.
 
 | Batch | Feature | REQ closed | Depends | Status | Human acceptance |
 | --- | --- | --- | --- | --- | --- |
-| `container-detail-modal` | F1 — The container detail opens in a modal from the card's control, and the card stops being clickable | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-9, REQ-10, REQ-11, REQ-12, REQ-13, REQ-14, REQ-15, REQ-16, REQ-17, REQ-18, REQ-19, REQ-20, REQ-21, REQ-22, REQ-23, REQ-24, REQ-25, REQ-26, REQ-27, REQ-28, REQ-29, REQ-30, REQ-31 | — | implemented | The container's detail opens in a dialog from the card's corner control, and the list underneath does not move |
-| `modal-container-bond` | F2 — The modal is bound to its container, not to the list | REQ-32, REQ-33, REQ-34, REQ-35, REQ-36 | `container-detail-modal` | implemented | A container removed while its detail is open says so, instead of showing data that has stopped |
+| `container-detail-modal` | F1 — The container detail opens in a modal from the card's control, and the card stops being clickable | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-9, REQ-10, REQ-11, REQ-12, REQ-13, REQ-14, REQ-15, REQ-16, REQ-17, REQ-18, REQ-19, REQ-20, REQ-21, REQ-22, REQ-23, REQ-24, REQ-25, REQ-26, REQ-27, REQ-28, REQ-29, REQ-30, REQ-31 | — | certified | The container's detail opens in a dialog from the card's corner control, and the list underneath does not move |
+| `modal-container-bond` | F2 — The modal is bound to its container, not to the list | REQ-32, REQ-33, REQ-34, REQ-35, REQ-36 | `container-detail-modal` | certified | A container removed while its detail is open says so, instead of showing data that has stopped |
 
 **Why this order.** `modal-container-bond` cannot precede `container-detail-modal`: there is no modal
 to bond to a container before it.
@@ -37,36 +37,40 @@ library's `Modal`, `FormSheet` and `Combobox` keep exactly the behaviour they ha
 left it, its only hazard having been the widening that is gone. Recorded here so the withdrawal is
 found by anyone who hears the idea a second time.
 
-## The test phase was cut short — what that leaves standing
+## The test phase was cut short, then resumed and closed
 
-**On 2026-08-26 the human asked to skip the tests and close the plan on the development.** Both
-batches therefore stand at `implemented` and neither is `certified`: in this workflow green tests are
-what certify, so nothing here claims a certification that was not earned. Recorded so the gap is read
-as a decision, and so whoever picks the coverage up knows exactly where it was put down.
+**On 2026-08-26 the human asked to skip the tests and close the plan on the development**, and later
+the same day asked to run them after all. Recorded because the gap was a decision, and because the
+work came back in a different order than the command's own loop: `modal-container-bond` was
+developed while `container-detail-modal` still carried three red checks, so its developer built on
+an uncertified predecessor and said so.
 
-`container-detail-modal` was tested, and its run is the reason two requirements were amended above.
-Its coverage is written and committed — 430 unit checks passing, the blur-policy, UI-conformance,
-escape-dismissal, selectable-accent and images panel checks green and unedited — but **three e2e
-checks are left red**, and none of the three is a defect in the product:
+Both batches are now `certified`. What the resumed run closed:
 
-| check | why it is red |
+| check | how it was closed |
 | --- | --- |
-| `container-detail-switch-surface.spec.ts` | asserts REQ-25's **pre-amendment** wording, "the modal's viewport box unchanged". The narrowed requirement asks for the absence of a drag and the switch's presence in the viewport. The check is to be restated, not the code changed. |
-| `container-detail-property-columns.spec.ts` (2 tests) | red against the pre-fix 1100px dialog. The `fluidWidth` fix measured 1 column at 720, 2 at 1280, 4 at 1920 and 6 at 2560 in Chromium against the built stylesheet, clearing all three ceilings — but **nobody has run these two tests since the fix landed**. |
-| `dialog-sizing.spec.ts:433` | turned red **by design** by that same fix: it expects `min(1100, 0.92w)` = 1100 at 1280 and now measures 1177.6. Its `largeDialogWidth` helper (line 40) is shared with the layer explorer and filesystem browser, which must keep the capped value, so the container detail needs its own expected width rather than an edit to the helper. |
+| `container-detail-switch-surface.spec.ts` | restated against REQ-25's narrowed wording. A new `clickAndExpectSurfaceNotDragged` in `client/e2e/support/surface-stability.ts` asserts the centre held **and** the top edge moved exactly minus half the growth, so a dialog that both grew and was dragged cannot pass on the centre alone; bug-2's 1044px drag changed no height and fails it by 1044px. The create sheet keeps the stricter `clickAndExpectSurfaceUnmoved`. |
+| `container-detail-property-columns.spec.ts` | green through the suite, 8/8: 2 columns at 1280, 4 at 1920, 6 at 2560, all three ceilings cleared. |
+| `dialog-sizing.spec.ts:433` | the container detail gets its own `fluidLargeDialogWidth`; `largeDialogWidth` is untouched and still the expectation for the layer explorer and filesystem browser, with a comment against folding them together. **It then failed by 0.006px**: `expectDesignedWidth` compares the content column to the constant too, and the 2px hairline slack is exact only while the designed width is an integer — `92vw` is fractional. Resolved by **tightening** the card assertion to 1px and leaving the content ↔ card agreement to `expectCardIsTheSizeOfItsContent`, the property REQ-1/REQ-2 actually name. |
+| `containers-screen.test.tsx`, *"closes when its container leaves the list"* | rewritten by `modal-container-bond`'s INT-2 as the stated end state, which is what REQ-33/34/36 replace it with. |
 
-`modal-container-bond` was **not tested at all**. Its INT-2 and INT-3 are the outstanding work:
+One flake was found and fixed on the way: `containers.spec.ts` read the dialog's box the instant it
+opened, before the Config tab's inspect data landed, so a comparison across a keystroke could report
+the content's arrival as a displacement. A `settledDialogBox` helper now waits for the content;
+confirmed over three consecutive full-file runs.
 
-- **INT-2** — `client/test/unit/containers-screen.test.tsx` **lines 1070–1082**,
-  `it('closes when its container leaves the list')`, asserts the silent close that REQ-33/34/36
-  replace. It **fails today, by design**; it is INT-2's to rewrite, and its own comment already names
-  this batch as where that answer is restated.
-- **INT-3** — `client/e2e/containers.spec.ts` carries **no** case driving a removal under an open
-  dialog, so all four of INT-3's events are genuinely new, not restatements.
+**Closing run** — whole client suite **2353 passed / 0 failed** (168 files), lint and UI-conformance
+green, and the complete Playwright suite **588 passed / 1 failed / 2 skipped**, plus the `exclusive`
+project **11/11** run separately (it had been skipped by the project dependency).
 
-Standing coverage as last measured: `npm run test:unit -s -w client` → **1 failed / 2344 passed**,
-that one failure being INT-2's above. Build, lint and the UI-conformance check are green on both
-batches, and the client test tree typechecks clean.
+**The one e2e failure is outside this plan's perimeter and is not a regression of it**:
+`client/e2e/classic-table-criteria.spec.ts:381`, the networks chips on the volumes/networks screen.
+It reproduces on its own, twice, on two different assertions — the detach control measured at
+y 1041.25 in a 720px viewport, and the detach then not removing the container from its network. This
+branch never touched that spec, the volumes/networks sources, `DetailPanel` or the table components;
+its only library changes are `Modal.tsx`, whose two new branches are gated on opt-ins that only
+`ContainersScreen` requests, and one `feedback.css` rule gated on that same opt-in plus one
+compounded on the fluid-width class. Left standing as a known red outside this plan.
 
 ## Departures from the spec
 
