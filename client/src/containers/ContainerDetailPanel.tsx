@@ -504,12 +504,10 @@ export function ContainerDetailPanel({ container, onContainerReplaced }: Contain
           <ContainerStatsView container={container} />
         </ScrollArea>
       );
-    if (activeTab === 'processes')
-      return (
-        <ScrollArea>
-          <ContainerProcessesView container={container} />
-        </ScrollArea>
-      );
+    // Not a document that scrolls inside the region: the process table takes the region and
+    // scrolls inside itself, as the logs and the sessions do (tabs_composition_refactor/REQ-32).
+    // Wrapped in a scroller it would be handed no definite height and could take none.
+    if (activeTab === 'processes') return <ContainerProcessesView container={container} />;
     // Unmounting the view is what closes the interactive session (REQ-36).
     if (activeTab === 'exec') return <ContainerSessionView container={container} kind="exec" />;
     if (activeTab === 'attach') return <ContainerSessionView container={container} kind="attach" />;

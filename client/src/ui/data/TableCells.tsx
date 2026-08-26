@@ -71,6 +71,32 @@ export function TwoLineCell({ title, subtitle, action, wrap = false }: TwoLineCe
   );
 }
 
+/**
+ * The reading at or above which a load percentage is drawn distinguished in its
+ * column (`MetaCell tone="attention"`), so the one row worth looking at is found
+ * without reading every row.
+ *
+ * **70, and taken from the product's own existing line rather than invented.**
+ * It is the reading at which the container detail's Stats tab already turns a
+ * load meter to its warning tone, so one detail states one boundary for "this
+ * reading is worth a second look" instead of two. A lower line — the ~10 the
+ * mock's `%CPU` figures imply — tones the ordinary: a share-of-one-CPU reading
+ * in the low tens is what any process doing periodic work reports, and a column
+ * where most rows are coloured re-creates in colour the reading problem the
+ * distinction exists to remove. At 70 the rows that carry it are the ones
+ * genuinely close to saturating a core.
+ *
+ * Exported so a caller names it instead of restating the figure, and so the
+ * value has one place to change.
+ */
+export const LOAD_ATTENTION_PERCENT = 70;
+
+/**
+ * The one distinguished state a value cell has: this reading is the one to look
+ * at. It carries no severity of its own — it says "notable", not "failing".
+ */
+export type MetaCellTone = 'attention';
+
 export interface MetaCellProps {
   children?: ReactNode;
   /** Wraps long unbroken values (e.g. a PATH-style env line) instead of overflowing; off by default so dense table columns keep truncating normally. */
@@ -83,6 +109,12 @@ export interface MetaCellProps {
    * daemon genuinely cannot provide (as opposed to one that is merely empty).
    */
   unavailableReason?: string;
+  /**
+   * Draws the value distinguished from the others in its column. A cell with
+   * nothing to show is never toned: the placeholder is the same whatever the
+   * caller asks for.
+   */
+  tone?: MetaCellTone;
 }
 
 /**
@@ -92,7 +124,7 @@ export interface MetaCellProps {
  * tooltip (native `title`), so a row never grows taller than its fixed
  * height regardless of content length.
  */
-export function MetaCell({ children, wrap = false, title, unavailableReason }: MetaCellProps) {
+export function MetaCell({ children, wrap = false, title, unavailableReason, tone }: MetaCellProps) {
   const className = wrap ? 'ui-table-meta-cell ui-table-meta-cell--wrap' : 'ui-table-meta-cell ui-truncating-line';
   // An empty string is as absent as `undefined` here: a caller that has no
   // value to show writes one or the other depending on how it computed it, and
@@ -114,7 +146,7 @@ export function MetaCell({ children, wrap = false, title, unavailableReason }: M
   }
   const tooltip = title ?? (typeof children === 'string' || typeof children === 'number' ? String(children) : undefined);
   return (
-    <span className={className} title={tooltip}>
+    <span className={tone ? `${className} ui-table-meta-cell--tone-${tone}` : className} title={tooltip}>
       {children}
     </span>
   );

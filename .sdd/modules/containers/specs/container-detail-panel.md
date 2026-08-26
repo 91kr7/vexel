@@ -52,7 +52,8 @@ Shows (Logs tab):
 Shows (Stats tab):
 - The container's `ContainerStatsView`; the inspect data is neither needed nor awaited for it.
 Shows (Processes tab):
-- The container's `ContainerProcessesView`; the inspect data is neither needed nor awaited for it.
+- The container's `ContainerProcessesView`, handed the region itself rather than a document scroller
+  inside it; the inspect data is neither needed nor awaited for it.
 Shows (Exec tab):
 - The container's `ContainerSessionView` with `kind="exec"`; the inspect data is neither needed nor
   awaited for it.
@@ -157,9 +158,12 @@ Actions:
   the region, never where the region is.
 - **A tab taller than the region scrolls inside the region**, never outside the card and never on the
   page behind it: the tab row and the dialog's own chrome stay put and every tab stays reachable
-  however long the active one is. A tab that is a document (Config, Stats, Processes, Inspect) scrolls
-  as one; a tab that is a surface of its own (Logs, Exec, Attach) fills the region and scrolls inside
-  itself.
+  however long the active one is. A tab that is a document (Config, Stats, Inspect) scrolls
+  as one; a tab that is a surface of its own (Logs, Processes, Exec, Attach) fills the region and
+  scrolls inside itself. **Processes moved from the first group to the second**: its table takes the
+  region's height and scrolls and virtualises inside itself, which a tab wrapped in a document
+  scroller could not do — inside one it is offered no definite height at all
+  (`container-processes-view.md`).
 - Only the active tab's content exists: leaving the Stats tab (switching tab, or the dialog being
   dismissed by either route) unmounts the stats view and thereby stops the live stats stream
   (REQ-32); leaving the Exec or Attach tab likewise closes the interactive session (REQ-36). Nothing
@@ -249,3 +253,4 @@ Actions:
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-24
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-25
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-26
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-32

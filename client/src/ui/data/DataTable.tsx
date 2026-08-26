@@ -78,6 +78,16 @@ export interface DataTableProps<T> {
    * a header tall.
    */
   maxHeight?: string;
+  /**
+   * The list's bound is the region it is placed in rather than a stated
+   * `maxHeight`, with virtualisation working exactly as it does under one: the
+   * window is measured from the scroll container itself, so it follows the
+   * region as the region follows the screen. The same opt-in `TreeView`,
+   * `LogStream` and `SessionSurface` carry, under the same name.
+   *
+   * A list that states neither is unbounded and renders every row, unchanged.
+   */
+  fill?: boolean;
   selectedRowKey?: string;
   onRowSelect?: (row: T) => void;
   emptyState?: ReactNode;
@@ -176,6 +186,7 @@ export function DataTable<T>({
   rowKey,
   rowHeight = 56,
   maxHeight,
+  fill = false,
   selectedRowKey,
   onRowSelect,
   emptyState,
@@ -209,7 +220,7 @@ export function DataTable<T>({
 
   useLayoutEffect(() => {
     measureViewport();
-  }, [maxHeight, rows.length, hideHeader]);
+  }, [maxHeight, fill, rows.length, hideHeader]);
 
   function handleScroll(event: UIEvent<HTMLDivElement>) {
     setScrollTop(event.currentTarget.scrollTop);
@@ -264,15 +275,17 @@ export function DataTable<T>({
     });
     observer.observe(pan);
     return () => observer.disconnect();
-  }, [expandedRowKey, rows.length, columns.length, maxHeight, autoRowHeight]);
+  }, [expandedRowKey, rows.length, columns.length, maxHeight, fill, autoRowHeight]);
 
   const columnTracks = columns.map((column) => columnTrack(column));
   const gridTemplateColumns = (selection ? ['36px', ...columnTracks] : columnTracks).join(' ');
   const headerRowStyle: CSSProperties = { gridTemplateColumns };
 
-  // A content-sized row has no height known before it is rendered, so that mode
-  // makes its own trade: every row mounted, `maxHeight` still scrolling.
-  const virtualized = Boolean(maxHeight) && !autoRowHeight;
+  // Either bound — a stated maximum or the region the list fills — turns
+  // virtualisation on. A content-sized row has no height known before it is
+  // rendered, so that mode makes its own trade: every row mounted, the bound
+  // still scrolling.
+  const virtualized = (Boolean(maxHeight) || fill) && !autoRowHeight;
   // The rows begin one header down the scrolling box, so the offset the window
   // is computed from is the scroll position minus that header. The window is
   // still measured over the whole viewport rather than over the part the sticky
@@ -303,7 +316,7 @@ export function DataTable<T>({
   const topSpacerHeight = virtualized ? startIndex * rowHeight : 0;
   const bottomSpacerHeight = virtualized ? (rows.length - endIndex) * rowHeight : 0;
 
-  const tableClasses = ['ui-data-table', nested ? 'ui-data-table--nested' : ''].filter(Boolean).join(' ');
+  const tableClasses = ['ui-data-table', fill ? 'ui-data-table--fill' : '', nested ? 'ui-data-table--nested' : ''].filter(Boolean).join(' ');
 
   return (
     // The list region is where the point of interaction returns when a surface

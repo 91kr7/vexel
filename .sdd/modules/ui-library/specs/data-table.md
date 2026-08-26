@@ -33,7 +33,7 @@ this one — each row on a card of its own under a floating header — was retir
 
 ## Contract
 
-- `<DataTable columns rows rowKey rowHeight? maxHeight? selectedRowKey? onRowSelect?
+- `<DataTable columns rows rowKey rowHeight? maxHeight? fill? selectedRowKey? onRowSelect?
   emptyState? expandedRowKey? renderExpanded? renderRowContent? selection? hideHeader? nested?
   autoRowHeight? />`
   - `columns: DataTableColumn<T>[]` — `{ id, header, width?, minWidth?, align?, render(row) }`;
@@ -55,6 +55,14 @@ this one — each row on a card of its own under a floating header — was retir
     alone, the header standing above the cap, so a list stated at `60vh` was 60vh plus a header
     tall. The header is now inside the box that scrolls — see "A row and the header share one width"
     below, which is why — and the cap covers both.
+  - `fill?: boolean` (default `false`) — the list's bound is **the region it is placed in** rather
+    than a stated `maxHeight`, and virtualisation works exactly as it does under one: the window is
+    measured from the scroll container itself, so it follows the region as the region follows the
+    screen. The same opt-in, under the same name, that `TreeView`, `LogStream` and `SessionSurface`
+    carry — one idiom for "bounded by the region I am placed in, virtualisation preserved" and not a
+    second one. The scrolling box is still the single box holding the sticky header and the rows, so
+    the column-to-label alignment guarantee below is untouched. A list stating neither `maxHeight`
+    nor `fill` is unbounded and renders every row, unchanged.
   - `selectedRowKey?: string`, `onRowSelect?(row)` — clicking a row calls `onRowSelect`; the row
     whose key matches `selectedRowKey` renders in its selected state.
   - `emptyState?: ReactNode` — shown instead of the header/body rows when `rows` is empty.
@@ -213,6 +221,11 @@ Description:
     have; it is not a hand-tuned width, and it is the prop's stated purpose since it was added.
     `ContainerProcessesView`'s `Command` column is the case this is written for — the only caller in
     the client that declares one.
+- **`maxHeight` and `fill` are the two ways a list is bounded, and they are one behaviour.** Either
+  one turns virtualisation on; the second is the first with the bound coming from the region instead
+  of from a length. A caller that states neither is unbounded, and a caller that states `maxHeight`
+  alone gets exactly the delivered path — `autoRowHeight` included, which keeps turning
+  virtualisation off in both modes.
 - Virtualisation only accounts for the fixed `rowHeight` of each row when reserving scroll-window
   space; an expanded row's extra height is not reserved (spacer heights stay an approximation).
   Acceptable for the moderate list sizes this table serves; a future batch revisits it if a screen
@@ -301,3 +314,4 @@ Description:
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-39
 - plan-docker_management_app-containers_card_view/REQ-62
 - plan-docker_management_app-containers_card_view/REQ-63
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-32

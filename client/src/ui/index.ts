@@ -103,6 +103,8 @@ export {
   type TwoLineCellProps,
   MetaCell,
   type MetaCellProps,
+  type MetaCellTone,
+  LOAD_ATTENTION_PERCENT,
   IdentifierCell,
   type IdentifierCellProps,
   BadgeListCell,

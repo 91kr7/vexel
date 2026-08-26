@@ -24,7 +24,7 @@ badges with an overflow indicator, and a magnitude bar sized relative to the col
   subtitle drops the monospace treatment (reserved for machine values) since a wrapping secondary
   line is a sentence. For a content-sized row only (`DataTable autoRowHeight`): in a fixed-height
   row the extra lines would be clipped.
-- `<MetaCell children? wrap? title? unavailableReason? />` — muted monospace text for a
+- `<MetaCell children? wrap? title? unavailableReason? tone? />` — muted monospace text for a
   numeric/meta value (CPU, memory, ports, uptime, …); renders `'–'` when `children` is empty —
   `undefined`, `null` and the empty string are all empty, and read identically. Single
   line by default: overflowing text ellipsis-truncates instead of wrapping or growing the row, with
@@ -33,6 +33,14 @@ badges with an overflow indicator, and a magnitude bar sized relative to the col
   PATH-style line) onto multiple lines within the cell. When `children` is empty and
   `unavailableReason` is given, renders `'unavailable'` instead of `'–'`, with the reason as a
   tooltip — for a value the source genuinely cannot provide, as opposed to one merely absent.
+  `tone: 'attention'` draws the value distinguished from the others in its column — colour alone,
+  the type, the size and the alignment unchanged, so the column still scans as one column. **A cell
+  with nothing to show is never toned**: the `'–'` and the `'unavailable'` states are drawn the same
+  whatever the caller asks for. One tone and no severity scale: it says "this is the reading to look
+  at", not "this is failing".
+- `LOAD_ATTENTION_PERCENT` — the reading at or above which a load percentage in a column is toned
+  `'attention'`. Exported so a caller names it instead of restating the figure, and so the boundary
+  has one place to change.
 - `<IdentifierCell value? maxChars? />` — an opaque identifier (hash, digest, key) in monospace.
   Renders `'–'` when `value` is empty. When `maxChars` is given and the value is longer, the value is
   cut at its tail and the cut is marked with an ellipsis character, so every row shows the same
@@ -62,6 +70,14 @@ badges with an overflow indicator, and a magnitude bar sized relative to the col
   truncated or clipped, never wrapped. The two opt-in exceptions — `MetaCell wrap` and
   `TwoLineCell wrap` — are for a table that has given up fixed row heights (`DataTable
   autoRowHeight`), and are the only way text reads in full inside a cell.
+- **The threshold is 70, and it is the product's own existing line rather than an invented one.**
+  The container detail's Stats tab already turns a load meter to its warning tone at 70 and to its
+  danger tone at 90, so one detail states one boundary for "this reading is worth a second look"
+  instead of two, and the toned cell takes the same warning role the meter does. A lower line — the
+  ~10 implied by the mock's `%CPU` figures, which the mock offers as a proposal and not as a decided
+  value — tones the ordinary: a share-of-one-CPU reading in the low tens is what any process doing
+  periodic work reports, and a column in which most rows are coloured re-creates in colour the
+  reading problem the distinction exists to remove.
 - **That one line is the library's truncation contract, not a second implementation of it**
   (`truncation-contract.md`): `IdentifierCell`, `MetaCell` and both lines of `TwoLineCell` take the
   contract's line class, and `TwoLineCell`'s inline action takes its meta class, so the rule a card
@@ -100,3 +116,4 @@ badges with an overflow indicator, and a magnitude bar sized relative to the col
 - plan-ui-coherence-optimisation/REQ-17
 - plan-ui-coherence-optimisation/REQ-18
 - plan-ui-coherence-optimisation/REQ-19
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-33

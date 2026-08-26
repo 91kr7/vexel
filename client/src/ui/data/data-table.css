@@ -18,6 +18,22 @@
   min-width: min-content;
 }
 
+/* `fill`: the list's bound comes from the region it is placed in — it fills that
+   region and its scrollport takes whatever is left inside it, which is the
+   definite height the virtualised window is measured against. The same two rules
+   `TreeView` carries, on the same opt-in. The scrollport is still the one box
+   holding the sticky header and the rows, so the alignment guarantee above is
+   untouched. */
+.ui-data-table--fill {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.ui-data-table--fill > .ui-scroll-area {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 /* The region is focusable only to receive the point of interaction back; a ring
    around the whole list would read as a selection of it, so it is drawn for the
    keyboard alone and never for a pointer-driven dismissal. */
@@ -402,6 +418,15 @@
 
 .ui-table-meta-cell--unavailable {
   font-style: italic;
+}
+
+/* The one reading in a column worth looking at, told apart from the rest by
+   colour alone: the row keeps its type, its size and its alignment, so the
+   column still scans as one column. The warning role is the same one a load
+   meter takes at the same threshold, which is what makes the two readings of
+   one detail agree. */
+.ui-table-meta-cell--tone-attention {
+  color: var(--color-warning);
 }
 
 .ui-table-proportion-bar-cell {
