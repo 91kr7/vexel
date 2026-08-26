@@ -143,8 +143,9 @@ const EXCLUDED_BY_NAME: {
     matches: (list) => list.headers.length === 3 && list.headers[0] === '' && list.headers[1] === 'PATH',
   },
   {
-    callSite: 'ContainerProcessesView.tsx:50',
-    reason: "the process list inside a container's detail panel, with a row height and a cap of its own",
+    callSite: 'ContainerProcessesView.tsx:84',
+    reason:
+      "the process list inside a container's detail dialog, with a row height of its own and bounded by the region its tab offers rather than by a cap (tabs_composition_refactor/REQ-32)",
     metOn: null,
     matches: (list) => list.headers.includes('PID') && list.headers.includes('Command'),
   },
@@ -582,7 +583,7 @@ test('the exclusions the walk cannot reach still name the lists they were writte
   }).toPass({ timeout: 30_000 });
 
   const onTheScreen = await measureEveryList(page);
-  const processes = EXCLUDED_BY_NAME.find((candidate) => candidate.callSite === 'ContainerProcessesView.tsx:50')!;
+  const processes = EXCLUDED_BY_NAME.find((candidate) => candidate.callSite === 'ContainerProcessesView.tsx:84')!;
   const matched = onTheScreen.filter(({ list }) => processes.matches(list, 'containers'));
   console.log(
     `[b4/INT-4] 1440×1000 containers with a panel open: ${onTheScreen.length} table(s) drawn — ${JSON.stringify(
@@ -591,6 +592,6 @@ test('the exclusions the walk cannot reach still name the lists they were writte
   );
   expect(
     matched.length,
-    `ContainerProcessesView.tsx:50: the exclusion matched ${matched.length} of the ${onTheScreen.length} lists on screen, where it names one`,
+    `ContainerProcessesView.tsx:84: the exclusion matched ${matched.length} of the ${onTheScreen.length} lists on screen, where it names one`,
   ).toBe(1);
 });

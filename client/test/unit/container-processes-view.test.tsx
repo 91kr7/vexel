@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { LOAD_ATTENTION_PERCENT } from '../../src/ui';
 import { ContainerProcessesView } from '../../src/containers/ContainerProcessesView';
 import type { ContainerSummary } from '../../src/data/containers-client';
 import type { ContainerProcessList } from '../../src/data/container-stats-client';
@@ -116,6 +117,79 @@ describe('ContainerProcessesView (REQ-33)', () => {
     expect(dom.textContent).toContain('3.5');
     expect(dom.textContent).toContain('0.4');
     expect(screen.getAllByText('–').length).toBeGreaterThanOrEqual(2);
+  });
+
+  /*
+    tabs_composition_refactor/REQ-33 — "a `%CPU` value above a threshold is distinguished from the
+    others in its column, so the consuming process is found without reading every row".
+
+    The threshold is named, never restated: overruling the figure must move these fixtures with it
+    rather than leaving a check that passes on the old boundary. The distinction itself is a
+    treatment, and jsdom loads no stylesheet, so it is read as the class the cell takes on top of the
+    one the rest of its column takes — what that class then draws is `table-cells.test.tsx`'s.
+  */
+  describe('the %CPU column (tabs_composition_refactor/REQ-33)', () => {
+    const readings: ContainerProcessList = {
+      titles: ['PID', 'USER', '%CPU', '%MEM', 'CMD'],
+      // Every value distinct, so a cell is found by what it reads and no assertion lands on the
+      // wrong row's.
+      processes: [
+        { pid: 1, user: 'first', command: 'at-the-threshold', cpuPercent: LOAD_ATTENTION_PERCENT, memoryPercent: 0.1 },
+        { pid: 2, user: 'second', command: 'above-the-threshold', cpuPercent: LOAD_ATTENTION_PERCENT + 12.5, memoryPercent: 0.2 },
+        { pid: 3, user: 'third', command: 'below-the-threshold', cpuPercent: LOAD_ATTENTION_PERCENT - 0.5, memoryPercent: 0.3 },
+        { pid: 4, user: 'fourth', command: 'no-reading-at-all', memoryPercent: LOAD_ATTENTION_PERCENT + 18.25 },
+      ],
+    };
+
+    /** The cell drawn for one value, wherever in the table it sits. */
+    function cell(dom: HTMLElement, text: string): HTMLElement {
+      const found = [...dom.querySelectorAll<HTMLElement>('.ui-data-table__cell span')].filter((node) => node.textContent === text);
+      expect(found.length, `the table draws ${found.length} cells reading "${text}"`).toBe(1);
+      return found[0]!;
+    }
+
+    function classesOf(node: HTMLElement): string[] {
+      return node.className.split(' ').filter((name) => name !== '');
+    }
+
+    async function renderReadings() {
+      nextResult = { ok: true, status: 200, body: readings };
+      const { container: dom } = render(<ContainerProcessesView container={container} />);
+      await screen.findByText('below-the-threshold');
+      return dom;
+    }
+
+    it('draws a reading at or above the threshold distinguished from one below it', async () => {
+      const dom = await renderReadings();
+
+      const below = classesOf(cell(dom, `${LOAD_ATTENTION_PERCENT - 0.5}%`));
+      for (const value of [LOAD_ATTENTION_PERCENT, LOAD_ATTENTION_PERCENT + 12.5]) {
+        expect(
+          classesOf(cell(dom, `${value}%`)),
+          `${value}% is drawn exactly as ${LOAD_ATTENTION_PERCENT - 0.5}% is, so the consuming process is found only by reading every row`,
+        ).not.toEqual(below);
+      }
+    });
+
+    it('leaves the readings below the threshold, and the dash, exactly as they were', async () => {
+      const dom = await renderReadings();
+
+      const plain = classesOf(cell(dom, '0.3%'));
+      expect(classesOf(cell(dom, `${LOAD_ATTENTION_PERCENT - 0.5}%`)), 'a reading below the threshold is distinguished too').toEqual(plain);
+      expect(classesOf(cell(dom, '–')), 'the dash is toned, and there is no reading there to distinguish').toEqual(plain);
+    });
+
+    it('tones that column and no other', async () => {
+      const dom = await renderReadings();
+
+      // The fourth process reports no %CPU at all and a %MEM well above the threshold: the tone
+      // belongs to the %CPU column, not to a load reading wherever it appears in the row.
+      const plain = classesOf(cell(dom, '0.3%'));
+      expect(classesOf(cell(dom, `${LOAD_ATTENTION_PERCENT + 18.25}%`)), 'the %MEM column is toned as well').toEqual(plain);
+      for (const text of ['no-reading-at-all', 'fourth', '4']) {
+        expect(classesOf(cell(dom, text)), `the ${text} cell is toned, and the tone belongs to the %CPU column`).toEqual(plain);
+      }
+    });
   });
 
   // container-processes-view.md — a placeholder stands in until the first read completes

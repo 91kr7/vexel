@@ -300,7 +300,11 @@ describe('REQ-83 — the UI boundary holds absolutely', () => {
   // nor any other token category — a column track's width and a pane's maximum height — and they
   // are declared here by the props that carry them so that a new one, of any other kind, fails.
   it('states no length in feature code but a track width or a pane’s own maximum', () => {
-    const declaredNonTokenLengths = ['width', 'minWidth', 'maxWidth', 'maxHeight', 'startWidth', 'MAX_TABLE_HEIGHT'];
+    // `MAX_TABLE_HEIGHT` stood here while the container detail's process table pinned its own
+    // 320px; the table now takes the height its tab offers
+    // (tabs_composition_refactor/REQ-32), so the entry is removed rather than left standing — an
+    // allowance nobody is using is how the pin would be readmitted without anyone noticing.
+    const declaredNonTokenLengths = ['width', 'minWidth', 'maxWidth', 'maxHeight', 'startWidth'];
     const lengths: string[] = [];
     for (const path of featureFiles()) {
       readFileSync(path, 'utf8')

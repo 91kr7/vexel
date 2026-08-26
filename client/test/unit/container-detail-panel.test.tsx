@@ -114,6 +114,13 @@ beforeEach(() => {
     if (url.includes('/config')) {
       return Promise.resolve({ ok: configResponse.ok, status: configResponse.status, json: () => Promise.resolve(configResponse.body) });
     }
+    if (url.includes('/processes')) {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ titles: ['PID', 'USER', 'CMD'], processes: [{ pid: 1, user: 'root', command: 'nginx -g daemon off;' }] }),
+      });
+    }
     return Promise.reject(new Error(`Unexpected fetch url: ${url}`));
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -345,6 +352,39 @@ describe('ContainerDetailPanel — the Config edit form in groups (REQ-23, REQ-2
 
     expect(fetchMock.mock.calls.some(([url]) => (url as string).includes('/config'))).toBe(false);
     expect(screen.getByRole('button', { name: 'Save changes' }), 'declining left the edit form').toBeInTheDocument();
+  });
+});
+
+describe('ContainerDetailPanel — the Processes tab (tabs_composition_refactor/REQ-32)', () => {
+  /**
+   * container-detail-panel.md — Processes is shown "handed the region itself rather than a document
+   * scroller inside it", because a table asked to take the height its tab offers is offered no
+   * definite height at all inside a scroller whose content box is `auto`. So the check is on what
+   * stands *between* the tab's region and the table: nothing that scrolls.
+   *
+   * The height the table then takes is a measurement, and every box is zero in jsdom:
+   * `e2e/container-stats-processes.spec.ts` is where it is measured.
+   */
+  it('draws the process table inside the tab’s own region, with no document scroller around it', async () => {
+    const user = userEvent.setup();
+    const { view } = renderPanel();
+    await screen.findByRole('button', { name: 'Edit configuration' });
+
+    await user.click(screen.getByRole('tab', { name: 'Processes' }));
+    const table = await waitFor(() => {
+      const found = view.container.querySelector<HTMLElement>('.ui-data-table');
+      expect(found, 'the Processes tab drew no table at all').not.toBeNull();
+      return found!;
+    });
+
+    const scrollersAbove: string[] = [];
+    for (let ancestor = table.parentElement; ancestor !== null && view.container.contains(ancestor); ancestor = ancestor.parentElement) {
+      if (ancestor.classList.contains('ui-scroll-area')) scrollersAbove.push(ancestor.className);
+    }
+    expect(
+      scrollersAbove,
+      'the process table is wrapped in a scroller, which offers it no definite height to take',
+    ).toEqual([]);
   });
 });
 

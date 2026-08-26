@@ -66,3 +66,52 @@ export async function expectRegionPinnedAcrossViewportHeights(page: Page, region
     await page.setViewportSize(original as { width: number; height: number });
   }
 }
+
+/**
+ * **The exact inverse of the assertion above**, for a region that has stopped
+ * stating a height of its own: it is measured at the same two viewport heights
+ * and must answer to them
+ * (`plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-32`).
+ *
+ * No constant is written into the assertion either: what is asserted is that the
+ * two measurements **disagree**, so a region taking the room a differently sized
+ * dialog offers still passes, and only one that has gone back to a pin fails. The
+ * other half of REQ-32 — that no band of empty surface stands beneath the
+ * region — belongs to the caller, which alone knows what the region is placed in.
+ *
+ * The viewport is put back exactly as it was found, in a `finally`.
+ */
+export async function expectRegionAnswersToViewportHeight(
+  page: Page,
+  region: Locator,
+  label: string,
+): Promise<{ short: number; tall: number }> {
+  const original = page.viewportSize();
+  expect(original, `${label} — this run has no viewport size to restore`).not.toBeNull();
+  const { width } = original as { width: number; height: number };
+
+  try {
+    await page.setViewportSize({ width, height: SHORT_VIEWPORT_HEIGHT });
+    await expect(region).toBeVisible();
+    const short = await region.evaluate((element) => element.getBoundingClientRect().height);
+
+    await page.setViewportSize({ width, height: TALL_VIEWPORT_HEIGHT });
+    await expect(region).toBeVisible();
+    const tall = await region.evaluate((element) => element.getBoundingClientRect().height);
+
+    console.log(
+      `[REQ-32] ${label} measures ${short.toFixed(1)}px at ${width} × ${SHORT_VIEWPORT_HEIGHT} and ${tall.toFixed(
+        1,
+      )}px at ${width} × ${TALL_VIEWPORT_HEIGHT}`,
+    );
+    expect(
+      tall - short,
+      `${label} — the region measures ${short.toFixed(1)}px at ${width} × ${SHORT_VIEWPORT_HEIGHT} and ${tall.toFixed(
+        1,
+      )}px at ${width} × ${TALL_VIEWPORT_HEIGHT}: it is stating a height of its own instead of taking the one it is offered`,
+    ).toBeGreaterThan(1);
+    return { short, tall };
+  } finally {
+    await page.setViewportSize(original as { width: number; height: number });
+  }
+}

@@ -629,3 +629,108 @@ describe('DataTable — a list drawn inside a row of another list (`nested`)', (
     ).toBe(true);
   });
 });
+
+/**
+ * `fill` — a list whose bound is **the region it is placed in** rather than a
+ * stated `maxHeight` (`ui-library/specs/data-table.md`,
+ * `plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-32`).
+ *
+ * **Contract and state only.** Every box is zero in jsdom, so "the list reaches
+ * the bottom of its region, with no band of surface under it" cannot be measured
+ * here and is not asserted: that is
+ * `e2e/container-stats-processes.spec.ts`. What a jsdom render can say is what
+ * the spec states about the *behaviour* — that this is the same behaviour
+ * `maxHeight` has, with the bound coming from the region: virtualisation on, one
+ * scrolling box holding the header and the rows, and no height of the list's own.
+ */
+describe('DataTable — a list bounded by the region it is placed in (`fill`)', () => {
+  // data-table.md — "`maxHeight` and `fill` are the two ways a list is bounded, and they are one
+  // behaviour. Either one turns virtualisation on."
+  it('mounts only a window of rows, as a stated cap does', () => {
+    render(<DataTable columns={columns} rows={makeRows(200)} rowKey={(row) => row.id} fill />);
+
+    expect(screen.getAllByText(/^row-\d+$/).length, 'a filling list mounts every row, so it is not virtualised').toBeLessThan(200);
+    expect(screen.getByText('row-0')).toBeInTheDocument();
+    expect(screen.queryByText('row-199')).not.toBeInTheDocument();
+  });
+
+  // data-table.md — "the window is measured from the scroll container itself, so it follows the
+  // region as the region follows the screen": the window still swaps with the scroll position.
+  it('mounts a different window of rows after the list is scrolled', () => {
+    const { container } = render(<DataTable columns={columns} rows={makeRows(200)} rowKey={(row) => row.id} fill />);
+    const scrollArea = container.querySelector('.ui-scroll-area') as HTMLDivElement;
+
+    fireEvent.scroll(scrollArea, { target: { scrollTop: 200 * 56 } });
+
+    expect(screen.getByText('row-199')).toBeInTheDocument();
+    expect(screen.queryByText('row-0')).not.toBeInTheDocument();
+  });
+
+  // data-table.md — the bound is "the region it is placed in **rather than** a stated `maxHeight`":
+  // a filling list states no height of its own anywhere, which is the whole of REQ-32's complaint
+  // against the 320px it replaces.
+  it('states no height of its own', () => {
+    const { container } = render(<DataTable columns={columns} rows={makeRows(200)} rowKey={(row) => row.id} fill />);
+
+    const capped = [...container.querySelectorAll<HTMLElement>('*')].filter((element) => element.style.maxHeight !== '');
+    expect(
+      capped.map((element) => `${element.className} — ${element.style.cssText}`),
+      'a filling list caps itself, so its bound is a stated length and not the region’s',
+    ).toEqual([]);
+    // …and neither the list nor the box that scrolls inside it writes a height on the spot. (The
+    // rows and the virtualisation spacers do carry one: that is the scroll extent of the window,
+    // which is measured from the region rather than stating a bound of its own.)
+    for (const selector of ['.ui-data-table', '.ui-data-table > .ui-scroll-area']) {
+      const element = container.querySelector<HTMLElement>(selector);
+      expect(element!.style.height, `${selector} states a height of its own`).toBe('');
+    }
+  });
+
+  // data-table.md — "The scrolling box is still the single box holding the sticky header and the
+  // rows, so the column-to-label alignment guarantee below is untouched."
+  it('keeps the header and the rows in one scrolling box', () => {
+    const { container } = render(<DataTable columns={columns} rows={makeRows(200)} rowKey={(row) => row.id} fill />);
+
+    const table = container.querySelector('.ui-data-table') as HTMLElement;
+    const scrollArea = table.querySelector('.ui-scroll-area') as HTMLElement;
+    const header = table.querySelector('.ui-data-table__header') as HTMLElement;
+    const body = table.querySelector('.ui-data-table__body') as HTMLElement;
+
+    expect(table.querySelectorAll('.ui-scroll-area'), 'the filling list holds more than one scrolling box').toHaveLength(1);
+    expect(scrollArea.contains(header), 'the header is drawn outside the box that scrolls').toBe(true);
+    expect(scrollArea.contains(body), 'the rows are drawn outside the box that scrolls').toBe(true);
+  });
+
+  // data-table.md — "`autoRowHeight` … keeps turning virtualisation off in both modes."
+  it('mounts every row when the rows are content-sized', () => {
+    render(<DataTable columns={columns} rows={makeRows(200)} rowKey={(row) => row.id} fill autoRowHeight />);
+
+    expect(screen.getAllByText(/^row-\d+$/)).toHaveLength(200);
+  });
+
+  // data-table.md — "A list stating neither `maxHeight` nor `fill` is unbounded and renders every
+  // row, unchanged": the opt-in is what turns the behaviour on, and nothing else.
+  it('leaves a list that asks for neither unbounded', () => {
+    render(<DataTable columns={columns} rows={makeRows(200)} rowKey={(row) => row.id} fill={false} />);
+
+    expect(screen.getAllByText(/^row-\d+$/)).toHaveLength(200);
+  });
+
+  // data-table.md — the filling list "is bounded by the region I am placed in", which in CSS is the
+  // same arrangement `TreeView` carries: the list and the box that scrolls inside it both take the
+  // room the region leaves and are free to shrink below their content. jsdom loads no stylesheet, so
+  // the declarations are read from the file, as the sticky-header rule above is.
+  it('declares the list and its scrolling box free to take and to give up the region’s height', () => {
+    const css = readFileSync(join(process.cwd(), 'src/ui/data/data-table.css'), 'utf8');
+    const list = ruleBody(css, '.ui-data-table--fill');
+    const box = ruleBody(css, '.ui-data-table--fill > .ui-scroll-area');
+
+    for (const [what, body] of [
+      ['the filling list', list],
+      ['the box that scrolls inside it', box],
+    ] as const) {
+      expect(body, `${what} does not grow into the height the region offers`).toMatch(/flex:\s*1\s+1\s+auto/);
+      expect(body, `${what} cannot shrink below its content, so a long list would push the region open`).toMatch(/min-height:\s*0/);
+    }
+  });
+});

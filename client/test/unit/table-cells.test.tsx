@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { BadgeListCell, IdentifierCell, MetaCell, TwoLineCell } from '../../src/ui';
+import { BadgeListCell, IdentifierCell, LOAD_ATTENTION_PERCENT, MetaCell, TwoLineCell } from '../../src/ui';
 
 afterEach(cleanup);
 
@@ -57,6 +57,83 @@ describe('MetaCell (plan-docker_management_app/REQ-3, REQ-15)', () => {
     render(<MetaCell>12% cpu</MetaCell>);
 
     expect(screen.getByText('12% cpu')).toHaveAttribute('title', '12% cpu');
+  });
+});
+
+/**
+ * `tone` — "the reading to look at", one tone and no severity scale
+ * (`ui-library/specs/table-cells.md`,
+ * `plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-33`).
+ *
+ * The distinction is a *treatment*, and jsdom loads no stylesheet, so it is read
+ * in two halves: the class the toned cell takes on top of the one every other
+ * cell in its column takes, and what the stylesheet declares for that class.
+ */
+describe('MetaCell tone (tabs_composition_refactor/REQ-33)', () => {
+  /** The classes a cell carries, as a set, for the value it was given. */
+  function classesOf(node: HTMLElement): string[] {
+    return node.className.split(' ').filter((name) => name !== '');
+  }
+
+  /** What a toned cell carries that an untoned one, in the same column, does not. */
+  function distinguishingClasses(): string[] {
+    const plain = render(<MetaCell>3.5%</MetaCell>).container.querySelector('span') as HTMLElement;
+    const toned = render(<MetaCell tone="attention">84.2%</MetaCell>).container.querySelector('span') as HTMLElement;
+    const shared = classesOf(plain);
+    expect(
+      shared.filter((name) => !classesOf(toned).includes(name)),
+      'a toned cell gave up a treatment the rest of its column carries, so the column stops scanning as one column',
+    ).toEqual([]);
+    return classesOf(toned).filter((name) => !shared.includes(name));
+  }
+
+  // table-cells.md — "`tone: 'attention'` draws the value distinguished from the others in its
+  // column"
+  it('draws a toned reading distinguished from an untoned one', () => {
+    expect(distinguishingClasses(), 'a toned cell is drawn exactly as an untoned one').not.toEqual([]);
+  });
+
+  // table-cells.md — "colour alone — the type, the size and the alignment unchanged", and the
+  // colour is the library's own role rather than a literal (REQ-38).
+  it('distinguishes it by colour alone, taken from a token', () => {
+    const [distinguishing, ...rest] = distinguishingClasses();
+    expect(rest, 'the tone is expressed through more than one class, so what it changes is not one declaration').toEqual([]);
+
+    const declarations = ruleBody(`.${distinguishing}`)
+      .split(';')
+      .map((declaration) => declaration.trim())
+      .filter((declaration) => declaration !== '');
+
+    expect(declarations.map((declaration) => declaration.split(':')[0]!.trim()), 'the tone changes something other than the colour').toEqual([
+      'color',
+    ]);
+    expect(declarations[0], 'the tone states a colour of its own instead of naming one of the library’s roles').toMatch(
+      /color:\s*var\(--color-[a-z-]+\)/,
+    );
+  });
+
+  // table-cells.md — "**A cell with nothing to show is never toned**: the `'–'` and the
+  // `'unavailable'` states are drawn the same whatever the caller asks for."
+  it.each<[string, { unavailableReason?: string }, string]>([
+    ['the dash', {}, '–'],
+    ['the unavailable state', { unavailableReason: 'the daemon did not report it' }, 'unavailable'],
+  ])('leaves %s untoned even when the caller asks for a tone', (what, props, shown) => {
+    const untoned = render(<MetaCell {...props} />).container.querySelector('span') as HTMLElement;
+    const asked = render(
+      <MetaCell {...props} tone="attention" />,
+    ).container.querySelector('span') as HTMLElement;
+
+    expect(untoned.textContent, `the fixture does not render ${what}`).toBe(shown);
+    expect(asked.textContent, `the tone changed what ${what} says`).toBe(shown);
+    expect(classesOf(asked), `${what} is toned, and there is no reading there to distinguish`).toEqual(classesOf(untoned));
+  });
+
+  // table-cells.md — "`LOAD_ATTENTION_PERCENT` — the reading at or above which a load percentage in
+  // a column is toned", and "The threshold is 70 … the container detail's Stats tab already turns a
+  // load meter to its warning tone at 70". The figure is asserted here, once, so every caller can
+  // name the constant instead of restating it.
+  it('states the load threshold at the detail’s own warning boundary', () => {
+    expect(LOAD_ATTENTION_PERCENT, 'the threshold is no longer the boundary the Stats tab already draws').toBe(70);
   });
 });
 

@@ -2,6 +2,7 @@ import { expect, test, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { closeContainerDetail, containerDetail, openContainerDetail } from './support/container-cards.js';
+import { expectRegionAnswersToViewportHeight } from './support/pinned-region.js';
 
 interface TrackedStream {
   url: string;
@@ -38,6 +39,26 @@ async function createBusyContainer(name: string): Promise<void> {
     'alpine:3.20',
     '-c',
     'i=0; while true; do i=$((i+1)); done',
+  ]);
+}
+
+/**
+ * A container running many processes at once, so the process table has more rows
+ * than any window of it can show: `count` background sleeps under one shell.
+ * Nothing is fetched — the image is the one the run's own registry holds.
+ */
+async function createCrowdedContainer(name: string, count: number): Promise<void> {
+  await execFileAsync('docker', [
+    'run',
+    '-d',
+    '--name',
+    name,
+    ...ownershipArgs(name),
+    '--entrypoint',
+    'sh',
+    'alpine:3.20',
+    '-c',
+    `i=0; while [ $i -lt ${count} ]; do sleep 100000 & i=$((i+1)); done; wait`,
   ]);
 }
 
@@ -233,6 +254,172 @@ test.describe('Container stats and processes (REQ-32, REQ-33)', () => {
       await detail.getByRole('button', { name: 'Refresh' }).click();
 
       await expect(detail.getByText(new RegExp(`sleep ${marker}`))).toBeVisible({ timeout: 20_000 });
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+
+  /*
+    tabs_composition_refactor/REQ-32 — "the process table takes the height its tab offers instead of
+    the fixed 320px inherited from the inline panel: with the dialog at its stable height, the rows
+    occupy what is left under the tab's own header row, and no band of empty surface stands beneath
+    the table".
+
+    Two halves, and the second is the one a "the table got taller" check would miss: the table's
+    bottom edge is the region's bottom edge, so nothing is left standing under it. Both are viewport
+    boxes (CLAUDE.md, "What a check drives, and what it measures"), and the third assertion is that
+    what the table gained is a **window**, not a longer page: the rows still scroll and virtualise
+    inside the one box that also holds the sticky header.
+  */
+  test('the process table takes the height its tab offers and leaves no band of surface beneath it', async ({ page }) => {
+    test.setTimeout(120_000);
+    const name = `vexel-e2e-processes-fill-${Date.now()}`;
+    try {
+      await createCrowdedContainer(name, 40);
+      const detail = await openTab(page, name, 'Processes');
+      // The count band, which is what says the listing arrived — and how many rows the table holds.
+      const counted = await detail
+        .getByText(/\d+ processes/)
+        .first()
+        .textContent({ timeout: 30_000 });
+      const rowCount = Number.parseInt(/(\d+) processes/.exec(counted ?? '')?.[1] ?? '0', 10);
+      expect(rowCount, `the fixture listed ${counted}, which is too few rows to overflow any window`).toBeGreaterThan(20);
+
+      const table = detail.locator('.ui-data-table');
+      // The region the active tab is drawn in: the one that absorbs the height the dialog's bands
+      // leave. The view draws a second one inside it for its own count band, hence `.first()`.
+      const region = detail.locator('.ui-band-stack__fill').first();
+      expect(await region.locator('.ui-data-table').count(), 'the table is not drawn inside the tab’s region').toBe(1);
+
+      // First half: the height is the tab's, not the table's own.
+      await expectRegionAnswersToViewportHeight(page, table, 'the process table');
+
+      // Second half, at both heights: the table ends where the region ends.
+      const original = page.viewportSize()!;
+      try {
+        for (const height of [720, 1000]) {
+          await page.setViewportSize({ width: original.width, height });
+          await expect(table).toBeVisible();
+          const boxes = await page.evaluate(() => {
+            const region = document.querySelector('.ui-modal--size-large .ui-band-stack__fill');
+            const table = document.querySelector('.ui-modal--size-large .ui-data-table');
+            const rect = (element: Element | null) => (element === null ? null : element.getBoundingClientRect());
+            return { region: rect(region), table: rect(table) };
+          });
+          const label = `${original.width}×${height}`;
+          expect(boxes.region, `${label} — the tab draws no region`).not.toBeNull();
+          expect(boxes.table, `${label} — the tab draws no table`).not.toBeNull();
+          console.log(
+            `[REQ-32] ${label}: the table ends at ${boxes.table!.bottom.toFixed(1)}px in a region ending at ${boxes.region!.bottom.toFixed(
+              1,
+            )}px`,
+          );
+          expect(
+            Math.abs(boxes.table!.bottom - boxes.region!.bottom),
+            `${label} — the table stops ${(boxes.region!.bottom - boxes.table!.bottom).toFixed(
+              1,
+            )}px short of the region it is placed in, leaving a band of surface beneath it`,
+          ).toBeLessThanOrEqual(2);
+        }
+      } finally {
+        await page.setViewportSize(original);
+      }
+
+      // What it took is a window: the rows scroll and virtualise inside the one box that also holds
+      // the sticky header (`ui-library/specs/data-table.md`), rather than in a third of it.
+      const box = await page.evaluate(() => {
+        const table = document.querySelector('.ui-modal--size-large .ui-data-table');
+        const boxes = table === null ? [] : [...table.querySelectorAll('.ui-scroll-area')];
+        const scroller = boxes[0] ?? null;
+        const header = table === null ? null : table.querySelector('.ui-data-table__header');
+        return {
+          scrollingBoxes: boxes.length,
+          clientHeight: scroller === null ? 0 : scroller.clientHeight,
+          scrollHeight: scroller === null ? 0 : scroller.scrollHeight,
+          headerInside: scroller !== null && header !== null && scroller.contains(header),
+          headerPosition: header === null ? null : getComputedStyle(header).position,
+          mountedRows: table === null ? 0 : table.querySelectorAll('.ui-data-table__row').length,
+        };
+      });
+      console.log(
+        `[REQ-32] the table scrolls ${box.scrollHeight}px of rows through a ${box.clientHeight}px window, ${box.mountedRows} of ${rowCount} rows mounted`,
+      );
+      expect(box.scrollingBoxes, 'the table holds more than one scrolling box').toBe(1);
+      expect(box.scrollHeight, 'the table has nothing to scroll, so this fixture proves nothing').toBeGreaterThan(box.clientHeight + 1);
+      expect(box.mountedRows, 'every row is mounted, so the list stopped virtualising').toBeLessThan(rowCount);
+      expect(box.headerInside, 'the column header left the box that scrolls').toBe(true);
+      expect(box.headerPosition, 'the column header is no longer sticky at the top of that box').toBe('sticky');
+
+      // And it scrolls under a real wheel, at the table's own coordinates.
+      const centre = await table.evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+      });
+      await page.mouse.move(centre.x, centre.y);
+      await page.mouse.wheel(0, 400);
+      await expect
+        .poll(
+          async () =>
+            await page.evaluate(() => document.querySelector('.ui-modal--size-large .ui-data-table .ui-scroll-area')?.scrollTop ?? 0),
+          { timeout: 5000, message: 'a wheel over the process table scrolled nothing inside it' },
+        )
+        .toBeGreaterThan(0);
+
+      await closeContainerDetail(page);
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+
+  /*
+    tabs_composition_refactor/REQ-33 — the `%CPU` column is the one that is toned, and "the `–` shown
+    where the daemon reports no reading is unchanged … there is no reading to distinguish".
+
+    The daemon's own `top` is asked for no `ps` arguments (REQ-41 admits no new capability), so a
+    real listing carries no `%CPU` title and every reading is absent. That is exactly the state this
+    check exists for: the column that gained a tone must draw its absences as every other column
+    draws them. The threshold itself is driven by a stubbed payload, in
+    `test/unit/container-processes-view.test.tsx`, since no real daemon produces a reading to cross
+    it.
+  */
+  test('the %CPU column draws a reading the daemon does not report exactly as every other missing value', async ({ page }) => {
+    const name = `vexel-e2e-processes-untoned-${Date.now()}`;
+    try {
+      await createBusyContainer(name);
+      const detail = await openTab(page, name, 'Processes');
+      await expect(detail.getByText(/while true/)).toBeVisible({ timeout: 20_000 });
+
+      const cells = await detail.evaluate((dialog) => {
+        const headers = [...dialog.querySelectorAll('.ui-data-table__header .ui-data-table__header-cell')].map(
+          (cell) => cell.textContent?.trim() ?? '',
+        );
+        const cpu = headers.indexOf('%CPU');
+        const memory = headers.indexOf('%MEM');
+        const rows = [...dialog.querySelectorAll('.ui-data-table__body .ui-data-table__row')].map((row) => {
+          const drawn = [...row.querySelectorAll('.ui-data-table__cell')].map((cell) => {
+            const value = cell.querySelector('span') ?? cell;
+            const style = getComputedStyle(value);
+            return { text: value.textContent?.trim() ?? '', treatment: `${style.color} ${style.fontFamily} ${style.fontSize} ${style.textAlign}` };
+          });
+          return { cpu: drawn[cpu], memory: drawn[memory] };
+        });
+        return { headers, cpu, memory, rows };
+      });
+
+      expect(cells.cpu, `the table draws no %CPU column: ${cells.headers.join(', ')}`).toBeGreaterThanOrEqual(0);
+      expect(cells.rows.length, 'the table drew no rows at all').toBeGreaterThan(0);
+      let dashes = 0;
+      for (const row of cells.rows) {
+        if (row.cpu?.text !== '–') continue;
+        dashes += 1;
+        expect(
+          row.cpu.treatment,
+          `a %CPU cell reporting no reading is drawn "${row.cpu.treatment}" against "${row.memory?.treatment}" for the %MEM cell beside it`,
+        ).toBe(row.memory?.treatment);
+      }
+      console.log(`[REQ-33] ${dashes} of ${cells.rows.length} %CPU cells report no reading, each drawn as the %MEM cell beside it`);
+
+      await closeContainerDetail(page);
     } finally {
       await removeContainerQuietly(name);
     }
