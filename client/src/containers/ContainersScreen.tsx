@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
+  Button,
   EmptyState,
   ErrorBanner,
   FilterChips,
@@ -102,6 +103,14 @@ function matchesStateFilter(container: ContainerSummary, filter: string): boolea
   return true;
 }
 
+/** The container the dialog is bound to, carried by the screen rather than looked up each time. */
+interface DetailTarget {
+  /** The last summary the dialog was drawn from; its id is the container the dialog belongs to. */
+  container: ContainerSummary;
+  /** A recreate has re-pointed the dialog and the new container has not reached the list yet. */
+  awaitingList: boolean;
+}
+
 /**
  * Containers screen: search and state filters over one card per container, each with its lifecycle
  * slots, its overflow menu and the control that opens its detail as a large-format dialog.
@@ -121,12 +130,25 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
-  const [detailContainerId, setDetailContainerId] = useState<string | undefined>(undefined);
+  const [detailTarget, setDetailTarget] = useState<DetailTarget | null>(null);
   const [createMode, setCreateMode] = useState<'run' | 'create' | null>(null);
 
+  // The carried summary follows the list — which is also how a re-pointed dialog learns
+  // its recreated container has arrived. A re-read that changes neither bails out.
   useEffect(() => {
-    if (detailContainerId && !containers.some((container) => container.id === detailContainerId)) setDetailContainerId(undefined);
-  }, [containers, detailContainerId]);
+    setDetailTarget((current) => {
+      if (!current) return current;
+      const live = containers.find((container) => container.id === current.container.id);
+      if (!live) return current;
+      if (!current.awaitingList && live.name === current.container.name) return current;
+      return { container: live, awaitingList: false };
+    });
+  }, [containers]);
+
+  /** The dialog's one dismissal: the panel it held unmounts with it, so nothing outlives it. */
+  function closeDetail() {
+    setDetailTarget(null);
+  }
 
   function setBusy(id: string, busy: boolean) {
     setBusyIds((current) => {
@@ -299,8 +321,13 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
   const filtered = containers.filter((container) => matchesStateFilter(container, stateFilter) && matchesSearch(container, search));
   const hasStoppedContainers = containers.some((container) => (STOPPED_STATES as string[]).includes(container.state));
   // Read from the whole list, not from the filtered one: the dialog belongs to its
-  // container, and a filter narrowing the cards behind it is not a dismissal.
-  const detailContainer = containers.find((container) => container.id === detailContainerId);
+  // container, and a filter narrowing the cards behind it is not a dismissal. Absent
+  // from that list, the container has ceased to exist — unless a recreate has just
+  // re-pointed the dialog, in which case the carried summary stands in until the
+  // re-read arrives, so a recreate never reads as a disappearance.
+  const liveDetail = detailTarget ? containers.find((container) => container.id === detailTarget.container.id) : undefined;
+  const detailContainer = liveDetail ?? (detailTarget?.awaitingList ? detailTarget.container : undefined);
+  const detailName = liveDetail?.name ?? detailTarget?.container.name;
 
   return (
     <Stack gap="var(--space-4)">
@@ -334,30 +361,46 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
             container={container}
             lifecycleActions={lifecycleActionsFor(container)}
             overflowEntries={overflowEntriesFor(container)}
-            onOpenDetail={() => setDetailContainerId(container.id)}
+            onOpenDetail={() => setDetailTarget({ container, awaitingList: false })}
             renameControl={renameControlFor(container)}
           />
         ))}
       </Grid>
 
+      {/* The dialog keeps its chrome once its container has gone, so both of its ways out
+          still work and nothing strands the operator in the end state; the point of
+          interaction returns to the list region, the card that opened it having left with
+          the container (containers-screen.md). */}
       <Modal
-        open={detailContainer !== undefined}
-        title={detailContainer ? `Container — ${detailContainer.name}` : ''}
+        open={detailTarget !== null}
+        title={detailName ? `Container — ${detailName}` : ''}
         size="large"
         fluidWidth
         closeControl
         restoreFocus
-        onClose={() => setDetailContainerId(undefined)}
+        onClose={closeDetail}
       >
         {detailContainer ? (
           <ContainerDetailPanel
             container={detailContainer}
             onContainerReplaced={(newId) => {
-              setDetailContainerId(newId);
+              // A recreate is not a disappearance: the dialog follows the container onto
+              // its new id, standing on the summary it already holds until the re-read
+              // list carries the new one.
+              setDetailTarget((current) => (current ? { container: { ...current.container, id: newId }, awaitingList: true } : current));
               onRefresh();
             }}
           />
-        ) : null}
+        ) : (
+          // The end state of a dialog whose container has ceased to exist: stated in
+          // place, on the surface the operator is looking at, rather than by a silent
+          // close or by a toast. Its resolving action is the dialog's own dismissal.
+          <EmptyState
+            title="This container no longer exists"
+            description="It was removed while its detail was open, so there is nothing left here to show."
+            action={<Button variant="primary" onClick={closeDetail}>Close</Button>}
+          />
+        )}
       </Modal>
 
       <ContainerCreateForm

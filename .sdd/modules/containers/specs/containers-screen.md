@@ -97,11 +97,24 @@ Actions:
   presents a second while one is open.
 - Opening or closing it **moves nothing on the screen underneath**: the dialog is not a grid item, so
   no card moves or changes height, the grid does not reorder and the list does not scroll.
-- The dialog is bound to its container by id, read from the **whole** list rather than the filtered
-  one: narrowing the cards behind it by search or state filter is not a dismissal. A container that
-  leaves the daemon's list closes it. After a configuration change recreates the container, it stays
-  open on the new container's id. A running container's `exec`/`attach` sessions (REQ-34, REQ-35) are
-  reached as tabs inside it.
+- **The dialog is bound to its container by id, resolved against the whole list rather than the
+  filtered one**: narrowing the cards behind it by search or by state filter is not a dismissal, and
+  neither is a list re-read that moves or redraws the cards — same container, same tab, same streams
+  still running.
+- **A container that leaves the daemon's list does not close the dialog silently: the dialog states
+  it, in place.** Where the tabs were it draws the library's one empty-result surface — titled *This
+  container no longer exists*, explaining that it was removed while its detail was open, and offering
+  the dialog's own dismissal as its resolving action. The panel and its tabs are gone by then, so
+  every stream and session the detail owned has ended with them (`container-detail-panel.md`). The
+  dialog **keeps its chrome** in that end state — the title, still naming the container it belonged
+  to, and the close control — so both ways out still work there and nothing strands the operator in
+  it; dismissing it leaves the point of interaction on the list region, the card that opened it
+  having left with the container.
+- **A recreate is not a disappearance.** After a configuration change recreates the container, the
+  dialog follows it onto the new container's id and goes on showing it, on the same tab; until the
+  re-read list carries the new container the dialog stands on the summary it already holds, so no
+  end state is drawn in between. A running container's `exec`/`attach` sessions
+  (plan-docker_management_app/REQ-34, REQ-35) are reached as tabs inside it.
 
 ## Rules and invariants
 
@@ -175,9 +188,10 @@ Actions:
 
 ## Dependencies
 
-- ui-library: ScreenToolbar, SearchField, FilterChips, TextField, IconButton, ErrorBanner,
-  EmptyState, Row, Stack, Grid (as the list's dismissal focus target) and GridSpan, Modal (at
-  `size="large"`, with its close control and its focus return), triggerDownload, useToast
+- ui-library: ScreenToolbar, SearchField, FilterChips, TextField, Button, IconButton, ErrorBanner,
+  EmptyState (in the list's place, and in the dialog's when its container has gone), Row, Stack, Grid
+  (as the list's dismissal focus target) and GridSpan, Modal (at `size="large"`, with its close
+  control and its focus return), triggerDownload, useToast
 - Containers client, Container transfer client, Images client (`ImageSummary`), useStatsSubscription
 - ContainerCard, ContainerDetailPanel, ContainerCreateForm
 - app-shell: ConfirmationService, ProgressService, ErrorReportingService
@@ -246,3 +260,8 @@ Actions:
 - plan-docker_management_app-containers_card_view-detail_modal/REQ-26
 - plan-docker_management_app-containers_card_view-detail_modal/REQ-30
 - plan-docker_management_app-containers_card_view-detail_modal/REQ-31
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-32
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-33
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-34
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-35
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-36
