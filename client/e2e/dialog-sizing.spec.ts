@@ -72,6 +72,40 @@ const TOLERANCE_PX = 1;
  */
 const HAIRLINE_SLACK_PX = 2;
 
+/**
+ * The large format's **viewport bound**, as a ceiling a content-sized dialog must stay strictly
+ * under. Since
+ * `plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-5` the
+ * same figure is read two ways: as a *height* by the one dialog that asks for the stable-height
+ * opt-in, and as a *maximum* by every dialog that does not. A dialog of the second kind measuring
+ * the bound exactly is the failure this ceiling exists to catch — it would mean the opt-in leaked.
+ */
+function largeDialogHeightBound(viewportHeight: number): number {
+  return viewportHeight * 0.85;
+}
+
+/**
+ * A dialog **sized by its content in height** (REQ-5): shorter than the bound the format carries,
+ * and in exact agreement with the content it holds. The first half is what distinguishes it from a
+ * dialog given the available height; the second is the delivered guarantee it keeps while doing so.
+ *
+ * The content is short by construction in every case below — the analyses are measured before they
+ * are run, the single-layer image's stack and filesystem hold a handful of rows — so "shorter than
+ * the bound" is a statement about the sizing rule and not about the fixture.
+ */
+function expectSizedByItsContentInHeight(label: string, boxes: DialogBoxes, viewportHeight: number): void {
+  const bound = largeDialogHeightBound(viewportHeight);
+  expect
+    .soft(
+      boxes.card.height,
+      `${label} — the card measures ${boxes.card.height.toFixed(1)}px against the ${bound.toFixed(
+        1,
+      )}px bound: it is taking the height available rather than the height its content needs`,
+    )
+    .toBeLessThan(bound);
+  expectLength(label, 'the content is as tall as the glass holding it', boxes.content.height, boxes.glassInner.height);
+}
+
 interface Box {
   width: number;
   height: number;
@@ -394,6 +428,9 @@ test('the glass card of a large dialog is exactly the size of the dialog it hold
   const boxes = await measureOpenDialog(page, '.ui-modal');
   expectCardIsTheSizeOfItsContent('Images & layers → Explore layers', boxes);
   expectDesignedWidth('Images & layers → Explore layers', boxes, largeDialogWidth(boxes.viewportWidth));
+  // tabs_composition_refactor/REQ-5 — and it is still sized by its content in **height**: this
+  // dialog asks for no stable height, and a single-layer stack is well short of the bound.
+  expectSizedByItsContentInHeight('Images & layers → Explore layers', boxes, page.viewportSize()!.height);
   expect
     .soft(boxes.card.width, `the large dialog must not be narrowed towards the ordinary width: measured ${boxes.card.width.toFixed(1)}px`)
     .toBeGreaterThan(ORDINARY_DIALOG_WIDTH);
@@ -512,18 +549,14 @@ test('the glass card of the container detail is exactly the size of the dialog i
 test('a filesystem with a handful of entries opens a dialog shorter than the cap, still the size of its content', async ({ page }) => {
   const dialog = await openFilesystemBrowserDialog(page);
   const viewport = page.viewportSize();
-  expect(viewport, 'this run has no viewport size to measure the cap against').not.toBeNull();
-  const cap = (viewport as { height: number }).height * 0.85;
+  expect(viewport, 'this run has no viewport size to measure the bound against').not.toBeNull();
 
   const boxes = await measureOpenDialog(page, '.ui-modal');
-  expect
-    .soft(
-      boxes.card.height,
-      `Images & layers → Browse filesystem, a short filesystem — the card measures ${boxes.card.height.toFixed(1)}px against the ${cap.toFixed(
-        1,
-      )}px cap: it is taking the height available rather than the height its content needs`,
-    )
-    .toBeLessThan(cap);
+  expectSizedByItsContentInHeight(
+    'Images & layers → Browse filesystem, a short filesystem',
+    boxes,
+    (viewport as { height: number }).height,
+  );
   expectCardIsTheSizeOfItsContent('Images & layers → Browse filesystem, a short filesystem', boxes);
 
   await dismissThroughTheScrim(page, dialog);
@@ -603,4 +636,59 @@ test('the glass card of the form sheet is exactly the size of the sheet it holds
 
   await sheet.getByRole('button', { name: 'Cancel' }).click();
   await expect(sheet).toBeHidden();
+});
+
+/**
+ * Opens Images & layers → Compare with… on the suite's own single-layer image: the third instance of
+ * the `large` format, measured **before** a comparison is asked for. That state is the discriminating
+ * one — two pick-lists and a line of copy is content nowhere near the format's viewport bound, so a
+ * card measuring that bound could only be taking the height available rather than its content's.
+ */
+async function openImageDiffDialog(page: Page): Promise<Locator> {
+  await ensureImage(TINY_IMAGE);
+  await chooseImageRowAnalysis(page, TINY_IMAGE, 'Compare with…');
+  const dialog = page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: 'Compare filesystems' }) });
+  await expect(dialog).toBeVisible({ timeout: 20_000 });
+  await expect(dialog.getByLabel('Second image')).toBeVisible();
+  return dialog;
+}
+
+/**
+ * Opens Images & layers → Efficiency & signals… on the same image, likewise **before** the analysis
+ * it invites: the fourth instance of the format, and short content for the same reason.
+ */
+async function openLayerEfficiencyDialog(page: Page): Promise<Locator> {
+  await ensureImage(TINY_IMAGE);
+  await chooseImageRowAnalysis(page, TINY_IMAGE, 'Efficiency & signals…');
+  const dialog = page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: /^Efficiency & signals/ }) });
+  await expect(dialog).toBeVisible({ timeout: 20_000 });
+  await expect(dialog.getByRole('button', { name: 'Analyze layer efficiency…' })).toBeVisible();
+  return dialog;
+}
+
+// tabs_composition_refactor/REQ-5, and dialog_sizing/REQ-1, REQ-2, REQ-8, REQ-10 — the image diff is
+// one of the four large dialogs that ask for **no** stable height: it is still the size its content
+// makes it, in height as in width, now that the opt-in exists beside it.
+test('the image diff dialog is still sized by its own content, in height as in width', async ({ page }) => {
+  const dialog = await openImageDiffDialog(page);
+
+  const boxes = await measureOpenDialog(page, '.ui-modal');
+  expectCardIsTheSizeOfItsContent('Images & layers → Compare filesystems', boxes);
+  expectDesignedWidth('Images & layers → Compare filesystems', boxes, largeDialogWidth(boxes.viewportWidth));
+  expectSizedByItsContentInHeight('Images & layers → Compare filesystems', boxes, page.viewportSize()!.height);
+
+  await dismissThroughTheScrim(page, dialog);
+});
+
+// tabs_composition_refactor/REQ-5, and dialog_sizing/REQ-1, REQ-2, REQ-8, REQ-10 — the same for the
+// layer efficiency view, the fourth of them.
+test('the layer efficiency dialog is still sized by its own content, in height as in width', async ({ page }) => {
+  const dialog = await openLayerEfficiencyDialog(page);
+
+  const boxes = await measureOpenDialog(page, '.ui-modal');
+  expectCardIsTheSizeOfItsContent('Images & layers → Efficiency & signals', boxes);
+  expectDesignedWidth('Images & layers → Efficiency & signals', boxes, largeDialogWidth(boxes.viewportWidth));
+  expectSizedByItsContentInHeight('Images & layers → Efficiency & signals', boxes, page.viewportSize()!.height);
+
+  await dismissThroughTheScrim(page, dialog);
 });

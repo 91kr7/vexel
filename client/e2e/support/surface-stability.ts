@@ -10,11 +10,16 @@
  * `HTMLElement.click()` and a dispatched event do not, and are refused here
  * (REQ-10, REQ-11 of plan-docker_management_app-toggle_focus_scroll).
  *
- * Written for the switch and shared by its two consumers under check — the create sheet and the
- * container detail — because a fault of the shared control is only shown to be the control's by
- * being observed on more than one screen. Two assertions on the one measurement, because the two
- * surfaces are anchored differently and only one of them can promise an unchanged box: see
- * `clickAndExpectSurfaceNotDragged` below.
+ * Written for the switch and shared by its consumers under check — the create sheet and the
+ * container detail among them — because a fault of the shared control is only shown to be the
+ * control's by being observed on more than one screen.
+ *
+ * **One assertion, on every surface.** A second, narrowed reading lived here until 2026-08-26 — the
+ * surface "was not dragged", its centre kept rather than its box — for the one consumer whose
+ * surface was centred and sized by its content, and which therefore grew and rose whenever a control
+ * revealed a field. That surface now asks the dialog for a stable height
+ * (`…-tabs_composition_refactor/REQ-2`), so it can promise the unchanged box like the others, and the
+ * narrowed reading has no consumer and no reason left.
  */
 import { expect, type Locator, type Page } from '@playwright/test';
 import { boxThisFrame } from './settled.js';
@@ -127,8 +132,8 @@ export async function clickAndExpectSurfaceUnmoved(check: SurfaceStabilityCheck)
 }
 
 /**
- * The clause both checks share: whatever the surface did, the control the operator just pressed is
- * still somewhere they can see it.
+ * The clause the check closes with: whatever the surface did, the control the operator just pressed
+ * is still somewhere they can see it.
  */
 function expectControlWithinViewport(page: Page, controlName: string, before: Box, after: Box, evidence: string): void {
   const viewport = page.viewportSize();
@@ -140,63 +145,4 @@ function expectControlWithinViewport(page: Page, controlName: string, before: Bo
     withinViewport,
     `${controlName} is no longer within the ${width}×${height} viewport after being clicked: it is at (${describe(after)}), where it was at (${describe(before)})${evidence}`,
   ).toBe(true);
-}
-
-/** The centre of a box: what a surface keeps when it grows, and loses when it is dragged. */
-function centreOf(box: Box): { x: number; y: number } {
-  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-}
-
-/**
- * The same measurement, against the **narrowed** clause: the surface was not *dragged*, and the
- * control is still in the viewport
- * (`plan-docker_management_app-containers_card_view-detail_modal/REQ-25`, narrowed by the human on
- * 2026-08-26).
- *
- * The difference from `clickAndExpectSurfaceUnmoved` is the surface it is written for, not a
- * weakening. A **top-anchored** surface — the create sheet, the delivered inline panel — keeps its
- * origin when its content grows, so "the box did not move" is a statement its geometry can make. A
- * **centred, content-sized** surface cannot: revealing five fields grows it, and half that growth
- * comes off its top edge, whatever the control was. What such a surface keeps when it merely grows
- * is its **centre**, and what it loses the moment a focus scroll carries it away is exactly that.
- * So the centre is what is asserted here — and bug-2's 1044px drag, which changed no height at all,
- * fails it by 1044px.
- *
- * If the growth ever reaches the format's height cap the growth stops being symmetric and this
- * assertion fails; that is a reading worth having rather than one to allow for in advance.
- */
-export async function clickAndExpectSurfaceNotDragged(check: SurfaceStabilityCheck): Promise<SurfaceStabilityResult> {
-  const { page, surface, surfaceName, control, controlName } = check;
-
-  await expect(control, `${controlName} is not on screen at all`).toBeVisible();
-  await control.scrollIntoViewIfNeeded();
-
-  const surfaceBefore = await boxOf(surface, surfaceName);
-  const controlBefore = await boxOf(control, controlName);
-  const gap = check.hiddenControl === undefined ? Number.NaN : await hiddenControlGap(check.hiddenControl, controlBefore);
-  const evidence = Number.isNaN(gap) ? '' : `; its hidden input is drawn ${round(gap)}px away from it`;
-
-  // A real pointer, delivered at the control's own coordinates and carrying focus with it. Never
-  // `element.click()` and never a dispatched event: that is the half of the instrument that makes a
-  // focus-scroll drag observable at all (REQ-11).
-  await control.click();
-
-  const surfaceAfter = await boxOf(surface, surfaceName);
-  const before = centreOf(surfaceBefore);
-  const after = centreOf(surfaceAfter);
-  expect(
-    { x: round(after.x), y: round(after.y) },
-    `${surfaceName} was dragged when ${controlName} was clicked with a real pointer: its centre moved from (${round(before.x)}, ${round(
-      before.y,
-    )}) to (${round(after.x)}, ${round(after.y)}) — from (${describe(surfaceBefore)}) to (${describe(
-      surfaceAfter,
-    )}), which is ${round(surfaceAfter.height - surfaceBefore.height)}px of content growth and ${round(
-      surfaceAfter.y - surfaceBefore.y,
-    )}px of vertical displacement${evidence}`,
-  ).toEqual({ x: round(before.x), y: round(before.y) });
-
-  const controlAfter = await boxOf(control, controlName);
-  expectControlWithinViewport(page, controlName, controlBefore, controlAfter, evidence);
-
-  return { surfaceBefore, surfaceAfter, controlBefore, controlAfter };
 }

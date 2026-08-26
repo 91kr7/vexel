@@ -18,15 +18,14 @@
  * before the click and after it — and it does not on this dialog either: **10.3px**, measured
  * 2026-08-26 through this very check.
  *
- * **What this file asserts, and why it is not the create sheet's assertion.** The delivered inline
- * panel was top-anchored, so "its box did not move" was a statement its geometry could make. This
- * dialog is **content-sized and centred**: revealing the five health-check fields grows it 85.2px
- * and half of that comes off its top edge — measured 2026-08-26, and the reading that had the human
- * narrow REQ-25 that day, since every field-revealing control would do the same and the switch is
- * merely the first. What a centred surface keeps while it merely grows is its **centre**, and what
- * it loses the instant a focus scroll carries it off is exactly that. So the centre is what is
- * asserted, beside the switch still being in the viewport — and bug-2's 1044px drag, which changed
- * no height at all, fails that by 1044px.
+ * **What this file asserts.** The dialog's **viewport box** — every edge of it — before and after the
+ * click, beside the switch still being inside the viewport. It asserted less than that until
+ * 2026-08-26: the dialog was centred and sized by its content, so revealing the five health-check
+ * fields grew it 85.2px and lifted its top edge 42.6px, and what such a surface can promise is its
+ * centre rather than its box. That is the narrowing the human made to
+ * `plan-docker_management_app-containers_card_view-detail_modal/REQ-25` on the day, and
+ * `…-tabs_composition_refactor/REQ-2` takes it back: the dialog now asks for a stable height, so a
+ * reveal inside it moves no edge of it at all and the strict reading is the one the contract states.
  *
  * **Three measured, two inferred, and the difference is not decoration.** With a real pointer, on
  * the unfixed build: the create sheet displaced (its own check), this detail clean, and the plugins
@@ -35,14 +34,14 @@
  * be quoted as one.
  *
  * So this file is a **non-regression guard on a second consumer**, not a second reproduction, and it
- * is honest about it. The instrument is not thereby unproven: the same module's stricter check
- * fails, in the same run, on the create sheet.
+ * is honest about it. The instrument is not thereby unproven: the same module's check fails, in the
+ * same run, on the create sheet.
  *
  * plan-docker_management_app-toggle_focus_scroll/REQ-10, REQ-11, REQ-13, REQ-15.
  */
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
-import { clickAndExpectSurfaceNotDragged } from './support/surface-stability.js';
+import { clickAndExpectSurfaceUnmoved } from './support/surface-stability.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { containerCard, containerDetail, openContainerDetail } from './support/container-cards.js';
@@ -93,10 +92,10 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
 });
 
-// plan-docker_management_app-toggle_focus_scroll/REQ-10, REQ-11, REQ-13 and detail_modal/REQ-25 as
-// narrowed on 2026-08-26 — operating the switch inside the container detail does not drag the
-// dialog out of position, and leaves the switch itself inside the viewport
-test('operating the health-check switch does not drag the container detail dialog', async ({ page }) => {
+// plan-docker_management_app-toggle_focus_scroll/REQ-10, REQ-11, REQ-13 and
+// tabs_composition_refactor/REQ-2, REQ-44 — operating the switch inside the container detail moves
+// no edge of the dialog and leaves the switch itself inside the viewport
+test('operating the health-check switch moves no edge of the container detail dialog', async ({ page }) => {
   const name = `vexel-e2e-switch-panel-${Date.now()}`;
   try {
     await createNeverStartedContainer(name);
@@ -115,7 +114,7 @@ test('operating the health-check switch does not drag the container detail dialo
     await expect(healthToggle(page)).toHaveCount(1);
     await expect(healthToggle(page), 'the health-check switch is already on, so this test would prove nothing').not.toBeChecked();
 
-    const measured = await clickAndExpectSurfaceNotDragged({
+    const measured = await clickAndExpectSurfaceUnmoved({
       page,
       surface: detailPanel(page),
       surfaceName: 'the container detail dialog',
@@ -124,22 +123,25 @@ test('operating the health-check switch does not drag the container detail dialo
       hiddenControl: healthToggle(page),
     });
 
-    // Reported, so the displacement the assertion above allows is a number a reader can see rather
-    // than a clause they have to take on trust.
+    // Reported, so the two numbers the assertions rest on are ones a reader can see rather than
+    // clauses they have to take on trust.
     const grew = measured.surfaceAfter.height - measured.surfaceBefore.height;
     const moved = measured.surfaceAfter.y - measured.surfaceBefore.y;
-    console.log(`[REQ-25] the dialog grew ${grew.toFixed(1)}px and its top edge moved ${moved.toFixed(1)}px`);
+    console.log(`[REQ-2] the dialog grew ${grew.toFixed(1)}px and its top edge moved ${moved.toFixed(1)}px`);
 
-    // The displacement is the growth's and nothing else's: on a centred surface the top edge takes
-    // exactly half of what the content added. Stated as its own assertion so that a dialog which
-    // both grew *and* was dragged cannot pass on the centre alone.
+    // REQ-2 asks for the **viewport box**, and the helper above compares its origin. The size is
+    // asserted here, on the same measurement, so that a dialog which stayed put while growing
+    // downwards — the delivered defect with one edge pinned — cannot pass on the origin alone.
     expect(
-      Math.round(moved * 10) / 10,
-      `the dialog's top edge moved ${moved.toFixed(1)}px against ${grew.toFixed(1)}px of content growth: that is not the growth's own half`,
-    ).toBe(Math.round(-grew / 2 * 10) / 10);
+      { width: measured.surfaceAfter.width, height: measured.surfaceAfter.height },
+      `the reveal resized the dialog: ${measured.surfaceBefore.width.toFixed(1)}×${measured.surfaceBefore.height.toFixed(
+        1,
+      )} became ${measured.surfaceAfter.width.toFixed(1)}×${measured.surfaceAfter.height.toFixed(1)}`,
+    ).toEqual({ width: measured.surfaceBefore.width, height: measured.surfaceBefore.height });
 
-    // And the growth is the switch's own doing rather than a coincidence: the five fields it reveals
-    // are on screen.
+    // Content beside the geometry, never instead of it (REQ-44): the reveal did happen, so the
+    // unchanged box above is a dialog that absorbed five new fields rather than one that ignored the
+    // click.
     for (const field of ['Health check command', 'Interval seconds', 'Timeout seconds', 'Retries', 'Start period seconds']) {
       await expect(detailPanel(page).getByLabel(field, { exact: true }), `the switch revealed no \`${field}\` field`).toBeVisible();
     }

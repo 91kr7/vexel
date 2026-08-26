@@ -1,7 +1,7 @@
 import { expect, test, type Page } from './support/test.js';
 import { anonymousVolumes, openApp, ownershipArgs, removeAnonymousVolumesSince } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
-import { boxOf } from './support/settled.js';
+import { boxOf, boxesOf, boxThisFrame, clickAtItsCentre, movePointerTo } from './support/settled.js';
 import {
   chooseCardAction,
   closeContainerDetail,
@@ -36,10 +36,10 @@ async function openOverflow(page: Page, name: string) {
 }
 
 /**
- * The dialog's box, **once it has stopped moving**. The dialog is the size of its content and the
- * Config tab's inspect data arrives after the dialog does, so a box read the instant it opens is a
- * box of another layout — which is how a comparison across a keystroke ends up reporting the
- * content's arrival as a displacement.
+ * The dialog's box, **once its content has arrived**. The height is the dialog's own since
+ * `…-tabs_composition_refactor/REQ-1`, so this no longer guards against a growing card; it still
+ * guards against measuring a dialog whose Config tab is drawing "Loading" — the inspect data arrives
+ * after the dialog does, and a width or an x read then belongs to another layout.
  */
 async function settledDialogBox(page: Page) {
   const detail = containerDetail(page);
@@ -595,8 +595,8 @@ test.describe('Container detail dialog dismissal (REQ-3, REQ-10, REQ-11, REQ-13,
 
       await openContainerDetail(page, name);
       await expect(detail).toBeVisible();
-      // Measured across the keystroke alone: the dialog is the size of its content, so a tab change
-      // legitimately changes its height and a box read across one would answer another question.
+      // Measured across the keystroke alone, which is the question this test asks; that a tab change
+      // moves no edge either is REQ-1's own check, further down this file.
       const onConfig = await settledDialogBox(page);
 
       await page.keyboard.press('Escape');
@@ -1168,6 +1168,320 @@ test.describe('Container detail dialog, bound to its container (REQ-32, REQ-33, 
     } finally {
       await removeContainerQuietly(name);
       await removeAnonymousVolumesSince(volumesBefore);
+    }
+  });
+});
+
+/**
+ * **One height for the whole detail, and the tab's content scrolling inside it** —
+ * `plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor`, REQ-1,
+ * REQ-3, REQ-4, driven under REQ-44: a real pointer at each visible control's own coordinates, and
+ * the dialog's **viewport box** as the measurement, with content assertions beside it.
+ *
+ * The tabs are read off the bar rather than listed here: REQ-43 refuses a check that names a tab by
+ * position, and the plan reorders them two batches on.
+ */
+test.describe('Container detail dialog, one stable height (REQ-1, REQ-3, REQ-4)', () => {
+  test.describe.configure({ mode: 'serial' });
+
+  /** The card — the glass box of the dialog, which is what "the dialog's frame" names. */
+  function detailCard(page: Page) {
+    return page.locator('.ui-modal__positioner');
+  }
+
+  /** The tab row: a band of the arrangement, and the chrome that must stay put (REQ-3). */
+  function tabRow(page: Page) {
+    return containerDetail(page).locator('.ui-tabs');
+  }
+
+  /** The region the active tab is drawn in: the one that absorbs the height the bands leave. */
+  function tabRegion(page: Page) {
+    return containerDetail(page).locator('.ui-band-stack__fill');
+  }
+
+  /** The names the bar actually offers, in the order it draws them. */
+  async function tabsOffered(page: Page): Promise<string[]> {
+    const names = await containerDetail(page).getByRole('tab').allTextContents();
+    return names.map((name) => name.trim()).filter((name) => name.length > 0);
+  }
+
+  /** Every scrolling box inside the dialog, with where each one is scrolled to. */
+  async function scrollersInsideTheDialog(page: Page) {
+    return await page.evaluate(() => {
+      const dialog = document.querySelector('.ui-modal--size-large');
+      if (dialog === null) return [];
+      const scrollers: { what: string; scrollTop: number; scrollHeight: number; clientHeight: number }[] = [];
+      for (const element of [dialog, ...dialog.querySelectorAll('*')]) {
+        const overflowY = getComputedStyle(element).overflowY;
+        if (overflowY !== 'auto' && overflowY !== 'scroll') continue;
+        if (element.scrollHeight <= element.clientHeight + 1) continue;
+        scrollers.push({
+          what: `${element.tagName.toLowerCase()}.${String((element as HTMLElement).className).split(' ')[0]}`,
+          scrollTop: element.scrollTop,
+          scrollHeight: element.scrollHeight,
+          clientHeight: element.clientHeight,
+        });
+      }
+      return scrollers;
+    });
+  }
+
+  /** What the page behind the dialog scrolls, if anything. */
+  async function pageScrollExtent(page: Page) {
+    return await page.evaluate(() => {
+      const root = document.scrollingElement ?? document.documentElement;
+      return { scrollHeight: root.scrollHeight, clientHeight: root.clientHeight };
+    });
+  }
+
+  // REQ-1, REQ-44 — every tab in turn, chosen with a real pointer at the tab's own coordinates: the
+  // dialog's frame is the same box after each change as it was before the first one, read both the
+  // instant the tab changes and once the tab's content has arrived.
+  test('the dialog keeps one viewport box across a change to every tab it offers', async ({ page }) => {
+    const name = `vexel-e2e-detail-height-tabs-${Date.now()}`;
+    try {
+      // Running, so the two session tabs are offered as well: "any pair of tabs" is every tab the
+      // bar actually draws, not the five a stopped container has.
+      await createSleepingContainer(name);
+      await expect(containerCard(page, name)).toBeVisible({ timeout: 15_000 });
+
+      await openContainerDetail(page, name);
+      const card = detailCard(page);
+      await settledDialogBox(page);
+      const reference = await boxOf(card, 'the container detail dialog');
+
+      const tabs = await tabsOffered(page);
+      // The set, never the order: REQ-43 refuses a check that names a tab by position, and the two
+      // session tabs are named here because a running container offers them and this batch re-sized
+      // exactly them (containers/specs/container-detail-panel.md).
+      expect(new Set(tabs), `the bar offered ${JSON.stringify(tabs)}`).toEqual(
+        new Set(['Logs', 'Stats', 'Config', 'Processes', 'Inspect', 'Exec', 'Attach']),
+      );
+      console.log(`[REQ-1] the dialog holds one ${reference.width.toFixed(1)}×${reference.height.toFixed(1)} box across ${tabs.length} tabs`);
+      const seen: string[] = [];
+      for (const tab of tabs) {
+        const control = containerDetail(page).getByRole('tab', { name: tab, exact: true });
+        await clickAtItsCentre(page, control, `the ${tab} tab`);
+        await expect(control, `the ${tab} tab did not become the active one`).toHaveAttribute('aria-selected', 'true');
+
+        // Two readings, and the pair is the point. The first is single-frame, taken the instant the
+        // tab changes, where a frame of a taller or shorter card would show; the second is settled,
+        // where the arriving content of the new tab would show.
+        const onArrival = await boxThisFrame(card, 'the container detail dialog');
+        expect(onArrival, `the dialog's box changed the instant the ${tab} tab was chosen`).toEqual(reference);
+        const settled = await boxOf(card, 'the container detail dialog');
+        expect(settled, `the dialog's box changed as the ${tab} tab's content arrived`).toEqual(reference);
+        seen.push(tab);
+      }
+
+      // Content beside the geometry (REQ-44): the walk moved through the tabs rather than pressing
+      // the same one seven times.
+      expect(seen, 'the walk did not reach every tab the bar offers').toEqual(tabs);
+
+      // …and back again, over a pair chosen for holding the least and the most: a return to a tab
+      // already visited is still the same box.
+      for (const tab of [tabs[tabs.length - 1]!, tabs[0]!]) {
+        const control = containerDetail(page).getByRole('tab', { name: tab, exact: true });
+        await clickAtItsCentre(page, control, `the ${tab} tab`);
+        await expect(control).toHaveAttribute('aria-selected', 'true');
+        expect(await boxOf(card, 'the container detail dialog'), `the dialog's box changed on returning to ${tab}`).toEqual(reference);
+      }
+
+      await closeContainerDetail(page);
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+
+  // REQ-3, REQ-44 — a tab taller than the region it is given scrolls **inside** the dialog: the tab
+  // row stays put, every tab stays reachable, nothing is drawn outside the card, and the page behind
+  // it has nothing to scroll. Driven with a real wheel over the region, not by assigning scrollTop.
+  test.describe('with a window too short for the tab it shows', () => {
+    test.use({ viewport: { width: 1280, height: 600 } });
+
+    test('the tab content scrolls inside the dialog, and the page behind it does not scroll at all', async ({ page }) => {
+      const name = `vexel-e2e-detail-height-scroll-${Date.now()}`;
+      try {
+        await createSleepingContainer(name);
+        await expect(containerCard(page, name)).toBeVisible({ timeout: 15_000 });
+
+        await openContainerDetail(page, name);
+        const detail = containerDetail(page);
+        const card = detailCard(page);
+        await settledDialogBox(page);
+        const beforeTheChange = await boxOf(card, 'the container detail dialog');
+        const rowBefore = await boxOf(tabRow(page), 'the tab row');
+
+        // Inspect is the tab that holds the whole raw payload, so it is the one certain to be taller
+        // than a 600px window leaves it.
+        const inspect = detail.getByRole('tab', { name: 'Inspect', exact: true });
+        await clickAtItsCentre(page, inspect, 'the Inspect tab');
+        await expect(inspect).toHaveAttribute('aria-selected', 'true');
+        await expect(detail.locator('.ui-code-viewer__code').last()).toBeVisible({ timeout: 20_000 });
+
+        const scrollersBefore = await scrollersInsideTheDialog(page);
+        expect(
+          scrollersBefore.length,
+          `nothing inside the dialog can scroll, so this tab is not taller than the region and proves nothing: ${JSON.stringify(
+            scrollersBefore,
+          )}`,
+        ).toBeGreaterThan(0);
+
+        // Nothing is drawn outside the card: the region holding the tab sits within the card's own
+        // box, top and bottom.
+        const cardBox = await boxOf(card, 'the container detail dialog');
+        const regionBox = await boxOf(tabRegion(page), "the active tab's region");
+        expect(regionBox.y, "the tab's region starts above the card").toBeGreaterThanOrEqual(cardBox.y - 1);
+        expect(
+          regionBox.y + regionBox.height,
+          `the tab's region ends ${(regionBox.y + regionBox.height - cardBox.y - cardBox.height).toFixed(1)}px below the card`,
+        ).toBeLessThanOrEqual(cardBox.y + cardBox.height + 1);
+
+        // …and the card itself is not what scrolls: a body overflowing the card would put a second
+        // scrollbar around content that already has one (`ui-library/specs/modal.md`), which is the
+        // shape "rendered outside the card" takes here.
+        const cardScroll = await containerDetail(page).evaluate((element) => ({
+          scrollHeight: element.scrollHeight,
+          clientHeight: element.clientHeight,
+        }));
+        expect(
+          cardScroll.scrollHeight,
+          `the dialog card scrolls its own body: ${cardScroll.scrollHeight}px of content in a ${cardScroll.clientHeight}px card`,
+        ).toBeLessThanOrEqual(cardScroll.clientHeight + 1);
+
+        const wheeled = await movePointerTo(page, tabRegion(page), "the active tab's region");
+        await page.mouse.wheel(0, 400);
+        await expect
+          .poll(async () => (await scrollersInsideTheDialog(page)).some((scroller) => scroller.scrollTop > 0), {
+            timeout: 5000,
+            message: `a wheel over the tab's region at (${wheeled.x.toFixed(0)}, ${wheeled.y.toFixed(0)}) scrolled nothing inside the dialog`,
+          })
+          .toBe(true);
+
+        // The page behind it has nothing to scroll, before or after the wheel.
+        const behind = await pageScrollExtent(page);
+        expect(
+          behind.scrollHeight,
+          `the page behind the dialog scrolls: ${behind.scrollHeight}px of content in a ${behind.clientHeight}px page`,
+        ).toBeLessThanOrEqual(behind.clientHeight + 1);
+
+        // The chrome stayed where it was, through the tab change and through the scroll…
+        expect(await boxOf(card, 'the container detail dialog'), 'the dialog moved or resized').toEqual(beforeTheChange);
+        expect(await boxOf(tabRow(page), 'the tab row'), 'the tab row moved with the content it sits above').toEqual(rowBefore);
+
+        // …and every tab is still reachable: on screen, and inside the window.
+        const viewport = page.viewportSize()!;
+        for (const tab of await tabsOffered(page)) {
+          const control = detail.getByRole('tab', { name: tab, exact: true });
+          const box = await boxOf(control, `the ${tab} tab`);
+          expect(box.y, `the ${tab} tab is above the top of the window`).toBeGreaterThanOrEqual(0);
+          expect(box.y + box.height, `the ${tab} tab is below the bottom of the window`).toBeLessThanOrEqual(viewport.height + 1);
+        }
+
+        await closeContainerDetail(page);
+      } finally {
+        await removeContainerQuietly(name);
+      }
+    });
+  });
+
+  // REQ-3 — the two tabs that are a surface of their own take the height of the region they are
+  // placed in, rather than a maximum of their own, and scroll inside themselves
+  // (`containers/specs/container-detail-panel.md`). Measured at a window tall enough that a stated
+  // maximum would leave a visible band of surface under the view.
+  test.describe('with a window taller than either view used to ask for', () => {
+    test.use({ viewport: { width: 1440, height: 1000 } });
+
+    test('the log stream and the terminal reach the bottom of the region their tab is given', async ({ page }) => {
+      const name = `vexel-e2e-detail-height-fill-${Date.now()}`;
+      try {
+        await createSleepingContainer(name);
+        await expect(containerCard(page, name)).toBeVisible({ timeout: 15_000 });
+
+        await openContainerDetail(page, name);
+        const detail = containerDetail(page);
+        await settledDialogBox(page);
+        const reference = await boxOf(detailCard(page), 'the container detail dialog');
+
+        const logs = detail.getByRole('tab', { name: 'Logs', exact: true });
+        await clickAtItsCentre(page, logs, 'the Logs tab');
+        await expect(detail.locator('.ui-log-stream')).toBeVisible({ timeout: 20_000 });
+        const onLogs = await boxesOf(page, { region: tabRegion(page), view: detail.locator('.ui-log-stream') }, 'the Logs tab');
+        console.log(
+          `[REQ-3] the log stream ends at ${(onLogs.view!.y + onLogs.view!.height).toFixed(1)}px in a region ending at ${(
+            onLogs.region!.y + onLogs.region!.height
+          ).toFixed(1)}px`,
+        );
+        expect(
+          Math.abs(onLogs.view!.y + onLogs.view!.height - onLogs.region!.y - onLogs.region!.height),
+          'the log stream stops short of the region it is placed in, leaving a band of surface under it',
+        ).toBeLessThanOrEqual(2);
+
+        const exec = detail.getByRole('tab', { name: 'Exec', exact: true });
+        await clickAtItsCentre(page, exec, 'the Exec tab');
+        await clickAtItsCentre(page, detail.getByRole('button', { name: 'Launch session' }), 'the Launch session control');
+        await expect(detail.getByText('Connected')).toBeVisible({ timeout: 20_000 });
+        const onExec = await boxesOf(page, { region: tabRegion(page), view: detail.locator('.ui-session-surface') }, 'the Exec tab');
+        console.log(
+          `[REQ-3] the session surface ends at ${(onExec.view!.y + onExec.view!.height).toFixed(1)}px in a region ending at ${(
+            onExec.region!.y + onExec.region!.height
+          ).toFixed(1)}px`,
+        );
+        expect(
+          Math.abs(onExec.view!.y + onExec.view!.height - onExec.region!.y - onExec.region!.height),
+          'the session surface stops short of the region it is placed in, leaving a band of surface under the terminal',
+        ).toBeLessThanOrEqual(2);
+
+        // Neither view took its height out of the dialog's: the frame is the box it opened at.
+        expect(await boxOf(detailCard(page), 'the container detail dialog'), 'the dialog was resized by the views filling it').toEqual(
+          reference,
+        );
+
+        // Dismissed by the dialog's own control, which is what ends the session (REQ-42).
+        await closeContainerDetail(page);
+      } finally {
+        await removeContainerQuietly(name);
+      }
+    });
+  });
+
+  // REQ-4 — the height is bounded by the viewport on **every** viewport: the whole card inside the
+  // window, keeping the margin the overlay itself states, at four window sizes including a short one
+  // and a phone.
+  test('the whole dialog fits inside the window, with its margin, at every viewport', async ({ page }) => {
+    const name = `vexel-e2e-detail-height-bounds-${Date.now()}`;
+    try {
+      await createSleepingContainer(name);
+      await expect(containerCard(page, name)).toBeVisible({ timeout: 15_000 });
+
+      await openContainerDetail(page, name);
+      const card = detailCard(page);
+      await settledDialogBox(page);
+
+      for (const viewport of [
+        { width: 1280, height: 800 },
+        { width: 1280, height: 600 },
+        { width: 1024, height: 500 },
+        { width: 375, height: 812 },
+      ]) {
+        await page.setViewportSize(viewport);
+        const box = await boxOf(card, 'the container detail dialog');
+        // The delivered margin, read from the overlay that states it rather than written out here.
+        const margin = await page.locator('.ui-modal-overlay').evaluate((element) => Number.parseFloat(getComputedStyle(element).paddingTop));
+        const label = `${viewport.width}×${viewport.height}`;
+        expect(margin, `${label} — the overlay states no margin to check the dialog against`).toBeGreaterThan(0);
+        expect(box.y, `${label} — the dialog's top edge is at ${box.y.toFixed(1)}px, inside the ${margin}px margin`).toBeGreaterThanOrEqual(
+          margin - 1,
+        );
+        expect(
+          box.y + box.height,
+          `${label} — the dialog's bottom edge is at ${(box.y + box.height).toFixed(1)}px of a ${viewport.height}px window`,
+        ).toBeLessThanOrEqual(viewport.height - margin + 1);
+      }
+
+      await closeContainerDetail(page);
+    } finally {
+      await removeContainerQuietly(name);
     }
   });
 });
