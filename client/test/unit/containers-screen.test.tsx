@@ -105,6 +105,41 @@ function cardFor(name = 'web-nginx'): HTMLElement {
   return card;
 }
 
+/** The tone an element is drawn in; a badge or a dot carrying no tone class is the neutral one. */
+function toneOf(element: Element | null): string | null {
+  return element === null ? null : (/--tone-(\w+)/.exec(element.className)?.[1] ?? 'neutral');
+}
+
+/** One container's identity as a surface states it: the dot's tone, the name, the pills and the short id. */
+interface Identity {
+  dot: string | null;
+  name: string | null;
+  state: string | null;
+  health: string | null;
+  shortId: string | null;
+}
+
+function identityIn(region: HTMLElement | null): Identity {
+  const badges = Array.from(region?.querySelectorAll('.ui-badge') ?? []).map((badge) => badge.textContent ?? '');
+  return {
+    dot: toneOf(region?.querySelector('.ui-table-status-dot') ?? null),
+    name: region?.querySelector('.ui-section-header__title')?.textContent ?? null,
+    state: badges[0] ?? null,
+    health: badges[1] ?? null,
+    shortId: region?.querySelector('.ui-table-identifier-cell')?.textContent ?? null,
+  };
+}
+
+/**
+ * What the dialog's header says the detail belongs to — the identity composition that replaced the
+ * `Container — <name>` string, read from the dialog itself rather than by proximity to a card
+ * (containers-screen.md, tabs_composition_refactor/REQ-6, REQ-7, REQ-8).
+ */
+function detailIdentity(): Identity {
+  const dialog = document.querySelector<HTMLElement>('.ui-modal--size-large');
+  return identityIn(dialog?.querySelector<HTMLElement>('.ui-modal__title') ?? null);
+}
+
 /**
  * The card's action-bearing areas: the primary lifecycle slot and the joined
  * `Pause` · `Restart` · `…` cluster are two groups, so the card's own action
@@ -691,10 +726,6 @@ describe('ContainersScreen — the card control opens the detail as a dialog (RE
     return document.querySelector<HTMLElement>('.ui-modal--size-large');
   }
 
-  /** What the dialog says it belongs to — carried on the dialog itself, not by proximity to a card. */
-  function dialogTitle(): string {
-    return detailDialog()?.querySelector('.ui-modal__title')?.textContent ?? '';
-  }
 
   async function openDetail(user: ReturnType<typeof userEvent.setup>, name: string): Promise<void> {
     await user.click(within(cardFor(name)).getByRole('button', { name: `Open ${name} details` }));
@@ -708,7 +739,12 @@ describe('ContainersScreen — the card control opens the detail as a dialog (RE
 
     const dialog = detailDialog();
     expect(dialog, 'the detail did not open on the library’s large dialog surface').not.toBeNull();
-    expect(dialogTitle()).toBe('Container — web-nginx');
+    // The identity composition that replaced the `Container — <name>` string: the dot, the bare
+    // name, the state pill and the short id (tabs_composition_refactor/REQ-6, REQ-8).
+    expect(detailIdentity()).toEqual({ dot: 'success', name: 'web-nginx', state: 'RUNNING', health: null, shortId: 'container1' });
+    // …and it says as much as the card the operator just left: the same reading, from the same data.
+    expect(detailIdentity()).toEqual(identityIn(cardFor('web-nginx')));
+    expect(dialog!.querySelector('.ui-modal__title')?.textContent, 'the withdrawn prefix is still drawn').not.toMatch(/Container\s+—/);
     expect(await within(dialog!).findByRole('tab', { name: 'Config' })).toBeInTheDocument();
   });
 
@@ -792,7 +828,7 @@ describe('ContainersScreen — the card control opens the detail as a dialog (RE
     await openDetail(user, 'cache-redis');
 
     expect(document.querySelectorAll('.ui-modal--size-large')).toHaveLength(1);
-    expect(dialogTitle()).toBe('Container — cache-redis');
+    expect(detailIdentity()).toEqual({ dot: 'success', name: 'cache-redis', state: 'RUNNING', health: null, shortId: 'container2' });
   });
 });
 
@@ -1049,10 +1085,6 @@ describe('ContainersScreen — the dialog follows its container, not the filter 
     return document.querySelector<HTMLElement>('.ui-modal--size-large');
   }
 
-  function dialogTitle(): string {
-    return detailDialog()?.querySelector('.ui-modal__title')?.textContent ?? '';
-  }
-
   async function openDetail(user: ReturnType<typeof userEvent.setup>, name: string): Promise<void> {
     await user.click(within(cardFor(name)).getByRole('button', { name: `Open ${name} details` }));
     expect(detailDialog()).not.toBeNull();
@@ -1068,12 +1100,12 @@ describe('ContainersScreen — the dialog follows its container, not the filter 
 
     expect(cards().some((card) => card.textContent?.includes('web-nginx')), 'the filtered-out card is still drawn').toBe(false);
     expect(detailDialog(), 'a filter behind the dialog dismissed it').not.toBeNull();
-    expect(dialogTitle()).toBe('Container — web-nginx');
+    expect(detailIdentity()).toEqual({ dot: 'success', name: 'web-nginx', state: 'RUNNING', health: null, shortId: 'container1' });
 
     await user.clear(search);
 
     expect(detailDialog()).not.toBeNull();
-    expect(dialogTitle()).toBe('Container — web-nginx');
+    expect(detailIdentity()).toEqual({ dot: 'success', name: 'web-nginx', state: 'RUNNING', health: null, shortId: 'container1' });
   });
 
   it('stays open on its container while a state filter excludes it', async () => {
@@ -1085,7 +1117,7 @@ describe('ContainersScreen — the dialog follows its container, not the filter 
 
     expect(cards().some((card) => card.textContent?.includes('web-nginx'))).toBe(false);
     expect(detailDialog()).not.toBeNull();
-    expect(dialogTitle()).toBe('Container — web-nginx');
+    expect(detailIdentity()).toEqual({ dot: 'success', name: 'web-nginx', state: 'RUNNING', health: null, shortId: 'container1' });
   });
 
   // containers-screen.md — "neither is a list re-read that moves or redraws the cards": the bond is
@@ -1102,11 +1134,140 @@ describe('ContainersScreen — the dialog follows its container, not the filter 
     withContainers([{ ...cache, status: 'Up 4 days' }, { ...web, status: 'Up 4 days' }]);
 
     expect(detailDialog(), 'a list re-read behind the dialog dismissed it').not.toBeNull();
-    expect(dialogTitle()).toBe('Container — web-nginx');
+    expect(detailIdentity()).toEqual({ dot: 'success', name: 'web-nginx', state: 'RUNNING', health: null, shortId: 'container1' });
     expect(
       within(detailDialog()!).getByRole('tab', { name: 'Inspect' }),
       'the re-read sent the dialog back to another tab',
     ).toHaveAttribute('aria-selected', 'true');
+  });
+});
+
+// containers-screen.md — "the header's values come from the container data the screen already
+// holds … a state or a health outcome that changes while the dialog is open shows there on the
+// screen's own re-read, without the operator acting, and no request, endpoint or sampling cadence
+// is added to make it so" (tabs_composition_refactor/REQ-6, REQ-7, REQ-8, REQ-9).
+describe('ContainersScreen — the dialog\'s header carries the container\'s identity (REQ-6, REQ-7, REQ-8, REQ-9)', () => {
+  const healthy = makeContainer({
+    id: 'container-1',
+    shortId: 'container1',
+    name: 'web-nginx',
+    image: 'nginx:1.27',
+    state: 'running',
+    status: 'Up 3 days (healthy)',
+  });
+  const plain = makeContainer({ id: 'container-2', shortId: 'container2', name: 'cache-redis', image: 'redis:7', state: 'running' });
+
+  class FakeEventSource {
+    url: string;
+    constructor(url: string) {
+      this.url = url;
+    }
+    addEventListener() {}
+    removeEventListener() {}
+    close() {}
+  }
+
+  beforeEach(() => {
+    vi.stubGlobal('EventSource', FakeEventSource);
+    fetchMock.mockImplementation((url: string) => {
+      const id = /\/containers\/([^/]+)\/inspect/.exec(String(url))?.[1];
+      return Promise.resolve(
+        id
+          ? { ok: true, status: 200, json: () => Promise.resolve(inspectFor(id)) }
+          : { ok: true, status: 200, json: () => Promise.resolve({ titles: [], processes: [] }) },
+      );
+    });
+  });
+
+  function detailDialog(): HTMLElement | null {
+    return document.querySelector<HTMLElement>('.ui-modal--size-large');
+  }
+
+  async function openDetail(user: ReturnType<typeof userEvent.setup>, name: string): Promise<void> {
+    await user.click(within(cardFor(name)).getByRole('button', { name: `Open ${name} details` }));
+    await within(detailDialog()!).findByRole('tab', { name: 'Config' });
+  }
+
+  /** Every URL the screen has asked the daemon for, so a new request can be told from none. */
+  function requestedUrls(): string[] {
+    return fetchMock.mock.calls.map(([url]) => String(url));
+  }
+
+  // REQ-7 — a container the daemon states an outcome for shows it as a pill; one it states none for
+  // shows no health pill at all.
+  it('shows the health outcome the daemon states, and nothing at all where it states none', async () => {
+    const user = userEvent.setup();
+    renderScreen([healthy, plain]);
+
+    await openDetail(user, 'web-nginx');
+    expect(detailIdentity()).toEqual({ dot: 'success', name: 'web-nginx', state: 'RUNNING', health: 'HEALTHY', shortId: 'container1' });
+
+    await user.click(within(detailDialog()!).getByRole('button', { name: 'Close dialog' }));
+    await openDetail(user, 'cache-redis');
+
+    expect(detailIdentity()).toEqual({ dot: 'success', name: 'cache-redis', state: 'RUNNING', health: null, shortId: 'container2' });
+    expect(
+      detailDialog()!.querySelectorAll('.ui-modal__title .ui-badge'),
+      'a second pill stands where the absent health outcome would be',
+    ).toHaveLength(1);
+  });
+
+  // REQ-9 — the state that changes under an open detail shows there on the screen's own re-read,
+  // with the operator doing nothing and nothing new asked of the daemon.
+  it('follows a state that changes under the open dialog, asking the daemon for nothing new', async () => {
+    const user = userEvent.setup();
+    const { withContainers } = renderScreen([healthy, plain]);
+    await openDetail(user, 'web-nginx');
+    expect(detailIdentity().state).toBe('RUNNING');
+    const askedBefore = new Set(requestedUrls());
+
+    // The list re-reads: the same container, stopped by another client of the same daemon.
+    withContainers([{ ...healthy, state: 'exited', status: 'Exited (0) 2 seconds ago' }, plain]);
+
+    await waitFor(() =>
+      expect(detailIdentity()).toEqual({ dot: 'neutral', name: 'web-nginx', state: 'EXITED', health: null, shortId: 'container1' }),
+    );
+    expect(
+      requestedUrls().filter((url) => !askedBefore.has(url) && !/\/inspect/.test(url)),
+      'the header asked the daemon for something of its own',
+    ).toEqual([]);
+  });
+
+  // REQ-9 / containers-screen.md — a health outcome that changes is read the same way, out of the
+  // status sentence the re-read list already carries.
+  it('follows a health outcome that changes under the open dialog', async () => {
+    const user = userEvent.setup();
+    const { withContainers } = renderScreen([healthy, plain]);
+    await openDetail(user, 'web-nginx');
+    expect(detailIdentity().health).toBe('HEALTHY');
+
+    withContainers([{ ...healthy, status: 'Up 3 days (unhealthy)' }, plain]);
+
+    await waitFor(() => expect(detailIdentity().health).toBe('UNHEALTHY'));
+    expect(toneOf(detailDialog()!.querySelectorAll('.ui-modal__title .ui-badge')[1])).toBe('danger');
+  });
+
+  // containers-screen.md — "in that end state the header freezes at the container's last known
+  // identity": the values are the ones the list last carried, not the ones it opened on.
+  it('freezes the header at the last identity the list carried once the container has gone', async () => {
+    const user = userEvent.setup();
+    const { withContainers } = renderScreen([healthy, plain]);
+    await openDetail(user, 'web-nginx');
+
+    // Stopped first, then removed: the frozen identity must be the last one, not the opened one.
+    withContainers([{ ...healthy, state: 'exited', status: 'Exited (137) 1 second ago' }, plain]);
+    await waitFor(() => expect(detailIdentity().state).toBe('EXITED'));
+
+    withContainers([plain]);
+
+    await waitFor(() =>
+      expect(
+        Array.from(document.querySelectorAll('.ui-modal--size-large .ui-empty-state__title')).some((title) =>
+          /no longer exists/i.test(title.textContent ?? ''),
+        ),
+      ).toBe(true),
+    );
+    expect(detailIdentity()).toEqual({ dot: 'neutral', name: 'web-nginx', state: 'EXITED', health: null, shortId: 'container1' });
   });
 });
 
@@ -1196,7 +1357,10 @@ describe('ContainersScreen — a container that ceases to exist is stated on the
     // In place of the tabs: nothing of the detail is left standing on data that has stopped.
     expect(within(dialog).queryAllByRole('tab'), 'the tabs are still drawn beside the statement').toHaveLength(0);
     // The chrome is kept, so the dialog still says what it belonged to and still has its way out.
-    expect(dialog.querySelector('.ui-modal__title')?.textContent).toBe('Container — web-nginx');
+    // The header is frozen at the last identity the list carried for the container: it states no
+    // new state of its own, so it never contradicts the end state the body states
+    // (containers-screen.md, tabs_composition_refactor/REQ-9).
+    expect(detailIdentity()).toEqual({ dot: 'success', name: 'web-nginx', state: 'RUNNING', health: null, shortId: 'container1' });
     expect(within(dialog).getAllByRole('button', { name: 'Close dialog' })).toHaveLength(1);
     expect(cards().some((card) => card.textContent?.includes('web-nginx'))).toBe(false);
   });
@@ -1343,7 +1507,9 @@ describe('ContainersScreen — a recreate is not a disappearance (REQ-35)', () =
     );
     expect(detailDialog()).not.toBeNull();
     expect(endStateTitle()).toBeNull();
-    expect(detailDialog()!.querySelector('.ui-modal__title')?.textContent).toBe('Container — web-nginx');
+    // The dialog is re-pointed onto the recreated container, so the header states the new
+    // container's own short id under the name it kept (containers-screen.md).
+    expect(detailIdentity()).toEqual({ dot: 'success', name: 'web-nginx', state: 'RUNNING', health: null, shortId: 'container9' });
     expect(within(detailDialog()!).queryAllByRole('tab').length).toBeGreaterThan(0);
   });
 });

@@ -19,7 +19,7 @@ import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { boxOf, readOnceSettled } from './support/settled.js';
 import { clickAt } from './support/pointer.js';
-import { closeContainerDetail, containerCard, containerCards, containerDetail, detailControl, detailOwner } from './support/container-cards.js';
+import { closeContainerDetail, containerCard, containerCards, containerDetail, detailControl, detailIdentity } from './support/container-cards.js';
 
 const DESKTOP = { width: 1440, height: 1000 };
 const TWO_TRACKS = { width: 1100, height: 1000 };
@@ -1117,7 +1117,11 @@ test('the detail control keeps its geometry and opens the detail, the card stayi
     await clickAt(page, control, 'the detail control');
 
     await expect(containerDetail(page)).toBeVisible();
-    expect(await detailOwner(page)).toBe(`Container — ${name}`);
+    // The dialog that opened is the one for this card, read off the identity its header now states
+    // rather than off the withdrawn `Container — <name>` string (tabs_composition_refactor/REQ-6).
+    await expect
+      .poll(async () => await detailIdentity(page), { timeout: 20_000 })
+      .toMatchObject({ dot: 'success', name, state: 'RUNNING', health: null });
     // No card marks itself as the one whose detail is open (REQ-8), and none asks for the
     // selectable treatment (REQ-7).
     await expect(page.locator('.ui-surface--selected')).toHaveCount(0);

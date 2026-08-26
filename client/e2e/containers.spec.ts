@@ -10,7 +10,7 @@ import {
   containerDetail,
   containerDetailCloseControl,
   detailControl,
-  detailOwner,
+  detailIdentity,
   dismissContainerDetailByScrim,
   openContainerDetail,
   overflowTrigger,
@@ -20,6 +20,11 @@ import {
 // container starts instantly and needs no network pull or app init.
 async function createSleepingContainer(name: string, extraArgs: string[] = []): Promise<void> {
   await execFileAsync('docker', ['run', '-d', '--name', name, ...ownershipArgs(name), ...extraArgs, '--entrypoint', 'sleep', 'alpine:3.20', '300']);
+}
+
+/** The daemon's own short id for a container — the twelve characters the list carries (REQ-8). */
+async function shortIdOf(name: string): Promise<string> {
+  return (await execFileAsync('docker', ['inspect', '-f', '{{.Id}}', name])).stdout.trim().slice(0, 12);
 }
 
 async function removeContainerQuietly(name: string): Promise<void> {
@@ -509,8 +514,15 @@ test.describe('Container detail dialog dismissal (REQ-3, REQ-10, REQ-11, REQ-13,
       const detail = containerDetail(page);
       await expect(detail).toBeVisible();
 
-      // The identity is on the dialog itself, not by proximity to a card (REQ-16).
-      expect(await detailOwner(page)).toBe(`Container — ${name}`);
+      // The identity is on the dialog itself, not by proximity to a card (REQ-16), and it is the
+      // composition that replaced the `Container — <name>` string: dot, bare name, state pill and
+      // short id (tabs_composition_refactor/REQ-6, REQ-8).
+      await expect
+        .poll(async () => await detailIdentity(page), { timeout: 20_000 })
+        .toMatchObject({ dot: 'success', name, state: 'RUNNING', health: null });
+      const identity = await detailIdentity(page);
+      expect(identity.shortId, 'the header does not carry the daemon’s own short id').toBe(await shortIdOf(name));
+      expect(identity.text, 'the withdrawn prefix is still drawn').not.toMatch(/Container\s+—/);
       await expect(containerDetailCloseControl(page)).toHaveCount(1);
       // No card marks itself as the one whose detail is open (REQ-8).
       await expect(page.locator('.ui-surface--selected')).toHaveCount(0);
@@ -709,13 +721,13 @@ test.describe('Container detail dialog dismissal (REQ-3, REQ-10, REQ-11, REQ-13,
 
       await expect(containerCard(page, name)).toHaveCount(0);
       await expect(detail, 'a filter behind the dialog dismissed it').toBeVisible();
-      expect(await detailOwner(page)).toBe(`Container — ${name}`);
+      await expect.poll(async () => await detailIdentity(page), { timeout: 20_000 }).toMatchObject({ name, state: 'RUNNING' });
 
       await search.fill('');
 
       await expect(containerCard(page, name)).toBeVisible();
       await expect(detail).toBeVisible();
-      expect(await detailOwner(page)).toBe(`Container — ${name}`);
+      await expect.poll(async () => await detailIdentity(page), { timeout: 20_000 }).toMatchObject({ name, state: 'RUNNING' });
 
       await closeContainerDetail(page);
     } finally {
@@ -990,6 +1002,7 @@ test.describe('Container detail dialog, bound to its container (REQ-32, REQ-33, 
       await expect(containerCard(page, name)).toBeVisible({ timeout: 15_000 });
       const detail = containerDetail(page);
       const before = await openDetailOn(page, name, 'Logs');
+      const removedShortId = await shortIdOf(name);
 
       // Removed by another client of the same daemon, exactly as the requirement puts it.
       await execFileAsync('docker', ['rm', '-fv', name]);
@@ -1000,8 +1013,13 @@ test.describe('Container detail dialog, bound to its container (REQ-32, REQ-33, 
       await expect(containerCard(page, name)).toHaveCount(0);
       // In place of the tabs: nothing of the detail is left running behind the statement.
       await expect(detail.getByRole('tab')).toHaveCount(0);
-      // The chrome is kept, so the dialog still names what it belonged to and still has its way out.
-      expect(await detailOwner(page)).toBe(`Container — ${name}`);
+      // The chrome is kept, so the dialog still names what it belonged to and still has its way
+      // out — and the header is frozen at the last identity the list carried rather than emptying
+      // out from under the operator (containers-screen.md, tabs_composition_refactor/REQ-9).
+      const frozen = await detailIdentity(page);
+      expect(frozen).toMatchObject({ name, shortId: removedShortId });
+      expect(frozen.state, 'the frozen header states no state at all').not.toBeNull();
+      expect(frozen.dot, 'the frozen header carries no status dot').not.toBeNull();
       await expect(containerDetailCloseControl(page)).toHaveCount(1);
       await expect(detail.locator('.ui-empty-state__description')).not.toBeEmpty();
 
@@ -1063,7 +1081,13 @@ test.describe('Container detail dialog, bound to its container (REQ-32, REQ-33, 
       await expect(containerCard(page, name), 'the container never left the filtered list').toHaveCount(0, { timeout: 20_000 });
       await expect(detail, 'a filter behind the dialog dismissed it').toBeVisible();
       await expect(detailEndState(page), 'a filtered-out container was stated as no longer existing').toHaveCount(0);
-      expect(await detailOwner(page)).toBe(`Container — ${name}`);
+      // The header reads the same list the filter did, so the state it states is the new one
+      // (tabs_composition_refactor/REQ-9) and the container is still the one it was opened for.
+      await expect.poll(async () => await detailIdentity(page), { timeout: 20_000 }).toMatchObject({
+        dot: 'neutral',
+        name,
+        state: 'EXITED',
+      });
       await expect(detail.getByRole('tab', { name: 'Stats' })).toHaveAttribute('aria-selected', 'true');
 
       const after = await boxOf(detail, 'the container detail dialog');
@@ -1102,7 +1126,7 @@ test.describe('Container detail dialog, bound to its container (REQ-32, REQ-33, 
 
       await expect(detail, 'a list re-read behind the dialog dismissed it').toBeVisible();
       await expect(detailEndState(page)).toHaveCount(0);
-      expect(await detailOwner(page)).toBe(`Container — ${opened}`);
+      await expect.poll(async () => await detailIdentity(page), { timeout: 20_000 }).toMatchObject({ name: opened, state: 'RUNNING' });
       await expect(detail.getByRole('tab', { name: 'Inspect' })).toHaveAttribute('aria-selected', 'true');
 
       const after = await boxOf(detail, 'the container detail dialog');
@@ -1154,11 +1178,15 @@ test.describe('Container detail dialog, bound to its container (REQ-32, REQ-33, 
       await expect(containerCard(page, name)).toBeVisible({ timeout: 15_000 });
       await expect(detail, 'the recreate closed the dialog').toBeVisible();
       await expect(detailEndState(page), 'the recreate was read as a disappearance').toHaveCount(0);
-      expect(await detailOwner(page)).toBe(`Container — ${name}`);
+      await expect.poll(async () => await detailIdentity(page), { timeout: 20_000 }).toMatchObject({ name, state: 'RUNNING' });
 
-      // …and it is the *new* container it is showing: the daemon's own id for it, in the payload.
+      // …and it is the *new* container it is showing: the daemon's own id for it, in the payload —
+      // and in the header, which is re-pointed onto the replacement (tabs_composition_refactor/REQ-9).
       const idAfter = (await execFileAsync('docker', ['inspect', '-f', '{{.Id}}', name])).stdout.trim();
       expect(idAfter, 'the daemon did not recreate the container, so this proves nothing').not.toBe(idBefore);
+      await expect
+        .poll(async () => (await detailIdentity(page)).shortId, { timeout: 20_000 })
+        .toBe(idAfter.slice(0, 12));
       await detail.getByRole('tab', { name: 'Inspect' }).click();
       await expect
         .poll(async () => (await detail.locator('.ui-code-viewer__code').last().textContent()) ?? '', { timeout: 20_000 })

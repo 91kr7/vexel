@@ -50,9 +50,53 @@ export function containerDetailCloseControl(page: Page): Locator {
   return containerDetail(page).getByRole('button', { name: 'Close dialog', exact: true });
 }
 
-/** What the dialog says it belongs to: the identity is carried on the dialog itself (REQ-16). */
-export async function detailOwner(page: Page): Promise<string> {
-  return (await containerDetail(page).locator('.ui-modal__title').textContent()) ?? '';
+/** The dialog's own chrome band: what it says it belongs to, carried on the dialog itself (REQ-16). */
+export function containerDetailHeader(page: Page): Locator {
+  return containerDetail(page).locator('.ui-modal__title');
+}
+
+/**
+ * One container's identity as the header states it — the dot's tone, the bare name, the state pill,
+ * the health pill when the daemon states an outcome, and the short id
+ * (`…-tabs_composition_refactor/REQ-6`, `REQ-7`, `REQ-8`). It replaced the `Container — <name>`
+ * string the dialog used to be titled with, so every check that read that string reads this instead.
+ *
+ * Read in one pass, so a caller never compares halves of two different frames.
+ */
+export interface DetailIdentity {
+  dot: string | null;
+  name: string | null;
+  state: string | null;
+  stateTone: string | null;
+  health: string | null;
+  healthTone: string | null;
+  shortId: string | null;
+  /** Everything the band says, for a failure message that shows what was there instead. */
+  text: string;
+}
+
+export async function detailIdentity(page: Page): Promise<DetailIdentity> {
+  const header = containerDetailHeader(page);
+  await expect(header, 'the detail dialog carries no header').toBeVisible();
+  return await header.evaluate((band) => {
+    const tone = (element: Element | null) => (element === null ? null : (/--tone-(\w+)/.exec(element.className)?.[1] ?? 'neutral'));
+    const pills = Array.from(band.querySelectorAll('.ui-badge'));
+    return {
+      dot: tone(band.querySelector('.ui-table-status-dot')),
+      name: band.querySelector('.ui-section-header__title')?.textContent ?? null,
+      state: pills[0]?.textContent ?? null,
+      stateTone: pills[0] === undefined ? null : tone(pills[0]),
+      health: pills[1]?.textContent ?? null,
+      healthTone: pills[1] === undefined ? null : tone(pills[1]),
+      shortId: band.querySelector('.ui-table-identifier-cell')?.textContent ?? null,
+      text: band.textContent ?? '',
+    };
+  });
+}
+
+/** The name alone, for a check whose subject is which container the dialog is on. */
+export async function detailName(page: Page): Promise<string | null> {
+  return (await detailIdentity(page)).name;
 }
 
 /**

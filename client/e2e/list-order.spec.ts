@@ -5,7 +5,7 @@ import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
-import { containerCards, containerDetail, detailOwner, openContainerDetail } from './support/container-cards.js';
+import { containerCards, containerDetail, detailName, openContainerDetail } from './support/container-cards.js';
 
 /**
  * The order every list service now decides survives to the screen
@@ -250,7 +250,7 @@ test.describe('Containers', () => {
       await openContainerDetail(page, selected);
       const detail = containerDetail(page);
       await expect(detail).toBeVisible();
-      expect(await detailOwner(page)).toContain(selected);
+      expect(await detailName(page)).toBe(selected);
 
       // A re-read the spec causes itself, exactly as the daemon's own events reach the application.
       await execFileAsync('docker', ['stop', '-t', '0', disturbed]);
@@ -258,7 +258,7 @@ test.describe('Containers', () => {
 
       expect(await shownOrder(cards, names), 'a re-read of the same containers must move no card').toEqual(before);
       await expect(detail).toBeVisible();
-      expect(await detailOwner(page), 'the open detail stays on the container it was opened for').toContain(selected);
+      expect(await detailName(page), 'the open detail stays on the container it was opened for').toBe(selected);
       await expect(page.locator('.ui-surface--selected'), 'a card marks itself as the open one').toHaveCount(0);
     } finally {
       for (const name of names) await removeContainerQuietly(name);
