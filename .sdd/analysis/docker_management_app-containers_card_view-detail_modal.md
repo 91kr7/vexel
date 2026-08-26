@@ -78,10 +78,6 @@ control ships inert, it is indistinguishable from a defect.
   decision's own rule**: the gesture that opened the detail is now underneath the modal and cannot
   reverse it, so a close control is the only pointer way out and is therefore required. The shared
   panel's without-close variant is not deleted and keeps governing the images panel.
-- **`Escape` closes the modal, and remains arbitrated innermost-first.** Whatever inside it has
-  claimed the key — an exec or attach session, a log control, a menu, a combobox popup — takes it
-  first; the modal closes only when nothing did. The constraint is sharper than before, not weaker:
-  a terminal that stops receiving `Escape` is a broken terminal.
 - **The modal is dismissed by the routes every dialog in this product is dismissed by, and invents
   none of its own.** **Exactly one is open at a time**, and opening it neither reorders the list, nor
   scrolls it, nor changes any card's height.
@@ -149,9 +145,11 @@ control ships inert, it is indistinguishable from a defect.
   `client/src/ui/`; the containers screen composes it and states no layout or style of its own. The
   blur allow-list and the conformance check are untouchable, and the single overlay blur token is the
   only legal value on the one surface entitled to it.
-- **`Escape` is a contested key on this screen** — the card's overflow menu, the exec and attach
-  sessions, the log control and any inline editor claim it before the modal does. A constraint, not
-  a preference.
+- **`Escape` stays exactly where it already is on this screen** — the card's overflow menu, the exec
+  and attach sessions, the log control and any inline editor keep the key as they keep it today, and
+  the modal takes it from none of them: like every dialog in this product it claims the key and does
+  nothing with it, so nothing behind it is dismissed while it stands. A constraint, not a preference:
+  a terminal that stops receiving `Escape` is a broken terminal.
 - **The certified predecessors stay certified** and are named in the checks rather than assumed: the
   four-slot action contract and its overflow menu, the dialog sizing rules, the sampling gate, and
   the switch that must not drag its surface out of the viewport.
@@ -167,9 +165,6 @@ control ships inert, it is indistinguishable from a defect.
 - **The operator loses the list while reading the detail.** Watching one container's logs while
   another's state changes is a real operating pattern, and a modal covers the cards the inline panel
   left visible. This is the change's genuine cost.
-- **`Escape` is stolen from a terminal.** The pressure on the arbitration is higher now that `Escape`
-  is the modal's own dismissal, and the failure is silent: a session that quietly stops receiving a
-  keystroke looks like a working session.
 - **A stream or session survives the close.** The modal's lifecycle ends by three routes, one of them
   a container disappearing; missing one leaves a stream or an exec session running unseen.
 - **The nested blur renders nothing**, and the symptom is not an error but a control that merely
@@ -184,9 +179,9 @@ control ships inert, it is indistinguishable from a defect.
 **In scope:** presenting the container detail on the product's existing modal dialog surface with its
 tabs and content unchanged; removing the inline expansion from the containers screen; making the
 card's top-right control live and the sole route in, and withdrawing the card body's own click
-gesture and the interactive treatment that went with it; the modal's close control, its `Escape`
-dismissal arbitrated innermost-first, its focus return, and its resolution when its container ceases
-to exist; the modal stating which container it belongs to; binding every stream and session to the
+gesture and the interactive treatment that went with it; the modal's close control, its focus return,
+and its resolution when its container ceases to exist; the modal stating which container it belongs
+to; binding every stream and session to the
 modal's lifetime; sizing it as a large-format dialog, usable down to 375×812; verifying that the
 allow-listed control inside it still blurs; and rewriting the existing coverage against the modal.
 
