@@ -30,19 +30,97 @@
     inset 0 1px 0 var(--color-highlight-top);
 }
 
+/* Each padding class also names its inset, so a parted surface can hand the same one to each band. */
 .ui-surface--pad-none {
+  --surface-pad: 0;
   padding: 0;
   overflow: hidden;
 }
 
 .ui-surface--pad-sm {
-  padding: var(--space-3);
+  --surface-pad: var(--space-3);
+  padding: var(--surface-pad);
 }
 
 .ui-surface--pad-md {
-  padding: var(--space-5);
+  --surface-pad: var(--space-5);
+  padding: var(--surface-pad);
 }
 
 .ui-surface--pad-lg {
-  padding: var(--space-7);
+  --surface-pad: var(--space-7);
+  padding: var(--surface-pad);
+}
+
+/* Parted: a surface with a footer. The padding moves onto each band so the footer's
+   ground and hairline reach the edges; these rules must stay after the padding classes,
+   which they zero by source order. The content band absorbs the free height, which is
+   what keeps the footer on the bottom edge of a card stretched by its grid row. */
+.ui-surface--parted {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.ui-surface__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: var(--surface-pad, 0);
+}
+
+.ui-surface__footer {
+  flex: none;
+  padding: var(--space-4) var(--surface-pad, 0);
+  border-top: var(--border-width-hairline) solid var(--color-border-subtle);
+  border-bottom-left-radius: inherit;
+  border-bottom-right-radius: inherit;
+  background-color: var(--color-wash-1);
+}
+
+/* Selectable: the object table row's own highlight tokens, painted as an image layer
+   over the surface's fill — swapping the fill would leave a `flat` surface with no hover. */
+.ui-surface--selectable {
+  cursor: pointer;
+}
+
+.ui-surface--selectable:hover {
+  background-image: linear-gradient(var(--color-surface-2), var(--color-surface-2));
+}
+
+/* The compound selector is what keeps the selected highlight in place while the
+   pointer is over it: the hover rule above is one class more specific. */
+.ui-surface--selected,
+.ui-surface--selectable.ui-surface--selected:hover {
+  background-image: linear-gradient(var(--color-accent-tint), var(--color-accent-tint));
+}
+
+/* State accent: a gradient on a layer clipped by the surface's radius, so the bar
+   follows the left rounding. On `::after` because `::before` is the overlay material's. */
+.ui-surface--accent::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image: linear-gradient(
+    to right,
+    var(--surface-accent-color) 0 var(--space-1),
+    transparent var(--space-1)
+  );
+}
+
+.ui-surface--accent-success {
+  --surface-accent-color: var(--color-success);
+}
+
+.ui-surface--accent-warning {
+  --surface-accent-color: var(--color-warning);
+}
+
+.ui-surface--accent-danger {
+  --surface-accent-color: var(--color-danger);
+}
+
+.ui-surface--accent-neutral {
+  --surface-accent-color: var(--color-text-muted);
 }

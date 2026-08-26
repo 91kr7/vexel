@@ -36,6 +36,10 @@ type: configuration
   (REQ-93).
 - Starts `eventStreamService` so the daemon event subscription is live as soon as the server boots,
   independent of whether any client has connected yet.
+- **Starts no per-container stats sampler.** Booting the process asks the daemon for no stats at
+  all: sampling begins only when a consumer subscribes to the sampled figures and ends when the last
+  one goes, so a server left running with no browser attached is silent
+  (`plan-docker_management_app-containers_card_view/REQ-41`, `REQ-44`).
 - Calls `reclaimOrphans()` once at startup, before listening, so analysis-cache files left behind by
   a previously interrupted run are cleaned up before any client can observe cache usage.
 - Calls `sweepAbandonedExtractionContainers()` once at startup (its failure, e.g. an unreachable
@@ -58,7 +62,7 @@ type: configuration
 ## Dependencies
 
 - server-app: mountClientApp (client serving)
-- containers: handleContainerSessionUpgrade
+- containers: handleContainerSessionUpgrade, containersRouter
 - connectivity: connectivityRouter
 - contexts: contextsRouter, publishActiveEndpoint
 - events: eventsRouter, eventStreamService
@@ -90,3 +94,5 @@ type: configuration
 - plan-docker_management_app-single_process_serving/REQ-6
 - plan-docker_management_app-single_process_serving/REQ-7
 - plan-docker_management_app-single_process_serving/REQ-12
+- plan-docker_management_app-containers_card_view/REQ-41
+- plan-docker_management_app-containers_card_view/REQ-44

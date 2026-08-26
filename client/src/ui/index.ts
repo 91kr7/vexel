@@ -5,6 +5,7 @@ export { Backdrop } from './background/Backdrop';
 
 export {
   Surface,
+  type SurfaceAccent,
   type SurfaceElevation,
   type SurfaceMaterial,
   type SurfacePadding,
@@ -21,7 +22,7 @@ export { StateSummaryBar, type StateSummaryBarProps } from './glass/StateSummary
 export { Frame, type FrameProps } from './layout/Frame';
 export { Stack, type StackProps } from './layout/Stack';
 export { Row, type RowProps } from './layout/Row';
-export { Grid, type GridProps, type GridArrangement } from './layout/Grid';
+export { Grid, GridSpan, type GridProps, type GridSpanProps, type GridArrangement } from './layout/Grid';
 export { ContentColumns, type ContentColumnsProps } from './layout/ContentColumns';
 export { type ContentClass } from './layout/content-columns';
 export { DashboardLayout, type DashboardLayoutProps } from './layout/DashboardLayout';
@@ -74,7 +75,7 @@ export { FormField, type FormFieldProps } from './controls/FormField';
 export { FormSection, type FormSectionProps } from './controls/FormSection';
 export { Combobox, type ComboboxProps, type ComboboxOption } from './controls/Combobox';
 export { ChipInput, type ChipInputProps } from './controls/ChipInput';
-export { Chip, type ChipProps, ChipGroup, type ChipGroupProps, type ChipGroupItem } from './controls/Chip';
+export { Chip, type ChipProps, type ChipTone, ChipGroup, type ChipGroupProps, type ChipGroupItem } from './controls/Chip';
 export {
   CrossReference,
   type CrossReferenceProps,
@@ -120,6 +121,14 @@ export { SideBySideViewer, type SideBySideViewerProps, type SideBySideSide } fro
 
 export { MetricTile, type MetricTileProps, type MetricTone } from './metrics/MetricTile';
 export { Meter, type MeterProps } from './metrics/Meter';
+export {
+  MetricStrip,
+  type MetricStripProps,
+  type MetricStripColumn,
+  type MetricStripReading,
+  type MetricStripReadings,
+  type MetricStripRow,
+} from './metrics/MetricStrip';
 export { Sparkline, type SparklineProps } from './metrics/Sparkline';
 export { UsageBreakdown, type UsageBreakdownProps, type UsageBreakdownItem } from './metrics/UsageBreakdown';
 

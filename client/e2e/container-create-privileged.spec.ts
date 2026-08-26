@@ -51,6 +51,7 @@ import { clickAndExpectSurfaceUnmoved } from './support/surface-stability.js';
 import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
+import { containerCard } from './support/container-cards.js';
 
 // The width every reproduction attempt used (REQ-7), declared for the whole file
 // rather than left to one test to remember: the one thing the artifact fixes
@@ -366,9 +367,9 @@ test('creates a privileged container the daemon reports as privileged and never 
     // Asserted on the fixture this test made, never on totals or on a list being
     // empty: the operator's own containers are none of its business.
     await page.getByPlaceholder('Search name, image or state…').fill(name);
-    const row = page.locator('.ui-data-table__row', { hasText: name });
+    const row = containerCard(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
-    await expect(row).toContainText('created');
+    await expect(row).toContainText('CREATED');
 
     // The daemon's own answer, not the request the interface composed: privileged
     // as the daemon holds it (REQ-4), and never started (REQ-13).

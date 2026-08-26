@@ -28,16 +28,22 @@ import { DefinitionList, MetaCell, StorageUsageRow, TwoLineCell } from '../../sr
 const SOURCE_ROOT = join(process.cwd(), 'src');
 const LIBRARY_ROOT = join(SOURCE_ROOT, 'ui');
 
-/** The four classes `truncation-contract.md` names, and nothing else. */
-const CONTRACT_CLASSES = ['ui-truncating-row', 'ui-truncating-run', 'ui-truncating-line', 'ui-truncating-meta'];
+/** The five classes `truncation-contract.md` names, and nothing else. */
+const CONTRACT_CLASSES = [
+  'ui-truncating-row',
+  'ui-truncating-run',
+  'ui-truncating-line',
+  'ui-truncating-meta',
+  // Added 2026-08-25 with the containers card's image field
+  // (plan-docker_management_app-containers_card_view/REQ-5, REQ-28, REQ-31).
+  'ui-truncating-line--start',
+];
 
 /** Every stylesheet shipped under `client/src/`, path and content. */
 function stylesheets(directory = SOURCE_ROOT): { path: string; css: string }[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
-    // The conformance suite writes deliberately illegal stylesheets in its own
-    // fixture directory while it runs, so this scan must not depend on whether
-    // it is mid-run (CLAUDE.md, "Tests" — a test depends on nothing another did).
+    // The conformance suite writes illegal stylesheets in its own fixture directory while it runs.
     if (entry.name === '__conformance-fixture__') return [];
     if (entry.isDirectory()) return stylesheets(path);
     return entry.name.endsWith('.css') ? [{ path, css: readFileSync(path, 'utf8') }] : [];
@@ -71,9 +77,7 @@ function stylesheetsDeclaring(className: string): string[] {
 afterEach(cleanup);
 
 describe('the truncation contract is written once, in the library (REQ-17)', () => {
-  // truncation-contract.md: "The stylesheet declares four classes and nothing
-  // else ... Written once, in client/src/ui/, and carried by every primitive
-  // that draws such a row."
+  // truncation-contract.md — five classes, declared once, in the library (REQ-17).
   it.each(CONTRACT_CLASSES)('declares .%s in exactly one stylesheet of the library', (className) => {
     const declaring = stylesheetsDeclaring(className);
 
@@ -81,9 +85,7 @@ describe('the truncation contract is written once, in the library (REQ-17)', () 
     expect(declaring[0].split('/')[0], `.${className} is declared outside the library`).toBe('ui');
   });
 
-  // truncation-contract.md: the run "may shrink, and it flexes from a zero basis
-  // ... It never resolves narrower than --truncating-run-min-width", and "the
-  // floor is the token; no length is written on the spot".
+  // truncation-contract.md — the run flexes from a zero basis and is floored on the token (REQ-17).
   it('floors the run on the token and writes no length of its own', () => {
     const path = join(LIBRARY_ROOT, stylesheetsDeclaring('ui-truncating-run')[0].replace(/^ui\//, ''));
     const css = readFileSync(path, 'utf8');
@@ -95,9 +97,7 @@ describe('the truncation contract is written once, in the library (REQ-17)', () 
     expect(readFileSync(join(LIBRARY_ROOT, 'tokens.css'), 'utf8')).toMatch(/--truncating-run-min-width:\s*\d+px/);
   });
 
-  // truncation-contract.md: ".ui-truncating-line → one line of that run: a single
-  // line, truncated with an ellipsis at the run's edge", and ".ui-truncating-meta
-  // → the trailing metadata: its natural width, whatever the run does".
+  // truncation-contract.md — one ellipsised line, and a trailing group at its natural width (REQ-17).
   it('states the line as one ellipsised line and the meta as an unshrinkable one', () => {
     const path = join(LIBRARY_ROOT, stylesheetsDeclaring('ui-truncating-line')[0].replace(/^ui\//, ''));
     const css = readFileSync(path, 'utf8');
@@ -113,9 +113,23 @@ describe('the truncation contract is written once, in the library (REQ-17)', () 
     expect(ruleBody(css, '.ui-truncating-row')).toMatch(/flex-wrap:\s*wrap/);
   });
 
-  // REQ-17 — "No feature file expresses this itself, and no screen solves it
-  // locally": the classes are the library's, and the screens say nothing about
-  // truncation at all.
+  // truncation-contract.md — the front ellipsis, carried together with the one-line rule (REQ-17).
+  it('moves the ellipsis to the front of the line without moving the line', () => {
+    const path = join(LIBRARY_ROOT, stylesheetsDeclaring('ui-truncating-line--start')[0].replace(/^ui\//, ''));
+    const css = readFileSync(path, 'utf8');
+    const front = ruleBody(css, '.ui-truncating-line--start');
+
+    // The overflow, and with it the ellipsis, moves to the start of the line…
+    expect(front).toMatch(/direction:\s*rtl/);
+    // …and the line itself stays where it was.
+    expect(front).toMatch(/text-align:\s*left/);
+    // Carried together with the one-line rule, never instead of it: it restates none of it.
+    expect(front, 'the front variant restates the one-line rule instead of carrying it').not.toMatch(
+      /overflow\s*:|text-overflow\s*:|white-space\s*:/,
+    );
+  });
+
+  // REQ-17 — no feature file expresses the rule itself, and no screen solves it locally.
   it('leaves no truncation rule stated outside the library', () => {
     const offenders = sourceFiles()
       .filter(({ path }) => relative(SOURCE_ROOT, path).split('/')[0] !== 'ui')
@@ -127,10 +141,8 @@ describe('the truncation contract is written once, in the library (REQ-17)', () 
 });
 
 describe('the components that carry the contract (REQ-17)', () => {
-  // storage-usage-row.md: "the description shrinks and truncates with an
-  // ellipsis, while sizeLabel and the action keep their width", and "the label is
-  // outside the contract, deliberately: it is a fixed caption in the product's
-  // own wording, not a machine value, so it wraps rather than losing characters."
+  // storage-usage-row.md — the description shrinks while the size and the action keep their width;
+  // the label is outside the contract, being a caption rather than a machine value.
   it('truncates a StorageUsageRow’s description while its label, size and action keep their width', () => {
     const { container } = render(
       <StorageUsageRow label="Unused volumes" description="3 volumes unattached" sizeLabel="2.1GB" action={{ label: 'Prune', onClick: () => {} }} />,
@@ -152,10 +164,7 @@ describe('the components that carry the contract (REQ-17)', () => {
 });
 
 describe('the boundary: a list row truncates, a property band wraps (REQ-20)', () => {
-  // truncation-contract.md: "A line that reads as a sentence and is expected in
-  // full does not take the line class, rather than taking it and overriding it.
-  // That is how the wrapping variants of TwoLineCell and MetaCell stay wrapping:
-  // they withhold the class."
+  // truncation-contract.md — a wrapping variant withholds the line class rather than overriding it.
   it('withholds the line class from the wrapping variants and gives it to the others', () => {
     const { container: truncating } = render(
       <>
@@ -179,10 +188,7 @@ describe('the boundary: a list row truncates, a property band wraps (REQ-20)', (
     ).toHaveLength(0);
   });
 
-  // truncation-contract.md: "In a DataTable the floor is the column's, not the
-  // run's ... a cell takes the line and meta classes and not .ui-truncating-run:
-  // a second floor inside a 72px track would push the cell's inline action out
-  // of it."
+  // truncation-contract.md — in a DataTable the floor is the column's, so a cell takes no run of its own.
   it('gives a table cell no run of its own, and keeps its inline action unshrinkable', () => {
     const { container } = render(<TwoLineCell title="nginx" subtitle="a1b2c3d4" action={<button type="button">edit</button>} />);
 

@@ -34,12 +34,6 @@ import { boxOf, movePointerOverTheRow, readOnceSettled } from './support/settled
 import { clickAtItsCentre } from './support/settled.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
-import { startDeliveredBuild, type DeliveredBuild } from './support/delivered-build.js';
-
-/** The revision the classic-table plan was delivered on top of — the merge it starts from. */
-const DELIVERED_REF = process.env.VEXEL_DELIVERED_REF ?? 'd17e1df';
-/** Its own port: neither the suite's 3100, nor the classic-table specs' 3101 to 3105. */
-const DELIVERED_COST_PORT = Number(process.env.VEXEL_DELIVERED_COST_PORT ?? 3106);
 
 interface Viewport {
   width: number;
@@ -57,6 +51,10 @@ const PHONE: Viewport = { width: 375, height: 812 };
 
 /** The screens holding an object list, by the id the preference holds and the heading each draws. */
 const SCREENS: { id: string; heading: string }[] = [
+  // plan-docker_management_app-containers_card_view/REQ-1 — this screen draws one card per container
+  // and no table since 2026-08-25, so the sweeps below find nothing here. The visit stays, so a table
+  // reappearing on it is swept like any other; what it draws instead is measured in
+  // `containers-card-geometry.spec.ts`.
   { id: 'containers', heading: 'Containers' },
   { id: 'images-layers', heading: 'Images & layers' },
   { id: 'volumes-networks', heading: 'Volumes & networks' },
@@ -437,17 +435,12 @@ test('an open expansion holds the table’s left edge at every scroll offset, un
  * **REQ-35 — the change costs no more at runtime than what it replaces**
  * (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-35`, batch 5).
  *
- * Two claims, and neither can be settled by the tree it is written about:
+ * Two claims:
  *
- * - **Nothing on a scrolled surface gains a filter, a transition or an animation.** Absolute, and
- *   asserted on the build under test alone: these lists are main view, and a filter or an animation
- *   on a surface an operator scrolls is paid for on every frame of the scroll. It is red on the
- *   rejected build for the surfaces that build wrapped each row in, since a card is drawn and the
- *   layers below are what count it.
- * - **The layers painted per row did not grow.** Comparative by nature — "no more than what it
- *   replaces" names something to be compared with — so the delivered build is checked out, built and
- *   served on a port of its own, and the same screens are read on it minutes apart against the same
- *   daemon. A number written into this file instead would say nothing about what was replaced.
+ * - **Nothing on a scrolled surface gains a filter, a transition or an animation** — these lists are
+ *   main view, and either is paid for on every frame of the scroll.
+ * - **A converted row costs no more to paint than the reference row**, read from the reference lists
+ *   in the same run rather than from a figure written into this file.
  *
  * What is counted per row is what the browser has to paint for it beyond its own text: the row, the
  * elements between it and its table, and the content wrapper below its cells — each contributing one
@@ -574,14 +567,20 @@ async function scrolledScreen(page: Page, screen: { id: string; heading: string 
   });
 }
 
-test('a scrolled list costs no more to paint than the build that shipped the card row — 375×812', async ({ page, browser, baseURL }) => {
+// plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-35, REQ-39 — a
+// scrolled list carries no filter, transition or animation, and a converted row costs what the
+// reference row costs.
+test('a scrolled list carries nothing costly, and a converted row costs what the reference row costs — 375×812', async ({ page }) => {
   test.setTimeout(900_000);
-  expect(baseURL, 'this run has no origin of its own to compare the delivered build against').toBeTruthy();
 
-  // The screens whose lists exist on any daemon, plus this file's own fixtures: a container, an
-  // image tag, a volume and a network. Nothing here asserts a count or an emptiness — a screen whose
-  // lists are empty is reported and skipped, exactly as the sweeps above do.
-  const WALKED = SCREENS.filter((screen) => ['containers', 'images-layers', 'volumes-networks', 'contexts', 'builders-cache', 'plugins'].includes(screen.id));
+  // The screens whose lists exist on any daemon, plus this file's own fixtures. **Containers is not
+  // one of them since 2026-08-25**: it draws one card per container and no table, so the walk found
+  // nothing there and read as coverage while being none — its scroll cost is measured on the cards
+  // themselves, in `containers-card-geometry.spec.ts`.
+  const WALKED = SCREENS.filter((screen) => ['images-layers', 'volumes-networks', 'contexts', 'builders-cache', 'plugins'].includes(screen.id));
+
+  /** The reference row every converted one is measured against; it was two lists, and containers left it. */
+  const REFERENCE = ['images-layers'];
 
   await page.setViewportSize(PHONE);
   const now = new Map<string, ScrollCost[]>();
@@ -607,27 +606,13 @@ test('a scrolled list costs no more to paint than the build that shipped the car
   const costly = [...now].flatMap(([id, costs]) => costs.flatMap((cost) => cost.offenders.map((entry) => `${id} · ${cost.label}: ${entry}`)));
   expect(costly, 'a surface an operator scrolls carries a filter, a transition or an animation').toEqual([]);
 
-  /**
-   * …and **a converted row costs what the reference row costs**, read from the reference lists in
-   * the same run rather than from a figure written here (REQ-39's own form, applied to what a row
-   * costs to paint).
-   *
-   * This is the half of the claim that can be observed failing on the build this plan replaced,
-   * where the comparison below cannot be: measured against itself, a build is never more expensive
-   * than itself. On `d17e1df` the reference lists painted 1 layer per row — the row a pointer
-   * happens to hover — while volumes, networks, builders, contexts and plugins painted 3 and 4, the
-   * card each row was drawn on being a background, a corner and a shadow apiece.
-   */
-  const referenceWorst = Math.max(
-    0,
-    ...['containers', 'images-layers'].flatMap((id) => (now.get(id) ?? []).map((cost) => cost.layersPerRow)),
-  );
+  const referenceWorst = Math.max(0, ...REFERENCE.flatMap((id) => (now.get(id) ?? []).map((cost) => cost.layersPerRow)));
   expect(
-    (now.get('containers') ?? []).length + (now.get('images-layers') ?? []).length,
-    'neither reference list drew a row, so there is nothing to measure the converted ones against',
+    REFERENCE.flatMap((id) => now.get(id) ?? []).length,
+    'the reference list drew no row, so there is nothing to measure the converted ones against',
   ).toBeGreaterThan(0);
   const dearerThanTheReference = [...now]
-    .filter(([id]) => id !== 'containers' && id !== 'images-layers')
+    .filter(([id]) => !REFERENCE.includes(id))
     .flatMap(([id, costs]) =>
       costs
         .filter((cost) => cost.layersPerRow > referenceWorst)
@@ -635,64 +620,5 @@ test('a scrolled list costs no more to paint than the build that shipped the car
     );
   expect(dearerThanTheReference, 'a converted row costs more to paint than the reference row it is supposed to be').toEqual([]);
 
-  let delivered: DeliveredBuild | undefined;
-  try {
-    delivered = await startDeliveredBuild({ revision: DELIVERED_REF, port: DELIVERED_COST_PORT });
-    const context = await browser.newContext({ baseURL: delivered.origin, viewport: PHONE });
-    const before = await context.newPage();
-    try {
-      const worse: string[] = [];
-      const deliveredCosts = new Map<string, ScrollCost[]>();
-      let deliveredRows = 0;
-      for (const screen of WALKED) {
-        await scrolledScreen(before, screen);
-        const costs = (await measureScrollCost(before)).filter((cost) => cost.rows > 0);
-        deliveredCosts.set(screen.id, costs);
-        deliveredRows += costs.reduce((total, cost) => total + cost.rows, 0);
-        const deliveredWorst = Math.max(0, ...costs.map((cost) => cost.layersPerRow));
-        const currentWorst = Math.max(0, ...(now.get(screen.id) ?? []).map((cost) => cost.layersPerRow));
-        for (const cost of costs) {
-          console.log(
-            `[b5/REQ-35] delivered ${delivered.revision.slice(0, 7)} 375×812 ${screen.heading} · ${cost.label}: ${cost.rows} row(s), ${
-              cost.layersPerRow
-            } layer(s) painted per row — [${cost.layers.join(', ')}]`,
-          );
-        }
-        console.log(`[b5/REQ-35] ${screen.heading}: ${currentWorst} layer(s) per row now against ${deliveredWorst} delivered`);
-        if (currentWorst > deliveredWorst) {
-          worse.push(`${screen.heading}: ${currentWorst} layer(s) painted per row against the delivered build's ${deliveredWorst}`);
-        }
-      }
-
-      // The comparison's own premise: the delivered build was read with rows on screen. A build that
-      // showed none would report zero layers everywhere and let anything through as "no more".
-      expect(deliveredRows, 'the delivered build listed no row at all, so it bounds nothing').toBeGreaterThan(0);
-      expect(worse, 'a scrolled list paints more layers per row than the build this plan replaced').toEqual([]);
-
-      // REQ-29 — and the delivered build **fails the criterion above**, with its numbers, read by
-      // this very probe minutes earlier: a check that cannot be observed failing on the build the
-      // human rejected is not yet a check. The card each row was drawn on is a background, a corner
-      // and a shadow the reference row never had.
-      const deliveredReference = Math.max(
-        0,
-        ...['containers', 'images-layers'].flatMap((id) => (deliveredCosts.get(id) ?? []).map((cost) => cost.layersPerRow)),
-      );
-      const dearerThere = [...deliveredCosts]
-        .filter(([id]) => id !== 'containers' && id !== 'images-layers')
-        .flatMap(([id, costs]) =>
-          costs.filter((cost) => cost.layersPerRow > deliveredReference).map((cost) => `${id} · ${cost.label}: ${cost.layersPerRow}`),
-        );
-      console.log(
-        `[b5/REQ-29] delivered ${delivered.revision.slice(0, 7)}: reference row ${deliveredReference} layer(s), converted lists dearer than it — ${JSON.stringify(dearerThere)}`,
-      );
-      expect(
-        dearerThere.length,
-        'the delivered build already painted its lists as cheaply as its reference lists, so this criterion discriminates nothing',
-      ).toBeGreaterThan(0);
-    } finally {
-      await context.close();
-    }
-  } finally {
-    await delivered?.stop();
-  }
 });
+

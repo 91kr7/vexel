@@ -1,17 +1,11 @@
-import { Button, type ButtonVariant } from './Button';
+import type { ReactNode } from 'react';
+import { Button, type ButtonSize, type ButtonVariant } from './Button';
 import { Menu, type MenuEntry } from './Menu';
 import './controls.css';
 
 /**
- * How much an action weighs, which is the **only** thing a caller says about
- * it. What it then looks like — a filled button, a quiet one, a red one, an
- * entry in the overflow menu — is the cluster's to decide, and that is what
- * makes the rule un-re-answerable by a screen: there is no prop with which to
- * ask for an appearance.
- *
- * There is deliberately **no `text` weight**. Bare text is never a control:
- * every weight below renders a control, and the way to make an action quieter
- * than `secondary` is `overflow`, not the removal of its affordance.
+ * How much an action weighs — the only thing a caller says about it; the appearance is
+ * the cluster's. No `text` weight: quieter than `secondary` is `overflow`, never bare text.
  */
 export type ActionWeight = 'primary' | 'secondary' | 'destructive' | 'overflow';
 
@@ -25,11 +19,7 @@ export interface RowAction {
   id: string;
   label: string;
   onClick: () => void;
-  /**
-   * How much the action weighs (default `'secondary'`). `'destructive'` is a
-   * weight like any other; the `destructive` flag below is the same statement
-   * in the shape the delivered call sites already use.
-   */
+  /** How much the action weighs (default `'secondary'`). */
   weight?: ActionWeight;
   /** Shorthand for `weight: 'destructive'`; ignored when `weight` is given. */
   destructive?: boolean;
@@ -47,13 +37,11 @@ export interface ActionButtonGroupOverflow {
 
 export interface ActionButtonGroupProps {
   actions: RowAction[];
-  /**
-   * The menu the `overflow`-weight actions are collected into, always the
-   * group's last, trailing slot. Required as soon as an action weighs
-   * `overflow`, because its trigger needs a name; an overflow-weighted action
-   * with no menu to go to is simply not rendered rather than silently promoted
-   * back to a button.
-   */
+  /** Draws the cluster as one segmented control: appearance only, the actions are untouched. */
+  segmented?: boolean;
+  /** How large the controls are (default `'sm'`, the list row's density); the actions are untouched. */
+  size?: ButtonSize;
+  /** The trailing menu the `overflow`-weight actions go to; without it such an action is not rendered. */
   overflow?: ActionButtonGroupOverflow;
 }
 
@@ -62,12 +50,10 @@ function actionWeight(action: RowAction): ActionWeight {
 }
 
 /**
- * The one action cluster: a caller declares its actions and their weight, and
- * the cluster decides what is a button and what becomes an entry of the trailing
- * overflow menu. Stops click propagation so an action never also triggers the
- * containing row's `onRowSelect`.
+ * The one action cluster: the caller declares actions and weights, the cluster decides what is a
+ * button and what an overflow entry. Stops click propagation, so an action never also selects the row.
  */
-export function ActionButtonGroup({ actions, overflow }: ActionButtonGroupProps) {
+export function ActionButtonGroup({ actions, overflow, segmented = false, size = 'sm' }: ActionButtonGroupProps) {
   const buttons = actions.filter((action) => actionWeight(action) !== 'overflow');
   const demoted: MenuEntry[] = actions
     .filter((action) => actionWeight(action) === 'overflow')
@@ -80,21 +66,38 @@ export function ActionButtonGroup({ actions, overflow }: ActionButtonGroupProps)
     }));
   const entries = [...(overflow?.entries ?? []), ...demoted];
 
+  // One segment element per slot, so the stylesheet has something to round whether
+  // the slot holds a bare button or one wrapped in its disabled-reason tooltip.
+  const wrap = (key: string, control: ReactNode) =>
+    segmented ? (
+      <span key={key} className="ui-action-button-group__segment">
+        {control}
+      </span>
+    ) : (
+      control
+    );
+
   return (
-    <div className="ui-action-button-group" onClick={(event) => event.stopPropagation()}>
-      {buttons.map((action) => (
-        <Button
-          key={action.id}
-          size="sm"
-          variant={weightVariant[actionWeight(action) as Exclude<ActionWeight, 'overflow'>]}
-          disabled={action.disabled}
-          description={action.disabled ? action.disabledReason : undefined}
-          onClick={action.onClick}
-        >
-          {action.label}
-        </Button>
-      ))}
-      {overflow ? <Menu label={overflow.label} entries={entries} /> : null}
+    <div
+      className={segmented ? 'ui-action-button-group ui-action-button-group--segmented' : 'ui-action-button-group'}
+      onClick={(event) => event.stopPropagation()}
+    >
+      {buttons.map((action) =>
+        wrap(
+          action.id,
+          <Button
+            key={action.id}
+            size={size}
+            variant={weightVariant[actionWeight(action) as Exclude<ActionWeight, 'overflow'>]}
+            disabled={action.disabled}
+            description={action.disabled ? action.disabledReason : undefined}
+            onClick={action.onClick}
+          >
+            {action.label}
+          </Button>,
+        ),
+      )}
+      {overflow ? wrap('overflow', <Menu key="overflow" label={overflow.label} entries={entries} />) : null}
     </div>
   );
 }

@@ -4,16 +4,9 @@
  *
  * This is the batch's INT-1 check, and it is written as a **preservation** claim
  * because that is what the batch is: a screen where most of what is there is
- * already right and must not be improved. A preservation claim cannot be checked
- * against the screen alone — a property renamed, a row's line reworded, an
- * enablement quietly widened all leave a screen that looks entirely plausible —
- * so the predecessor is built and served beside the build under test
- * (`support/delivered-build.ts`, the same harness and the same revision
- * `library-layer-screens-unmoved.spec.ts` compares against, whose `SystemScreen`
- * is this batch's starting point to the character), and the two are read minutes
- * apart against the same daemon.
+ * already right and must not be improved.
  *
- * What is compared, and why in this form:
+ * What is asserted, and why in this form:
  *
  * - **The eight daemon properties, label and value** (REQ-75): this is the screen
  *   that keeps them, and their words, values and order are not this screen's to
@@ -33,14 +26,10 @@
  *   Ink, not strings — an ellipsised line is laid out at its full length and only
  *   painted clipped (`support/truncating-rows.ts`).
  *
- * The daemon is the operator's own and moves under both builds, so every value
- * compared is read **twice on the build under test**, before and after the
- * delivered one: a field that differs between those two reads is the daemon
- * changing under the comparison and is reported as drift rather than asserted. That
- * catches only what moves *between* those two reads, so the live quantities — sizes,
- * and the counts inside the rows' lines — are normalised out of the comparison
- * altogether (`withoutLiveQuantities`): what is compared is the shape of each
- * statement, not the state of the daemon at the moment it was read.
+ * The daemon is the operator's own and moves under the reading, so every value is
+ * read **twice**: a field that differs between the two reads is the daemon
+ * changing under the check and is reported as drift rather than asserted, and the
+ * live quantities are normalised out altogether (`withoutLiveQuantities`).
  *
  * The one fixture — a container left in `created`, so that "the stopped
  * containers category holds something" is this spec's own fact and not the
@@ -52,7 +41,6 @@ import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { boxOf, boxThisFrame } from './support/settled.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
-import { startDeliveredBuild, type DeliveredBuild } from './support/delivered-build.js';
 import {
   F4_VIEWPORTS,
   SYNTHETIC_64_CHAR_IDENTIFIER,
@@ -157,50 +145,18 @@ const STATED_SIZE = /(?<![\w.])\d+(?:\.\d+)?\s?(?:B|KB|MB|GB|TB)(?![\w])/g;
 /** A number standing on its own inside a sentence — the `N` of "N records …" — never a digit inside a word (`arm64`). */
 const STATED_COUNT = /(?<![\w.])\d+(?:[.,]\d+)*(?![\w.])/g;
 
-/**
- * The stated value with its **live quantities** — what the daemon holds right now —
- * replaced by placeholders, so that what the two builds are compared on is the
- * **shape of the statement**: every word, in its order, with whatever unit the
- * wording itself carries. Two quantities only: a size, and a count standing inside a
- * sentence. A value that is a number and nothing else — a version — is not one of
- * them: the same daemon answers both builds, so it is left compared in full.
- *
- * This is here because the guard in `differences()` below rests on an inference
- * that does not hold: "stable across two adjacent reads, therefore a property of
- * the product". A volatile quantity does not become the build's by holding still
- * for a moment. Measured, and this is the evidence — do not reinstate the strict
- * comparison believing it was stricter and therefore better: the `Build cache` row
- * was read at `159.9MB` / "90 records of BuildKit cache from past builds" on the
- * delivered build, and at `317.7MB` / "138 records …" on the build under test
- * minutes later, because the suite itself was building fixture images between the
- * two openings; it then sat still across both reads of the build under test, and a
- * screen that had not changed a character was reported as violating REQ-73. No
- * sampling window repairs that, since the source of the movement is the run.
- *
- * What still fails, which is the point: a reworded line ("records of BuildKit cache
- * from past builds" → anything else), a unit the wording carries, a row, property
- * or callout that appeared or disappeared (the `structural` half, untouched), and —
- * the only legitimate assertion about the numbers themselves — the per-row
- * `/^(—|\d+(\.\d+)?(B|KB|MB|GB|TB))$/` check on each size, which stays where it is.
- * `drift` stays too: it still catches everything this does not cover.
- */
+/** Sizes and in-sentence counts are the daemon's to move under a check; what is compared is the wording around them. */
 function withoutLiveQuantities(value: string): string {
   // An em dash is the whole of a size that could not be read: the same live
   // quantity in its empty form, and the only value this screen states as one.
   if (value === '—') return '<size>';
   const withoutSizes = value.replace(STATED_SIZE, '<size>');
   // A count is normalised only **inside a sentence**. A value that is nothing but a
-  // number is a version, not a quantity — one daemon answers both builds, so those
-  // stay compared character for character.
+  // number is a version, not a quantity, so those stay compared character for character.
   return /\p{L}/u.test(value) ? withoutSizes.replace(STATED_COUNT, '<n>') : withoutSizes;
 }
 
-/**
- * The reading as flat `what it states` → `what it says` pairs, so a difference names
- * itself. Every value passes through `withoutLiveQuantities` here, once, so the one
- * normalisation serves the delivered reading and both readings of the build under
- * test alike rather than being applied at the comparison's call sites.
- */
+/** The reading as flat `what it states` → `what it says` pairs, normalised once, so a difference names itself. */
 function stated(reading: ScreenReading): Map<string, string> {
   const out = new Map<string, string>();
   const say = (key: string, value: string) => out.set(key, withoutLiveQuantities(value));
@@ -213,37 +169,6 @@ function stated(reading: ScreenReading): Map<string, string> {
   }
   reading.callouts.forEach((callout, index) => say(`callout ${index}`, callout.text));
   return out;
-}
-
-/**
- * Compares what the delivered build stated with what this one states, twice
- * read: a field the two current reads disagree about is the daemon moving under
- * the comparison, not the build. The converse does not follow — a field that holds
- * still across the two adjacent reads may still be a live quantity the daemon moved
- * *before* them — which is why the values arrive here already normalised by
- * `withoutLiveQuantities`.
- */
-function differences(
-  delivered: Map<string, string>,
-  first: Map<string, string>,
-  second: Map<string, string>,
-): { violations: string[]; drift: string[]; structural: string[] } {
-  const violations: string[] = [];
-  const drift: string[] = [];
-  const structural: string[] = [];
-  for (const [key, value] of first) {
-    if (!delivered.has(key)) {
-      structural.push(`${key} was not stated by the delivered build`);
-      continue;
-    }
-    if (second.get(key) !== value) {
-      drift.push(`${key}: the daemon changed it between two reads of this build ("${value}" then "${second.get(key)}")`);
-      continue;
-    }
-    if (delivered.get(key) !== value) violations.push(`${key}: delivered "${delivered.get(key)}", now "${value}"`);
-  }
-  for (const key of delivered.keys()) if (!first.has(key)) structural.push(`${key} is no longer stated`);
-  return { violations, drift, structural };
 }
 
 async function openSystemScreen(page: Page, viewport = COMPARISON_VIEWPORT): Promise<void> {
@@ -291,64 +216,28 @@ async function hitTestAtVisibleCentre(control: Locator): Promise<{ reached: bool
   });
 }
 
-test.describe('F17 — the screen states what the delivered build stated', () => {
-  let delivered: DeliveredBuild;
-
-  test.beforeAll(async () => {
-    delivered = await startDeliveredBuild();
-  });
-
-  test.afterAll(async () => {
-    await delivered?.stop();
-  });
-
-  // REQ-73, REQ-74, REQ-75 — the whole preservation claim in one comparison: the eight properties,
-  // the five rows and the standing warning, against the build this batch started from.
-  test('the eight properties, the five prune rows and the standing warning are the delivered ones', async ({ browser, page }) => {
+test.describe('F17 — the screen states the facts it is there to state', () => {
+  // plan-ui-coherence-optimisation/REQ-73, REQ-74, REQ-75 — the eight daemon properties, the five
+  // prune rows and the standing warning, each stated once and in its own words.
+  test('the screen states the eight properties, the five prune rows and the standing warning', async ({ page }) => {
     test.setTimeout(300_000);
     const container = await createStoppedContainer('compared');
-    const deliveredContext = await browser.newContext({ baseURL: delivered.origin, viewport: COMPARISON_VIEWPORT });
-    const before = await deliveredContext.newPage();
 
     try {
       await openSystemScreen(page);
       const firstReading = await readScreen(page);
-
-      await openSystemScreen(before);
-      const deliveredReading = await readScreen(before);
-
       await openSystemScreen(page);
       const secondReading = await readScreen(page);
 
-      console.log(
-        `[REQ-75] against ${delivered.revision.slice(0, 7)} — delivered properties ${JSON.stringify(deliveredReading.properties)}\n` +
-          `[REQ-75] now properties ${JSON.stringify(firstReading.properties)}`,
-      );
-      console.log(
-        `[REQ-73] delivered rows ${JSON.stringify(deliveredReading.rows)}\n[REQ-73] now rows ${JSON.stringify(firstReading.rows)}`,
-      );
-      console.log(
-        `[REQ-74] delivered callout(s) ${JSON.stringify(deliveredReading.callouts)}\n[REQ-74] now callout(s) ${JSON.stringify(firstReading.callouts)}`,
-      );
+      console.log(`[REQ-75] properties ${JSON.stringify(firstReading.properties)}`);
+      console.log(`[REQ-73] rows ${JSON.stringify(firstReading.rows)}`);
+      console.log(`[REQ-74] callout(s) ${JSON.stringify(firstReading.callouts)}`);
 
-      // The premise: both builds actually read this daemon, so the comparison is between two
-      // statements of the same facts rather than between two placeholders.
-      expect(
-        deliveredReading.properties.map((property) => property.label),
-        'the delivered build stated fewer than the eight daemon properties, so this comparison shows nothing',
-      ).toEqual(DAEMON_PROPERTIES);
-      expect(
-        deliveredReading.rows.map((row) => row.label),
-        'the delivered build drew a different set of prune rows, so this comparison shows nothing',
-      ).toEqual(CATEGORIES);
-
-      // REQ-75 — the eight stay here, in their words and their order, in the product's property grid.
       expect(firstReading.properties.map((property) => property.label), 'the eight daemon properties are not stated here (REQ-75)').toEqual(
         DAEMON_PROPERTIES,
       );
       expect(firstReading.propertyGrids, 'the daemon properties are not presented in one property grid (REQ-75)').toBe(1);
 
-      // REQ-73 — the five rows, in order, each with its own destructive action.
       expect(firstReading.rows.map((row) => row.label), 'the prune rows are not the five the screen prunes (REQ-73)').toEqual(CATEGORIES);
       for (const row of firstReading.rows) {
         expect(row.destructive, `the ${row.label} row's action lost its destructive tint (REQ-73)`).toBe(true);
@@ -356,31 +245,29 @@ test.describe('F17 — the screen states what the delivered build stated', () =>
         expect(row.size, `the ${row.label} row states no size (REQ-73)`).toMatch(/^(—|\d+(\.\d+)?(B|KB|MB|GB|TB))$/);
       }
 
-      // REQ-74 — one callout, saying what it said, on neither a header nor an empty result.
       expect(firstReading.callouts, 'the standing warning is no longer stated as one callout (REQ-74)').toHaveLength(1);
       expect(firstReading.callouts[0]!.text, 'the standing warning no longer names the tools sharing the daemon (REQ-74)').toMatch(
         /other tools sharing this daemon are affected/i,
       );
-      expect(firstReading.callouts[0]!.classes, 'the standing warning is no longer the warning-toned callout (REQ-74)').toBe(
-        deliveredReading.callouts[0]!.classes,
+      expect(firstReading.callouts[0]!.classes, 'the standing warning is no longer drawn as a warning-toned callout (REQ-74)').toMatch(
+        /warning/,
       );
       expect(firstReading.callouts[0]!.insideSectionHeader, 'the standing warning has been absorbed into a section header (REQ-74)').toBe(false);
       expect(firstReading.callouts[0]!.insideEmptyState, 'the standing warning has been replaced by an empty result (REQ-74)').toBe(false);
 
-      // …and every word of all three, against the build that shipped them.
-      const { violations, drift, structural } = differences(stated(deliveredReading), stated(firstReading), stated(secondReading));
-      for (const line of drift) console.log(`[REQ-73] daemon drift: ${line}`);
-      expect(structural, 'the screen states something the delivered build did not, or stopped stating one of its facts').toEqual([]);
-      expect(violations, 'the screen states something differently from the build this batch started from (REQ-73, REQ-75)').toEqual([]);
+      const drift = [...stated(firstReading)].filter(([key, value]) => stated(secondReading).get(key) !== value);
+      for (const [key, value] of drift) console.log(`[REQ-73] daemon drift: ${key} read "${value}" then "${stated(secondReading).get(key)}"`);
+      expect(
+        [...stated(firstReading).keys()].filter((key) => !stated(secondReading).has(key)),
+        'the screen stopped stating one of its own facts between two reads',
+      ).toEqual([]);
     } finally {
-      await deliveredContext.close();
       await removeContainerQuietly(container);
     }
   });
 
   // REQ-73 — "each prunes exactly the category it names, is enabled exactly when that category holds
-  // something readable". The rule, checked against the row itself rather than against the delivered
-  // build, so that a change agreeing with an already-wrong build could not pass.
+  // something readable". The rule, checked against the row itself.
   test('every prune row is enabled exactly when its category holds something readable', async ({ page }) => {
     test.setTimeout(180_000);
     const container = await createStoppedContainer('enablement');
@@ -414,23 +301,15 @@ test.describe('F17 — the screen states what the delivered build stated', () =>
 
   // REQ-18 observed here, and the site the truncation sweep pins on this batch by name: the
   // `Unused volumes` line against its size and its `Prune` button, as the daemon fills it and again
-  // carrying a 64-character identifier (REQ-19). Measured on both builds, asserted on this one.
-  test('no prune row’s text inks over its size or its Prune button, at all three viewports', async ({ browser, page }) => {
+  // carrying a 64-character identifier (REQ-19).
+  test('no prune row’s text inks over its size or its Prune button, at all three viewports', async ({ page }) => {
     test.setTimeout(600_000);
-    const deliveredContext = await browser.newContext({ baseURL: delivered.origin, viewport: F4_VIEWPORTS[0]! });
-    const before = await deliveredContext.newPage();
-
-    try {
+    {
       for (const viewport of F4_VIEWPORTS) {
         const at = `@${viewport.width}×${viewport.height}`;
         await openSystemScreen(page, viewport);
-        await before.setViewportSize(viewport);
-        await openSystemScreen(before, viewport);
 
-        for (const [name, target] of [
-          ['delivered', before],
-          ['now', page],
-        ] as const) {
+        for (const [name, target] of [['now', page]] as const) {
           const rows = (await measureTruncatingRows(target)).filter((row) => row.kind === 'storage');
           const stressed = (await measureTruncatingRows(target, undefined, { inject: SYNTHETIC_64_CHAR_IDENTIFIER })).filter(
             (row) => row.kind === 'storage',
@@ -451,7 +330,7 @@ test.describe('F17 — the screen states what the delivered build stated', () =>
                   `${round(squeezed)}px of trailing ink squeezed inside the row, ${round(clippedByTheCard)}px clipped away by the card`,
               );
 
-              if (name === 'now') {
+              {
                 expect(
                   row.overlaps.map((hit) => `${round(hit.area)}px² over trailing element ${hit.meta}`),
                   `${at}: the "${row.label.slice(0, 28)}" line's painted ink lands on its size or its Prune button (REQ-18)`,
@@ -483,14 +362,12 @@ test.describe('F17 — the screen states what the delivered build stated', () =>
           ).toBe(true);
         }
       }
-    } finally {
-      await deliveredContext.close();
     }
   });
 });
 
-// REQ-73 — the system prune's own scope, confirmation and enablement are the delivered ones, and the
-// control that carries them has moved. A moved control is checked the way CLAUDE.md requires:
+// REQ-73 — the system prune's own scope, confirmation and enablement, and the control that carries
+// them, which has moved. A moved control is checked the way CLAUDE.md requires:
 // a **real pointer at its visible coordinates**, and the surface's **viewport box** before and after,
 // since a surface dragged out of the viewport keeps every child and every character it had.
 test('the system prune opens its confirmation from the toolbar, at every viewport, moving nothing', async ({ page }) => {

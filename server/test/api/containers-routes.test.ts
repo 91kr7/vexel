@@ -7,10 +7,7 @@ import { ownershipArgs } from "../support/fixtures.js";
 import { INTERNAL_CONTAINER_LABEL } from "../../src/image-analysis/filesystem-extraction-service.js";
 import { ALPINE_IMAGE, ensureImages } from "../support/base-images.js";
 
-// A pruned daemon is a starting state like any other: the base images this
-// file's fixtures are built on are ensured here, before the first test, so no
-// test has to assume a warm daemon nor depend on another file having pulled
-// them. They are shared infrastructure, not fixtures: nothing removes them.
+// Shared infrastructure, not fixtures: ensured before the first test, and removed by nothing.
 await ensureImages([ALPINE_IMAGE]);
 import type {
   ContainerConfigUpdateResult,
@@ -112,6 +109,75 @@ test("GET /api/containers lists a running container with its name, short id, sta
   }
 });
 
+// plan-docker_management_app-containers_card_view/REQ-5, REQ-12, REQ-15 — each mapping reported
+// once, in one order, on every read, against the daemon's own answer.
+test("GET /api/containers reports each published mapping once, in one order, on every read", async () => {
+  const name = `vexel-test-ports-${Date.now()}`;
+  const app = buildApp();
+  const { url, close } = await startApp(app);
+  try {
+    await createSleepingContainer(name, ["-p", "0:9090", "-p", "0:5432", "-p", "0:8080", "-p", "0:6379"]);
+
+    // The daemon's own answer, so a passing assertion below is known not to be vacuous: on a
+    // dual-stack host `docker port` reports two bindings for one container port.
+    const { stdout: bindings } = await execFileAsync("docker", ["port", name]);
+    console.log(`[REQ-5] the daemon reports ${bindings.trim().split("\n").length} bindings for ${name}:\n${bindings.trim()}`);
+
+    const reads: string[][] = [];
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const found = (await fetchList(url)).find((candidate) => candidate.name === name);
+      assert.ok(found, "created container not found in the list");
+      reads.push(found!.ports.map((port) => `${port.type}:${port.publicPort ?? "-"}->${port.privatePort}`));
+    }
+
+    const [first] = reads;
+    // Every mapping the container publishes is there, and each of them exactly once.
+    assert.deepEqual(
+      [...first].sort(),
+      [...new Set(first)].sort(),
+      `a mapping is reported more than once: ${JSON.stringify(first)}`,
+    );
+    for (const privatePort of [5432, 6379, 8080, 9090]) {
+      assert.equal(
+        first.filter((mapping) => mapping.endsWith(`->${privatePort}`)).length,
+        1,
+        `${privatePort} is reported ${first.filter((mapping) => mapping.endsWith(`->${privatePort}`)).length} times: ${JSON.stringify(first)}`,
+      );
+    }
+
+    // The order is the service's own — private port, then public port, then protocol — and not the
+    // daemon's, which rotates between reads.
+    const privatePorts = first.map((mapping) => Number(mapping.split("->")[1]));
+    assert.deepEqual(privatePorts, [...privatePorts].sort((left, right) => left - right), `the ports are not ordered: ${JSON.stringify(first)}`);
+
+    // Three reads of an unchanged container: one sequence, so the two chips a card draws are the
+    // same two while the operator watches.
+    for (const read of reads) assert.deepEqual(read, first, `two reads of ${name} disagree: ${JSON.stringify(reads)}`);
+  } finally {
+    await removeContainerQuietly(name);
+    await close();
+  }
+});
+
+// plan-docker_management_app-containers_card_view/REQ-12 — an exposed-but-unpublished port is a port here too.
+test("GET /api/containers reports an exposed-but-unpublished port with no public port of its own", async () => {
+  const name = `vexel-test-exposed-${Date.now()}`;
+  const app = buildApp();
+  const { url, close } = await startApp(app);
+  try {
+    await createSleepingContainer(name, ["--expose", "7777"]);
+    const found = (await fetchList(url)).find((candidate) => candidate.name === name);
+
+    assert.ok(found, "created container not found in the list");
+    const exposed = found!.ports.find((port) => port.privatePort === 7777);
+    assert.ok(exposed, `the exposed port is missing from ${JSON.stringify(found!.ports)}`);
+    assert.equal(exposed!.publicPort, undefined);
+  } finally {
+    await removeContainerQuietly(name);
+    await close();
+  }
+});
+
 // plan-docker_management_app/REQ-20 — stop applies to the daemon and the row reflects the resulting state
 test("POST /api/containers/:id/stop stops a running container and the list reflects the exited state", async () => {
   const name = `vexel-test-stop-${Date.now()}`;
@@ -197,9 +263,7 @@ test("DELETE /api/containers/:id removes the container so it no longer appears i
   }
 });
 
-// plan-docker_management_app/REQ-54 — an intermediate filesystem-extraction container is never
-// shown as a container anywhere in the application: excluded from the list, and therefore from the
-// count derived from it (app-shell/specs/shell.md — the Containers nav badge is the list's own length).
+// plan-docker_management_app/REQ-54 — an intermediate filesystem-extraction container is never listed.
 test("GET /api/containers excludes an intermediate filesystem-extraction container from the list, and so from its count", async () => {
   const ordinaryName = `vexel-test-int7-ordinary-${Date.now()}`;
   const internalName = `vexel-test-int7-internal-${Date.now()}`;

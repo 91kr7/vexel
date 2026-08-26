@@ -47,7 +47,9 @@ Shows:
   container's name, its state in words, its CPU as `"<n>% cpu"` and its uptime.
   - uptime → the daemon's own uptime text with the leading `"Up "` dropped (e.g. `"3 days"`); a
     container that is not running has none and shows `–`.
-  - a CPU reading the daemon has not sampled shows `–`.
+  - a CPU reading the daemon has not sampled shows `—`, stated as an absent sample rather than
+    drawn as a zero or left blank — which covers a container that is not running, one not yet
+    sampled, and one whose reading has gone stale because the sampling gate was shut.
   - no container on the daemon → "No container on this daemon"; before the list settles, "Reading
     the containers…".
 - **Disk usage** — one row per category, in the order images, containers, volumes, build cache,
@@ -98,6 +100,11 @@ Navigation:
   the empty-state primitive, and the activity list is the object list with **no column contract of
   its own**: it declares its columns and nothing else — no minimum, no breakpoint-conditional set,
   no width written to compensate for one (`plan-ui-coherence-optimisation/REQ-69`).
+- **This screen is a consumer of the sampled per-container figures**, exactly as the containers
+  list is, and holds the subscription that keeps the daemon being sampled while it is on screen
+  (`useStatsSubscription`). The gate is on consumers rather than on one named screen: leaving this
+  screen closes it, coming back opens it, and the CPU reading is current here whether or not the
+  containers screen was ever opened.
 - The daemon event stream is presented **here and nowhere else** in the application
   (`plan-ui-coherence-optimisation/REQ-71`): this screen is the stream's one home, and the shell
   provides the subscription it reads.
@@ -107,7 +114,7 @@ Navigation:
 - ui-library: DashboardLayout, MetricTile, UsageBreakdown, DataTable, StatusDotCell, MetaCell, Card,
   SectionHeader, EventStream, EmptyState, ErrorBanner, Stack
 - dashboard: useSystemOverview
-- containers: useContainers (through the shell)
+- containers: useContainers (through the shell), useStatsSubscription
 - app-shell: DaemonEventStreamProvider (`useDaemonEventStream`), CrossNavigationProvider
   (`useCrossNavigation`)
 
@@ -123,3 +130,5 @@ Navigation:
 - plan-ui-coherence-optimisation/REQ-67
 - plan-ui-coherence-optimisation/REQ-68
 - plan-ui-coherence-optimisation/REQ-69
+- plan-docker_management_app-containers_card_view/REQ-45
+- plan-docker_management_app-containers_card_view/REQ-52

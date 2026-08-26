@@ -183,9 +183,7 @@ describe('ActionButtonGroup — the overflow menu (REQ-27)', () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 
-  // action-button-group.md — "An `'overflow'`-weight action with no `overflow` menu to go to is not
-  // rendered, rather than being silently promoted back to a button: a trigger needs an accessible
-  // name, and inventing one would be the component deciding an appearance the caller declined."
+  // action-button-group.md — an overflow-weight action with no menu to go to is not rendered.
   it('renders nothing at all for an overflow-weight action with no menu to go to', () => {
     render(
       <ActionButtonGroup
@@ -245,9 +243,7 @@ describe('ActionButtonGroup — the cluster’s own behaviour (REQ-27)', () => {
     expect(onRowSelect).not.toHaveBeenCalled();
   });
 
-  // action-button-group.md — "Never wraps to a second line: the group stays on a single row
-  // regardless of how many actions it holds, clipped by its containing cell rather than
-  // overflowing it."
+  // action-button-group.md — the group stays on a single row however many actions it holds.
   it('states, in its own stylesheet, that it never wraps to a second line', () => {
     const css = readFileSync(join(process.cwd(), 'src', 'ui', 'controls', 'controls.css'), 'utf8').replace(
       /\/\*[\s\S]*?\*\//g,
@@ -256,5 +252,127 @@ describe('ActionButtonGroup — the cluster’s own behaviour (REQ-27)', () => {
     const body = new RegExp('(?:^|\\}|\\*/)\\s*\\.ui-action-button-group\\s*\\{([^}]*)\\}').exec(css)?.[1] ?? '';
 
     expect(body).toMatch(/flex-wrap:\s*nowrap/);
+  });
+});
+
+// action-button-group.md — `segmented` draws the cluster as one control, appearance only
+// (plan-docker_management_app-containers_card_view/REQ-4).
+describe('ActionButtonGroup — the segmented variant (containers_card_view/REQ-4)', () => {
+  const ACTIONS: RowAction[] = [
+    { id: 'pause', label: 'Pause', onClick: vi.fn() },
+    { id: 'restart', label: 'Restart', onClick: vi.fn() },
+  ];
+
+  it('renders the same controls, in the same order, whether it is segmented or not', () => {
+    const { container: plain, unmount } = render(<ActionButtonGroup actions={ACTIONS} overflow={{ label: OVERFLOW_LABEL }} />);
+    const plainLabels = Array.from(plain.querySelectorAll('button')).map((control) => control.textContent?.trim());
+    const plainDisabled = Array.from(plain.querySelectorAll('button')).map((control) => (control as HTMLButtonElement).disabled);
+    unmount();
+
+    const { container: segmented } = render(<ActionButtonGroup segmented actions={ACTIONS} overflow={{ label: OVERFLOW_LABEL }} />);
+    const segmentedControls = Array.from(segmented.querySelectorAll('button'));
+
+    expect(segmentedControls.map((control) => control.textContent?.trim())).toEqual(plainLabels);
+    expect(segmentedControls.map((control) => (control as HTMLButtonElement).disabled)).toEqual(plainDisabled);
+  });
+
+  it('marks the cluster as one segmented control, with one segment per slot', () => {
+    const { container } = render(<ActionButtonGroup segmented actions={ACTIONS} overflow={{ label: OVERFLOW_LABEL }} />);
+
+    const group = container.querySelector('.ui-action-button-group')!;
+    expect(group.className).toContain('ui-action-button-group--segmented');
+    expect(group.querySelectorAll('.ui-action-button-group__segment')).toHaveLength(3);
+  });
+
+  it('leaves a cluster asked for no segmentation exactly as it was', () => {
+    const { container } = render(<ActionButtonGroup actions={ACTIONS} overflow={{ label: OVERFLOW_LABEL }} />);
+
+    const group = container.querySelector('.ui-action-button-group')!;
+    expect(group.className).toBe('ui-action-button-group');
+    expect(group.querySelectorAll('.ui-action-button-group__segment')).toHaveLength(0);
+  });
+
+  // REQ-4 — one boundary with internal dividers: no gap, one shared hairline, the corners the cluster's.
+  it('states the shared boundary and its internal dividers in the stylesheet', () => {
+    const css = readFileSync(join(process.cwd(), 'src', 'ui', 'controls', 'controls.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    // The whole prelude, compared as written: a selector of this block carries `:is(a, b)`, whose
+    // comma is not a selector-list separator.
+    const declarationsOf = (selector: string): string =>
+      [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+        .filter((rule) => rule[1].trim().replace(/\s+/g, ' ') === selector)
+        .map((rule) => rule[2])
+        .join(' ');
+
+    expect(declarationsOf('.ui-action-button-group--segmented'), 'the slots still stand apart').toMatch(/gap:\s*0/);
+    expect(
+      declarationsOf('.ui-action-button-group__segment + .ui-action-button-group__segment'),
+      'two neighbouring slots draw two borders instead of sharing one',
+    ).toMatch(/margin-inline-start:\s*calc\(-1 \* var\(--border-width-hairline\)\)/);
+    expect(declarationsOf('.ui-action-button-group__segment :is(.ui-button, .ui-menu__trigger)')).toMatch(/border-radius:\s*0/);
+    expect(declarationsOf('.ui-action-button-group__segment:first-child :is(.ui-button, .ui-menu__trigger)')).toMatch(/radius/);
+    expect(declarationsOf('.ui-action-button-group__segment:last-child :is(.ui-button, .ui-menu__trigger)')).toMatch(/radius/);
+  });
+});
+
+// action-button-group.md — `size` decides how large the controls are drawn and nothing else
+// (plan-docker_management_app-containers_card_view/REQ-4, REQ-30).
+describe('ActionButtonGroup — the control size (containers_card_view/REQ-4)', () => {
+  const SIZED: RowAction[] = [
+    { id: 'pause', label: 'Pause', onClick: vi.fn() },
+    { id: 'restart', label: 'Restart', onClick: vi.fn(), disabled: true, disabledReason: 'not running' },
+  ];
+
+  it('draws a cluster that asks for nothing at the list-row density, as every delivered call site does', () => {
+    const { container } = render(<ActionButtonGroup actions={SIZED} overflow={{ label: OVERFLOW_LABEL }} />);
+
+    for (const button of container.querySelectorAll('.ui-button')) {
+      expect(button.className, 'a delivered call site changed size when the prop arrived').toContain('ui-button--sm');
+    }
+  });
+
+  it('draws the ordinary button size when it is asked for', () => {
+    const { container } = render(<ActionButtonGroup size="md" actions={SIZED} overflow={{ label: OVERFLOW_LABEL }} />);
+
+    for (const button of container.querySelectorAll('.ui-button')) {
+      expect(button.className).not.toContain('ui-button--sm');
+    }
+  });
+
+  // "Size only: the actions, their order, their positions, their legality and the overflow menu are
+  // untouched, and it is not a way to ask for an appearance."
+  it('changes nothing but the size: same controls, same order, same legality, same reasons', () => {
+    const read = (element: HTMLElement) =>
+      Array.from(element.querySelectorAll('button')).map((control) => ({
+        label: control.textContent?.trim(),
+        disabled: (control as HTMLButtonElement).disabled,
+        described: control.getAttribute('aria-describedby') !== null,
+        weight: /ui-button--(primary|danger|ghost|secondary)/.exec(control.className)?.[1] ?? null,
+      }));
+
+    const { container: small, unmount } = render(<ActionButtonGroup actions={SIZED} overflow={{ label: OVERFLOW_LABEL }} />);
+    const asSmall = read(small);
+    unmount();
+
+    const { container: medium } = render(<ActionButtonGroup size="md" actions={SIZED} overflow={{ label: OVERFLOW_LABEL }} />);
+    expect(read(medium)).toEqual(asSmall);
+  });
+
+  // action-button-group.md — the group owns the slots' height; the measured heights are in
+  // `e2e/containers-card-geometry.spec.ts`.
+  it('resolves every slot to the group’s own height rather than to each member’s content', () => {
+    const css = readFileSync(join(process.cwd(), 'src', 'ui', 'controls', 'controls.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const declarationsOf = (selector: string): string =>
+      [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+        .filter((rule) => rule[1].trim().replace(/\s+/g, ' ') === selector)
+        .map((rule) => rule[2])
+        .join(' ');
+
+    expect(
+      declarationsOf('.ui-action-button-group--segmented'),
+      'each slot is left to derive its own height, so the cluster shares no boundary',
+    ).toMatch(/align-items:\s*stretch/);
+    expect(declarationsOf('.ui-action-button-group__segment'), 'a slot states a height of its own').not.toMatch(
+      /(^|;|\s)(height|min-height)\s*:/,
+    );
   });
 });

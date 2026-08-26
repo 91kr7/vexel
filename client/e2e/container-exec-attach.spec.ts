@@ -1,6 +1,7 @@
 import { expect, test, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { containerCard, containerDetail } from './support/container-cards.js';
 
 /** An idle container: its main process sleeps, so exec sessions run independently of it. */
 async function createIdleContainer(name: string): Promise<void> {
@@ -14,6 +15,7 @@ async function createTickingContainer(name: string): Promise<void> {
     '-d',
     '--name',
     name,
+    ...ownershipArgs(name),
     '--entrypoint',
     'sh',
     'alpine:3.20',
@@ -32,28 +34,48 @@ async function isRunning(name: string): Promise<boolean> {
 }
 
 function containerRow(page: Page, name: string) {
-  return page.locator('.ui-data-table__row', { hasText: name });
+  return containerCard(page, name);
 }
 
 async function openTab(page: Page, name: string, tab: string) {
   const row = containerRow(page, name);
   await expect(row).toBeVisible({ timeout: 15_000 });
   await row.getByText(name, { exact: true }).click();
-  const detail = page.locator('.ui-data-table__expanded');
+  const detail = containerDetail(page);
   await expect(detail).toBeVisible();
   await detail.getByRole('tab', { name: tab }).click();
   return detail;
 }
 
-/** Reads the terminal's rendered content back (xterm's DOM renderer draws each row as real text, not canvas pixels). */
+/**
+ * Reads the terminal's rendered content back (xterm's DOM renderer draws each row as real text, not
+ * canvas pixels) — **after bringing the terminal into view**, which is part of the reading and not
+ * tidiness.
+ *
+ * xterm suspends painting while its host does not intersect the viewport. Measured on this suite:
+ * with the attach session live and its frames arriving once a second (`tick-2` … `tick-13` all
+ * landing on the socket, the host stable at 944×420 and never remounted), `.xterm-rows` held the
+ * empty string for twelve seconds — because the host's box was `top=704` in a 720px-tall viewport.
+ * Scrolling it into view made every line appear at once, none of them lost. So an assertion on
+ * painted text that has not brought the surface into view is asserting on the fold, not on the
+ * product. The card view (`plan-docker_management_app-containers_card_view`) is what pushed the
+ * panel that far down; before it, the same assertion happened to sit above the fold.
+ */
 async function terminalText(detail: ReturnType<typeof containerRow>): Promise<string> {
+  await detail
+    .locator('.ui-terminal-host')
+    .scrollIntoViewIfNeeded({ timeout: 5_000 })
+    .catch(() => undefined);
   return (await detail.locator('.xterm-rows').textContent()) ?? '';
 }
 
 async function typeIntoTerminal(detail: ReturnType<typeof containerRow>, page: Page, text: string) {
   // xterm keeps refitting its host as the terminal's own layout settles, which
   // can make Playwright's stability check spin forever; a forced click still
-  // reaches and focuses the host's hidden input.
+  // reaches and focuses the host's hidden input. It also scrolls the host into
+  // view, which is how these sessions used to get painted at all — an accident
+  // the sessions that never type could not rely on, and no longer have to:
+  // `terminalText` brings the terminal into view itself.
   await detail.locator('.ui-terminal-host').click({ force: true });
   // "Connected" only says the session opened; the shell inside the container
   // still has to start and draw its prompt, and anything typed before that is
@@ -218,7 +240,7 @@ test.describe('Container exec sessions (REQ-34, REQ-36)', () => {
         .toBe(true);
 
       // Nothing around the session was dismissed by it, and the session is still live.
-      await expect(page.locator('.ui-data-table__expanded')).toBeVisible();
+      await expect(containerDetail(page)).toBeVisible();
       await expect(detail.getByText('Connected')).toBeVisible();
       await expect(detail.locator('.ui-terminal-host')).toBeVisible();
     } finally {

@@ -1,6 +1,7 @@
 // Container listing and lifecycle over the Engine API (REQ-19, REQ-20, REQ-21,
-// REQ-22), plus a bounded-rate CPU/memory sampler for running containers
-// (REQ-19) whose latest reading is merged into every list response.
+// REQ-22), plus the CPU/memory sampler for running containers whose latest
+// reading is merged into every list response — started and stopped by the
+// demand registry, never by process boot.
 import { getEngineClient } from "../connectivity/connection-status-service.js";
 import { INTERNAL_CONTAINER_LABEL } from "../image-analysis/filesystem-extraction-service.js";
 import { byNameThenIdentity } from "../list-order/list-order.js";
@@ -25,6 +26,11 @@ export interface ContainerSummary {
   cpuPercent?: number;
   memoryUsageBytes?: number;
   memoryLimitBytes?: number;
+  /** Host CPUs `cpuPercent` is measured against. */
+  onlineCpus?: number;
+  /** Bytes received / sent since the container started, summed over its interfaces. */
+  networkRxBytes?: number;
+  networkTxBytes?: number;
 }
 
 export interface PruneResult {
@@ -152,17 +158,27 @@ interface RawStats {
   cpu_stats: { cpu_usage: { total_usage: number; percpu_usage?: number[] }; system_cpu_usage?: number; online_cpus?: number };
   precpu_stats: { cpu_usage: { total_usage: number }; system_cpu_usage?: number };
   memory_stats: { usage?: number; limit?: number; stats?: { cache?: number; inactive_file?: number } };
+  networks?: Record<string, { rx_bytes?: number; tx_bytes?: number }>;
 }
 
 interface SampledUsage {
   cpuPercent: number;
   memoryUsageBytes: number;
   memoryLimitBytes: number;
+  onlineCpus: number;
+  networkRxBytes: number;
+  networkTxBytes: number;
+  /** When the frame this reading came from was taken (`Date.now()`). */
+  sampledAt: number;
 }
 
-const STATS_SAMPLE_INTERVAL_MS = 3000;
+export const STATS_SAMPLE_INTERVAL_MS = 10000;
+// The one place the staleness bound is stated: three intervals, the smallest
+// multiple that survives one missed pass (plan-docker_management_app-containers_card_view/REQ-52).
+const STATS_STALE_AFTER_MS = STATS_SAMPLE_INTERVAL_MS * 3;
 const statsCache = new Map<string, SampledUsage>();
-let samplerStarted = false;
+let sampleTimer: ReturnType<typeof setInterval> | undefined;
+let passInFlight = false;
 
 export async function listContainers(): Promise<ContainerSummary[]> {
   const response = await getEngineClient().request("/containers/json?all=true");
@@ -221,11 +237,9 @@ export async function getContainerInspect(id: string): Promise<ContainerInspect>
 }
 
 /**
- * Applies a configuration change (REQ-25). Restart policy and resource limits
- * are updated in place via the Engine API's `/update`; env, ports, mounts or
- * health check require Docker to recreate the container (stop, remove, create
- * again with the merged config, reconnect its networks, restart if it was
- * running), since the Engine API offers no in-place update for those fields.
+ * Applies a configuration change (REQ-25). Restart policy and resource limits go through
+ * `/update`; env, ports, mounts and health check have no in-place update, so the container
+ * is recreated from its merged config.
  */
 export async function updateContainerConfig(id: string, update: ContainerConfigUpdate): Promise<ContainerConfigUpdateResult> {
   if (!requiresRecreate(update)) {
@@ -412,17 +426,42 @@ function toInspect(raw: RawInspect): ContainerInspect {
   };
 }
 
-/** Starts the background CPU/memory sampler for running containers; idempotent. */
-export function startStatsSampler(): void {
-  if (samplerStarted) return;
-  samplerStarted = true;
-  void sampleLoop();
+/**
+ * Starts the sampler and samples at once, so a consumer that has just arrived
+ * is not shown dashes for a whole interval; idempotent. Called by the demand
+ * registry alone, never at boot (plan-docker_management_app-containers_card_view/REQ-41, REQ-44, REQ-51).
+ */
+export function startStatsSampling(): void {
+  if (sampleTimer) return;
+  sampleTimer = setInterval(() => void runSamplePass(), STATS_SAMPLE_INTERVAL_MS);
+  sampleTimer.unref?.();
+  void runSamplePass();
 }
 
-async function sampleLoop(): Promise<void> {
-  for (;;) {
-    await sampleOnce().catch(() => undefined);
-    await delay(STATS_SAMPLE_INTERVAL_MS);
+/** Stops the sampler: no further request reaches the daemon. Idempotent. */
+export function stopStatsSampling(): void {
+  if (!sampleTimer) return;
+  clearInterval(sampleTimer);
+  sampleTimer = undefined;
+}
+
+/** True while the sampler is running — the observable state of the gate. */
+export function isStatsSamplingActive(): boolean {
+  return sampleTimer !== undefined;
+}
+
+// A tick arriving while the previous pass is still out is dropped, never
+// queued: no second pass beside a slow one, and no backlog
+// (plan-docker_management_app-containers_card_view/REQ-40).
+async function runSamplePass(): Promise<void> {
+  if (passInFlight) return;
+  passInFlight = true;
+  try {
+    await sampleOnce();
+  } catch {
+    // an unreachable daemon is not fatal to the gate: the next tick retries
+  } finally {
+    passInFlight = false;
   }
 }
 
@@ -453,11 +492,55 @@ function computeUsage(raw: RawStats): SampledUsage {
   const cpuPercent = systemDelta > 0 && cpuDelta > 0 ? (cpuDelta / systemDelta) * onlineCpus * 100 : 0;
   const cache = raw.memory_stats.stats?.cache ?? raw.memory_stats.stats?.inactive_file ?? 0;
   const memoryUsageBytes = Math.max((raw.memory_stats.usage ?? 0) - cache, 0);
-  return { cpuPercent, memoryUsageBytes, memoryLimitBytes: raw.memory_stats.limit ?? 0 };
+  let networkRxBytes = 0;
+  let networkTxBytes = 0;
+  for (const entry of Object.values(raw.networks ?? {})) {
+    networkRxBytes += entry.rx_bytes ?? 0;
+    networkTxBytes += entry.tx_bytes ?? 0;
+  }
+  return {
+    cpuPercent,
+    memoryUsageBytes,
+    memoryLimitBytes: raw.memory_stats.limit ?? 0,
+    onlineCpus,
+    networkRxBytes,
+    networkTxBytes,
+    sampledAt: Date.now(),
+  };
+}
+
+// The order is imposed, not observed: the daemon's own order of a container's
+// ports is not stable across reads, and a reader showing a subset of them would
+// be handed a different subset each time.
+function summaryPorts(ports: RawContainer["Ports"]): ContainerPort[] {
+  const byMapping = new Map<string, ContainerPort>();
+  for (const port of ports ?? []) {
+    const mapping = { privatePort: port.PrivatePort, publicPort: port.PublicPort, type: port.Type };
+    byMapping.set(portMappingKey(mapping), mapping);
+  }
+  return [...byMapping.values()].sort(
+    byNameThenIdentity({
+      name: (mapping) => [String(mapping.privatePort), String(mapping.publicPort ?? 0)],
+      identity: portMappingKey,
+    }),
+  );
+}
+
+function portMappingKey(mapping: ContainerPort): string {
+  return `${mapping.type}-${mapping.publicPort ?? ""}-${mapping.privatePort}`;
+}
+
+// A reading older than the staleness bound reaches no consumer at all, by the
+// route a stopped container's absent sample already takes
+// (plan-docker_management_app-containers_card_view/REQ-52).
+function freshSample(id: string): SampledUsage | undefined {
+  const usage = statsCache.get(id);
+  if (!usage) return undefined;
+  return Date.now() - usage.sampledAt <= STATS_STALE_AFTER_MS ? usage : undefined;
 }
 
 function toSummary(raw: RawContainer): ContainerSummary {
-  const usage = statsCache.get(raw.Id);
+  const usage = freshSample(raw.Id);
   return {
     id: raw.Id,
     shortId: raw.Id.slice(0, 12),
@@ -465,13 +548,12 @@ function toSummary(raw: RawContainer): ContainerSummary {
     image: raw.Image,
     state: raw.State as ContainerState,
     status: raw.Status,
-    ports: (raw.Ports ?? []).map((port) => ({ privatePort: port.PrivatePort, publicPort: port.PublicPort, type: port.Type })),
+    ports: summaryPorts(raw.Ports),
     cpuPercent: usage?.cpuPercent,
     memoryUsageBytes: usage?.memoryUsageBytes,
     memoryLimitBytes: usage?.memoryLimitBytes,
+    onlineCpus: usage?.onlineCpus,
+    networkRxBytes: usage?.networkRxBytes,
+    networkTxBytes: usage?.networkTxBytes,
   };
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

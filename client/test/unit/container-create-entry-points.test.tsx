@@ -197,7 +197,9 @@ describe('ContainersScreen — create/run entry points (plan-docker_management_a
     expect(onRefresh).toHaveBeenCalled();
   });
 
-  // containers-screen.md — the created container becomes the selected row
+  // containers-screen.md — the created container becomes the selected card
+  // (plan-docker_management_app-containers_card_view/REQ-23: the list is a stack of cards now, and
+  // the selected one is the surface carrying the selected treatment)
   it('selects the created container in the list', async () => {
     const user = userEvent.setup();
     const { container } = render(
@@ -208,8 +210,8 @@ describe('ContainersScreen — create/run entry points (plan-docker_management_a
     await user.type(screen.getByRole('combobox', { name: 'Image reference' }), 'nginx:1.27');
     await user.click(screen.getByRole('button', { name: 'Create and start' }));
 
-    await waitFor(() => expect(container.querySelector('.ui-data-table__row--selected')).not.toBeNull());
-    expect(container.querySelector('.ui-data-table__row--selected')?.textContent).toContain('new-container');
+    await waitFor(() => expect(container.querySelector('.ui-surface--selected')).not.toBeNull());
+    expect(container.querySelector('.ui-surface--selected')?.textContent).toContain('new-container');
   });
 
   // containers-screen.md — cancelling the form changes nothing

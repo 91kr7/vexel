@@ -5,6 +5,13 @@
   gap: var(--space-4);
 }
 
+/* Both boxes down to the title must be allowed to shrink, or the ellipsis never appears:
+   a flex item's automatic minimum is its content. */
+.ui-section-header--truncate,
+.ui-section-header--truncate .ui-section-header__text {
+  min-width: 0;
+}
+
 .ui-section-header__title {
   margin: 0;
   font-size: var(--font-size-lg);

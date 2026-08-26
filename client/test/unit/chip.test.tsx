@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -191,5 +193,114 @@ describe('ChipGroup (ui-library/specs/chip.md)', () => {
 
     expect(screen.getByText('256MB')).toBeInTheDocument();
     expect(document.querySelectorAll('.ui-chip__meta')).toHaveLength(1);
+  });
+});
+
+// chip.md — the muted prefix and the accent tone
+// (plan-docker_management_app-containers_card_view/REQ-5, REQ-30).
+/** The controls stylesheet, comments stripped, so a value named in a comment is never read as a declaration. */
+const css = readFileSync(join(process.cwd(), 'src', 'ui', 'controls', 'controls.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+
+/** The declarations written for one selector, joined in source order. */
+function declarationsOf(selector: string): string {
+  return [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter((rule) => rule[1].split(',').some((one) => one.trim() === selector))
+    .map((rule) => rule[2])
+    .join(' ');
+}
+
+describe('Chip — the prefix and the accent tone (containers_card_view/REQ-5)', () => {
+  it('shows the prefix before the label, and the meta after it, in that order', () => {
+    const { container } = render(<Chip prefix="image" label="nginx:1.27" meta="256MB" />);
+
+    const chip = container.querySelector('.ui-chip')!;
+    expect(chip.textContent).toBe('imagenginx:1.27256MB');
+    expect(chip.querySelector('.ui-chip__prefix')?.textContent).toBe('image');
+    expect(chip.querySelector('.ui-chip__label')?.textContent).toBe('nginx:1.27');
+  });
+
+  it('marks an accented chip as the salient one, and leaves a neutral one as it was', () => {
+    const { container: accented, unmount } = render(<Chip label="49153→5432" tone="accent" />);
+    expect(accented.querySelector('.ui-chip')?.className).toBe('ui-chip ui-chip--accent');
+    unmount();
+
+    const { container: neutral } = render(<Chip label="49153→5432" />);
+    expect(neutral.querySelector('.ui-chip')?.className).toBe('ui-chip');
+  });
+
+  it('renders a chip asked for no prefix and no tone exactly as it did before those existed', () => {
+    const { container } = render(<Chip label="app-1" />);
+
+    const chip = container.querySelector('.ui-chip')!;
+    expect(chip.className).toBe('ui-chip');
+    expect(chip.querySelector('.ui-chip__prefix')).toBeNull();
+    expect(chip.textContent).toBe('app-1');
+  });
+
+  it('takes the accent role\'s own tokens and the muted prefix treatment, declaring no colour of its own', () => {
+    const accent = declarationsOf('.ui-chip--accent');
+    expect(accent, 'the accent tone declares no treatment of its own').not.toBe('');
+    expect(accent).toMatch(/var\(--color-accent[^)]*\)/);
+    expect(accent, 'the accent tone writes a colour of its own').not.toMatch(/#[0-9a-f]{3,8}|rgba?\(|hsla?\(/i);
+    // "Same muted treatment as meta, one declaration serving both positions": the muted colour is
+    // written once for the two of them, and never a second time for the prefix alone.
+    const shared = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].filter(
+      (rule) => rule[1].includes('.ui-chip__prefix') && rule[1].includes('.ui-chip__meta'),
+    );
+    expect(shared, 'the prefix and the meta share no declaration at all').not.toHaveLength(0);
+    expect(shared.map((rule) => rule[2]).join(' ')).toContain('var(--color-text-muted)');
+    const alone = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter((rule) => rule[1].includes('.ui-chip__prefix') && !rule[1].includes('.ui-chip__meta'))
+      .map((rule) => rule[2])
+      .join(' ');
+    expect(alone, 'the prefix restates a treatment the meta already declares').not.toMatch(/color\s*:|font-(size|weight|family)\s*:/);
+  });
+});
+
+// chip.md — the block field and the end of the label that gives way
+// (plan-docker_management_app-containers_card_view/REQ-5, REQ-12, REQ-30).
+describe('Chip — the block field and its front truncation (containers_card_view/REQ-5)', () => {
+  it('fills its line as a field, the prefix keeping its width and the label giving way', () => {
+    const { container } = render(<Chip block prefix="image" label="registry.io/acme/payments:2.14.0" truncate="start" />);
+
+    const chip = container.querySelector('.ui-chip')!;
+    expect(chip.className).toContain('ui-chip--block');
+
+    const block = declarationsOf('.ui-chip--block');
+    expect(block, 'the block form is declared nowhere').not.toBe('');
+    expect(block).toMatch(/width:\s*100%/);
+    // "Rectangular rounding, since a stadium as wide as its container reads as a button."
+    expect(block).toMatch(/border-radius:\s*var\(--radius-md\)/);
+    expect(declarationsOf('.ui-chip--block .ui-chip__prefix'), 'the prefix gives way instead of the label').toMatch(/flex:\s*none/);
+    expect(declarationsOf('.ui-chip--block .ui-chip__label')).toMatch(/min-width:\s*0/);
+  });
+
+  it('ellipsises the label at its front, carrying the whole value as its title', () => {
+    const reference = 'registry.io/acme-platform/payments-service:2.14.0-rc3';
+    const { container } = render(<Chip block prefix="image" label={reference} truncate="start" />);
+
+    const label = container.querySelector('.ui-chip__label')!;
+    expect(label.className).toContain('ui-truncating-line');
+    expect(label.className).toContain('ui-truncating-line--start');
+    expect(label.getAttribute('title')).toBe(reference);
+    expect(label.textContent, 'the value is cut in the markup rather than by the ellipsis').toBe(reference);
+  });
+
+  it('ellipsises the label at its end when that is what is asked for', () => {
+    const { container } = render(<Chip label="a-long-value" truncate="end" />);
+
+    const label = container.querySelector('.ui-chip__label')!;
+    expect(label.className).toContain('ui-truncating-line');
+    expect(label.className).not.toContain('ui-truncating-line--start');
+  });
+
+  it('leaves a chip asked for neither exactly as it was: no truncation, no title, its own width', () => {
+    const { container } = render(<Chip label="a-long-value" />);
+
+    const chip = container.querySelector('.ui-chip')!;
+    expect(chip.className).toBe('ui-chip');
+    const label = chip.querySelector('.ui-chip__label')!;
+    expect(label.className).toBe('ui-chip__label');
+    expect(label.hasAttribute('title')).toBe(false);
   });
 });

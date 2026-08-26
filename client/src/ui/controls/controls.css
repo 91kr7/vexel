@@ -138,9 +138,12 @@
   cursor: pointer;
 }
 
+/* The tighter radius belongs to the box, not to a caller: the ordinary one on a
+   24px square is 42% of its side and reads as a blob (icon-button.md). */
 .ui-icon-button--sm {
   width: 24px;
   height: 24px;
+  border-radius: var(--radius-sm);
   font-size: var(--font-size-xs);
 }
 
@@ -395,6 +398,44 @@
   align-items: center;
   gap: var(--space-1);
   min-width: 0;
+}
+
+/* Segmented: one shared boundary, the hairline between two slots being one border
+   and not two — what the negative inline offset buys. `stretch`, so the group owns
+   the height and a slot of another kind cannot resolve to its own. */
+.ui-action-button-group--segmented {
+  gap: 0;
+  align-items: stretch;
+}
+
+.ui-action-button-group__segment {
+  display: inline-flex;
+  min-width: 0;
+}
+
+.ui-action-button-group__segment + .ui-action-button-group__segment {
+  margin-inline-start: calc(-1 * var(--border-width-hairline));
+}
+
+.ui-action-button-group__segment :is(.ui-button, .ui-menu__trigger) {
+  border-radius: 0;
+}
+
+.ui-action-button-group__segment:first-child :is(.ui-button, .ui-menu__trigger) {
+  border-start-start-radius: var(--radius-md);
+  border-end-start-radius: var(--radius-md);
+}
+
+.ui-action-button-group__segment:last-child :is(.ui-button, .ui-menu__trigger) {
+  border-start-end-radius: var(--radius-md);
+  border-end-end-radius: var(--radius-md);
+}
+
+/* The hovered or focused slot draws its own border over its neighbour's rather
+   than under it, so the shared hairline never looks half-lit. */
+.ui-action-button-group__segment:hover,
+.ui-action-button-group__segment:focus-within {
+  position: relative;
 }
 
 /* The tooltip carrier of a disabled action's reason. A disabled control
@@ -758,24 +799,13 @@
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
-  /*
-   * The band's own size is the size of the controls it holds, on whichever axis
-   * it is placed: no growth, and no basis of its own. It used to declare
-   * `flex: 1 1 240px` unconditionally — a rule written for a row, which reads as
-   * "240px tall" the moment the band is stacked in a column, and drew a 37px
-   * control in the middle of a 240px band with 103px of nothing above and below
-   * it. `flex-grow` is worse still on the block axis: it turns a 240px void into
-   * a "takes everything left" one.
-   */
+  /* The band's own size is that of the controls it holds, on whichever axis it is
+     placed: a basis written here reads as a height the moment it is stacked. */
   flex: 0 0 auto;
 }
 
-/*
- * In a row, the delivered contract, unchanged: at least 240px wide and growing
- * to fill the row. The decision is made here, by the axis the band was actually
- * placed on, and never by a prop asking the call site which axis it is on —
- * that prop is this defect written down.
- */
+/* In a row: at least 240px and growing to fill it. Decided by the axis the band was
+   placed on, never by a prop asking the call site which axis it is on. */
 .ui-row > .ui-stream-search {
   flex: 1 1 240px;
 }
@@ -1010,6 +1040,38 @@
   white-space: nowrap;
 }
 
+/* A field rather than a pill: rectangular rounding, since a stadium as wide as its
+   container reads as a button. The label gives way, the prefix does not. */
+.ui-chip--block {
+  display: flex;
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+}
+
+.ui-chip--block .ui-chip__prefix {
+  flex: none;
+}
+
+.ui-chip--block .ui-chip__label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The chip's muted parts: the prefix before the value, the meta reading after it. */
+.ui-chip__prefix,
+.ui-chip__meta {
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+/* Accented: the salient chip of a group, in the accent role's own tokens. */
+.ui-chip--accent {
+  border-color: var(--color-accent);
+  background: var(--color-accent-tint);
+  color: var(--color-accent-strong);
+}
+
 .ui-chip--clickable {
   cursor: pointer;
   text-align: left;
@@ -1018,11 +1080,6 @@
 .ui-chip--clickable:hover {
   border-color: var(--color-accent);
   color: var(--color-accent-strong);
-}
-
-.ui-chip__meta {
-  color: var(--color-text-muted);
-  white-space: nowrap;
 }
 
 /* A chip's inline action is a control: it carries a surface and a shape of its

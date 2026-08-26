@@ -6,6 +6,7 @@ import { listContainerProcesses } from "./container-processes-service.js";
 import { streamContainerStats } from "./container-stats-service.js";
 import { importFilesystemImage, openContainerExportStream } from "./container-transfer-service.js";
 import { sanitizeTarFilename } from "../images/image-transfer-service.js";
+import { acquireStatsDemand } from "./stats-demand-registry.js";
 import {
   getContainerInspect,
   killContainer,
@@ -19,6 +20,7 @@ import {
   stopContainer,
   unpauseContainer,
   updateContainerConfig,
+  STATS_SAMPLE_INTERVAL_MS,
   type ContainerConfigUpdate,
 } from "./containers-service.js";
 
@@ -30,6 +32,31 @@ containersRouter.get("/", async (_req, res) => {
   } catch (error) {
     respondError(res, error);
   }
+});
+
+/**
+ * The subscription that gates the sampler: held open for as long as a consumer
+ * is shown the sampled figures, released on close however the connection ended.
+ * The periodic write is what makes an end that vanished without closing fail,
+ * and so be released, within about one interval
+ * (plan-docker_management_app-containers_card_view/REQ-46, REQ-47, REQ-50).
+ */
+containersRouter.get("/stats/subscription", (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+  res.write(": subscribed\n\n");
+
+  const release = acquireStatsDemand();
+  const heartbeat = setInterval(() => res.write(": alive\n\n"), STATS_SAMPLE_INTERVAL_MS);
+  const close = () => {
+    clearInterval(heartbeat);
+    release();
+  };
+  res.on("close", close);
+  res.on("error", close);
+  req.on("close", close);
 });
 
 /**

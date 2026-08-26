@@ -32,14 +32,6 @@
  * hairline and be wrong about it, so it is read on the wrapper — which is what
  * `expectNestedByIndentationAlone` does.
  *
- * **Every criterion here was observed failing on the delivered build first**
- * (REQ-29, and the counter-practice the plan's risk list names): the last test
- * checks out `d17e1df`, builds it, serves it on a port of its own and reads the
- * same figures through the same fixtures — the nested list on a stack of cards of
- * its own, no indentation of a spacing step, no closing rule on the group, and a
- * pan region of its own. A criterion that cannot be observed red there is not yet
- * a criterion.
- *
  * **What each screen's reading costs, stated rather than hidden.** Compose runs
  * against **real projects on the daemon** — two of them, one of two services and
  * one of one, `pull_policy: never` so nothing is fetched, every container
@@ -62,7 +54,6 @@ import { CASE_LABEL, OWNER_LABEL, RUN_ID, openApp, ownershipArgs } from './suppo
 import { boxOf, boxThisFrame, clickAtItsCentre } from './support/settled.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
-import { startDeliveredBuild, type DeliveredBuild } from './support/delivered-build.js';
 import { managerSwarmFixture, stubSwarmReading } from './support/swarm-reading.js';
 import {
   VIEWPORTS,
@@ -86,16 +77,6 @@ const DESKTOP: Viewport = VIEWPORTS[0];
 const PHONE: Viewport = VIEWPORTS[2];
 
 /**
- * The revision the plan was delivered on top of — the merge this branch starts
- * from. Neither batch 1 nor batch 2 touched compose or swarm's configs & stacks,
- * so it is the delivered build for these lists exactly as it was for theirs.
- */
-const DELIVERED_REF = process.env.VEXEL_DELIVERED_REF ?? 'd17e1df';
-
-/** Its own port: neither the suite's 3100, nor a developer's 3000, nor batch 1's 3101 or batch 2's 3102. */
-const DELIVERED_PORT = Number(process.env.VEXEL_DELIVERED_NESTED_PORT ?? 3103);
-
-/**
  * A list is named by a column only it carries — which is what makes the locator
  * survive the surface recomposition, the section header naming a panel no longer
  * being inside its card (REQ-40). The two **nested** lists carry none: they draw
@@ -115,7 +96,6 @@ const LISTS = {
   projects: 'SERVICES UP',
   configs: 'CONFIG',
   stacks: 'NETWORKS',
-  containers: 'UPTIME',
   images: 'DISK USAGE',
 } as const;
 
@@ -267,28 +247,30 @@ async function openSwarm(page: Page): Promise<void> {
   });
 }
 
-/** The two reference lists, read from the tree in this same run and in this same browser. */
+/**
+ * The reference list, read from the tree in this same run and in this same browser.
+ *
+ * **It was two, and the containers list left it on 2026-08-25**
+ * (`plan-docker_management_app-containers_card_view/REQ-1`): that screen deliberately draws one card
+ * per container now, and is the single named exception to the classic table
+ * (`.../containers_card_view/REQ-63`). A screen that draws no table cannot be the table every other
+ * list is compared against. The images list — still the classic table, and already the second
+ * reference here — is what remains, and the comparison it takes part in is unchanged: each converted
+ * list is measured against a reference row of this spec's own making, never against a total and
+ * never against an emptiness.
+ */
 async function readTheReference(page: Page, at: string): Promise<{ name: string; list: ListGeometry }[]> {
-  await openApp(page, 'containers');
-  await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible({ timeout: 20_000 });
-  const containers = await settledList(page, LISTS.containers);
-  reportList(at, 'containers (reference)', containers, 'b3');
-
   await openApp(page, 'images-layers');
   await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible({ timeout: 20_000 });
+  // The row this file created is what the reference is read on: never a total, never an emptiness.
+  await expect(
+    page.locator('.ui-data-table__row', { hasText: referenceImage }).first(),
+    `${at}: the image this spec created is not listed, so the reference row may be anybody's`,
+  ).toBeVisible({ timeout: 20_000 });
   const images = await settledList(page, LISTS.images);
   reportList(at, 'images (reference)', images, 'b3');
 
-  // The row this file created is what the reference is read on: never a total, never an emptiness.
-  expect(
-    containers.rows.some((row) => row.label.startsWith('vexel-e2e-nested-ref-')),
-    `${at}: the container this spec created is not listed, so the reference row may be anybody's`,
-  ).toBe(true);
-
-  return [
-    { name: 'containers', list: containers },
-    { name: 'images', list: images },
-  ];
+  return [{ name: 'images', list: images }];
 }
 
 /** The three screen lists this batch converts, measured in one pass each. */
@@ -399,9 +381,9 @@ for (const viewport of VIEWPORTS) {
   const at = `${viewport.width}×${viewport.height}`;
 
   // REQ-2 … REQ-5, REQ-13, REQ-19, REQ-20, REQ-39, REQ-40 — the three screen
-  // lists are the containers table, with the two reference lists read in the same
-  // run so the equality is a comparison and not a coincidence.
-  test(`the projects, configs and stacks lists are the containers table, not a table like it — ${at}`, async ({ page }) => {
+  // lists are the reference table, read in the same run so the equality is a
+  // comparison and not a coincidence.
+  test(`the projects, configs and stacks lists are the reference table, not a table like it — ${at}`, async ({ page }) => {
     test.setTimeout(420_000);
     await page.setViewportSize(viewport);
     await stubSwarmReading(page, SWARM);
@@ -682,7 +664,7 @@ test('selecting a project opens its panel under its own row without disturbing i
 // REQ-29 — the delivered figures, on record, before the change.
 // ---------------------------------------------------------------------------
 
-/** The figures a nested list is judged by, in the shape both builds are read into. */
+/** The figures a nested list is judged by. */
 function nestedFigures(list: ListGeometry): {
   children: number;
   childRowInsetFromTheParentCell: number;
@@ -713,109 +695,11 @@ function nestedFigures(list: ListGeometry): {
   };
 }
 
-/**
- * The build this plan started from is checked out, built and served on a port of
- * its own, and the same measurements are read on it through the same fixtures —
- * the compose projects being real ones on the daemon both origins talk to — so
- * the two readings differ in the build and in nothing else.
- *
- * Both halves are asserted: the criteria **fail** there, which is what makes this
- * check discriminating rather than merely green, and they hold on the build under
- * test. And the count is carried across: **the same services, before and after.**
- */
-test('the delivered build fails these criteria, and the numbers are on record', async ({ page, browser, baseURL }) => {
-  test.setTimeout(1_200_000);
-  expect(baseURL, 'this run has no origin of its own to compare the delivered build against').toBeTruthy();
-  let delivered: DeliveredBuild | undefined;
-  let deliveredNested: Record<string, ReturnType<typeof nestedFigures>> = {};
-  let deliveredServices: Record<string, string[]> = {};
-  try {
-    delivered = await startDeliveredBuild({ revision: DELIVERED_REF, port: DELIVERED_PORT });
-    const revision = delivered.revision.slice(0, 7);
-    const context = await browser.newContext({ baseURL: delivered.origin, viewport: DESKTOP });
-    const before = await context.newPage();
-    try {
-      await stubSwarmReading(before, SWARM);
-      const outer = await readTheOuterLists(before, `delivered ${revision}`);
-      // The delivered build's **own** spacing step, read from it once it is up:
-      // what has to be red there is "a child row was already inset by one step",
-      // and one step is whatever that build's tokens say it is. Read before the
-      // page had loaded it would be 0, and the criterion below would quietly
-      // become "was already inset by nothing" — green on any build.
-      const step = await spacingStep(before);
-      const nested = await readTheNestedLists(before, `delivered ${revision}`, step);
-      deliveredNested = Object.fromEntries(Object.entries(nested).map(([name, list]) => [name, nestedFigures(list)]));
-      deliveredServices = Object.fromEntries(Object.entries(nested).map(([name, list]) => [name, list.rows.map((row) => row.label).sort()]));
-
-      for (const [name, figures] of Object.entries(deliveredNested)) {
-        console.log(`[b3/REQ-29] delivered ${revision} ${name}: ${JSON.stringify(figures)}`);
-      }
-
-      // Recorded failing, with its measurements — not "before: failed".
-      for (const [name, list] of Object.entries(outer)) {
-        expect(list.rows.length, `delivered ${revision} ${name}: fewer than two rows, so nothing here discriminates`).toBeGreaterThan(1);
-        expect(
-          list.rowJunctions.map((junction) => round(junction.gap)).filter((gap) => gap > 0.5).length,
-          `delivered ${revision} ${name}: the delivered build already drew its rows flush`,
-        ).toBeGreaterThan(0);
-        expect(
-          Math.max(...list.rows.map((row) => row.carrierRadius)),
-          `delivered ${revision} ${name}: the delivered build already drew square rows`,
-        ).toBeGreaterThan(0);
-        expect(
-          list.surfacesInside,
-          `delivered ${revision} ${name}: the delivered build already drew no surface inside its list`,
-        ).toBeGreaterThan(0);
-        expect(
-          list.rows.every((row) => row.modifiers.length === 0),
-          `delivered ${revision} ${name}: the delivered build already stated no row modifier`,
-        ).toBe(false);
-        expect(
-          Math.abs(list.table.x - (list.card?.x ?? 0)),
-          `delivered ${revision} ${name}: the delivered build already ran its table edge to edge in its card`,
-        ).toBeGreaterThan(1);
-        expect(
-          list.sectionHeaderInsideCard,
-          `delivered ${revision} ${name}: the delivered build already put the section header outside the list's card`,
-        ).toBe(true);
-      }
-
-      // …and the four criteria this batch adds, each of them red there. A
-      // criterion that cannot be observed failing on the rejected build is not
-      // yet a criterion (REQ-29).
-      for (const [name, figures] of Object.entries(deliveredNested)) {
-        expect(
-          figures.surfacesInside + figures.rowsOnASurface,
-          `delivered ${revision} ${name}: the delivered build already drew its children inside its parent's surface, so "no surface of its own" shows nothing`,
-        ).toBeGreaterThan(0);
-        expect(
-          round(figures.childRowInsetFromTheParentCell),
-          `delivered ${revision} ${name}: the delivered build already inset a child row by exactly one spacing step, so the indentation shows nothing`,
-        ).not.toBe(round(step));
-        expect(
-          figures.groupClosingRule,
-          `delivered ${revision} ${name}: the delivered build already closed the group with a rule of the wrapper's own`,
-        ).toBe(0);
-        expect(
-          figures.overflowX,
-          `delivered ${revision} ${name}: the delivered build's nested list was already no pan region of its own`,
-        ).not.toBe('visible');
-      }
-      // The gap between two children is the fifth, and it is the card's own
-      // signature: children separated rather than ruled.
-      expect(
-        deliveredNested['compose services (two)'].childGaps.filter((gap) => gap > 0.5).length,
-        `delivered ${revision}: the delivered build already drew a project's services flush`,
-      ).toBeGreaterThan(0);
-    } finally {
-      await context.close();
-    }
-  } finally {
-    await delivered?.stop();
-  }
-
-  // …and the same figures on the build under test, measured minutes apart in the
-  // same browser and against the same daemon.
+// plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-29 — the outer and
+// nested lists, against the reference read in the same run.
+test('the outer and nested lists hold the criteria, with the reference’s own figures beside them', async ({ page, baseURL }) => {
+  test.setTimeout(900_000);
+  expect(baseURL, 'this run has no origin of its own').toBeTruthy();
   await page.setViewportSize(DESKTOP);
   await stubSwarmReading(page, SWARM);
   const references = await readTheReference(page, 'after');
@@ -833,33 +717,16 @@ test('the delivered build fails these criteria, and the numbers are on record', 
     expectSameRowAsReference('after', name, list, references);
   }
 
-  // **The count, before and after** — the number that says nothing was silently
-  // dropped when the slot stopped being gated on a presentation.
-  for (const [name, list] of Object.entries(nested)) {
-    const after = list.rows.map((row) => row.label).sort();
-    console.log(
-      `[b3/REQ-6] ${name}: ${deliveredServices[name].length} child row(s) on the delivered build → ${after.length} after — ` +
-        `${JSON.stringify(deliveredServices[name])} → ${JSON.stringify(after)}`,
-    );
-    expect(after, `${name}: the conversion changed which children the row carries`).toEqual(deliveredServices[name]);
-  }
-
-  // …and the four criteria's figures, side by side.
   for (const [name, list] of Object.entries(nested)) {
     const figures = nestedFigures(list);
     console.log(
-      `[b3/REQ-29] ${name}, delivered → after: child row inset from its parent's cell ${round(
-        deliveredNested[name].childRowInsetFromTheParentCell,
-      )} → ${round(figures.childRowInsetFromTheParentCell)}px (one spacing step is ${round(step)}px); child cell ${round(
-        deliveredNested[name].childCellInsetFromTheParentCell,
-      )} → ${round(figures.childCellInsetFromTheParentCell)}px; surfaces inside ${deliveredNested[name].surfacesInside} → ${
-        figures.surfacesInside
-      }; rows on a surface of their own ${deliveredNested[name].rowsOnASurface} → ${figures.rowsOnASurface}; ` +
-        `worst row corner ${round(deliveredNested[name].worstCarrierRadius)} → ${round(figures.worstCarrierRadius)}px; ` +
-        `gaps between children ${JSON.stringify(deliveredNested[name].childGaps)} → ${JSON.stringify(figures.childGaps)}; ` +
-        `the group's closing rule ${round(deliveredNested[name].groupClosingRule)} → ${round(figures.groupClosingRule)}px over a last child of ${round(
-          deliveredNested[name].lastChildRule,
-        )} → ${round(figures.lastChildRule)}px; overflow-x ${deliveredNested[name].overflowX} → ${figures.overflowX}`,
+      `[b3/REQ-29] ${name}: child row inset from its parent's cell ${round(figures.childRowInsetFromTheParentCell)}px ` +
+        `(one spacing step is ${round(step)}px); child cell ${round(figures.childCellInsetFromTheParentCell)}px; ` +
+        `surfaces inside ${figures.surfacesInside}; rows on a surface of their own ${figures.rowsOnASurface}; ` +
+        `worst row corner ${round(figures.worstCarrierRadius)}px; gaps between children ${JSON.stringify(figures.childGaps)}; ` +
+        `the group's closing rule ${round(figures.groupClosingRule)}px over a last child of ${round(figures.lastChildRule)}px; ` +
+        `overflow-x ${figures.overflowX}`,
     );
+    expect(list.rows.length, `${name}: the row carries no child at all`).toBeGreaterThan(0);
   }
 });

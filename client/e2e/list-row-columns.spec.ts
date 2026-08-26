@@ -74,6 +74,12 @@ interface TableGeometry {
   columnMinimum: number;
   /** The effective `--data-table-action-column-width`, in px. */
   actionColumnWidth: number;
+  /**
+   * The effective `--data-table-menu-action-column-width`, in px: the narrower of the library's two
+   * action-column tokens, which a list whose row carries its overflow control alone reserves
+   * instead (`plan-docker_management_app-image_row_actions/REQ-18`).
+   */
+  menuActionColumnWidth: number;
 }
 
 const PHONE = { width: 375, height: 812 };
@@ -83,8 +89,18 @@ const DESKTOPS = [
   { width: 1280, height: 800 },
 ];
 
-/** The six columns REQ-6 names, matched on the header the screen gives them. */
-const CONTAINER_DATA_COLUMNS = ['NAME', 'IMAGE', 'CPU', 'MEMORY', 'PORTS', 'UPTIME'];
+/**
+ * The data columns the exemplar list states, matched on the header the screen gives them.
+ *
+ * **REQ-6 was written against the containers list, and that list stopped being a table on
+ * 2026-08-25** (`plan-docker_management_app-containers_card_view/REQ-1`, `REQ-63`): it draws one
+ * card per container, and its own arrangement at 375×812 is measured in
+ * `containers-card-geometry.spec.ts`. The defect this file exists for is the **table's** — a column
+ * resolving to no width at all under the phone breakpoint — so the exemplar moves to the images
+ * list, which is still that table and was already the file's second adopter. Nothing about the claim
+ * changes: every data column of a row of it resolves to a width, and the list pans to reach each.
+ */
+const IMAGE_DATA_COLUMNS = ['REPOSITORY:TAG', 'DIGEST', 'PLATFORM', 'DISK USAGE', 'CREATED'];
 
 function round(value: number): number {
   return Math.round(value * 10) / 10;
@@ -170,6 +186,7 @@ async function measureThisFrame(row: Locator): Promise<TableGeometry> {
       scrollLeft: table.scrollLeft,
       columnMinimum: Number.parseFloat(rootStyle.getPropertyValue('--data-table-column-min-width')),
       actionColumnWidth: Number.parseFloat(rootStyle.getPropertyValue('--data-table-action-column-width')),
+      menuActionColumnWidth: Number.parseFloat(rootStyle.getPropertyValue('--data-table-menu-action-column-width')),
     };
   });
 }
@@ -287,44 +304,52 @@ async function openScreen(page: Page, screenId: string, heading: string, viewpor
 
 // plan-ui-coherence-optimisation/REQ-6, REQ-8, REQ-9 — the defect itself: the
 // tracks, the cells' boxes, and whether an operator can actually reach them.
-test('at 375×812 every column of a containers row resolves to a width, and the table pans to reach each of them', async ({ page }) => {
+test('at 375×812 every column of an images row resolves to a width, and the table pans to reach each of them', async ({ page }) => {
   test.setTimeout(120_000);
-  const name = `vexel-e2e-cols-phone-${Date.now()}`;
+  const tag = `vexel-e2e-cols-phone-${Date.now()}:1`;
 
   try {
-    await createSleepingContainer(name, ['-p', '0:5432']);
-    await openScreen(page, 'containers', 'Containers', PHONE);
-    const row = rowContaining(page, name);
-    await expect(row, 'the fixture container never appeared in the list').toBeVisible({ timeout: 20_000 });
+    await createFixtureTag(tag);
+    await openScreen(page, 'images-layers', 'Images & layers', PHONE);
+    const row = rowContaining(page, tag);
+    await expect(row, 'the fixture image never appeared in the list').toBeVisible({ timeout: 20_000 });
 
     const geometry = await measure(row);
     // The same row with the floor taken back out: the delivered build's own
     // sizing, so the run reports the computed grid before and after (REQ-90).
     const delivered = await withoutColumnMinimum(page, () => measure(row));
-    console.log(`[REQ-6] @375×812 containers, before (no column minimum): ${delivered.computed}`);
-    console.log(`[REQ-6] @375×812 containers, after: ${geometry.computed}`);
+    console.log(`[REQ-6] @375×812 images, before (no column minimum): ${delivered.computed}`);
+    console.log(`[REQ-6] @375×812 images, after: ${geometry.computed}`);
     console.log(`[REQ-6] declared tracks: ${geometry.declared}`);
 
-    // The reconstruction is what makes this check a red on the delivered build
-    // rather than a green on both: without a floor the tracks collapse exactly
-    // as they were reported to.
+    // The reconstruction is what makes this check a red on the delivered build rather than a green on
+    // both: without a floor the columns are squeezed to a width nothing can be read in.
+    //
+    // **It read `=== 0` while the exemplar was the containers list**, whose tracks collapsed to
+    // exactly that and which stopped being a table on 2026-08-25
+    // (`plan-docker_management_app-containers_card_view/REQ-1`). On the images row the same
+    // neutralisation squeezes data columns to a dozen pixels rather than to none — the same defect
+    // and the same repair, one step milder — so what is required of the reconstruction is that it
+    // put a data track **below the floor the repair introduced**. A run in which it does not is a run
+    // in which the floor binds nowhere on this row, and the check below would pass with the repair
+    // removed.
     expect(
-      delivered.tracks.filter((track) => track === 0).length,
-      `with the column minimum neutralised the row still resolves every track (${delivered.computed}), so this check would have passed on the delivered build too and proves nothing`,
+      delivered.tracks.filter((track) => track < geometry.columnMinimum).length,
+      `with the column minimum neutralised no track of this row falls below the ${geometry.columnMinimum}px floor (${delivered.computed}), so this check would have passed on the delivered build too and proves nothing`,
     ).toBeGreaterThan(0);
 
     expect(geometry.cells, 'the row does not lay out one cell per column header').toHaveLength(geometry.headers.length);
     expect(geometry.tracks, 'the row does not lay out one track per cell').toHaveLength(geometry.cells.length + geometry.columnOffset);
     expect(
       geometry.tracks.filter((track) => track <= 0),
-      `@375×812 the containers row still resolves ${geometry.tracks.filter((track) => track <= 0).length} of its ${geometry.tracks.length} tracks to nothing — computed ${geometry.computed} (REQ-6)`,
+      `@375×812 the images row still resolves ${geometry.tracks.filter((track) => track <= 0).length} of its ${geometry.tracks.length} tracks to nothing — computed ${geometry.computed} (REQ-6)`,
     ).toEqual([]);
 
     // Each named column's own box, not its text: every character was present
     // throughout the defect, in a cell 0px wide.
-    for (const header of CONTAINER_DATA_COLUMNS) {
+    for (const header of IMAGE_DATA_COLUMNS) {
       const index = geometry.headers.indexOf(header);
-      expect(index, `the containers list no longer carries a ${header} column`).toBeGreaterThanOrEqual(0);
+      expect(index, `the images list no longer carries a ${header} column`).toBeGreaterThanOrEqual(0);
       expect(
         geometry.cells[index].width,
         `@375×812 the ${header} cell of the fixture row is ${round(geometry.cells[index].width)}px wide — its content is in the DOM at no width (REQ-6)`,
@@ -342,12 +367,12 @@ test('at 375×812 every column of a containers row resolves to a width, and the 
       landed,
       `@375×812 the list region reports ${geometry.scrollWidth}px of content in ${geometry.clientWidth}px and still refuses to pan: scrollLeft stays at ${landed} (REQ-8)`,
     ).toBeGreaterThan(0);
-    console.log(`[REQ-8] @375×812 containers pan: scrollWidth ${geometry.scrollWidth} / clientWidth ${geometry.clientWidth}, scrollLeft reaches ${round(landed)}`);
+    console.log(`[REQ-8] @375×812 images pan: scrollWidth ${geometry.scrollWidth} / clientWidth ${geometry.clientWidth}, scrollLeft reaches ${round(landed)}`);
 
     // …and the pan is what brings each named column fully inside the region.
     await panTo(row, 0);
     const reached: string[] = [];
-    for (const header of CONTAINER_DATA_COLUMNS) {
+    for (const header of IMAGE_DATA_COLUMNS) {
       const index = geometry.headers.indexOf(header);
       const cell = row.locator('.ui-data-table__cell').nth(index);
       await cell.scrollIntoViewIfNeeded();
@@ -368,13 +393,16 @@ test('at 375×812 every column of a containers row resolves to a width, and the 
     // REQ-9 — the action cluster keeps its intrinsic width and does not grow at
     // the expense of the data columns.
     await panTo(row, 0);
-    const lifecycle = geometry.headers.indexOf('LIFECYCLE') + geometry.columnOffset;
-    const actionTrack = geometry.tracks[lifecycle];
-    const dataTracks = geometry.tracks.filter((_, index) => index !== lifecycle).reduce((total, track) => total + track, 0);
+    const actions = geometry.headers.indexOf('ACTIONS') + geometry.columnOffset;
+    const actionTrack = geometry.tracks[actions];
+    const dataTracks = geometry.tracks.filter((_, index) => index !== actions).reduce((total, track) => total + track, 0);
+    // The images row came down to its overflow control alone and reserves the narrower of the two
+    // tokens for it (`plan-docker_management_app-image_row_actions/REQ-18`); REQ-9's claim is that
+    // the cluster holds **its own** intrinsic width, whichever of them that is.
     expect(
       actionTrack,
-      `@375×812 the action column resolves to ${round(actionTrack)}px where its own token states ${geometry.actionColumnWidth}px: it is not holding its intrinsic width (REQ-9)`,
-    ).toBeCloseTo(geometry.actionColumnWidth, 0);
+      `@375×812 the action column resolves to ${round(actionTrack)}px where its own token states ${geometry.menuActionColumnWidth}px: it is not holding its intrinsic width (REQ-9)`,
+    ).toBeCloseTo(geometry.menuActionColumnWidth, 0);
     expect(
       actionTrack,
       `@375×812 the action column holds ${round(actionTrack)}px of a ${round(geometry.rowBox.width)}px row, against ${round(dataTracks)}px for every data column together — the cluster is consuming the row, as it did holding 296px of 375px on the delivered build (REQ-9)`,
@@ -383,7 +411,7 @@ test('at 375×812 every column of a containers row resolves to a width, and the 
       `[REQ-9] @375×812 action column ${round(actionTrack)}px of a ${round(geometry.rowBox.width)}px row; the data columns hold ${round(dataTracks)}px between them`,
     );
   } finally {
-    await removeContainerQuietly(name);
+    await removeFixtureTag(tag);
   }
 });
 
@@ -392,13 +420,13 @@ test('at 375×812 every column of a containers row resolves to a width, and the 
 // viewport further takes nothing more off it.
 test('a column stops at its own minimum and does not shrink below it as the viewport narrows further', async ({ page }) => {
   test.setTimeout(120_000);
-  const name = `vexel-e2e-cols-floor-${Date.now()}`;
+  const tag = `vexel-e2e-cols-floor-${Date.now()}:1`;
 
   try {
-    await createSleepingContainer(name);
-    await openScreen(page, 'containers', 'Containers', PHONE);
-    const row = rowContaining(page, name);
-    await expect(row, 'the fixture container never appeared in the list').toBeVisible({ timeout: 20_000 });
+    await createFixtureTag(tag);
+    await openScreen(page, 'images-layers', 'Images & layers', PHONE);
+    const row = rowContaining(page, tag);
+    await expect(row, 'the fixture image never appeared in the list').toBeVisible({ timeout: 20_000 });
 
     const atPhone = await measure(row);
     const factors = flexFactors(atPhone.declared);
@@ -406,7 +434,7 @@ test('a column stops at its own minimum and does not shrink below it as the view
 
     expect(
       factors.some((factor) => factor !== null),
-      'no column of the containers list is flexible, so there is no minimum under test here',
+      'no column of the images list is flexible, so there is no minimum under test here',
     ).toBe(true);
 
     // Each flexible track is at least its own factor times the floor
@@ -448,7 +476,7 @@ test('a column stops at its own minimum and does not shrink below it as the view
       `@320×812 the narrower viewport did not lengthen the pan (${atNarrower.scrollWidth} / ${atNarrower.clientWidth}); the columns must have given the width up instead (REQ-7, REQ-8)`,
     ).toBeGreaterThan(atPhone.scrollWidth - atPhone.clientWidth);
   } finally {
-    await removeContainerQuietly(name);
+    await removeFixtureTag(tag);
   }
 });
 
@@ -457,13 +485,13 @@ test('a column stops at its own minimum and does not shrink below it as the view
 // list is unreadable however far it scrolls.
 test('at 375×812 a header cell and its row cell share an x-offset at every pan position', async ({ page }) => {
   test.setTimeout(120_000);
-  const name = `vexel-e2e-cols-align-${Date.now()}`;
+  const tag = `vexel-e2e-cols-align-${Date.now()}:1`;
 
   try {
-    await createSleepingContainer(name);
-    await openScreen(page, 'containers', 'Containers', PHONE);
-    const row = rowContaining(page, name);
-    await expect(row, 'the fixture container never appeared in the list').toBeVisible({ timeout: 20_000 });
+    await createFixtureTag(tag);
+    await openScreen(page, 'images-layers', 'Images & layers', PHONE);
+    const row = rowContaining(page, tag);
+    await expect(row, 'the fixture image never appeared in the list').toBeVisible({ timeout: 20_000 });
 
     const initial = await measure(row);
     const offsets = [0, Math.round((initial.scrollWidth - initial.clientWidth) / 2), initial.scrollWidth];
@@ -491,7 +519,7 @@ test('at 375×812 a header cell and its row cell share an x-offset at every pan 
 
     console.log(`[REQ-8] @375×812 header/row alignment — ${reported.join(' | ')}`);
   } finally {
-    await removeContainerQuietly(name);
+    await removeFixtureTag(tag);
   }
 });
 
@@ -586,28 +614,13 @@ async function desktopLayoutUnchanged(
   }
 }
 
-// plan-ui-coherence-optimisation/REQ-11 — the containers list at both desktop
-// viewports: same columns, same widths, same alignment, same row height, same
-// inline expansion.
-test('at 1440×1000 and 1280×800 the containers table is laid out exactly as it was before the column minimum existed', async ({ page }) => {
-  test.setTimeout(180_000);
-  const name = `vexel-e2e-cols-desktop-${Date.now()}`;
-
-  try {
-    await createSleepingContainer(name, ['-p', '0:5432']);
-    await desktopLayoutUnchanged(page, {
-      screenId: 'containers',
-      heading: 'Containers',
-      row: (target) => rowContaining(target, name),
-      // The table declares no rowHeight, so it is the component's default.
-      rowHeight: 56,
-      label: 'containers',
-      expands: true,
-    });
-  } finally {
-    await removeContainerQuietly(name);
-  }
-});
+// plan-ui-coherence-optimisation/REQ-11 asked the **containers** list to be laid out at both desktop
+// viewports exactly as it was before the column minimum existed. That list stopped being a table on
+// 2026-08-25 (`plan-docker_management_app-containers_card_view/REQ-1`, `REQ-63`), so this case has no
+// subject: there is no containers grid whose tracks a minimum could bind. What replaced it is
+// checked where it now lives — the card's own arrangement at desktop and at 375×812, in
+// `containers-card-geometry.spec.ts` — and REQ-11's claim about the **table** stands unchanged on
+// every screen that still draws one, immediately below and in the two tests after it.
 
 // plan-ui-coherence-optimisation/REQ-11 — the second adopter with an inline
 // expansion, on the same terms.
@@ -663,8 +676,11 @@ test('at 1440×1000 and 1280×800 the dashboard and coverage tables are laid out
 });
 
 // plan-ui-coherence-optimisation/REQ-10 — the repair is made once and every
-// adopter inherits it: containers, images, the dashboard and the coverage
-// matrix, none of them saying anything about a column minimum of its own.
+// adopter inherits it: images, the dashboard and the coverage matrix, none of
+// them saying anything about a column minimum of its own. **The containers
+// screen was the fourth until 2026-08-25**, when it stopped building on the
+// table at all (`plan-docker_management_app-containers_card_view/REQ-1`); the
+// dashboard's own container list is still the table and is still walked here.
 test('every screen built on the table keeps its columns at 375×812, without a word of its own about it', async ({ page }) => {
   test.setTimeout(240_000);
   const name = `vexel-e2e-cols-adopters-${Date.now()}`;
@@ -675,7 +691,6 @@ test('every screen built on the table keeps its columns at 375×812, without a w
     await createFixtureTag(tag);
 
     const adopters = [
-      { screenId: 'containers', heading: 'Containers', row: (target: Page) => rowContaining(target, name) },
       { screenId: 'images-layers', heading: 'Images & layers', row: (target: Page) => rowContaining(target, tag) },
       { screenId: 'dashboard', heading: 'Dashboard', row: (target: Page) => rowContaining(target, name) },
       { screenId: 'coverage-matrix', heading: 'About', row: (target: Page) => target.locator('.ui-data-table__row').first() },
@@ -734,13 +749,13 @@ test('every screen built on the table keeps its columns at 375×812, without a w
 // suite at 460, 640, 700 and 720.
 test('at 375×812 the inline expansion holds the table\u2019s visible box while the grid pans underneath it', async ({ page }) => {
   test.setTimeout(120_000);
-  const name = `vexel-e2e-cols-expansion-${Date.now()}`;
+  const tag = `vexel-e2e-cols-expansion-${Date.now()}:1`;
 
   try {
-    await createSleepingContainer(name);
-    await openScreen(page, 'containers', 'Containers', PHONE);
-    const row = rowContaining(page, name);
-    await expect(row, 'the fixture container never appeared in the list').toBeVisible({ timeout: 20_000 });
+    await createFixtureTag(tag);
+    await openScreen(page, 'images-layers', 'Images & layers', PHONE);
+    const row = rowContaining(page, tag);
+    await expect(row, 'the fixture image never appeared in the list').toBeVisible({ timeout: 20_000 });
 
     await row.locator('.ui-data-table__cell').first().click();
     await expect(page.locator('.ui-data-table__expanded')).toBeVisible({ timeout: 20_000 });
@@ -796,6 +811,6 @@ test('at 375×812 the inline expansion holds the table\u2019s visible box while 
       `@375×812 at scrollLeft ${round(landed)} the expansion is ${round(panned.expandedBox!.width)}px wide against a ${panned.clientWidth}px visible box (data-table.md)`,
     ).toBeCloseTo(panned.clientWidth, 0);
   } finally {
-    await removeContainerQuietly(name);
+    await removeFixtureTag(tag);
   }
 });

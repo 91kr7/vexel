@@ -19,6 +19,9 @@ class FakeEventSource {
   onmessage: ((event: { data: string }) => void) | null = null;
   url: string;
 
+  /** Every real EventSource has one, and a screen that holds a connection closes it on unmount. */
+  close() {}
+
   constructor(url: string) {
     this.url = url;
   }

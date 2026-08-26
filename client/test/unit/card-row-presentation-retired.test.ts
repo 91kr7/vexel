@@ -39,6 +39,14 @@ const repositoryRoot = join(clientRoot, '..');
  */
 const DELIVERED = 'd17e1df';
 
+/**
+ * The revision this plan **ends** at — its last commit, the closing e2e follow-up included. It is
+ * the other end of the one claim below that is about the plan's own arithmetic rather than about a
+ * state the product must stay in; every other claim in this file reads the working tree, so the
+ * retirement goes on being enforced at whatever `HEAD` happens to be.
+ */
+const RETIREMENT_COMPLETE = 'e800961';
+
 function git(...args: string[]): string {
   return execFileSync('git', args, { cwd: repositoryRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 }
@@ -165,6 +173,18 @@ describe('the card-per-row presentation is gone from the product (REQ-22)', () =
    * a compatibility wrapper is precisely something a plan adds while removing
    * what it replaces: the plan may take a name away and may take nothing new in
    * exchange.
+   *
+   * **Bounded at both ends, and it has to be** (2026-08-25). Read against `HEAD`,
+   * this claim stops being about *this* plan the moment any later one extends the
+   * library at all — and the first to do so, the containers card view, extends it
+   * for exactly the reason its own REQ-30 demands a new component only where
+   * neither reuse nor a variant carries the material (`MetricStrip`, and the
+   * prop types of two widened components). None of those is a list primitive, a
+   * list card or a compatibility wrapper, so nothing REQ-1 forbids came back;
+   * what a `HEAD` reading would report is later work, under this plan's name. The
+   * durable half of the promise — the retired vocabulary is named by the guard
+   * and by nobody else, and neither retired name is exported again — is asserted
+   * against `HEAD` in the two tests above, and stays there.
    */
   it('cost the library’s public interface exactly one name over this plan, and gained none', () => {
     const namesAt = (source: string): string[] =>
@@ -176,7 +196,7 @@ describe('the card-per-row presentation is gone from the product (REQ-22)', () =
         .sort();
 
     const before = namesAt(git('show', `${DELIVERED}:client/src/ui/index.ts`));
-    const after = namesAt(readFileSync(join(clientRoot, 'src', 'ui', 'index.ts'), 'utf8'));
+    const after = namesAt(git('show', `${RETIREMENT_COMPLETE}:client/src/ui/index.ts`));
     // The premise: the two readings are of a real entry point, not of a path that has moved.
     expect(before.length, `${DELIVERED} exports nothing at all, so this comparison reads the wrong file`).toBeGreaterThan(10);
 
@@ -419,5 +439,78 @@ describe('REQ-34 — this plan moved no blur and did not touch the background', 
   it('leaves the pre-blurred background’s own sources untouched', () => {
     planDiffOrThrow();
     expect(git('diff', '--stat', DELIVERED, 'HEAD', '--', 'client/src/ui/background/').trim()).toBe('');
+  });
+});
+
+/**
+ * **The 2026-08-25 exception is recorded where the retirement is stated**
+ * (`plan-docker_management_app-containers_card_view/REQ-62`, `REQ-63`).
+ *
+ * The guard is driven in `ui-conformance-check.test.ts`; what is left is the
+ * half REQ-62 names, and it is the half a green run cannot show: a reader
+ * arriving cold at the 2026-08-16 record, at the plan artefacts that carry it as
+ * delivered behaviour, or at the two component specs that state the rule, finds
+ * a **bounded exception with a date and a pointer** rather than a record the
+ * product silently contradicts.
+ *
+ * The certified requirements are read against the revision that last held them
+ * before the amendment: "annotate, do not renumber" is a claim about a change,
+ * so it is checked against the state that changed.
+ */
+describe('the containers exception is recorded, dated and bounded (REQ-62)', () => {
+  /** The record as certified, the last revision before the 2026-08-25 amendment. */
+  const BEFORE_THE_AMENDMENT = 'c434700';
+  const RETIREMENT_PLAN = '.sdd/plans/plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table';
+  const PLAN_REQUIREMENTS = `${RETIREMENT_PLAN}/requirements.md`;
+
+  it.each([
+    '.sdd/analysis/ui-coherence-optimisation-comfortable_variant_retired-classic_table.md',
+    PLAN_REQUIREMENTS,
+    `${RETIREMENT_PLAN}/batches.md`,
+    `${RETIREMENT_PLAN}/closing-state.md`,
+    '.sdd/modules/ui-library/specs/ui-conformance-check.md',
+    '.sdd/modules/ui-library/specs/data-table.md',
+  ])('%s states the exception, its date and where it is written', (path) => {
+    const text = readFileSync(join(repositoryRoot, path), 'utf8');
+
+    expect(text, 'the artefact carries the retirement with no amendment dated 2026-08-25').toMatch(/2026-08-25/);
+    expect(text, 'the amendment does not name the one screen it is bounded to').toMatch(/containers/i);
+    expect(text, 'the amendment points at no record a later reader could follow').toMatch(
+      /docker_management_app-containers_card_view/,
+    );
+  });
+
+  // REQ-62 — "do not renumber, delete or rewrite a certified requirement: annotate it". The ids are
+  // read as a set against the certified revision, and the three geometric claims the exception
+  // narrows are read as text: an amendment that removed the criterion instead of bounding it would
+  // leave the record silent about what still holds on every other list.
+  it('annotates the certified requirements of the retirement instead of renumbering or deleting them', () => {
+    const ids = (text: string): string[] => [...text.matchAll(/^\| (REQ-\d+) \|/gm)].map((match) => match[1]!);
+
+    const before = ids(git('show', `${BEFORE_THE_AMENDMENT}:${PLAN_REQUIREMENTS}`));
+    // The premise: a revision that holds no requirement table at all would make the comparison below
+    // an equality between two empty lists.
+    expect(before.length, `${BEFORE_THE_AMENDMENT} states no requirement, so this comparison reads the wrong file`).toBeGreaterThan(10);
+
+    const now = readFileSync(join(repositoryRoot, PLAN_REQUIREMENTS), 'utf8');
+    expect(ids(now), 'a certified requirement of the retirement was renumbered, deleted or added to').toEqual(before);
+    for (const criterion of ['Rows are flush', 'Rows are not cards', 'One surface']) {
+      expect(now, `the amendment removed "${criterion}" instead of bounding it`).toContain(criterion);
+    }
+  });
+
+  // REQ-63 — the exception is a screen: what the record admits is the containers list, and it says
+  // in the same breath that every other object list is unchanged. Read on the artefact the guard's
+  // own violations point a reader at.
+  it('records the exception as one screen with every other list unchanged', () => {
+    const record = readFileSync(
+      join(repositoryRoot, '.sdd/analysis/ui-coherence-optimisation-comfortable_variant_retired-classic_table.md'),
+      'utf8',
+    );
+    const amendment = record.slice(record.indexOf('2026-08-25'));
+
+    for (const list of ['images', 'volumes', 'networks', 'compose', 'swarm', 'registries', 'contexts', 'plugins', 'dashboard']) {
+      expect(amendment, `the amendment does not say what became of the ${list} list`).toMatch(new RegExp(list, 'i'));
+    }
   });
 });

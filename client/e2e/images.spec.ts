@@ -7,6 +7,7 @@ import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
 import { boxOf } from './support/settled.js';
 import { PULLABLE_REPOSITORY, TINY_IMAGE, ensureImage, ensurePullableImage } from '../../server/test/support/base-images.js';
+import { containerCard } from './support/container-cards.js';
 
 // Every test in this file exercises the daemon's real pull/tag/push/remove
 // operations one at a time (a shared registry-facing resource), so they run
@@ -725,9 +726,18 @@ test('selecting an image expands its detail panel with structured inspect data a
   }
 });
 
-// plan-docker_management_app/REQ-3 — the images table and the containers table present identically:
-// same header row treatment, same column typography, same row height, same hover and selected treatment.
-test('the images table and the containers table present with the same header, typography, row height, hover and selected treatment', async ({
+// plan-docker_management_app/REQ-3 asked the images table and the containers table to present
+// identically. **On 2026-08-25 the containers screen stopped being a table**
+// (plan-docker_management_app-containers_card_view/REQ-1), so one side of that comparison has no
+// subject left. What survives is restated rather than dropped
+// (plan-docker_management_app-containers_card_view/REQ-38, REQ-28):
+//
+//   - the images table still carries the treatment it carried — a header, a column typography, a row
+//     height, a hover and a selected state that actually differ from a resting row;
+//   - and the containers card wears **that table's own material**: the hover and selected highlights
+//     are the very colours the row paints, taken by reference from one declaration each. Read as
+//     painted colour, in the browser, which is the only place "one declaration" can be seen.
+test('the images table keeps its treatment, and the containers card paints the row’s own hover and selected colours', async ({
   page,
 }) => {
   const containerName = `vexel-e2e-homogeneity-${Date.now()}`;
@@ -736,7 +746,7 @@ test('the images table and the containers table present with the same header, ty
     await execFileAsync('docker', ['run', '-d', '--name', containerName, ...ownershipArgs(containerName), '--entrypoint', 'sleep', 'alpine:3.20', '300']);
     await tagFromPostgres(tag);
 
-    const measure = async () => {
+    const measureImagesTable = async () => {
       const table = page.locator('.ui-data-table');
       await expect(table.locator('.ui-data-table__row').first()).toBeVisible({ timeout: 15_000 });
 
@@ -758,8 +768,7 @@ test('the images table and the containers table present with the same header, ty
           };
         });
       const row = table.locator('.ui-data-table__row').first();
-      // The height is compared with the other screen's, so it is read once the list has settled:
-      // two screens measured at different moments of their own arrival are not comparable.
+      // Read once the list has settled: a list measured mid-arrival is not measured.
       const rowBox = await boxOf(row, 'the first row of the list');
       const restingBackground = await row.evaluate((node) => getComputedStyle(node).backgroundColor);
       await row.hover();
@@ -773,6 +782,11 @@ test('the images table and the containers table present with the same header, ty
         });
 
       await row.locator('.ui-data-table__cell').first().click();
+      // The pointer is taken off the row first: `.ui-data-table__row:hover` is one pseudo-class more
+      // specific than `.ui-data-table__row--selected`, so a selected row still under the pointer
+      // paints the **hover** colour — which is what this reading would otherwise report as the
+      // selected one.
+      await page.mouse.move(0, 0);
       const selected = table.locator('.ui-data-table__row--selected').first();
       const selectedBackground = await selected.evaluate((node) => getComputedStyle(node).backgroundColor);
 
@@ -781,19 +795,46 @@ test('the images table and the containers table present with the same header, ty
 
     // Scoped to the rail: the Dashboard's cross-navigation tiles name the same
     // screens, so an unscoped locator matches more than the entry meant here.
-    await navEntry(page, 'Containers').click();
-    await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
-    const containersLook = await measure();
-
     await navEntry(page, 'Images & layers').click();
     await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible();
-    const imagesLook = await measure();
+    const imagesLook = await measureImagesTable();
 
-    expect(imagesLook).toEqual(containersLook);
-    // A meaningful comparison: hovering must actually change the row, and the
-    // selected row must differ from a resting one on both screens.
+    // The treatment is there and it is legible as a treatment: every reading is a value, the hover
+    // changes the row, and a selected row differs from a resting one.
+    for (const [what, value] of Object.entries({ ...imagesLook.header, ...imagesLook.headerCell, ...imagesLook.cell })) {
+      expect(String(value), `the images table declares no ${what}`).not.toBe('');
+    }
+    expect(imagesLook.rowHeight).toBeGreaterThan(0);
     expect(imagesLook.hoverBackground).not.toBe(imagesLook.restingBackground);
     expect(imagesLook.selectedBackground).not.toBe(imagesLook.restingBackground);
+
+    // …and the card wears the row's own two highlights. The card paints them **over** its fill
+    // rather than as its fill (`ui-library/specs/surface.md`), so what is compared is the colour
+    // each one paints: the same token resolves to the same rgb wherever it is referenced, and a
+    // second declaration of either value is what this comparison exists to catch.
+    await navEntry(page, 'Containers').click();
+    await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
+    const card = containerCard(page, containerName);
+    await expect(card).toBeVisible({ timeout: 15_000 });
+
+    const highlightOf = async () =>
+      await card.evaluate((node) => /rgba?\([^)]*\)/.exec(getComputedStyle(node).backgroundImage)?.[0] ?? '');
+    await card.hover();
+    const cardHover = await highlightOf();
+    await card.getByRole('heading', { name: containerName }).click();
+    // Off the card for the same reason, and it is the one place the two treatments differ: the card
+    // keeps its selected highlight under the pointer (a compound selector says so in `surface.css`),
+    // where the row does not. What is compared is therefore each one's selected colour, read with
+    // the pointer away from both.
+    await page.mouse.move(0, 0);
+    const cardSelected = await highlightOf();
+
+    expect(cardHover, `the hovered card paints ${cardHover} and the hovered row ${imagesLook.hoverBackground}`).toBe(
+      imagesLook.hoverBackground,
+    );
+    expect(cardSelected, `the selected card paints ${cardSelected} and the selected row ${imagesLook.selectedBackground}`).toBe(
+      imagesLook.selectedBackground,
+    );
   } finally {
     await execFileAsync('docker', ['rm', '-fv', containerName]).catch(() => undefined);
     await removeTagQuietly(tag);

@@ -87,14 +87,44 @@ it is. Nothing is renumbered, nothing is deleted, and no other requirement's mea
 same record defect batch 6 exists to repair, one file closer to home. Validated at the coverage gate
 by the human's delegate, under his standing delegation, on 2026-08-16.
 
+## Amendment — 2026-08-25, one named exception: the containers list
+
+**What changed.** From 2026-08-25 the **containers list** is drawn as one card per container. Every
+other object list in the product is still the classic table this plan delivered, and the library
+still offers no way to ask for a second presentation.
+
+**Why.** The reason is this plan's own record. What it retired was a **hybrid** — a column header
+promising columns, standing over detached cards promising self-contained objects — and that record
+said that where a row does legitimately become a card, it carries each column's label **inside the
+card**, the shared header having stopped being reachable once the rows detach. The containers card
+does exactly that: no header row survives it, and every value is written beside the label naming it.
+The decision below is **not reversed and not re-argued**.
+
+**What it narrows, and by how much.** REQ-1, REQ-2, REQ-3, REQ-4 and REQ-22 are read from this date
+as holding on every object list **except containers**; each is annotated below with the same date and
+this pointer. REQ-23's guard is **not** switched off: it admits **two literal file paths** —
+`client/src/containers/ContainersScreen.tsx` and `client/src/containers/ContainerCard.tsx` — and
+still reports a surface drawn per row in any other feature file. **REQ-24 is untouched**: the
+card-row half still carries no exception marker a call site can write for itself, and widening the
+admission stays an edit to that list, in the open.
+
+**Where it is written.** `.sdd/analysis/docker_management_app-containers_card_view.md` (2026-08-25),
+the amendment of the same date in
+`.sdd/analysis/ui-coherence-optimisation-comfortable_variant_retired-classic_table.md`, and
+`.sdd/plans/plan-docker_management_app-containers_card_view/` (REQ-59 … REQ-63).
+
+**Annotated, not renumbered.** Nothing below is deleted, renumbered or rewritten: a certified
+requirement records what was decided and delivered, and an exception to it is a second dated
+statement beside it rather than a silent edit of the first.
+
 ## F1 — One presentation, and it is a table
 
 | ID | Requirement |
 | --- | --- |
-| REQ-1 | **An object list is drawn one way, by one component, in one presentation**: a single table surface, one header row at the top, body rows beneath it. There is no second list primitive, no "list card" component, no compatibility wrapper for the screens that used to have cards, and no per-screen choice of surface. |
-| REQ-2 | **Rows are flush.** On every object list, the vertical distance between the bottom edge of one row and the top edge of the next is **zero** — no inter-row gap — at 1440×1000, 1280×800 and 375×812. |
-| REQ-3 | **Rows are not cards.** No row carries a rounded corner, an outline, a shadow or a detached surface of its own; the separation between two adjacent rows is a **single hairline rule**. |
-| REQ-4 | **One surface.** A list has exactly **one** enclosing surface boundary, with the header inside it and the rows continuous beneath it — not a header floating above a stack of surfaces. **Amended 2026-08-16**: this requirement bounds *how many* surfaces there are, not *which* surface it is or how the table sits in it, and batch 1 satisfied it with a result the human rejected. **REQ-40** states the rest; the two are read together, and neither replaces the other. |
+| REQ-1 | **An object list is drawn one way, by one component, in one presentation**: a single table surface, one header row at the top, body rows beneath it. There is no second list primitive, no "list card" component, no compatibility wrapper for the screens that used to have cards, and no per-screen choice of surface. **Amended 2026-08-25**: read as holding on every object list **except containers**, which is drawn as one card per container from that date — one named exception, recorded above under *Amendment — 2026-08-25*, and neither a reversal nor a licence for any other list. |
+| REQ-2 | **Rows are flush.** On every object list, the vertical distance between the bottom edge of one row and the top edge of the next is **zero** — no inter-row gap — at 1440×1000, 1280×800 and 375×812. **Amended 2026-08-25**: read as holding on every object list **except containers**, which is drawn as one card per container from that date — one named exception, recorded above under *Amendment — 2026-08-25*, and neither a reversal nor a licence for any other list. |
+| REQ-3 | **Rows are not cards.** No row carries a rounded corner, an outline, a shadow or a detached surface of its own; the separation between two adjacent rows is a **single hairline rule**. **Amended 2026-08-25**: read as holding on every object list **except containers**, which is drawn as one card per container from that date — one named exception, recorded above under *Amendment — 2026-08-25*, and neither a reversal nor a licence for any other list. |
+| REQ-4 | **One surface.** A list has exactly **one** enclosing surface boundary, with the header inside it and the rows continuous beneath it — not a header floating above a stack of surfaces. **Amended 2026-08-16**: this requirement bounds *how many* surfaces there are, not *which* surface it is or how the table sits in it, and batch 1 satisfied it with a result the human rejected. **REQ-40** states the rest; the two are read together, and neither replaces the other. **Amended 2026-08-25**: read as holding on every object list **except containers**, which is drawn as one card per container from that date — one named exception, recorded above under *Amendment — 2026-08-25*, and neither a reversal nor a licence for any other list. |
 | REQ-5 | **Columns do not drift, and nothing compensates for it.** Every header cell's left edge equals its body cells' left edge **exactly**, at every horizontal scroll offset and at each of the three viewports. The header and the rows are inset identically by construction: **no compensating inset rule exists anywhere in the library**, the existence of such a compensation being the retired presentation's own signature. |
 
 ## F2 — Nothing the card carried is lost
@@ -167,8 +197,8 @@ close. Validated by the human's delegate under his standing delegation, 2026-08-
 
 | ID | Requirement |
 | --- | --- |
-| REQ-22 | **The card-per-row presentation is removed, not merely unused.** The choice is absent from the component's **public interface** — no screen can ask for it — and no code path in the library draws it: the carrier surface, its stylesheet block, its body gap, its row padding, its expansion rule and its header-inset compensation are gone, not left behind unreferenced. |
-| REQ-23 | **Reintroducing it fails a command the developer already runs.** `npm run lint` and `npm run test` fail, **naming what is wrong and where**, when the presentation is reintroduced either by asking the library for it or by a feature file reproducing it with markup or styling of its own (a per-row surface, a per-row border-radius or outline, an inter-row gap on a list body). The check is demonstrated red against a deliberate reintroduction of each of those two forms, and green on the converted tree. |
+| REQ-22 | **The card-per-row presentation is removed, not merely unused.** The choice is absent from the component's **public interface** — no screen can ask for it — and no code path in the library draws it: the carrier surface, its stylesheet block, its body gap, its row padding, its expansion rule and its header-inset compensation are gone, not left behind unreferenced. **Amended 2026-08-25**: read as holding on every object list **except containers**, which is drawn as one card per container from that date — one named exception, recorded above under *Amendment — 2026-08-25*, and neither a reversal nor a licence for any other list. |
+| REQ-23 | **Reintroducing it fails a command the developer already runs.** `npm run lint` and `npm run test` fail, **naming what is wrong and where**, when the presentation is reintroduced either by asking the library for it or by a feature file reproducing it with markup or styling of its own (a per-row surface, a per-row border-radius or outline, an inter-row gap on a list body). The check is demonstrated red against a deliberate reintroduction of each of those two forms, and green on the converted tree. **Amended 2026-08-25**: the check admits **two literal file paths** — `client/src/containers/ContainersScreen.tsx` and `client/src/containers/ContainerCard.tsx` — and reports every other feature file exactly as before; see *Amendment — 2026-08-25* above. |
 | REQ-24 | **The guard does not become a formality.** It names the decision and points at the record that made it, and it is not satisfiable by an exception comment added at the call site that violates it. |
 
 ## F5 — The record agrees with the product
@@ -211,3 +241,53 @@ changes, and what must hold is that the two stay the same, whatever the value be
 | --- | --- |
 | REQ-39 | **A converted row is the reference row.** On every converted list, a body row resolves to the **same height**, the **same vertical alignment** and the **same set of row modifiers** as a row of the containers and images lists, read from those lists as they stand. In particular **no converted list asks for content-sized rows**: the reference's own two-line cell — the same component, a title over a monospace subtitle — sits unclipped inside the reference's fixed-height row, so a second line is **not** a reason for a taller row and REQ-8 is satisfied without one. A list whose content genuinely cannot fit the reference row **reports the measurement that proves it** and records the exception on the spot; the exception is never taken silently, and "it looked tight" is not a measurement. |
 | REQ-40 | **The table sits edge to edge in its own surface, and that surface is the reference's composition.** A converted screen composes as containers and images do: the section header and the screen toolbar **above** the surface, and **one unpadded card holding the table and nothing else**. The table's left and right edges lie within **1px** of that card's, so the header band runs the full width of the surface and is cropped by its radius instead of floating inset with glass either side. Still exactly one surface (REQ-4) — a card inside a card is two, and is not the answer. **The order of preference for getting there is part of the requirement**: reuse the pattern the reference already uses; extend the library only if a panel genuinely cannot be composed from what exists, recording the reason; never a local workaround in feature code (REQ-33). |
+
+## Amendment — 2026-08-25: REQ-29's delivered-build half is removed from the coverage
+
+**What was removed.** `client/e2e/support/delivered-build.ts`, and in every spec of this plan the
+half that read the past build through it: the five tests named *"the delivered build fails these
+criteria / this sweep, and the numbers are on record"*
+(`classic-table-criteria.spec.ts`, `classic-table-criteria-plain-lists.spec.ts`,
+`classic-table-criteria-nested-lists.spec.ts`, `classic-table-criteria-layer-efficiency.spec.ts`,
+`classic-table-sweep.spec.ts`), plus the delivered half of the scroll-cost check in
+`table-row-layout-uniform.spec.ts`.
+
+**Why.** The harness refused to run whenever the server tree differed from the pinned `d17e1df` —
+correctly, since one process cannot serve two builds whose servers disagree — which froze the
+repository against that revision. `plan-docker_management_app-containers_card_view` widened
+`ContainerSummary` in `server/src/containers/containers-service.ts` and the five tests stopped
+running from that batch's first commit (`4082d97`); the next batch would have broken them again.
+
+**REQ-29 is not withdrawn, and it is not being re-proved.** The delivered figures **are** on record:
+they were measured, reported and read at the time each batch was certified, and they are in this
+plan's batch files and `closing-state.md`. What is removed is the machinery that re-measured them on
+every run forever after.
+
+**What survived, spec by spec.** In each of the five, the "after" half became a test of its own and
+still runs — the converted lists measured against the reference list read in the same run:
+
+- `classic-table-criteria.spec.ts` — volumes, networks and repositories are the reference table
+  (REQ-2 … REQ-12, REQ-39, REQ-40), and the repositories list still draws its tag chips per row.
+- `classic-table-criteria-plain-lists.spec.ts` — the four plain lists are the reference table, and
+  the named case (`WHY UNAVAILABLE`) has its label on its column's own left edge with no surface and
+  no gap cutting the run of it (REQ-18). What went with the comparison: *"the column runs shorter
+  than the delivered one"* and the scrollbar-gutter drift, which was a reading of the delivered
+  build alone.
+- `classic-table-criteria-nested-lists.spec.ts` — the outer lists are the reference table and the
+  nested ones are their parent's row inset by one spacing step, in the same surface. What went:
+  *"the conversion changed which children the row carries"*, which compared child labels across
+  builds.
+- `classic-table-criteria-layer-efficiency.spec.ts` — the dialog's three lists are the reference
+  table at all three viewports, inside one enclosing surface. What went: *"the conversion changed
+  which findings the list reports"*, which compared finding labels across builds.
+- `classic-table-sweep.spec.ts` — the product-wide walk, the "goes red when the region draws no
+  list" guard and the exclusions check all stay. **The delivered test was removed whole**: it walked
+  the past build and asserted nothing else, so nothing of it survived.
+- `table-row-layout-uniform.spec.ts` — every table shows one row layout, an open expansion holds the
+  table's left edge under a real wheel, and a scrolled list carries no filter, transition or
+  animation while a converted row costs no more to paint than the reference row read in the same
+  run. What went: *"no more layers per row than the build this plan replaced"*.
+
+**Not to be reinstated from the old argument.** Re-pinning a newer revision only moves the day the
+next server change breaks it. A criterion is shown red where it is written, once, in the batch that
+introduces it — and that reading is recorded, not repeated.

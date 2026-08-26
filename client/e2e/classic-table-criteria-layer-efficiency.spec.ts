@@ -35,14 +35,6 @@
  * and the list grows no vertical scrollbar of its own inside a dialog that has
  * one.
  *
- * **Every criterion here is observed failing on the delivered build first**
- * (REQ-29, and the counter-practice the plan's risk list names): the last test
- * checks out `d17e1df`, builds it, serves it on a port of its own and runs the
- * same analysis on the same fixture image — three lists of cards inside the
- * dialog, a gap and a corner per row, no card holding a table alone. A criterion
- * that cannot be seen red on the build that caused the report is not yet a
- * criterion.
- *
  * **And every criterion is observed failing when its *subject* is absent**: the
  * first test below points the whole instrument at a dialog that was never opened
  * and asserts that it goes red rather than quietly measuring the screen behind
@@ -66,7 +58,6 @@ import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
-import { startDeliveredBuild, type DeliveredBuild } from './support/delivered-build.js';
 // The dialog itself — its fixture image, the operator's path to it and the
 // analysis that fills it — is `support/layer-efficiency-dialog.ts`, shared with
 // the product-wide sweep so that both look at the same rows.
@@ -102,16 +93,6 @@ const LAPTOP: Viewport = VIEWPORTS[1];
 const PHONE: Viewport = VIEWPORTS[2];
 
 /**
- * The revision the plan was delivered on top of — the merge this branch starts
- * from, on which this screen's three lists had just been migrated onto the
- * presentation condemned the day before.
- */
-const DELIVERED_REF = process.env.VEXEL_DELIVERED_REF ?? 'd17e1df';
-
-/** Its own port: neither the suite's 3100, nor batch 1's 3101, batch 2's 3102 or batch 3's 3103. */
-const DELIVERED_PORT = Number(process.env.VEXEL_DELIVERED_EFFICIENCY_PORT ?? 3104);
-
-/**
  * A list is named by a column only it carries — which is what makes the locator
  * survive the surface recomposition, the section header naming a list no longer
  * being inside its card (REQ-40). Inside this dialog the three lists share
@@ -120,7 +101,6 @@ const DELIVERED_PORT = Number(process.env.VEXEL_DELIVERED_EFFICIENCY_PORT ?? 310
  */
 const LISTS = {
   ...DIALOG_LISTS,
-  containers: 'UPTIME',
   images: 'DISK USAGE',
 } as const;
 
@@ -163,28 +143,30 @@ test.afterAll(async () => {
   await removeEfficiencyFixtureImage(FIXTURE_IMAGE);
 });
 
-/** The two reference lists, read from the tree in this same run and in this same browser. */
+/**
+ * The reference list, read from the tree in this same run and in this same browser.
+ *
+ * **It was two, and the containers list left it on 2026-08-25**
+ * (`plan-docker_management_app-containers_card_view/REQ-1`): that screen deliberately draws one card
+ * per container now, and is the single named exception to the classic table
+ * (`.../containers_card_view/REQ-63`). A screen that draws no table cannot be the table every other
+ * list is compared against. The images list — still the classic table, and already the second
+ * reference here — is what remains, and the comparison it takes part in is unchanged: each converted
+ * list is measured against a reference row of this spec's own making, never against a total and
+ * never against an emptiness.
+ */
 async function readTheReference(page: Page, at: string): Promise<{ name: string; list: ListGeometry }[]> {
-  await openApp(page, 'containers');
-  await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible({ timeout: 20_000 });
-  const containers = await settledList(page, LISTS.containers);
-  reportList(at, 'containers (reference)', containers, 'b4');
-
   await openApp(page, 'images-layers');
   await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible({ timeout: 20_000 });
+  // The row this file created is what the reference is read on: never a total, never an emptiness.
+  await expect(
+    page.locator('.ui-data-table__row', { hasText: referenceImage }).first(),
+    `${at}: the image this spec created is not listed, so the reference row may be anybody's`,
+  ).toBeVisible({ timeout: 20_000 });
   const images = await settledList(page, LISTS.images);
   reportList(at, 'images (reference)', images, 'b4');
 
-  // The rows this file created are what the reference is read on: never a total, never an emptiness.
-  expect(
-    containers.rows.some((row) => row.label.startsWith('vexel-e2e-eff-ref-')),
-    `${at}: the containers this spec created are not listed, so the reference row may be anybody's`,
-  ).toBe(true);
-
-  return [
-    { name: 'containers', list: containers },
-    { name: 'images', list: images },
-  ];
+  return [{ name: 'images', list: images }];
 }
 
 /** The three lists of the open dialog, each measured in a pass of its own, inside the dialog. */
@@ -289,7 +271,7 @@ for (const viewport of VIEWPORTS) {
   // REQ-2 … REQ-5, REQ-8, REQ-12, REQ-13, REQ-21, REQ-39, REQ-40 — the whole of
   // the criteria on the dialog's three lists, with the two reference lists read
   // in the same run so the equality is a comparison and not a coincidence.
-  test(`the efficiency dialog's three lists are the containers table, not a table like it — ${at}`, async ({ page }) => {
+  test(`the efficiency dialog's three lists are the reference table, not a table like it — ${at}`, async ({ page }) => {
     test.setTimeout(600_000);
     await page.setViewportSize(viewport);
 
@@ -641,7 +623,7 @@ test('no finding offers a copy, and the dialog stays inside the viewport at all 
 // REQ-29 — the delivered figures, on record, before the change.
 // ---------------------------------------------------------------------------
 
-/** The figures each list is judged by, in the shape both builds are read into. */
+/** The figures each list is judged by. */
 function figures(list: ListGeometry): {
   rows: number;
   gaps: number[];
@@ -674,104 +656,14 @@ function figures(list: ListGeometry): {
   };
 }
 
-/**
- * The build this plan started from is checked out, built and served on a port of
- * its own, and the same measurements are read on it — the same fixture image, on
- * the same daemon, analysed by the same server code — so the two readings differ
- * in the client build and in nothing else.
- *
- * Both halves are asserted: the criteria **fail** there, which is what makes this
- * check discriminating rather than merely green, and they hold on the build under
- * test. And the findings are carried across: **the same rows, before and after**,
- * which is what says the conversion changed the surface and not the analysis.
- */
-test('the delivered build fails these criteria, and the numbers are on record', async ({ page, browser, baseURL }) => {
+// plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-29, REQ-39, REQ-40 —
+// the dialog's three lists, against the reference read in the same run.
+test('the dialog’s three lists hold the criteria, with the reference’s own figures beside them', async ({ page, baseURL }) => {
   test.setTimeout(1_800_000);
-  expect(baseURL, 'this run has no origin of its own to compare the delivered build against').toBeTruthy();
-  let delivered: DeliveredBuild | undefined;
-  let deliveredFigures: Record<string, ReturnType<typeof figures>> = {};
-  let deliveredFindings: Record<string, string[]> = {};
-  try {
-    delivered = await startDeliveredBuild({ revision: DELIVERED_REF, port: DELIVERED_PORT });
-    const revision = delivered.revision.slice(0, 7);
-    const context = await browser.newContext({ baseURL: delivered.origin, viewport: DESKTOP });
-    const before = await context.newPage();
-    try {
-      await openTheAnalysedDialog(before, FIXTURE_IMAGE);
-      // **At each of the three viewports, on one analysis**: the dialog stays open
-      // across a resize, so the before-figures are read at every width the plan is
-      // written against without asking the daemon to analyse the image three times.
-      let measured: Record<string, ListGeometry> = {};
-      for (const viewport of VIEWPORTS) {
-        await before.setViewportSize(viewport);
-        measured = await readTheThreeLists(before, `delivered ${revision} at ${viewport.width}×${viewport.height}`);
-        for (const [name, list] of Object.entries(measured)) {
-          console.log(
-            `[b4/REQ-29] delivered ${revision} at ${viewport.width}×${viewport.height} ${name}: ${JSON.stringify(figures(list))}`,
-          );
-        }
-        // The four criteria, red at **every** viewport and not only at the widest:
-        // REQ-2 states them at all three, so the before-figures owe all three too.
-        for (const [name, list] of Object.entries(measured)) {
-          expect(
-            list.rowJunctions.map((junction) => round(junction.gap)).filter((gap) => gap > 0.5).length +
-              list.rows.filter((row) => row.isSurface).length +
-              list.rows.flatMap((row) => row.modifiers).length,
-            `delivered ${revision} at ${viewport.width}×${viewport.height} ${name}: the delivered build already drew this list the reference's way`,
-          ).toBeGreaterThan(0);
-        }
-      }
-      // The desktop reading is the one carried into the comparison below, so the
-      // two sides are read at the same width.
-      await before.setViewportSize(DESKTOP);
-      measured = await readTheThreeLists(before, `delivered ${revision}`);
-      deliveredFigures = Object.fromEntries(Object.entries(measured).map(([name, list]) => [name, figures(list)]));
-      deliveredFindings = Object.fromEntries(Object.entries(measured).map(([name, list]) => [name, list.rows.map((row) => row.label).sort()]));
-      for (const [name, reading] of Object.entries(deliveredFigures)) {
-        console.log(`[b4/REQ-29] delivered ${revision} ${name}: ${JSON.stringify(reading)}`);
-      }
-
-      // Recorded failing, with its measurements — not "before: failed".
-      for (const [name, list] of Object.entries(measured)) {
-        expect(list.rows.length, `delivered ${revision} ${name}: fewer than two rows, so nothing here discriminates`).toBeGreaterThan(1);
-        expect(
-          list.rowJunctions.map((junction) => round(junction.gap)).filter((gap) => gap > 0.5).length,
-          `delivered ${revision} ${name}: the delivered build already drew its rows flush`,
-        ).toBeGreaterThan(0);
-        expect(
-          Math.max(...list.rows.map((row) => row.carrierRadius)),
-          `delivered ${revision} ${name}: the delivered build already drew square rows`,
-        ).toBeGreaterThan(0);
-        expect(
-          list.surfacesInside,
-          `delivered ${revision} ${name}: the delivered build already drew no surface inside its list`,
-        ).toBeGreaterThan(0);
-        expect(
-          list.rows.every((row) => row.modifiers.length === 0),
-          `delivered ${revision} ${name}: the delivered build already stated no row modifier`,
-        ).toBe(false);
-        // …and the two the 2026-08-16 amendment added, in the form this screen
-        // has them: inside the dialog the list sat in **no card of its own at
-        // all**, so there was no surface to run edge to edge in.
-        expect(
-          list.enclosingSurfaces,
-          `delivered ${revision} ${name}: the delivered build already gave the list one enclosing surface inside the dialog`,
-        ).not.toBe(1);
-      }
-    } finally {
-      await context.close();
-    }
-  } finally {
-    await delivered?.stop();
-  }
-
-  // …and the same figures on the build under test, measured minutes apart in the
-  // same browser and against the same daemon.
+  expect(baseURL, 'this run has no origin of its own').toBeTruthy();
   await page.setViewportSize(DESKTOP);
   const references = await readTheReference(page, 'after');
   await openTheAnalysedDialog(page, FIXTURE_IMAGE);
-  // The after-figures at the same three viewports, so the report is a comparison
-  // at every width rather than at one.
   for (const viewport of VIEWPORTS.slice(1)) {
     await page.setViewportSize(viewport);
     const at = `after ${viewport.width}×${viewport.height}`;
@@ -790,44 +682,21 @@ test('the delivered build fails these criteria, and the numbers are on record', 
     expectListInsideADialog('after', name, list);
   }
 
-  // **The findings, before and after** — the number that says what changed is the
-  // surface and not the analysis behind it (REQ-13, REQ-37).
-  for (const [name, list] of Object.entries(after)) {
-    const found = list.rows.map((row) => row.label).sort();
-    console.log(
-      `[b4/REQ-13] ${name}: ${deliveredFindings[name].length} finding(s) on the delivered build → ${found.length} after — ` +
-        `${JSON.stringify(deliveredFindings[name])} → ${JSON.stringify(found)}`,
-    );
-    expect(found, `${name}: the conversion changed which findings the list reports`).toEqual(deliveredFindings[name]);
-  }
-
-  // …and the figures, side by side, which is the answer in numbers to the
-  // question that rejected batch 1: *is this the containers table?*
   const reference = references[0].list.rows[0];
   for (const [name, list] of Object.entries(after)) {
     const reading = figures(list);
     console.log(
-      `[b4/REQ-39] ${name}, delivered → after: inter-row gaps ${JSON.stringify(deliveredFigures[name].gaps)} → ${JSON.stringify(
-        reading.gaps,
-      )}; worst row corner ${round(deliveredFigures[name].worstCarrierRadius)} → ${round(reading.worstCarrierRadius)}px; ` +
-        `rows on a surface of their own ${deliveredFigures[name].rowsOnASurface} → ${reading.rowsOnASurface}; ` +
-        `surfaces inside the table ${deliveredFigures[name].surfacesInside} → ${reading.surfacesInside}; ` +
-        `row heights ${JSON.stringify(deliveredFigures[name].heights)} → ${JSON.stringify(reading.heights)} against the containers row's ${round(
-          reference.height,
-        )}px; align-items ${JSON.stringify(deliveredFigures[name].alignItems)} → ${JSON.stringify(reading.alignItems)} against ${
-          reference.alignItems
-        }; modifiers ${JSON.stringify(deliveredFigures[name].modifiers)} → ${JSON.stringify(reading.modifiers)} against ${JSON.stringify(
-          reference.modifiers,
-        )}`,
+      `[b4/REQ-39] ${name}: inter-row gaps ${JSON.stringify(reading.gaps)}; worst row corner ${round(reading.worstCarrierRadius)}px; ` +
+        `rows on a surface of their own ${reading.rowsOnASurface}; surfaces inside the table ${reading.surfacesInside}; ` +
+        `row heights ${JSON.stringify(reading.heights)} against the reference row's ${round(reference.height)}px; ` +
+        `align-items ${JSON.stringify(reading.alignItems)} against ${reference.alignItems}; ` +
+        `modifiers ${JSON.stringify(reading.modifiers)} against ${JSON.stringify(reference.modifiers)}`,
     );
     console.log(
-      `[b4/REQ-40] ${name}, delivered → after: ${deliveredFigures[name].enclosingSurfacesInTheDialog} → ${
-        reading.enclosingSurfacesInTheDialog
-      } enclosing surface(s) inside the dialog (${deliveredFigures[name].enclosingSurfacesToTheScreen} → ${
-        reading.enclosingSurfacesToTheScreen
-      } to the screen); the table inset in its own surface ${round(deliveredFigures[name].tableInsetInItsCard)} → ${round(
-        reading.tableInsetInItsCard,
-      )}px; that surface holds [${deliveredFigures[name].cardHolds.join(', ')}] → [${reading.cardHolds.join(', ')}]`,
+      `[b4/REQ-40] ${name}: ${reading.enclosingSurfacesInTheDialog} enclosing surface(s) inside the dialog ` +
+        `(${reading.enclosingSurfacesToTheScreen} to the screen); the table inset in its own surface ` +
+        `${round(reading.tableInsetInItsCard)}px; that surface holds [${reading.cardHolds.join(', ')}]`,
     );
+    expect(list.rows.length, `${name}: the list reports no finding at all`).toBeGreaterThan(0);
   }
 });

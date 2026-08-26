@@ -128,6 +128,16 @@
   flex-wrap: wrap;
 }
 
+/* The truncation contract (truncation.css) read positionally: the last group keeps
+   its natural width, everything before it may shrink. */
+.ui-row--truncating > * {
+  min-width: 0;
+}
+
+.ui-row--truncating > *:last-child {
+  flex: none;
+}
+
 .ui-grid {
   display: grid;
 }
@@ -166,6 +176,31 @@
     grid-auto-flow: row;
     grid-auto-columns: auto;
   }
+}
+
+/* Explicit tracks rather than auto-fill: how many cards belong on a row is a
+   decision about the list, not something a track's minimum width discovers. */
+.ui-grid--cards {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  /* Every card of a row takes the height of the tallest; rows are not matched to each other. */
+  align-items: stretch;
+}
+
+@media (max-width: 1200px) {
+  .ui-grid--cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .ui-grid--cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.ui-grid__span-full {
+  grid-column: 1 / -1;
 }
 
 .ui-grid > * {

@@ -30,7 +30,10 @@
   min-width: 0;
 }
 
-.ui-metric-tile__label {
+/* The one small-uppercase-muted label treatment of the metric primitives, taken
+   instead of `.ui-meter__label` rather than on top of it. */
+.ui-metric-tile__label,
+.ui-meter__label--eyebrow {
   margin: 0;
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
@@ -65,7 +68,8 @@
   color: var(--color-danger-strong);
 }
 
-.ui-metric-tile__sub-label {
+.ui-metric-tile__sub-label,
+.ui-metric-strip__reading-label {
   margin: 0;
   font-family: var(--font-family-mono);
   font-size: var(--font-size-xs);
@@ -93,6 +97,29 @@
   min-width: 0;
 }
 
+/* Label and prominent value as one group at the left, the reading at the right edge. */
+.ui-meter__name {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* One line of the value's own height, so meters side by side start their tracks at the same y. */
+.ui-meter--prominent .ui-meter__head,
+.ui-metric-strip__readings-head {
+  min-height: calc(var(--font-size-md) * var(--line-height-tight));
+}
+
+.ui-meter__value {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
 .ui-meter__label {
   margin: 0;
   font-size: var(--font-size-sm);
@@ -113,6 +140,12 @@
   overflow: hidden;
 }
 
+/* Nothing was measured: an empty, fainter track — never the dashed treatment below,
+   which means an unmeasurable maximum. */
+.ui-meter__track--no-sample {
+  background: var(--color-wash-1);
+}
+
 /* No measurable maximum: a dashed rule where the pill would be, so the missing
    fill reads as "there is no ceiling here" rather than as a bar that failed.
    Background only — the box, and therefore the tile's height, is the filled
@@ -129,6 +162,12 @@
   height: 100%;
   border-radius: var(--radius-full);
   background: var(--color-accent);
+}
+
+/* A non-zero measurement never rounds away to nothing: under this width the fill
+   reads as an empty track. */
+.ui-meter__fill--present {
+  min-width: var(--space-2);
 }
 
 .ui-meter__fill--success {
@@ -365,5 +404,110 @@
 }
 
 .ui-usage-breakdown__empty {
+  min-width: 0;
+}
+
+/* ── Metric strip ────────────────────────────────────────────────────────────
+   Flex proportions against a zero basis: a column's width is the strip's to decide
+   and never the content's, so the columns land at the same x on every strip of a list. */
+.ui-metric-strip {
+  display: flex;
+  align-items: start;
+  gap: var(--space-6);
+  min-width: 0;
+}
+
+.ui-metric-strip__column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: 1.6 1 0;
+  min-width: 0;
+}
+
+.ui-metric-strip__column--readings {
+  flex: 1 1 0;
+}
+
+.ui-metric-strip__readings {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.ui-metric-strip__reading {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* The stacked form asked for at any width. Same declarations as the phone
+   breakpoint below: one form written in two places — change them together. */
+.ui-metric-strip--stacked {
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.ui-metric-strip--stacked .ui-metric-strip__column,
+.ui-metric-strip--stacked .ui-metric-strip__column--readings {
+  flex: 1 1 auto;
+  width: 100%;
+}
+
+/* Stacked, the untracked column becomes one line: label at the left, readings at the right. */
+.ui-metric-strip--stacked .ui-metric-strip__column--readings {
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+/* The phone breakpoint: one full-width column per metric, nothing dropped. */
+@media (max-width: 720px) {
+  .ui-metric-strip {
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+
+  .ui-metric-strip__column,
+  .ui-metric-strip__column--readings {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .ui-metric-strip__column--readings {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+  }
+}
+
+/* ── The strip and its track-less rows ───────────────────────────────────────
+   The label anchors the left, the content wraps against the right edge rather than
+   widening the strip, on the stacked strip's own gap. */
+.ui-metric-strip-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.ui-metric-strip__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.ui-metric-strip__row-content {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
   min-width: 0;
 }

@@ -4,11 +4,9 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Button, DataTable, DetailPanel, Frame, Menu, Modal, Terminal, type DataTableColumn } from '../../src/ui';
+import { Button, DataTable, DetailPanel, Frame, Grid, Menu, Modal, Stack, Terminal, type DataTableColumn } from '../../src/ui';
 import * as libraryEntryPoint from '../../src/ui';
-// Internal to the library on purpose (ui-library/specs/escape-arbitration.md):
-// it is reached from inside the library and from nowhere else, so a test that
-// needs the primitive imports the module rather than the public entry point.
+// Internal to the library on purpose (ui-library/specs/escape-arbitration.md).
 import { useKeystrokeRegion } from '../../src/ui/controls/escape-arbitration';
 
 afterEach(cleanup);
@@ -446,6 +444,88 @@ describe('Escape arbitration — a region that owns its keystrokes (REQ-8)', () 
       expect(onClose).not.toHaveBeenCalled();
       expect(panelRoot()).not.toBeNull();
     });
+  });
+});
+
+// The list that lost its `DataTable` carries the dismissal target on the primitive it is made of
+// (`plan-docker_management_app-container_detail_close/REQ-11`, `containers_card_view/REQ-1`).
+describe.each([
+  { name: 'Stack', selector: '.ui-stack', Region: Stack },
+  { name: 'Grid', selector: '.ui-grid', Region: Grid },
+])('$name — the dismissal focus target (container_detail_close/REQ-11)', ({ selector, Region }) => {
+  function RegionWithPanel({ onClose }: { onClose: () => void }) {
+    const [open, setOpen] = useState(true);
+    return (
+      <Region dismissalFocusTarget>
+        <Button onClick={vi.fn()}>A card</Button>
+        {open ? (
+          <DetailPanel
+            dismissal="opening-gesture"
+            onClose={() => {
+              setOpen(false);
+              onClose();
+            }}
+          >
+            <Button onClick={vi.fn()}>Inside the panel</Button>
+          </DetailPanel>
+        ) : null}
+      </Region>
+    );
+  }
+
+  it('marks the region as the dismissal focus target, focusable but not a tab stop', () => {
+    render(
+      <Region dismissalFocusTarget>
+        <Button onClick={vi.fn()}>A card</Button>
+      </Region>,
+    );
+
+    const list = document.querySelector(selector) as HTMLElement;
+    expect(list).toHaveAttribute('data-ui-dismissal-focus-target');
+    expect(list).toHaveAttribute('tabindex', '-1');
+  });
+
+  it('leaves a region that was not asked for it exactly as it was', () => {
+    render(
+      <Region>
+        <Button onClick={vi.fn()}>A card</Button>
+      </Region>,
+    );
+
+    const plain = document.querySelector(selector) as HTMLElement;
+    expect(plain.hasAttribute('data-ui-dismissal-focus-target')).toBe(false);
+    expect(plain.hasAttribute('tabindex')).toBe(false);
+  });
+
+  it('adds no tab stop to the screen', async () => {
+    const user = userEvent.setup();
+    render(
+      <>
+        <Button onClick={vi.fn()}>Before</Button>
+        <Region dismissalFocusTarget>
+          <Button onClick={vi.fn()}>A card</Button>
+        </Region>
+        <Button onClick={vi.fn()}>After</Button>
+      </>,
+    );
+
+    screen.getByRole('button', { name: 'Before' }).focus();
+    await user.tab();
+
+    expect(screen.getByRole('button', { name: 'A card' })).toHaveFocus();
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'After' })).toHaveFocus();
+  });
+
+  it('lands the focus on the region when Escape closes a panel opened inside it', async () => {
+    const user = userEvent.setup();
+    render(<RegionWithPanel onClose={vi.fn()} />);
+
+    screen.getByRole('button', { name: 'Inside the panel' }).focus();
+    await user.keyboard('{Escape}');
+
+    expect(document.querySelector('.ui-detail-panel')).toBeNull();
+    expect(document.activeElement).toBe(document.querySelector(selector));
   });
 });
 

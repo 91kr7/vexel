@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 
 // Resolved from the client workspace root (vitest's working directory), not
 // import.meta.url: the jsdom test environment rewrites module URLs and does
@@ -614,5 +614,174 @@ describe('UI conformance check — the card row stays retired', () => {
     expect(result.stderr).toMatch(/runtime blur on "\.ui-card"/);
     expect(result.stderr).toMatch(/raw DOM tag/);
     expect(result.stderr).toMatch(/3 violation\(s\)/);
+  });
+});
+
+/**
+ * **The one admission, and the guard still failing everywhere else**
+ * (`plan-docker_management_app-containers_card_view/REQ-59`, `REQ-60`,
+ * `REQ-61`, `REQ-63`).
+ *
+ * REQ-59 admits the containers card presentation **by name and by nothing
+ * wider**; REQ-60 keeps every other list refused; REQ-63 makes the exception a
+ * screen rather than a licence. So the admitted paths are not asserted from the
+ * script's own constant — they are the two the requirement and the check's spec
+ * name — and every case pairs the admitted path with a control at another path
+ * carrying the identical content: a pass that reported nothing because it never
+ * ran would otherwise read exactly like an admission.
+ *
+ * **Why a tree of its own.** Driving the admission means putting a card per item
+ * at `client/src/containers/…`, a real product path. Unit test files run in
+ * parallel here and several of them walk `client/src` (`blur-policy`,
+ * `programme-constraints`, `card-row-presentation-retired`), so a fixture there
+ * would be another suite's feature file for the length of this one's run —
+ * exactly what the fixture directory below exists to avoid. The script is
+ * therefore copied, unchanged, into a tree holding nothing but the fixtures, and
+ * run from there: it resolves the client root from its own location and states
+ * the admission as a path relative to it, so the two literal paths are read the
+ * same way. What runs is still the checked script, byte for byte.
+ */
+describe('UI conformance check — the containers admission', () => {
+  const DECISION = /an object list is one table — one header, ruled rows beneath it, no surface per row/;
+  const RECORD = /See \.sdd\/analysis\/ui-coherence-optimisation-comfortable_variant_retired-classic_table\.md/;
+
+  /** The two paths REQ-59 admits, as the requirement and `ui-conformance-check.md` state them. */
+  const ADMITTED = ['src/containers/ContainersScreen.tsx', 'src/containers/ContainerCard.tsx'];
+
+  const sandboxRoot = join(clientRoot, '.card-row-sandbox');
+
+  /** A list drawn as one surface per object — the form the card-row pass reports. */
+  function cardPerItem(tag: string): string {
+    return `export function List({ rows }: { rows: string[] }) {\n  return <Stack>{rows.map((row) => (\n    <${tag} key={row}>{row}</${tag}>\n  ))}</Stack>;\n}\n`;
+  }
+
+  function runCheckOver(files: Record<string, string>) {
+    rmSync(sandboxRoot, { recursive: true, force: true });
+    mkdirSync(join(sandboxRoot, 'src'), { recursive: true });
+    mkdirSync(join(sandboxRoot, 'scripts'), { recursive: true });
+    copyFileSync(scriptPath, join(sandboxRoot, 'scripts', 'check-ui-conformance.mjs'));
+    for (const [path, content] of Object.entries(files)) {
+      mkdirSync(dirname(join(sandboxRoot, path)), { recursive: true });
+      writeFileSync(join(sandboxRoot, path), content, 'utf8');
+    }
+    return spawnSync(process.execPath, [join(sandboxRoot, 'scripts', 'check-ui-conformance.mjs')], {
+      cwd: clientRoot,
+      encoding: 'utf8',
+    });
+  }
+
+  /** The files a run reported a card per item in, in the order the script printed them. */
+  function reportedPerItem(stderr: string): string[] {
+    return [...stderr.matchAll(/(src[^\s:]+):\d+ — a list built as one </g)].map((match) => match[1]!.split('\\').join('/'));
+  }
+
+  afterEach(() => {
+    rmSync(sandboxRoot, { recursive: true, force: true });
+  });
+
+  // REQ-59 — the admission names the containers screen's own file and the component that carries the
+  // card, in both of the tags this form is drawn with, and the control beside them is what makes the
+  // silence about the admitted two mean something.
+  it.each(['Card', 'Surface'])('admits one <%s> per item at both containers paths and reports it elsewhere', (tag) => {
+    const result = runCheckOver({
+      [ADMITTED[0]!]: cardPerItem(tag),
+      [ADMITTED[1]!]: cardPerItem(tag),
+      'src/images/ImagesScreen.tsx': cardPerItem(tag),
+    });
+
+    expect(result.status, 'the control at another screen’s path was not reported either, so the pass did not run').toBe(1);
+    expect(reportedPerItem(result.stderr)).toEqual(['src/images/ImagesScreen.tsx']);
+    expect(result.stderr).toMatch(DECISION);
+    expect(result.stderr).toMatch(RECORD);
+  });
+
+  // REQ-59 — "by name and by nothing wider": not the directory, not the file name, not a prefix of
+  // one. Each of these differs from an admitted path in exactly one of those ways.
+  it.each([
+    ['another file of the containers directory', 'src/containers/ContainerList.tsx'],
+    ['the admitted file name in another directory', 'src/images/ContainerCard.tsx'],
+    ['a name an admitted one is a prefix of', 'src/containers/ContainerCardRow.tsx'],
+    ['the dashboard’s own container list', 'src/dashboard/DashboardContainers.tsx'],
+  ])('reports a card per item at %s', (_what, path) => {
+    const result = runCheckOver({ [path]: cardPerItem('Card') });
+
+    expect(result.status).toBe(1);
+    expect(reportedPerItem(result.stderr)).toEqual([path]);
+  });
+
+  // REQ-60, REQ-63 — the exception is a screen, not a licence: the same list, reproduced once in
+  // every feature area the product has, is reported in every one of them, and the two admitted paths
+  // are the only silence in the run. Read as a set, so an area that stopped being reported fails.
+  it('reports a card per item in every feature area of the product, admitting the two containers paths alone', () => {
+    const featureAreas = readdirSync(join(clientRoot, 'src'), { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() && entry.name !== 'ui' && !entry.name.startsWith('__'))
+      .map((entry) => entry.name);
+    // The premise: a sweep over no area at all would report nothing and read as a green run.
+    expect(featureAreas.length, 'no feature area was found under client/src, so this sweep checks nothing').toBeGreaterThan(5);
+
+    const files: Record<string, string> = Object.fromEntries(
+      featureAreas.map((area) => [`src/${area}/ObjectList.tsx`, cardPerItem('Card')]),
+    );
+    for (const path of ADMITTED) files[path] = cardPerItem('Card');
+
+    const result = runCheckOver(files);
+
+    expect(result.status).toBe(1);
+    expect(reportedPerItem(result.stderr).sort()).toEqual(featureAreas.map((area) => `src/${area}/ObjectList.tsx`).sort());
+  });
+
+  // REQ-60 — the admission reaches the surface-per-item form and nothing else: inside the two
+  // admitted files the retired vocabulary is still refused by name, the stylesheet rules still hold,
+  // and the boundary half is untouched. Each case is written at both admitted paths, so both are read.
+  it.each([
+    [
+      'the retired presentation asked for by name',
+      'export function L({ rows }: { rows: string[] }) {\n  return <DataTable variant="comfortable" rows={rows} />;\n}\n',
+      /the retired card row asked for by name \("comfortable"\)/,
+    ],
+    ['the type that offered it', "export type DataTableVariant = 'dense';\n", /the type that offered the retired card row \(DataTableVariant\)/],
+    ['the surface each retired row was drawn on', 'export function ComfortableRowCarrier() {\n  return null;\n}\n', /the surface each retired row was drawn on \(ComfortableRowCarrier\)/],
+    ['a raw DOM tag', 'export function L() {\n  return <div>raw</div>;\n}\n', /raw DOM tag "<div>"/],
+    ['a className prop', 'export function L() {\n  return <Button className="x">Go</Button>;\n}\n', /"className" prop/],
+  ])('still reports %s in an admitted containers file', (_what, content, expected) => {
+    const result = runCheckOver(Object.fromEntries(ADMITTED.map((path) => [path, content])));
+
+    expect(result.status).toBe(1);
+    expect(result.stderr.match(new RegExp(expected.source, 'g')) ?? [], 'the offence was reported in fewer than both admitted files').toHaveLength(2);
+  });
+
+  // REQ-60 — and the stylesheet form beside the admitted files, which the admission does not reach.
+  it('still reports a list row given a surface of its own in a containers stylesheet', () => {
+    const result = runCheckOver({ 'src/containers/containers.css': '.ui-data-table__row {\n  border-radius: 12px;\n}\n' });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/containers\.css:2 — a list row given a surface of its own \(border-radius: 12px\)/);
+  });
+
+  // REQ-59 — the admitted path names a file of the product rather than a path nothing stands at. The
+  // second is batch 2's to write, so only the screen is read here.
+  it('names the containers screen the product actually has', () => {
+    expect(existsSync(join(clientRoot, ADMITTED[0]!)), `${ADMITTED[0]} is admitted but does not exist`).toBe(true);
+  });
+
+  // REQ-61 — the admission is named in the script, never claimed by the file that needs it: a file
+  // that writes an admitted path into itself is still at its own path. Driven against the real
+  // script over the real tree, where the fixture directory is a path like any other.
+  it.each([
+    ['a file bearing the admitted name', 'ContainerCard.tsx', cardPerItem('Card')],
+    [
+      'a file naming an admitted path in a comment',
+      'SelfClaimed.tsx',
+      `// admitted 2026-08-25: client/src/containers/ContainerCard.tsx\n${cardPerItem('Card')}`,
+    ],
+  ])('refuses %s, which the admission does not cover', (_what, fileName, content) => {
+    writeFixture(fileName, content);
+
+    const result = runCheck();
+
+    expect(result.status, 'a file claimed the admission for itself').toBe(1);
+    expect(result.stderr).toMatch(new RegExp(`__conformance-fixture__[/\\\\]${fileName.replace('.', '\\.')}:\\d+ — a list built as one <Card> per row`));
+    expect(result.stderr).toMatch(DECISION);
+    expect(result.stderr).toMatch(RECORD);
   });
 });

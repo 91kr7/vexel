@@ -25,9 +25,14 @@ type: REST endpoint
 - `PATCH /api/containers/:id/config` → request body `ContainerConfigUpdate`; `200`,
   `ContainerConfigUpdateResult` (see `containers-service.md`).
 - `GET /api/containers/:id/logs/stream` → the log stream; specified in `container-logs-endpoint.md`.
+- `GET /api/containers/stats/subscription` → the held connection that gates the sampler; specified
+  in `container-stats-subscription-endpoint.md`.
 
 ## Rules and invariants
 
+- `GET /api/containers` answers whatever the sampler has: with no consumer subscribed the summaries
+  carry no figures at all, and the endpoint neither starts sampling nor waits for a sample. Reading
+  the list is not being a consumer.
 - Any daemon rejection (an action on a container whose current state does not allow it, an unknown
   id, …) responds with the daemon's own `statusCode` (falling back to `502`) and `{ error: message
   }` carrying the daemon's own message verbatim.
@@ -35,6 +40,7 @@ type: REST endpoint
 ## Dependencies
 
 - ContainersService
+- StatsDemandRegistry
 
 ## Requirements served
 
@@ -45,3 +51,5 @@ type: REST endpoint
 - plan-docker_management_app/REQ-24
 - plan-docker_management_app/REQ-25
 - plan-docker_management_app/REQ-26
+- plan-docker_management_app-containers_card_view/REQ-41
+- plan-docker_management_app-containers_card_view/REQ-55
