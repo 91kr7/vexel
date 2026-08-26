@@ -18,8 +18,9 @@ export interface SparklineProps {
 const VIEWBOX_WIDTH = 100;
 
 /**
- * Compact time-series line over a bounded sample window. It is a plain SVG
- * path recomputed only when `values` changes: no animation loop, no timers.
+ * Compact time-series line over a bounded sample window, with a tinted area
+ * beneath it and its last sample marked. Plain SVG paths recomputed only when
+ * `values` or the scale changes: no animation loop, no timers, no transition.
  */
 export function Sparkline({ values, max, tone = 'accent', height = 32, ariaLabel, emptyLabel = 'No samples yet' }: SparklineProps) {
   const geometry = useMemo(() => {
@@ -31,7 +32,11 @@ export function Sparkline({ values, max, tone = 'accent', height = 32, ariaLabel
       const clamped = Math.min(Math.max(Number.isFinite(value) ? value : 0, 0), top);
       return `${(index * step).toFixed(2)},${(100 - (clamped / top) * 100).toFixed(2)}`;
     });
-    return { line: `M${points.join(' L')}`, area: `M0,100 L${points.join(' L')} L${VIEWBOX_WIDTH},100 Z` };
+    const last = points[points.length - 1]!;
+    /* The last sample is marked as a zero-length subpath with a round cap, not
+       as a <circle>: the viewBox is stretched to the rendered box, which turns a
+       circle into an ellipse and leaves a non-scaling stroke round. */
+    return { line: `M${points.join(' L')}`, area: `M0,100 L${points.join(' L')} L${VIEWBOX_WIDTH},100 Z`, last: `M${last} L${last}` };
   }, [values, max]);
 
   if (!geometry) {
@@ -44,6 +49,7 @@ export function Sparkline({ values, max, tone = 'accent', height = 32, ariaLabel
 
   const lineClass = tone === 'accent' ? 'ui-sparkline__line' : `ui-sparkline__line ui-sparkline__line--${tone}`;
   const areaClass = tone === 'accent' ? 'ui-sparkline__area' : `ui-sparkline__area ui-sparkline__area--${tone}`;
+  const pointClass = tone === 'accent' ? 'ui-sparkline__point' : `ui-sparkline__point ui-sparkline__point--${tone}`;
   return (
     <svg
       className="ui-sparkline"
@@ -55,6 +61,7 @@ export function Sparkline({ values, max, tone = 'accent', height = 32, ariaLabel
     >
       <path className={areaClass} d={geometry.area} />
       <path className={lineClass} d={geometry.line} />
+      <path className={pointClass} d={geometry.last} />
     </svg>
   );
 }

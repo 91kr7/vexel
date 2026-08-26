@@ -161,7 +161,8 @@
    step with it: an auto-fitting grid decides how many tracks fit and then puts
    the fifth of five items alone on a second row the moment only four do, which
    is what orphaned `PIDS` on the container stats grid
-   (plan-ui-coherence-optimisation/REQ-63). Here five children are five tracks.
+   (plan-ui-coherence-optimisation/REQ-63). Here n children are n tracks — the
+   stats view now places two of these, of two tiles and of three.
    Keyed to the viewport, unlike `pair`, and to the shell's own phone
    breakpoint alone: below it no row of equal tracks is readable at all, and a
    stack is the only division of an arbitrary count that leaves no orphan. */

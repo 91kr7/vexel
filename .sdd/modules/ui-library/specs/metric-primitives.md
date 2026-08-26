@@ -1,14 +1,15 @@
 ---
 module: ui-library
-component: Metric primitives (MetricTile, Meter, Sparkline)
+component: Metric primitives (MetricTile, Meter, Sparkline, MetricReadingPair)
 type: UI component
 ---
 
 # Metric primitives
 
-**Purpose** → the three domain-agnostic pieces every resource-usage reading is built from: a tile
-carrying one metric, a proportional bar for a used/limit pair, and a compact line over a bounded
-window of recent samples.
+**Purpose** → the domain-agnostic pieces every resource-usage reading is built from: a tile
+carrying one metric, a proportional bar for a used/limit pair, a compact line over a bounded window
+of recent samples, and the pair of readings a metric that has two directions shows instead of one
+string.
 
 ## Contract
 
@@ -54,14 +55,26 @@ window of recent samples.
   - draws one line (with a tinted area beneath it) spanning the full width, the horizontal step
     being the window's length and the vertical scale being `max`, defaulting to the largest value
     in the window; values outside `0…max` are clamped.
+  - **marks the window's last sample with a point**, in the line's own tone, so the current value is
+    findable without following the line to its end. The mark is round at every rendered size,
+    however wide or short the box the line is stretched into.
   - fewer than two values → `emptyLabel` (default `"No samples yet"`) is shown instead of a line,
-    in the same vertical space.
+    in the same vertical space — and no mark either: there is no last sample to mark.
   - `height` — rendered height in px, default `32`.
+- `<MetricReadingPair readings />`
+  - `readings` — exactly two readings, in reading order, each `{ label, value }` with both already
+    formatted by the caller.
+  - shows the two values on one baseline, each with its own label beside it, and gives each of the
+    two a treatment of the library's own so that they are told apart by **more than their position**:
+    a reader who does not know which comes first can still say which is which.
+  - the caller states no colour and no order of importance: which treatment a reading takes is
+    decided by its place in the pair, and both are named design values.
+  - too narrow a box wraps the second reading onto its own line rather than truncating either value.
 
 ## Rules and invariants
 
-- All three are domain-agnostic: they receive already-formatted strings and plain numbers, and know
-  nothing about what is being measured.
+- All of them are domain-agnostic: they receive already-formatted strings and plain numbers, and
+  know nothing about what is being measured.
 - The sparkline is redrawn only when its `values` (or scale) change: it runs no animation loop, no
   timer, and no transition — a live metric costs one repaint per sample.
 - Every color, radius and spacing comes from a design token; the tones map to the accent, success,
@@ -70,12 +83,19 @@ window of recent samples.
   its reading), no measurable maximum (the deliberate unbounded treatment), and no sample (empty and
   faint, `—`, `no sample`). None of them is drawn like another.
 - The small uppercase muted label treatment is declared **once** for these primitives and shared by
-  the tile's label, the meter's eyebrow label and the metric strip's readings label; the prominent
-  monospace value likewise. A second declaration of either is the defect.
+  the tile's label, the meter's eyebrow label and the metric strip's readings label; the muted
+  reading label and the prominent monospace value likewise, the reading pair taking the same two
+  declarations the strip's readings take. A second declaration of any of them is the defect.
 - A bar is never merely absent where a limit is unknown. The empty track was the delivered answer and
   it is indistinguishable from a broken one (`plan-ui-coherence-optimisation/REQ-64`), so "no ceiling"
   is a **drawn state** of the component rather than the caller's problem: a caller with no maximum to
-  give still asks for a `Meter`, and gets the state that says so.
+  give still asks for a `Meter`, and gets the state that says so. That rule is about a maximum that is
+  **unknown at this moment** — a container running without a memory limit set, which could have one —
+  and it is unchanged: every caller that asks for a `Meter` gets the unbounded state rather than an
+  empty track. It was never a rule that every metric must ask for a `Meter`: a quantity that has no
+  maximum **in principle**, a counter that only rises, has no ceiling to be unknown, and its history
+  is what tells its story (`Sparkline`), not a bar that by construction can never fill
+  (`container-stats-view.md`, `plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-15`).
 
 ## Dependencies
 
@@ -92,3 +112,5 @@ window of recent samples.
 - plan-docker_management_app-containers_card_view/REQ-16
 - plan-docker_management_app-containers_card_view/REQ-17
 - plan-docker_management_app-containers_card_view/REQ-30
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-16
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-17

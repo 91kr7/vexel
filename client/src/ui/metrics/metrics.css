@@ -69,7 +69,8 @@
 }
 
 .ui-metric-tile__sub-label,
-.ui-metric-strip__reading-label {
+.ui-metric-strip__reading-label,
+.ui-metric-reading__label {
   margin: 0;
   font-family: var(--font-family-mono);
   font-size: var(--font-size-xs);
@@ -111,7 +112,8 @@
   min-height: calc(var(--font-size-md) * var(--line-height-tight));
 }
 
-.ui-meter__value {
+.ui-meter__value,
+.ui-metric-reading__value {
   font-family: var(--font-family-mono);
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-semibold);
@@ -236,6 +238,36 @@
 
 .ui-sparkline__area--neutral {
   fill: var(--color-neutral-tint);
+}
+
+/* The window's last sample, marked so the current value is findable without
+   following the line. A zero-length subpath with a round cap rather than a
+   <circle>: `preserveAspectRatio: none` stretches the viewBox to the rendered
+   box, which flattens a circle into an ellipse while a non-scaling stroke stays
+   round at any size. It is drawn on the line's own color, and the svg does not
+   clip it where the last point sits on an edge. */
+.ui-sparkline__point {
+  fill: none;
+  stroke: var(--color-accent);
+  stroke-width: 5;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.ui-sparkline__point--success {
+  stroke: var(--color-success);
+}
+
+.ui-sparkline__point--warning {
+  stroke: var(--color-warning);
+}
+
+.ui-sparkline__point--danger {
+  stroke: var(--color-danger);
+}
+
+.ui-sparkline__point--neutral {
+  stroke: var(--color-text-muted);
 }
 
 .ui-sparkline__empty {
@@ -436,11 +468,33 @@
   min-width: 0;
 }
 
-.ui-metric-strip__reading {
+/* One reading: its value and the label naming it, on one baseline. */
+.ui-metric-strip__reading,
+.ui-metric-reading {
   display: inline-flex;
   align-items: baseline;
   gap: var(--space-2);
   min-width: 0;
+}
+
+/* The two directions of one metric, side by side. The second falls onto its own
+   line when the box cannot carry both, rather than either value truncating —
+   half a byte count is worse than a second line. The two roles are told apart by
+   color, so the pair is legible without knowing which one comes first. */
+.ui-metric-reading-pair {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-4);
+  min-width: 0;
+}
+
+.ui-metric-reading--first .ui-metric-reading__value {
+  color: var(--color-accent-strong);
+}
+
+.ui-metric-reading--second .ui-metric-reading__value {
+  color: var(--color-series-3);
 }
 
 /* The stacked form asked for at any width. Same declarations as the phone

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { EmptyState, ErrorBanner, Grid, MetricTile, Meter, Sparkline, Stack, type MetricTone } from '../ui';
+import { EmptyState, ErrorBanner, Grid, MetricReadingPair, MetricTile, Meter, Sparkline, Stack, type MetricTone } from '../ui';
 import { useContainerStats } from '../data/use-container-stats';
 import type { ContainerSummary } from '../data/containers-client';
 
@@ -37,11 +37,14 @@ function loadTone(percent: number): MetricTone {
  * I/O readings that keep updating while the view is open, each with the recent
  * history of the metric.
  *
- * Five tiles in five tracks (plan-ui-coherence-optimisation/REQ-63) — the
- * delivered grid fitted four and left `PIDS` alone on a second row — and all
- * five built the same way, meter included (REQ-64): the three metrics with no
- * ceiling get the meter's no-measurable-maximum state rather than no meter,
- * which is what made a fact about the metric look like a bar that failed.
+ * Two groups rather than one row of five (REQ-13): CPU and Memory have a
+ * ceiling and keep their meter (REQ-14); Net I/O, Block I/O and PIDs are
+ * cumulative counters with no maximum in principle, so they carry no bar at
+ * all — not even the meter's no-measurable-maximum state — and tell their story
+ * with their history instead (REQ-15). Each of those three plots the one series
+ * it is named for, not the two summed, and shows its two directions as two
+ * labelled readings (REQ-17). This supersedes
+ * plan-ui-coherence-optimisation/REQ-63 and REQ-64.
  */
 export function ContainerStatsView({ container }: ContainerStatsViewProps) {
   const streamable = STREAMING_STATES.has(container.state);
@@ -49,8 +52,8 @@ export function ContainerStatsView({ container }: ContainerStatsViewProps) {
 
   const cpuHistory = useMemo(() => samples.map((sample) => sample.cpuPercent), [samples]);
   const memoryHistory = useMemo(() => samples.map((sample) => sample.memoryUsageBytes), [samples]);
-  const networkHistory = useMemo(() => samples.map((sample) => sample.networkRxBytes + sample.networkTxBytes), [samples]);
-  const blockHistory = useMemo(() => samples.map((sample) => sample.blockReadBytes + sample.blockWriteBytes), [samples]);
+  const networkInHistory = useMemo(() => samples.map((sample) => sample.networkRxBytes), [samples]);
+  const blockReadHistory = useMemo(() => samples.map((sample) => sample.blockReadBytes), [samples]);
   const pidsHistory = useMemo(() => samples.map((sample) => sample.pids), [samples]);
 
   if (!streamable) {
@@ -63,65 +66,74 @@ export function ContainerStatsView({ container }: ContainerStatsViewProps) {
       {!latest ? (
         <EmptyState title="Waiting for the first sample…"  description={null} action={null} />
       ) : (
-        <Grid arrangement="even-row">
-          <MetricTile label="CPU" value={formatPercent(latest.cpuPercent)} subLabel="of all available cores" tone={loadTone(latest.cpuPercent)}>
-            <Stack gap="var(--space-2)">
-              <Meter value={latest.cpuPercent} max={100} tone={loadTone(latest.cpuPercent)} ariaLabel="CPU usage" />
-              <Sparkline values={cpuHistory} max={100} tone={loadTone(latest.cpuPercent)} ariaLabel="Recent CPU usage" />
-            </Stack>
-          </MetricTile>
+        <Stack gap="var(--space-4)">
+          <Grid arrangement="even-row">
+            <MetricTile label="CPU" value={formatPercent(latest.cpuPercent)} subLabel="of all available cores" tone={loadTone(latest.cpuPercent)}>
+              <Stack gap="var(--space-2)">
+                <Meter value={latest.cpuPercent} max={100} tone={loadTone(latest.cpuPercent)} ariaLabel="CPU usage" />
+                <Sparkline values={cpuHistory} max={100} tone={loadTone(latest.cpuPercent)} ariaLabel="Recent CPU usage" />
+              </Stack>
+            </MetricTile>
 
-          <MetricTile
-            label="Memory"
-            value={formatBytes(latest.memoryUsageBytes)}
-            subLabel={latest.memoryLimitBytes > 0 ? `of ${formatBytes(latest.memoryLimitBytes)} · ${formatPercent(latest.memoryPercent)}` : 'no limit set'}
-            tone={latest.memoryLimitBytes > 0 ? loadTone(latest.memoryPercent) : 'neutral'}
-          >
-            <Stack gap="var(--space-2)">
-              <Meter
-                value={latest.memoryUsageBytes}
-                max={latest.memoryLimitBytes > 0 ? latest.memoryLimitBytes : undefined}
-                tone={latest.memoryLimitBytes > 0 ? loadTone(latest.memoryPercent) : 'neutral'}
-                ariaLabel="Memory usage"
-              />
-              <Sparkline
-                values={memoryHistory}
-                max={latest.memoryLimitBytes > 0 ? latest.memoryLimitBytes : undefined}
-                tone={latest.memoryLimitBytes > 0 ? loadTone(latest.memoryPercent) : 'neutral'}
-                ariaLabel="Recent memory usage"
-              />
-            </Stack>
-          </MetricTile>
+            <MetricTile
+              label="Memory"
+              value={formatBytes(latest.memoryUsageBytes)}
+              subLabel={latest.memoryLimitBytes > 0 ? `of ${formatBytes(latest.memoryLimitBytes)} · ${formatPercent(latest.memoryPercent)}` : 'no limit set'}
+              tone={latest.memoryLimitBytes > 0 ? loadTone(latest.memoryPercent) : 'neutral'}
+            >
+              <Stack gap="var(--space-2)">
+                <Meter
+                  value={latest.memoryUsageBytes}
+                  max={latest.memoryLimitBytes > 0 ? latest.memoryLimitBytes : undefined}
+                  tone={latest.memoryLimitBytes > 0 ? loadTone(latest.memoryPercent) : 'neutral'}
+                  ariaLabel="Memory usage"
+                />
+                <Sparkline
+                  values={memoryHistory}
+                  max={latest.memoryLimitBytes > 0 ? latest.memoryLimitBytes : undefined}
+                  tone={latest.memoryLimitBytes > 0 ? loadTone(latest.memoryPercent) : 'neutral'}
+                  ariaLabel="Recent memory usage"
+                />
+              </Stack>
+            </MetricTile>
+          </Grid>
 
-          <MetricTile
-            label="Net I/O"
-            value={`${formatBytes(latest.networkRxBytes)} / ${formatBytes(latest.networkTxBytes)}`}
-            subLabel="received / sent since start"
-          >
-            <Stack gap="var(--space-2)">
-              <Meter value={latest.networkRxBytes + latest.networkTxBytes} tone="neutral" ariaLabel="Network I/O" />
-              <Sparkline values={networkHistory} tone="neutral" ariaLabel="Recent network I/O" />
-            </Stack>
-          </MetricTile>
+          <Grid arrangement="even-row">
+            <MetricTile
+              label="Net I/O"
+              value={
+                <MetricReadingPair
+                  readings={[
+                    { value: formatBytes(latest.networkRxBytes), label: 'in' },
+                    { value: formatBytes(latest.networkTxBytes), label: 'out' },
+                  ]}
+                />
+              }
+              subLabel="since start"
+            >
+              <Sparkline values={networkInHistory} tone="neutral" ariaLabel="Recent inbound network traffic" />
+            </MetricTile>
 
-          <MetricTile
-            label="Block I/O"
-            value={`${formatBytes(latest.blockReadBytes)} / ${formatBytes(latest.blockWriteBytes)}`}
-            subLabel="read / written since start"
-          >
-            <Stack gap="var(--space-2)">
-              <Meter value={latest.blockReadBytes + latest.blockWriteBytes} tone="neutral" ariaLabel="Block I/O" />
-              <Sparkline values={blockHistory} tone="neutral" ariaLabel="Recent block I/O" />
-            </Stack>
-          </MetricTile>
+            <MetricTile
+              label="Block I/O"
+              value={
+                <MetricReadingPair
+                  readings={[
+                    { value: formatBytes(latest.blockReadBytes), label: 'read' },
+                    { value: formatBytes(latest.blockWriteBytes), label: 'written' },
+                  ]}
+                />
+              }
+              subLabel="since start"
+            >
+              <Sparkline values={blockReadHistory} tone="neutral" ariaLabel="Recent block reads" />
+            </MetricTile>
 
-          <MetricTile label="PIDs" value={String(latest.pids)} subLabel="processes and threads">
-            <Stack gap="var(--space-2)">
-              <Meter value={latest.pids} tone="neutral" ariaLabel="PIDs" />
+            <MetricTile label="PIDs" value={String(latest.pids)} subLabel="processes and threads">
               <Sparkline values={pidsHistory} tone="neutral" ariaLabel="Recent PID count" />
-            </Stack>
-          </MetricTile>
-        </Grid>
+            </MetricTile>
+          </Grid>
+        </Stack>
       )}
     </Stack>
   );

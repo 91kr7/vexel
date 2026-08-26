@@ -130,6 +130,7 @@ export {
   type MetricStripRow,
 } from './metrics/MetricStrip';
 export { Sparkline, type SparklineProps } from './metrics/Sparkline';
+export { MetricReadingPair, type MetricReadingPairProps, type MetricReading } from './metrics/MetricReadingPair';
 export { UsageBreakdown, type UsageBreakdownProps, type UsageBreakdownItem } from './metrics/UsageBreakdown';
 
 export { Modal, type ModalProps, type ModalSize } from './feedback/Modal';
