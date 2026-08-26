@@ -75,14 +75,13 @@ function statsStreams(): FakeEventSource[] {
 let fetchMock: ReturnType<typeof vi.fn>;
 
 function renderPanel() {
-  const onClose = vi.fn();
   const onContainerReplaced = vi.fn();
   const view = render(
     <ErrorReportingProvider>
       <ProgressProvider>
         <ConfirmationProvider>
           <ToastProvider>
-            <ContainerDetailPanel container={container} onClose={onClose} onContainerReplaced={onContainerReplaced} />
+            <ContainerDetailPanel container={container} onContainerReplaced={onContainerReplaced} />
           </ToastProvider>
         </ConfirmationProvider>
       </ProgressProvider>

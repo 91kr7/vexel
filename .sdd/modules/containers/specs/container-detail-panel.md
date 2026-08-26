@@ -6,39 +6,38 @@ type: UI component
 
 # ContainerDetailPanel
 
-**Purpose** → the container detail surface opened from a row of the Containers screen: the
-container's logs, its live statistics, its inspect data in an editable Config tab, the processes
-running inside it, the read-only Inspect tab with the raw payload, and — for a running container —
-exec and attach interactive sessions. Rename and the filesystem export both live on the row instead
-(REQ-21), not in this panel.
+**Purpose** → the container detail, drawn as the body of the dialog the Containers screen opens from
+a card's own control: the container's logs, its live statistics, its inspect data in an editable
+Config tab, the processes running inside it, the read-only Inspect tab with the raw payload, and —
+for a running container — exec and attach interactive sessions. Rename and the filesystem export
+both live on the card instead (REQ-21), not in this panel.
 
 ## Contract
 
-- `<ContainerDetailPanel container onClose onContainerReplaced />`
-  - `container: ContainerSummary` — the selected row.
-  - `onClose: () => void` — called when the panel is dismissed: by `Escape`, or by the screen when
-    the owning row is selected again.
+- `<ContainerDetailPanel container onContainerReplaced />`
+  - `container: ContainerSummary` — the container whose detail the dialog carries.
   - `onContainerReplaced: (newId: string) => void` — called after a recreate, since the original
     container id no longer exists.
 
 Description:
-- A `DetailPanel` (untitled — the container's name/id/state are already shown by the table row it
-  expands below) holding a `Tabs` row (Logs, Stats, Config, Processes, Inspect, and — only when the
-  container is running — Exec, Attach) and the active tab's content. Config is the tab selected when
-  the panel opens.
-- **No header actions and no close control.** The panel asks the shared `DetailPanel` for the
-  presentation whose opening gesture also closes it (`dismissal="opening-gesture"`), so the header
-  area is empty and stays empty: "Export filesystem…" was this panel's only action and is started
-  from the row's overflow menu now, the `✕` is gone, and neither is replaced — no collapse link, no
-  chevron, no rendered keyboard hint, and no space kept where the glyph used to sit.
-Actions (dismissal):
-- `Escape` closes the panel, from wherever the focus sits inside it, and the point of interaction is
-  left on the containers list.
-- The owning row closes it too, by being selected again (`containers-screen.md`).
-- An `Escape` typed into a live Exec or Attach session goes to the session: the panel stays open and
-  the session stays live.
-- With a row's overflow menu open over the screen, `Escape` closes the menu only; the next one closes
-  the panel. With a dialog or confirmation open, `Escape` leaves both it and the panel as they were.
+- A `Tabs` row (Logs, Stats, Config, Processes, Inspect, and — only when the container is running —
+  Exec, Attach) above the active tab's content, and nothing else. Config is the tab selected when the
+  detail opens.
+- **It is a body and not a surface**: no surface of its own, no header, no title, no header actions,
+  no close control and no dismissal route. The container's identity, the chrome and both ways out
+  are the dialog's (`ui-library/specs/modal.md`, `containers-screen.md`). "Export filesystem…" was
+  this panel's only action and is started from the card's overflow menu.
+- It takes the whole width of the dialog body it is placed in and states no width, height or minimum
+  of its own.
+Dismissal:
+- The panel offers none and claims no key. It ends when the dialog that holds it does, by either of
+  the dialog's two routes — its close control, or a click on the dimmed area.
+- `Escape` dismisses nothing while the dialog stands
+  (`plan-docker_management_app-containers_card_view-detail_modal/REQ-11`), and an `Escape` typed into
+  a live Exec or Attach session goes to the session, which stays live. This **supersedes**
+  `plan-docker_management_app-container_detail_close/REQ-5`, which had the key close this panel: the
+  panel is no longer a dismissible surface, and the dialog carrying it deliberately does nothing with
+  the key.
 Shows (Logs tab):
 - The container's `ContainerLogsView`; the inspect data is neither needed nor awaited for it.
 Shows (Stats tab):
@@ -104,10 +103,13 @@ Actions:
 
 ## Rules and invariants
 
-- Only the active tab's content exists: leaving the Stats tab (switching tab, closing the panel or
-  selecting another row) unmounts the stats view and thereby stops the live stats stream (REQ-32);
-  leaving the Exec or Attach tab likewise closes the interactive session (REQ-36).
-- Switching `container` (a different row selected) resets edit mode and any in-progress edit.
+- Only the active tab's content exists: leaving the Stats tab (switching tab, or the dialog being
+  dismissed by either route) unmounts the stats view and thereby stops the live stats stream
+  (REQ-32); leaving the Exec or Attach tab likewise closes the interactive session (REQ-36). Nothing
+  the panel owns — stats stream, log stream, exec or attach session — outlives the dialog, and
+  opening and closing detail after detail accumulates none of them.
+- Switching `container` (a different container's detail opened) resets edit mode and any in-progress
+  edit.
 - The Exec and Attach tabs are only offered for a running container.
 - **The file states no column count, no track template, no width, no `style` and no CSS import**, and
   the editing form is not part of that arrangement: it is exactly as delivered.
@@ -120,6 +122,11 @@ Actions:
   is unchanged by that, and so are the certified behaviours reaching into it — bug-1's progress
   dialog on a recreate, bug-4's rule that two property sections of the same measured width show the
   same number of columns, and bug-5's absence of every copy affordance.
+- **Moving onto the dialog surface changed where the detail is drawn and nothing else**
+  (`plan-docker_management_app-containers_card_view-detail_modal/REQ-4`): the same seven tabs in the
+  same order, the same tab active on open, the same data, operations, confirmations and live
+  behaviour, and no view inside it re-sized. Any observable difference beyond the surface and the
+  routes in and out is a defect.
 
 ## Dependencies
 
@@ -127,7 +134,7 @@ Actions:
 - ContainerStatsView
 - ContainerProcessesView
 - ContainerSessionView
-- ui-library: DetailPanel, Tabs, DefinitionList, ContentColumns, CollapsibleSection, CodeViewer, Select, NumberField,
+- ui-library: Tabs, DefinitionList, ContentColumns, CollapsibleSection, CodeViewer, Select, NumberField,
   Toggle, TextField, KeyValueEditor, RepeatableRowList, FormFooter, SectionHeader, Row, Stack,
   Button, ErrorBanner, EmptyState, FormDialog, useToast
 - Containers client (updateContainerConfig)
@@ -149,7 +156,6 @@ Actions:
 - plan-docker_management_app-container_row_actions/REQ-21
 - plan-docker_management_app-container_detail_close/REQ-1
 - plan-docker_management_app-container_detail_close/REQ-2
-- plan-docker_management_app-container_detail_close/REQ-5
 - plan-docker_management_app-container_detail_close/REQ-14
 - plan-docker_management_app-container_detail_close/REQ-17
 - plan-docker_management_app-detail_property_columns/REQ-6
@@ -162,3 +168,7 @@ Actions:
 - plan-docker_management_app-detail_property_columns/REQ-34
 - plan-ui-coherence-optimisation/REQ-60
 - plan-ui-coherence-optimisation/REQ-65
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-4
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-23
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-24
+- plan-docker_management_app-containers_card_view-detail_modal/REQ-30

@@ -1,9 +1,11 @@
-import { Fragment, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
+  Button,
   EmptyState,
   ErrorBanner,
   FilterChips,
   IconButton,
+  Modal,
   Row,
   ScreenToolbar,
   SearchField,
@@ -101,9 +103,17 @@ function matchesStateFilter(container: ContainerSummary, filter: string): boolea
   return true;
 }
 
+/** The container the dialog is bound to, carried by the screen rather than looked up each time. */
+interface DetailTarget {
+  /** The last summary the dialog was drawn from; its id is the container the dialog belongs to. */
+  container: ContainerSummary;
+  /** A recreate has re-pointed the dialog and the new container has not reached the list yet. */
+  awaitingList: boolean;
+}
+
 /**
- * Containers screen (REQ-19–23, REQ-24–26, REQ-109): search and state filters over one card per
- * container, each with its lifecycle slots, its overflow menu and its detail panel.
+ * Containers screen: search and state filters over one card per container, each with its lifecycle
+ * slots, its overflow menu and the control that opens its detail as a large-format dialog.
  */
 export function ContainersScreen({ containers, loaded, error, onRefresh, images = [], imagesLoaded = true }: ContainersScreenProps) {
   // This screen consumes the sampled figures, so it is what keeps the server
@@ -120,12 +130,25 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
-  const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
+  const [detailTarget, setDetailTarget] = useState<DetailTarget | null>(null);
   const [createMode, setCreateMode] = useState<'run' | 'create' | null>(null);
 
+  // The carried summary follows the list — which is also how a re-pointed dialog learns
+  // its recreated container has arrived. A re-read that changes neither bails out.
   useEffect(() => {
-    if (selectedId && !containers.some((container) => container.id === selectedId)) setSelectedId(undefined);
-  }, [containers, selectedId]);
+    setDetailTarget((current) => {
+      if (!current) return current;
+      const live = containers.find((container) => container.id === current.container.id);
+      if (!live) return current;
+      if (!current.awaitingList && live.name === current.container.name) return current;
+      return { container: live, awaitingList: false };
+    });
+  }, [containers]);
+
+  /** The dialog's one dismissal: the panel it held unmounts with it, so nothing outlives it. */
+  function closeDetail() {
+    setDetailTarget(null);
+  }
 
   function setBusy(id: string, busy: boolean) {
     setBusyIds((current) => {
@@ -274,16 +297,10 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
     ];
   }
 
-  // The card is the panel's only pointer route: selecting the selected card closes it.
-  // A container filtered out of view keeps its selection, panel and card returning together.
-  function toggleSelection(container: ContainerSummary) {
-    setSelectedId((current) => (current === container.id ? undefined : container.id));
-  }
-
   function renameControlFor(container: ContainerSummary) {
     if (renamingId !== container.id) return undefined;
     return (
-      <Row gap="var(--space-1)" align="center" onClick={(event) => event.stopPropagation()}>
+      <Row gap="var(--space-1)" align="center">
         <TextField
           value={renameValue}
           onChange={setRenameValue}
@@ -303,6 +320,14 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
 
   const filtered = containers.filter((container) => matchesStateFilter(container, stateFilter) && matchesSearch(container, search));
   const hasStoppedContainers = containers.some((container) => (STOPPED_STATES as string[]).includes(container.state));
+  // Read from the whole list, not from the filtered one: the dialog belongs to its
+  // container, and a filter narrowing the cards behind it is not a dismissal. Absent
+  // from that list, the container has ceased to exist — unless a recreate has just
+  // re-pointed the dialog, in which case the carried summary stands in until the
+  // re-read arrives, so a recreate never reads as a disappearance.
+  const liveDetail = detailTarget ? containers.find((container) => container.id === detailTarget.container.id) : undefined;
+  const detailContainer = liveDetail ?? (detailTarget?.awaitingList ? detailTarget.container : undefined);
+  const detailName = liveDetail?.name ?? detailTarget?.container.name;
 
   return (
     <Stack gap="var(--space-4)">
@@ -318,8 +343,8 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
         }
       />
       {error ? <ErrorBanner title="Could not load containers" detail={error} onRetry={onRefresh} /> : null}
-      {/* Three cards to a row, the selected container's panel spanning the grid's
-          width beneath its own card (containers-screen.md). */}
+      {/* Three cards to a row; the detail stands over the grid as a dialog, so nothing
+          opens beneath a card (containers-screen.md). */}
       <Grid arrangement="cards" dismissalFocusTarget>
         {filtered.length === 0 ? (
           <GridSpan>
@@ -331,30 +356,52 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
           </GridSpan>
         ) : null}
         {filtered.map((container) => (
-          <Fragment key={container.id}>
-            <ContainerCard
-              container={container}
-              lifecycleActions={lifecycleActionsFor(container)}
-              overflowEntries={overflowEntriesFor(container)}
-              selected={container.id === selectedId}
-              onSelect={() => toggleSelection(container)}
-              renameControl={renameControlFor(container)}
-            />
-            {container.id === selectedId ? (
-              <GridSpan>
-                <ContainerDetailPanel
-                  container={container}
-                  onClose={() => setSelectedId(undefined)}
-                  onContainerReplaced={(newId) => {
-                    setSelectedId(newId);
-                    onRefresh();
-                  }}
-                />
-              </GridSpan>
-            ) : null}
-          </Fragment>
+          <ContainerCard
+            key={container.id}
+            container={container}
+            lifecycleActions={lifecycleActionsFor(container)}
+            overflowEntries={overflowEntriesFor(container)}
+            onOpenDetail={() => setDetailTarget({ container, awaitingList: false })}
+            renameControl={renameControlFor(container)}
+          />
         ))}
       </Grid>
+
+      {/* The dialog keeps its chrome once its container has gone, so both of its ways out
+          still work and nothing strands the operator in the end state; the point of
+          interaction returns to the list region, the card that opened it having left with
+          the container (containers-screen.md). */}
+      <Modal
+        open={detailTarget !== null}
+        title={detailName ? `Container — ${detailName}` : ''}
+        size="large"
+        fluidWidth
+        closeControl
+        restoreFocus
+        onClose={closeDetail}
+      >
+        {detailContainer ? (
+          <ContainerDetailPanel
+            container={detailContainer}
+            onContainerReplaced={(newId) => {
+              // A recreate is not a disappearance: the dialog follows the container onto
+              // its new id, standing on the summary it already holds until the re-read
+              // list carries the new one.
+              setDetailTarget((current) => (current ? { container: { ...current.container, id: newId }, awaitingList: true } : current));
+              onRefresh();
+            }}
+          />
+        ) : (
+          // The end state of a dialog whose container has ceased to exist: stated in
+          // place, on the surface the operator is looking at, rather than by a silent
+          // close or by a toast. Its resolving action is the dialog's own dismissal.
+          <EmptyState
+            title="This container no longer exists"
+            description="It was removed while its detail was open, so there is nothing left here to show."
+            action={<Button variant="primary" onClick={closeDetail}>Close</Button>}
+          />
+        )}
+      </Modal>
 
       <ContainerCreateForm
         open={createMode !== null}
@@ -362,9 +409,8 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
         imagesLoaded={imagesLoaded}
         defaultStart={createMode !== 'create'}
         onCancel={() => setCreateMode(null)}
-        onCreated={(result) => {
+        onCreated={() => {
           setCreateMode(null);
-          setSelectedId(result.id);
           onRefresh();
         }}
       />

@@ -35,6 +35,18 @@
   width: min(1100px, 92vw);
 }
 
+/*
+ * The large format without its constant cap, for a dialog whose content is a
+ * screen's worth of property lists: the cap held the container detail at 1100px
+ * and cost the operator a property column above ~1200px against the inline panel
+ * it replaces. Compounded with the format it modifies, so it is inert anywhere
+ * else and independent of source order; the four other large dialogs, asking for
+ * nothing, keep `min(1100px, 92vw)`.
+ */
+.ui-modal__positioner--size-large.ui-modal__positioner--fluid-width {
+  width: 92vw;
+}
+
 .ui-modal {
   z-index: var(--z-modal);
   width: 100%;
@@ -73,6 +85,20 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+/* Only the opt-in close control introduces this band; a dialog that asks for
+   none keeps exactly the chrome it has, the bare title. */
+.ui-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.ui-modal__header > .ui-modal__title {
+  margin-bottom: 0;
 }
 
 .ui-modal__title {

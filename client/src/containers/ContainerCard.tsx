@@ -27,8 +27,8 @@ export interface ContainerCardProps {
   lifecycleActions: RowAction[];
   /** The entries of the trailing overflow menu, in their order. */
   overflowEntries: MenuEntry[];
-  selected: boolean;
-  onSelect: () => void;
+  /** The card's top-right control: the only route into this container's detail. */
+  onOpenDetail: () => void;
   /** Rendered in the name's place while this container is being renamed. */
   renameControl?: ReactNode;
 }
@@ -133,8 +133,7 @@ export function ContainerCard({
   container,
   lifecycleActions,
   overflowEntries,
-  selected,
-  onSelect,
+  onOpenDetail,
   renameControl,
 }: ContainerCardProps) {
   const tone = STATE_TONE[container.state];
@@ -144,8 +143,6 @@ export function ContainerCard({
     <Card
       padding="md"
       accent={tone}
-      selected={selected}
-      onSelect={onSelect}
       footer={
         <Row gap="var(--space-4)" align="center" justify="between" wrap>
           {primaryAction ? <ActionButtonGroup size="md" actions={[primaryAction]} /> : null}
@@ -166,13 +163,9 @@ export function ContainerCard({
           </Row>
           <Row gap="var(--space-3)" align="center">
             <IdentifierCell value={container.shortId} />
-            {/* Inert by decision, not by omission: its click arrives with the modal
-                detail (container-card.md). The row swallows it meanwhile. */}
-            <Row onClick={(event) => event.stopPropagation()}>
-              <IconButton size="sm" label={`Open ${container.name} details`}>
-                {OPEN_DETAIL_GLYPH}
-              </IconButton>
-            </Row>
+            <IconButton size="sm" label={`Open ${container.name} details`} onClick={onOpenDetail}>
+              {OPEN_DETAIL_GLYPH}
+            </IconButton>
           </Row>
         </Row>
 

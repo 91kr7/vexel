@@ -409,6 +409,74 @@ test.describe('Container detail — the expanded detail stops fighting for room 
     }
   });
 
+  // detail_modal/REQ-19 — at 375×812 the detail stays usable: every tab reachable, no value clipped
+  // to nothing, the terminal and the log views operable, and nothing requiring horizontal scrolling.
+  // Every claim is a viewport box; the tabs are reached with a real pointer at their own coordinates.
+  test('at 375×812 every tab is reachable inside the dialog, nothing is clipped and nothing scrolls sideways', async ({ page }) => {
+    test.setTimeout(180_000);
+    const name = `vexel-e2e-detail-phone-${Date.now()}`;
+    try {
+      await createLoggingContainer(name);
+      await page.setViewportSize(PHONE_VIEWPORT);
+      const detail = await openTab(page, name, 'Logs');
+
+      const dialog = await boxOf('the detail dialog', detail);
+      console.log(`[REQ-19] the dialog at 375×812 is x=${dialog.x.toFixed(1)}, ${dialog.width.toFixed(1)}×${dialog.height.toFixed(1)}`);
+      expect(dialog.x, 'the dialog starts left of the viewport').toBeGreaterThanOrEqual(-0.5);
+      expect(dialog.x + dialog.width, 'the dialog runs off the right of the viewport').toBeLessThanOrEqual(PHONE_VIEWPORT.width + 0.5);
+      expect(dialog.height, 'the dialog is taller than the viewport').toBeLessThanOrEqual(PHONE_VIEWPORT.height + 0.5);
+
+      // The log view is operable: it draws the container's own lines, and the toolbar it carries is
+      // reachable rather than merely present.
+      await expect(detail.getByText('hello-from-stdout')).toBeVisible({ timeout: 30_000 });
+      const stdout = await boxOf('the logs stdout filter', detail.getByRole('button', { name: 'stdout', exact: true }));
+      expect(stdout.width, 'the logs toolbar is clipped to nothing').toBeGreaterThan(0);
+      expect(stdout.hitsItself, 'a pointer aimed at the logs toolbar reaches something else').toBe(true);
+
+      for (const tab of ['Stats', 'Config', 'Processes', 'Inspect', 'Exec', 'Attach', 'Logs']) {
+        const control = detail.getByRole('tab', { name: tab, exact: true });
+        await control.scrollIntoViewIfNeeded();
+        const box = await boxOf(`the ${tab} tab`, control);
+        expect(box.width, `[REQ-19] the ${tab} tab is clipped to nothing`).toBeGreaterThan(0);
+        expect(box.hitsItself, `[REQ-19] a pointer aimed at the ${tab} tab reaches something else`).toBe(true);
+        await control.click();
+        await expect(control, `[REQ-19] the ${tab} tab did not take the click`).toHaveAttribute('aria-selected', 'true');
+
+        // Whatever the tab draws, it draws something with a box, inside the dialog's own width.
+        const overflow = await detail.evaluate((element) => {
+          const rect = element.getBoundingClientRect();
+          const widest = Array.from(element.querySelectorAll('*')).reduce((worst, child) => {
+            const box = child.getBoundingClientRect();
+            return box.width > 0 ? Math.max(worst, box.right) : worst;
+          }, 0);
+          return { right: rect.right, widest, scrollWidth: element.scrollWidth, clientWidth: element.clientWidth };
+        });
+        expect(
+          overflow.scrollWidth,
+          `[REQ-19] the ${tab} tab scrolls sideways inside the dialog: ${overflow.scrollWidth} against ${overflow.clientWidth}`,
+        ).toBeLessThanOrEqual(overflow.clientWidth + 1);
+      }
+
+      // The terminal is drawn and reaches a pointer: the Exec tab's own host, not a stand-in.
+      await detail.getByRole('tab', { name: 'Exec', exact: true }).click();
+      const launch = await boxOf('the Exec launch action', detail.getByRole('button', { name: 'Launch session' }));
+      expect(launch.width, 'the Exec launch action is clipped to nothing').toBeGreaterThan(0);
+      expect(launch.hitsItself, 'a pointer aimed at the Exec launch action reaches something else').toBe(true);
+
+      // And the page itself is not made to scroll sideways by any of it.
+      const document_ = await page.evaluate(() => ({
+        scrollWidth: document.documentElement.scrollWidth,
+        clientWidth: document.documentElement.clientWidth,
+      }));
+      expect(
+        document_.scrollWidth,
+        `[REQ-19] the page scrolls sideways at 375px: ${document_.scrollWidth} against ${document_.clientWidth}`,
+      ).toBeLessThanOrEqual(document_.clientWidth + 1);
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+
   // plan-ui-coherence-optimisation/REQ-65 — "The container detail panel is the primitive, with its
   // tabs (Logs, Stats, Config, Processes, Inspect, Exec, Attach) and its two-column property grid
   // preserved, and with REQ-60 applied to its empty `Labels` section."

@@ -1,14 +1,19 @@
 import { expect, test, type Page } from './support/test.js';
 import { anonymousVolumes, openApp, ownershipArgs, removeAnonymousVolumesSince } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { boxOf } from './support/settled.js';
 import {
   chooseCardAction,
+  closeContainerDetail,
   containerCard,
   containerCards,
   containerDetail,
+  containerDetailCloseControl,
+  detailControl,
+  detailOwner,
+  dismissContainerDetailByScrim,
   openContainerDetail,
   overflowTrigger,
-  panelOwner,
 } from './support/container-cards.js';
 
 // A tiny, already-cached image whose entrypoint is overridden to `sleep` so the
@@ -28,6 +33,18 @@ function menuEntry(page: Page, label: string) {
 async function openOverflow(page: Page, name: string) {
   await overflowTrigger(page, name).click();
   await expect(page.getByRole('menu', { name: `More actions for ${name}`, exact: true })).toBeVisible();
+}
+
+/**
+ * The dialog's box, **once it has stopped moving**. The dialog is the size of its content and the
+ * Config tab's inspect data arrives after the dialog does, so a box read the instant it opens is a
+ * box of another layout — which is how a comparison across a keystroke ends up reporting the
+ * content's arrival as a displacement.
+ */
+async function settledDialogBox(page: Page) {
+  const detail = containerDetail(page);
+  await expect(detail.getByRole('button', { name: 'Edit configuration' })).toBeVisible({ timeout: 20_000 });
+  return await boxOf(detail, 'the container detail dialog');
 }
 
 test.beforeEach(async ({ page }) => {
@@ -245,8 +262,10 @@ test('the card menu closes on Escape, on an outside click and on choosing an ent
 });
 
 // plan-docker_management_app/REQ-24, plan-docker_management_app-container_row_actions/REQ-13 — dismissing the menu by
-// clicking outside it does not swallow that click: selecting a card still opens its detail panel
-test('an outside click that lands on a card closes the menu and still selects that card', async ({ page }) => {
+// clicking outside it does not swallow that click. The card body is no longer a gesture
+// (detail_modal/REQ-6), so what the outside click has to still reach is the card's detail control:
+// one click, the menu gone and the detail open.
+test('an outside click that lands on the detail control closes the menu and still opens the detail', async ({ page }) => {
   const name = `vexel-e2e-outside-${Date.now()}`;
   try {
     await createSleepingContainer(name);
@@ -254,7 +273,7 @@ test('an outside click that lands on a card closes the menu and still selects th
     await expect(card).toBeVisible({ timeout: 15_000 });
 
     await openOverflow(page, name);
-    await card.getByText(name, { exact: true }).click();
+    await detailControl(page, name).click();
 
     await expect(page.getByRole('menu')).toHaveCount(0);
     await expect(containerDetail(page)).toBeVisible();
@@ -466,15 +485,21 @@ test('searching narrows the list to containers whose name matches the search tex
   }
 });
 
-// The panel has no close control: the card that opened it closes it, and so does `Escape`
-// (plan-docker_management_app-container_detail_close/REQ-19). Serial, the list re-reading under it.
-test.describe('Container detail panel dismissal (REQ-1, REQ-3, REQ-4, REQ-5, REQ-7, REQ-9, REQ-12, REQ-16)', () => {
+// The detail is a dialog now, with exactly two ways out — its own labelled close control and a
+// click on the dimmed area beside it — and `Escape` is not one of them
+// (`plan-docker_management_app-containers_card_view-detail_modal/REQ-10`, `REQ-11`, `REQ-13`,
+// `REQ-17`). Every delivered check of this describe is restated against those two routes rather
+// than dropped: the `Escape` ones say what now holds, the card-re-selection one is the close
+// control, and the geometry the move is judged on is asserted beside the content.
+// Serial, the list re-reading under it.
+test.describe('Container detail dialog dismissal (REQ-3, REQ-10, REQ-11, REQ-13, REQ-16, REQ-17)', () => {
   test.describe.configure({ mode: 'serial' });
 
-  // plan-docker_management_app-container_detail_close/REQ-1, REQ-2, REQ-3, REQ-12 — the panel offers no close control,
-  // its card is visibly the selected one, and selecting that card again closes it
-  test('the open panel carries no close control, its card is the selected one, and re-selecting that card closes it', async ({ page }) => {
-    const name = `vexel-e2e-close-row-${Date.now()}`;
+  // detail_modal/REQ-10, REQ-16, REQ-17 — one labelled control, which dismisses the dialog and
+  // hands the point of interaction back to the control that opened it. Restates the delivered
+  // "the panel carries no close control, its card is the selected one, re-selecting closes it".
+  test('the dialog names its container, carries one close control, and hands the focus back on dismissal', async ({ page }) => {
+    const name = `vexel-e2e-close-dialog-${Date.now()}`;
     try {
       await createSleepingContainer(name);
       const card = containerCard(page, name);
@@ -484,53 +509,84 @@ test.describe('Container detail panel dismissal (REQ-1, REQ-3, REQ-4, REQ-5, REQ
       const detail = containerDetail(page);
       await expect(detail).toBeVisible();
 
-      // Gone from the rendered interface — not hidden, not disabled, not moved.
-      await expect(page.getByRole('button', { name: 'Close detail' })).toHaveCount(0);
-      await expect(detail.locator('.ui-detail-panel__close')).toHaveCount(0);
-      // The bond to the card is visible without acting (REQ-12).
-      await expect(card).toHaveClass(/ui-surface--selected/);
-      expect(await panelOwner(page)).toContain(name);
+      // The identity is on the dialog itself, not by proximity to a card (REQ-16).
+      expect(await detailOwner(page)).toBe(`Container — ${name}`);
+      await expect(containerDetailCloseControl(page)).toHaveCount(1);
+      // No card marks itself as the one whose detail is open (REQ-8).
+      await expect(page.locator('.ui-surface--selected')).toHaveCount(0);
 
-      await openContainerDetail(page, name);
+      await closeContainerDetail(page);
 
-      await expect(detail).toHaveCount(0);
-      await expect(card).not.toHaveClass(/ui-surface--selected/);
+      await expect(detailControl(page, name)).toBeFocused();
     } finally {
       await removeContainerQuietly(name);
     }
   });
 
-  // plan-docker_management_app-container_detail_close/REQ-4 — selecting a different card leaves the panel open and
-  // re-points it at the newly selected container
-  test('selecting another card keeps the panel open on that other container', async ({ page }) => {
-    const stem = `vexel-e2e-repoint-${Date.now()}`;
-    const first = `${stem}-a`;
-    const second = `${stem}-b`;
+  // detail_modal/REQ-13, REQ-17 — the dimmed area is the other way out, and it returns the point of
+  // interaction the same way.
+  test('a click on the dimmed area dismisses the dialog and hands the focus back too', async ({ page }) => {
+    const name = `vexel-e2e-scrim-${Date.now()}`;
     try {
-      await createSleepingContainer(first);
-      await createSleepingContainer(second);
-      await page.getByPlaceholder('Search name, image or state…').fill(stem);
-      await expect(containerCard(page, first)).toBeVisible({ timeout: 15_000 });
-      await expect(containerCard(page, second)).toBeVisible({ timeout: 15_000 });
+      await createSleepingContainer(name);
+      await expect(containerCard(page, name)).toBeVisible({ timeout: 15_000 });
 
-      await openContainerDetail(page, first);
+      await openContainerDetail(page, name);
       await expect(containerDetail(page)).toBeVisible();
 
-      await openContainerDetail(page, second);
+      await dismissContainerDetailByScrim(page);
 
-      await expect(containerDetail(page)).toHaveCount(1);
-      await expect.poll(async () => panelOwner(page), { timeout: 10_000 }).toContain(second);
-      await expect(containerCard(page, second)).toHaveClass(/ui-surface--selected/);
-      await expect(containerCard(page, first)).not.toHaveClass(/ui-surface--selected/);
+      await expect(detailControl(page, name)).toBeFocused();
     } finally {
-      await removeContainerQuietly(first);
-      await removeContainerQuietly(second);
+      await removeContainerQuietly(name);
     }
   });
 
-  // plan-docker_management_app-container_detail_close/REQ-5, REQ-6 — Escape closes the panel, including from a control
-  // inside the panel's own contents
-  test('Escape closes the panel, from the screen and from inside the panel itself', async ({ page }) => {
+  // detail_modal/REQ-1, REQ-2, REQ-3, REQ-29 — the detail is drawn over the screen and not inside
+  // the list: no card moves, the list does not scroll, and the dialog's own box is measured rather
+  // than its content counted. Restates the delivered "the panel spans the grid" placement check,
+  // whose subject has gone.
+  test('the dialog stands over the list, which does not move while it opens and closes', async ({ page }) => {
+    const stem = `vexel-e2e-dialog-geometry-${Date.now()}`;
+    const names = ['a', 'b', 'c', 'd'].map((suffix) => `${stem}-${suffix}`);
+    try {
+      for (const name of names) await createSleepingContainer(name);
+      await page.getByPlaceholder('Search name, image or state…').fill(stem);
+      await expect(containerCards(page)).toHaveCount(names.length, { timeout: 20_000 });
+
+      const before = await listGeometry(page);
+
+      await openContainerDetail(page, names[0]);
+      const detail = containerDetail(page);
+      await expect(detail).toBeVisible();
+
+      const dialogBox = await settledDialogBox(page);
+      const viewport = page.viewportSize()!;
+      expect(dialogBox.width, 'the dialog has no width of its own').toBeGreaterThan(0);
+      expect(dialogBox.x, 'the dialog starts left of the viewport').toBeGreaterThanOrEqual(-0.5);
+      expect(dialogBox.x + dialogBox.width, 'the dialog runs off the right of the viewport').toBeLessThanOrEqual(viewport.width + 0.5);
+      expect(dialogBox.height, 'the dialog is taller than the viewport').toBeLessThanOrEqual(viewport.height + 0.5);
+
+      // Not a grid item: no expansion, and nothing of the detail inside the list's own grid.
+      await expect(page.locator('.ui-grid__span-full')).toHaveCount(0);
+      await expect(page.locator('.ui-frame__content .ui-detail-panel')).toHaveCount(0);
+      expect(await detail.evaluate((element) => element.closest('.ui-grid--cards') !== null)).toBe(false);
+
+      const during = await listGeometry(page);
+      expect(during, 'a card moved, changed height or the list scrolled while the dialog opened').toEqual(before);
+
+      await closeContainerDetail(page);
+
+      expect(await listGeometry(page), 'the list did not go back exactly where it was').toEqual(before);
+    } finally {
+      for (const name of names) await removeContainerQuietly(name);
+    }
+  });
+
+  // detail_modal/REQ-11 — `Escape` leaves the dialog standing, and nothing on the screen it covers
+  // is dismissed behind it. **This is the one thing the operator could do before and cannot now**:
+  // the delivered check had the key close the inline panel, and it is restated rather than dropped.
+  test('Escape leaves the dialog standing, from the screen and from inside the dialog itself', async ({ page }) => {
     const name = `vexel-e2e-escape-${Date.now()}`;
     try {
       await createSleepingContainer(name);
@@ -539,60 +595,77 @@ test.describe('Container detail panel dismissal (REQ-1, REQ-3, REQ-4, REQ-5, REQ
 
       await openContainerDetail(page, name);
       await expect(detail).toBeVisible();
-      await page.keyboard.press('Escape');
-      await expect(detail).toHaveCount(0);
+      // Measured across the keystroke alone: the dialog is the size of its content, so a tab change
+      // legitimately changes its height and a box read across one would answer another question.
+      const onConfig = await settledDialogBox(page);
 
-      // Again, this time with the focus on a control the operator reached inside the panel.
-      await openContainerDetail(page, name);
+      await page.keyboard.press('Escape');
+
       await expect(detail).toBeVisible();
+      expect(await boxOf(detail, 'the container detail dialog'), 'the key moved the dialog instead of leaving it alone').toEqual(
+        onConfig,
+      );
+
+      // Again, this time with the focus on a control the operator reached inside the dialog.
       await detail.getByRole('tab', { name: 'Inspect' }).click();
       await expect(detail.getByRole('tab', { name: 'Inspect' })).toBeFocused();
+      const onInspect = await boxOf(detail, 'the container detail dialog');
 
       await page.keyboard.press('Escape');
 
-      await expect(detail).toHaveCount(0);
+      await expect(detail).toBeVisible();
+      await expect(detail.getByRole('tab', { name: 'Inspect' })).toHaveAttribute('aria-selected', 'true');
+      expect(await boxOf(detail, 'the container detail dialog'), 'the key moved the dialog instead of leaving it alone').toEqual(
+        onInspect,
+      );
+
+      await closeContainerDetail(page);
     } finally {
       await removeContainerQuietly(name);
     }
   });
 
-  // plan-docker_management_app-container_detail_close/REQ-7 — Escape is arbitrated innermost-first: an open card menu
-  // takes the key and closes alone, the panel takes the next one
-  test('with the card menu open, Escape closes only the menu and the next one closes the panel', async ({ page }) => {
+  // detail_modal/REQ-11 — an open card menu still takes the key and closes alone; the next one
+  // reaches the dialog, which does nothing with it. Restates the delivered innermost-first check
+  // (plan-docker_management_app-container_detail_close/REQ-7) on the half of it that survives.
+  test('with the card menu open over the dialog, Escape closes only the menu and the next one closes nothing', async ({ page }) => {
     const name = `vexel-e2e-escape-menu-${Date.now()}`;
     try {
       await createSleepingContainer(name);
       await expect(containerCard(page, name)).toBeVisible({ timeout: 15_000 });
       const detail = containerDetail(page);
 
+      // The menu is opened first: with the dialog standing over the screen, the card's own control
+      // is behind the scrim and out of a pointer's reach.
+      await openOverflow(page, name);
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('menu')).toHaveCount(0);
+
       await openContainerDetail(page, name);
       await expect(detail).toBeVisible();
-      await openOverflow(page, name);
 
       await page.keyboard.press('Escape');
 
+      await expect(detail, 'Escape closed the dialog').toBeVisible();
       await expect(page.getByRole('menu')).toHaveCount(0);
-      await expect(detail).toBeVisible();
 
-      await page.keyboard.press('Escape');
-
-      await expect(detail).toHaveCount(0);
+      await closeContainerDetail(page);
     } finally {
       await removeContainerQuietly(name);
     }
   });
 
-  // plan-docker_management_app-container_detail_close/REQ-9 — while a confirmation is open over the screen, Escape
-  // dismisses the panel behind it; what the dialog does with the key is its own existing behaviour, which is nothing
-  test('with the Remove confirmation open, Escape leaves both the confirmation and the panel as they were', async ({ page }) => {
+  // detail_modal/REQ-11, REQ-14 — with a confirmation open over the dialog, `Escape` leaves both
+  // exactly as they were: the confirmation claims the key innermost and does nothing with it, and
+  // nothing behind it is dismissed either.
+  test('with the Remove confirmation open, Escape leaves both the confirmation and the dialog as they were', async ({ page }) => {
     const name = `vexel-e2e-escape-dialog-${Date.now()}`;
     try {
       await createSleepingContainer(name);
       await expect(containerCard(page, name)).toBeVisible({ timeout: 15_000 });
       const detail = containerDetail(page);
 
-      await openContainerDetail(page, name);
-      await expect(detail).toBeVisible();
+      // The card's menu is reachable while nothing covers it; the detail is opened after it.
       await chooseCardAction(page, name, 'Remove');
       const confirmHeading = page.getByRole('heading', { name: `Confirm: ${name}` });
       await expect(confirmHeading).toBeVisible();
@@ -600,21 +673,27 @@ test.describe('Container detail panel dismissal (REQ-1, REQ-3, REQ-4, REQ-5, REQ
       await page.keyboard.press('Escape');
 
       await expect(confirmHeading).toBeVisible();
-      await expect(detail).toBeVisible();
 
       // The confirmation is closed the way it is meant to be, leaving the container in place.
       await page.locator('.ui-modal').filter({ has: confirmHeading }).getByRole('button', { name: 'Cancel' }).click();
       await expect(confirmHeading).toHaveCount(0);
+
+      await openContainerDetail(page, name);
       await expect(detail).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(detail).toBeVisible();
+
+      await closeContainerDetail(page);
     } finally {
       await removeContainerQuietly(name);
     }
   });
 
-  // plan-docker_management_app-container_detail_close/REQ-16 — a search that excludes the selected container takes its
-  // card and its panel off screen together, and clearing it brings both back as they were
-  test('a search that excludes the selected container hides its card and its panel, and clearing it restores both', async ({ page }) => {
-    const name = `vexel-e2e-escape-filter-${Date.now()}`;
+  // detail_modal/REQ-32 — a search that narrows the cards behind the dialog is not a dismissal: the
+  // dialog is bound to its container by id, read from the whole list. Restates the delivered check
+  // that had the card and its panel go off screen together.
+  test('a search that excludes the open container narrows the list and leaves the dialog standing', async ({ page }) => {
+    const name = `vexel-e2e-filter-${Date.now()}`;
     try {
       await createSleepingContainer(name);
       await expect(containerCard(page, name)).toBeVisible({ timeout: 15_000 });
@@ -624,25 +703,29 @@ test.describe('Container detail panel dismissal (REQ-1, REQ-3, REQ-4, REQ-5, REQ
       await openContainerDetail(page, name);
       await expect(detail).toBeVisible();
 
+      // The dialog covers the toolbar, so the field is reached by its own handle rather than by a
+      // pointer: what is under test is the filter, not how it is typed into.
       await search.fill(`${name}-excluded-by-this-search`);
 
       await expect(containerCard(page, name)).toHaveCount(0);
-      await expect(detail).toHaveCount(0);
+      await expect(detail, 'a filter behind the dialog dismissed it').toBeVisible();
+      expect(await detailOwner(page)).toBe(`Container — ${name}`);
 
       await search.fill('');
 
       await expect(containerCard(page, name)).toBeVisible();
       await expect(detail).toBeVisible();
-      expect(await panelOwner(page)).toContain(name);
-      await expect(containerCard(page, name)).toHaveClass(/ui-surface--selected/);
+      expect(await detailOwner(page)).toBe(`Container — ${name}`);
+
+      await closeContainerDetail(page);
     } finally {
       await removeContainerQuietly(name);
     }
   });
 
-  // plan-docker_management_app-container_detail_close/REQ-10 — with no panel open, Escape changes nothing about what is
-  // selected, filtered or displayed on the screen
-  test('with no panel open, Escape changes nothing on the screen', async ({ page }) => {
+  // plan-docker_management_app-container_detail_close/REQ-10 — with no detail open, Escape changes
+  // nothing about what is filtered or displayed on the screen, and no card is marked.
+  test('with no detail open, Escape changes nothing on the screen', async ({ page }) => {
     const name = `vexel-e2e-escape-idle-${Date.now()}`;
     try {
       await createSleepingContainer(name);
@@ -665,46 +748,82 @@ test.describe('Container detail panel dismissal (REQ-1, REQ-3, REQ-4, REQ-5, REQ
     }
   });
 
-  // ui-library/specs/frame.md — the phone navigation drawer is a claimant like any other: one Escape closes the drawer
-  // and leaves the panel open, the next one closes the panel (REQ-7)
-  test('with the phone navigation drawer open over the panel, Escape closes only the drawer', async ({ page }) => {
+  // ui-library/specs/frame.md, detail_modal/REQ-11 — the delivered check had the drawer take the
+  // first Escape and the inline panel the second. The second half is unreachable now and is
+  // **restated rather than dropped**: with the dialog standing, the drawer's own trigger is behind
+  // the scrim — measured, not assumed — so nothing opens over the dialog at all, and the key leaves
+  // it standing. The half that survives is checked on its own: the drawer still takes the key.
+  test('at phone width the drawer still takes Escape, and nothing opens over the standing dialog', async ({ page }) => {
     const name = `vexel-e2e-escape-drawer-${Date.now()}`;
     try {
       await createSleepingContainer(name);
       await expect(containerCard(page, name)).toBeVisible({ timeout: 15_000 });
       const detail = containerDetail(page);
 
-      await openContainerDetail(page, name);
-      await expect(detail).toBeVisible();
-
       // Below the phone breakpoint, which is the only place the drawer exists at
       // all: above it the rail is docked and claims nothing.
       await page.setViewportSize({ width: 390, height: 844 });
-      await expect(detail).toBeVisible();
 
+      // The half that survives: with no dialog open, the drawer opens and the key closes it.
       await page.getByRole('button', { name: 'Open navigation' }).click();
       await expect(page.locator('.ui-frame__rail--open')).toBeVisible();
-
       await page.keyboard.press('Escape');
-
       await expect(page.locator('.ui-frame__rail--open')).toHaveCount(0);
+
+      await openContainerDetail(page, name);
       await expect(detail).toBeVisible();
 
+      // The trigger is where it was and is covered by the dialog's scrim: a pointer aimed at its own
+      // centre reaches the scrim, so the drawer is not a surface that can stand over this dialog.
+      const covering = await page.getByRole('button', { name: 'Open navigation' }).evaluate((element) => {
+        const rect = element.getBoundingClientRect();
+        const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+        return { reachesItself: hit !== null && element.contains(hit), hit: hit?.className ?? null };
+      });
+      expect(covering.reachesItself, `the drawer trigger is reachable over the open dialog; a pointer reaches "${covering.hit}"`).toBe(
+        false,
+      );
+      expect(covering.hit, 'the surface covering the drawer trigger is not the dialog’s own scrim').toContain('ui-modal-overlay');
+
+      const before = await settledDialogBox(page);
       await page.keyboard.press('Escape');
 
-      await expect(detail).toHaveCount(0);
+      await expect(detail).toBeVisible();
+      await expect(page.locator('.ui-frame__rail--open')).toHaveCount(0);
+      expect(await boxOf(detail, 'the container detail dialog'), 'the key moved the dialog instead of leaving it alone').toEqual(
+        before,
+      );
+
+      await closeContainerDetail(page);
     } finally {
       await removeContainerQuietly(name);
     }
   });
 });
 
-// Serial: these tests hold a panel open across several steps, and the list re-reads under them.
-test.describe('Container detail panel (REQ-24, REQ-25, REQ-26)', () => {
+/**
+ * Where every card of the list stands, and how far the list is scrolled — the reading a claim of
+ * "nothing moved" has to be made of (CLAUDE.md, "What a check drives, and what it measures").
+ */
+async function listGeometry(page: Page): Promise<string> {
+  return await page.evaluate(() => {
+    const round = (value: number) => Math.round(value * 10) / 10;
+    const scroller = document.querySelector('.ui-frame__content .ui-scroll-area');
+    const cards = Array.from(document.querySelectorAll('.ui-frame__content .ui-grid--cards > .ui-surface')).map((card) => {
+      const rect = card.getBoundingClientRect();
+      return `${(card.querySelector('.ui-section-header__title')?.textContent ?? '').trim()}@${round(rect.x)},${round(rect.y)} ${round(rect.width)}x${round(rect.height)}`;
+    });
+    return JSON.stringify({ scrollTop: round(scroller?.scrollTop ?? 0), windowScrollY: round(window.scrollY), cards });
+  });
+}
+
+// Serial: these tests hold the detail open across several steps, and the list re-reads under them.
+test.describe('Container detail dialog (REQ-24, REQ-25, REQ-26)', () => {
   test.describe.configure({ mode: 'serial' });
 
-  // plan-docker_management_app/REQ-24 — selecting a container opens a detail view with its inspect data organised in tabs
-  test('selecting a container card opens its detail panel with Config and Inspect tabs', async ({ page }) => {
+  // plan-docker_management_app/REQ-24 — the detail view carries the container's inspect data
+  // organised in tabs; it is reached from the card's own control now (detail_modal/REQ-5).
+  test('the card’s control opens its detail with Config and Inspect tabs', async ({ page }) => {
     const name = `vexel-e2e-detail-${Date.now()}`;
     try {
       await createSleepingContainer(name);
@@ -817,6 +936,235 @@ test.describe('Container detail panel (REQ-24, REQ-25, REQ-26)', () => {
 
       await expect(page.locator('.ui-toast-viewport')).toContainText('Container recreated', { timeout: 15_000 });
       await expect(containerCard(page, name)).toBeVisible({ timeout: 15_000 });
+    } finally {
+      await removeContainerQuietly(name);
+      await removeAnonymousVolumesSince(volumesBefore);
+    }
+  });
+});
+
+/**
+ * The four things that can happen to a container while its detail stands over the screen, driven
+ * against the real daemon (`plan-docker_management_app-containers_card_view-detail_modal/REQ-32`,
+ * `REQ-33`, `REQ-34`, `REQ-35`, `REQ-36`). Serial: each holds the dialog open while the list
+ * re-reads under it.
+ */
+test.describe('Container detail dialog, bound to its container (REQ-32, REQ-33, REQ-34, REQ-35, REQ-36)', () => {
+  test.describe.configure({ mode: 'serial' });
+
+  /** The statement the dialog draws where its tabs were, when the container has ceased to exist. */
+  function detailEndState(page: Page) {
+    return containerDetail(page).locator('.ui-empty-state__title', { hasText: 'This container no longer exists' });
+  }
+
+  /**
+   * What a **centred, content-sized** surface keeps when its content merely changes, and loses the
+   * moment anything drags it: the same reading `support/surface-stability.ts` takes across a click,
+   * taken here across a daemon event.
+   */
+  function centreOf(box: { x: number; y: number; width: number; height: number }) {
+    return { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
+  }
+
+  /** The list region — where the point of interaction lands when the card that opened the dialog has gone. */
+  function listRegion(page: Page) {
+    return page.locator('.ui-frame__content .ui-grid--cards');
+  }
+
+  /** Opens the detail and settles it, then moves to one tab and settles the box the event is measured against. */
+  async function openDetailOn(page: Page, name: string, tab: string) {
+    await openContainerDetail(page, name);
+    await settledDialogBox(page);
+    const detail = containerDetail(page);
+    await detail.getByRole('tab', { name: tab }).click();
+    await expect(detail.getByRole('tab', { name: tab })).toHaveAttribute('aria-selected', 'true');
+    return await boxOf(detail, 'the container detail dialog');
+  }
+
+  // detail_modal/REQ-33, REQ-34, REQ-36 — removed by someone else on the same daemon: the dialog
+  // states it in place, keeps its chrome, and its close control leaves the operator on the list.
+  test('a container removed from outside the application is stated on the dialog, which stays where it is', async ({ page }) => {
+    const name = `vexel-e2e-detail-removed-${Date.now()}`;
+    try {
+      await createSleepingContainer(name);
+      await expect(containerCard(page, name)).toBeVisible({ timeout: 15_000 });
+      const detail = containerDetail(page);
+      const before = await openDetailOn(page, name, 'Logs');
+
+      // Removed by another client of the same daemon, exactly as the requirement puts it.
+      await execFileAsync('docker', ['rm', '-fv', name]);
+
+      await expect(detailEndState(page), 'the dialog closed silently or sat on data that had stopped').toBeVisible({
+        timeout: 20_000,
+      });
+      await expect(containerCard(page, name)).toHaveCount(0);
+      // In place of the tabs: nothing of the detail is left running behind the statement.
+      await expect(detail.getByRole('tab')).toHaveCount(0);
+      // The chrome is kept, so the dialog still names what it belonged to and still has its way out.
+      expect(await detailOwner(page)).toBe(`Container — ${name}`);
+      await expect(containerDetailCloseControl(page)).toHaveCount(1);
+      await expect(detail.locator('.ui-empty-state__description')).not.toBeEmpty();
+
+      const after = await boxOf(detail, 'the container detail dialog');
+      expect(
+        centreOf(after),
+        `the dialog was dragged when its container was removed: from (${JSON.stringify(before)}) to (${JSON.stringify(after)})`,
+      ).toEqual(centreOf(before));
+      const viewport = page.viewportSize()!;
+      expect(after.y, 'the dialog was carried above the top of the viewport').toBeGreaterThanOrEqual(-0.5);
+      expect(after.y + after.height, 'the dialog was carried below the viewport').toBeLessThanOrEqual(viewport.height + 0.5);
+
+      await closeContainerDetail(page);
+
+      // The card that opened it left with the container, so the list region takes the focus (REQ-36).
+      await expect(listRegion(page), 'the point of interaction was left on a control that no longer exists').toBeFocused();
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+
+  // detail_modal/REQ-34 — the other way out works there too: nothing strands the operator in the
+  // stated end state.
+  test('the stated end state is dismissed by a click on the dimmed area as well', async ({ page }) => {
+    const name = `vexel-e2e-detail-removed-scrim-${Date.now()}`;
+    try {
+      await createSleepingContainer(name);
+      await expect(containerCard(page, name)).toBeVisible({ timeout: 15_000 });
+      await openDetailOn(page, name, 'Logs');
+
+      await execFileAsync('docker', ['rm', '-fv', name]);
+      await expect(detailEndState(page)).toBeVisible({ timeout: 20_000 });
+
+      await dismissContainerDetailByScrim(page);
+
+      await expect(listRegion(page)).toBeFocused();
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+
+  // detail_modal/REQ-32 — a container dropping out of the *filtered* list has not gone anywhere:
+  // same container, same tab, no statement of a disappearance.
+  test('a container stopped out of the running filter leaves its dialog open on the same tab', async ({ page }) => {
+    const name = `vexel-e2e-detail-filtered-out-${Date.now()}`;
+    try {
+      await createSleepingContainer(name);
+      await expect(containerCard(page, name)).toBeVisible({ timeout: 15_000 });
+      await page.getByPlaceholder('Search name, image or state…').fill(name);
+      await page.getByRole('button', { name: 'Running' }).click();
+      await expect(containerCard(page, name)).toBeVisible();
+
+      const detail = containerDetail(page);
+      const before = await openDetailOn(page, name, 'Stats');
+
+      // Stopped from outside the application: it drops out of the filtered list behind the dialog.
+      await execFileAsync('docker', ['stop', '-t', '0', name]);
+
+      await expect(containerCard(page, name), 'the container never left the filtered list').toHaveCount(0, { timeout: 20_000 });
+      await expect(detail, 'a filter behind the dialog dismissed it').toBeVisible();
+      await expect(detailEndState(page), 'a filtered-out container was stated as no longer existing').toHaveCount(0);
+      expect(await detailOwner(page)).toBe(`Container — ${name}`);
+      await expect(detail.getByRole('tab', { name: 'Stats' })).toHaveAttribute('aria-selected', 'true');
+
+      const after = await boxOf(detail, 'the container detail dialog');
+      expect(centreOf(after), 'the dialog was dragged when its container left the filtered list').toEqual(centreOf(before));
+
+      await closeContainerDetail(page);
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+
+  // detail_modal/REQ-32 — a list re-read that moves and redraws the cards is not a dismissal
+  // either: the bond is to the container, not to the row it happens to occupy.
+  test('a list re-read that moves the cards behind the dialog leaves it untouched', async ({ page }) => {
+    const stem = `vexel-e2e-detail-reread-${Date.now()}`;
+    const opened = `${stem}-b`;
+    const arriving = `${stem}-a`;
+    try {
+      await createSleepingContainer(opened);
+      await page.getByPlaceholder('Search name, image or state…').fill(stem);
+      await expect(containerCards(page)).toHaveCount(1, { timeout: 20_000 });
+
+      const detail = containerDetail(page);
+      const before = await openDetailOn(page, opened, 'Inspect');
+      const cardBefore = await boxOf(containerCard(page, opened), `the card of ${opened}`);
+
+      // A daemon event the list re-reads on, landing a card ahead of the open one.
+      await createSleepingContainer(arriving);
+
+      await expect(containerCards(page)).toHaveCount(2, { timeout: 20_000 });
+      const cardAfter = await boxOf(containerCard(page, opened), `the card of ${opened}`);
+      expect(
+        { x: Math.round(cardAfter.x), y: Math.round(cardAfter.y) },
+        'the re-read did not move the open container’s card, so this proves nothing',
+      ).not.toEqual({ x: Math.round(cardBefore.x), y: Math.round(cardBefore.y) });
+
+      await expect(detail, 'a list re-read behind the dialog dismissed it').toBeVisible();
+      await expect(detailEndState(page)).toHaveCount(0);
+      expect(await detailOwner(page)).toBe(`Container — ${opened}`);
+      await expect(detail.getByRole('tab', { name: 'Inspect' })).toHaveAttribute('aria-selected', 'true');
+
+      const after = await boxOf(detail, 'the container detail dialog');
+      expect(after, 'the dialog moved or was resized by a re-read of the list behind it').toEqual(before);
+
+      await closeContainerDetail(page);
+    } finally {
+      await removeContainerQuietly(opened);
+      await removeContainerQuietly(arriving);
+    }
+  });
+
+  // detail_modal/REQ-35 — a configuration change that recreates the container is not a
+  // disappearance: the dialog follows it onto the new container, and states nothing in between.
+  test('a recreate through the Config tab keeps the dialog open and follows it onto the new container', async ({ page }) => {
+    const name = `vexel-e2e-detail-recreate-${Date.now()}`;
+    // The recreate keeps the replaced container's volumes, so the orphan is this test's to remove.
+    const volumesBefore = await anonymousVolumes();
+    try {
+      await createSleepingContainer(name, ['-e', 'FOO=bar']);
+      await expect(containerCard(page, name)).toBeVisible({ timeout: 15_000 });
+      const idBefore = (await execFileAsync('docker', ['inspect', '-f', '{{.Id}}', name])).stdout.trim();
+
+      await openContainerDetail(page, name);
+      const detail = containerDetail(page);
+      await settledDialogBox(page);
+      await detail.getByRole('button', { name: 'Edit configuration' }).click();
+      await detail.getByRole('textbox', { name: 'Value 1' }).fill('baz');
+      await detail.getByRole('button', { name: 'Save changes' }).click();
+
+      const confirmHeading = page.getByRole('heading', { name: `Confirm: ${name}` });
+      await expect(confirmHeading).toBeVisible();
+      await page.locator('.ui-modal').filter({ has: confirmHeading }).getByRole('button', { name: 'Recreate container' }).click();
+
+      // Sampled all the way through the window between the recreate and the refreshed list: the
+      // end state must never be drawn in it, not even for a frame this poll happens to catch.
+      const statedGone: string[] = [];
+      await expect
+        .poll(
+          async () => {
+            if ((await detailEndState(page).count()) > 0) statedGone.push(new Date().toISOString());
+            return (await page.locator('.ui-toast-viewport').textContent()) ?? '';
+          },
+          { timeout: 20_000 },
+        )
+        .toContain('Container recreated');
+      expect(statedGone, 'the dialog stated a disappearance while the recreate was landing').toEqual([]);
+
+      await expect(containerCard(page, name)).toBeVisible({ timeout: 15_000 });
+      await expect(detail, 'the recreate closed the dialog').toBeVisible();
+      await expect(detailEndState(page), 'the recreate was read as a disappearance').toHaveCount(0);
+      expect(await detailOwner(page)).toBe(`Container — ${name}`);
+
+      // …and it is the *new* container it is showing: the daemon's own id for it, in the payload.
+      const idAfter = (await execFileAsync('docker', ['inspect', '-f', '{{.Id}}', name])).stdout.trim();
+      expect(idAfter, 'the daemon did not recreate the container, so this proves nothing').not.toBe(idBefore);
+      await detail.getByRole('tab', { name: 'Inspect' }).click();
+      await expect
+        .poll(async () => (await detail.locator('.ui-code-viewer__code').last().textContent()) ?? '', { timeout: 20_000 })
+        .toContain(idAfter);
+
+      await closeContainerDetail(page);
     } finally {
       await removeContainerQuietly(name);
       await removeAnonymousVolumesSince(volumesBefore);

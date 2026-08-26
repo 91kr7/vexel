@@ -1,6 +1,8 @@
 import { expect, test, type Locator, type Page } from './support/test.js';
-import { openApp } from './support/fixtures.js';
+import { openApp, ownershipArgs } from './support/fixtures.js';
 import { chooseImageRowAnalysis } from './support/images-screen.js';
+import { containerCard, dismissContainerDetailByScrim, openContainerDetail } from './support/container-cards.js';
+import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 
 /**
@@ -15,8 +17,10 @@ import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.j
  * the required effect, so this is the only place the property can be verified.
  *
  * Non-destructive throughout: every prune and removal dialog it opens is opened
- * to be measured and **cancelled**, never confirmed. It creates no Docker object
- * of its own; the single image it needs is the suite's own locally built one.
+ * to be measured and **cancelled**, never confirmed. The one object it creates is
+ * the container whose detail is the fifth large-format dialog — labelled, never
+ * started, and removed by the test that made it; the single image it needs is the
+ * suite's own locally built one.
  */
 
 /**
@@ -32,9 +36,25 @@ test.use({ viewport: { width: 1280, height: 800 } });
  */
 const ORDINARY_DIALOG_WIDTH = 480;
 
-/** The large format's designed width, likewise untouched by this change (REQ-8): `min(1100px, 92vw)`. */
+/**
+ * The large format's designed width, likewise untouched by this change (REQ-8): `min(1100px, 92vw)`.
+ * The layer explorer and the filesystem browser are held to it; the container detail is **not**, and
+ * has a width of its own below — do not fold the two together.
+ */
 function largeDialogWidth(viewportWidth: number): number {
   return Math.min(1100, viewportWidth * 0.92);
+}
+
+/**
+ * The width the container detail asks for, and only it: the large format's `fluidWidth` modifier,
+ * which goes on following the viewport instead of stopping at 1100px
+ * (`plan-docker_management_app-containers_card_view-detail_modal/REQ-18`, amended by the human on
+ * 2026-08-26 — holding this surface at the constant cost the operator a property column above
+ * roughly 1200px, which REQ-4 makes a defect). Written apart from `largeDialogWidth` on purpose: the
+ * four other large dialogs keep the cap, and one shared helper is how that distinction would be lost.
+ */
+function fluidLargeDialogWidth(viewportWidth: number): number {
+  return viewportWidth * 0.92;
 }
 
 /**
@@ -394,6 +414,95 @@ test('the glass card of the filesystem browser is exactly the size of the dialog
   await dismissThroughTheScrim(page, dialog);
 });
 
+/**
+ * Opens Containers → a card's own detail control: the fifth instance of the `large` format, and the
+ * one this plan puts on it (`plan-docker_management_app-containers_card_view-detail_modal/REQ-18`).
+ *
+ * The fixture is created and **never started** — the detail reads inspect data, and nothing here
+ * needs a process — and it is removed by the caller's `finally`.
+ */
+async function openContainerDetailDialog(page: Page, name: string): Promise<Locator> {
+  await openApp(page, 'containers');
+  await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
+  await page.getByPlaceholder('Search name, image or state…').fill(name);
+  await expect(containerCard(page, name), 'the fixture container never appeared in the list').toBeVisible({ timeout: 20_000 });
+  await openContainerDetail(page, name);
+  const dialog = page.locator('.ui-modal--size-large');
+  await expect(dialog.getByRole('tab', { name: 'Config' })).toBeVisible({ timeout: 20_000 });
+  return dialog;
+}
+
+async function createDetailFixture(name: string): Promise<void> {
+  await ensureImage(TINY_IMAGE);
+  await execFileAsync('docker', ['create', '--name', name, ...ownershipArgs(name), TINY_IMAGE]);
+}
+
+async function removeDetailFixture(name: string): Promise<void> {
+  // `-v`, never a bare `-f`: an anonymous volume the daemon attached outlives the container.
+  await execFileAsync('docker', ['rm', '-fv', name]).catch(() => undefined);
+}
+
+// detail_modal/REQ-18, and dialog_sizing/REQ-1, REQ-2, REQ-10 — the container detail is sized by the
+// delivered dialog rules: the card the size of its content with no band of empty glass beside it,
+// nothing rendered outside it, the height bounded by the viewport and the content scrolling inside
+// the card. Its **width** is the one thing it does not share with the other large dialogs: it goes
+// on following the viewport (REQ-18 as amended on 2026-08-26), which the capped ones do not — and
+// that they still do is asserted, unedited, by the two tests above.
+test('the glass card of the container detail is exactly the size of the dialog it holds, at the large format', async ({ page }) => {
+  const name = `vexel-e2e-dialog-detail-${Date.now()}`;
+  await createDetailFixture(name);
+  try {
+    const dialog = await openContainerDetailDialog(page, name);
+
+    const boxes = await measureOpenDialog(page, '.ui-modal');
+    const designed = fluidLargeDialogWidth(boxes.viewportWidth);
+    console.log(
+      `[REQ-18] container detail at ${boxes.viewportWidth}px: card ${boxes.card.width}px, glass ${boxes.glass.width}px, glass inner ${boxes.glassInner.width}px, content ${boxes.content.width}px, against a designed ${designed}px`,
+    );
+    expectCardIsTheSizeOfItsContent('Containers → container detail', boxes);
+    // The **card** carries the designed width, and the content column is that width less the glass's
+    // own hairline on each side — asserted against the card by `expectCardIsTheSizeOfItsContent`
+    // above rather than against the designed value a second time. `expectDesignedWidth` compares
+    // both to the constant, which is exact only while the constant is an integer: the capped format
+    // is 1100px and lands on it, while `92vw` is fractional and the layout's rounding lands in the
+    // content column. That residue is the browser's, not a band of empty glass.
+    expectLength('Containers → container detail', 'the card is the designed width', boxes.card.width, designed);
+    // …and it is wider than the capped format at this viewport, so the reading above is the fluid
+    // width rather than the constant happening to agree with it.
+    expect(
+      boxes.card.width,
+      `Containers → container detail — the card measures ${boxes.card.width.toFixed(1)}px, which is the capped ${largeDialogWidth(
+        boxes.viewportWidth,
+      ).toFixed(1)}px the other large dialogs keep`,
+    ).toBeGreaterThan(largeDialogWidth(boxes.viewportWidth) + TOLERANCE_PX);
+
+    const viewport = page.viewportSize()!;
+    expect(
+      boxes.card.height,
+      `Containers → container detail — the card measures ${boxes.card.height.toFixed(1)}px against a ${viewport.height}px viewport`,
+    ).toBeLessThanOrEqual(viewport.height + TOLERANCE_PX);
+
+    // The content scrolls inside the card, never on the positioner around it.
+    const scrolling = await page.evaluate(() => {
+      const positioner = document.querySelector('.ui-modal__positioner');
+      const body = document.querySelector('.ui-modal--size-large .ui-modal__body');
+      const overflow = (element: Element | null) =>
+        element === null ? null : { scrollHeight: element.scrollHeight, clientHeight: element.clientHeight };
+      return { positioner: overflow(positioner), body: overflow(body) };
+    });
+    expect(scrolling.positioner, 'the dialog has no positioner').not.toBeNull();
+    expect(
+      scrolling.positioner!.scrollHeight,
+      `Containers → container detail — the positioner scrolls: ${scrolling.positioner!.scrollHeight} against ${scrolling.positioner!.clientHeight}`,
+    ).toBeLessThanOrEqual(scrolling.positioner!.clientHeight + TOLERANCE_PX);
+
+    await dismissContainerDetailByScrim(page);
+    await expect(dialog).toHaveCount(0);
+  } finally {
+    await removeDetailFixture(name);
+  }
+});
+
 // plan-docker_management_app-filesystem_browser_layout/REQ-7, REQ-24 — **a maximum, not a height.**
 // The interior of this dialog now hands its remaining height to the tree; giving the arrangement a
 // height instead of a bound would make the dialog 85vh tall for ever and trade this report's defect
@@ -449,6 +558,24 @@ test.describe('at a phone-width viewport', () => {
     expectInsideTheViewport('Images & layers → Explore layers, phone width', boxes);
 
     await dismissThroughTheScrim(page, dialog);
+  });
+
+  // detail_modal/REQ-18, REQ-19 — the container detail at the width where the screen bounds it: the
+  // card still agrees with its content and stays inside the screen.
+  test('the container detail still fits its card exactly and stays inside the screen', async ({ page }) => {
+    const name = `vexel-e2e-dialog-detail-phone-${Date.now()}`;
+    await createDetailFixture(name);
+    try {
+      await openContainerDetailDialog(page, name);
+
+      const boxes = await measureOpenDialog(page, '.ui-modal');
+      expectCardIsTheSizeOfItsContent('Containers → container detail, phone width', boxes);
+      expectInsideTheViewport('Containers → container detail, phone width', boxes);
+
+      await dismissContainerDetailByScrim(page);
+    } finally {
+      await removeDetailFixture(name);
+    }
   });
 
   // REQ-1, REQ-2, REQ-9 — the re-laid-out large dialog at the width where the screen, and not its

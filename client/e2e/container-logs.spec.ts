@@ -2,7 +2,7 @@ import { expect, test, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { expectBandFillsItsRow, expectBandIsTheHeightOfItsControl, measureSearchBand } from './support/search-band-axis.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
-import { containerCard, containerDetail } from './support/container-cards.js';
+import { containerDetail, openContainerDetail } from './support/container-cards.js';
 
 // A tiny, already-cached image whose entrypoint is overridden to `sh`: the
 // container prints one line on each stream, then keeps ticking so the tail is
@@ -32,14 +32,8 @@ async function removeContainerQuietly(name: string): Promise<void> {
   await execFileAsync('docker', ['rm', '-fv', name]).catch(() => undefined);
 }
 
-function containerRow(page: Page, name: string) {
-  return containerCard(page, name);
-}
-
 async function openLogsTab(page: Page, name: string) {
-  const row = containerRow(page, name);
-  await expect(row).toBeVisible({ timeout: 15_000 });
-  await row.getByText(name, { exact: true }).click();
+  await openContainerDetail(page, name);
   const detail = containerDetail(page);
   await expect(detail).toBeVisible();
   await detail.getByRole('tab', { name: 'Logs' }).click();
@@ -112,6 +106,57 @@ test.describe('Container logs (REQ-30, REQ-31)', () => {
       const firstTimestamp = detail.locator('.ui-log-stream__timestamp').first();
       await expect(firstTimestamp).toBeVisible({ timeout: 15_000 });
       await expect(firstTimestamp).toHaveText(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+    } finally {
+      await removeContainerQuietly(name);
+    }
+  });
+
+  // detail_modal/REQ-20, REQ-21 — the log stream's floating jump-to-live control still blurs the
+  // lines beneath it inside the dialog, and is not repaired by adding anything to the allow-list.
+  //
+  // This is the case CLAUDE.md's blur section names: an element carrying `backdrop-filter` becomes
+  // the backdrop root of everything inside it, and in Chromium a nested one renders nothing at all.
+  // The dialog above this control carries the overlay material, so a build that moved the blur off
+  // the surface's own `::before` layer would leave the lines under this control sharp — an absence
+  // no content assertion can see.
+  test('the jump-to-live control still blurs the lines under it inside the dialog', async ({ page }) => {
+    const name = `vexel-e2e-logs-jump-${Date.now()}`;
+    try {
+      await createBulkLoggingContainer(name, 400);
+      const detail = await openLogsTab(page, name);
+      await expect(detail.getByText('bulk-400', { exact: true })).toBeVisible({ timeout: 20_000 });
+
+      // Scrolled back from the live edge, which is the only state the control exists in.
+      await detail.locator('.ui-log-stream__surface .ui-scroll-area').evaluate((node) => {
+        node.scrollTop = 0;
+      });
+      const jump = detail.locator('.ui-log-stream__jump');
+      await expect(jump, 'the jump-to-live control never appeared').toBeVisible({ timeout: 20_000 });
+
+      // The control stands over the lines, and it is inside the dialog rather than hoisted out of it.
+      const box = (await jump.boundingBox())!;
+      const dialogBox = (await detail.boundingBox())!;
+      expect(box.x, 'the jump-to-live control is drawn outside the dialog').toBeGreaterThanOrEqual(dialogBox.x - 1);
+      expect(box.x + box.width, 'the jump-to-live control is drawn outside the dialog').toBeLessThanOrEqual(
+        dialogBox.x + dialogBox.width + 1,
+      );
+
+      // The blur is declared on the surface's own `::before` layer, valued from the one token.
+      const blur = await jump.evaluate((element) => {
+        const layer = getComputedStyle(element, '::before');
+        const surface = getComputedStyle(element);
+        // `-webkit-backdrop-filter` is read through the property name, the typed alias not
+        // covering the prefixed form.
+        const read = (style: CSSStyleDeclaration) =>
+          style.backdropFilter || style.getPropertyValue('-webkit-backdrop-filter');
+        return { layer: read(layer), surface: read(surface) };
+      });
+      console.log(`[REQ-21] the jump-to-live control blurs with: ${JSON.stringify(blur)}`);
+      expect(blur.layer, 'the jump-to-live control no longer blurs the lines beneath it').toMatch(/blur\(20px\)/);
+      expect(blur.surface, 'the blur moved onto the surface itself, making it a backdrop root').toMatch(/^(none|)$/);
+
+      // Nothing was added to the allow-list to get there: this is the delivered selector.
+      expect(await jump.getAttribute('class')).toContain('ui-overlay-glass');
     } finally {
       await removeContainerQuietly(name);
     }

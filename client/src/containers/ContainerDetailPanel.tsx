@@ -5,7 +5,6 @@ import {
   CollapsibleSection,
   ContentColumns,
   DefinitionList,
-  DetailPanel,
   EmptyState,
   ErrorBanner,
   FormFooter,
@@ -45,7 +44,6 @@ type ContainerDetailTab = 'logs' | 'stats' | 'config' | 'processes' | 'inspect' 
 
 export interface ContainerDetailPanelProps {
   container: ContainerSummary;
-  onClose: () => void;
   /** Called after a recreate with the new container id, since the old one no longer exists. */
   onContainerReplaced: (newId: string) => void;
 }
@@ -161,16 +159,8 @@ function updateRequiresRecreate(update: ContainerConfigUpdate): boolean {
   return update.env !== undefined || update.ports !== undefined || update.mounts !== undefined || update.healthCheck !== undefined;
 }
 
-/**
- * Container detail surface (REQ-24, REQ-25, REQ-26, REQ-34, REQ-35): a Config
- * tab showing and editing restart policy, resource limits, environment,
- * ports, mounts and health check (warning before a Docker-required
- * recreate), an Inspect tab with the full structured inspect data plus the
- * raw payload, copyable, and — for running containers — Exec/Attach tabs
- * opening an interactive session. Rename and the filesystem export both live on
- * the row instead, in its overflow menu.
- */
-export function ContainerDetailPanel({ container, onClose, onContainerReplaced }: ContainerDetailPanelProps) {
+/** The container's tabbed detail, drawn as the body of the dialog that carries it. */
+export function ContainerDetailPanel({ container, onContainerReplaced }: ContainerDetailPanelProps) {
   const { inspect, loaded, error, refresh } = useContainerDetail(container.id);
   const { confirm } = useConfirmation();
   const { push } = useToast();
@@ -414,50 +404,43 @@ export function ContainerDetailPanel({ container, onClose, onContainerReplaced }
   }
 
   return (
-    // The header area is deliberately empty, and stays empty: "Export
-    // filesystem…" was this panel's only action and it is started from the row's
-    // overflow menu now, and the close control leaves with `dismissal` — the row
-    // that opened the panel closes it, and `Escape` closes it from the keyboard.
-    // Neither is replaced by anything.
-    <DetailPanel dismissal="opening-gesture" onClose={onClose}>
-      <Stack gap="var(--space-4)">
-        <Tabs
-          tabs={[
-            { id: 'logs', label: 'Logs' },
-            { id: 'stats', label: 'Stats' },
-            { id: 'config', label: 'Config' },
-            { id: 'processes', label: 'Processes' },
-            { id: 'inspect', label: 'Inspect' },
-            ...(container.state === 'running' ? [{ id: 'exec', label: 'Exec' }, { id: 'attach', label: 'Attach' }] : []),
-          ]}
-          activeId={activeTab}
-          onSelect={(id) => setActiveTab(id as ContainerDetailTab)}
-        />
-        {activeTab === 'logs' ? (
-          <ContainerLogsView container={container} />
-        ) : activeTab === 'stats' ? (
-          // Unmounting the view is what stops the live stats stream (REQ-32).
-          <ContainerStatsView container={container} />
-        ) : activeTab === 'processes' ? (
-          <ContainerProcessesView container={container} />
-        ) : activeTab === 'exec' ? (
-          // Unmounting the view is what closes the interactive session (REQ-36).
-          <ContainerSessionView container={container} kind="exec" />
-        ) : activeTab === 'attach' ? (
-          <ContainerSessionView container={container} kind="attach" />
-        ) : (
-          <>
-            {error ? <ErrorBanner title="Could not load container details" detail={error} onRetry={refresh} /> : null}
-            {!inspect ? (
-              <EmptyState title={loaded ? 'No inspect data available' : 'Loading container details…'}  description={null} action={null} />
-            ) : activeTab === 'config' ? (
-              renderConfigView(inspect)
-            ) : (
-              renderInspectView(inspect)
-            )}
-          </>
-        )}
-      </Stack>
-    </DetailPanel>
+    <Stack gap="var(--space-4)">
+      <Tabs
+        tabs={[
+          { id: 'logs', label: 'Logs' },
+          { id: 'stats', label: 'Stats' },
+          { id: 'config', label: 'Config' },
+          { id: 'processes', label: 'Processes' },
+          { id: 'inspect', label: 'Inspect' },
+          ...(container.state === 'running' ? [{ id: 'exec', label: 'Exec' }, { id: 'attach', label: 'Attach' }] : []),
+        ]}
+        activeId={activeTab}
+        onSelect={(id) => setActiveTab(id as ContainerDetailTab)}
+      />
+      {activeTab === 'logs' ? (
+        <ContainerLogsView container={container} />
+      ) : activeTab === 'stats' ? (
+        // Unmounting the view is what stops the live stats stream (REQ-32).
+        <ContainerStatsView container={container} />
+      ) : activeTab === 'processes' ? (
+        <ContainerProcessesView container={container} />
+      ) : activeTab === 'exec' ? (
+        // Unmounting the view is what closes the interactive session (REQ-36).
+        <ContainerSessionView container={container} kind="exec" />
+      ) : activeTab === 'attach' ? (
+        <ContainerSessionView container={container} kind="attach" />
+      ) : (
+        <>
+          {error ? <ErrorBanner title="Could not load container details" detail={error} onRetry={refresh} /> : null}
+          {!inspect ? (
+            <EmptyState title={loaded ? 'No inspect data available' : 'Loading container details…'}  description={null} action={null} />
+          ) : activeTab === 'config' ? (
+            renderConfigView(inspect)
+          ) : (
+            renderInspectView(inspect)
+          )}
+        </>
+      )}
+    </Stack>
   );
 }

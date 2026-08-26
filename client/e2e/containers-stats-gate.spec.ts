@@ -28,7 +28,7 @@ import { navEntry, openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { clickAt } from './support/pointer.js';
-import { containerCard, containerCards } from './support/container-cards.js';
+import { closeContainerDetail, containerCard, containerCards, containerDetail, openContainerDetail } from './support/container-cards.js';
 
 /** The staleness bound is three intervals; past it a figure reaches no consumer. */
 const STALENESS_BOUND_MS = 30_000;
@@ -191,6 +191,38 @@ test('the containers screen holds one subscription and shows measured figures', 
 
     await expectHeld(page, 1, 'the containers screen holds exactly one subscription');
     await expectAMeasuredFigure(page, name, ONE_INTERVAL_MS);
+  } finally {
+    await removeContainerQuietly(name);
+  }
+});
+
+// detail_modal/REQ-22 — an open detail dialog does not close the gate: the screen is still the
+// screen being shown while the dialog stands over it, so the daemon goes on being sampled at its
+// certified cadence, and dismissing the dialog blanks no card.
+test('an open detail dialog leaves the subscription held, and closing it blanks no card', async ({ page }) => {
+  test.setTimeout(90_000);
+  const name = fixtureName('dialog');
+  try {
+    await createWorkingContainer(name);
+    await recordSubscriptions(page);
+    await openContainersNarrowedTo(page, name);
+    await expectHeld(page, 1, 'the containers screen holds exactly one subscription');
+    await expectAMeasuredFigure(page, name, ONE_INTERVAL_MS);
+
+    await openContainerDetail(page, name);
+    await expect(containerDetail(page)).toBeVisible();
+
+    // Longer than one sampling interval, with the dialog standing: the gate is still open and the
+    // sampler is still delivering.
+    await expectHeld(page, 1, 'the open dialog closed the sampling gate');
+    await page.waitForTimeout(ONE_INTERVAL_MS);
+    await expectHeld(page, 1, 'the gate closed while the dialog stood over the screen');
+
+    await closeContainerDetail(page);
+
+    await expectHeld(page, 1, 'dismissing the dialog took the screen’s own subscription with it');
+    // Immediately, not after another interval: a card blanked by the dismissal would read *no sample*.
+    await expectAMeasuredFigure(page, name, PROMPT_MS);
   } finally {
     await removeContainerQuietly(name);
   }

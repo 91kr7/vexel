@@ -44,8 +44,7 @@ function renderCard(container: ContainerSummary, props: Partial<Parameters<typeo
       container={container}
       lifecycleActions={LIFECYCLE}
       overflowEntries={OVERFLOW}
-      selected={false}
-      onSelect={() => {}}
+      onOpenDetail={() => {}}
       {...props}
     />,
   );
@@ -329,25 +328,31 @@ describe('ContainerCard — the identity row (REQ-3)', () => {
     expect(contentBands(card)[0].contains(control), 'the detail control is not on the identity row').toBe(true);
   });
 
-  // container-card.md — the detail control is inert by the human's decision of 2026-08-25 (REQ-3, REQ-23).
-  it('does nothing when the detail control is clicked, the card’s own selection included', async () => {
+  // container-card.md — the detail control is live, and it is the card's only route into the
+  // detail (detail_modal/REQ-5). Restates the delivered check that asserted the control inert: the
+  // decision of 2026-08-25 declared that click would arrive with this very change, and it has.
+  it('opens this container’s detail when the detail control is clicked', async () => {
     const user = userEvent.setup();
-    const onSelect = vi.fn();
-    const view = render(
-      <ContainerCard
-        container={makeContainer()}
-        lifecycleActions={LIFECYCLE}
-        overflowEntries={OVERFLOW}
-        selected={false}
-        onSelect={onSelect}
-      />,
-    );
-    const before = view.container.innerHTML;
+    const onOpenDetail = vi.fn();
+    renderCard(makeContainer(), { onOpenDetail });
 
     await user.click(screen.getByRole('button', { name: 'Open web-nginx details' }));
 
-    expect(onSelect, 'the inert detail control selected the card').not.toHaveBeenCalled();
-    expect(view.container.innerHTML, 'the inert detail control changed something').toBe(before);
+    expect(onOpenDetail).toHaveBeenCalledTimes(1);
+  });
+
+  // container-card.md — "by pointer and by keyboard alike" (detail_modal/REQ-5).
+  it('opens the detail from the keyboard as well as from a pointer', async () => {
+    const user = userEvent.setup();
+    const onOpenDetail = vi.fn();
+    renderCard(makeContainer(), { onOpenDetail });
+
+    screen.getByRole('button', { name: 'Open web-nginx details' }).focus();
+    await user.keyboard('{Enter}');
+    expect(onOpenDetail).toHaveBeenCalledTimes(1);
+
+    await user.keyboard(' ');
+    expect(onOpenDetail).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -385,7 +390,7 @@ describe('ContainerCard — what it leaves out (REQ-14, REQ-53)', () => {
 });
 
 // container-card.md — the four action slots, and the footer as the card's only action-bearing area (REQ-20, REQ-23).
-describe('ContainerCard — its actions and its selection (REQ-20, REQ-23)', () => {
+describe('ContainerCard — its actions, and the body that opens nothing (REQ-20, REQ-23)', () => {
   it('renders the primary slot apart from the joined Pause · Restart · … cluster, in that order', () => {
     const card = renderCard(makeContainer());
 
@@ -397,34 +402,37 @@ describe('ContainerCard — its actions and its selection (REQ-20, REQ-23)', () 
     expect(labels).toEqual(['Stop', 'Pause', 'Restart', '…']);
   });
 
-  it('selects the card on a click outside its action cluster, and never on a click inside it', async () => {
+  // container-card.md — clicking the card's body opens nothing at all (detail_modal/REQ-6), and
+  // the footer still acts on the container without ever opening the detail (detail_modal/REQ-9).
+  // Restates the delivered check that had the body select the card.
+  it('opens nothing when the card’s body is clicked, while the footer still acts', async () => {
     const user = userEvent.setup();
-    const onSelect = vi.fn();
+    const onOpenDetail = vi.fn();
     const onStop = vi.fn();
-    const view = render(
-      <ContainerCard
-        container={makeContainer()}
-        lifecycleActions={[{ id: 'stop', label: 'Stop', onClick: onStop }, ...LIFECYCLE.slice(1)]}
-        overflowEntries={OVERFLOW}
-        selected={false}
-        onSelect={onSelect}
-      />,
-    );
-    const card = view.container.querySelector<HTMLElement>('.ui-surface')!;
+    const card = renderCard(makeContainer(), {
+      lifecycleActions: [{ id: 'stop', label: 'Stop', onClick: onStop }, ...LIFECYCLE.slice(1)],
+      onOpenDetail,
+    });
 
-    await user.click(card.querySelector('.ui-section-header__title') as HTMLElement);
-    expect(onSelect).toHaveBeenCalledTimes(1);
+    for (const body of ['.ui-section-header__title', '.ui-chip--block', '.ui-metric-strip']) {
+      await user.click(card.querySelector(body) as HTMLElement);
+    }
+    expect(onOpenDetail, 'the card body is still a route into the detail').not.toHaveBeenCalled();
 
     await user.click(screen.getByRole('button', { name: 'Stop' }));
     expect(onStop).toHaveBeenCalledTimes(1);
-    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(onOpenDetail, 'a footer control opened the detail').not.toHaveBeenCalled();
   });
 
-  it('reports which card is the selected one', () => {
-    const card = renderCard(makeContainer(), { selected: true });
+  // container-card.md — the card is not an interactive surface and carries no selected state in
+  // any form (detail_modal/REQ-7, REQ-8). Restates the delivered check that read the selected card.
+  it('asks the library for no selectable treatment and marks no card as the open one', () => {
+    const card = renderCard(makeContainer());
 
-    expect(card.className).toContain('ui-surface--selected');
-    expect(card.getAttribute('aria-selected')).toBe('true');
+    expect(card.className, 'the card still asks for the selectable treatment').not.toContain('ui-surface--selectable');
+    expect(card.className, 'the card still carries a selected treatment').not.toContain('ui-surface--selected');
+    expect(card.getAttribute('aria-selected'), 'the card still reports a selected state').toBeNull();
+    expect(card.getAttribute('aria-expanded'), 'the card still reports an expanded state').toBeNull();
   });
 
   it('shows the rename control in the name\'s place while it is given one', () => {
