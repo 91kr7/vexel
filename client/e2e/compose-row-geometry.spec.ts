@@ -1300,8 +1300,14 @@ test.describe('F11 — the compose file inside the panel (plan-docker_management
     test.setTimeout(120_000);
     const stub = await openScreen(page, VIEWPORTS[0]);
 
-    // The project with two discovered files, so the tabs are a real choice.
-    await clickRow(page, 1, opensTheDetailPanel(page));
+    // The project with two discovered files, so the tabs are a real choice — and the press is
+    // repeated until the panel **says so**, not merely until a panel exists. `opensTheDetailPanel`
+    // is satisfied by any project's panel, and the projects on either side of this one have one
+    // config file and none: either of them draws no file tab at all, which is indistinguishable
+    // from the product failing to draw beta's two. The sibling test above already presses this row
+    // this way; this one did not, and a full-suite run was lost here on `0 tabs` with no way to
+    // tell which of the two it had been (2026-08-26).
+    await clickRow(page, 1, comesToSay(detailPanel(page), 'vexel-e2e-beta', 'the panel opened on the two-file project'));
     await expect(page.locator('.ui-detail-panel')).toHaveCount(1, { timeout: 20_000 });
     const panel = page.locator('.ui-detail-panel');
     const fileTabs = panel.getByRole('tab').filter({ hasText: /\.yml$/ });
