@@ -193,17 +193,127 @@ test("onError fires and no further steps follow once the daemon reports an error
   assert.equal(steps.length, 1, "no further onStep call should follow an error line");
 });
 
-// image-transfer-service.md — onEnd fires once the daemon closes the stream without an error
-test("onEnd fires once the daemon closes the stream cleanly", async () => {
+// The end of a stream travels through a data event and an end event, so the
+// outcome is read after several turns rather than one.
+async function settleUntilStreamEnd(): Promise<void> {
+  for (let turn = 0; turn < 5; turn += 1) await settle();
+}
+
+// image-transfer-service.md — onEnd fires only once the daemon has stated a success and then closed the stream
+// plan-docker_management_app-push_failure_reporting/REQ-5
+test("onEnd fires when a push stream closes after the daemon has stated the digest and size it stored", async () => {
   let ended = false;
-  let errored = false;
-  await pullImage("myrepo/app:1.0", undefined, { onStep: () => undefined, onError: () => (errored = true), onEnd: () => (ended = true) });
+  const errors: string[] = [];
+  await pushImage("localhost:5099/myrepo/app:v1", { onStep: () => undefined, onError: (message) => errors.push(message), onEnd: () => (ended = true) });
+
+  currentStream!.write('{"id":"3f26bc2dec0b","status":"Pushed"}\n');
+  currentStream!.write('{"status":"v1: digest: sha256:45e0d1e1f0b0c0d0e0f0011223344556677889900aabbccddeeff0011223399e1 size: 1026"}\n');
+  currentStream!.end();
+  await settleUntilStreamEnd();
+
+  assert.deepEqual(errors, [], "a stated push success is not a failure");
+  assert.equal(ended, true);
+});
+
+// image-transfer-service.md — a pull states its success with a status line opening "Status:"
+// plan-docker_management_app-push_failure_reporting/REQ-5, REQ-6
+test("onEnd fires when a pull stream closes after either of the daemon's own Status: lines", async () => {
+  for (const statement of ["Status: Downloaded newer image for localhost:5099/myrepo/app:v1", "Status: Image is up to date for localhost:5099/myrepo/app:v1"]) {
+    let ended = false;
+    const errors: string[] = [];
+    await pullImage("localhost:5099/myrepo/app:v1", undefined, { onStep: () => undefined, onError: (message) => errors.push(message), onEnd: () => (ended = true) });
+
+    currentStream!.write(`${JSON.stringify({ status: statement })}\n`);
+    currentStream!.end();
+    await settleUntilStreamEnd();
+
+    assert.deepEqual(errors, [], `"${statement}" is a success the daemon stated`);
+    assert.equal(ended, true, `"${statement}" is a success the daemon stated`);
+  }
+});
+
+// image-transfer-service.md — an end with no stated success is a failure carrying the last message the daemon gave
+// plan-docker_management_app-push_failure_reporting/REQ-2
+test("a push stream that ends without a stated success is reported as a failure, not as a completion", async () => {
+  let ended = false;
+  const errors: string[] = [];
+  await pushImage("localhost:1/myrepo/app:v1", { onStep: () => undefined, onError: (message) => errors.push(message), onEnd: () => (ended = true) });
+
+  currentStream!.write('{"status":"The push refers to repository [localhost:1/myrepo/app]"}\n');
+  currentStream!.write('{"id":"3f26bc2dec0b","status":"Unavailable","progressDetail":{}}\n');
+  currentStream!.end();
+  await settleUntilStreamEnd();
+
+  assert.equal(ended, false, "a push nobody declared successful must not be reported as one");
+  assert.equal(errors.length, 1, "the end of an unstated push is reported as a failure");
+  assert.match(errors[0]!, /Unavailable/, "the failure carries the last message the daemon gave");
+});
+
+// image-transfer-service.md — the same outcome rule holds for a pull, which shares the path
+// plan-docker_management_app-push_failure_reporting/REQ-6
+test("a pull stream that ends without a stated success is reported as a failure, not as a completion", async () => {
+  let ended = false;
+  const errors: string[] = [];
+  await pullImage("localhost:1/myrepo/app:v1", undefined, { onStep: () => undefined, onError: (message) => errors.push(message), onEnd: () => (ended = true) });
+
+  currentStream!.write('{"id":"3f26bc2dec0b","status":"Pulling fs layer"}\n');
+  currentStream!.end();
+  await settleUntilStreamEnd();
+
+  assert.equal(ended, false, "a pull nobody declared successful must not be reported as one");
+  assert.equal(errors.length, 1, "the end of an unstated pull is reported as a failure");
+  assert.match(errors[0]!, /Pulling fs layer/, "the failure carries the last message the daemon gave");
+});
+
+// image-transfer-service.md — when the daemon gave no message at all, the failure still says the transfer ended without a result
+// plan-docker_management_app-push_failure_reporting/REQ-2
+test("a stream that ends having said nothing at all is reported as a failure with a message of its own", async () => {
+  let ended = false;
+  const errors: string[] = [];
+  await pushImage("localhost:1/myrepo/app:v1", { onStep: () => undefined, onError: (message) => errors.push(message), onEnd: () => (ended = true) });
 
   currentStream!.end();
-  await settle();
+  await settleUntilStreamEnd();
 
+  assert.equal(ended, false, "silence is not a success");
+  assert.equal(errors.length, 1);
+  assert.notEqual(errors[0]!.trim(), "", "the failure must carry a message the operator can read");
+});
+
+// image-transfer-service.md — a push also states its success with an `aux` carrying a Digest
+// plan-docker_management_app-push_failure_reporting/REQ-2, REQ-5
+test("onEnd fires when a push stream closes after an aux entry carrying the stored digest", async () => {
+  let ended = false;
+  const errors: string[] = [];
+  await pushImage("localhost:5099/myrepo/app:v1", { onStep: () => undefined, onError: (message) => errors.push(message), onEnd: () => (ended = true) });
+
+  currentStream!.write('{"id":"3f26bc2dec0b","status":"Pushed"}\n');
+  currentStream!.write('{"progressDetail":{},"aux":{"Tag":"v1","Digest":"sha256:45e0d1e1f0b0c0d0e0f0011223344556677889900aabbccddeeff0011223399e1","Size":1026}}\n');
+  currentStream!.end();
+  await settleUntilStreamEnd();
+
+  assert.deepEqual(errors, [], "an aux carrying a Digest is a success the daemon stated");
   assert.equal(ended, true);
-  assert.equal(errored, false);
+});
+
+// image-transfer-service.md — no deadline of the service's own: it waits exactly as long as the daemon does
+// plan-docker_management_app-push_failure_reporting/REQ-3
+test("a silent but open stream produces no outcome at all: the service imposes no deadline of its own", async () => {
+  let ended = false;
+  const errors: string[] = [];
+  await pushImage("localhost:1/myrepo/app:v1", { onStep: () => undefined, onError: (message) => errors.push(message), onEnd: () => (ended = true) });
+
+  currentStream!.write('{"id":"3f26bc2dec0b","status":"Preparing"}\n');
+  await new Promise((resolve) => setTimeout(resolve, 1_200));
+
+  assert.deepEqual(errors, [], "nothing arriving for a while is not a failure the service may declare");
+  assert.equal(ended, false, "nothing arriving for a while is not a success either");
+
+  currentStream!.write('{"status":"v1: digest: sha256:45e0d1e1f0b0c0d0e0f0011223344556677889900aabbccddeeff0011223399e1 size: 1026"}\n');
+  currentStream!.end();
+  await settleUntilStreamEnd();
+
+  assert.equal(ended, true, "the outcome arrives when the daemon states it, not before");
 });
 
 // image-transfer-service.md — the cancel function is idempotent and no further onStep/onError/onEnd calls follow it
