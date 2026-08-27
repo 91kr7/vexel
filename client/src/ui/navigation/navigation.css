@@ -67,7 +67,7 @@
   padding-right: var(--space-2);
 }
 
-/* Thirteen entries want ~744px and a 1280x800 laptop's rail has ~555px to give
+/* Twelve entries want ~698px and a 1280x800 laptop's rail has ~555px to give
    them, so the list scrolls — and on a platform whose scrollbars are overlays
    (macOS) nothing on screen says so: the fold lands between two entries and the
    list reads as a complete set of ten. The entry meeting the fold is therefore

@@ -35,12 +35,12 @@ the footer status block showing the active Docker context.
   scrolls when the entries exceed it; the footer card keeps its size and its place at the bottom and
   is never overlapped, at any viewport height (plan-ui-coherence-optimisation/REQ-2,
   plan-ui-coherence-optimisation/REQ-4). Below the height at which every entry fits — which on a
-  thirteen-entry rail is every ordinary laptop — reaching the last entries is a scroll, not a
+  twelve-entry rail is every ordinary laptop — reaching the last entries is a scroll, not a
   resize.
 - **The region states where its content is cut, and the entry meeting the cut is faded** on whichever
   edge still holds entries beyond it. Scrolling alone does not make those entries reachable: where
   the platform draws overlay scrollbars there is no scrollbar to see and the cut falls between two
-  entries, so a list of thirteen reads as a complete set of ten and three destinations are invisible
+  entries, so a list of twelve reads as a complete set of ten and two destinations are invisible
   rather than merely off screen (plan-ui-coherence-optimisation/REQ-1). The fade is a mask over the
   region's own content — it reads nothing behind the rail and computes no filter, so it is not a
   blur and does not touch the blur allow-list (plan-ui-coherence-optimisation/REQ-5).

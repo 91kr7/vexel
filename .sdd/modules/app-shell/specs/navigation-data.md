@@ -6,7 +6,7 @@ type: configuration
 
 # Navigation data
 
-**Purpose** → the single source of truth for the application's thirteen screens: which group they
+**Purpose** → the single source of truth for the application's twelve screens: which group they
 belong to, their rail glyph and their page-header title/description.
 
 ## Contract

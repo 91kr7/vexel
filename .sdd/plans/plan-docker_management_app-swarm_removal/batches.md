@@ -9,7 +9,7 @@ status: validated
 
 | Batch | Feature | REQ closed | Depends | Status | Human acceptance |
 |-------|---------|------------|---------|--------|------------------|
-| swarm-withdrawn | The swarm area leaves the product, screen to server, and the raw console stays the way to it | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-9, REQ-10, REQ-11, REQ-12, REQ-13, REQ-14, REQ-15, REQ-16, REQ-17, REQ-18, REQ-19 | — | implemented | Swarm has left the product, and the raw console is still the way to it |
+| swarm-withdrawn | The swarm area leaves the product, screen to server, and the raw console stays the way to it | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-9, REQ-10, REQ-11, REQ-12, REQ-13, REQ-14, REQ-15, REQ-16, REQ-17, REQ-18, REQ-19 | — | certified | Swarm has left the product, and the raw console is still the way to it |
 
 One batch, so no execution order to declare. The order inside it is carried by the `Depends` column
 of the batch file.
