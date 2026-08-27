@@ -9,7 +9,7 @@ status: validated
 
 | Batch | Feature | REQ closed | Depends | Status | Human acceptance |
 |-------|---------|------------|---------|--------|------------------|
-| push-failure-reported | A refused push reaches the operator, and a check that can fail proves it | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-9, REQ-10 | — | todo | The operator learns that a push to an unreachable registry failed, and why |
+| push-failure-reported | A refused push reaches the operator, and a check that can fail proves it | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-9, REQ-10 | — | in progress | The operator learns that a push to an unreachable registry failed, and why |
 
 One batch, so no execution order to declare.
 

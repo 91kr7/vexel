@@ -148,12 +148,31 @@ export async function pruneDanglingImages(): Promise<PruneResult> {
   return { removedIds, reclaimedBytes: payload.SpaceReclaimed ?? 0 };
 }
 
+// The daemon's own completion statements, as it words them: a push names the
+// digest and size it stored ("v1: digest: sha256:… size: 1026"), a pull opens
+// its closing line with "Status:" ("Downloaded newer image for …", "Image is up
+// to date for …"). Nothing else is taken for a success.
+const PUSH_SUCCESS_STATUS = /\bdigest:\s*sha256:[0-9a-f]+\s+size:\s*\d+/i;
+const PULL_SUCCESS_STATUS = /^Status:\s/i;
+const UNSTATED_END_MESSAGE = "The daemon ended the transfer without stating a result.";
+
+function statesSuccess(entry: NdjsonEntry): boolean {
+  const status = entry.status?.trim();
+  if (!status) return false;
+  return PUSH_SUCCESS_STATUS.test(status) || PULL_SUCCESS_STATUS.test(status);
+}
+
 async function streamTransfer(path: string, handlers: ImageTransferHandlers, headers?: Record<string, string>): Promise<() => void> {
   const response = await getEngineClient().requestStream(path, { method: "POST", headers });
   // Guards every termination path (cancel, a daemon-reported error, a stream
-  // error, or a clean end) so no handler ever fires again once one of them has
+  // error, or an end) so no handler ever fires again once one of them has
   // — in particular, no `onStep` after `onError`.
   let stopped = false;
+  // The outcome is stated, never inferred: a stream that ends without the
+  // daemon having declared a success is a failure, whatever its silence looks
+  // like, and it is reported with the last thing the daemon did say.
+  let succeeded = false;
+  let lastMessage = "";
   const decoder = new NdjsonDecoder();
 
   response.on("data", (chunk: Buffer) => {
@@ -165,6 +184,8 @@ async function streamTransfer(path: string, handlers: ImageTransferHandlers, hea
         handlers.onError(entry.error);
         return;
       }
+      if (statesSuccess(entry)) succeeded = true;
+      if (entry.status && entry.status.trim() !== "") lastMessage = entry.status.trim();
       handlers.onStep({
         id: entry.id ?? "overall",
         status: entry.status ?? "",
@@ -181,7 +202,11 @@ async function streamTransfer(path: string, handlers: ImageTransferHandlers, hea
   response.on("end", () => {
     if (stopped) return;
     stopped = true;
-    handlers.onEnd();
+    if (succeeded) {
+      handlers.onEnd();
+      return;
+    }
+    handlers.onError(lastMessage === "" ? UNSTATED_END_MESSAGE : `${UNSTATED_END_MESSAGE} Last message from the daemon: ${lastMessage}`);
   });
 
   return () => {

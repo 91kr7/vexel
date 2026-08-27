@@ -26,8 +26,9 @@ browser-facing save/load tarball streams (REQ-42).
     the daemon emits; `id` is the layer id, or `"overall"` for a summary line; `currentBytes`/
     `totalBytes` come from the daemon's `progressDetail` when present.
   - `onError` fires (and no further steps follow) when the daemon reports `{ error }` on the stream,
-    or the stream itself errors.
-  - `onEnd` fires once the daemon closes the stream without an error.
+    carrying that message verbatim; when the stream itself errors; and when the stream ends without
+    the daemon having stated a success, carrying the last message the daemon gave.
+  - `onEnd` fires only once the daemon has stated a success and then closed the stream.
 - `openImageSaveStream(references, filenameHint?): Promise<{ response: IncomingMessage,
   suggestedFilename: string }>` — `GET /images/get?names=...` (repeated for each reference); the
   caller pipes `response`'s raw bytes straight to the HTTP response as a download (REQ-42).
@@ -50,6 +51,18 @@ browser-facing save/load tarball streams (REQ-42).
 
 - Pull/push progress is decoded from the daemon's newline-delimited JSON stream, one `onStep`/
   `onError` call per line; a malformed/partial line is skipped rather than failing the transfer.
+- A pull or push outcome is **stated, never inferred**: success is concluded only from a success the
+  daemon declared, never from the absence of an error, so an end without one is a failure and no
+  transfer is left apparently running once the stream has ended. The daemon states a success with
+  - a push status naming the digest and size it stored — `<tag>: digest: sha256:… size: <n>` — or a
+    push `aux` carrying a `Digest`;
+  - a pull status line opening with `Status:` — "Downloaded newer image for …", "Image is up to date
+    for …".
+- The failure reported for an unstated end carries the last message the daemon gave (its last status
+  line, or the error the stream itself raised); when it gave none, a message saying the transfer
+  ended without a result.
+- No deadline of the service's own is ever imposed on a transfer — no timer, no watchdog, no
+  "nothing arrived in N seconds": it waits exactly as long as the daemon does.
 - The cancel function returned by `pullImage`/`pushImage`/`loadImages` is idempotent and destroys
   the underlying HTTP stream(s); no further handler calls follow it.
 - Neither `openImageSaveStream` nor `loadImages` ever buffers the tarball whole: the Engine API
@@ -66,3 +79,8 @@ browser-facing save/load tarball streams (REQ-42).
 - plan-docker_management_app/REQ-38
 - plan-docker_management_app/REQ-39
 - plan-docker_management_app/REQ-42
+- plan-docker_management_app-push_failure_reporting/REQ-1
+- plan-docker_management_app-push_failure_reporting/REQ-2
+- plan-docker_management_app-push_failure_reporting/REQ-3
+- plan-docker_management_app-push_failure_reporting/REQ-5
+- plan-docker_management_app-push_failure_reporting/REQ-6
