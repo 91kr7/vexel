@@ -1036,7 +1036,16 @@ test('at 375×812 the card reflows and carries the same values as at desktop wid
     );
     expect(narrow.image!.text, 'the phone card drops the image reference').toBe(wide.image!.text);
     expect(narrow.shortId, 'the phone card drops the short id').toBe(wide.shortId);
-    expect(narrow.status?.text, 'the phone card drops the status sentence').toBe(wide.status?.text);
+    // **The one value of the five that cannot be compared to itself.** The status sentence is the
+    // daemon's own elapsed-time text ("Up 3 seconds"), and the two readings are taken a viewport
+    // change apart: it read "Up 3 seconds" wide and "Up 4 seconds" narrow, so the check was
+    // measuring when the second fell. The card carries no start instant to compare instead — the
+    // sentence is all the daemon gives — so what is asserted is that the phone card still draws it,
+    // and still draws the same **kind** of sentence, rather than the same elapsed number.
+    expect(narrow.status, 'the phone card drops the status sentence').not.toBeNull();
+    expect(narrow.status!.text, 'the phone card draws an empty status sentence').not.toBe('');
+    expect(wide.status!.text, 'the desktop card no longer carries the daemon’s uptime sentence, so this comparison proves nothing').toMatch(/^Up /);
+    expect(narrow.status!.text, 'the phone card draws a different kind of status sentence from the desktop one').toMatch(/^Up /);
     expect(narrow.pillText, 'the phone card drops the state pill').toBe(wide.pillText);
     expect(narrow.detailControl?.label, 'the phone card drops the detail control').toBe(wide.detailControl?.label);
 
