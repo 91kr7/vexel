@@ -748,10 +748,10 @@ describe('ContainersScreen — the card control opens the detail as a dialog (RE
     expect(await within(dialog!).findByRole('tab', { name: 'Config' })).toBeInTheDocument();
   });
 
-  // detail_modal/REQ-4's "the same order" clause is superseded here: the row leads with Config
-  // (tabs_composition_refactor/REQ-11). The rest of that requirement stands — the same seven tabs,
-  // and the same one active on open, which this batch did not move.
-  it('shows the tab row led by Config, and Config active, inside the dialog', async () => {
+  // detail_modal/REQ-4's "the same order" clause is superseded here: the row leads with Config and
+  // Inspect follows it (`…-inspect_full_payload/REQ-1`, REQ-2). The rest of that requirement stands
+  // — the same seven tabs, and the same one active on open.
+  it('shows the tab row led by Config and Inspect, with Config active, inside the dialog', async () => {
     const user = userEvent.setup();
     renderScreen([web, cache]);
 
@@ -762,10 +762,10 @@ describe('ContainersScreen — the card control opens the detail as a dialog (RE
     const tabs = dialog.getAllByRole('tab');
     expect(tabs.map((tab) => tab.textContent)).toEqual([
       'Config',
+      'Inspect',
       'Logs',
       'Stats',
       'Processes',
-      'Inspect',
       'Exec',
       'Attach',
     ]);

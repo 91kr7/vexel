@@ -234,10 +234,15 @@ describe('the two reported call sites state no layout constant', () => {
     expect(text, 'the image panel states a content class for its property grid where it takes the default').not.toMatch(/propertiesContentClass/);
   });
 
-  it('the container panel declares long single-line for Labels and takes the default elsewhere', () => {
+  // The `Labels` clause of this check named the Inspect tab's own section, which the payload-derived
+  // rebuild removed outright (`…-inspect_full_payload/REQ-3`): what replaces it is the assertion that
+  // the tab states no reading list, and no content class, at all.
+  it('the container panel declares its content classes on the Config tab alone', () => {
     const text = source('containers/ContainerDetailPanel.tsx');
-    const labels = text.slice(text.indexOf('title="Labels"'), text.indexOf('title="Labels"') + 400);
-    expect(labels).toMatch(/contentClass="long-single-line"/);
+    const inspectView = text.slice(text.indexOf('function renderInspectView'), text.indexOf('function renderInspectView') + 1500);
+    expect(inspectView, 'the container panel has no Inspect view at all').not.toBe('');
+    expect(inspectView, 'the Inspect tab states a content class for a payload it does not lay out itself').not.toMatch(/contentClass=/);
+    expect(inspectView, 'the Inspect tab still curates a reading list of its own').not.toMatch(/<DefinitionList|<FieldList/);
     // The Config tab's split is the library's named arrangement, not a template string.
     expect(text).toMatch(/<Grid arrangement="pair">/);
     // Read within the view mode alone, which is the tail of `renderConfigView`: the edit form
