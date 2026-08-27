@@ -34,6 +34,7 @@ means writing the analysis and the plan for it in the normal way — see
 | no-response-sequencing-guard | client | medium | No sequence number: an older response landing last overwrites a newer one | `entries/no-response-sequencing-guard.md` |
 | contexts-list-spawns-subprocesses | server | low | Two processes every 15 s for an inventory that changes when the operator changes it | `entries/contexts-list-spawns-subprocesses.md` |
 | object-type-invalidation-registry-unused | client | low | The by-object-type invalidation registry is exported and called from nowhere | `entries/object-type-invalidation-registry-unused.md` |
+| stale-thirteen-screen-count-in-checks | client | low | Thirteen checks still say "thirteen screens", two of them in failure messages, on a rail that has twelve | `entries/stale-thirteen-screen-count-in-checks.md` |
 
 ## Provenance of this first batch
 
