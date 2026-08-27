@@ -8,8 +8,8 @@ type: UI component
 
 **Purpose** → the library's one answer to *"how many of these fit here"*: a list of bands arranged in
 as many columns as the container's **own box** can carry at the band's content class minimum. It is
-the shared rule; `DefinitionList` consumes it for label→value pairs and this component is its form
-for a list of single values (the `Config` tab's environment · mounts list).
+the shared rule; `DefinitionList` consumes it for label→value pairs, `FieldList` for entries drawn
+as a row of fields, and this component is its form for a list of single values.
 
 ## Contract
 
@@ -41,7 +41,7 @@ Shows:
   one-item list is as wide as the element, exactly as a stack was.
 - The column gap is `--space-6` for every class; the row gap is the consumer's, through
   `--content-columns-row-gap` (default `--space-2`; `DefinitionList` sets `--space-1` to keep its
-  delivered band step).
+  delivered band step, `FieldList` keeps the default).
 - The class minima and maxima are design values in `tokens.css`, derived from the content and never
   written at a call site. Both forms carry the band's own horizontal padding (2 × `--space-3` =
   24px); what a **pair** band carries on top of its value is the **label run** — the longest label in
@@ -113,8 +113,9 @@ the file states nothing and takes short scalar deliberately, not by accident.
 | `ContainerDetailPanel` — `Networks` | short scalar (default) | a network name against an IP address |
 | `ContainerDetailPanel` — `Labels` | long single-line | as the image panel's |
 | `ContainerDetailPanel` — `Health` | short scalar (default) | a status word and a counter |
-| `ContainerDetailPanel` — `Config`, runtime configuration | short scalar (default) | restart policy, limits, ports, health command, networks |
-| `ContainerDetailPanel` — `Config`, environment · mounts | long single-line (**value** form) | one env line or mount line per band, no label beside it |
+| `ContainerDetailPanel` — `Config`, `Runtime` and `Health check` | short scalar (default) | restart policy, limits, networks; the probe's command and its three durations |
+| `ContainerDetailPanel` — `Config`, `Environment variables` and `Mounts` (`FieldList`, **value** form) | free text | one entry per row at the group's full width: a variable is a key and a value side by side, a mount a source and a destination, and each needs the row rather than a share of a line |
+| `ContainerDetailPanel` — `Config`, `Port mappings` (`FieldList`, **value** form) | short scalar (default) | two named numbers per entry, so the group goes on flowing as many entries per line as its card carries |
 | `VolumesPanel` | short scalar (default) | driver, scope, dates and counts; the mountpoint wraps inside its band as it already did |
 | `NetworksPanel` | short scalar (default) | driver, scope, subnet, gateway, range |
 | `PluginsScreen` — plugin inspect | short scalar (default) | name, id, reference, state |

@@ -31,8 +31,8 @@ environment variables), arranged in as many columns as the list's own width can 
   - `arrangement?: 'run' | 'key-columns'` — default `'run'`. `run` is the property band's own
     reading: the value follows its label immediately. `key-columns` gives label and value a share
     each of every band, so the values of the list all begin at one edge and the labels read down as a
-    column of their own — for a list scanned by its keys (an environment) rather than read as
-    properties of one object. It is an **arrangement of the band**, not a second component:
+    column of their own — for a list scanned by its keys rather than read as properties of one
+    object. It is an **arrangement of the band**, not a second component:
     everything else — the wash, the padding, the run bound, the content class and the derived column
     count — is the same in both.
   - A band renders its label and its value and nothing else. The `copyValue?: string` field, and
@@ -65,6 +65,16 @@ Shows:
   by character — while its size and its colour stay the label's own. A label share sized to the
   widest label of the list is deliberately not what this does: that needs one grid over every band,
   which costs the band its own element and the list its derived column count.
+
+  > **Where it stops being the right shape, and what to ask for instead.** The share is one track for
+  > every band of the list, so a short key leaves its value beginning a third of the way into an
+  > otherwise empty band, and a value that needs the whole row is wrapped inside the track while the
+  > room stands empty beside it — both measured on the container's `Config` tab on 2026-08-27, a
+  > 29px key in the 180px track and a volume source over four lines with 942px free beside it. A
+  > collection whose entries each want the room they hold, or whose parts want naming, asks for
+  > `FieldList` (`field-list.md`), where every part is a field of its own. `key-columns` stays what
+  > it was written for: a column of keys scanned down, in bands narrow enough that one track and one
+  > offset are what the eye wants.
 - **The label→value run is bounded, the band is not.** The band fills its track — its wash reaches the
   section's edge, so no dead margin re-appears on the right — while the run from the label's left edge
   to the value's right edge stops at the content class's maximum (~500px short scalar, ~700px long
@@ -169,6 +179,5 @@ Shows:
 - plan-ui-coherence-optimisation/REQ-20
 - plan-ui-coherence-optimisation/REQ-21
 - plan-ui-coherence-optimisation/REQ-34
-- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-18
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-36
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-40

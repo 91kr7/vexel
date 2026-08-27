@@ -1,3 +1,25 @@
+/* The bare region: the box its content is measured against, with nothing added
+   to it. Eight of the library's own surfaces scroll through it — the log stream,
+   the console, the data table, the tree view, the two content viewers, the code
+   viewer and the event stream — and each aligns something of its own (a sticky
+   header, a virtualised run of rows, a gutter of line numbers) against this box,
+   so it stays empty and the room a caller needs is asked for by name below. */
 .ui-scroll-area {
   overflow: auto;
+}
+
+/* `inset`: the region for a document made of surfaces rather than of lines.
+   A `Card` at the region's edge drew its `--shadow-2` into the scroller's own
+   clip and lost it, and the scrollbar rested on the cards' trailing edge.
+
+   The values are the shadow's own geometry, so the whole of it lands inside the
+   scrolled area: `--shadow-2` is `0 8px 24px`, which reaches 24px sideways,
+   24 − 8 = 16px above and 24 + 8 = 32px below the surface that casts it.
+   `scrollbar-gutter: stable` reserves the scrollbar's strip whether or not the
+   document is long enough to need one, so a tab does not change width when its
+   content grows past the region — and the strip is outside the padding, which
+   keeps the trailing gap between the scrollbar and the content. */
+.ui-scroll-area--inset {
+  padding: var(--space-4) var(--space-6) var(--space-7);
+  scrollbar-gutter: stable;
 }

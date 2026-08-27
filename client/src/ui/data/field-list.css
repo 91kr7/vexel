@@ -1,0 +1,65 @@
+/* Entries read as the fields of a form — the reading counterpart of the row
+   editors, whose geometry it repeats with the controls replaced by their
+   values. Contract in `.sdd/modules/ui-library/specs/field-list.md`. */
+.ui-field-list {
+  --content-columns-row-gap: var(--space-2);
+}
+
+/* `stretch`: the fields of an entry share its height, so a wrapped value does
+   not leave its neighbour a short pill against a tall one. */
+.ui-field-list__entry {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* The field is the box: the band's wash, radius and padding move from the entry
+   onto each of its parts, so a short value leaves room that reads as its field. */
+.ui-field-list__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-wash-1);
+}
+
+/* `even` — an equal share each from a zero basis, so the same field of every
+   entry begins at the same edge whatever it holds. */
+.ui-field-list--even > .ui-field-list__entry > .ui-field-list__field {
+  flex: 1 1 0;
+}
+
+/* `content` — the basis is what the field holds and only the surplus is split,
+   so a long part takes the room a short sibling does not need. */
+.ui-field-list--content > .ui-field-list__entry > .ui-field-list__field {
+  flex: 1 1 auto;
+}
+
+.ui-field-list__caption {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-wash-muted);
+}
+
+/* Wraps and is never ellipsised: these are the values an operator most needs to
+   read exactly. The inner gap keeps the nodes of one `ReactNode` value apart. */
+.ui-field-list__value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+/* REQ-57: half the entry, never a length, so the boundary between two fields
+   falls at the same offset in every entry. Not applied to a lone field, which
+   has no sibling to align with and would leave half the entry empty. */
+.ui-field-list__field:not(:only-child) {
+  max-width: 50%;
+}

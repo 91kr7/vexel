@@ -113,6 +113,7 @@ export {
   type ProportionBarCellProps,
 } from './data/TableCells';
 export { DefinitionList, type DefinitionListProps, type DefinitionItem, type DefinitionArrangement, type DefinitionValueTone } from './data/DefinitionList';
+export { FieldList, type FieldListProps, type FieldListEntry, type FieldListField, type FieldListArrangement } from './data/FieldList';
 export { PrivilegeList, type PrivilegeListProps, type PrivilegeItem } from './data/PrivilegeList';
 export { CodeViewer, type CodeViewerProps } from './data/CodeViewer';
 export { CodeEditor, type CodeEditorProps } from './data/CodeEditor';

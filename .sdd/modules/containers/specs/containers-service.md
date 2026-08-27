@@ -58,8 +58,11 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
     networks, labels, healthCheck?, health?, raw }`.
   - `restartPolicy`: `{ name, maximumRetryCount? }`. `resourceLimits`: `{ cpus?, memoryBytes? }`,
     `cpus` read from `NanoCpus` falling back to `CpuQuota/CpuPeriod`.
-  - `ports`: `{ containerPort, protocol, hostPort?, hostIp? }[]`. `mounts`: `{ type, source,
-    destination, readOnly }[]`. `networks`: `{ name, ipAddress? }[]`.
+  - `ports`: `{ containerPort, protocol, hostPort?, hostIp? }[]` — every port the container
+    **publishes on the host, and only those**: one entry per publication, each carrying the host port
+    actually in force, including where the operator named none and the daemon chose it. A port merely
+    exposed is not an entry. Ordered by container port, then host port, as the summary's are.
+    `mounts`: `{ type, source, destination, readOnly }[]`. `networks`: `{ name, ipAddress? }[]`.
   - `healthCheck` (config) and `health` (latest results: `{ status, failingStreak?, log: { start,
     end, exitCode, output }[] }`) are `undefined` when the container defines no health check.
   - `raw` is the full inspect payload exactly as received, unmodified (REQ-26).
@@ -108,6 +111,40 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   rather than escaping it. This is a rule about **this shape only**: `inspectContainer`'s bindings
   carry the host IP, so they are not indistinguishable and are not collapsed — the detail panel still
   shows a dual-stack publication as the two bindings it is.
+- **The inspect reading is the container's publications and only those, and it takes two of the
+  daemon's port maps to state them.** `HostConfig.PortBindings` is what the operator asked for: it
+  names the set of publications, carries the host IP of each, and is the only map a stopped container
+  fills. `NetworkSettings.Ports` is consulted for the one thing it alone knows — **the host port the
+  daemon chose** where the operator named none. A binding arriving with an empty host port (`-p 80`)
+  is completed from it; before that the tab read `not published` on a port that was published, while
+  the container's own card, reading the daemon's list, showed the number. An entry of that map
+  carrying **no** host port is an exposure and not a publication, and is never an entry here.
+- **One publication is one entry.** `NetworkSettings.Ports` records a publication once per IP stack,
+  so `-p 8080:8080` appears there twice under one host port; a container port already accounted for
+  is never added again, so it stays the single entry it is. A publication the **operator** made twice
+  — two host IPs, two host ports — is two bindings in `PortBindings` and stays the two it is: that is
+  the certified behaviour this rule leaves untouched, and it is why the summary shape's
+  duplicate-collapsing rule above is about that shape alone.
+- **A `-P` fills no bindings at all**, measured on Docker 29.7.2: `HostConfig.PortBindings` is `{}`
+  and the publication exists solely in `NetworkSettings.Ports`, with a real host port. That map is
+  therefore also the source of a publication the bindings do not name — restricted to entries
+  carrying a host port, so nothing merely exposed can enter through it. Such an entry carries no host
+  IP: the operator named none, and what they asked for was any interface.
+- **`Config.ExposedPorts` is not a source**, and was one for part of a single day. It is the union of
+  what the *image* declares and what the operator publishes, so on the human's own container it
+  contributed a `5000/tcp` coming from `registry:2`'s own `EXPOSE` — a row saying "declared by
+  somebody else, reachable from nowhere". `EXPOSE` binds no host port and gates no container-to-
+  container traffic, its one effect being that `-P` publishes what it names
+  (`plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-59`,
+  which withdrew
+  `plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-58` and
+  narrowed
+  `plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-52` to
+  what its own title always said: mappings).
+- **The card and the detail now answer the same question.** `GET /containers/json` lists what the
+  daemon publishes; so does this reading. The divergence that made a card advertise a port its detail
+  did not show is closed by both sides stating publications, rather than by giving either of them a
+  third map.
 - **`ports` is ordered by this service, and the order is imposed rather than observed.** The
   daemon's own order is **not stable across reads**: three consecutive reads of the same unchanged
   container return the same mappings rotated. That is invisible to a consumer showing all of them
@@ -170,3 +207,5 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 - plan-docker_management_app-containers_card_view/REQ-52
 - plan-docker_management_app-containers_card_view/REQ-55
 - plan-docker_management_app-containers_card_view/REQ-58
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-52
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-59

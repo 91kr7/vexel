@@ -362,6 +362,44 @@ function portsFromRaw(bindings: Record<string, { HostIp?: string; HostPort?: str
   return result;
 }
 
+// The container's publications and only those (REQ-59). `HostConfig.PortBindings` states the set
+// the operator asked for; `NetworkSettings.Ports` supplies the host port the daemon chose, and — for
+// a `-P`, which fills no bindings at all — the publication itself. An entry of that map carrying no
+// host port is an exposure and not a publication: it is never an entry here.
+function inspectPorts(raw: RawInspect): PortBinding[] {
+  const published = portsFromRaw(raw.NetworkSettings?.Ports).filter((port) => port.hostPort !== undefined);
+  const declared = portsFromRaw(raw.HostConfig?.PortBindings).map((port) => resolveHostPort(port, published));
+  const accounted = new Set(declared.map(exposureKey));
+  const daemonChosen: PortBinding[] = [];
+  for (const port of published) {
+    if (accounted.has(exposureKey(port))) continue;
+    accounted.add(exposureKey(port));
+    // The operator named no host address for it, so none is carried: what they asked for was "any".
+    daemonChosen.push({ containerPort: port.containerPort, protocol: port.protocol, hostPort: port.hostPort });
+  }
+  return [...declared, ...daemonChosen].sort(
+    byNameThenIdentity({
+      name: (port) => [String(port.containerPort), String(port.hostPort ?? 0)],
+      identity: (port) => `${port.protocol}-${port.hostPort ?? ""}-${port.hostIp ?? ""}-${port.containerPort}`,
+    }),
+  );
+}
+
+// A publication whose host port the operator left to the daemon (`-p 80`) arrives with an empty
+// `HostPort`; the number actually in force is only in `NetworkSettings.Ports`. One publication stays
+// one entry however many IP stacks observed it: a container port already accounted for is not added
+// a second time, so `-p 8080:8080` does not become the two its dual-stack record would make it.
+function resolveHostPort(port: PortBinding, published: PortBinding[]): PortBinding {
+  if (port.hostPort !== undefined) return port;
+  const chosen = published.find((candidate) => exposureKey(candidate) === exposureKey(port));
+  return chosen ? { ...port, hostPort: chosen.hostPort } : port;
+}
+
+// What makes two records the same publication: the container port and its protocol.
+function exposureKey(port: PortBinding): string {
+  return `${port.protocol}-${port.containerPort}`;
+}
+
 function mountsFromRaw(raw: NonNullable<RawInspect["Mounts"]>): MountInfo[] {
   return raw.map((mount) => ({
     type: mount.Type ?? "bind",
@@ -416,7 +454,7 @@ function toInspect(raw: RawInspect): ContainerInspect {
     restartPolicy,
     resourceLimits,
     env: config.Env ?? [],
-    ports: portsFromRaw(hostConfig.PortBindings ?? raw.NetworkSettings?.Ports),
+    ports: inspectPorts(raw),
     mounts: mountsFromRaw(raw.Mounts ?? []),
     networks,
     labels: config.Labels ?? {},

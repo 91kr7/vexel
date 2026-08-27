@@ -10,6 +10,7 @@ import {
   DefinitionList,
   EmptyState,
   ErrorBanner,
+  FieldList,
   FormFooter,
   Grid,
   KeyValueEditor,
@@ -103,9 +104,15 @@ function formatBytes(bytes: number): string {
   return `${value.toFixed(1)}${units[unitIndex]}`;
 }
 
-function formatPorts(ports: PortBinding[]): string {
-  if (ports.length === 0) return '–';
-  return ports.map((port) => (port.hostPort ? `${port.hostPort}→${port.containerPort}/${port.protocol}` : `${port.containerPort}/${port.protocol}`)).join(', ');
+/** Docker states a health check's durations in nanoseconds; the form asks for, and shows, seconds. */
+function formatNanoSeconds(nanos?: number): string {
+  if (!nanos) return '–';
+  return `${Number((nanos / 1e9).toFixed(3))}s`;
+}
+
+/** The command as the form's single field holds it: without the `CMD`/`CMD-SHELL` token Docker prefixes it with. */
+function formatHealthCommand(test: string[]): string {
+  return test.filter((token) => token !== 'CMD-SHELL' && token !== 'CMD').join(' ') || '–';
 }
 
 function parseEnvEntry(entry: string): KeyValuePair {
@@ -391,59 +398,151 @@ export function ContainerDetailPanel({ container, onContainerReplaced }: Contain
     }
 
     return (
+      /*
+        The tab reads as the form it edits, with the controls replaced by their values: the same
+        five groups, in the same order, each inside a card of its own, and the two small ones side
+        by side in the library's `pair` arrangement (REQ-23, REQ-24). Reading and editing are one
+        screen in two states, so the operator never has to re-find a setting after pressing Edit —
+        the action that opens the form included, which closes the tab at its foot as the form's own
+        footer does (REQ-50).
+      */
       <Stack gap="var(--space-4)">
-        {/* The action is the tab's, not a column's: it sits above both and inside neither (REQ-22). */}
+        <Grid arrangement="pair">
+          <Card>
+            <Stack gap="var(--space-3)">
+              <SectionHeader variant="eyebrow" title="Runtime" />
+              <DefinitionList
+                items={[
+                  { label: 'Restart policy', value: data.restartPolicy.maximumRetryCount ? `${data.restartPolicy.name} (max ${data.restartPolicy.maximumRetryCount})` : data.restartPolicy.name },
+                  { label: 'CPU limit', value: data.resourceLimits.cpus ? `${data.resourceLimits.cpus} cpus` : '–' },
+                  { label: 'Memory limit', value: data.resourceLimits.memoryBytes ? formatBytes(data.resourceLimits.memoryBytes) : '–' },
+                  { label: 'Networks', value: data.networks.map((network) => network.name).join(', ') || '–' },
+                ]}
+              />
+            </Stack>
+          </Card>
+
+          {/*
+            The card answers "is this container probed?" either way — the form's toggle, read.
+          */}
+          <Card>
+            <Stack gap="var(--space-3)">
+              <SectionHeader variant="eyebrow" title="Health check" trailing={<Badge variant="quiet">{data.healthCheck ? 'enabled' : 'disabled'}</Badge>} />
+              {data.healthCheck ? (
+                <DefinitionList
+                  items={[
+                    { label: 'Command', value: formatHealthCommand(data.healthCheck.test) },
+                    { label: 'Interval', value: formatNanoSeconds(data.healthCheck.intervalNanos) },
+                    { label: 'Timeout', value: formatNanoSeconds(data.healthCheck.timeoutNanos) },
+                    { label: 'Retries', value: data.healthCheck.retries ?? '–' },
+                    { label: 'Start period', value: formatNanoSeconds(data.healthCheck.startPeriodNanos) },
+                  ]}
+                />
+              ) : (
+                <EmptyState compact title="No health check" description="This container defines no probe, so Docker never reports it as healthy or unhealthy." action={null} />
+              )}
+            </Stack>
+          </Card>
+        </Grid>
+
+        {/*
+          The three counted groups, each drawn whether or not it holds anything and each with its
+          count — the editing arrangement exactly (REQ-51). A group with nothing in it says so in
+          the library's placeholder: "this container publishes no port" is an answer the operator
+          came for, and an absent group is indistinguishable from one that was never designed. This
+          supersedes plan-ui-coherence-optimisation/REQ-60 on this tab alone; the Inspect tab's
+          collapsible sections below go on applying it.
+        */}
+        <Card>
+          <Stack gap="var(--space-3)">
+            <SectionHeader variant="eyebrow" title="Environment variables" trailing={<Badge variant="quiet">{data.env.length}</Badge>} />
+            {data.env.length > 0 ? (
+              /*
+                One variable per row at the group's full width — the free-text class is one entry
+                per line — with the key and the value each in a field of its own, sharing the row
+                as the form's two text fields share it (REQ-54). The value begins where its own
+                field begins, and the keys still read down as one column because every entry gives
+                its first field the same share (REQ-18).
+              */
+              <FieldList
+                contentClass="free-text"
+                items={data.env.map(parseEnvEntry).map((pair) => ({ fields: [{ value: pair.key }, { value: pair.value }] }))}
+              />
+            ) : (
+              <EmptyState compact title="No environment variables" description="This container declares none of its own; it runs with whatever its image sets." action={null} />
+            )}
+          </Stack>
+        </Card>
+
+        <Card>
+          <Stack gap="var(--space-3)">
+            <SectionHeader variant="eyebrow" title="Port mappings" trailing={<Badge variant="quiet">{data.ports.length}</Badge>} />
+            {data.ports.length > 0 ? (
+              /*
+                Each entry names its two numbers, in the form's own words (REQ-55): which one the
+                container listens on and which one the host answers on is read, not inferred from
+                the order they happen to be written in. The group goes on flowing as many entries
+                per line as its card carries — a port is a short scalar and the library derives the
+                count from that.
+              */
+              <FieldList
+                items={data.ports.map((port) => ({
+                  fields: [
+                    { caption: 'Container port', value: `${port.containerPort}/${port.protocol}` },
+                    { caption: 'Host port', value: port.hostPort ? String(port.hostPort) : 'not published' },
+                  ],
+                }))}
+              />
+            ) : (
+              <EmptyState compact title="No port mappings" description="This container neither exposes nor publishes a port, so nothing on the host reaches it." action={null} />
+            )}
+          </Stack>
+        </Card>
+
+        <Card>
+          <Stack gap="var(--space-3)">
+            <SectionHeader variant="eyebrow" title="Mounts" trailing={<Badge variant="quiet">{data.mounts.length}</Badge>} />
+            {data.mounts.length > 0 ? (
+              /*
+                The form's row order, read: source, destination, and the write mode the toggle
+                carries. One mount per row at the group's full width, the fields sharing it by what
+                they hold (REQ-56) but neither taking more than half of it, so the boundary between
+                source and destination falls at the same offset in every row (REQ-57).
+              */
+              <FieldList
+                arrangement="content"
+                contentClass="free-text"
+                items={data.mounts.map((mount) => ({
+                  fields: [
+                    { caption: 'Source', value: mount.source },
+                    {
+                      caption: 'Destination',
+                      value: (
+                        <>
+                          {mount.destination}
+                          <Chip label={mount.readOnly ? 'ro' : 'rw'} tone={mount.readOnly ? 'accent' : 'neutral'} />
+                        </>
+                      ),
+                    },
+                  ],
+                }))}
+              />
+            ) : (
+              <EmptyState compact title="No mounts" description="Nothing from the host or from a volume is mounted into this container." action={null} />
+            )}
+          </Stack>
+        </Card>
+
+        {/*
+          At the foot of the tab and at its trailing edge, where the edit form's own save and cancel
+          sit, belonging to no group and scrolling with the content as that footer does (REQ-50).
+        */}
         <Row>
           <Spacer />
           <Button variant="subtle" onClick={startEdit}>
             Edit configuration
           </Button>
         </Row>
-        <Grid arrangement="pair">
-          <Stack gap="var(--space-3)">
-            <SectionHeader variant="eyebrow" title="Runtime configuration" />
-            <DefinitionList
-              items={[
-                { label: 'Restart policy', value: data.restartPolicy.maximumRetryCount ? `${data.restartPolicy.name} (max ${data.restartPolicy.maximumRetryCount})` : data.restartPolicy.name },
-                { label: 'CPU limit', value: data.resourceLimits.cpus ? `${data.resourceLimits.cpus} cpus` : '–' },
-                { label: 'Memory limit', value: data.resourceLimits.memoryBytes ? formatBytes(data.resourceLimits.memoryBytes) : '–' },
-                { label: 'Port mapping', value: formatPorts(data.ports) },
-                { label: 'Health check', value: data.healthCheck ? data.healthCheck.test.join(' ') : 'none' },
-                { label: 'Networks', value: data.networks.map((network) => network.name).join(', ') || '–' },
-              ]}
-            />
-          </Stack>
-          {/*
-            Two counted sections instead of one heading over a run of strings, each drawn only when
-            it holds something: a section headed `0` is absent, not present and empty
-            (plan-ui-coherence-optimisation/REQ-60), the rule the Inspect tab below already follows.
-          */}
-          <Stack gap="var(--space-4)">
-            {data.env.length > 0 ? (
-              <Stack gap="var(--space-3)">
-                <SectionHeader variant="eyebrow" title="Environment" trailing={<Badge variant="quiet">{data.env.length}</Badge>} />
-                <DefinitionList arrangement="key-columns" contentClass="long-single-line" items={data.env.map(parseEnvEntry).map((pair) => ({ label: pair.key, value: pair.value }))} />
-              </Stack>
-            ) : null}
-            {data.mounts.length > 0 ? (
-              <Stack gap="var(--space-3)">
-                <SectionHeader variant="eyebrow" title="Mounts" trailing={<Badge variant="quiet">{data.mounts.length}</Badge>} />
-                <DefinitionList
-                  contentClass="long-single-line"
-                  items={data.mounts.map((mount) => ({
-                    label: mount.source,
-                    value: (
-                      <>
-                        {mount.destination}
-                        <Chip label={mount.readOnly ? 'ro' : 'rw'} tone={mount.readOnly ? 'accent' : 'neutral'} />
-                      </>
-                    ),
-                  }))}
-                />
-              </Stack>
-            ) : null}
-          </Stack>
-        </Grid>
       </Stack>
     );
   }
@@ -531,7 +630,7 @@ export function ContainerDetailPanel({ container, onContainerReplaced }: Contain
     // Unmounting the view is what stops the live stats stream (REQ-32).
     if (activeTab === 'stats')
       return (
-        <ScrollArea>
+        <ScrollArea inset>
           <ContainerStatsView container={container} />
         </ScrollArea>
       );
@@ -543,7 +642,10 @@ export function ContainerDetailPanel({ container, onContainerReplaced }: Contain
     if (activeTab === 'exec') return <ContainerSessionView container={container} kind="exec" />;
     if (activeTab === 'attach') return <ContainerSessionView container={container} kind="attach" />;
     return (
-      <ScrollArea>
+      // The document tabs ask the region for room: their cards are surfaces, and one at the edge
+      // of a bare scroller loses its drop shadow to the clip and shares its trailing edge with the
+      // scrollbar (REQ-53). The inset is the library's own, named; nothing is stated here.
+      <ScrollArea inset>
         <Stack gap="var(--space-4)">
           {error ? <ErrorBanner title="Could not load container details" detail={error} onRetry={refresh} /> : null}
           {!inspect ? (

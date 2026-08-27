@@ -61,33 +61,74 @@ Shows (Attach tab):
 - The container's `ContainerSessionView` with `kind="attach"`; the inspect data is neither needed
   nor awaited for it.
 Shows (Config tab, view mode):
-- **The "Edit configuration" action at the head of the tab**, above both columns and inside neither
-  (REQ-22), at the tab's trailing edge. Its label and what it does are the delivered ones.
-- Under it, two columns in the library's named `pair` arrangement (`Grid arrangement="pair"`), so
-  they are the mocked two equal columns at desktop widths and **stack, each at full width**, when the
-  panel cannot carry both — instead of each being squeezed to ~180px.
-- Left: a `Runtime configuration` heading over a `DefinitionList` of restart policy, CPU limit,
-  memory limit, port mapping, health check command and networks.
-- Right: **two counted sections of their own**, `Environment` and `Mounts` (REQ-19, REQ-20), each
-  headed by a `SectionHeader` carrying the number of entries it holds — a quiet `Badge` at the
+- **The reading is the edit form with its controls replaced by their values.** The same groups, in
+  the same order, in the same containers and the same arrangement as `edit mode` below, all five
+  drawn in both states — so the tab is one screen in two states, and pressing `Edit configuration`
+  never asks the operator to re-find a setting they were just reading.
+- **The "Edit configuration" action at the foot of the tab**, below every group and inside none of
+  them, at the tab's trailing edge — the place the edit form's own save and cancel occupy (REQ-50).
+  It scrolls with the tab's content, as that footer does, and is not pinned to the region. Its label
+  and what it does are the delivered ones. **This amends REQ-22**, which put the action at the head:
+  the head was chosen when the reading was two columns and the action had to belong to neither, and
+  with the reading now the form's own composition the action takes the form's own place.
+- **`Runtime` and `Health check` side by side**, each a `Card` of its own, in the library's named
+  `pair` arrangement (`Grid arrangement="pair"`) — the two equal columns at desktop widths, stacking
+  each at full width when the panel cannot carry both. `Environment variables`, `Port mappings` and
+  `Mounts` follow underneath, one `Card` per row at full width.
+- `Runtime` — a `DefinitionList` of restart policy (with its max-retry count where the policy is
+  `on-failure`), CPU limit, memory limit and networks.
+- `Health check` — the toggle, read: a quiet `Badge` in the heading's trailing slot saying `enabled`
+  or `disabled`, and under it either the `DefinitionList` of command, interval, timeout, retries and
+  start period, or the library's `EmptyState` saying the container defines no probe. The command is
+  shown as the form's own single field holds it — without the `CMD` / `CMD-SHELL` token the daemon
+  prefixes it with — and the durations in seconds, as the form asks for them, not in the nanoseconds
+  the daemon reports.
+- **`Environment variables`, `Port mappings` and `Mounts` are counted sections** (REQ-19, REQ-20),
+  each headed by a `SectionHeader` carrying the number of entries it holds — a quiet `Badge` at the
   heading's trailing edge, the same reading the Inspect tab's own counted sections have. No entry
   carries a `mount:` prefix: the word that was repeated on every row is the section's heading.
-  - `Environment` — one band per variable, its **key and its value on two aligned tracks**
-    (`DefinitionList arrangement="key-columns"`), so the keys read down as one column and every
-    value begins at one edge (REQ-18). The daemon's `KEY=value` string is split **on its first `=` only**,
-    so a value that itself contains `=` arrives whole; an entry with no `=` at all is the key with an
-    empty value.
-  - `Mounts` — one band per mount, its **source as the band's label, its destination as the value,
-    and a `ro` / `rw` `Chip` beside it** (REQ-21). The read-only chip carries the accent tone and the
-    read-write one the neutral tone, so the mount an operator goes looking for when a container
-    cannot write is told from its neighbours without reading either path.
-- **A section with no entries is not drawn at all** — neither its heading nor its list: a heading
-  counting `0` is present-and-empty, which `plan-ui-coherence-optimisation/REQ-60` refuses and the
-  Inspect tab below already refuses. A container with neither environment nor mounts therefore shows
-  the runtime column alone, and nothing occupies the other side.
-- Both right-hand sections declare the long-single-line class, so each flows as many bands per line
-  as its own column carries and the two — being of one measured width — show the same count as each
-  other.
+  - `Environment variables` — **one variable per row, at the group's full width** (`FieldList`,
+    free-text class), the key and the value each in a field of its own and each taking a half of the
+    row: the form's own geometry, read (REQ-54). A value begins where its own field begins, never at
+    a fixed offset inside an otherwise empty band, and the keys still read down as one column
+    because every entry gives its first field the same share (REQ-18). The daemon's `KEY=value`
+    string is split **on its first `=` only**, so a value that itself contains `=` arrives whole; an
+    entry with no `=` at all is the key with an empty value.
+  - `Port mappings` — one entry per port the container **publishes on the host, and only those**
+    (`containers-service.md`, REQ-59), **each naming its two numbers** (`FieldList`, short-scalar
+    class): `Container port` carrying the container's own port with its protocol, `Host port`
+    carrying the host's — so which number is which is read rather than inferred from the order they
+    are written in (REQ-55). The captions are the edit form's own words. The group goes on flowing
+    **as many entries per line as its card carries**, which the human asked for explicitly. A
+    publication whose host port the operator left to the daemon states the number the daemon chose,
+    not `not published`; `not published` remains the reading for a binding the daemon carries with no
+    host port at all. A port the container merely **exposes** is not an entry: it binds nothing on
+    the host and is reachable from nowhere the operator asked for.
+  - `Mounts` — **one mount per row, at the group's full width** (`FieldList`, free-text class,
+    `content` arrangement): a `Source` field, a `Destination` field, and the `ro` / `rw` `Chip`
+    beside the destination — the form's own row order, read, and the three parts REQ-21 asks for.
+    The two fields share the row **by what they hold**, so a volume source — a path long enough to
+    need most of a row — takes the room the destination beside it does not, instead of wrapping
+    inside a fixed track while the rest of the row stands empty (REQ-56). The read-only chip carries
+    the accent tone and the read-write one the neutral tone, so the mount an operator goes looking
+    for when a container cannot write is told from its neighbours without reading either path.
+- **Every group is drawn whether or not it holds anything**, count included, and a counted section
+  with no entries says so in the library's `EmptyState`, asked for `compact`, in the place its list
+  would occupy: `No environment variables`, `No port mappings`, `No mounts`. **This amends REQ-49**
+  and supersedes `plan-ui-coherence-optimisation/REQ-60` **on this tab alone** (REQ-51): "this
+  container publishes no port" is an answer the operator came for, and an absent group is not that
+  answer — it is indistinguishable from a group that was never designed. The rule stands everywhere
+  else, the Inspect tab's own collapsible sections below included, where a group is a disclosure the
+  operator opens rather than a field they are looking for. `Runtime` and `Health check` were always
+  drawn already, each stating a single setting whose "off" — no limit, no probe — is a value the
+  operator chose.
+- **The reading draws no control.** Every group is values on the page: a field of the reading has
+  the form's geometry and none of its affordances — no input border, no focus ring, nothing to
+  press. The one control on the tab is `Edit configuration` at its foot.
+- `Environment variables` and `Mounts` declare the free-text class — one entry per row, at the
+  group's full width — and `Port mappings` the short-scalar one, so it flows as many entries per
+  line as its own card carries. The count follows the **card's** width and not the viewport's
+  (`plan-docker_management_app-detail_property_columns`, bug-4).
 Shows (Config tab, edit mode):
 - **Five groups, each inside a container of its own** (REQ-23) — `Runtime`, `Health check`,
   `Environment variables`, `Port mappings` and `Mounts` — instead of five headings on one continuous
@@ -181,6 +222,13 @@ Actions:
   region's height and scrolls and virtualises inside itself, which a tab wrapped in a document
   scroller could not do — inside one it is offered no definite height at all
   (`container-processes-view.md`).
+- **A tab that is a document is given the region with room in it** (REQ-53): Config, Stats and
+  Inspect ask the library's scrolled region for its named `inset`
+  (`ui-library/specs/scroll-area.md`), so a `Card` at the region's edge draws the whole of its drop
+  shadow instead of having it clipped, and the scrollbar keeps a gutter of its own instead of resting
+  on the cards' trailing edge. The room is the library's, asked for by name; the panel states no
+  value for it. The tabs that are surfaces of their own — Logs, Processes, Exec, Attach — take the
+  region as it is, and so does every other consumer of that region in the application.
 - Only the active tab's content exists: leaving the Stats tab (switching tab, or the dialog being
   dismissed by either route) unmounts the stats view and thereby stops the live stats stream
   (REQ-32); leaving the Exec or Attach tab likewise closes the interactive session (REQ-36). Nothing
@@ -221,7 +269,7 @@ Actions:
 - ContainerStatsView
 - ContainerProcessesView
 - ContainerSessionView
-- ui-library: BandStack, ScrollArea, Tabs, DefinitionList, Badge, Card, Chip, CollapsibleSection, CodeViewer, Grid, Select, NumberField,
+- ui-library: BandStack, ScrollArea, Tabs, DefinitionList, FieldList, Badge, Card, Chip, CollapsibleSection, CodeViewer, Grid, Select, NumberField,
   Toggle, TextField, KeyValueEditor, RepeatableRowList, FormFooter, SectionHeader, Row, Spacer, Stack,
   Button, ErrorBanner, EmptyState, useToast
 - Containers client (updateContainerConfig)
@@ -277,3 +325,12 @@ Actions:
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-35
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-36
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-37
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-46
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-47
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-48
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-50
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-51
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-53
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-54
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-55
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-56

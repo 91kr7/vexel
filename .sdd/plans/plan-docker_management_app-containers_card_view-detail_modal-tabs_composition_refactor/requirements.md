@@ -22,9 +22,10 @@ Ids are local to this plan: `REQ-1` here is **not**
 always cited with their path prefix — which matters here more than usual, because the predecessor's
 `REQ-25` (the health-check switch) is named repeatedly and this plan has a `REQ-25` of its own.
 
-**Ten sections, nine of them a change point of the mock's summary table** — F0, F1, F1b, F2, F3, F4,
-F5, F6, F6b — and a tenth holding what every one of them must not break. The nine fail
-independently; the tenth is a standing condition on all of them.
+**Eleven sections, nine of them a change point of the mock's summary table** — F0, F1, F1b, F2, F3,
+F4, F5, F6, F6b — one added after those nine were certified, from a UX review of what they delivered
+(F3b), and a last one holding what every other must not break. The ten fail independently; the last
+is a standing condition on all of them.
 
 **The mock is authoritative on composition and not on material.** Where a requirement below says a
 value is "distinguished", "in the danger tone" or "accented", it fixes the *role*; the colour, radius
@@ -48,7 +49,8 @@ the default this plan proposed, so the reading below is the human's and not only
 - **Each sparkline is the series whose colour the mock strokes it in** (REQ-15, REQ-16): inbound for
   Net I/O, read for Block I/O, the count for PIDs. Not the two summed.
 - **Nine batches, one per change point**, F0 first as a hard dependency; the two small points stay
-  batches of their own.
+  batches of their own. A tenth, `config-reading-mirrors-editing`, was added on 2026-08-27 after
+  those nine were certified and was not part of that answer — see F3b.
 
 The rest were decided by the planner, from the spec and the mock:
 
@@ -119,6 +121,60 @@ The rest were decided by the planner, from the spec and the mock:
 | REQ-21 | Each mount shows its source, its destination and a `ro` / `rw` chip, the read-only one distinguished from the read-write one, instead of two letters in brackets at the end of a string. |
 | REQ-22 | `Edit configuration` sits at the head of the Config tab, above both columns and belonging to neither, rather than at the foot of one of them. |
 
+## F3b — Config in reading is the edit form, read
+
+Added on 2026-08-27, after the nine batches were certified, from a UX review of the delivered Config
+tab. It does not supersede F3: REQ-18 … REQ-22 are all still true of the arrangement below, and
+REQ-22's "above both columns" now names the `Runtime` / `Health check` pair rather than the
+runtime-list / environment-and-mounts pair it named when it was written.
+
+**The finding.** Reading and editing were two different screens. Reading drew a runtime list on the
+left with the port mapping and the health check squeezed into one line each, and environment and
+mounts on the right; pressing `Edit configuration` replaced that with five cards in a different
+order, promoting `Port mappings` and `Health check` to groups of their own. So an operator who had
+just read a setting had to find it again, in a different place, to change it — and the two states of
+one tab looked like two tabs.
+
+| ID | Requirement |
+| --- | --- |
+| REQ-46 | The Config tab in reading is composed as the same tab in editing: the same groups, in the same order, each inside its own container, with `Runtime` and `Health check` side by side and `Environment variables`, `Port mappings` and `Mounts` at full width beneath them. An operator who has just read a setting finds it in the same place after pressing `Edit configuration`. |
+| REQ-47 | The health check is a group of its own in reading, stating whether the container defines one at all and, when it does, its command, interval, timeout, retries and start period — each as the edit form states it: the durations in seconds, and the command without the `CMD` / `CMD-SHELL` token the daemon prefixes it with. It is no longer one line of the runtime list carrying the daemon's raw test array. |
+| REQ-48 | Published port mappings are a counted group of their own in reading, one entry per binding, instead of one comma-joined line of the runtime list. A binding the daemon publishes nowhere says so rather than reading as an empty value. |
+| REQ-49 | A group holding a **collection** — `Environment variables`, `Port mappings`, `Mounts` — is drawn only when it holds something, `plan-ui-coherence-optimisation/REQ-60` as the rest of this panel already applies it. `Runtime` and `Health check` are drawn whether or not the container states anything: each holds a single setting whose "off" — no limit, no probe — is a value the operator chose, not a collection whose emptiness is its own absence. This is the one deliberate difference from the editing arrangement, where every group is always drawn because an empty one is still somewhere to add a row. |
+
+### Amended on 2026-08-27, from the human's review of the implementation
+
+The four above were implemented and then looked at. Three findings came back, and two of them amend
+requirements already stated — inside this same plan, which is unusual and is therefore written out
+rather than edited in place: `config-reading-layout` and the first pass of `config-reading-mirrors-editing`
+are certified against REQ-22 and REQ-49 as they stand, and a certified requirement is not rewritten
+under a batch that closed it.
+
+| ID | Requirement |
+| --- | --- |
+| REQ-50 | `Edit configuration` sits at the **foot** of the Config tab, at its trailing edge, belonging to no group — where the edit form's own save and cancel sit. **Amends REQ-22**, which put it at the head: the head was chosen when the reading was two columns and the action had to belong to neither; with the reading now the same composition as the form, the action takes the form's own place. It scrolls with the tab's content, as the form's footer does today. |
+| REQ-51 | `Environment variables`, `Port mappings` and `Mounts` are drawn in reading whether or not they hold anything, each with its count, exactly as they are in editing. **Amends REQ-49**, which drew them only when filled. A container that publishes nothing must still show a `Port mappings` group saying so, because "this container has no published port" is an answer the operator came for, and an absent group is not that answer — it is indistinguishable from a group that was never designed. |
+| REQ-52 | A port the container **exposes without publishing** is carried by the inspect data and read in the Config tab. It is lost today: the daemon reports `HostConfig.PortBindings` as an empty object rather than as absent, so the fallback onto `NetworkSettings.Ports` written for exactly this case never fires, and a container whose card advertises a port shows none in its detail. |
+| REQ-53 | The detail's scrolled region leaves room for what it holds: the drop shadow of a surface at its edge is drawn in full rather than clipped by the scroller, and the scrollbar has a gutter of its own instead of sitting on the content's trailing edge. Every other consumer of the shared scroll region keeps the box it has today. |
+
+### Amended again on 2026-08-27, from the human's review of the second pass
+
+Three complaints, one cause: the reading asks `DefinitionList` for its `key-columns` arrangement,
+whose label track is a fixed length (180px, capped at a share of the band) and whose values therefore
+all begin at one offset whatever the entry holds. Measured on the human's own container, at a group
+1150px wide: `PATH` occupies 29px of ink inside a 180px track and its value starts 208px in, on a
+563px band, wrapping onto two lines; a mount's volume source wraps over **four** lines inside that
+same 180px track while 942px stand empty beside it.
+
+| ID | Requirement |
+| --- | --- |
+| REQ-54 | Environment variables are read **one per row**, at the full width of their group, laid out as the edit form lays them out: a key field and a value field side by side, each taking a share of the row. A value begins where its own field begins, never at a fixed offset inside an otherwise empty band, and a value the row has room for is drawn on one line. |
+| REQ-55 | A port entry names which number is the **container's own port** and which is the **host's**. The group may still flow more than one entry per line — the human asked for that explicitly — so the naming travels with each entry rather than being a heading of the group. |
+| REQ-56 | A mount is given the width its row actually has: neither its source nor its destination is wrapped while free space stands beside it. A volume source is a path long enough to need most of a full-width row, and the arrangement must let it have it. |
+| ~~REQ-58~~ | ~~The Config tab reads every port the container declares, published or not, from `Config.ExposedPorts`.~~ **Withdrawn by the human on 2026-08-27, the day it was written, on evidence.** `Config.ExposedPorts` is the union of what the *image* declares and what the operator publishes: on their own container the `5000/tcp` it added came from `registry:2`'s own `EXPOSE`, not from them. And `EXPOSE` opens nothing — it does not bind a host port and does not gate container-to-container traffic, its one effect being that `docker run -P` publishes what it names. So the row said "declared by somebody else, reachable from nowhere", which is not what an operator opens this group to learn. |
+| REQ-59 | **Every port published on the host is shown, and only those** — the human's own rule, given on 2026-08-27. One entry per publication, each stating the container's own port and **the host port actually in force** — including where the operator named none and the daemon chose it (`-p 80`, `-P`), which today reads `not published` on a port that is published. A port that is merely declared is not an entry here. This replaces REQ-58 and narrows REQ-52 to what its own title always said: mappings. **The mechanism is stated in the batch and was corrected there on evidence**: `docker run -P` fills no bindings at all, so a reading confined to `HostConfig.PortBindings` would show nothing for a container that is published — the opposite of this requirement. |
+| REQ-57 | **No field of an entry takes more than half its row.** REQ-56 let a field's width follow what it holds, and on a list of mounts that puts the boundary between source and destination at a different offset in every row: the column stops being a column. The cap restores it. It is the human's own trade, made on 2026-08-27 with the cost stated — a volume source of ~96 characters needs ~690px and half of a 1150px row is 575px, so such a source wraps onto a second line rather than running past the middle of the row. |
+
 ## F4 — Config in editing
 
 | ID | Requirement |
@@ -154,10 +210,10 @@ The rest were decided by the planner, from the spec and the mock:
 | REQ-36 | A non-zero exit code reads as bad news, in the application's danger tone; a zero exit code carries no such tone. |
 | REQ-37 | The raw payload is a collapsible section like the others of the tab, and is collapsed when the tab opens, instead of being the one section always open. |
 
-## Cross-cutting — what none of the nine may break
+## Cross-cutting — what none of the batches may break
 
-These hold at the end of **every** batch of this plan, and are fully closed only when the last of
-them lands.
+These hold at the end of **every** batch of this plan — the tenth, `config-reading-mirrors-editing`,
+included — and are fully closed only when the last of them lands.
 
 | ID | Requirement |
 | --- | --- |

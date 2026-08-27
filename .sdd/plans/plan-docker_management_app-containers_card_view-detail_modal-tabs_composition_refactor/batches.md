@@ -8,8 +8,10 @@ status: validated
 
 # Batches — The seven tabs of the container detail, recomposed
 
-Nine batches, one per change point of the mock's summary table, in build order. Requirement ids are
-this plan's (`requirements.md`); intervention ids are local to each batch file.
+Ten batches, in build order: nine, one per change point of the mock's summary table, and a tenth
+added on 2026-08-27 after those nine were certified — a UX review of the delivered Config tab, not a
+change point of the mock, which draws the editing composition and says nothing about the reading one.
+Requirement ids are this plan's (`requirements.md`); intervention ids are local to each batch file.
 
 | Batch | Feature | REQ closed | Depends | Status | Human acceptance |
 | --- | --- | --- | --- | --- | --- |
@@ -18,6 +20,7 @@ this plan's (`requirements.md`); intervention ids are local to each batch file.
 | `config-first-tab` | F1b — Config is the first tab and the one active on open | REQ-11, REQ-12 | `stable-detail-height`, `detail-identity-header` | certified | The detail opens on the tab it draws first |
 | `config-reading-layout` | F3 — Config in reading | REQ-18, REQ-19, REQ-20, REQ-21, REQ-22 | `stable-detail-height` | certified | The environment variables can be read down the keys |
 | `config-editing-cards` | F4 — Config in editing | REQ-23, REQ-24, REQ-25, REQ-26 | `stable-detail-height`, `config-reading-layout` | certified | The edit form reads as groups instead of one long column |
+| `config-reading-mirrors-editing` | F3b — Config in reading is the edit form, read | REQ-46 … REQ-57, REQ-59 | `config-reading-layout`, `config-editing-cards` | implemented | The setting the operator just read is where they left it after pressing Edit |
 | `stats-two-plus-three` | F2 — Stats is two metrics with a ceiling, then three without | REQ-13, REQ-14, REQ-15, REQ-16, REQ-17 | `stable-detail-height` | certified | The bars are only where a bar can mean something |
 | `log-controls-and-levels` | F5 — The log controls in two groups, and the lines distinguished | REQ-27, REQ-28, REQ-29, REQ-30, REQ-31 | `stable-detail-height` | certified | The controls that reopen the stream are told from the ones that do not |
 | `processes-fills-its-tab` | F6 — The process table takes the height it is offered | REQ-32, REQ-33 | `stable-detail-height` | certified | The process list uses the room the dialog gives it |
@@ -25,14 +28,16 @@ this plan's (`requirements.md`); intervention ids are local to each batch file.
 
 **Why this order.** `stable-detail-height` is first because the mock says so and because the reason
 is structural: Processes and the terminals cannot take the available height while the available
-height is whatever they take. It is a dependency of all eight others for a second reason too — each
+height is whatever they take. It is a dependency of all eight others of the original nine for a second reason too — each
 of them recomposes a tab body that has to fit the definite height F0 introduces, and each of their
 checks asserts the dialog's box across the interaction it drives (REQ-44); a tab laid out against a
 frame that still moves would be laid out twice. Beyond that the spec says the rest may follow in any
-order, and the order in the table is the human's, chosen on 2026-08-26. The two dependencies inside
+order, and the order in the table is the human's, chosen on 2026-08-26. The three dependencies inside
 that order are real and not conventional: `config-first-tab` follows `detail-identity-header` because
-both rewrite the same checks, and `config-editing-cards` follows `config-reading-layout` because the
-latter moves the control that enters the former's mode.
+both rewrite the same checks, `config-editing-cards` follows `config-reading-layout` because the
+latter moves the control that enters the former's mode, and `config-reading-mirrors-editing` follows
+both, because what it does is put the first one's arrangement onto the second one's composition —
+there is nothing to mirror until the composition being mirrored exists.
 
 **The two cheap, undebatable points are scheduled early**, as the spec asks: `detail-identity-header`
 is a regression against a mockup already approved, and `processes-fills-its-tab` removes a measure
@@ -41,8 +46,14 @@ precede F0.
 
 ## Departures from the spec
 
-None. Every decision below is inside the spec's scope, and the four points put to the human at the
-requirements validation were all answered with the default this plan proposed
+One, and it is an addition rather than a divergence. `config-reading-mirrors-editing` (F3b) is
+**outside the spec's summary table**: the mock draws the Config tab in editing and leaves the reading
+composition unstated, so no change point covers it. It was raised by the human on 2026-08-27, from
+the delivered tab, and the requirements it closes were written then rather than at the plan's
+validation. Recorded here so nobody reads F3b as a change point they failed to find in the mock.
+
+Everything else is inside the spec's scope, and the four points put to the human at the requirements
+validation were all answered with the default this plan proposed
 (`requirements.md`, "Values and readings fixed in these requirements").
 
 ## What this plan supersedes, deliberately and by name
@@ -167,7 +178,8 @@ across the health-check reveal, which is what the narrowing gave up.
 - **A fixed height can be worse than a moving one on a short viewport** (REQ-4, REQ-40). Bounded by
   the viewport rather than by a constant, which is why the requirement states both halves; the
   375×812 pass is the check that decides it.
-- **Nine points make the regression surface the whole dialog.** F0 first is the mock's own answer,
+- **Nine points make the regression surface the whole dialog**, and a tenth reopened one of them
+  after the fact. F0 first is the mock's own answer,
   and each batch rewrites the coverage it invalidates rather than leaving it to the last one.
 - **`Modal` now carries four opt-ins, three of them asked for by one surface.** See assumption 1.
   The signal to watch for is a fifth: at that point the detail's dialog is a component of its own
@@ -214,6 +226,20 @@ across the health-check reveal, which is what the narrowing gave up.
 | REQ-41 | `inspect-grouped` | INT-4 — also served by `stats-two-plus-three`/INT-5 and `processes-fills-its-tab`/INT-4 |
 | REQ-42 | `inspect-grouped` | INT-4 — also served by `detail-identity-header`/INT-4 |
 | REQ-43, REQ-44, REQ-45 | `inspect-grouped` | INT-4, INT-5 — also served by the coverage intervention of every other batch |
+| REQ-46 | `config-reading-mirrors-editing` | INT-1 |
+| REQ-47 | `config-reading-mirrors-editing` | INT-2 |
+| REQ-48 | `config-reading-mirrors-editing` | INT-3 |
+| REQ-49 | `config-reading-mirrors-editing` | INT-4 — amended by REQ-51 |
+| REQ-50 | `config-reading-mirrors-editing` | INT-6 |
+| REQ-51 | `config-reading-mirrors-editing` | INT-7 |
+| REQ-52 | `config-reading-mirrors-editing` | INT-8 |
+| REQ-53 | `config-reading-mirrors-editing` | INT-9 |
+| REQ-54 | `config-reading-mirrors-editing` | INT-11 |
+| REQ-55 | `config-reading-mirrors-editing` | INT-12 |
+| REQ-56 | `config-reading-mirrors-editing` | INT-13 |
+| REQ-57 | `config-reading-mirrors-editing` | INT-14 |
+| ~~REQ-58~~ | withdrawn 2026-08-27 | — |
+| REQ-59 | `config-reading-mirrors-editing` | INT-16 |
 
 **Every INT serves at least one REQ.** No intervention in this plan is enabling-only; there is no
 declared exception.
