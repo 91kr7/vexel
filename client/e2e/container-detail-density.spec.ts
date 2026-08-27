@@ -628,30 +628,33 @@ test.describe('Container detail — the expanded detail stops fighting for room 
       expect(stdout.width, 'the logs toolbar is clipped to nothing').toBeGreaterThan(0);
       expect(stdout.hitsItself, 'a pointer aimed at the logs toolbar reaches something else').toBe(true);
 
-      // `…-tabs_composition_refactor/REQ-40` — "no value clipped to nothing" is asserted on values
-      // and not only on controls: the Inspect tab's two property groups, band by band.
+      // `…-tabs_composition_refactor/REQ-40`, `…-inspect_full_payload/REQ-29` — "no value clipped to
+      // nothing" is asserted on values and not only on controls, and at this width label and value
+      // stack instead of sharing a line. Read off the rebuilt Inspect tab's own bands, since the two
+      // curated property groups it used to draw are gone (`…-inspect_full_payload/REQ-5`).
       await detail.getByRole('tab', { name: 'Inspect', exact: true }).click();
-      for (const heading of ['Identity', 'Lifecycle']) {
-        const clipped = await detail.evaluate((panel, title) => {
-          const header = Array.from(panel.querySelectorAll('.ui-section-header')).find(
-            (candidate) => candidate.querySelector('.ui-section-header__title')?.textContent === title,
-          );
-          const list = header?.parentElement?.querySelector(':scope > .ui-definition-list');
-          if (!list) return ['(the group is not drawn at all)'];
-          return Array.from(list.querySelectorAll('.ui-definition-list__row')).flatMap((row) => {
-            const label = row.querySelector('.ui-definition-list__label')!;
-            const value = row.querySelector('.ui-definition-list__value')!;
-            const labelBox = label.getBoundingClientRect();
-            const valueBox = value.getBoundingClientRect();
-            const bad: string[] = [];
-            if (labelBox.width <= 0 || labelBox.height <= 0) bad.push(`${label.textContent}: the label has no box`);
-            if (valueBox.width <= 0 || valueBox.height <= 0) bad.push(`${label.textContent}: the value has no box`);
-            if (getComputedStyle(value).textOverflow === 'ellipsis') bad.push(`${label.textContent}: the value is clamped with an ellipsis`);
-            return bad;
-          });
-        }, heading);
-        expect(clipped, `[REQ-40] the ${heading} group loses a value at 375×812`).toEqual([]);
-      }
+      await expect(detail.getByLabel('Find in payload')).toBeVisible({ timeout: 20_000 });
+      const bandsAtPhoneWidth = await detail.evaluate((panel) => {
+        const bands = Array.from(panel.querySelectorAll('.ui-payload-band'));
+        const bad = bands.flatMap((band) => {
+          const label = band.querySelector('.ui-payload-band__label')!;
+          const value = band.querySelector('.ui-payload-band__value')!;
+          const labelBox = label.getBoundingClientRect();
+          const valueBox = value.getBoundingClientRect();
+          const wrong: string[] = [];
+          if (labelBox.width <= 0 || labelBox.height <= 0) wrong.push(`${label.textContent}: the label has no box`);
+          if (valueBox.width <= 0 || valueBox.height <= 0) wrong.push(`${label.textContent}: the value has no box`);
+          if (getComputedStyle(value).textOverflow === 'ellipsis') wrong.push(`${label.textContent}: the value is clamped with an ellipsis`);
+          if (valueBox.top < labelBox.bottom - 1) wrong.push(`${label.textContent}: the value shares the label's line instead of stacking under it`);
+          return wrong;
+        });
+        return { count: bands.length, bad };
+      });
+      expect(bandsAtPhoneWidth.count, '[REQ-29] the Inspect tab draws no band at all, so this proves nothing').toBeGreaterThan(0);
+      expect(bandsAtPhoneWidth.bad, '[REQ-29] the Inspect tab loses or crowds a value at 375×812').toEqual([]);
+      const findBox = await boxOf('the payload find control', detail.getByLabel('Find in payload'));
+      expect(findBox.width, '[REQ-29] the find control is clipped to nothing').toBeGreaterThan(0);
+      expect(findBox.hitsItself, '[REQ-29] a pointer aimed at the find control reaches something else').toBe(true);
 
       for (const tab of ['Stats', 'Processes', 'Inspect', 'Exec', 'Attach', 'Config', 'Logs']) {
         const control = detail.getByRole('tab', { name: tab, exact: true });
@@ -726,24 +729,27 @@ test.describe('Container detail — the expanded detail stops fighting for room 
       const raw = await payload.textContent();
       expect(JSON.parse(raw ?? '').Name, '[REQ-65] the raw inspect payload is not the daemon’s own').toBe(`/${name}`);
 
-      // REQ-60's rule, as this panel applies it: a section is drawn only when it holds something.
-      const sections = await detail.locator('.ui-collapsible-section').evaluateAll((elements) =>
+      // REQ-60 is **refused** on this tab (`…-inspect_full_payload/REQ-6`): its sections are the
+      // payload's own top-level keys, each drawn whether or not it holds anything. So what is
+      // re-established here is that rule instead of the one it supersedes — the sections are the
+      // response's keys, in the response's order, and the labels the fixture declares are found
+      // under the key the daemon puts them at rather than in a curated section of their own.
+      const sections = await detail.locator('.ui-payload-sections > .ui-collapsible-section').evaluateAll((elements) =>
         elements.map((element) => ({
           title: (element.querySelector('.ui-collapsible-section__title')?.textContent ?? '').trim(),
           summary: (element.querySelector('.ui-collapsible-section__summary')?.textContent ?? '').trim(),
         })),
       );
-      console.log(`[REQ-65] panel sections: ${JSON.stringify(sections)}`);
+      console.log(`[REQ-65] Inspect tab sections: ${JSON.stringify(sections)}`);
 
+      const composites = Object.entries(JSON.parse(raw ?? '{}') as Record<string, unknown>)
+        .filter(([, value]) => value !== null && typeof value === 'object')
+        .map(([key]) => key);
       expect(
-        sections.filter((section) => section.summary === '0'),
-        '[REQ-65] a section headed with a count of `0` is drawn',
-      ).toEqual([]);
-      // The fixture declares its ownership labels, so the section that has content is still drawn,
-      // headed by its own count.
-      const labels = sections.find((section) => section.title === 'Labels');
-      expect(labels, '[REQ-65] the Labels section is missing from a container that declares labels').toBeDefined();
-      expect(Number(labels!.summary), '[REQ-65] the section that has content lost its count').toBeGreaterThan(0);
+        sections.map((section) => section.title),
+        '[REQ-65] the Inspect tab no longer divides the payload into its own top-level keys',
+      ).toEqual(['Fields', ...composites, 'Raw payload']);
+      expect(sections.every((section) => section.summary.length > 0), '[REQ-65] a section states nothing about what it holds').toBe(true);
     } finally {
       await removeContainerQuietly(name);
     }

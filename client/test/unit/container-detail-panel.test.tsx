@@ -391,16 +391,15 @@ describe('ContainerDetailPanel — the Processes tab (tabs_composition_refactor/
 describe('ContainerDetailPanel — the tab row (REQ-11, REQ-12)', () => {
   /**
    * container-detail-panel.md — Config is both the first tab of the row and the tab selected when
-   * the detail opens, the others following it as Logs, Stats, Processes, Inspect and, for a running
-   * container, Exec and Attach (REQ-11). This restates the check that named the old order
-   * (Logs first) rather than dropping it: the row is still read by position, at the new position.
+   * the detail opens, Inspect immediately after it and the remaining five in their present relative
+   * order (`…-inspect_full_payload/REQ-1`, REQ-2). Read by position, at the new position.
    */
   it('draws Config first, opens on that same first tab, and offers Exec/Attach for a running container', async () => {
     renderPanel();
 
     await screen.findByRole('button', { name: 'Edit configuration' });
     const tabs = screen.getAllByRole('tab');
-    expect(tabs.map((tab) => tab.textContent)).toEqual(['Config', 'Logs', 'Stats', 'Processes', 'Inspect', 'Exec', 'Attach']);
+    expect(tabs.map((tab) => tab.textContent)).toEqual(['Config', 'Inspect', 'Logs', 'Stats', 'Processes', 'Exec', 'Attach']);
     // The tab drawn first and the tab opened on are one and the same, read off the row rather than
     // named twice: naming Config on both sides would still pass if the two ever drifted apart.
     expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
@@ -430,7 +429,7 @@ describe('ContainerDetailPanel — the tab row (REQ-11, REQ-12)', () => {
     });
 
     const inactive = tabs.filter((tab) => tab.getAttribute('aria-selected') === 'false');
-    expect(inactive.map((tab) => tab.textContent)).toEqual(['Logs', 'Stats', 'Processes', 'Inspect', 'Exec', 'Attach']);
+    expect(inactive.map((tab) => tab.textContent)).toEqual(['Inspect', 'Logs', 'Stats', 'Processes', 'Exec', 'Attach']);
     const treatments = inactive.map((tab) => JSON.stringify(treatmentOf(tab)));
     expect(new Set(treatments), `the tabs not showing are drawn differently from one another: ${treatments.join(' | ')}`).toHaveLength(1);
     expect(tabs.some((tab) => (tab as HTMLButtonElement).disabled || tab.hasAttribute('aria-disabled'))).toBe(false);
@@ -466,244 +465,337 @@ describe('ContainerDetailPanel — Logs tab (REQ-30)', () => {
 });
 
 /**
- * **The Inspect tab, recomposed into two questions** —
- * `…-tabs_composition_refactor/REQ-34` … REQ-37, read off
- * `containers/specs/container-detail-panel.md`.
- *
- * The ten properties are two headed groups now, `State` is the pill every other
- * surface draws, a non-zero exit code carries the danger tone, and the raw
- * payload is a collapsible section closed on arrival. What the tab holds is read
- * through the headings an operator reads; the **column counts** each group shows
- * are geometry and belong to `container-detail-property-columns.spec.ts`, jsdom
- * laying nothing out.
+ * **The Inspect tab as the whole payload** — `…-inspect_full_payload/REQ-3` … REQ-20, read off
+ * `containers/specs/container-detail-panel.md`. Completeness against the response itself lives in
+ * `container-inspect-completeness.test.tsx`; geometry lives in the e2e specs, jsdom laying nothing out.
  */
-describe('ContainerDetailPanel — Inspect tab (REQ-26, REQ-34, REQ-35, REQ-36, REQ-37)', () => {
-  function withInspect(overrides: Partial<ContainerInspect>): void {
+describe('ContainerDetailPanel — Inspect tab (…-inspect_full_payload/REQ-3 … REQ-20)', () => {
+  function rawPayload(): Record<string, unknown> {
+    return {
+      Id: 'a1b2c3d4e5f6a1b2c3d4e5f6',
+      Created: '2026-01-01T00:00:00Z',
+      Path: 'sleep',
+      Args: ['300'],
+      State: {
+        Status: 'exited',
+        Running: false,
+        ExitCode: 137,
+        StartedAt: '2026-01-01T00:00:01Z',
+        FinishedAt: '0001-01-01T00:00:00Z',
+        Health: { Status: 'unhealthy', FailingStreak: 2, Log: [{ Output: 'connection refused' }] },
+      },
+      Name: '/web-nginx',
+      RestartCount: 0,
+      Image: 'sha256:deadbeef',
+      HostConfig: { Memory: 536870912, ShmSize: 0, Privileged: false, Dns: [], PortBindings: {} },
+      Config: { Image: 'nginx:1.27', Cmd: ['nginx', '-g', 'daemon off;'], Entrypoint: null, Env: ['TOKEN=s3cr3t'], Labels: {} },
+      NetworkSettings: { Ports: { '80/tcp': [{ HostIp: '0.0.0.0', HostPort: '8080' }] }, SandboxID: null },
+    };
+  }
+
+  function withRaw(raw: unknown = rawPayload()): void {
     fetchMock.mockImplementation((url: string) =>
       url.includes('/inspect')
-        ? Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ...baseInspect(), ...overrides }) })
+        ? Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ...baseInspect(), raw }) })
         : Promise.resolve({ ok: configResponse.ok, status: configResponse.status, json: () => Promise.resolve(configResponse.body) }),
     );
   }
 
-  /** Opens the tab and waits for the inspect data, on the first group's heading rather than on the payload. */
   async function openInspect(): Promise<ReturnType<typeof userEvent.setup>> {
     const user = userEvent.setup();
     renderPanel();
     await user.click(await screen.findByRole('tab', { name: 'Inspect' }));
-    await screen.findByText('Identity');
+    await screen.findByLabelText('Find in payload');
     return user;
   }
 
-  interface Group {
+  interface DrawnSection {
     title: string;
-    bands: { label: string; value: string }[];
+    summary: string;
+    open: boolean;
   }
 
-  /** The tab's property groups: each `SectionHeader` and the definition list it heads. */
-  function propertyGroups(): Group[] {
-    return Array.from(document.querySelectorAll('.ui-section-header')).map((header) => {
-      const list = header.parentElement?.querySelector(':scope > .ui-definition-list');
+  function sections(): DrawnSection[] {
+    return Array.from(document.querySelectorAll('.ui-payload-explorer .ui-collapsible-section')).map((section) => ({
+      title: section.querySelector('.ui-collapsible-section__title')?.textContent ?? '',
+      summary: section.querySelector('.ui-collapsible-section__summary')?.textContent ?? '',
+      open: section.querySelector('.ui-collapsible-section__header')?.getAttribute('aria-expanded') === 'true',
+    }));
+  }
+
+  function sectionNamed(title: string): HTMLElement {
+    const found = Array.from(document.querySelectorAll<HTMLElement>('.ui-payload-explorer .ui-collapsible-section')).find(
+      (section) => section.querySelector('.ui-collapsible-section__title')?.textContent === title,
+    );
+    expect(found, `no "${title}" section is drawn; the tab draws ${sections().map((one) => one.title).join(', ') || 'nothing'}`).toBeDefined();
+    return found!;
+  }
+
+  interface DrawnBand {
+    label: string;
+    value: string;
+    reading: string | null;
+    empty: boolean;
+    danger: boolean;
+  }
+
+  function bands(root: ParentNode = document): DrawnBand[] {
+    return Array.from(root.querySelectorAll('.ui-payload-band')).map((band) => {
+      const value = band.querySelector('.ui-payload-band__value');
       return {
-        title: header.querySelector('.ui-section-header__title')?.textContent ?? '',
-        bands: Array.from(list?.children ?? []).map((row) => ({
-          label: row.querySelector('.ui-definition-list__label')?.textContent ?? '',
-          value: row.querySelector('.ui-definition-list__value')?.textContent ?? '',
-        })),
+        label: band.querySelector('.ui-payload-band__label')?.textContent ?? '',
+        value: value?.textContent ?? '',
+        reading: band.querySelector('.ui-payload-band__reading')?.textContent ?? null,
+        empty: value?.classList.contains('ui-payload-band__value--empty') ?? false,
+        danger: value?.classList.contains('ui-payload-band__value--tone-danger') ?? false,
       };
     });
   }
 
-  function group(title: string): Group {
-    const groups = propertyGroups();
-    const found = groups.find((candidate) => candidate.title === title);
-    expect(found, `no "${title}" group is drawn; the tab heads ${groups.map((one) => one.title).join(', ') || 'nothing'}`).toBeDefined();
+  function bandNamed(label: string, root: ParentNode = document): DrawnBand {
+    const found = bands(root).find((band) => band.label === label);
+    expect(found, `no band labelled "${label}" is drawn under this section`).toBeDefined();
     return found!;
   }
 
-  /** The `Raw payload` section, whichever state it is in. */
-  function payloadSection(): HTMLElement {
-    const section = Array.from(document.querySelectorAll<HTMLElement>('.ui-collapsible-section')).find(
-      (candidate) => candidate.querySelector('.ui-collapsible-section__title')?.textContent === 'Raw payload',
-    );
-    expect(section, 'the Inspect tab draws no `Raw payload` section').toBeDefined();
-    return section!;
+  async function openEverySection(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+    for (const title of sections().filter((section) => !section.open).map((section) => section.title)) {
+      await user.click(sectionNamed(title).querySelector<HTMLElement>('.ui-collapsible-section__header')!);
+    }
   }
 
-  // REQ-34 — what the container **is** and how it **has gone** are two headed groups, not ten rows
-  // presented as one list; each of the ten properties keeps the group its question belongs to.
-  it('splits the ten properties into Identity and Lifecycle, each under its own heading', async () => {
+  // REQ-8, REQ-10 — the sections are the response's own top-level keys, scalars gathered first, in the payload's order
+  it('divides the tab into the payload’s own top-level keys, gathered scalars first', async () => {
+    withRaw();
+
     await openInspect();
 
-    expect(propertyGroups().map((one) => one.title)).toEqual(['Identity', 'Lifecycle']);
-    expect(group('Identity').bands.map((band) => band.label)).toEqual(['Id', 'Name', 'Image', 'Command', 'Entrypoint', 'Created']);
-    expect(group('Lifecycle').bands.map((band) => band.label)).toEqual(['State', 'Started at', 'Finished at', 'Exit code']);
+    expect(sections().map((section) => section.title)).toEqual([
+      'Fields',
+      'Args',
+      'State',
+      'HostConfig',
+      'Config',
+      'NetworkSettings',
+      'Raw payload',
+    ]);
   });
 
-  // REQ-35 — `State` reads as the pill, in the tone the module's one state→tone reading gives it
-  // (`containers/specs/container-status.md`), and not as a word among the other values.
-  it.each([
-    ['running', 'success'],
-    ['exited', 'neutral'],
-    ['paused', 'warning'],
-    ['dead', 'danger'],
-  ])('draws the state of a %s container as a pill in that state’s own tone', async (status, tone) => {
-    withInspect({ state: { status } });
+  // REQ-11 — exactly two sections are open on entry: the gathered scalars and `State`
+  it('opens exactly the gathered scalars and State when the tab is entered', async () => {
+    withRaw();
 
     await openInspect();
 
-    const stateBand = Array.from(document.querySelectorAll('.ui-definition-list__row')).find(
-      (row) => row.querySelector('.ui-definition-list__label')?.textContent === 'State',
-    );
-    const pill = stateBand?.querySelector('.ui-badge');
-    expect(pill, 'the state is drawn as a plain value rather than as a pill').not.toBeNull();
-    expect(pill!.textContent).toBe(status.toUpperCase());
-    // The badge encodes `neutral` as the absence of a tone modifier (`ui-library/specs/badge.md`),
-    // so the tone is read the way the component writes it rather than by naming a class it never emits.
-    const drawn = pill!.className.split(' ').find((name) => name.startsWith('ui-badge--tone-'))?.replace('ui-badge--tone-', '') ?? 'neutral';
-    expect(drawn, `the state pill of a ${status} container is drawn ${drawn}, not in the ${tone} tone the module’s one reading gives it`).toBe(tone);
+    expect(sections().filter((section) => section.open).map((section) => section.title)).toEqual(['Fields', 'State']);
   });
 
-  /** The tone class the `Exit code` value carries, or `null` when it carries none. */
-  function exitCodeToneClass(): string | null {
-    const band = Array.from(document.querySelectorAll('.ui-definition-list__row')).find(
-      (row) => row.querySelector('.ui-definition-list__label')?.textContent === 'Exit code',
-    );
-    const value = band?.querySelector('.ui-definition-list__value');
-    expect(value, 'the Lifecycle group draws no `Exit code` band').not.toBeNull();
-    return value!.className.split(' ').find((name) => name.startsWith('ui-definition-list__value--tone-')) ?? null;
-  }
-
-  // REQ-36 — a non-zero exit code reads as bad news, in the application's own danger tone.
-  it('draws a non-zero exit code in the danger tone', async () => {
-    withInspect({ state: { status: 'exited', finishedAt: '2026-01-02T00:00:00Z', exitCode: 137 } });
+  // REQ-9 — a closed section still states how much it holds
+  it('states how much each section holds while it is still closed', async () => {
+    withRaw();
 
     await openInspect();
 
-    expect(group('Lifecycle').bands).toContainEqual({ label: 'Exit code', value: '137' });
-    expect(exitCodeToneClass()).toBe('ui-definition-list__value--tone-danger');
+    expect(sections().map((section) => ({ title: section.title, summary: section.summary }))).toEqual([
+      { title: 'Fields', summary: '6 fields' },
+      { title: 'Args', summary: '1 item' },
+      { title: 'State', summary: '6 fields' },
+      { title: 'HostConfig', summary: '5 fields' },
+      { title: 'Config', summary: '5 fields' },
+      { title: 'NetworkSettings', summary: '2 fields' },
+      { title: 'Raw payload', summary: 'JSON' },
+    ]);
   });
 
-  // REQ-36 — and a zero one carries no tone at all: it is drawn like every other value.
-  it('draws a zero exit code like any other value, with no tone of its own', async () => {
-    withInspect({ state: { status: 'exited', finishedAt: '2026-01-02T00:00:00Z', exitCode: 0 } });
+  // REQ-12 — the raw payload is the last section of the tab and is closed on entry
+  it('pins the raw payload last, closed', async () => {
+    withRaw();
 
     await openInspect();
 
-    expect(group('Lifecycle').bands).toContainEqual({ label: 'Exit code', value: '0' });
-    expect(exitCodeToneClass(), 'a container that exited cleanly is drawn as bad news').toBeNull();
-  });
-
-  // REQ-36 — neither does a container that has not exited at all.
-  it('gives the exit code of a running container no tone either', async () => {
-    await openInspect();
-
-    expect(exitCodeToneClass(), 'a running container’s absent exit code is drawn as bad news').toBeNull();
-  });
-
-  // REQ-41 — the signal name the mock draws beside the code ("137 · SIGKILL") is content the panel
-  // does not have and does not acquire: the value is the daemon's own number and nothing else.
-  it('adds no signal name beside the code it was given', async () => {
-    withInspect({ state: { status: 'exited', finishedAt: '2026-01-02T00:00:00Z', exitCode: 137 } });
-
-    await openInspect();
-
-    expect(group('Lifecycle').bands.find((band) => band.label === 'Exit code')!.value).toBe('137');
-  });
-
-  // REQ-37 — the payload is a section like the tab's others and is **closed when the tab opens**:
-  // nothing of it is on screen until its own header is pressed.
-  it('draws the raw payload as a section closed when the tab opens', async () => {
-    await openInspect();
-
-    const header = payloadSection().querySelector('.ui-collapsible-section__header')!;
-    expect(header.getAttribute('aria-expanded'), 'the raw payload section is open when the tab opens').toBe('false');
-    expect(payloadSection().querySelector('.ui-collapsible-section__summary')?.textContent).toBe('JSON');
+    const drawn = sections();
+    expect(drawn.at(-1)).toMatchObject({ title: 'Raw payload', open: false });
     expect(document.querySelectorAll('.ui-code-viewer'), 'the payload is drawn before its section has been opened').toHaveLength(0);
   });
 
-  /**
-   * plan-docker_management_app/REQ-26, **narrowed on 2026-08-14** to *viewable
-   * and selectable* as-is (plan-docker_management_app-remove_copy_controls/REQ-23),
-   * and re-asserted **through the now-collapsed section**
-   * (`…-tabs_composition_refactor/REQ-37`, REQ-43): the payload's completeness is
-   * the whole serialised payload, character for character, once the section is
-   * open — `plan-ui-coherence-optimisation/REQ-65` names it among the three things
-   * this panel must not lose, and one press before it is on screen is not a loss.
-   */
-  it('shows the raw inspect payload verbatim once its section is opened, exactly as the Engine returned it', async () => {
+  // REQ-12 — opened, it holds the response unaltered as real text
+  it('holds the whole response unaltered once the raw payload section is opened', async () => {
+    withRaw();
     const user = await openInspect();
 
-    await user.click(within(payloadSection()).getByRole('button'));
+    await user.click(sectionNamed('Raw payload').querySelector<HTMLElement>('.ui-collapsible-section__header')!);
 
-    expect(await screen.findByText(/raw-container-1-id/)).toBeInTheDocument();
-    const blocks = Array.from(document.querySelectorAll('.ui-code-viewer__code'));
-    expect(blocks.at(-1)).toHaveTextContent(JSON.stringify(baseInspect().raw, null, 2), { normalizeWhitespace: false });
+    const block = document.querySelector('.ui-code-viewer__code')!;
+    expect(block).toHaveTextContent(JSON.stringify(rawPayload(), null, 2), { normalizeWhitespace: false });
   });
 
-  // container-detail-panel.md — the block offers no action of its own, in either state: obtaining
-  // the full id from it is a hand-selection inside it
-  // (`plan-docker_management_app-remove_copy_controls/REQ-19`), and what the header adds is one
-  // press and nothing else.
-  it('offers no action of its own inside the payload block once it is open', async () => {
+  // REQ-5 — no summary block heads the tab: the find control is what the tab opens with
+  it('heads the tab with the find control and no summary block of curated properties', async () => {
+    withRaw();
+
+    await openInspect();
+
+    expect(screen.queryByText('Identity')).toBeNull();
+    expect(screen.queryByText('Lifecycle')).toBeNull();
+    expect(document.querySelectorAll('.ui-payload-explorer .ui-definition-list'), 'the tab still lays a curated list at its head').toHaveLength(0);
+    const explorer = document.querySelector('.ui-payload-explorer')!;
+    expect(explorer.firstElementChild!.classList.contains('ui-payload-explorer__find')).toBe(true);
+  });
+
+  // REQ-5 — the ten former properties survive as fields of the payload, each in the section its key belongs to, none twice
+  it('renders each of the ten former properties in the section its own key belongs to, exactly once', async () => {
+    withRaw();
     const user = await openInspect();
+    await openEverySection(user);
 
-    await user.click(within(payloadSection()).getByRole('button'));
+    const scalars = sectionNamed('Fields');
+    expect(bandNamed('Id', scalars).value).toBe('a1b2c3d4e5f6a1b2c3d4e5f6');
+    expect(bandNamed('Name', scalars).value).toBe('/web-nginx');
+    expect(bandNamed('Image', scalars).value).toBe('sha256:deadbeef');
+    expect(bandNamed('Created', scalars).value).toBe('2026-01-01T00:00:00Z');
+    expect(bandNamed('Path', scalars).value).toBe('sleep');
 
-    const block = document.querySelector('.ui-code-viewer')!;
-    expect(block.querySelectorAll('button, a, [role="button"]'), 'the payload block carries a control of its own').toHaveLength(0);
-    expect(block.querySelectorAll('.ui-code-viewer__actions'), 'the action row survived the control it held').toHaveLength(0);
+    const state = sectionNamed('State');
+    expect(bandNamed('Status', state).value).toBe('exited');
+    expect(bandNamed('StartedAt', state).value).toBe('2026-01-01T00:00:01Z');
+    expect(bandNamed('FinishedAt', state).value).toBe('0001-01-01T00:00:00Z');
+    expect(bandNamed('ExitCode', state).value).toBe('137');
+
+    const config = sectionNamed('Config');
+    expect(bands(config).map((band) => band.label)).toContain('Entrypoint');
+    expect(bands(config).map((band) => band.label)).toContain('Image');
+
+    expect(bands().filter((band) => band.label === 'ExitCode'), 'the exit code is drawn twice').toHaveLength(1);
   });
-});
 
-// container-detail-panel.md — "A collapsible section with nothing in it is not drawn", one rule
-// shared with the image panel: `Networks` and `Labels` appear only when they hold at least one
-// entry, so a section headed with a count of `0` cannot occur. `Raw payload` is unconditional and
-// stands among them in every case (`…-tabs_composition_refactor/REQ-37`).
-describe('ContainerDetailPanel — an empty section is absent (plan-ui-coherence-optimisation/REQ-60)', () => {
-  function withInspect(overrides: Partial<ContainerInspect>): void {
-    fetchMock.mockImplementation((url: string) =>
-      url.includes('/inspect')
-        ? Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ ...baseInspect(), ...overrides }) })
-        : Promise.resolve({ ok: configResponse.ok, status: configResponse.status, json: () => Promise.resolve(configResponse.body) }),
+  // REQ-16 — the state reads as a pill, in the tone the module's one state reading gives it
+  it('draws the payload’s own state as a pill beside the literal it read', async () => {
+    withRaw();
+
+    await openInspect();
+
+    const stateBand = Array.from(document.querySelectorAll('.ui-payload-band')).find(
+      (band) => band.querySelector('.ui-payload-band__label')?.textContent === 'Status',
+    )!;
+    const pill = stateBand.querySelector('.ui-badge');
+    expect(pill, 'the state is drawn as a plain value rather than as a pill').not.toBeNull();
+    expect(pill!.textContent).toBe('EXITED');
+    expect(stateBand.querySelector('.ui-payload-band__value')!.textContent, 'the pill replaced the daemon’s literal').toBe('exited');
+  });
+
+  // REQ-16 — the health outcome reads as a pill too, wherever the payload puts it
+  it('draws the health outcome as a pill beside its own literal', async () => {
+    withRaw();
+    const user = await openInspect();
+    await openEverySection(user);
+
+    const healthBand = Array.from(document.querySelectorAll('.ui-payload-band')).find(
+      (band) =>
+        band.querySelector('.ui-payload-band__label')?.textContent === 'Status' &&
+        band.querySelector('.ui-payload-band__value')?.textContent === 'unhealthy',
     );
-  }
-
-  async function inspectTabSections(): Promise<{ title: string; summary: string }[]> {
-    const user = userEvent.setup();
-    renderPanel();
-    await user.click(await screen.findByRole('tab', { name: 'Inspect' }));
-    // The tab's first heading, not the payload: the payload's section is closed on arrival now.
-    await screen.findByText('Identity');
-    return Array.from(document.querySelectorAll('.ui-collapsible-section')).map((section) => ({
-      title: section.querySelector('.ui-collapsible-section__title')?.textContent ?? '',
-      summary: section.querySelector('.ui-collapsible-section__summary')?.textContent ?? '',
-    }));
-  }
-
-  it('draws no section at all for a container attached to no network and declaring no label, beyond the payload', async () => {
-    withInspect({ networks: [], labels: {} });
-
-    expect(await inspectTabSections()).toEqual([{ title: 'Raw payload', summary: 'JSON' }]);
+    expect(healthBand, 'the health outcome is nowhere in the tab').toBeDefined();
+    expect(healthBand!.querySelector('.ui-badge')?.textContent).toBe('UNHEALTHY');
   });
 
-  it('draws no Labels section for a container declaring none, while Networks keeps its own', async () => {
-    withInspect({ networks: [{ name: 'bridge' }], labels: {} });
+  // REQ-16, REQ-18 — a non-zero exit code is toned as bad news; a zero one is drawn like any other value
+  it('tones a non-zero exit code and leaves a zero one untoned', async () => {
+    withRaw();
+    await openInspect();
+    expect(bandNamed('ExitCode', sectionNamed('State'))).toMatchObject({ value: '137', danger: true });
 
-    expect(await inspectTabSections()).toEqual([
-      { title: 'Networks', summary: '1' },
-      { title: 'Raw payload', summary: 'JSON' },
-    ]);
+    cleanup();
+    withRaw({ ...rawPayload(), State: { Status: 'exited', ExitCode: 0 } });
+    await openInspect();
+
+    expect(bandNamed('ExitCode', sectionNamed('State'))).toMatchObject({ value: '0', danger: false, empty: false });
   });
 
-  it('draws both sections, each headed with its own count, when both have content', async () => {
-    withInspect({ networks: [{ name: 'bridge' }], labels: { 'com.docker.compose.project': 'shop', team: 'platform' } });
+  // REQ-17 — a formatted reading is drawn beside the daemon's literal, never in place of it
+  it('draws the readable date, the byte unit and the yes/no beside the literal the daemon sent', async () => {
+    withRaw();
+    const user = await openInspect();
+    await openEverySection(user);
 
-    expect(await inspectTabSections()).toEqual([
-      { title: 'Networks', summary: '1' },
-      { title: 'Labels', summary: '2' },
-      { title: 'Raw payload', summary: 'JSON' },
-    ]);
+    expect(bandNamed('FinishedAt', sectionNamed('State'))).toMatchObject({ value: '0001-01-01T00:00:00Z', reading: 'never' });
+    const memory = bandNamed('Memory', sectionNamed('HostConfig'));
+    expect(memory.value).toBe('536870912');
+    expect(memory.reading).toMatch(/^[\d.]+ (B|KB|MB|GB|TB)$/);
+    expect(bandNamed('Privileged', sectionNamed('HostConfig'))).toMatchObject({ value: 'false', reading: 'no', empty: false });
+  });
+
+  // REQ-6, REQ-7 — an empty field is marked empty in its own place, and a zero is not empty
+  it('marks the payload’s empty fields as empty and leaves its zeros alone', async () => {
+    withRaw();
+    const user = await openInspect();
+    await openEverySection(user);
+
+    expect(bandNamed('Dns', sectionNamed('HostConfig'))).toMatchObject({ value: 'empty (list)', empty: true });
+    expect(bandNamed('Labels', sectionNamed('Config'))).toMatchObject({ value: 'empty (object)', empty: true });
+    expect(bandNamed('Entrypoint', sectionNamed('Config'))).toMatchObject({ value: 'empty (null)', empty: true });
+    expect(bandNamed('SandboxID', sectionNamed('NetworkSettings'))).toMatchObject({ value: 'empty (null)', empty: true });
+    expect(bandNamed('ShmSize', sectionNamed('HostConfig'))).toMatchObject({ value: '0', empty: false });
+    expect(bandNamed('RestartCount', sectionNamed('Fields'))).toMatchObject({ value: '0', empty: false, reading: null });
+  });
+
+  // REQ-35 — a value carrying a token is drawn in full, like any other
+  it('draws an environment variable carrying a token in full', async () => {
+    withRaw();
+    const user = await openInspect();
+    await openEverySection(user);
+
+    expect(bands(sectionNamed('Config')).map((band) => band.value)).toContain('TOKEN=s3cr3t');
+  });
+
+  // REQ-19, REQ-20 — the find filters the whole payload, opening the sections holding matches
+  it('filters the whole payload from the find control and states how many fields matched', async () => {
+    withRaw();
+    const user = await openInspect();
+
+    await user.type(screen.getByLabelText('Find in payload'), 'HostPort');
+
+    expect(sections().map((section) => section.title)).toEqual(['NetworkSettings']);
+    expect(bands().map((band) => band.label)).toEqual(['HostPort']);
+    expect(document.querySelector('.ui-payload-explorer__matches')?.textContent).toBe('1 matching field');
+  });
+
+  // REQ-20 — clearing the find puts the tab back the way it opened
+  it('puts the tab back the way it opened when the find is cleared', async () => {
+    withRaw();
+    const user = await openInspect();
+    const control = screen.getByLabelText('Find in payload');
+
+    await user.type(control, 'HostPort');
+    await user.keyboard('{Backspace>8/}');
+
+    expect(control).toHaveValue('');
+    expect(sections().map((section) => section.title)).toEqual(['Fields', 'Args', 'State', 'HostConfig', 'Config', 'NetworkSettings', 'Raw payload']);
+    expect(sections().filter((section) => section.open).map((section) => section.title)).toEqual(['Fields', 'State']);
+  });
+
+  // REQ-24 — the rebuilt tab introduces no copy affordance: only the find and the section headers are controls
+  it('offers no copy affordance anywhere in the tab', async () => {
+    withRaw();
+    const user = await openInspect();
+    await openEverySection(user);
+
+    const explorer = document.querySelector('.ui-payload-explorer')!;
+    const controls = Array.from(explorer.querySelectorAll('button, a, [role="button"]'));
+    expect(controls.every((control) => control.classList.contains('ui-collapsible-section__header'))).toBe(true);
+    expect(document.querySelector('.ui-code-viewer__actions'), 'the payload block carries an action row').toBeNull();
+    expect(explorer.textContent?.toLowerCase()).not.toContain('copy');
+  });
+
+  // REQ-25 — the rebuilt tab asks the daemon for nothing it did not ask for before
+  it('asks for the container’s inspect data and nothing else', async () => {
+    withRaw();
+    const user = await openInspect();
+    await openEverySection(user);
+    await user.click(sectionNamed('Raw payload').querySelector<HTMLElement>('.ui-collapsible-section__header')!);
+
+    const urls = fetchMock.mock.calls.map((call) => String(call[0]));
+    expect(urls.filter((url) => url.includes('/inspect'))).toHaveLength(1);
+    expect(urls.every((url) => url.includes('/inspect') || url.includes('/config'))).toBe(true);
   });
 });
 
@@ -793,7 +885,7 @@ describe('ContainerDetailPanel — Exec/Attach tabs (REQ-34, REQ-35, REQ-36)', (
     // Being running-only decides the pair's presence and nothing else: the five that remain keep
     // the order they have on a running container, Config still first and still the one shown (REQ-11).
     const tabs = screen.getAllByRole('tab');
-    expect(tabs.map((tab) => tab.textContent)).toEqual(['Config', 'Logs', 'Stats', 'Processes', 'Inspect']);
+    expect(tabs.map((tab) => tab.textContent)).toEqual(['Config', 'Inspect', 'Logs', 'Stats', 'Processes']);
     expect(tabs[0]).toHaveAttribute('aria-selected', 'true');
   });
 

@@ -7,10 +7,10 @@ type: UI component
 # ContainerDetailPanel
 
 **Purpose** → the container detail, drawn as the body of the dialog the Containers screen opens from
-a card's own control: the container's logs, its live statistics, its inspect data in an editable
-Config tab, the processes running inside it, the read-only Inspect tab with the raw payload, and —
-for a running container — exec and attach interactive sessions. Rename and the filesystem export
-both live on the card instead (REQ-21), not in this panel.
+a card's own control: the container's inspect data in an editable Config tab, the daemon's whole
+inspect payload in a read-only Inspect tab, its logs, its live statistics, the processes running
+inside it, and — for a running container — exec and attach interactive sessions. Rename and the
+filesystem export both live on the card instead (REQ-21), not in this panel.
 
 ## Contract
 
@@ -20,10 +20,17 @@ both live on the card instead (REQ-21), not in this panel.
     container id no longer exists.
 
 Description:
-- A `Tabs` row (Config, Logs, Stats, Processes, Inspect, and — only when the container is running —
+- A `Tabs` row (Config, Inspect, Logs, Stats, Processes, and — only when the container is running —
   Exec, Attach) above the active tab's content, and nothing else. **Config is both the first tab of
   the row and the tab selected when the detail opens** — the tab drawn first and the tab opened on
   are the same one (REQ-11).
+- **Inspect is second, immediately after Config**, and the remaining five follow in their present
+  relative order (`inspect_full_payload/REQ-1`). This **supersedes the order clause** of
+  `…-tabs_composition_refactor/REQ-11` — "the others follow Config in the order Logs, Stats,
+  Processes, Inspect, Exec, Attach" — and nothing else of it: the same seven tabs are present, none
+  added or removed, each carries the same uniform treatment, each shows what it showed before, and
+  the tab active on open is Config as it was, so no stream and no session starts or stops starting
+  because of the move.
 - **Every tab presented is drawn alike, with only the active one distinguished** (REQ-12). On a
   running container the seven carry one treatment: Exec and Attach are not disabled, dimmed, ghosted
   or otherwise set apart from the other five. Being running-only decides a tab's presence in the row,
@@ -152,38 +159,49 @@ Shows (Config tab, edit mode):
   recreate, and is not conditional on either group having been touched. It is a statement and not a
   question — nothing about the save is decided on it.
 Shows (Inspect tab):
-- **Two headed groups instead of one list of ten properties** (REQ-34), each a `SectionHeader` over a
-  `DefinitionList` of its own: `Identity` — what the container is — holding id, name, image, command,
-  entrypoint and created date, and `Lifecycle` — how it has gone — holding state, started/finished
-  dates and exit code. Under them, collapsible sections for networks, labels and (when the container
-  defines a health check) the latest health status/failing streak/log entries, and last the raw
-  payload.
-- **`State` reads as the state pill** (REQ-35), not as a word among the other values: the same pill
-  the card and the dialog's own header draw, in the state's own tone, taken from the module's one
-  state→tone reading (`container-status.md`) rather than from a second reading of it.
-- **A non-zero exit code is drawn in the danger tone** (REQ-36) — the value's own colour, the band
-  otherwise unchanged — so a container that was killed says so where it is read. **A zero exit code
-  carries no tone at all**, and neither does a container that has not exited: `0` is drawn like every
-  other value.
-- **The raw payload is a collapsible section like the tab's others, and is closed when the tab
-  opens** (REQ-37), instead of being the one section always open at the foot of every Inspect. Its
-  header is titled `Raw payload` with a `JSON` summary; opening it shows the whole inspect payload as
-  formatted JSON, in full, as real selectable text in a scroll area (REQ-26, narrowed from
-  *"copyable"* to *"selectable"* on 2026-08-14 by
-  `plan-docker_management_app-remove_copy_controls`/REQ-23). Being closed to begin with loses neither
-  guarantee: it is the same text, in full, once the section is open.
-- **A collapsible section with nothing in it is not drawn** (`plan-ui-coherence-optimisation/REQ-60`,
-  one rule shared with `images/specs/image-detail-panel.md`): `Networks` and `Labels` appear only
-  when they hold at least one entry, so a section headed with a count of `0` — which the delivered
-  build drew for `Labels` on every container declaring none — cannot occur. `Health` was already
-  conditional on the container defining one. A section that has content is unchanged, count
-  included.
-- Each property section states **only its content class** — `Identity` and `Lifecycle` state one
-  each (REQ-34), so the rule goes on being applied per section now that there are two of them.
-  `Identity`, `Lifecycle`, `Networks`, `Health` and the Config tab's runtime configuration are the
-  short scalar; `Labels` declares long single-line. The number of columns each shows follows from
-  that section's own width (`ui-library/content-columns.md`), so the Config tab's half-width list and
-  the Inspect tab's full-width ones differ on the same screen at the same instant.
+- **The whole inspect payload, drawn as the payload's own shape** (`inspect_full_payload/REQ-3`):
+  the library's `PayloadExplorer` over the inspect result's `raw` field — one section per composite
+  top-level key of the daemon's response, one leading section gathering its top-level scalars, nested
+  objects as groups, arrays as counted positional items, and a label → value band per leaf carrying
+  the daemon's own key name. Every field the response holds is somewhere in the tab, keys the
+  application has never heard of included, and a key the response does not carry is nowhere at all.
+- **The delivered composition is gone entirely**: the `Identity` and `Lifecycle` groups, the ten
+  curated properties, and the `Networks`, `Labels` and `Health` sections. This **supersedes**
+  `…-tabs_composition_refactor/REQ-34` and REQ-35's own composition clause. **No summary block stands
+  at the head of the tab**: the container's name, short id, state and health stay where the dialog's
+  header already carries them, and each of the ten former properties is read in the section its own
+  key belongs to, once (`inspect_full_payload/REQ-5`).
+- **`plan-ui-coherence-optimisation/REQ-60` is deliberately not applied on this tab**
+  (`inspect_full_payload/REQ-6`): a field the daemon sent is on screen whether or not it holds
+  anything, marked as empty in its own place, because "this list is empty" is the answer the operator
+  opened the tab for. `0` and `false` are values and are never marked empty. The rule stands
+  everywhere else, this panel's Config tab included.
+- **Exactly two sections are open when the tab is entered** — the gathered scalars and `State` — and
+  every other one, the raw payload included, is closed (`inspect_full_payload/REQ-11`).
+- **Values are read in the operator's terms beside the daemon's literal, never in place of it**
+  (`inspect_full_payload/REQ-17`): the per-key reading is `container-inspect-reading.md`, and which
+  key means what lives there and not in the library. `State.Status` still reads as **the state pill**
+  in the state's own tone and a **non-zero exit code still carries the danger tone**, a zero one
+  none — both from the module's one state reading (`container-status.md`), as REQ-35 and REQ-36
+  required, now as values of the payload rather than as a curated band.
+- **The raw payload is the last section of the tab**, after every payload-derived one, still titled
+  `Raw payload` with a `JSON` summary and still closed on entry. This **supersedes the position
+  clause** of `…-tabs_composition_refactor/REQ-37` and nothing else of it: opening it shows the whole
+  payload, unaltered, as real selectable text in the library's code viewer (REQ-26, narrowed from
+  *"copyable"* to *"selectable"* by `plan-docker_management_app-remove_copy_controls`/REQ-23), with no
+  action of its own. While the tab's find holds text the section is not drawn: a filtered result holds
+  the fields that matched and nothing else.
+- **One find above the sections, and it filters** (`inspect_full_payload/REQ-19`): while it holds
+  text only the matching fields are on screen, every section holding a match is open however deep the
+  match sits, the number of matches is stated, and a search matching nothing says so instead of
+  leaving a blank surface. Clearing it restores the whole payload and the entry section state.
+- **The tab asks the daemon for nothing new** (`inspect_full_payload/REQ-25`): it renders the
+  response the panel already had, whose `raw` field `containers-service.md` contracts as the full
+  inspect payload exactly as received.
+- The Config tab's own property sections go on stating **only their content class**, the number of
+  columns following from each section's own width (`ui-library/content-columns.md`). The Inspect tab
+  states none: its bands are the library's payload rendering, which sizes label and value against
+  its own box and stacks them at the phone width.
 Actions:
 - "Edit configuration" switches the Config tab to edit mode, seeded from the current inspect data.
 - Saving computes which fields changed since edit mode was entered (REQ-25):
@@ -206,6 +224,10 @@ Actions:
   a hand-selection inside the block, which
   `plan-docker_management_app-remove_copy_controls`/REQ-19 records as an accepted cost. What the
   header adds is one press before the block is on screen, and nothing else.
+- Every other section of the Inspect tab opens and closes on its own header, and typing in the tab's
+  find filters the payload. **No copy affordance is introduced anywhere on the tab**
+  (`inspect_full_payload/REQ-24`): no copy button, no copy menu entry, no click-to-copy on a value —
+  selection with mouse and keyboard remains the only route to any of them, the raw payload included.
 
 ## Rules and invariants
 
@@ -269,7 +291,8 @@ Actions:
 - ContainerStatsView
 - ContainerProcessesView
 - ContainerSessionView
-- ui-library: BandStack, ScrollArea, Tabs, DefinitionList, FieldList, Badge, Card, Chip, CollapsibleSection, CodeViewer, Grid, Select, NumberField,
+- Container inspect reading (`container-inspect-reading.md`)
+- ui-library: BandStack, ScrollArea, Tabs, PayloadExplorer, DefinitionList, FieldList, Badge, Card, Chip, CollapsibleSection, CodeViewer, Grid, Select, NumberField,
   Toggle, TextField, KeyValueEditor, RepeatableRowList, FormFooter, SectionHeader, Row, Spacer, Stack,
   Button, ErrorBanner, EmptyState, useToast
 - Containers client (updateContainerConfig)
@@ -334,3 +357,25 @@ Actions:
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-54
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-55
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-56
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor-inspect_full_payload/REQ-1
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor-inspect_full_payload/REQ-2
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor-inspect_full_payload/REQ-3
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor-inspect_full_payload/REQ-4
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor-inspect_full_payload/REQ-5
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor-inspect_full_payload/REQ-6
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor-inspect_full_payload/REQ-7
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor-inspect_full_payload/REQ-11
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor-inspect_full_payload/REQ-12
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor-inspect_full_payload/REQ-15
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor-inspect_full_payload/REQ-16
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor-inspect_full_payload/REQ-17
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor-inspect_full_payload/REQ-19
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor-inspect_full_payload/REQ-20
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor-inspect_full_payload/REQ-21
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor-inspect_full_payload/REQ-22
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor-inspect_full_payload/REQ-24
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor-inspect_full_payload/REQ-25
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor-inspect_full_payload/REQ-26
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor-inspect_full_payload/REQ-27
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor-inspect_full_payload/REQ-29
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor-inspect_full_payload/REQ-35

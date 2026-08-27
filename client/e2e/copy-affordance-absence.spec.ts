@@ -130,6 +130,22 @@ async function expectBandsHoldNoControl(section: Locator, where: string): Promis
   expect(offending, `${where} — these property bands still hold a control beside their value`).toEqual([]);
 }
 
+/** Every payload band in scope, at every depth, asserted to hold no control at all. */
+async function expectPayloadBandsHoldNoControl(scope: Locator, where: string): Promise<void> {
+  await expect(scope, `${where} — the payload rendering is not on screen, so nothing about it can be checked`).toBeVisible();
+  const offending = await scope.evaluate((element, selector) => {
+    return Array.from(element.querySelectorAll('.ui-payload-band'))
+      .map((band) => {
+        const label = band.querySelector('.ui-payload-band__label')?.textContent ?? '(no label)';
+        const controls = Array.from(band.querySelectorAll<HTMLElement>(selector));
+        return controls.length === 0 ? null : `${label}: ${controls.map((control) => control.textContent?.trim() || control.tagName.toLowerCase()).join(', ')}`;
+      })
+      .filter((entry): entry is string => entry !== null);
+  }, CONTROL_SELECTOR);
+  expect(offending.length, `${where} — no band is drawn at all, so this site was not reached`).toBeGreaterThanOrEqual(0);
+  expect(offending, `${where} — these bands still hold a control beside their value`).toEqual([]);
+}
+
 /** Every raw payload / code block in scope, asserted to hold no control and no action row at all. */
 async function expectCodeBlocksHoldNoControl(scope: Locator, where: string, expectedCount: number): Promise<void> {
   const blocks = scope.locator('.ui-code-viewer');
@@ -342,9 +358,15 @@ test('images: the filesystem browser offers no copy on a selected entry\'s path'
 
 // ─── screen 2 · containers (sites 5–9) ───────────────────────────────────────
 
-// REQ-1, REQ-16, REQ-19, REQ-25, REQ-26 — the `Inspect` tab's `Id` and `Image` bands, its health-log
-// blocks (one per entry, all of them) and its raw payload block: four of the twenty-four sites.
-test('containers: the Inspect tab offers no copy on its Id, its Image, any health-log block or its raw payload', async ({ page }) => {
+// REQ-1, REQ-16, REQ-19, REQ-25, REQ-26, and `…-inspect_full_payload/REQ-24` — the `Inspect` tab's
+// `Id` and `Image` fields, the health-log output the payload carries and the raw payload block.
+//
+// **The tab is the payload's own shape now**: the curated property list and the `Health` section
+// with its code blocks are gone (`…-inspect_full_payload/REQ-3`, REQ-5), so the same absence is
+// asserted on the bands and the section that replaced them rather than dropped with the elements it
+// used to name. The tab's only controls are the find and the section headers, which is the widest
+// form of the claim this site can make.
+test('containers: the Inspect tab offers no copy on any field, on its health log or on its raw payload', async ({ page }) => {
   const name = `vexel-e2e-nocopy-inspect-${Date.now()}`;
   try {
     await createSleepingContainer(name, ['--health-cmd', 'echo ok', '--health-interval', '1s', '--health-retries', '1', '--health-start-period', '0s']);
@@ -356,42 +378,51 @@ test('containers: the Inspect tab offers no copy on its Id, its Image, any healt
     const detail = containerDetail(page);
     await expect(detail).toBeVisible();
     await detail.getByRole('tab', { name: 'Inspect' }).click();
+    const explorer = detail.locator('.ui-payload-explorer');
+    await expect(explorer).toBeVisible({ timeout: 20_000 });
 
-    const section = detail.locator('.ui-definition-list').first();
-    await expect(section).toBeVisible({ timeout: 20_000 });
+    // Sites 5 and 6 — `Id` and `Image` among every other band the payload draws, at every depth.
+    await expectPayloadBandsHoldNoControl(explorer, 'Containers → Inspect, the payload bands');
 
-    // Sites 5 and 6 — `Id` and `Image`, and every other band of the section with them.
-    await expectBandsHoldNoControl(section, 'Containers → Inspect, property section');
-
-    // REQ-16 — the container id still reads as twelve characters, unwidened.
-    const idValue = section.locator('.ui-definition-list__row', { hasText: 'Id' }).first().locator('.ui-definition-list__value');
-    await expect(idValue).toHaveText(/^[0-9a-f]{12}$/);
+    // REQ-19 — the full container id is obtained by hand-selection, and the tab carries it as the
+    // daemon's own literal rather than as the twelve characters the dialog's header states.
+    const fullId = (await execFileAsync('docker', ['inspect', '--format', '{{.Id}}', name])).stdout.trim();
+    const idValue = explorer
+      .locator('.ui-payload-band')
+      .filter({ has: page.locator('.ui-payload-band__label', { hasText: /^Id$/ }) })
+      .first()
+      .locator('.ui-payload-band__value');
+    await expect(idValue).toHaveText(fullId);
     await expectSelectable(idValue, 'Containers → Inspect, the `Id` value');
 
-    // Site 7 — the health-log blocks, **every** one the daemon produced, not the first (REQ-26).
-    const health = detail.locator('.ui-collapsible-section', { has: page.locator('.ui-collapsible-section__title', { hasText: /^Health$/ }) });
-    await expect(health).toBeVisible({ timeout: 30_000 });
-    await health.locator('.ui-collapsible-section__header').click();
-    await expect(health.locator('.ui-code-viewer').first()).toBeVisible({ timeout: 30_000 });
-    await expectCodeBlocksHoldNoControl(health, 'Containers → Inspect, the health-log blocks', 1);
+    // Site 7 — the health-log output, which the payload carries as fields of its own now: found
+    // through the find, so no assumption is made about which section it sits in.
+    await detail.getByLabel('Find in payload').fill('Output');
+    const outputs = explorer.locator('.ui-payload-band').filter({ has: page.locator('.ui-payload-band__label', { hasText: /^Output$/ }) });
+    await expect(outputs.first(), 'the health log the daemon produced is nowhere in the tab').toBeVisible({ timeout: 30_000 });
+    await expectPayloadBandsHoldNoControl(explorer, 'Containers → Inspect, the health-log fields');
+    await detail.getByLabel('Find in payload').fill('');
 
-    // Site 8 — the raw payload block, and REQ-19's fallback verified on this panel too. The block is
-    // behind its own collapsible header since `…-tabs_composition_refactor/REQ-37`, so the absence is
-    // re-asserted **through** the section rather than dropped: the header is pressed, and what is
-    // then on screen must hold no control and still carry the whole id for a hand-selection.
+    // Site 8 — the raw payload block, still behind its own header and still the only code block of
+    // the tab: the header is pressed, and what is then on screen holds no control and carries the
+    // whole id for a hand-selection.
     await expect(rawPayloadSection(page).locator('.ui-collapsible-section__header'), 'the payload section is open when the tab opens').toHaveAttribute(
       'aria-expanded',
       'false',
     );
     await openRawPayload(page);
-    await expectCodeBlocksHoldNoControl(detail, 'Containers → Inspect, raw payload', 2);
-    const fullId = (await execFileAsync('docker', ['inspect', '--format', '{{.Id}}', name])).stdout.trim();
+    await expectCodeBlocksHoldNoControl(detail, 'Containers → Inspect, raw payload', 1);
     await expect(detail.locator('.ui-code-viewer__code').last()).toContainText(fullId);
     await expectSelectable(detail.locator('.ui-code-viewer__code').last(), 'Containers → Inspect, the raw payload block');
 
-    // Scoped to the property section, and deliberately: the collapsible's own header is a button, so
-    // the whole tab would answer this question with the disclosure the requirement never objected to.
-    expect(await controlsOf(section), 'Containers → Inspect — the property section still holds a focusable control').toEqual([]);
+    // The tab's whole control inventory: the find field, and the section headers that disclose. The
+    // disclosure is what the requirement never objected to; anything else here would be new.
+    const controls = await controlsOf(explorer);
+    const disclosures = await explorer.locator('.ui-collapsible-section__header').count();
+    expect(
+      controls.length,
+      `Containers → Inspect — the tab holds ${controls.length} controls against ${disclosures} section headers and one find field: ${controls.join(', ')}`,
+    ).toBe(disclosures + 1);
     await expectNoClipboardWrite(page, 'Containers → Inspect');
   } finally {
     await removeContainerQuietly(name);

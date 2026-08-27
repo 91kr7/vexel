@@ -149,10 +149,25 @@ test("listContainers keeps mappings that differ in anything the shape carries", 
     { IP: "0.0.0.0", PrivatePort: 5432, PublicPort: 49_153, Type: "tcp" },
     { IP: "0.0.0.0", PrivatePort: 5432, PublicPort: 49_154, Type: "tcp" },
     { IP: "0.0.0.0", PrivatePort: 5432, PublicPort: 49_153, Type: "udp" },
-    { PrivatePort: 5432, Type: "tcp" },
   ]);
 
-  assert.deepEqual(distinct, ["tcp:-->5432", "tcp:49153->5432", "udp:49153->5432", "tcp:49154->5432"]);
+  assert.deepEqual(distinct, ["tcp:49153->5432", "udp:49153->5432", "tcp:49154->5432"]);
+});
+
+// containers-service.md — `ports` carries "the container's publications on the host and only
+// those": an entry the daemon returns with no public port is an exposure and is not a mapping.
+test("listContainers drops an entry the daemon returns with no public port", async () => {
+  const published = await portsFrom([
+    { PrivatePort: 7777, Type: "tcp" },
+    { IP: "0.0.0.0", PrivatePort: 5432, PublicPort: 49_153, Type: "tcp" },
+  ]);
+
+  assert.deepEqual(published, ["tcp:49153->5432"]);
+});
+
+// containers-service.md — a container that only exposes therefore publishes nothing at all.
+test("listContainers reports no port for a container that exposes without publishing", async () => {
+  assert.deepEqual(await portsFrom([{ PrivatePort: 7777, Type: "tcp" }]), []);
 });
 
 // containers-service.md — the order is imposed and total: private port, then public, then protocol

@@ -1291,8 +1291,9 @@ test.describe('Container detail dialog, the tab row (REQ-11, REQ-12)', () => {
     return detail;
   }
 
-  // REQ-11 — Config is the first tab of the bar **and** the tab active when the detail opens; the
-  // others follow it as Logs, Stats, Processes, Inspect and, for a running container, Exec, Attach.
+  // REQ-11, `…-inspect_full_payload/REQ-1` — Config is the first tab of the bar **and** the tab
+  // active when the detail opens; Inspect is immediately after it and the rest follow as Logs,
+  // Stats, Processes and, for a running container, Exec, Attach.
   test('the detail opens on the tab it draws first, and that tab is Config', async ({ page }) => {
     const name = `vexel-e2e-tab-order-${Date.now()}`;
     try {
@@ -1301,10 +1302,10 @@ test.describe('Container detail dialog, the tab row (REQ-11, REQ-12)', () => {
       const tabs = await tabsAsDrawn(page);
       expect(tabs.map((tab) => tab.label), `the bar drew ${JSON.stringify(tabs.map((tab) => tab.label))}`).toEqual([
         'Config',
+        'Inspect',
         'Logs',
         'Stats',
         'Processes',
-        'Inspect',
         'Exec',
         'Attach',
       ]);
@@ -1337,7 +1338,7 @@ test.describe('Container detail dialog, the tab row (REQ-11, REQ-12)', () => {
       const tabs = await tabsAsDrawn(page);
       expect(tabs).toHaveLength(7);
       const others = tabs.filter((tab) => !tab.active);
-      expect(others.map((tab) => tab.label)).toEqual(['Logs', 'Stats', 'Processes', 'Inspect', 'Exec', 'Attach']);
+      expect(others.map((tab) => tab.label)).toEqual(['Inspect', 'Logs', 'Stats', 'Processes', 'Exec', 'Attach']);
       const painted = others.map((tab) => `${tab.label} → ${tab.treatment}`);
       console.log(`[REQ-12] the six tabs not showing are painted ${others[0]!.treatment}`);
       expect(new Set(others.map((tab) => tab.treatment)).size, `the tabs not showing are not painted alike:\n${painted.join('\n')}`).toBe(1);
@@ -1356,7 +1357,7 @@ test.describe('Container detail dialog, the tab row (REQ-11, REQ-12)', () => {
       const afterExec = await tabsAsDrawn(page);
       const restingAfterExec = afterExec.filter((tab) => !tab.active);
       expect(afterExec.filter((tab) => tab.active).map((tab) => tab.label)).toEqual(['Exec']);
-      expect(restingAfterExec.map((tab) => tab.label)).toEqual(['Config', 'Logs', 'Stats', 'Processes', 'Inspect', 'Attach']);
+      expect(restingAfterExec.map((tab) => tab.label)).toEqual(['Config', 'Inspect', 'Logs', 'Stats', 'Processes', 'Attach']);
       expect(
         new Set(restingAfterExec.map((tab) => tab.treatment)).size,
         `with Exec showing, the tabs at rest are not painted alike:\n${restingAfterExec.map((tab) => `${tab.label} → ${tab.treatment}`).join('\n')}`,
@@ -1436,6 +1437,11 @@ test.describe('Container detail dialog, one stable height (REQ-1, REQ-3, REQ-4)'
 
       await openContainerDetail(page, name);
       const card = detailCard(page);
+      // Polled, not assumed: a container just started still reads CREATED for a moment, and the two
+      // session tabs are offered only once the daemon calls it running. Waited for **before** the
+      // reference box is taken, so the box and the walk belong to the same bar — without it the set
+      // below is whatever the daemon had got round to reporting, which is a race of the test's own.
+      await expect(containerDetail(page).getByRole('tab', { name: 'Attach', exact: true })).toBeVisible({ timeout: 20_000 });
       await settledDialogBox(page);
       const reference = await boxOf(card, 'the container detail dialog');
 

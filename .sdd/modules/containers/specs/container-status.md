@@ -26,6 +26,11 @@ from, so a card and a dialog header cannot disagree about the same container.
   table does not name is drawn neutral, so a caller never has to decide what an unknown state looks
   like.
 
+- `healthTone(status) → tone` — the tone a health outcome is drawn in, read for the outcome the
+  daemon named as a plain word (the inspect payload's `State.Health.Status`): `healthy` → success,
+  `unhealthy` → danger, `starting` → warning, and anything else neutral. Case-insensitive. It is the
+  one table `readHealthOutcome` below states its own tones from.
+
 - `readHealthOutcome(status) → { label, tone } | undefined` — the health outcome the daemon's own
   status sentence states, read from the container summary the list already carries and asking the
   daemon for nothing:
@@ -55,3 +60,4 @@ from, so a card and a dialog header cannot disagree about the same container.
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-7
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-9
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-35
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor-inspect_full_payload/REQ-16
