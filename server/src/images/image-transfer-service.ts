@@ -148,15 +148,20 @@ export async function pruneDanglingImages(): Promise<PruneResult> {
   return { removedIds, reclaimedBytes: payload.SpaceReclaimed ?? 0 };
 }
 
-// The daemon's own completion statements, as it words them: a push names the
-// digest and size it stored ("v1: digest: sha256:… size: 1026"), a pull opens
-// its closing line with "Status:" ("Downloaded newer image for …", "Image is up
-// to date for …"). Nothing else is taken for a success.
+// The daemon's own completion statements, as it words them, and the image store
+// decides which one arrives: the containerd snapshotter states a push as the
+// status line naming the digest and size it stored ("v1: digest: sha256:… size:
+// 1026"), the classic store states it as an `aux` carrying that same digest. A
+// pull opens its closing line with "Status:" ("Downloaded newer image for …",
+// "Image is up to date for …"). Nothing else is taken for a success — and both
+// push forms are recognised, or every successful push on a classic-store daemon
+// would be reported to the operator as a failure.
 const PUSH_SUCCESS_STATUS = /\bdigest:\s*sha256:[0-9a-f]+\s+size:\s*\d+/i;
 const PULL_SUCCESS_STATUS = /^Status:\s/i;
 const UNSTATED_END_MESSAGE = "The daemon ended the transfer without stating a result.";
 
 function statesSuccess(entry: NdjsonEntry): boolean {
+  if (typeof entry.aux?.Digest === "string" && entry.aux.Digest.trim() !== "") return true;
   const status = entry.status?.trim();
   if (!status) return false;
   return PUSH_SUCCESS_STATUS.test(status) || PULL_SUCCESS_STATUS.test(status);
@@ -223,6 +228,8 @@ export interface NdjsonEntry {
   /** The daemon's own progress/status line, e.g. an `/images/load` "Loaded image: …" line. */
   stream?: string;
   progressDetail?: { current?: number; total?: number };
+  /** The daemon's structured result line; a push states the digest it stored here. */
+  aux?: { Digest?: string };
 }
 
 /** Docker's pull/push/load/import status stream: one JSON object per line, not framed. */
