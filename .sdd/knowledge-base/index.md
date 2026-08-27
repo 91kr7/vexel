@@ -11,3 +11,4 @@ What the human has taught, one entry per row. Consult the entries whose `scope` 
 | visual-output-is-validated-before-tests | guideline | development, test | On a graphical fix the human validates the visual output before any test is written or run | `entries/visual-output-is-validated-before-tests.md` |
 | development-goes-through-sdd-dev | guideline | any | Implement through the `sdd-dev` command, never by calling `sdd-developer` / `sdd-tester` by hand | `entries/development-goes-through-sdd-dev.md` |
 | batch-closing-commands | how-to | test | Every batch closes on `npm run test:e2e -w client -- --quiet` and `npm run test`, in full | `entries/batch-closing-commands.md` |
+| kill-pending-processes-before-tests | how-to | test | Before launching the tests, kill every pending process — human-started ones included | `entries/kill-pending-processes-before-tests.md` |
