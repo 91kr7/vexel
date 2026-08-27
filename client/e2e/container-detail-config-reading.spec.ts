@@ -1,48 +1,64 @@
 /**
- * **The Config tab in reading, measured** — `…-tabs_composition_refactor/REQ-18` … `REQ-22`, under
- * REQ-40 and REQ-44.
+ * **The Config tab in reading, measured** — `…-tabs_composition_refactor/REQ-18` … `REQ-22` as the
+ * second and third passes amend them: REQ-48, REQ-50 … REQ-57 and REQ-59, under REQ-40, REQ-44 and
+ * REQ-45.
  *
- * Four of the five requirements this file covers are claims about **position**, not about text:
- * the environment's keys and values sit on two aligned tracks (REQ-18), the `ro` chip is *told
- * apart* from the `rw` one (REQ-21), and `Edit configuration` sits above both columns and inside
- * neither (REQ-22). "The keys are listed" and "a chip says `ro`" are all true of the arrangement
- * this plan replaces, so every one of them is asserted here as a box the browser reports; the
- * content assertions stand beside them, never instead of them (CLAUDE.md, "What a check drives, and
- * what it measures").
+ * Nearly everything this file covers is a claim about **position**, not about text: `Edit
+ * configuration` sits at the foot of the tab (REQ-50), an environment value begins where its own
+ * field begins and stays on one line (REQ-54), no field of a mount takes more than half its row
+ * (REQ-57), and a card at the edge of the scrolled region draws the whole of its drop shadow
+ * (REQ-53). "The keys are listed", "a chip says `ro`" and "the action is on screen" are all true of
+ * arrangements these requirements replace, so every one of them is asserted here as a box the
+ * browser reports; the content assertions stand beside them, never instead of them (CLAUDE.md,
+ * "What a check drives, and what it measures").
  *
- * What jsdom can answer — which sections are drawn, what each heading claims, how a `KEY=value`
- * string is split — is asserted in `client/test/unit/container-detail-panel.test.tsx`, and is not
- * repeated here.
+ * **Two expectations of this file are reversed by the contract, not weakened.** It used to place
+ * the action at the *head* of the tab (REQ-22) and to assert that a container with no mounts is
+ * shown *no* `Mounts` heading (REQ-49). REQ-50 and REQ-51 amend both; the checks are rewritten
+ * against the new arrangement rather than deleted (REQ-43), and the reason is recorded on each.
  *
- * **The fixture is this file's own**: a container created and never started, from the suite's own
- * `vexel-test-tiny:1`, carrying the ownership labels — with environment whose keys are of markedly
- * different lengths (which is what makes an *aligned* arrangement distinguishable from the run it
- * replaces), one value carrying an `=` of its own, one key longer than the label track, and **two
- * bind mounts, one read-only and one writable**, since no fixture in either tree had a mount at all.
- * The mounts are binds onto directories this file creates, so nothing on the daemon outlives it and
- * no anonymous volume is created; the container is removed with `docker rm -fv` and the directories
- * with it, in a `finally` (REQ-45).
+ * What jsdom can answer — which groups are drawn, what each heading claims, how a `KEY=value`
+ * string is split, what each field is called — is asserted in
+ * `client/test/unit/container-detail-panel.test.tsx`, and is not repeated here.
+ *
+ * **The fixtures are this file's own** (REQ-45), all carrying the ownership labels and all removed
+ * in a `finally` with `docker rm -fv`:
+ * - a container created and never started, from the suite's own `vexel-test-tiny:1`, with an
+ *   environment whose keys are of markedly different lengths, one value carrying an `=` of its own,
+ *   one key longer than its field; **two published ports**, so the port group has two entries with
+ *   real host numbers (nothing is bound: a created container reserves no port on the host); and
+ *   **three bind mounts**, one whose source fits inside half a row and two whose sources do not,
+ *   which is what makes REQ-57's cap and its column falsifiable.
+ * - a container created with nothing at all, for the three collection groups that must be drawn
+ *   anyway (REQ-51).
+ * - a **running** container published with `-P`, whose host port the daemon chose (REQ-59). Running
+ *   on purpose, and published this way on purpose: `docker run -P` fills `HostConfig.PortBindings`
+ *   with `{}` and puts the whole publication in `NetworkSettings.Ports`, so it is the container the
+ *   tab used to show nothing at all for.
+ * - a **running** container that exposes a port and publishes none (REQ-59's "and only those").
+ *   What it must produce here is the *absence* of an entry.
  */
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { boxOf, boxesOf, clickAtItsCentre } from './support/settled.js';
-import { expectNothingClippedOrOverlapped, measureSection, report, type SectionGeometry } from './support/property-bands.js';
+import { measureFieldList, reportFieldList, widestShare, type FieldListGeometry } from './support/field-entries.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
-import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
+import { ALPINE_IMAGE, TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { containerCard, containerDetail, openContainerDetail } from './support/container-cards.js';
 
 const CASE_NAME = 'container-detail-config-reading';
 
 /**
  * Keys of one, eight, four, twelve and fifty-nine characters. The spread is the point: under the
- * arrangement this plan replaces, every value began where its own key ended, so a constant value
- * offset across these five bands is reachable only by the two tracks REQ-18 asks for.
+ * arrangement REQ-54 replaces, every value began at one fixed offset whatever its key measured, and
+ * under the one before that every value began where its own key ended. A constant *field* edge
+ * across these five entries is reachable only by the geometry REQ-54 asks for.
  *
- * `DATABASE_URL`'s value carries an `=` of its own (REQ-18's "first `=` only"), and the long key is
- * the one the library's label track has to wrap rather than shrink or truncate.
+ * `DATABASE_URL`'s value carries an `=` of its own (the "first `=` only" split), and the long key is
+ * the one a field has to wrap rather than shrink or truncate.
  */
 const LONG_KEY = 'A_VERY_LONG_ENVIRONMENT_VARIABLE_NAME_THAT_OUTRUNS_ITS_TRACK';
 const FIXTURE_ENV: Record<string, string> = {
@@ -53,57 +69,162 @@ const FIXTURE_ENV: Record<string, string> = {
   [LONG_KEY]: 'short',
 };
 
+/** Two published ports, on host numbers high enough not to collide — and never bound: the container never starts. */
+const PUBLISHED_PORTS: { container: number; host: number }[] = [
+  { container: 443, host: 41443 },
+  { container: 80, host: 41080 },
+];
+
+/** The port the two running fixtures state — published by the daemon in one, published nowhere in the other. */
+const EXPOSED_PORT = 5000;
+
+/** A port the REQ-60 fixture only declares: it binds nothing on the host, so neither reading may name it. */
+const MERELY_EXPOSED_PORT = 7777;
+
+const SHORT_DESTINATION = '/mnt/short-target';
 const READ_ONLY_DESTINATION = '/mnt/ro-target';
 const WRITABLE_DESTINATION = '/mnt/rw-target';
 
-/** The label track's token length and its cap (`ui-library/specs/definition-list.md`, `tokens.css`). */
-const LABEL_TRACK_PX = 180;
-const LABEL_TRACK_SHARE = 0.38;
+/**
+ * A viewport whose dialog gives the tab's full-width groups a row of roughly 1150px — the width the
+ * human's own measurements were taken at, and wide enough that a value of this fixture's length has
+ * room for one line (REQ-54).
+ */
+const DESKTOP = { width: 1440, height: 900 };
+
+/** `--shadow-2`, the elevation a `Card` of this tab carries: `0 8px 24px`. */
+interface ShadowReach {
+  top: number;
+  bottom: number;
+  side: number;
+}
 
 interface ConfigFixture {
   name: string;
+  base: string;
+  shortSource: string;
   readOnlySource: string;
   writableSource: string;
 }
 
 /**
  * A container of this file's own, created and never started: the detail reads inspect data, and
- * nothing here needs a process. Two bind mounts rather than volumes — a bind creates nothing on the
- * daemon to be swept, and the directories behind it are removed with the container.
+ * nothing here needs a process. Binds rather than volumes — a bind creates nothing on the daemon to
+ * be swept, and the directories behind it are removed with the container.
  */
 async function createConfigFixture(name: string): Promise<ConfigFixture> {
   await ensureImage(TINY_IMAGE);
-  const readOnlySource = await mkdtemp(join(tmpdir(), 'vexel-e2e-config-ro-'));
-  const writableSource = await mkdtemp(join(tmpdir(), 'vexel-e2e-config-rw-'));
+  // A prefix of three characters, not a descriptive one: this directory **is** the short mount's
+  // source, and what makes it short is its whole path. The system temporary directory already
+  // contributes some fifty characters of its own on this platform, and a source that does not fit
+  // inside half a row cannot show that a source which fits is left unwrapped (REQ-56).
+  const base = await mkdtemp(join(tmpdir(), 'vx-'));
+  const shortSource = base;
+  // Two sources long enough to want more than half of a full-width row, and of different lengths:
+  // the cap has to hold them at the same boundary anyway, which is REQ-57's whole claim.
+  const readOnlySource = join(base, `ro-${'x'.repeat(48)}`, `deep-${'y'.repeat(32)}`);
+  const writableSource = join(base, `rw-${'x'.repeat(36)}`, `deep-${'y'.repeat(24)}`);
+  for (const source of [readOnlySource, writableSource]) await mkdir(source, { recursive: true });
   await execFileAsync('docker', [
     'create',
     '--name',
     name,
     ...ownershipArgs(CASE_NAME),
     ...Object.entries(FIXTURE_ENV).flatMap(([key, value]) => ['-e', `${key}=${value}`]),
+    ...PUBLISHED_PORTS.flatMap((port) => ['-p', `${port.host}:${port.container}`]),
+    '-v',
+    `${shortSource}:${SHORT_DESTINATION}`,
     '-v',
     `${readOnlySource}:${READ_ONLY_DESTINATION}:ro`,
     '-v',
     `${writableSource}:${WRITABLE_DESTINATION}`,
     TINY_IMAGE,
   ]);
-  return { name, readOnlySource, writableSource };
+  return { name, base, shortSource, readOnlySource, writableSource };
 }
 
-/** A container mounting nothing, for the rule that a section with no entries is not drawn. */
+/** A container stating nothing at all: no port, no mount — the state REQ-51 is about. */
 async function createBareFixture(name: string): Promise<void> {
   await ensureImage(TINY_IMAGE);
   await execFileAsync('docker', ['create', '--name', name, ...ownershipArgs(CASE_NAME), TINY_IMAGE]);
+}
+
+/** A running container exposing a port and publishing none — REQ-59's "and only those" case. */
+async function createExposedFixture(name: string): Promise<void> {
+  await ensureImage(ALPINE_IMAGE);
+  await execFileAsync('docker', [
+    'run',
+    '-d',
+    '--name',
+    name,
+    ...ownershipArgs(CASE_NAME),
+    '--expose',
+    String(EXPOSED_PORT),
+    '--entrypoint',
+    'sleep',
+    ALPINE_IMAGE,
+    '300',
+  ]);
+}
+
+/**
+ * A running container whose publication the **daemon** numbered (`-P`), and the host port it chose.
+ *
+ * The number is read back from the daemon rather than asked for, because it is the daemon's to pick;
+ * it is what the tab has to state (REQ-59).
+ */
+async function createDaemonPublishedFixture(name: string): Promise<number> {
+  await ensureImage(ALPINE_IMAGE);
+  await execFileAsync('docker', [
+    'run',
+    '-d',
+    '--name',
+    name,
+    ...ownershipArgs(CASE_NAME),
+    '--expose',
+    String(EXPOSED_PORT),
+    '-P',
+    '--entrypoint',
+    'sleep',
+    ALPINE_IMAGE,
+    '300',
+  ]);
+  const { stdout } = await execFileAsync('docker', ['port', name, `${EXPOSED_PORT}/tcp`]);
+  return Number(stdout.trim().split('\n')[0].split(':').pop());
+}
+
+/**
+ * A running container that **publishes and exposes at once**, published in the third "the daemon
+ * chooses" spelling: `-p 0:N` is stored as a literal `HostPort: "0"`, which is not a host port in
+ * force (`containers-service.md`). The number the daemon actually chose is read back and returned,
+ * because it is what both readings have to state (REQ-59, REQ-60).
+ */
+async function createPublishingAndExposingFixture(name: string): Promise<number> {
+  await ensureImage(ALPINE_IMAGE);
+  await execFileAsync('docker', [
+    'run',
+    '-d',
+    '--name',
+    name,
+    ...ownershipArgs(CASE_NAME),
+    '-p',
+    `0:${EXPOSED_PORT}`,
+    '--expose',
+    String(MERELY_EXPOSED_PORT),
+    '--entrypoint',
+    'sleep',
+    ALPINE_IMAGE,
+    '300',
+  ]);
+  const { stdout } = await execFileAsync('docker', ['port', name, `${EXPOSED_PORT}/tcp`]);
+  return Number(stdout.trim().split('\n')[0].split(':').pop());
 }
 
 async function removeFixture(fixture: ConfigFixture | { name: string }): Promise<void> {
   // `-v` and never a bare `-f`: an anonymous volume the daemon attached on its own behalf outlives
   // the container carrying no label of ours, invisible to any later sweep.
   await execFileAsync('docker', ['rm', '-fv', fixture.name]).catch(() => undefined);
-  if ('readOnlySource' in fixture) {
-    await rm(fixture.readOnlySource, { recursive: true, force: true }).catch(() => undefined);
-    await rm(fixture.writableSource, { recursive: true, force: true }).catch(() => undefined);
-  }
+  if ('base' in fixture) await rm(fixture.base, { recursive: true, force: true }).catch(() => undefined);
 }
 
 /** Opens the detail of the container the test created, at a stated viewport, on the tab it opens on. */
@@ -120,20 +241,31 @@ async function openConfigTab(page: Page, name: string, viewport: { width: number
 }
 
 /**
- * The list under a named section heading. Located through the heading an operator reads and the
- * sibling it titles, so the check names what the requirement names rather than an internal class of
- * the section's own.
+ * A group's own field list, located through the heading an operator reads and the sibling it
+ * titles, so the check names what the requirement names rather than an internal class of the
+ * group's own.
  */
-function sectionList(page: Page, title: string): Locator {
-  return containerDetail(page).locator(`.ui-section-header:has(.ui-section-header__title:text-matches("^${title}")) + .ui-definition-list`);
+function groupList(page: Page, title: string): Locator {
+  return containerDetail(page).locator(`.ui-section-header:has(.ui-section-header__title:text-is("${title}")) + .ui-field-list`);
+}
+
+/** What a group with nothing in it draws where its list would be (REQ-51). */
+function groupPlaceholder(page: Page, title: string): Locator {
+  return containerDetail(page).locator(`.ui-section-header:has(.ui-section-header__title:text-is("${title}")) + .ui-empty-state`);
+}
+
+/** The card a group is drawn inside — the surface whose trailing edge the action lines up with. */
+function groupCard(page: Page, title: string): Locator {
+  return containerDetail(page)
+    .locator('.ui-surface')
+    .filter({ has: page.locator(`.ui-section-header__title:text-is("${title}")`) })
+    .last();
 }
 
 /**
- * Every section heading of the tab's own body, in the order it draws them, each with the count it
- * claims — the badge in the header's trailing slot, which is where the counted sections of this
- * panel state a count. The dialog's header is a `SectionHeader` too — it carries the container's
- * name and its state and health pills (`…-tabs_composition_refactor/REQ-6`, REQ-7) — and is left
- * out: it heads the dialog, not the tab, and its pills are not counts.
+ * Every section heading of the tab's own body, in the order it draws them, each with what it claims
+ * in the header's trailing slot. The dialog's header is a `SectionHeader` too — it carries the
+ * container's name and its state pills — and is left out: it heads the dialog, not the tab.
  */
 async function headings(page: Page): Promise<{ title: string; count: string }[]> {
   return await containerDetail(page)
@@ -148,130 +280,207 @@ async function headings(page: Page): Promise<{ title: string; count: string }[]>
     );
 }
 
-/** What each band of a list reads: its label, its value, and the chips the value carries. */
-async function bandTexts(list: Locator): Promise<{ label: string; value: string; chips: string[] }[]> {
-  return await list.locator('.ui-definition-list__row').evaluateAll((rows) =>
-    rows.map((row) => ({
-      label: row.querySelector('.ui-definition-list__label')?.textContent ?? '',
-      value: row.querySelector('.ui-definition-list__value')?.textContent ?? '',
-      chips: Array.from(row.querySelectorAll('.ui-chip')).map((chip) => chip.textContent ?? ''),
-    })),
-  );
-}
-
-/** The number a heading claims, for comparison with the number of bands drawn under it. */
-function claimedCount(stated: string, title: string): number {
-  const digits = /(\d+)/.exec(stated)?.[1];
-  expect(digits, `the ${title} heading states "${stated}" instead of the number of entries it holds`).toBeDefined();
-  return Number(digits);
-}
-
-/** The action REQ-22 moves, and the split it must sit above. */
+/** The action REQ-50 moves, and the last card it must sit below. */
 function editAction(page: Page): Locator {
   return containerDetail(page).getByRole('button', { name: 'Edit configuration', exact: true });
 }
 
-function configSplit(page: Page): Locator {
-  return containerDetail(page).locator('.ui-grid--pair').first();
+/** The tab's scrolled region — the one REQ-53 gives room to. */
+function scrolledRegion(page: Page): Locator {
+  return containerDetail(page).locator('.ui-scroll-area').first();
 }
 
-/** The offsets of a band's own two tracks, from the band's leading edge. */
-function trackOffsets(geometry: SectionGeometry): { labels: number[]; values: number[] } {
-  return {
-    labels: geometry.bands.map((band) => Math.round(((band.labelBox?.left ?? Number.NaN) - band.box.left) * 10) / 10),
-    values: geometry.bands.map((band) => Math.round(((band.valueBox?.left ?? Number.NaN) - band.box.left) * 10) / 10),
-  };
+/**
+ * How far a surface's own drop shadow reaches beyond it, read from the shadow the surface actually
+ * carries rather than from a number written here: `0 <dy> <blur>` reaches `blur` sideways,
+ * `blur − dy` above and `blur + dy` below. This is the room REQ-53 asks the region to leave, so it
+ * is derived from the same thing the region is sized against.
+ */
+async function shadowReachOf(surface: Locator): Promise<ShadowReach> {
+  const reach = await surface.evaluate((element) => {
+    const outer = getComputedStyle(element)
+      .boxShadow.split(/,(?![^(]*\))/)
+      .map((part) => part.trim())
+      .find((part) => !part.startsWith('inset'));
+    const lengths = [...(outer ?? '').matchAll(/(-?\d+(?:\.\d+)?)px/g)].map((match) => Number(match[1]));
+    if (lengths.length < 3) return null;
+    const [, dy, blur] = lengths;
+    return { top: Math.max(0, blur - dy), bottom: blur + dy, side: blur };
+  });
+  expect(reach, 'the tab’s cards carry no drop shadow at all, so there is nothing for the region to leave room for').not.toBeNull();
+  return reach!;
+}
+
+/** The room the scrolled region leaves around what it scrolls, on each side, in the scroll direction too. */
+async function regionRoom(region: Locator): Promise<{ top: number; bottom: number; left: number; right: number; gutter: string }> {
+  return await region.evaluate((element) => {
+    const content = element.firstElementChild!;
+    const regionBox = element.getBoundingClientRect();
+    const contentBox = content.getBoundingClientRect();
+    return {
+      top: contentBox.top - regionBox.top + element.scrollTop,
+      bottom: element.scrollHeight - (contentBox.bottom - regionBox.top + element.scrollTop),
+      left: contentBox.left - regionBox.left,
+      right: regionBox.right - contentBox.right,
+      gutter: getComputedStyle(element).scrollbarGutter,
+    };
+  });
+}
+
+/** Every shared scrolled region the detail currently draws, and whether it has taken room of any kind. */
+async function regionBoxes(page: Page): Promise<{ padding: string[]; gutter: string; hasRoom: boolean }[]> {
+  return await containerDetail(page)
+    .locator('.ui-scroll-area')
+    .evaluateAll((elements) =>
+      elements.map((element) => {
+        const style = getComputedStyle(element);
+        const padding = [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft];
+        return { padding, gutter: style.scrollbarGutter, hasRoom: padding.some((side) => Number.parseFloat(side) > 0) || style.scrollbarGutter !== 'auto' };
+      }),
+    );
+}
+
+function round(value: number): number {
+  return Math.round(value * 10) / 10;
 }
 
 function spread(values: number[]): number {
   return Math.max(...values) - Math.min(...values);
 }
 
-// REQ-18, REQ-19 — the environment's keys and values on two aligned tracks: every value of the
-// section begins at one edge and the keys read down as a column, and the heading states the number
-// of variables the section actually draws.
-test('Config: the environment reads down its keys, on two aligned tracks under a counted heading', async ({ page }) => {
+// REQ-51 — the three collection groups are drawn whether or not they hold anything, each with its
+// count, and a group with nothing in it says so in the library's placeholder.
+//
+// **This reverses what this file asserted for REQ-49** ("a container with no mounts is shown no
+// Mounts heading"). The reversal is the human's own, taken on the evidence of their daemon: an
+// absent group is indistinguishable from a group that was never designed, and "this container
+// publishes nothing" is an answer the operator came for.
+test('Config: a container that states nothing is still shown all five groups, the collections counting zero', async ({ page }) => {
+  const name = `vexel-e2e-config-bare-${Date.now()}`;
+  await createBareFixture(name);
+  try {
+    await openConfigTab(page, name, DESKTOP);
+
+    const drawn = await headings(page);
+    console.log(`[REQ-51] the Config tab of a container stating nothing is headed: ${drawn.map((one) => `${one.title} (${one.count || '—'})`).join(' · ')}`);
+    expect(
+      drawn.map((one) => one.title),
+      'the tab does not draw the five groups of the form it edits',
+    ).toEqual(['Runtime', 'Health check', 'Environment variables', 'Port mappings', 'Mounts']);
+    for (const title of ['Port mappings', 'Mounts']) {
+      const group = drawn.find((one) => one.title === title)!;
+      expect(group.count, `the ${title} heading states "${group.count}" instead of the number of entries it holds`).toBe('0');
+      await expect(groupPlaceholder(page, title), `the ${title} group is drawn empty, with nothing where its list would be`).toBeVisible();
+    }
+
+    // Beside the content: an empty group is a group on screen, with a box of its own — not a
+    // heading collapsed onto the one below it.
+    const box = await boxOf(groupCard(page, 'Port mappings'), 'the empty Port mappings group');
+    expect(box.height, `the empty Port mappings group is ${round(box.height)}px tall`).toBeGreaterThan(0);
+    expect(box.width, `the empty Port mappings group is ${round(box.width)}px wide`).toBeGreaterThan(0);
+  } finally {
+    await removeFixture({ name });
+  }
+});
+
+// REQ-54, REQ-18 — one variable per row at the group's full width, a key field and a value field
+// side by side, each value beginning at its own field, and a value the row has room for drawn on
+// one line. The keys still read down as one column, every entry giving its first field the same
+// share.
+test('Config: the environment reads one variable per row, two fields side by side, each value at its own field', async ({ page }) => {
   const name = `vexel-e2e-config-env-${Date.now()}`;
   const fixture = await createConfigFixture(name);
   try {
-    await openConfigTab(page, name, { width: 1280, height: 800 });
+    await openConfigTab(page, name, DESKTOP);
 
-    const environment = await measureSection(sectionList(page, 'Environment'), 'the Environment section');
-    const evidence = report('Environment at 1280 × 800', environment);
-    const offsets = trackOffsets(environment);
-    console.log(`[REQ-18] ${evidence}\n[REQ-18] label offsets [${offsets.labels.join(', ')}], value offsets [${offsets.values.join(', ')}]`);
+    const environment = await measureFieldList(groupList(page, 'Environment variables'), 'the Environment variables group');
+    const evidence = reportFieldList(`Environment at ${DESKTOP.width} × ${DESKTOP.height}`, environment);
+    console.log(`[REQ-54] ${evidence}`);
 
-    expect(environment.bands, 'the Environment section does not draw one band per variable of the fixture').toHaveLength(
-      Object.keys(FIXTURE_ENV).length,
-    );
+    expect(environment.entries, 'the group does not draw one entry per variable of the fixture').toHaveLength(Object.keys(FIXTURE_ENV).length);
 
-    // The guard that makes the alignment falsifiable: the keys are of five different widths, so a
-    // value that follows its own label — the arrangement this plan replaces — cannot produce one
-    // starting edge for all five.
-    const inks = environment.bands.map((band) => Math.round(band.labelInk));
-    expect(new Set(inks).size, `the fixture's keys all measure the same (${inks.join(', ')}px), so this alignment check could not fail`).toBeGreaterThan(1);
+    // One per row, at the group's full width: as many lines as entries, and every entry as wide as
+    // the list itself.
+    expect(environment.perLine, `${evidence} — the group flows ${environment.perLine} entries on a line rather than one`).toBe(1);
+    expect(environment.lines, `${evidence} — ${environment.entries.length} entries are drawn over ${environment.lines} line(s)`).toBe(environment.entries.length);
+    for (const entry of environment.entries) {
+      expect(
+        Math.abs(entry.box.width - environment.box.width),
+        `${evidence} — an entry is ${round(entry.box.width)}px wide inside a ${round(environment.box.width)}px group, so it does not take the row`,
+      ).toBeLessThanOrEqual(1);
+      expect(entry.fields, `${evidence} — an entry does not draw a key field and a value field`).toHaveLength(2);
+    }
 
-    expect(
-      spread(offsets.values),
-      `${evidence} — the values of the section start at ${new Set(offsets.values).size} different edges (offsets ${offsets.values.join(', ')}px from their own band), so they are not on a track of their own`,
-    ).toBeLessThanOrEqual(1);
-    expect(
-      spread(offsets.labels),
-      `${evidence} — the keys start at ${new Set(offsets.labels).size} different edges (offsets ${offsets.labels.join(', ')}px), so they do not read as one column`,
-    ).toBeLessThanOrEqual(1);
-    expectNothingClippedOrOverlapped(environment, evidence);
+    // Two fields side by side, each taking a share of the row — the edit form's own geometry.
+    for (const entry of environment.entries) {
+      const [key, value] = entry.fields;
+      expect(
+        Math.abs(key.box.width - value.box.width),
+        `${evidence} — the key field is ${round(key.box.width)}px and the value field ${round(value.box.width)}px in one row, so they do not share it`,
+      ).toBeLessThanOrEqual(1);
+      expect(value.box.left, `${evidence} — the value field starts at ${round(value.box.left)}, left of the key field's right edge ${round(key.box.right)}`).toBeGreaterThanOrEqual(
+        key.box.right - 0.5,
+      );
+    }
 
-    // REQ-19 — the heading counts what is under it.
-    const environmentHeading = (await headings(page)).find((heading) => heading.title === 'Environment');
-    expect(environmentHeading, 'the environment has no heading of its own').toBeDefined();
-    expect(claimedCount(environmentHeading!.count, 'Environment'), 'the Environment heading claims a number the section does not draw').toBe(
-      environment.bands.length,
-    );
+    // **A value begins where its own field begins** (REQ-54) — the defect this replaces started
+    // every value at one offset inside an otherwise empty band, a third of the way in. What a value
+    // may be inset by is its own field's padding, which every field carries alike, and nothing more.
+    for (const entry of environment.entries) {
+      for (const field of entry.fields) {
+        expect(
+          field.valueBox!.left - field.box.left,
+          `${evidence} — the value "${field.text}" begins ${round(field.valueBox!.left - field.box.left)}px inside a field padded by ${round(field.paddingLeft)}px`,
+        ).toBeLessThanOrEqual(field.paddingLeft + 1);
+      }
+    }
 
-    // Beside the geometry: each key carries its own value, split on the first `=` only — the one
-    // place a whole `KEY=value` string used to be read out of the read view.
-    const bands = await bandTexts(sectionList(page, 'Environment'));
-    expect(Object.fromEntries(bands.map((band) => [band.label, band.value]))).toEqual(FIXTURE_ENV);
+    // Every value the row has room for is drawn on one line.
+    for (const entry of environment.entries) {
+      const value = entry.fields[1];
+      expect(
+        value.valueLines,
+        `${evidence} — the value "${value.text}" occupies ${round(value.valueInk)}px of ink in a ${round(value.box.width)}px field and is drawn over ${value.valueLines} lines`,
+      ).toBe(1);
+    }
+
+    // REQ-18 — the keys still read down as one column: every first field at one edge, of one width.
+    const keyEdges = environment.entries.map((entry) => round(entry.fields[0].box.left));
+    const keyWidths = environment.entries.map((entry) => round(entry.fields[0].box.width));
+    expect(spread(keyEdges), `${evidence} — the keys start at ${new Set(keyEdges).size} different edges (${keyEdges.join(', ')})`).toBeLessThanOrEqual(1);
+    expect(spread(keyWidths), `${evidence} — the key fields are of ${new Set(keyWidths).size} different widths (${keyWidths.join(', ')})`).toBeLessThanOrEqual(1);
+
+    // Beside the geometry: each key carries its own value, split on the first `=` only.
+    const read = Object.fromEntries(environment.entries.map((entry) => [entry.fields[0].text, entry.fields[1].text]));
+    expect(read).toEqual(FIXTURE_ENV);
   } finally {
     await removeFixture(fixture);
   }
 });
 
-// The library invariant the new alignment rests on (`ui-library/specs/definition-list.md`): a label
-// longer than its track wraps **inside** it, and is neither shrunk nor truncated.
-test('Config: a key longer than the label track wraps inside it and is never truncated', async ({ page }) => {
+// `ui-library/specs/field-list.md` — "A value longer than its field wraps inside it, gaining no
+// ellipsis, no truncation and no hidden overflow: these are the values an operator most needs to
+// read exactly." The long key is the one field of this fixture that cannot fit on a line.
+test('Config: a key longer than its field wraps inside it and is never truncated', async ({ page }) => {
   const name = `vexel-e2e-config-longkey-${Date.now()}`;
   const fixture = await createConfigFixture(name);
   try {
-    await openConfigTab(page, name, { width: 1280, height: 800 });
+    await openConfigTab(page, name, DESKTOP);
 
-    const environment = await measureSection(sectionList(page, 'Environment'), 'the Environment section');
-    const band = environment.bands.find((candidate) => candidate.label.startsWith('A_VERY_LONG'));
-    expect(band, 'the long key is not drawn at all').toBeDefined();
-    const track = Math.min(LABEL_TRACK_PX, band!.box.width * LABEL_TRACK_SHARE);
-    console.log(
-      `[definition-list] the ${band!.label.length}-character key measures ${band!.labelInk.toFixed(1)}px of ink in a ${band!.labelBox!.width.toFixed(
-        1,
-      )}px box over ${band!.labelLines} line(s), track ${track.toFixed(1)}px`,
-    );
-
-    expect(band!.labelLines, `the key occupies ${band!.labelInk.toFixed(1)}px of ink on one line inside a ${track.toFixed(1)}px track`).toBeGreaterThan(1);
-    expect(band!.labelBox!.width, `the key's box (${band!.labelBox!.width.toFixed(1)}px) is wider than its track (${track.toFixed(1)}px)`).toBeLessThanOrEqual(
-      track + 1,
-    );
-
-    // Not truncated: no ellipsis, and nothing of it hidden behind its own box.
-    const overflow = await sectionList(page, 'Environment')
-      .locator('.ui-definition-list__row', { hasText: LONG_KEY })
-      .locator('.ui-definition-list__label')
-      .evaluate((label) => ({
-        textOverflow: getComputedStyle(label).textOverflow,
-        scrollWidth: label.scrollWidth,
-        clientWidth: label.clientWidth,
-        text: label.textContent ?? '',
+    const overflow = await groupList(page, 'Environment variables')
+      .locator('.ui-field-list__entry', { hasText: LONG_KEY })
+      .locator('.ui-field-list__value')
+      .first()
+      .evaluate((value) => ({
+        textOverflow: getComputedStyle(value).textOverflow,
+        scrollWidth: value.scrollWidth,
+        clientWidth: value.clientWidth,
+        text: value.textContent ?? '',
       }));
+    console.log(`[field-list] the ${LONG_KEY.length}-character key reads in a ${overflow.clientWidth}px field, laying out ${overflow.scrollWidth}px`);
+
     expect(overflow.textOverflow, 'the key is ellipsised rather than wrapped').not.toBe('ellipsis');
-    expect(overflow.scrollWidth, `${overflow.scrollWidth - overflow.clientWidth}px of the key is hidden outside its own box`).toBeLessThanOrEqual(
+    expect(overflow.scrollWidth, `${overflow.scrollWidth - overflow.clientWidth}px of the key is hidden outside its own field`).toBeLessThanOrEqual(
       overflow.clientWidth + 1,
     );
     expect(overflow.text, 'the key is not shown in full').toBe(LONG_KEY);
@@ -280,135 +489,329 @@ test('Config: a key longer than the label track wraps inside it and is never tru
   }
 });
 
-// REQ-20, REQ-21 — mounts are a section of their own, headed with its own count, each entry reading
-// source → destination with a `ro` / `rw` chip whose treatment tells the two apart. The `mount:`
-// prefix is gone from every entry.
-test('Config: the mounts are a counted section, and the read-only chip is told from the writable one', async ({ page }) => {
+// REQ-48, REQ-55 — the ports are a counted group of their own, one entry per port, each entry
+// **naming** its two numbers so which is which is read rather than inferred; and the group goes on
+// flowing more than one entry per line, which the human asked for explicitly.
+test('Config: each port entry names its container port and its host port, several to a line', async ({ page }) => {
+  const name = `vexel-e2e-config-ports-${Date.now()}`;
+  const fixture = await createConfigFixture(name);
+  try {
+    await openConfigTab(page, name, DESKTOP);
+
+    const ports = await measureFieldList(groupList(page, 'Port mappings'), 'the Port mappings group');
+    const evidence = reportFieldList(`Port mappings at ${DESKTOP.width} × ${DESKTOP.height}`, ports);
+    console.log(`[REQ-55] ${evidence}`);
+
+    expect(ports.entries, 'the group does not draw one entry per port of the fixture').toHaveLength(PUBLISHED_PORTS.length);
+
+    // The two numbers are named, in the form's own words, and each caption is drawn above its own
+    // value rather than beside another entry's.
+    for (const entry of ports.entries) {
+      expect(
+        entry.fields.map((field) => field.caption),
+        `${evidence} — an entry names its fields ${JSON.stringify(entry.fields.map((field) => field.caption))}`,
+      ).toEqual(['Container port', 'Host port']);
+      for (const field of entry.fields) {
+        expect(
+          field.valueBox!.top,
+          `${evidence} — the value of "${field.caption}" is drawn at y=${round(field.valueBox!.top)}, not below its own caption in a field starting at ${round(field.box.top)}`,
+        ).toBeGreaterThan(field.box.top);
+      }
+    }
+
+    const read = ports.entries.map((entry) => ({ container: entry.fields[0].text, host: entry.fields[1].text }));
+    expect(read, 'the entries do not read the fixture’s own bindings').toEqual(
+      [...PUBLISHED_PORTS]
+        .sort((left, right) => left.container - right.container)
+        .map((port) => ({ container: `${port.container}/tcp`, host: String(port.host) })),
+    );
+
+    // The group still flows more than one entry per line at a desktop width.
+    expect(ports.perLine, `${evidence} — the group flows ${ports.perLine} entry per line, so it has stopped flowing`).toBeGreaterThan(1);
+  } finally {
+    await removeFixture(fixture);
+  }
+});
+
+// REQ-59 — **the case the operator's card and their detail used to disagree about**: a container
+// published with `-P`, whose host port the daemon chose. The tab states the number actually in
+// force; until REQ-59 it read `not published` on a port that was published.
+test('Config: a publication the daemon numbered reads its real host port', async ({ page }) => {
+  const name = `vexel-e2e-config-published-${Date.now()}`;
+  const hostPort = await createDaemonPublishedFixture(name);
+  try {
+    await openConfigTab(page, name, DESKTOP);
+
+    const ports = await measureFieldList(groupList(page, 'Port mappings'), 'the Port mappings group');
+    console.log(`[REQ-59] the daemon published ${EXPOSED_PORT}/tcp on host port ${hostPort}; ${reportFieldList('Port mappings', ports)}`);
+
+    const read = ports.entries.map((entry) => ({ container: entry.fields[0].text, host: entry.fields[1].text }));
+    expect(read, `the publication the daemon numbered is not read in the tab; it shows ${JSON.stringify(read)}`).toEqual([
+      { container: `${EXPOSED_PORT}/tcp`, host: String(hostPort) },
+    ]);
+
+    // Beside the content: the entry is drawn, with a box of its own, and both fields put ink in it.
+    const entry = ports.entries[0];
+    expect(entry.box.width, 'the publication’s entry is drawn with no width').toBeGreaterThan(0);
+    for (const field of entry.fields) {
+      expect(field.valueInk, `the "${field.caption}" field of the publication draws no text at all`).toBeGreaterThan(0);
+    }
+  } finally {
+    await removeFixture({ name });
+  }
+});
+
+// REQ-59's other half — "and only those. A port that is merely declared is not an entry here." The
+// group is still **drawn**, with its count and the library's placeholder (REQ-51): "this container
+// publishes nothing" is an answer the operator came for, and an absent group is not that answer.
+//
+// **This reverses what this file asserted until 2026-08-27**, when the same fixture was used to
+// prove the opposite — that an exposed-only port reaches the tab (REQ-52 as first read, then REQ-58,
+// withdrawn the day it was written). `EXPOSE` binds no host port, so the row it produced named
+// something reachable from nowhere.
+test('Config: a port exposed and published nowhere is not an entry, and the group still says so', async ({ page }) => {
+  const name = `vexel-e2e-config-exposed-${Date.now()}`;
+  await createExposedFixture(name);
+  try {
+    await openConfigTab(page, name, DESKTOP);
+
+    const card = groupCard(page, 'Port mappings');
+    await expect(card, 'the Port mappings group is not drawn for a container that publishes nothing').toBeVisible();
+    const placeholder = groupPlaceholder(page, 'Port mappings');
+    await expect(placeholder, 'the group with nothing in it draws no placeholder saying so').toBeVisible();
+
+    const entries = await groupList(page, 'Port mappings').locator('.ui-field-list__entry').allInnerTexts();
+    console.log(`[REQ-59] the exposed-only container's Port mappings group holds ${entries.length} entry/entries: ${JSON.stringify(entries)}`);
+    expect(entries, `a port that is exposed and published nowhere is drawn as a mapping: ${JSON.stringify(entries)}`).toEqual([]);
+
+    // Geometry beside content: the group is a card of real size, not a collapsed remnant of one.
+    const box = await boxOf(card, 'the empty Port mappings group');
+    expect(box.height, `the empty Port mappings group is ${round(box.height)}px tall`).toBeGreaterThan(0);
+    expect(box.width, `the empty Port mappings group is ${round(box.width)}px wide`).toBeGreaterThan(0);
+  } finally {
+    await removeFixture({ name });
+  }
+});
+
+/**
+ * `…-tabs_composition_refactor/REQ-60` — **the card and this tab answer the same question on the
+ * same container**, which is the requirement's own wording, so it is checked on one container in one
+ * pass: the chips are read off the card and the entries off the tab that card opens.
+ *
+ * **The rule reversed on 2026-08-27 and this check carries the new one.** Until then the card drew
+ * exposed-but-unpublished ports too (the 2026-08-25 annotation of `containers_card_view/REQ-5`,
+ * grounded on `REQ-12` — no value the delivered row showed may disappear), while the tab had already
+ * been narrowed to publications: the human measured `--expose 7777` as two chips on the card against
+ * `Port mappings (0)` in the detail. The same human reversed the card's half after being shown their
+ * earlier ruling: an exposure binds no host port and gates no container-to-container traffic.
+ *
+ * The fixture publishes with `-p 0:N`, the spelling the daemon stores as a literal `HostPort: "0"`,
+ * and exposes a second port it never publishes — so a reading that took `0` for a host port, or that
+ * let a declaration through, fails here on whichever side it happened.
+ */
+test('Config: the card and the tab state the same publications for a container that publishes and exposes', async ({ page }) => {
+  const name = `vexel-e2e-config-agreement-${Date.now()}`;
+  const hostPort = await createPublishingAndExposingFixture(name);
+  try {
+    await page.setViewportSize(DESKTOP);
+    await openApp(page, 'containers');
+    await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
+    await page.getByPlaceholder('Search name, image or state…').fill(name);
+    const card = containerCard(page, name);
+    await expect(card, 'the fixture container never appeared in the list').toBeVisible({ timeout: 20_000 });
+
+    const chips = await card.locator('.ui-metric-strip__row .ui-chip').allInnerTexts();
+    console.log(`[REQ-60] the daemon published ${EXPOSED_PORT}/tcp on host port ${hostPort}; the card reads ${JSON.stringify(chips)}`);
+    expect(chips, `the card does not state the publication alone; it reads ${JSON.stringify(chips)}`).toEqual([`${hostPort}→${EXPOSED_PORT}`]);
+
+    // Beside the content: the row and its chip are drawn, inside the card that carries them.
+    const chipBox = await boxOf(card.locator('.ui-metric-strip__row .ui-chip').first(), 'the card’s port chip');
+    const cardBox = await boxOf(card, `the card of ${name}`);
+    expect(chipBox.width, 'the card’s port chip is drawn with no width').toBeGreaterThan(0);
+    expect(chipBox.x, 'the card’s port chip starts outside its card').toBeGreaterThanOrEqual(cardBox.x);
+    expect(chipBox.x + chipBox.width, 'the card’s port chip runs past its card').toBeLessThanOrEqual(cardBox.x + cardBox.width);
+
+    await openContainerDetail(page, name);
+    await expect(editAction(page), 'the Config tab never finished loading its inspect data').toBeVisible({ timeout: 20_000 });
+
+    const ports = await measureFieldList(groupList(page, 'Port mappings'), 'the Port mappings group');
+    const evidence = reportFieldList('Port mappings', ports);
+    console.log(`[REQ-60] ${evidence}`);
+    const read = ports.entries.map((entry) => ({ container: entry.fields[0].text, host: entry.fields[1].text }));
+    expect(read, `the tab does not state the same publication the card does; it reads ${JSON.stringify(read)}`).toEqual([
+      { container: `${EXPOSED_PORT}/tcp`, host: String(hostPort) },
+    ]);
+    expect(ports.entries[0].box.width, 'the publication’s entry is drawn with no width').toBeGreaterThan(0);
+
+    // Neither reading names what the container merely declares. Read on the group itself rather than
+    // on the whole dialog: the fixture's own name carries a timestamp, and a digit sequence inside it
+    // would answer for the group.
+    const groupText = await groupCard(page, 'Port mappings').innerText();
+    expect(chips.join(' '), 'the card names a port the container only exposes').not.toContain(String(MERELY_EXPOSED_PORT));
+    expect(groupText, 'the tab names a port the container only exposes').not.toContain(String(MERELY_EXPOSED_PORT));
+  } finally {
+    await removeFixture({ name });
+  }
+});
+
+// REQ-56, REQ-57 — a mount is given its row's real width, and **no field of an entry takes more
+// than half its row**. The cost written into REQ-57 is accepted and is not a failure: a source
+// longer than half the row wraps onto a second line rather than running past the middle.
+test('Config: a mount takes its row, no field of it passes the middle, and the boundary is one column', async ({ page }) => {
   const name = `vexel-e2e-config-mounts-${Date.now()}`;
   const fixture = await createConfigFixture(name);
   try {
-    await openConfigTab(page, name, { width: 1280, height: 800 });
+    await openConfigTab(page, name, DESKTOP);
 
-    const mounts = await measureSection(sectionList(page, 'Mounts'), 'the Mounts section');
-    const evidence = report('Mounts at 1280 × 800', mounts);
-    console.log(`[REQ-20] ${evidence}`);
-    expect(mounts.bands, 'the Mounts section does not draw one band per mount of the fixture').toHaveLength(2);
-    expectNothingClippedOrOverlapped(mounts, evidence);
+    const mounts = await measureFieldList(groupList(page, 'Mounts'), 'the Mounts group');
+    const evidence = reportFieldList(`Mounts at ${DESKTOP.width} × ${DESKTOP.height}`, mounts);
+    console.log(`[REQ-56] ${evidence}`);
 
-    const mountsHeading = (await headings(page)).find((heading) => heading.title === 'Mounts');
-    expect(mountsHeading, 'the mounts have no heading of their own').toBeDefined();
-    expect(claimedCount(mountsHeading!.count, 'Mounts'), 'the Mounts heading claims a number the section does not draw').toBe(mounts.bands.length);
+    expect(mounts.entries, 'the group does not draw one entry per mount of the fixture').toHaveLength(3);
+    expect(mounts.perLine, `${evidence} — the group flows ${mounts.perLine} mounts on a line rather than one`).toBe(1);
 
-    // Each entry: its source as the label, its destination as the value, and one chip.
-    const bands = await bandTexts(sectionList(page, 'Mounts'));
-    const readOnly = bands.find((band) => band.value.includes(READ_ONLY_DESTINATION));
-    const writable = bands.find((band) => band.value.includes(WRITABLE_DESTINATION));
-    expect(readOnly, `no entry reads ${READ_ONLY_DESTINATION}; the section shows ${JSON.stringify(bands)}`).toBeDefined();
-    expect(writable, `no entry reads ${WRITABLE_DESTINATION}; the section shows ${JSON.stringify(bands)}`).toBeDefined();
-    // The daemon may report the host path resolved (…/private/var/… on macOS), so the directory's
-    // own name is what is asserted rather than the string handed to `docker create`.
-    expect(readOnly!.label, 'the read-only entry does not carry its source').toContain(fixture.readOnlySource.split('/').pop());
-    expect(writable!.label, 'the writable entry does not carry its source').toContain(fixture.writableSource.split('/').pop());
-    expect(readOnly!.chips, 'the read-only mount carries no `ro` chip').toEqual(['ro']);
-    expect(writable!.chips, 'the writable mount carries no `rw` chip').toEqual(['rw']);
+    // REQ-56 — the row's real width: an entry is as wide as its group, and the source of a mount
+    // short enough for its field is drawn on one line rather than wrapped inside a fixed track.
+    for (const entry of mounts.entries) {
+      expect(
+        Math.abs(entry.box.width - mounts.box.width),
+        `${evidence} — a mount is ${round(entry.box.width)}px wide inside a ${round(mounts.box.width)}px group`,
+      ).toBeLessThanOrEqual(1);
+      expect(
+        entry.fields.map((field) => field.caption),
+        `${evidence} — a mount names its fields ${JSON.stringify(entry.fields.map((field) => field.caption))}`,
+      ).toEqual(['Source', 'Destination']);
+    }
+    const short = mounts.entries.find((entry) => entry.fields[1].text.startsWith(SHORT_DESTINATION));
+    expect(short, `${evidence} — no entry reads ${SHORT_DESTINATION}`).toBeDefined();
+    expect(
+      short!.fields[0].valueLines,
+      `${evidence} — a source of ${round(short!.fields[0].valueInk)}px is wrapped over ${short!.fields[0].valueLines} lines inside a ${round(
+        short!.fields[0].box.width,
+      )}px field`,
+    ).toBe(1);
 
-    // REQ-21 asks for the two to be **told apart**, which two different words on one treatment are
-    // not: the chips are compared as the browser paints them.
+    // REQ-57 — the cap, as a share of the entry and in every row.
+    const widest = widestShare(mounts);
+    console.log(`[REQ-57] the widest field takes ${(widest.share * 100).toFixed(1)}% of its entry ("${widest.caption}": ${widest.text.slice(0, 40)}…)`);
+    for (const entry of mounts.entries) {
+      for (const field of entry.fields) {
+        expect(
+          field.shareOfEntry,
+          `${evidence} — the "${field.caption}" field takes ${(field.shareOfEntry * 100).toFixed(1)}% of its ${round(entry.box.width)}px row`,
+        ).toBeLessThanOrEqual(0.5 + 0.005);
+      }
+    }
+
+    // REQ-57's column: the two long-sourced rows are both held at the cap, so the boundary between
+    // source and destination falls at one offset — which is what a column is.
+    const capped = mounts.entries.filter((entry) => entry.fields[0].shareOfEntry > 0.45);
+    expect(capped.length, `${evidence} — fewer than two rows reach the cap, so the alignment this asserts could not fail`).toBeGreaterThanOrEqual(2);
+    const boundaries = capped.map((entry) => round(entry.fields[0].box.right));
+    expect(
+      spread(boundaries),
+      `${evidence} — the source/destination boundary falls at ${new Set(boundaries).size} different offsets (${boundaries.join(', ')}), so the column begins somewhere new in every row`,
+    ).toBeLessThanOrEqual(1);
+
+    // REQ-21 — the read-only mount is told from the writable one by treatment, not by its label
+    // alone; the chip travels with the destination.
+    const readOnly = mounts.entries.find((entry) => entry.fields[1].text.startsWith(READ_ONLY_DESTINATION));
+    const writable = mounts.entries.find((entry) => entry.fields[1].text.startsWith(WRITABLE_DESTINATION));
+    expect(readOnly, `${evidence} — no entry reads ${READ_ONLY_DESTINATION}`).toBeDefined();
+    expect(writable, `${evidence} — no entry reads ${WRITABLE_DESTINATION}`).toBeDefined();
+    expect(readOnly!.fields[1].chips, 'the read-only mount carries no `ro` chip beside its destination').toEqual(['ro']);
+    expect(writable!.fields[1].chips, 'the writable mount carries no `rw` chip beside its destination').toEqual(['rw']);
+
     const treatments = await containerDetail(page)
-      .locator('.ui-definition-list .ui-chip')
+      .locator('.ui-field-list .ui-chip')
       .evaluateAll((chips) =>
         chips.map((chip) => {
           const style = getComputedStyle(chip);
           return { label: chip.textContent ?? '', color: style.color, background: style.backgroundColor, border: style.borderColor };
         }),
       );
-    const roTreatment = treatments.find((chip) => chip.label === 'ro');
-    const rwTreatment = treatments.find((chip) => chip.label === 'rw');
+    const roTreatment = treatments.find((chip) => chip.label === 'ro')!;
+    const rwTreatment = treatments.find((chip) => chip.label === 'rw')!;
     console.log(`[REQ-21] ro ${JSON.stringify(roTreatment)}\n[REQ-21] rw ${JSON.stringify(rwTreatment)}`);
     expect(
-      [roTreatment!.color, roTreatment!.background, roTreatment!.border],
+      [roTreatment.color, roTreatment.background, roTreatment.border],
       `the ro chip is painted exactly like the rw one (${JSON.stringify(roTreatment)}), so the two differ only by their label`,
-    ).not.toEqual([rwTreatment!.color, rwTreatment!.background, rwTreatment!.border]);
+    ).not.toEqual([rwTreatment.color, rwTreatment.background, rwTreatment.border]);
 
-    // REQ-20 — the word that was repeated on every row is the heading now, and nothing else.
+    // The word that was repeated on every row is the heading now, and nothing else.
     expect(await containerDetail(page).innerText(), 'an entry still carries the literal `mount:` prefix').not.toMatch(/mount:/i);
   } finally {
     await removeFixture(fixture);
   }
 });
 
-// The certified column-count rule, on the regrouped sections: both declare the long-single-line
-// class, so at one measured width the two show the same count as each other
-// (`containers/specs/container-detail-panel.md`, `plan-docker_management_app-detail_property_columns/REQ-19`).
-test('Config: the environment and the mounts, of one measured width, show the same number of columns', async ({ page }) => {
-  const name = `vexel-e2e-config-parity-${Date.now()}`;
-  const fixture = await createConfigFixture(name);
-  try {
-    await openConfigTab(page, name, { width: 1920, height: 1080 });
-
-    const environment = await measureSection(sectionList(page, 'Environment'), 'the Environment section');
-    const mounts = await measureSection(sectionList(page, 'Mounts'), 'the Mounts section');
-    console.log(`[REQ-19] ${report('Environment at 1920 × 1080', environment)}\n[REQ-19] ${report('Mounts at 1920 × 1080', mounts)}`);
-
-    expect(
-      Math.abs(environment.box.width - mounts.box.width),
-      `the two sections are ${environment.box.width.toFixed(1)}px and ${mounts.box.width.toFixed(1)}px wide, so a shared count would prove nothing`,
-    ).toBeLessThanOrEqual(1);
-    expect(
-      mounts.columns,
-      `the Environment section shows ${environment.columns} column(s) and the Mounts section ${mounts.columns}, at one measured width and one content class`,
-    ).toBe(environment.columns);
-  } finally {
-    await removeFixture(fixture);
-  }
-});
-
-// REQ-22, REQ-44 — the action belongs to the tab, not to a column: it is above the split, inside
-// neither of its two columns, and a real pointer at its own coordinates still opens the edit form.
-test('Config: Edit configuration sits at the head of the tab and still opens the edit form', async ({ page }) => {
+// REQ-50, REQ-44 — the action sits at the **foot** of the tab, at its trailing edge, belonging to no
+// group, and a real pointer at its own coordinates still opens the edit form.
+//
+// **This reverses REQ-22's placement**, which this file asserted at the head: with the reading now
+// the same composition as the form, the action takes the form's own place. Its label and what it
+// does are unchanged, and both are asserted here rather than assumed.
+test('Config: Edit configuration closes the tab at its trailing edge and still opens the edit form', async ({ page }) => {
   const name = `vexel-e2e-config-action-${Date.now()}`;
   const fixture = await createConfigFixture(name);
   try {
-    await openConfigTab(page, name, { width: 1280, height: 800 });
+    await openConfigTab(page, name, DESKTOP);
 
+    // The action scrolls with the content (REQ-50), so it is scrolled to before it is measured — a
+    // pinned footer would be on screen without this and is exactly what the requirement refuses.
+    await editAction(page).scrollIntoViewIfNeeded();
     const boxes = await boxesOf(
       page,
-      { action: editAction(page), split: configSplit(page), dialog: containerDetail(page) },
+      { action: editAction(page), lastGroup: groupCard(page, 'Mounts'), firstGroup: groupCard(page, 'Runtime'), dialog: containerDetail(page) },
       'the Config tab in reading',
     );
     console.log(
-      `[REQ-22] action ${boxes.action!.x.toFixed(1)},${boxes.action!.y.toFixed(1)} ${boxes.action!.width.toFixed(1)}×${boxes.action!.height.toFixed(
-        1,
-      )} / split ${boxes.split!.x.toFixed(1)},${boxes.split!.y.toFixed(1)} ${boxes.split!.width.toFixed(1)}×${boxes.split!.height.toFixed(1)}`,
+      `[REQ-50] action ${round(boxes.action!.x)},${round(boxes.action!.y)} ${round(boxes.action!.width)}×${round(boxes.action!.height)} / Mounts card ends at ${round(
+        boxes.lastGroup!.x + boxes.lastGroup!.width,
+      )},${round(boxes.lastGroup!.y + boxes.lastGroup!.height)}`,
     );
 
+    // At the foot: below the last group, and below the first — not merely after it in the markup.
     expect(
-      boxes.action!.y + boxes.action!.height,
-      `the action's bottom edge (${(boxes.action!.y + boxes.action!.height).toFixed(1)}) is below the top of the two columns (${boxes.split!.y.toFixed(
-        1,
-      )}), so it is not at the head of the tab`,
-    ).toBeLessThanOrEqual(boxes.split!.y + 1);
+      boxes.action!.y,
+      `the action's top edge (${round(boxes.action!.y)}) is above the bottom of the last group (${round(boxes.lastGroup!.y + boxes.lastGroup!.height)})`,
+    ).toBeGreaterThanOrEqual(boxes.lastGroup!.y + boxes.lastGroup!.height - 1);
+    expect(boxes.action!.y, 'the action is drawn above the first group, at the head of the tab').toBeGreaterThan(boxes.firstGroup!.y);
 
-    // Above **both** columns and inside neither: not merely drawn higher, but outside the split's
-    // own element, which is what "belonging to neither" means.
-    const insideSplit = await editAction(page).evaluate((button) => button.closest('.ui-grid') !== null);
-    expect(insideSplit, 'the action is drawn inside the two-column split, so it belongs to one of the columns').toBe(false);
-
-    // Its place at the tab's trailing edge (`containers/specs/container-detail-panel.md`).
+    // At the trailing edge, lined up with the content column the groups define.
     expect(
-      Math.abs(boxes.action!.x + boxes.action!.width - (boxes.split!.x + boxes.split!.width)),
-      `the action ends at ${(boxes.action!.x + boxes.action!.width).toFixed(1)} while the tab ends at ${(boxes.split!.x + boxes.split!.width).toFixed(
-        1,
-      )}, so it is not at the tab's trailing edge`,
+      Math.abs(boxes.action!.x + boxes.action!.width - (boxes.lastGroup!.x + boxes.lastGroup!.width)),
+      `the action ends at ${round(boxes.action!.x + boxes.action!.width)} while the tab's content column ends at ${round(boxes.lastGroup!.x + boxes.lastGroup!.width)}`,
     ).toBeLessThanOrEqual(2);
+
+    // Belonging to no group: outside every card of the tab and outside the two-column pair.
+    // Every surface between the action and the tab's own scrolled region: the dialog is a surface
+    // too, and it is the one the action legitimately sits inside, so the walk stops at the region.
+    const containment = await editAction(page).evaluate((button) => {
+      const region = button.closest('.ui-scroll-area');
+      let node: Element | null = button.parentElement;
+      let inACard = false;
+      while (node && node !== region) {
+        if (node.classList.contains('ui-surface')) inACard = true;
+        node = node.parentElement;
+      }
+      return { inACard, inTheGrid: button.closest('.ui-grid') !== null };
+    });
+    expect(containment.inACard, 'the action is drawn inside one of the tab’s cards').toBe(false);
+    expect(containment.inTheGrid, 'the action is drawn inside the two-column pair, so it belongs to one of its columns').toBe(false);
+
+    // Nothing of the tab is drawn below it: it closes the tab.
+    const lowest = await containerDetail(page)
+      .locator('.ui-section-header')
+      .evaluateAll((headers) => Math.max(...headers.filter((header) => header.closest('.ui-modal__title') === null).map((header) => header.getBoundingClientRect().bottom)));
+    expect(lowest, `a group heading is drawn at y=${round(lowest)}, below the action at ${round(boxes.action!.y)}`).toBeLessThanOrEqual(boxes.action!.y + 1);
 
     // A real pointer at the visible control's own coordinates (REQ-44), and the edit form it has
     // always opened.
     await clickAtItsCentre(page, editAction(page), 'the Edit configuration action');
     await expect(containerDetail(page).getByRole('combobox', { name: 'Restart policy' }), 'the action no longer opens the edit form').toBeVisible();
 
-    // Beside the content: the dialog it happens inside did not move (REQ-2, the height this batch
-    // depends on).
+    // Beside the content: the dialog it happens inside did not move (REQ-2).
     const after = await boxOf(containerDetail(page), 'the container detail dialog');
     expect(
       { x: after.x, y: after.y, width: after.width, height: after.height },
@@ -419,41 +822,113 @@ test('Config: Edit configuration sits at the head of the tab and still opens the
   }
 });
 
-// `plan-ui-coherence-optimisation/REQ-60`, as `containers/specs/container-detail-panel.md` states it
-// for this tab: a section with no entries is not drawn at all, its heading included.
-//
-// **Mounts is the half of the rule the daemon lets a fixture exhibit.** A container it creates
-// always holds at least one environment variable — the daemon writes a default `PATH` when the
-// image declares none — so "no environment" is not a state `docker create` can be asked for, and it
-// is asserted in `client/test/unit/container-detail-panel.test.tsx`, where the inspect data is the
-// test's to state. Mounting nothing is a state, and this is it.
-test('Config: a container with no mounts is shown no Mounts heading', async ({ page }) => {
-  const name = `vexel-e2e-config-bare-${Date.now()}`;
-  await createBareFixture(name);
+// REQ-53 — the scrolled region leaves room for what it holds: a card at its edge draws the whole of
+// its drop shadow instead of having it clipped, and the scrollbar has a gutter of its own instead of
+// resting on the content's trailing edge. **And every other consumer of the shared region keeps the
+// box it has today**, which is the real risk of this change: eight of the library's surfaces scroll
+// through the same region, each aligning something of its own against its box.
+test('Config: the tab’s region leaves the shadow its room and the scrollbar its gutter, and the other tabs’ regions are untouched', async ({ page }) => {
+  const name = `vexel-e2e-config-inset-${Date.now()}`;
+  const fixture = await createConfigFixture(name);
   try {
-    await openConfigTab(page, name, { width: 1280, height: 800 });
+    await openConfigTab(page, name, DESKTOP);
 
-    const titles = (await headings(page)).map((heading) => heading.title);
-    console.log(`[REQ-60] the Config tab of a container mounting nothing is headed: ${titles.join(' · ') || '(nothing)'}`);
-    expect(titles, 'the Mounts section is drawn anyway, headed with a count of 0').not.toContain('Mounts');
-    expect(titles, 'the runtime column is gone with it').toContain('Runtime configuration');
+    const reach = await shadowReachOf(groupCard(page, 'Runtime'));
+    const room = await regionRoom(scrolledRegion(page));
+    console.log(`[REQ-53] shadow reaches ${JSON.stringify(reach)}; the region leaves ${JSON.stringify(room)}`);
+
+    expect(room.top, `the region leaves ${round(room.top)}px above its content, against a shadow reaching ${reach.top}px`).toBeGreaterThanOrEqual(reach.top - 0.5);
+    expect(room.bottom, `the region leaves ${round(room.bottom)}px below its content, against a shadow reaching ${reach.bottom}px`).toBeGreaterThanOrEqual(
+      reach.bottom - 0.5,
+    );
+    expect(room.left, `the region leaves ${round(room.left)}px left of its content, against a shadow reaching ${reach.side}px`).toBeGreaterThanOrEqual(reach.side - 0.5);
+    expect(room.right, `the region leaves ${round(room.right)}px right of its content, against a shadow reaching ${reach.side}px`).toBeGreaterThanOrEqual(
+      reach.side - 0.5,
+    );
+
+    // The gutter is reserved whether or not the content is long enough to scroll, so the tab does
+    // not change width when it grows past the region.
+    expect(room.gutter, `the region reserves no gutter for its scrollbar (scrollbar-gutter: ${room.gutter})`).toContain('stable');
+
+    // **The other half of REQ-53, and the real risk of this change**: the surfaces that take the
+    // region as it is still do. Two of the eight are reachable on a container's own detail — the
+    // code viewer inside the Inspect tab's raw payload, and the process table — and each is asked
+    // for the box the browser gives it. That no *other* consumer asks for room, on any screen, is
+    // settled once over the sources in `client/test/unit/scroll-area-inset.test.tsx`; what is
+    // settled here is that the room the sources describe is the room the browser applies.
+    await containerDetail(page).getByRole('tab', { name: 'Inspect', exact: true }).click();
+    await clickAtItsCentre(page, containerDetail(page).locator('.ui-collapsible-section__header').filter({ hasText: 'Raw payload' }), 'the Raw payload section');
+    await expect(containerDetail(page).locator('.ui-code-viewer'), 'the raw payload never opened, so its own region cannot be measured').toBeVisible();
+    const inspectRegions = await regionBoxes(page);
+    console.log(`[REQ-53] the Inspect tab's regions: ${JSON.stringify(inspectRegions)}`);
+    expect(inspectRegions.length, 'the Inspect tab draws no shared region at all, so this check has stopped covering it').toBeGreaterThan(1);
+    expect(
+      inspectRegions.filter((region) => region.hasRoom).length,
+      `${inspectRegions.filter((region) => region.hasRoom).length} of the Inspect tab's regions take room, against the one document tab that asks for it`,
+    ).toBe(1);
+    for (const region of inspectRegions.filter((candidate) => !candidate.hasRoom)) {
+      expect(region.padding, `a region inside the Inspect tab has taken room it never asked for: padding ${region.padding.join(' ')}`).toEqual([
+        '0px',
+        '0px',
+        '0px',
+        '0px',
+      ]);
+      expect(region.gutter, `a region inside the Inspect tab has taken a scrollbar gutter it never asked for: ${region.gutter}`).toBe('auto');
+    }
+  } finally {
+    await removeFixture(fixture);
+  }
+});
+
+// REQ-53, on the two tabs that are surfaces of their own: the process table takes the region as it
+// is. A **running** fixture, because a process table needs processes — the same one the
+// exposed-only check uses.
+test('Config: the tabs that are surfaces of their own take the shared region unchanged', async ({ page }) => {
+  const name = `vexel-e2e-config-bare-region-${Date.now()}`;
+  await createExposedFixture(name);
+  try {
+    await openConfigTab(page, name, DESKTOP);
+
+    await containerDetail(page).getByRole('tab', { name: 'Processes', exact: true }).click();
+    await expect(containerDetail(page).locator('.ui-data-table'), 'the process table never appeared, so its region cannot be measured').toBeVisible({ timeout: 20_000 });
+    const regions = await regionBoxes(page);
+    console.log(`[REQ-53] the Processes tab's regions: ${JSON.stringify(regions)}`);
+
+    expect(regions.length, 'the Processes tab scrolls through no shared region at all, so this check has stopped covering it').toBeGreaterThan(0);
+    for (const region of regions) {
+      expect(region.padding, `the Processes tab's own scrolled region has taken room it never asked for: padding ${region.padding.join(' ')}`).toEqual([
+        '0px',
+        '0px',
+        '0px',
+        '0px',
+      ]);
+      expect(region.gutter, `the Processes tab's own scrolled region has taken a scrollbar gutter it never asked for: ${region.gutter}`).toBe('auto');
+    }
   } finally {
     await removeFixture({ name });
   }
 });
 
-// REQ-40 — at 375 × 812 the two tracks are the arrangement that can break: nothing is clipped to
-// nothing and nothing requires horizontal scrolling.
-test('Config: at 375 × 812 both sections stay readable and nothing scrolls sideways', async ({ page }) => {
+// REQ-40 — at 375 × 812 the tab stays usable: nothing clipped to nothing, nothing requiring
+// horizontal scrolling, every chip still on screen.
+//
+// **What is deliberately not asserted here** is how many lines a value takes. At this width the two
+// fields of an entry are an equal share each of a ~295px row, so a long value wraps many times; the
+// human was shown that measurement on 2026-08-27, approved the desktop arrangement and did not ask
+// for the narrow one to change, and it stands recorded and unfixed in the batch file. A check
+// failing on it would be reporting a decision, not a defect.
+test('Config: at 375 × 812 every group stays readable and nothing scrolls sideways', async ({ page }) => {
   const name = `vexel-e2e-config-narrow-${Date.now()}`;
   const fixture = await createConfigFixture(name);
   try {
     await openConfigTab(page, name, { width: 375, height: 812 });
 
-    // Everything is **measured first and asserted after**, so one run reports the whole state of
-    // the narrow arrangement instead of stopping at the first section that fails.
-    const sections: Record<string, SectionGeometry> = {};
-    for (const title of ['Environment', 'Mounts']) sections[title] = await measureSection(sectionList(page, title), `the ${title} section`);
+    // Everything is **measured first and asserted after**, so one run reports the whole state of the
+    // narrow arrangement instead of stopping at the first group that fails.
+    const groups: Record<string, FieldListGeometry> = {};
+    for (const title of ['Environment variables', 'Port mappings', 'Mounts']) {
+      groups[title] = await measureFieldList(groupList(page, title), `the ${title} group`);
+    }
     const overflow = await page.evaluate(() => {
       const root = document.documentElement;
       const dialog = document.querySelector('.ui-modal--size-large');
@@ -462,79 +937,57 @@ test('Config: at 375 × 812 both sections stay readable and nothing scrolls side
         dialog: { scrollWidth: dialog?.scrollWidth ?? 0, clientWidth: dialog?.clientWidth ?? 0 },
       };
     });
-    for (const [title, geometry] of Object.entries(sections)) {
-      console.log(`[REQ-40] ${report(`${title} at 375 × 812`, geometry)}`);
-      for (const band of geometry.bands) {
-        console.log(
-          `[REQ-40] ${title}: band ${band.box.width.toFixed(1)}px — label ${band.labelInk.toFixed(1)}px of ink over ${band.labelLines} line(s) in ${band.labelBox!.width.toFixed(
-            1,
-          )}px — value ${band.valueBox!.left.toFixed(1)}…${band.valueBox!.right.toFixed(1)} against a band of ${band.box.left.toFixed(1)}…${band.box.right.toFixed(1)}`,
-        );
-      }
-    }
-    // The `ro` / `rw` chips' own boxes, each against the band it belongs to: REQ-21's whole point is
-    // that an operator finds the mount without reading either path, which is a claim about
-    // something being **on screen** here — and this is exactly what a 0px value box hid, the chip
-    // having been painted off the side of a viewport that could not be scrolled to it.
     const chips = await containerDetail(page)
-      .locator('.ui-definition-list .ui-chip')
+      .locator('.ui-field-list .ui-chip')
       .evaluateAll((elements) =>
         elements.map((chip) => {
           const box = chip.getBoundingClientRect();
-          const band = chip.closest('.ui-definition-list__row')!.getBoundingClientRect();
+          const entry = chip.closest('.ui-field-list__entry')!.getBoundingClientRect();
           return {
             label: chip.textContent ?? '',
             left: box.left,
             right: box.right,
             width: box.width,
-            insideBand: box.left >= band.left - 0.5 && box.right <= band.right + 0.5,
-            band: { left: band.left, right: band.right },
+            insideEntry: box.left >= entry.left - 0.5 && box.right <= entry.right + 0.5,
+            entry: { left: entry.left, right: entry.right },
           };
         }),
       );
+    for (const [title, geometry] of Object.entries(groups)) console.log(`[REQ-40] ${reportFieldList(`${title} at 375 × 812`, geometry)}`);
     console.log(`[REQ-40] chips ${JSON.stringify(chips)}`);
-
-    // No label is ellipsised or hidden behind its own box at this width either: the bound that
-    // keeps the value drawn is a bound on the label, and a label that paid for it by losing
-    // characters would be the same data loss one box to the left.
-    const labels = await containerDetail(page)
-      .locator('.ui-definition-list__label')
-      .evaluateAll((elements) =>
-        elements.map((label) => ({
-          text: label.textContent ?? '',
-          textOverflow: getComputedStyle(label).textOverflow,
-          hidden: label.scrollWidth - label.clientWidth,
-        })),
-      );
-    console.log(`[REQ-40] labels ${JSON.stringify(labels)}`);
     console.log(`[REQ-40] page ${JSON.stringify(overflow.page)} / dialog ${JSON.stringify(overflow.dialog)}`);
 
     expect(overflow.page.scrollWidth, 'the page scrolls sideways at 375 × 812').toBeLessThanOrEqual(overflow.page.clientWidth + 1);
     expect(overflow.dialog.scrollWidth, 'the detail dialog scrolls sideways at 375 × 812').toBeLessThanOrEqual(overflow.dialog.clientWidth + 1);
-    for (const [title, geometry] of Object.entries(sections)) {
-      const evidence = report(`${title} at 375 × 812`, geometry);
-      expectNothingClippedOrOverlapped(geometry, evidence);
-      for (const band of geometry.bands) {
-        expect(band.labelBox!.width, `${evidence} — the key "${band.label}" is clipped to ${band.labelBox!.width.toFixed(1)}px`).toBeGreaterThan(0);
-        expect(band.valueBox!.width, `${evidence} — the value of "${band.label}" is clipped to ${band.valueBox!.width.toFixed(1)}px`).toBeGreaterThan(0);
-        // A box of some width is not yet a value on screen: the ink is what the browser actually
-        // laid out inside it.
-        expect(band.valueInk, `${evidence} — the value of "${band.label}" occupies a ${band.valueBox!.width.toFixed(1)}px box and draws no text in it`).toBeGreaterThan(
-          0,
+
+    for (const [title, geometry] of Object.entries(groups)) {
+      const evidence = reportFieldList(`${title} at 375 × 812`, geometry);
+      for (const entry of geometry.entries) {
+        expect(entry.box.left, `${evidence} — an entry starts at ${round(entry.box.left)}, outside its group (${round(geometry.box.left)})`).toBeGreaterThanOrEqual(
+          geometry.box.left - 0.5,
         );
+        expect(entry.box.right, `${evidence} — an entry ends at ${round(entry.box.right)}, outside its group (${round(geometry.box.right)})`).toBeLessThanOrEqual(
+          geometry.box.right + 0.5,
+        );
+        for (const field of entry.fields) {
+          expect(field.box.width, `${evidence} — the "${field.caption || field.text}" field is clipped to ${round(field.box.width)}px`).toBeGreaterThan(0);
+          // A box of some width is not yet a value on screen: the ink is what the browser actually
+          // laid out inside it.
+          expect(
+            field.valueInk,
+            `${evidence} — the "${field.caption || 'value'}" field occupies a ${round(field.box.width)}px box and draws no text in it`,
+          ).toBeGreaterThan(0);
+        }
       }
     }
 
     for (const chip of chips) {
-      expect(chip.insideBand, `the ${chip.label} chip is drawn at ${chip.left.toFixed(1)}…${chip.right.toFixed(1)}, outside its own band (${chip.band.left.toFixed(1)}…${chip.band.right.toFixed(1)})`).toBe(
-        true,
-      );
-      expect(chip.right, `the ${chip.label} chip ends at ${chip.right.toFixed(1)}, off the right edge of a 375px viewport`).toBeLessThanOrEqual(375);
-      expect(chip.width, `the ${chip.label} chip is drawn ${chip.width.toFixed(1)}px wide`).toBeGreaterThan(0);
-    }
-    for (const label of labels) {
-      expect(label.textOverflow, `the key "${label.text}" is ellipsised at 375 × 812`).not.toBe('ellipsis');
-      expect(label.hidden, `${label.hidden}px of the key "${label.text}" is hidden outside its own box`).toBeLessThanOrEqual(1);
+      expect(
+        chip.insideEntry,
+        `the ${chip.label} chip is drawn at ${round(chip.left)}…${round(chip.right)}, outside its own entry (${round(chip.entry.left)}…${round(chip.entry.right)})`,
+      ).toBe(true);
+      expect(chip.right, `the ${chip.label} chip ends at ${round(chip.right)}, off the right edge of a 375px viewport`).toBeLessThanOrEqual(375);
+      expect(chip.width, `the ${chip.label} chip is drawn ${round(chip.width)}px wide`).toBeGreaterThan(0);
     }
   } finally {
     await removeFixture(fixture);

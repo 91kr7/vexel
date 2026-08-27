@@ -9,6 +9,7 @@ import {
   measureValueBands,
   report,
 } from './support/property-bands.js';
+import { measureFieldList, reportFieldList } from './support/field-entries.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { containerCard, containerDetail, openContainerDetail } from './support/container-cards.js';
@@ -90,10 +91,33 @@ const CLIPPING_VIEWPORTS = [
  * `PATH`'s value carries `=`-free colons and the two keys are of different
  * lengths, which is what the section's own alignment is read against.
  */
+/**
+ * **Six, and the number is no longer what carries the width rule.** `Environment variables` reads
+ * one entry per row at the group's full width since `…-tabs_composition_refactor/REQ-54`, so its
+ * count per line is one at every width and it can no longer be the section the count rule is read
+ * against. `Port mappings` is: it declares the short scalar and goes on flowing as many entries per
+ * line as its own card carries (`containers/specs/container-detail-panel.md`). The six variables
+ * stay because the environment's own new rule — one per row, whatever the width — is asserted on
+ * them, and one entry could not tell "one per row" from "one entry".
+ */
 const FIXTURE_ENV: Record<string, string> = {
   PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
   NODE_ENV: 'production',
+  LOG_LEVEL: 'debug',
+  APP_REGION: 'eu-west-1',
+  FEATURE_FLAGS: 'search,exports',
+  RETRY_BUDGET: '3',
 };
+
+/**
+ * **Six published ports, and the number is load-bearing.** A group can never flow more entries on a
+ * line than it holds, so a fixture with two would report "the count did not rise" for a group that
+ * had nothing left to put on the line — passing or failing on the fixture rather than on the
+ * arrangement. Six clears the tracks the group opens at the wider viewport below. The host numbers
+ * are high and **nothing is ever bound**: the container is created and never started, so it
+ * reserves no port on the operator's machine.
+ */
+const FIXTURE_PORTS = [41181, 41182, 41183, 41184, 41185, 41186];
 
 /**
  * The first definition list of the open panel: the runtime list on Config, and on Inspect the
@@ -120,6 +144,30 @@ const SHORT_SCALAR_MIN_PX = 360;
 /** The count the short-scalar rule states for a section of a given width, bounded by what the group holds. */
 function derivedColumns(sectionWidth: number, bands: number): number {
   return Math.min(bands, Math.max(1, Math.floor((sectionWidth + COLUMN_GAP_PX) / (SHORT_SCALAR_MIN_PX + COLUMN_GAP_PX))));
+}
+
+/**
+ * The same rule for the **value** form of the class — the one a `FieldList` takes
+ * (`ui-library/specs/content-columns.md`: 240px against the pair form's 360px, the difference being
+ * the ~100px label run a band with no label does not carry). `Port mappings` is entries and not
+ * label→value pairs, so it is this minimum its count follows and not the one above.
+ */
+const SHORT_SCALAR_VALUE_MIN_PX = 240;
+
+function derivedEntriesPerLine(groupWidth: number, entries: number): number {
+  return Math.min(entries, Math.max(1, Math.floor((groupWidth + COLUMN_GAP_PX) / (SHORT_SCALAR_VALUE_MIN_PX + COLUMN_GAP_PX))));
+}
+
+/**
+ * A count asserted within `TRANSITION_CLEARANCE_PX` of one of the value form's own transitions is an
+ * assertion about a rounding rule rather than about the arrangement, so the run fails instead of
+ * passing for the wrong reason.
+ */
+function expectClearOfValueTransition(width: number, evidence: string): void {
+  const step = SHORT_SCALAR_VALUE_MIN_PX + COLUMN_GAP_PX;
+  const transitions = [2, 3, 4, 5, 6, 7].map((count) => step * count - COLUMN_GAP_PX);
+  const near = transitions.find((transition) => Math.abs(width - transition) < TRANSITION_CLEARANCE_PX);
+  expect(near, `${evidence} — the width sits within ${TRANSITION_CLEARANCE_PX}px of the ${String(near)}px transition`).toBeUndefined();
 }
 
 /**
@@ -157,6 +205,7 @@ async function createFixtureContainer(name: string): Promise<void> {
     '--label',
     'org.opencontainers.image.description=a label value long enough to belong to the long-single-line class',
     ...Object.entries(FIXTURE_ENV).flatMap(([key, value]) => ['-e', `${key}=${value}`]),
+    ...FIXTURE_PORTS.flatMap((host, index) => ['-p', `${host}:${8181 + index}`]),
     TINY_IMAGE,
   ]);
 }
@@ -188,13 +237,13 @@ function configSplit(page: Page): Locator {
 }
 
 /**
- * The `Environment` section's own list — located through the heading an operator
- * reads and the sibling it titles, since the entries are bands of a definition
- * list now and no longer the meta cells this file used to count
- * (`…-tabs_composition_refactor/REQ-18`, REQ-19).
+ * A group's own reading list, located through the heading an operator reads and the sibling it
+ * titles. The entries are the fields of a `FieldList` now rather than the bands of a definition
+ * list (`…-tabs_composition_refactor/REQ-54`, REQ-55), so the list this returns is measured with
+ * `support/field-entries.ts` and not with the band reader.
  */
-function environmentSection(page: Page): Locator {
-  return containerDetail(page).locator('.ui-section-header:has(.ui-section-header__title:text-matches("^Environment")) + .ui-definition-list');
+function configGroupList(page: Page, title: string): Locator {
+  return containerDetail(page).locator(`.ui-section-header:has(.ui-section-header__title:text-is("${title}")) + .ui-field-list`);
 }
 
 /** A tab of the open panel, selected with a real pointer at its own coordinates (REQ-41). */
@@ -349,49 +398,89 @@ test('Config: two equal columns at desktop widths, stacked at full width below 7
   }
 });
 
-// REQ-19 — the `Environment` section, measured where the count actually changes: the count follows
-// the section's **own** width, and it rises with it.
+// REQ-19, bug-4 — a group's entries flow by the width of the **group's own card**, not by the
+// window's, and the count rises with it.
 //
-// **The wide viewport is 2880 and not 2560**, and that is not a preference. This section declares
-// the long-single-line class, whose 560px minimum puts its transition at 1144px of section width
-// (`floor((W + 24) / 584)`); the detail dialog is 92vw and the section is half of it, so 2560 lands
-// the section within a few pixels of that boundary and a count asserted there would be an assertion
-// about a rounding rule rather than about the arrangement. 2880 clears it by ~140px. The entries
-// used to be the meta cells of one `environment · mounts` list, which is the reading
-// `…-tabs_composition_refactor/REQ-18` … REQ-21 replaced.
-test('Config: the Environment entries flow by their own column’s width', async ({ page }) => {
-  const name = `vexel-e2e-bug4-env-${Date.now()}`;
+// **The group this rule is read on has moved, and the move is the contract's.** It was
+// `Environment`, which is one entry per row at every width since
+// `…-tabs_composition_refactor/REQ-54` and therefore can no longer show a count that rises at all.
+// `Port mappings` is the group that goes on flowing — it declares the short scalar, and
+// `containers/specs/container-detail-panel.md` states in as many words that its count follows the
+// card's width and not the viewport's. So the rule is re-asserted on it rather than dropped with
+// the element that used to carry it (REQ-43).
+//
+// The two viewports are chosen against the **group's** own transitions and never against the
+// window's: the short-scalar count is `floor((W + 24) / 384)` at a group width of `W`, and what is
+// asserted at each viewport is that measured width's own derived count — so a dialog of a different
+// proportion moves the numbers and not the claim. The fixture publishes six ports so that neither
+// count is an assertion about how many the fixture happens to have.
+test('Config: the Port mappings entries flow by their own card’s width', async ({ page }) => {
+  const name = `vexel-e2e-bug4-ports-${Date.now()}`;
   await createFixtureContainer(name);
   try {
-    await openContainerPanel(page, name, { width: 1920, height: 1080 });
-    const atWide = await measureSection(environmentSection(page), 'the Environment section');
-    console.log(`[REQ-19] ${report('Environment at 1920×1080', atWide)}`);
-    expect(atWide.bands.length, 'the Environment section draws none of the fixture’s own variables').toBe(Object.keys(FIXTURE_ENV).length);
+    await openContainerPanel(page, name, { width: 1440, height: 900 });
+    const atWide = await measureFieldList(configGroupList(page, 'Port mappings'), 'the Port mappings group');
+    console.log(`[REQ-19] ${reportFieldList('Port mappings at 1440×900', atWide)}`);
+    expect(atWide.entries.length, 'the Port mappings group draws none of the fixture’s own bindings').toBe(FIXTURE_PORTS.length);
+    expect(
+      atWide.perLine,
+      `the Port mappings group spans ${atWide.box.width.toFixed(1)}px and flows ${atWide.perLine} entries per line, against the ${derivedEntriesPerLine(
+        atWide.box.width,
+        atWide.entries.length,
+      )} its own width derives`,
+    ).toBe(derivedEntriesPerLine(atWide.box.width, atWide.entries.length));
+    expectClearOfValueTransition(atWide.box.width, `Port mappings at 1440×900 (${atWide.box.width.toFixed(1)}px)`);
 
     await openContainerPanel(page, name, { width: 2880, height: 1440 });
-    const atWider = await measureSection(environmentSection(page), 'the Environment section');
-    console.log(`[REQ-19] ${report('Environment at 2880×1440', atWider)}`);
-
+    const atWider = await measureFieldList(configGroupList(page, 'Port mappings'), 'the Port mappings group');
+    console.log(`[REQ-19] ${reportFieldList('Port mappings at 2880×1440', atWider)}`);
     expect(
-      atWider.columns,
-      `the Environment section spans ${atWider.box.width.toFixed(1)}px at 2880 × 1440 and still shows ${atWider.columns} column(s), against ${atWide.columns} at ${atWide.box.width.toFixed(1)}px`,
-    ).toBeGreaterThan(atWide.columns);
+      atWider.perLine,
+      `the Port mappings group spans ${atWider.box.width.toFixed(1)}px and flows ${atWider.perLine} entries per line, against the ${derivedEntriesPerLine(
+        atWider.box.width,
+        atWider.entries.length,
+      )} its own width derives`,
+    ).toBe(derivedEntriesPerLine(atWider.box.width, atWider.entries.length));
+    expect(
+      atWider.perLine,
+      `the group spans ${atWider.box.width.toFixed(1)}px at 2880 × 1440 and still flows ${atWider.perLine} per line, against ${atWide.perLine} at ${atWide.box.width.toFixed(
+        1,
+      )}px`,
+    ).toBeGreaterThan(atWide.perLine);
 
-    // Beside the geometry (REQ-40, REQ-31): every variable keeps its key and its whole value, now
-    // read as key-in-its-track and value-in-its-track rather than as one `KEY=value` string
-    // (`…-tabs_composition_refactor/REQ-18`).
-    const bands = await environmentSection(page)
-      .locator('.ui-definition-list__row')
-      .evaluateAll((rows) =>
+    // REQ-54, on the group the rule left: the environment reads one entry per row at **both** of
+    // those widths, which is what makes it the wrong group to read a rising count on.
+    for (const viewport of [
+      { width: 1440, height: 900 },
+      { width: 2880, height: 1440 },
+    ]) {
+      await openContainerPanel(page, name, viewport);
+      const environment = await measureFieldList(configGroupList(page, 'Environment variables'), 'the Environment variables group');
+      console.log(`[REQ-54] ${reportFieldList(`Environment at ${viewport.width}×${viewport.height}`, environment)}`);
+      expect(
+        environment.perLine,
+        `the Environment group spans ${environment.box.width.toFixed(1)}px at ${viewport.width} × ${viewport.height} and flows ${environment.perLine} entries per line`,
+      ).toBe(1);
+      expect(environment.entries.length, 'the Environment group draws none of the fixture’s own variables').toBe(Object.keys(FIXTURE_ENV).length);
+    }
+
+    // Beside the geometry (REQ-40, REQ-31): every variable keeps its key and its whole value, each
+    // in a field of its own (`…-tabs_composition_refactor/REQ-54`).
+    const read = await configGroupList(page, 'Environment variables')
+      .locator('.ui-field-list__entry')
+      .evaluateAll((entries) =>
         Object.fromEntries(
-          rows.map((row) => [row.querySelector('.ui-definition-list__label')?.textContent ?? '', row.querySelector('.ui-definition-list__value')?.textContent ?? '']),
+          entries.map((entry) => {
+            const fields = Array.from(entry.querySelectorAll('.ui-field-list__value')).map((value) => value.textContent ?? '');
+            return [fields[0] ?? '', fields[1] ?? ''];
+          }),
         ),
       );
-    expect(bands).toEqual(FIXTURE_ENV);
+    expect(read).toEqual(FIXTURE_ENV);
 
     // REQ-34 — the editing form was never opened, and this states it: the read view's own action is
-    // still there, unpressed. Its place is the head of the tab now
-    // (`…-tabs_composition_refactor/REQ-22`), which
+    // still there, unpressed. Its place is the **foot** of the tab now
+    // (`…-tabs_composition_refactor/REQ-50`), which
     // `container-detail-config-reading.spec.ts` measures.
     await expect(containerDetail(page).getByRole('button', { name: 'Edit configuration' })).toBeVisible();
   } finally {

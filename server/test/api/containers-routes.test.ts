@@ -1,14 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import express, { type Express } from "express";
-import type { AddressInfo } from "node:net";
+import { createServer, type AddressInfo } from "node:net";
 import { containersRouter } from "../../src/containers/containers-routes.js";
 import { ownershipArgs } from "../support/fixtures.js";
 import { INTERNAL_CONTAINER_LABEL } from "../../src/image-analysis/filesystem-extraction-service.js";
-import { ALPINE_IMAGE, ensureImages } from "../support/base-images.js";
+import { ALPINE_IMAGE, REGISTRY_IMAGE, ensureImages } from "../support/base-images.js";
 
 // Shared infrastructure, not fixtures: ensured before the first test, and removed by nothing.
-await ensureImages([ALPINE_IMAGE]);
+// `registry:2` is here for one fixture — a container whose **image** exposes a port of its own,
+// which is the case REQ-59 draws its "and only those" line through.
+await ensureImages([ALPINE_IMAGE, REGISTRY_IMAGE]);
 import type {
   ContainerConfigUpdateResult,
   ContainerInspect,
@@ -159,19 +161,86 @@ test("GET /api/containers reports each published mapping once, in one order, on 
   }
 });
 
-// plan-docker_management_app-containers_card_view/REQ-12 — an exposed-but-unpublished port is a port here too.
-test("GET /api/containers reports an exposed-but-unpublished port with no public port of its own", async () => {
+/**
+ * `…-tabs_composition_refactor/REQ-60` — the summary lists the container's **publications and only
+ * those**, so it answers the same question the inspect reading answers.
+ *
+ * **This is the reversal of what this file asserted until 2026-08-27**, when the same fixture proved
+ * the opposite: the 2026-08-25 annotation of `containers_card_view/REQ-5` had the card carry
+ * exposed-but-unpublished ports too, grounded on `containers_card_view/REQ-12` — no value the
+ * delivered row showed may disappear. The same human reversed it on new evidence, after being shown
+ * that earlier ruling: `EXPOSE` binds no host port and gates no container-to-container traffic, so
+ * such an entry never told the operator anything. REQ-12 stands for every other value.
+ *
+ * `GET /containers/json` is the one place the drop is falsifiable, and the daemon's own answer is
+ * read here so a passing assertion is known not to be vacuous: it lists the exposure, carrying no
+ * public port, and the service is what drops it.
+ */
+test("GET /api/containers reports no entry for a port the container exposes without publishing", async () => {
   const name = `vexel-test-exposed-${Date.now()}`;
   const app = buildApp();
   const { url, close } = await startApp(app);
   try {
     await createSleepingContainer(name, ["--expose", "7777"]);
-    const found = (await fetchList(url)).find((candidate) => candidate.name === name);
+    const { stdout: daemonPorts } = await execFileAsync("docker", ["ps", "--filter", `name=${name}`, "--format", "{{.Ports}}"]);
+    console.log(`[REQ-60] the daemon lists ${name} as: ${daemonPorts.trim() || "(nothing)"}`);
+    assert.ok(
+      daemonPorts.includes("7777/tcp"),
+      `the daemon no longer lists the exposure at all, so this fixture no longer covers the case: ${daemonPorts}`,
+    );
 
+    const found = (await fetchList(url)).find((candidate) => candidate.name === name);
     assert.ok(found, "created container not found in the list");
-    const exposed = found!.ports.find((port) => port.privatePort === 7777);
-    assert.ok(exposed, `the exposed port is missing from ${JSON.stringify(found!.ports)}`);
-    assert.equal(exposed!.publicPort, undefined);
+    assert.deepEqual(
+      found!.ports.filter((port) => port.privatePort === 7777),
+      [],
+      `a port that is exposed and published nowhere is reported as a mapping: ${JSON.stringify(found!.ports)}`,
+    );
+  } finally {
+    await removeContainerQuietly(name);
+    await close();
+  }
+});
+
+/**
+ * `…-tabs_composition_refactor/REQ-60` — "the two readings answer the same question on the same
+ * container", asserted on one container rather than inferred from two checks of two fixtures.
+ *
+ * The fixture publishes **and** exposes, and publishes in the third "the daemon chooses" spelling:
+ * `-p 0:5432` stores `HostPort: "0"` literally in `HostConfig.PortBindings`, which is a host port of
+ * `0` and not a host port in force (`containers-service.md`). The number the daemon actually chose
+ * is read off the daemon and demanded of both readings, so a reading that reported `0`, or none,
+ * fails here.
+ */
+test("GET /api/containers and the inspect state the same publication for a container that publishes and exposes", async () => {
+  const name = `vexel-test-both-readings-${Date.now()}`;
+  const app = buildApp();
+  const { url, close } = await startApp(app);
+  try {
+    const id = await createSleepingContainer(name, ["-p", "0:5432", "--expose", "7777"]);
+    const maps = await portMapsOf(id);
+    const { stdout: published } = await execFileAsync("docker", ["port", name, "5432/tcp"]);
+    console.log(`[REQ-60] ${name}: PortBindings ${maps.bindings} / NetworkSettings.Ports ${maps.network} / docker port ${published.trim().replace(/\n/g, " | ")}`);
+
+    // The premise of the third spelling, asserted rather than assumed.
+    assert.ok(maps.bindings.includes('"HostPort":"0"'), `-p 0:5432 no longer stores a literal 0 binding: ${maps.bindings}`);
+    const hostPort = Number(published.trim().split("\n")[0].split(":").pop());
+    assert.ok(Number.isInteger(hostPort) && hostPort > 0, `the daemon published no host port at all: ${published}`);
+
+    const found = (await fetchList(url)).find((candidate) => candidate.name === name);
+    assert.ok(found, "created container not found in the list");
+    assert.deepEqual(
+      found!.ports.map((port) => `${port.privatePort}/${port.type}->${port.publicPort ?? "none"}`),
+      [`5432/tcp->${hostPort}`],
+      `the summary is not the container's publications and only those: ${JSON.stringify(found!.ports)}`,
+    );
+
+    const inspect = await inspectOf(url, id);
+    assert.deepEqual(
+      inspect.ports.map((port) => `${port.containerPort}/${port.protocol}->${port.hostPort ?? "none"}`),
+      [`5432/tcp->${hostPort}`],
+      `the inspect reading is not the container's publications and only those: ${JSON.stringify(inspect.ports)}`,
+    );
   } finally {
     await removeContainerQuietly(name);
     await close();
@@ -393,6 +462,221 @@ test("GET /api/containers/:id/inspect returns the full configuration of a contai
     assert.ok(inspect.ports.some((port) => port.containerPort === 5432 && typeof port.hostPort === "number"));
     assert.ok(inspect.networks.some((network) => network.name === "bridge"));
     assert.equal(inspect.state.status, "running");
+  } finally {
+    await removeContainerQuietly(name);
+    await close();
+  }
+});
+
+/**
+ * A host port nothing on this machine is holding, taken by letting the operating system name one
+ * and releasing it immediately. A literal high number would be a guess, and two test files guessing
+ * at once is a `port is already allocated` that says nothing about the product.
+ */
+function freeHostPort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const probe = createServer();
+    probe.on("error", reject);
+    probe.listen(0, "127.0.0.1", () => {
+      const { port } = probe.address() as AddressInfo;
+      probe.close(() => resolve(port));
+    });
+  });
+}
+
+/** The daemon's own two port maps, read straight off the container, for the record of a run. */
+async function portMapsOf(id: string): Promise<{ bindings: string; network: string; exposed: string }> {
+  const read = async (field: string) => (await execFileAsync("docker", ["inspect", "--format", `{{json .${field}}}`, id])).stdout.trim();
+  return { bindings: await read("HostConfig.PortBindings"), network: await read("NetworkSettings.Ports"), exposed: await read("Config.ExposedPorts") };
+}
+
+async function inspectOf(url: string, id: string): Promise<ContainerInspect> {
+  const response = await fetch(`${url}/api/containers/${id}/inspect`);
+  assert.equal(response.status, 200);
+  return (await response.json()) as ContainerInspect;
+}
+
+/**
+ * `…-tabs_composition_refactor/REQ-59` — **the case the mechanism exists for**, and the one no
+ * stub of `HostConfig.PortBindings` can reach: `docker run -P` fills the bindings with `{}` and puts
+ * the whole publication in `NetworkSettings.Ports`, host port and all. A reading confined to the
+ * bindings reports nothing for a container that is genuinely published on the host.
+ *
+ * **This replaces the check that stood here for REQ-52 as first read** — "a port exposed without
+ * publishing is carried by the inspect data" — which REQ-59 reverses; the `--expose`-only fixture
+ * now has a check of its own, below, asserting the opposite.
+ */
+test("GET /api/containers/:id/inspect states the host port the daemon chose for a -P publication", async () => {
+  const name = `vexel-test-inspect-publish-all-${Date.now()}`;
+  const app = buildApp();
+  const { url, close } = await startApp(app);
+  try {
+    const id = await createSleepingContainer(name, ["--expose", "5000", "-P"]);
+    const maps = await portMapsOf(id);
+    const { stdout: published } = await execFileAsync("docker", ["port", name, "5000/tcp"]);
+    console.log(`[REQ-59] ${name}: PortBindings ${maps.bindings} / NetworkSettings.Ports ${maps.network} / docker port ${published.trim().replace(/\n/g, " | ")}`);
+
+    // The premise, asserted rather than assumed: a daemon that started filling the bindings for `-P`
+    // would make every assertion below pass through a path this check does not mean to exercise.
+    assert.equal(maps.bindings, "{}", `a -P container no longer arrives with empty bindings: ${maps.bindings}`);
+    const hostPort = Number(published.trim().split("\n")[0].split(":").pop());
+    assert.ok(Number.isInteger(hostPort) && hostPort > 0, `the daemon published no host port at all: ${published}`);
+
+    const inspect = await inspectOf(url, id);
+    const entries = inspect.ports.filter((candidate) => candidate.containerPort === 5000);
+    assert.equal(entries.length, 1, `the -P publication is reported ${entries.length} times: ${JSON.stringify(inspect.ports)}`);
+    assert.equal(entries[0].protocol, "tcp");
+    assert.equal(entries[0].hostPort, hostPort, `the -P publication reads ${String(entries[0].hostPort)} where the daemon published ${hostPort}`);
+  } finally {
+    await removeContainerQuietly(name);
+    await close();
+  }
+});
+
+// `…-tabs_composition_refactor/REQ-59` — the operator publishes a port and names no host number, so
+// the daemon chooses one. The binding is there but carries an empty host port, and before REQ-59
+// the detail read `not published` on a port the container's own card showed a number for.
+test("GET /api/containers/:id/inspect resolves the host port of a publication whose host number the operator left to the daemon", async () => {
+  const name = `vexel-test-inspect-chosen-port-${Date.now()}`;
+  const app = buildApp();
+  const { url, close } = await startApp(app);
+  try {
+    const id = await createSleepingContainer(name, ["-p", "80"]);
+    const maps = await portMapsOf(id);
+    const { stdout: published } = await execFileAsync("docker", ["port", name, "80/tcp"]);
+    console.log(`[REQ-59] ${name}: PortBindings ${maps.bindings} / NetworkSettings.Ports ${maps.network} / docker port ${published.trim().replace(/\n/g, " | ")}`);
+
+    const hostPort = Number(published.trim().split("\n")[0].split(":").pop());
+    assert.ok(Number.isInteger(hostPort) && hostPort > 0, `the daemon published no host port at all: ${published}`);
+
+    const inspect = await inspectOf(url, id);
+    const entries = inspect.ports.filter((candidate) => candidate.containerPort === 80);
+    assert.equal(entries.length, 1, `the publication is reported ${entries.length} times: ${JSON.stringify(inspect.ports)}`);
+    assert.equal(entries[0].hostPort, hostPort, `the publication reads ${String(entries[0].hostPort)} where the daemon published ${hostPort}`);
+  } finally {
+    await removeContainerQuietly(name);
+    await close();
+  }
+});
+
+// `…-tabs_composition_refactor/REQ-59` — "one entry per publication". The daemon records one
+// publication once per IP stack, so `docker port` reports it twice; the reading collapses that to
+// the single publication it is, and the host port survives the collapse.
+test("GET /api/containers/:id/inspect reports one publication once, though the daemon records it on both IP stacks", async () => {
+  const name = `vexel-test-inspect-one-entry-${Date.now()}`;
+  const app = buildApp();
+  const { url, close } = await startApp(app);
+  try {
+    const hostPort = await freeHostPort();
+    const id = await createSleepingContainer(name, ["-p", `${hostPort}:${hostPort}`]);
+    const maps = await portMapsOf(id);
+    const { stdout: published } = await execFileAsync("docker", ["port", name]);
+    console.log(`[REQ-59] ${name}: PortBindings ${maps.bindings} / NetworkSettings.Ports ${maps.network} / docker port ${published.trim().replace(/\n/g, " | ")}`);
+
+    const inspect = await inspectOf(url, id);
+    const entries = inspect.ports.filter((candidate) => candidate.containerPort === hostPort);
+    assert.equal(entries.length, 1, `the publication is reported ${entries.length} times: ${JSON.stringify(inspect.ports)}`);
+    assert.equal(entries[0].hostPort, hostPort, `the publication lost its host port: ${JSON.stringify(entries[0])}`);
+  } finally {
+    await removeContainerQuietly(name);
+    await close();
+  }
+});
+
+// `…-tabs_composition_refactor/REQ-59`, and **the certified behaviour the collapse above must not
+// reach**: a publication the *operator* made twice, on two host addresses, is two bindings and stays
+// the two entries it is, each keeping the address it was made on. Two publications that differ only
+// by an address the shape did not carry would be indistinguishable, which is why the summary shape's
+// duplicate-collapsing rule is about that shape alone (containers-service.md).
+test("GET /api/containers/:id/inspect keeps a publication made on two host addresses as two entries", async () => {
+  const name = `vexel-test-inspect-two-addresses-${Date.now()}`;
+  const app = buildApp();
+  const { url, close } = await startApp(app);
+  try {
+    const loopbackPort = await freeHostPort();
+    const anyPort = await freeHostPort();
+    const id = await createSleepingContainer(name, ["-p", `127.0.0.1:${loopbackPort}:80`, "-p", `0.0.0.0:${anyPort}:80`]);
+    const maps = await portMapsOf(id);
+    console.log(`[REQ-59] ${name}: PortBindings ${maps.bindings} / NetworkSettings.Ports ${maps.network}`);
+
+    const inspect = await inspectOf(url, id);
+    const entries = inspect.ports.filter((candidate) => candidate.containerPort === 80);
+    assert.deepEqual(
+      entries.map((entry) => ({ hostIp: entry.hostIp, hostPort: entry.hostPort })).sort((left, right) => (left.hostPort ?? 0) - (right.hostPort ?? 0)),
+      [
+        { hostIp: "127.0.0.1", hostPort: loopbackPort },
+        { hostIp: "0.0.0.0", hostPort: anyPort },
+      ].sort((left, right) => left.hostPort - right.hostPort),
+      `the two publications of port 80 are reported as ${JSON.stringify(entries)}`,
+    );
+  } finally {
+    await removeContainerQuietly(name);
+    await close();
+  }
+});
+
+/**
+ * `…-tabs_composition_refactor/REQ-59` — "**and only those**. A port that is merely declared is not
+ * an entry here." `--expose` and no `-p`: the daemon answers with empty bindings and a
+ * `NetworkSettings.Ports` entry carrying a **null** binding list, which is an exposure and not a
+ * publication.
+ *
+ * **This is the reversal of what this file asserted until 2026-08-27.** REQ-52 was first read as
+ * "an exposed port is carried by the inspect data" and this same fixture was used to prove it;
+ * REQ-58 then took the reading as far as `Config.ExposedPorts` and was withdrawn the same day, on
+ * the ground that `EXPOSE` binds no host port and gates no traffic, so such a row states something
+ * reachable from nowhere. The payload is read here as well as the shape, so a daemon that stopped
+ * answering this way would say so rather than letting the check pass for a new reason.
+ */
+test("GET /api/containers/:id/inspect reports no entry for a port the container exposes without publishing", async () => {
+  const name = `vexel-test-inspect-exposed-${Date.now()}`;
+  const app = buildApp();
+  const { url, close } = await startApp(app);
+  try {
+    const id = await createSleepingContainer(name, ["--expose", "5000"]);
+    const maps = await portMapsOf(id);
+    console.log(`[REQ-59] ${name}: PortBindings ${maps.bindings} / NetworkSettings.Ports ${maps.network} / Config.ExposedPorts ${maps.exposed}`);
+
+    assert.ok(maps.network.includes("5000/tcp"), `the daemon no longer records the exposed port at all: ${maps.network}`);
+    assert.ok(maps.exposed.includes("5000/tcp"), `the daemon no longer declares the exposed port at all: ${maps.exposed}`);
+
+    const inspect = await inspectOf(url, id);
+    assert.deepEqual(
+      inspect.ports.filter((candidate) => candidate.containerPort === 5000),
+      [],
+      `a port that is exposed and published nowhere is reported as a mapping: ${JSON.stringify(inspect.ports)}`,
+    );
+  } finally {
+    await removeContainerQuietly(name);
+    await close();
+  }
+});
+
+// `…-tabs_composition_refactor/REQ-59` — the same rule where the container publishes as well, which
+// is where a declaration could most easily be smuggled in beside a publication. **The image's own
+// `EXPOSE` is what makes this fixture the human's case**: `registry:2` declares `5000/tcp` on its
+// own behalf, and REQ-58 was withdrawn precisely because reading that declaration put a port
+// "declared by somebody else" in front of an operator who had declared nothing of the kind. The
+// operator's publication is reported; the image's declaration is not.
+test("GET /api/containers/:id/inspect reports the publications alone for a container whose image exposes a port of its own", async () => {
+  const name = `vexel-test-inspect-image-exposed-${Date.now()}`;
+  const app = buildApp();
+  const { url, close } = await startApp(app);
+  try {
+    const hostPort = await freeHostPort();
+    const { stdout } = await execFileAsync("docker", ["run", "-d", "--name", name, ...ownershipArgs(name), "-p", `${hostPort}:80`, REGISTRY_IMAGE]);
+    const id = stdout.trim();
+    const maps = await portMapsOf(id);
+    console.log(`[REQ-59] ${name}: PortBindings ${maps.bindings} / NetworkSettings.Ports ${maps.network} / Config.ExposedPorts ${maps.exposed}`);
+
+    assert.ok(maps.exposed.includes("5000/tcp"), `the image no longer declares 5000/tcp, so this fixture no longer covers the case: ${maps.exposed}`);
+
+    const inspect = await inspectOf(url, id);
+    assert.deepEqual(
+      inspect.ports.map((port) => ({ containerPort: port.containerPort, hostPort: port.hostPort })),
+      [{ containerPort: 80, hostPort }],
+      `the reading is not the container's publications and only those: ${JSON.stringify(inspect.ports)}`,
+    );
   } finally {
     await removeContainerQuietly(name);
     await close();

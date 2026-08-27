@@ -933,16 +933,23 @@ describe('ContainerDetailPanel — a body, not a surface (REQ-4, REQ-11, REQ-23)
 });
 
 /**
- * The Config tab **in reading**: the two counted sections the environment and the mounts became
- * (`…-tabs_composition_refactor/REQ-18`, REQ-19, REQ-20, REQ-21), and the zero-count rule they
- * inherit from the Inspect tab above (`plan-ui-coherence-optimisation/REQ-60`).
+ * The Config tab **in reading** — the five groups it draws, what each heading claims, what each
+ * entry reads and where the action that opens the form sits
+ * (`…-tabs_composition_refactor/REQ-19`, REQ-20, REQ-21, REQ-48, REQ-50, REQ-51, REQ-54, REQ-55,
+ * REQ-56, REQ-59).
  *
- * What is asserted here is what jsdom can answer: which sections are drawn, what each heading
- * claims, how each entry is split and what each band reads. The **alignment** REQ-18 is about, the
- * treatment that tells the `ro` chip from the `rw` one, and where `Edit configuration` sits are
- * geometry, and are measured in `client/e2e/container-detail-config-reading.spec.ts`.
+ * **The expectations below reverse the ones this block held**, and the reversal is the contract's:
+ * REQ-51 amends REQ-49, so the three collection groups are drawn whether or not they hold anything;
+ * REQ-50 amends REQ-22, so `Edit configuration` closes the tab instead of heading it. The checks
+ * that named the old arrangement are rewritten against the new one rather than deleted (REQ-43).
+ *
+ * What is asserted here is what jsdom can answer: which groups are drawn, what each heading claims,
+ * how an entry is split, what each field is called, and in which order the tab draws them. The
+ * **geometry** — one entry per row at the group's full width, a value beginning at its own field, no
+ * field wider than half its row, and the action's box against the tab's trailing and bottom edges —
+ * is measured in `client/e2e/container-detail-config-reading.spec.ts`.
  */
-describe('ContainerDetailPanel — Config tab in reading (REQ-18, REQ-19, REQ-20, REQ-21)', () => {
+describe('ContainerDetailPanel — Config tab in reading (REQ-48, REQ-50, REQ-51, REQ-54, REQ-55, REQ-56, REQ-59)', () => {
   function withInspect(overrides: Partial<ContainerInspect>): void {
     fetchMock.mockImplementation((url: string) =>
       url.includes('/inspect')
@@ -951,71 +958,169 @@ describe('ContainerDetailPanel — Config tab in reading (REQ-18, REQ-19, REQ-20
     );
   }
 
-  interface ReadSection {
+  /** One field of an entry: what it is called, what it reads, and the chips its value carries. */
+  interface ReadField {
+    caption: string;
+    value: string;
+    chips: string[];
+  }
+
+  interface ReadGroup {
     title: string;
     /**
      * What the heading claims it holds. Read from the badge in the header's trailing slot — the
      * same reading the Inspect tab's collapsible sections use — and not from the title, which
-     * carries the section's name and nothing else.
+     * carries the group's name and nothing else.
      */
     count: string;
+    /** The entries of a field list: one per row, each holding its own fields in the declared order. */
+    entries: ReadField[][];
+    /** The bands of a property list, for the two groups that are still one (`Runtime`, `Health check`). */
     bands: { label: string; value: string }[];
+    /** The title of the placeholder a group with nothing in it draws where its list would be. */
+    placeholder: string | null;
   }
 
-  /** The sections of the read view, each with the heading's own count and the bands under it. */
-  async function configSections(): Promise<ReadSection[]> {
+  /** Every group of the read view, in the order the tab draws them. */
+  async function configGroups(): Promise<ReadGroup[]> {
     renderPanel();
     await screen.findByRole('button', { name: 'Edit configuration' });
     return Array.from(document.querySelectorAll('.ui-section-header')).map((header) => {
-      const list = header.parentElement?.querySelector(':scope > .ui-definition-list');
+      const body = header.parentElement;
+      const fieldList = body?.querySelector(':scope > .ui-field-list');
+      const definitionList = body?.querySelector(':scope > .ui-definition-list');
       return {
         title: header.querySelector('.ui-section-header__title')?.textContent ?? '',
         count: header.querySelector('.ui-badge')?.textContent ?? '',
-        bands: Array.from(list?.children ?? []).map((row) => ({
+        entries: Array.from(fieldList?.children ?? []).map((entry) =>
+          Array.from(entry.querySelectorAll('.ui-field-list__field')).map((field) => ({
+            caption: field.querySelector('.ui-field-list__caption')?.textContent ?? '',
+            value: field.querySelector('.ui-field-list__value')?.textContent ?? '',
+            chips: Array.from(field.querySelectorAll('.ui-chip')).map((chip) => chip.textContent ?? ''),
+          })),
+        ),
+        bands: Array.from(definitionList?.children ?? []).map((row) => ({
           label: row.querySelector('.ui-definition-list__label')?.textContent ?? '',
           value: row.querySelector('.ui-definition-list__value')?.textContent ?? '',
         })),
+        placeholder: body?.querySelector(':scope > .ui-empty-state .ui-empty-state__title')?.textContent ?? null,
       };
     });
   }
 
-  function section(sections: ReadSection[], title: string): ReadSection {
-    const found = sections.find((candidate) => candidate.title === title);
-    expect(found, `no "${title}" section is drawn; the tab shows ${sections.map((one) => one.title).join(', ') || 'nothing'}`).toBeDefined();
+  function group(groups: ReadGroup[], title: string): ReadGroup {
+    const found = groups.find((candidate) => candidate.title === title);
+    expect(found, `no "${title}" group is drawn; the tab shows ${groups.map((one) => one.title).join(', ') || 'nothing'}`).toBeDefined();
     return found!;
   }
 
-  // REQ-18 — the daemon's `KEY=value` string is split on its **first** `=` only, so a value that
-  // itself contains one arrives whole; an entry with no `=` is the key with an empty value.
-  it('splits each environment entry on its first = only, and an entry with none is a key with no value', async () => {
+  /** The values of an entry, in the declared order — for the group whose fields are uncaptioned. */
+  function valuesOf(entries: ReadField[][]): string[][] {
+    return entries.map((entry) => entry.map((field) => field.value));
+  }
+
+  /** What an entry is called and what it reads, keyed by caption — for the two captioned groups. */
+  function byCaption(entries: ReadField[][]): Record<string, string>[] {
+    return entries.map((entry) => Object.fromEntries(entry.map((field) => [field.caption, field.value])));
+  }
+
+  // REQ-51 — the three collection groups are drawn whether or not they hold anything, each with its
+  // count, and a group with nothing in it says so in the library's placeholder rather than being
+  // absent. **This reverses what this block asserted for REQ-49**: an absent group is
+  // indistinguishable from a group that was never designed, which is not the answer the operator
+  // came for. `Runtime` and `Health check` were always drawn already.
+  it('draws all five groups for a container that states nothing, the three collections counting zero', async () => {
+    withInspect({ env: [], ports: [], mounts: [] });
+
+    const groups = await configGroups();
+    expect(groups.map((one) => one.title)).toEqual(['Runtime', 'Health check', 'Environment variables', 'Port mappings', 'Mounts']);
+    for (const title of ['Environment variables', 'Port mappings', 'Mounts']) {
+      const empty = group(groups, title);
+      expect(empty.count, `the ${title} heading states "${empty.count}" instead of the number of entries it holds`).toBe('0');
+      expect(empty.entries, `the ${title} group draws entries for a container that has none`).toEqual([]);
+      expect(empty.placeholder, `the ${title} group is drawn empty, with nothing where its list would be`).not.toBeNull();
+    }
+  });
+
+  // REQ-51, again on the half that is not the empty one: a group that holds something is unchanged
+  // by the amendment, and the two beside it are still drawn.
+  it('draws the three collection groups together when only one of them holds anything', async () => {
+    withInspect({ env: ['FOO=bar'], ports: [], mounts: [] });
+
+    const groups = await configGroups();
+    expect(groups.map((one) => one.title)).toEqual(['Runtime', 'Health check', 'Environment variables', 'Port mappings', 'Mounts']);
+    expect(group(groups, 'Environment variables').entries).toHaveLength(1);
+    expect(group(groups, 'Port mappings').placeholder, 'the empty Port mappings group draws no placeholder').not.toBeNull();
+    expect(group(groups, 'Mounts').placeholder, 'the empty Mounts group draws no placeholder').not.toBeNull();
+  });
+
+  // REQ-54 — one variable per entry, the key and the value each in a field of its own; and REQ-18's
+  // split, which the recomposition carries over: the daemon's string is split on its **first** `=`
+  // only, so a value that itself contains one arrives whole, and an entry with no `=` is the key
+  // with an empty value.
+  it('gives each environment variable a key field and a value field, splitting on the first = only', async () => {
     withInspect({
       env: ['PATH=/usr/local/sbin:/usr/local/bin:/bin', 'DATABASE_URL=postgres://u:p@host:5432/db?sslmode=require&retry=1', 'FLAG'],
       mounts: [],
     });
 
-    expect(section(await configSections(), 'Environment').bands).toEqual([
-      { label: 'PATH', value: '/usr/local/sbin:/usr/local/bin:/bin' },
-      { label: 'DATABASE_URL', value: 'postgres://u:p@host:5432/db?sslmode=require&retry=1' },
-      { label: 'FLAG', value: '' },
+    expect(valuesOf(group(await configGroups(), 'Environment variables').entries)).toEqual([
+      ['PATH', '/usr/local/sbin:/usr/local/bin:/bin'],
+      ['DATABASE_URL', 'postgres://u:p@host:5432/db?sslmode=require&retry=1'],
+      ['FLAG', ''],
     ]);
   });
 
   // REQ-19 — the heading carries the number of variables, and the number it claims is the number
   // drawn under it.
-  it('heads the environment section with the number of variables it draws', async () => {
+  it('heads the environment group with the number of variables it draws', async () => {
     withInspect({ env: ['A=1', 'B=2', 'C=3', 'D=4'], mounts: [] });
 
-    const environment = section(await configSections(), 'Environment');
-    expect(/(\d+)/.exec(environment.count)?.[1], `the Environment heading states "${environment.count}" instead of a count`).toBe(
-      String(environment.bands.length),
-    );
-    expect(environment.bands).toHaveLength(4);
+    const environment = group(await configGroups(), 'Environment variables');
+    expect(environment.count, `the Environment variables heading states "${environment.count}" instead of a count`).toBe(String(environment.entries.length));
+    expect(environment.entries).toHaveLength(4);
   });
 
-  // REQ-20, REQ-21 — mounts are a section of their own with its own count; each entry reads source
-  // → destination with a `ro` / `rw` chip, and the word `mount:` is the heading rather than a
-  // prefix repeated on every row.
-  it('gives mounts their own counted section, each entry reading source, destination and a ro/rw chip', async () => {
+  // REQ-48, REQ-55 — the ports are a counted group of their own, one entry per port, and each entry
+  // **names** its two numbers instead of leaving which is which to the order they are written in.
+  // A port the daemon publishes nowhere says so rather than reading as an empty value.
+  it('names the container port and the host port of every port entry, and says when one is published nowhere', async () => {
+    withInspect({
+      env: [],
+      mounts: [],
+      ports: [
+        { containerPort: 443, protocol: 'tcp', hostPort: 8443 },
+        { containerPort: 5000, protocol: 'tcp' },
+      ],
+    });
+
+    const ports = group(await configGroups(), 'Port mappings');
+    expect(ports.count, `the Port mappings heading states "${ports.count}" instead of a count`).toBe('2');
+    expect(byCaption(ports.entries)).toEqual([
+      { 'Container port': '443/tcp', 'Host port': '8443' },
+      { 'Container port': '5000/tcp', 'Host port': 'not published' },
+    ]);
+  });
+
+  // REQ-48, on the client's half of it: an entry the service hands over with no host port is drawn
+  // as a mapping saying so, not as an absent group.
+  //
+  // **Its premise reversed on 2026-08-27, and the check moved with it.** It used to name an
+  // exposed-but-unpublished port, which REQ-59 stops carrying this far at all — the reading is the
+  // container's publications and only those. What still arrives without a host port is a container
+  // that has never run: the operator asked for the publication, the daemon has bound nothing yet.
+  it('draws a binding the daemon has published nowhere as a port mapping, not as an empty group', async () => {
+    withInspect({ env: [], mounts: [], ports: [{ containerPort: 5000, protocol: 'tcp' }] });
+
+    const ports = group(await configGroups(), 'Port mappings');
+    expect(ports.placeholder, 'the tab says the container has no port mapping while it states one').toBeNull();
+    expect(byCaption(ports.entries)).toEqual([{ 'Container port': '5000/tcp', 'Host port': 'not published' }]);
+  });
+
+  // REQ-20, REQ-21, REQ-56 — mounts are a counted group of their own, each entry naming its source
+  // and its destination and carrying the `ro` / `rw` chip beside the destination. The word `mount:`
+  // is the heading rather than a prefix repeated on every row.
+  it('gives mounts their own counted group, each entry naming its source, its destination and the write mode', async () => {
     withInspect({
       env: [],
       mounts: [
@@ -1024,27 +1129,106 @@ describe('ContainerDetailPanel — Config tab in reading (REQ-18, REQ-19, REQ-20
       ],
     });
 
-    const sections = await configSections();
-    const mounts = section(sections, 'Mounts');
-    expect(/(\d+)/.exec(mounts.count)?.[1], `the Mounts heading states "${mounts.count}" instead of a count`).toBe(String(mounts.bands.length));
-    expect(mounts.bands).toEqual([
-      { label: '/srv/config', value: '/etc/appro' },
-      { label: 'app-data', value: '/var/lib/apprw' },
+    const groups = await configGroups();
+    const mounts = group(groups, 'Mounts');
+    expect(mounts.count, `the Mounts heading states "${mounts.count}" instead of a count`).toBe(String(mounts.entries.length));
+    expect(byCaption(mounts.entries)).toEqual([
+      { Source: '/srv/config', Destination: '/etc/appro' },
+      { Source: 'app-data', Destination: '/var/lib/apprw' },
+    ]);
+    expect(
+      mounts.entries.map((entry) => entry.map((field) => field.chips)),
+      'the write mode is not the chip beside the destination',
+    ).toEqual([
+      [[], ['ro']],
+      [[], ['rw']],
     ]);
     expect(document.body.textContent, 'an entry still carries the literal `mount:` prefix').not.toMatch(/mount:/i);
   });
 
-  // plan-ui-coherence-optimisation/REQ-60 — a section with nothing in it is not drawn at all,
-  // heading included: a heading counting 0 is present-and-empty.
-  it('draws neither heading for a container with no environment and no mounts', async () => {
-    withInspect({ env: [], mounts: [] });
+  // REQ-47 — the health check is a group of its own in reading, saying whether the container defines
+  // one at all and, when it does, stating it **as the edit form states it**: the command without the
+  // `CMD` / `CMD-SHELL` token the daemon prefixes it with, and the durations in seconds rather than
+  // in the nanoseconds the daemon reports. An operator answers "is this container watched?" without
+  // reading a raw array and without pressing `Edit configuration`.
+  it('states the health check as the form states it: no CMD token, and durations in seconds', async () => {
+    withInspect({
+      env: [],
+      ports: [],
+      mounts: [],
+      healthCheck: {
+        test: ['CMD-SHELL', 'curl -f http://localhost/health || exit 1'],
+        intervalNanos: 30_000_000_000,
+        timeoutNanos: 5_000_000_000,
+        retries: 3,
+        startPeriodNanos: 10_000_000_000,
+      },
+    });
 
-    expect((await configSections()).map((one) => one.title)).toEqual(['Runtime configuration']);
+    const health = group(await configGroups(), 'Health check');
+    expect(health.count, `the heading states "${health.count}" for a container that defines a probe`).toBe('enabled');
+    expect(health.placeholder, 'a container that defines a probe is shown the "no probe" placeholder').toBeNull();
+
+    const stated = Object.fromEntries(health.bands.map((band) => [band.label, band.value]));
+    expect(Object.keys(stated), 'the group does not state the probe’s command and its four timings').toEqual([
+      'Command',
+      'Interval',
+      'Timeout',
+      'Retries',
+      'Start period',
+    ]);
+    expect(stated.Command, 'the command still carries the token the daemon prefixes it with').toBe('curl -f http://localhost/health || exit 1');
+    for (const [label, seconds] of [
+      ['Interval', 30],
+      ['Timeout', 5],
+      ['Start period', 10],
+    ] as const) {
+      expect(Number.parseFloat(stated[label]), `${label} reads "${stated[label]}" rather than ${seconds} seconds`).toBe(seconds);
+      expect(stated[label], `${label} reads "${stated[label]}", which is the nanosecond figure the daemon reports`).not.toMatch(/000000/);
+    }
+    expect(stated.Retries).toBe('3');
   });
 
-  it('draws the section that has entries and omits the one that has none', async () => {
-    withInspect({ env: ['FOO=bar'], mounts: [] });
+  it('says a container that defines no probe defines none, rather than leaving the group blank', async () => {
+    withInspect({ env: [], ports: [], mounts: [] });
 
-    expect((await configSections()).map((one) => one.title)).toEqual(['Runtime configuration', 'Environment']);
+    const health = group(await configGroups(), 'Health check');
+    expect(health.count, `the heading states "${health.count}" for a container that defines no probe`).toBe('disabled');
+    expect(health.bands, 'a container with no probe is shown timings anyway').toEqual([]);
+    expect(health.placeholder, 'the group is drawn blank instead of saying the container defines no probe').not.toBeNull();
+  });
+
+  // REQ-50 — `Edit configuration` closes the tab: below every group and inside none of them, where
+  // the edit form's own footer sits. **This reverses REQ-22's placement**, which this block and the
+  // e2e spec both asserted at the head. Its box against the tab's trailing and bottom edges is
+  // measured in the e2e spec; what jsdom answers is the order and the containment.
+  it('closes the tab with Edit configuration, after every group and inside none of them', async () => {
+    withInspect({ env: ['FOO=bar'], ports: [{ containerPort: 80, protocol: 'tcp' }], mounts: [] });
+
+    const user = userEvent.setup();
+    renderPanel();
+    const action = await screen.findByRole('button', { name: 'Edit configuration' });
+    const headings = Array.from(document.querySelectorAll('.ui-section-header'));
+    expect(headings.map((header) => header.querySelector('.ui-section-header__title')?.textContent)).toEqual([
+      'Runtime',
+      'Health check',
+      'Environment variables',
+      'Port mappings',
+      'Mounts',
+    ]);
+    for (const header of headings) {
+      const position = action.compareDocumentPosition(header);
+      expect(
+        Boolean(position & Node.DOCUMENT_POSITION_PRECEDING),
+        `the "${header.querySelector('.ui-section-header__title')?.textContent}" heading is drawn after the action, so the action does not close the tab`,
+      ).toBe(true);
+    }
+    // Belonging to no group: not inside a card of the tab's, and not inside the pair either.
+    expect(action.closest('.ui-surface'), 'the action is drawn inside one of the tab’s cards').toBeNull();
+    expect(action.closest('.ui-grid'), 'the action is drawn inside the two-column pair, so it belongs to one of its columns').toBeNull();
+
+    // What it does is unchanged.
+    await user.click(action);
+    expect(await screen.findByRole('combobox', { name: 'Restart policy' })).toBeInTheDocument();
   });
 });

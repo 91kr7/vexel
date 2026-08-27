@@ -108,19 +108,28 @@ describe('ContainerCard — one state, one tone, on every state the product can 
   });
 });
 
-// container-card.md — the ports as a row of the metric strip (REQ-5, REQ-12, REQ-22).
-describe('ContainerCard — the ports (REQ-5, REQ-12, REQ-22)', () => {
-  it('words a published mapping as public→private and an exposed port as the bare private port', () => {
+// container-card.md — the ports as a row of the metric strip (REQ-5, REQ-12, REQ-22), the chips
+// being publications and only publications (`…-tabs_composition_refactor/REQ-60`).
+describe('ContainerCard — the ports (REQ-5, REQ-12, REQ-22, REQ-60)', () => {
+  /**
+   * **Rewritten on 2026-08-27, the rule having reversed.** This case used to be "a published mapping
+   * reads public→private **and an exposed port reads the bare private port**", expecting
+   * `['49153→5432', '80']` under the 2026-08-25 annotation of `containers_card_view/REQ-5`. REQ-60
+   * withdraws that half: a chip is a publication and only a publication, so the summary carries no
+   * portless entry for the card to word at all (`containers-service.md`, which is where the entry is
+   * now dropped). What survives unchanged is the wording of a publication, asserted here.
+   */
+  it('words a published mapping as public→private', () => {
     const card = renderCard(
       makeContainer({
         ports: [
           { privatePort: 5432, publicPort: 49_153, type: 'tcp' },
-          { privatePort: 80, type: 'tcp' },
+          { privatePort: 80, publicPort: 8080, type: 'tcp' },
         ],
       }),
     );
 
-    expect(portChips(card)).toEqual(['49153→5432', '80']);
+    expect(portChips(card)).toEqual(['49153→5432', '8080→80']);
   });
 
   it('reads the ports with the metrics, on a labelled row of the strip', () => {
@@ -145,6 +154,9 @@ describe('ContainerCard — the ports (REQ-5, REQ-12, REQ-22)', () => {
     expect(portChips(card)).toEqual(['18080→8080', '18081→8081', '+4']);
   });
 
+  // `containers_card_view/REQ-5` (second amendment of 2026-08-25) — the absence is stated, and
+  // REQ-60 does not reverse it: a container that only exposes now reports no port at all, and the
+  // row it leaves must still say so rather than vanish.
   it('draws the row anyway when the container reports no port, reading `none`', () => {
     const card = renderCard(makeContainer({ ports: [] }));
 

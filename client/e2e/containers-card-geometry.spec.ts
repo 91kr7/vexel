@@ -658,6 +658,74 @@ test('the metric strip stacks one metric per row, each spanning the card and end
   }
 });
 
+/**
+ * `…-tabs_composition_refactor/REQ-60` — **a chip is a publication and only a publication**, and the
+ * absence is still stated: the `PORTS` row of a container that binds nothing on the host reads
+ * `none` rather than vanishing (`containers_card_view/REQ-5`, second amendment of 2026-08-25, which
+ * REQ-60 does **not** reverse).
+ *
+ * **The rule reversed on 2026-08-27, and this check is written against the new one.** The annotation
+ * of 2026-08-25 on `containers_card_view/REQ-5` had the chips carry exposed-but-unpublished ports as
+ * well, on `containers_card_view/REQ-12` — no value the delivered row showed may disappear. The same
+ * human withdrew that half on their own container, whose `5000/tcp` came from `registry:2`'s
+ * Dockerfile rather than from them: an exposure binds no host port and gates no traffic, so the chip
+ * stated nothing the operator had asked for. Every other value REQ-12 covers is untouched.
+ *
+ * Two fixtures under one stem, so both readings are measured in one layout: one that only exposes,
+ * and one that exposes **and** publishes in the spelling this file's own fixtures use (`-p 0:N`,
+ * which the daemon stores as a literal `HostPort: "0"`).
+ */
+test('a card states its publications and only those, and says `none` where the container merely exposes', async ({ page }) => {
+  const stem = `vexel-e2e-card-exposed-${Date.now()}`;
+  const names = { exposed: `${stem}-a-exposed`, published: `${stem}-b-published` };
+  try {
+    await createSleepingContainer(names.exposed, ['--expose', '7777']);
+    await createSleepingContainer(names.published, ['-p', '0:5432', '--expose', '7777']);
+
+    // The daemon's own answers, so a passing assertion below is known not to be vacuous: the
+    // exposure is listed, carrying no public port, and the publication has a real host number.
+    const { stdout: listed } = await execFileAsync('docker', ['ps', '--filter', `name=${stem}`, '--format', '{{.Names}} {{.Ports}}']);
+    console.log(`[REQ-60] the daemon lists:\n${listed.trim()}`);
+    expect(listed, 'the daemon no longer lists the exposure at all, so this fixture no longer covers the case').toContain('7777/tcp');
+    const { stdout: published } = await execFileAsync('docker', ['port', names.published, '5432/tcp']);
+    const hostPort = Number(published.trim().split('\n')[0].split(':').pop());
+    expect(hostPort, `the daemon published no host port at all: ${published}`).toBeGreaterThan(0);
+
+    await openNarrowedTo(page, stem, 2);
+    const list = await measureList(page);
+    expect(list.cards.map((card) => card.name), 'the list is not in the served order').toEqual([names.exposed, names.published]);
+    const [exposed, publishedCard] = list.cards;
+    console.log(
+      `[REQ-60] ${exposed.name} → ${JSON.stringify(exposed.ports?.chips.map((chip) => chip.text))}; ` +
+        `${publishedCard.name} → ${JSON.stringify(publishedCard.ports?.chips.map((chip) => chip.text))}`,
+    );
+
+    // The exposure is not a chip, and the row it leaves keeps its shape and says so.
+    expect(exposed.ports, 'the exposing container’s card draws no PORTS row at all').not.toBeNull();
+    expect(exposed.ports!.label).toBe('PORTS');
+    expect(exposed.ports!.chips.map((chip) => chip.text), 'a port the container merely exposes is drawn as a chip').toEqual(['none']);
+    expect(round(exposed.ports!.labelBox.x), 'the PORTS label does not anchor the row at the strip’s left edge').toBeCloseTo(exposed.inner.left, 0);
+    expect(exposed.ports!.box.height, 'the PORTS row is drawn with no height').toBeGreaterThan(0);
+    const absence = exposed.ports!.chips[0].box;
+    expect(round(absence.x + absence.width), 'the `none` chip is not right-aligned to the strip’s own edge').toBeCloseTo(exposed.inner.right, 0);
+
+    // And the publication is unchanged, host port and all — the number the daemon chose, not `0`.
+    expect(publishedCard.ports!.chips.map((chip) => chip.text), 'the publishing container’s chips are not its publications alone').toEqual([
+      `${hostPort}→5432`,
+    ]);
+    for (const chip of publishedCard.ports!.chips) {
+      expect(chip.box.width, `the chip "${chip.text}" is drawn with no width`).toBeGreaterThan(0);
+      expect(chip.box.x, `the chip "${chip.text}" starts outside its card`).toBeGreaterThanOrEqual(publishedCard.inner.left - TOLERANCE);
+      expect(round(chip.box.x + chip.box.width), `the chip "${chip.text}" runs past its card`).toBeLessThanOrEqual(publishedCard.inner.right + TOLERANCE);
+    }
+
+    // The two cards keep one row: the absence costs the strip no line the publication does not pay.
+    expect(round(exposed.ports!.box.height), 'the two PORTS rows are of different heights').toBeCloseTo(round(publishedCard.ports!.box.height), 0);
+  } finally {
+    for (const name of Object.values(names)) await removeContainerQuietly(name);
+  }
+});
+
 // REQ-1, REQ-5, REQ-10, REQ-22 — the grid, and the metrics lining up across a row and down a column.
 test('the list is a grid of three cards to a row, equal in a row and aligned down a column', async ({ page }) => {
   const stem = `vexel-e2e-card-grid-${Date.now()}`;

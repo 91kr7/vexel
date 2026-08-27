@@ -240,23 +240,37 @@ describe('the two reported call sites state no layout constant', () => {
     expect(labels).toMatch(/contentClass="long-single-line"/);
     // The Config tab's split is the library's named arrangement, not a template string.
     expect(text).toMatch(/<Grid arrangement="pair">/);
-    // **What the one `environment · mounts` list became** (`…-tabs_composition_refactor/REQ-18` …
-    // REQ-21): two counted sections, each a `DefinitionList` of its own. What this assertion named
-    // is unchanged — the right-hand column of the Config tab declares the long-single-line class
-    // and states nothing else about its layout — so it is re-pointed at the two lists that carry it
-    // now rather than dropped with the element it used to name (REQ-43).
-    // Read within the view mode alone: the edit form heads a group `Mounts` too, and it is a
-    // repeatable row list rather than a property section.
-    const readView = text.slice(text.indexOf('Edit configuration'));
+    // Read within the view mode alone, which is the tail of `renderConfigView`: the edit form
+    // heads a group `Mounts` too, and its groups are row editors rather than reading lists. The
+    // read view **ends** at `Edit configuration` now that the action closes the tab (REQ-50), so
+    // each group is the last statement of its own title before that point.
+    const readViewEnd = text.indexOf('Edit configuration');
+    expect(readViewEnd, 'the container panel has no Edit configuration action at all').toBeGreaterThan(-1);
     const section = (title: string) => {
-      const start = readView.indexOf(`title="${title}"`);
-      expect(start, `the container panel's read view has no ${title} section`).toBeGreaterThan(-1);
-      return readView.slice(start, start + 600);
+      const start = text.lastIndexOf(`title="${title}"`, readViewEnd);
+      expect(start, `the container panel's read view has no ${title} group`).toBeGreaterThan(-1);
+      return text.slice(start, readViewEnd);
     };
-    expect(section('Environment'), 'the Environment section does not declare the long-single-line class').toMatch(
-      /<DefinitionList[^>]*contentClass="long-single-line"/s,
+    // **What the two `DefinitionList`s became** (`…-tabs_composition_refactor/REQ-54` … REQ-56):
+    // the environment and the mounts read one entry per row at their group's full width, which is
+    // the library's free-text class on `FieldList`, and the mounts ask for the `content`
+    // arrangement so a volume source takes the room its destination does not need. What this
+    // assertion named is unchanged — the reading groups state a **content class** and nothing else
+    // about their layout — so it is re-pointed at the lists that carry it now rather than dropped
+    // with the element it used to name (REQ-43).
+    expect(section('Environment variables'), 'the Environment variables group does not read one entry per row at the group’s full width').toMatch(
+      /<FieldList[^>]*contentClass="free-text"/s,
     );
-    expect(section('Mounts'), 'the Mounts section does not declare the long-single-line class').toMatch(/<DefinitionList[^>]*contentClass="long-single-line"/s);
+    expect(section('Mounts'), 'the Mounts group does not read one entry per row at the group’s full width').toMatch(/<FieldList[^>]*contentClass="free-text"/s);
+    expect(section('Mounts'), 'the Mounts group does not ask for the content arrangement').toMatch(/<FieldList[^>]*arrangement="content"/s);
+    // `Port mappings` takes the short-scalar class, so it goes on flowing as many entries per line
+    // as its own card carries — stated or taken as the library's default, but never a wider one.
+    const ports = section('Port mappings');
+    expect(ports, 'the Port mappings group is not a reading field list').toMatch(/<FieldList/s);
+    // The list's own opening tag, and not the group's whole source: the group holds a placeholder
+    // and a heading too, and a class named anywhere in them would answer for the list.
+    const portsList = ports.slice(ports.indexOf('<FieldList'), ports.indexOf('items=', ports.indexOf('<FieldList')));
+    expect(portsList, 'the Port mappings list declares a class wider than the short scalar').not.toMatch(/contentClass="(free-text|long-single-line)"/);
   });
 });
 
