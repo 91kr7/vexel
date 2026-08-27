@@ -139,8 +139,15 @@ test("GET /api/images/:id/push/stream reports the daemon's rejection as an error
     await execFileAsync("docker", ["tag", "alpine:3.20", reference]);
     const { stdout: imageId } = await execFileAsync("docker", ["inspect", reference, "--format", "{{.Id}}"]);
     const response = await fetch(`${url}/api/images/${encodeURIComponent(imageId.trim())}/push/stream?reference=${encodeURIComponent(reference)}`);
-    // An unreachable host is a dial timeout on the daemon's side (~30s), not a fast rejection.
-    const events = await readSseUntilDone(response, 45_000);
+    // An unreachable host is a dial timeout on the daemon's side, not a fast rejection — and this
+    // daemon states that refusal at either 30.1s or 60.2s (one dial attempt or two), measured over
+    // six consecutive runs, about half and half. The forty-five seconds this budget used to grant
+    // sat between the two modes and lost roughly half the runs to a refusal the product had
+    // reported perfectly. 120s clears the slow mode; it is not a budget raised over a failure that
+    // never arrives, which REQ-10 forbids — the refusal arrives every time, carrying the daemon's
+    // address and cause verbatim (plan-docker_management_app-push_failure_reporting/REQ-10, as
+    // amended on 2026-08-27 with this measurement).
+    const events = await readSseUntilDone(response, 120_000);
 
     const errorEvent = events.find((event) => event.event === "error");
     assert.ok(errorEvent, "expected an error event for an unpushable reference");
