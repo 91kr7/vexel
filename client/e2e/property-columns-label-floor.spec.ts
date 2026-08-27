@@ -1,12 +1,8 @@
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from './support/test.js';
-import { openApp, ownershipArgs } from './support/fixtures.js';
+import { openApp } from './support/fixtures.js';
 import { readOnceSettled } from './support/settled.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
-import { ALPINE_IMAGE, TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
-import { containerCard, containerDetail, openContainerDetail } from './support/container-cards.js';
+import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 
 /**
  * **How a property band settles a shortage** — the one rule of
@@ -48,8 +44,8 @@ import { containerCard, containerDetail, openContainerDetail } from './support/c
  * boxes, and a rule checked twice through one helper is checked once. Nothing here reads a class, an
  * attribute or a prop; every number is a box the browser reports (REQ-39), and content assertions
  * stand beside them and never instead of them (REQ-40). Every interaction is a real pointer at the
- * visible control's own coordinates (REQ-44). The fixtures — a tag, a container, two directories —
- * are this file's own, labelled, and removed in a `finally` (REQ-45).
+ * visible control's own coordinates (REQ-44). The one fixture — a tag — is this file's own and is
+ * removed in a `finally` (REQ-45).
  */
 
 /** Sub-pixel: below what any assertion here distinguishes, above the layout engine's own rounding. */
@@ -259,9 +255,18 @@ async function openImagePanel(page: Page, viewport: { width: number; height: num
   await expect(imageProperties(page)).toBeVisible({ timeout: 20_000 });
 }
 
-/** The list under a named heading of the container detail, located through the heading an operator reads. */
-function detailSection(page: Page, title: string): Locator {
-  return containerDetail(page).locator(`.ui-section-header:has(.ui-section-header__title:text-matches("^${title}")) + .ui-definition-list`);
+/**
+ * The coverage baseline's own property list — the surface where the label is the one that overruns.
+ * Located through the card its heading titles, so a second list added to the screen cannot answer
+ * for it.
+ */
+function coverageBaseline(page: Page): Locator {
+  return page
+    .locator('.ui-surface')
+    .filter({ has: page.locator('.ui-section-header__title', { hasText: /^Coverage baseline$/ }) })
+    .first()
+    .locator('.ui-definition-list')
+    .first();
 }
 
 // (1) The value is the one that overruns — the `Tags` case. The label must be drawn at its full ink,
@@ -305,64 +310,49 @@ test('a value that overruns its band leaves its label at full ink, at two band w
 // is what has to hold. This is the shape the first declaration lost — value box 0px, chip off the
 // side of the viewport — and it is a phone-width band, where the shortage is real rather than
 // contrived.
+//
+// **The surface moved, and the measurement did not.** This leg read the container detail's `Mounts`
+// group, whose long bind sources were its labels; that group stopped being a definition list in
+// `…-tabs_composition_refactor/REQ-54` … REQ-56 and is a `FieldList` of `Source` / `Destination`
+// fields, so the container detail no longer draws a band whose **label** overruns at all — measured
+// at 375×812, its longest label ("Restart policy") sits well inside the bound. The band the check
+// needs is the one this file's own header names as the case the half-band cap broke: the coverage
+// baseline's `Oldest Engine API the daemon accepts`, 205px of label against a 133px bound at this
+// width. Same list component, same selectors, same two bounds asserted, same two declarations shown
+// red — and no fixture, since the screen reads the baseline it already holds.
 test('a label that overruns its bound gives way to the value’s floor and no further, at 375 × 812', async ({ page }) => {
-  const name = `vexel-e2e-label-floor-${Date.now()}`;
-  await ensureImage(TINY_IMAGE);
-  // Sources long enough to outrun any bound a 375px band can offer, on directories of this test's
-  // own: a bind creates nothing on the daemon, and the two go with the container.
-  const readOnlySource = await mkdtemp(join(tmpdir(), 'vexel-e2e-label-floor-ro-'));
-  const writableSource = await mkdtemp(join(tmpdir(), 'vexel-e2e-label-floor-rw-'));
-  try {
-    await execFileAsync('docker', [
-      'create',
-      '--name',
-      name,
-      ...ownershipArgs('property-columns-label-floor'),
-      '-v',
-      `${readOnlySource}:/mnt/ro-target:ro`,
-      '-v',
-      `${writableSource}:/mnt/rw-target`,
-      TINY_IMAGE,
-    ]);
+  await page.setViewportSize({ width: 375, height: 812 });
+  await openApp(page, 'coverage-matrix');
+  // The screen the coverage matrix lives on is titled `About` (shell/navigation.ts keeps the id).
+  await expect(page.getByRole('heading', { level: 1, name: 'About' })).toBeVisible({ timeout: 20_000 });
+  await expect(coverageBaseline(page), 'the coverage baseline list is not on screen').toBeVisible({ timeout: 30_000 });
 
-    await page.setViewportSize({ width: 375, height: 812 });
-    await openApp(page, 'containers');
-    await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
-    await page.getByPlaceholder('Search name, image or state…').fill(name);
-    await expect(containerCard(page, name), 'the fixture container never appeared in the list').toBeVisible({ timeout: 20_000 });
-    await openContainerDetail(page, name);
-    await expect(detailSection(page, 'Mounts')).toBeVisible({ timeout: 20_000 });
+  const bands = await readBands(coverageBaseline(page));
+  const evidence = 'the coverage baseline section at 375 × 812';
+  console.log(`[label-floor] ${describe(evidence, bands)}`);
 
-    const bands = await readBands(detailSection(page, 'Mounts'));
-    const evidence = 'the container detail Mounts section at 375 × 812';
-    console.log(`[label-floor] ${describe(evidence, bands)}`);
+  expectALabelOverrunsItsBound(bands, evidence);
+  expectTheLabelYieldsOnlyToTheValuesFloor(bands, evidence);
 
-    expectALabelOverrunsItsBound(bands, evidence);
-    expectTheLabelYieldsOnlyToTheValuesFloor(bands, evidence);
+  // Red on both declarations this band was lost to: the whole-band bound that left the value 0px
+  // beyond the band's own right edge, and the half-band cap that took the label below what the
+  // rule leaves it.
+  await expectRefused(page, coverageBaseline(page), 'whole-band bound', evidence);
+  await expectRefused(page, coverageBaseline(page), 'half-band cap', evidence);
 
-    // Red on both declarations this band was lost to: the whole-band bound that left the value 0px
-    // beyond the band's own right edge, and the half-band cap that took the label below what the
-    // rule leaves it.
-    await expectRefused(page, detailSection(page, 'Mounts'), 'whole-band bound', evidence);
-    await expectRefused(page, detailSection(page, 'Mounts'), 'half-band cap', evidence);
-
-    // Beside the geometry: the label that gave way gave way in **width**, not in characters — it is
-    // wrapped, whole and unellipsised.
-    const labels = await detailSection(page, 'Mounts')
-      .locator('.ui-definition-list__label')
-      .evaluateAll((elements) =>
-        elements.map((label) => ({ text: label.textContent ?? '', textOverflow: getComputedStyle(label).textOverflow, hidden: label.scrollWidth - label.clientWidth })),
-      );
-    for (const label of labels) {
-      expect(label.textOverflow, `the label "${label.text}" is ellipsised rather than wrapped`).not.toBe('ellipsis');
-      expect(label.hidden, `${label.hidden}px of the label "${label.text}" is hidden outside its own box`).toBeLessThanOrEqual(TOLERANCE_PX);
-      expect(label.text, 'the label gave way in characters rather than in width').toContain('vexel-e2e-label-floor-');
-    }
-  } finally {
-    // `-v` and never a bare `-f`: an anonymous volume the daemon attached on its own behalf outlives
-    // the container carrying no label of ours.
-    await execFileAsync('docker', ['rm', '-fv', name]).catch(() => undefined);
-    await rm(readOnlySource, { recursive: true, force: true }).catch(() => undefined);
-    await rm(writableSource, { recursive: true, force: true }).catch(() => undefined);
+  // Beside the geometry: the label that gave way gave way in **width**, not in characters — it is
+  // wrapped, whole and unellipsised.
+  const labels = await coverageBaseline(page)
+    .locator('.ui-definition-list__label')
+    .evaluateAll((elements) =>
+      elements.map((label) => ({ text: label.textContent ?? '', textOverflow: getComputedStyle(label).textOverflow, hidden: label.scrollWidth - label.clientWidth })),
+    );
+  for (const label of labels) {
+    expect(label.textOverflow, `the label "${label.text}" is ellipsised rather than wrapped`).not.toBe('ellipsis');
+    expect(label.hidden, `${label.hidden}px of the label "${label.text}" is hidden outside its own box`).toBeLessThanOrEqual(TOLERANCE_PX);
   }
+  expect(
+    labels.map((label) => label.text),
+    'the label gave way in characters rather than in width',
+  ).toContain('Oldest Engine API the daemon accepts');
 });

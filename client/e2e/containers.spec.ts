@@ -1437,6 +1437,11 @@ test.describe('Container detail dialog, one stable height (REQ-1, REQ-3, REQ-4)'
 
       await openContainerDetail(page, name);
       const card = detailCard(page);
+      // Polled, not assumed: a container just started still reads CREATED for a moment, and the two
+      // session tabs are offered only once the daemon calls it running. Waited for **before** the
+      // reference box is taken, so the box and the walk belong to the same bar — without it the set
+      // below is whatever the daemon had got round to reporting, which is a race of the test's own.
+      await expect(containerDetail(page).getByRole('tab', { name: 'Attach', exact: true })).toBeVisible({ timeout: 20_000 });
       await settledDialogBox(page);
       const reference = await boxOf(card, 'the container detail dialog');
 
