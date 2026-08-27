@@ -1,0 +1,705 @@
+<title>Il battito di Vexel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,500;1,400&display=swap">
+
+<style>
+:root {
+  --ground:      #EFF2F3;
+  --surface:     #FFFFFF;
+  --surface-2:   #F6F8F9;
+  --line:        #D3DBDE;
+  --line-soft:   #E3E9EB;
+  --ink:         #14181B;
+  --ink-2:       #47545A;
+  --ink-3:       #6F7F86;
+
+  --poll:        #A85D12;
+  --poll-soft:   #F5E7D6;
+  --push:        #0C6E60;
+  --push-soft:   #D8ECE8;
+  --stream:      #2E5AA8;
+  --stream-soft: #DCE5F4;
+  --alarm:       #9C2B2B;
+  --alarm-soft:  #F5DEDE;
+
+  --shadow: 0 1px 2px rgba(20, 24, 27, .05), 0 8px 24px -16px rgba(20, 24, 27, .28);
+
+  --measure: 68ch;
+  --pad: clamp(1.15rem, 4vw, 3.25rem);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:      #0E1214;
+    --surface:     #161B1E;
+    --surface-2:   #1B2225;
+    --line:        #2C3639;
+    --line-soft:   #232C2F;
+    --ink:         #E4EAEC;
+    --ink-2:       #A3B1B6;
+    --ink-3:       #7B8B91;
+
+    --poll:        #E3A657;
+    --poll-soft:   #35281A;
+    --push:        #45C2AC;
+    --push-soft:   #123029;
+    --stream:      #7FA6E8;
+    --stream-soft: #182437;
+    --alarm:       #E57676;
+    --alarm-soft:  #351D1D;
+
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 28px -18px rgba(0, 0, 0, .8);
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground:      #0E1214;
+  --surface:     #161B1E;
+  --surface-2:   #1B2225;
+  --line:        #2C3639;
+  --line-soft:   #232C2F;
+  --ink:         #E4EAEC;
+  --ink-2:       #A3B1B6;
+  --ink-3:       #7B8B91;
+
+  --poll:        #E3A657;
+  --poll-soft:   #35281A;
+  --push:        #45C2AC;
+  --push-soft:   #123029;
+  --stream:      #7FA6E8;
+  --stream-soft: #182437;
+  --alarm:       #E57676;
+  --alarm-soft:  #351D1D;
+
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 28px -18px rgba(0, 0, 0, .8);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+  font-size: 17px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: 74rem;
+  margin: 0 auto;
+  padding: var(--pad);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(2.5rem, 5vw, 4rem);
+}
+
+.col { max-width: var(--measure); }
+
+h1, h2, h3, .lab, .chip, table, .fig, .num {
+  font-family: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.lab, .chip, .mono, code, .num, td.d, th.d {
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ---------- masthead ---------- */
+
+header { display: flex; flex-direction: column; gap: 1.15rem; }
+
+.eyebrow {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .70rem;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem 1.1rem;
+}
+
+h1 {
+  font-size: clamp(2.1rem, 6vw, 3.4rem);
+  line-height: 1.04;
+  letter-spacing: -.026em;
+  font-weight: 600;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.standfirst {
+  font-size: clamp(1.05rem, 2.2vw, 1.2rem);
+  color: var(--ink-2);
+  margin: 0;
+  max-width: var(--measure);
+}
+
+.rule { height: 1px; background: var(--line); border: 0; margin: 0; }
+
+/* ---------- legend ---------- */
+
+.legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1px;
+  background: var(--line-soft);
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.legend > div {
+  background: var(--surface);
+  padding: 1.05rem 1.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+}
+
+.chip {
+  align-self: flex-start;
+  font-size: .68rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: .2rem .5rem;
+  border-radius: 2px;
+}
+
+.c-poll   { color: var(--poll);   background: var(--poll-soft); }
+.c-push   { color: var(--push);   background: var(--push-soft); }
+.c-stream { color: var(--stream); background: var(--stream-soft); }
+.c-alarm  { color: var(--alarm);  background: var(--alarm-soft); }
+
+.legend p { margin: 0; font-size: .93rem; color: var(--ink-2); line-height: 1.5; }
+
+/* ---------- sections ---------- */
+
+section { display: flex; flex-direction: column; gap: 1.5rem; }
+
+h2 {
+  font-size: clamp(1.4rem, 3vw, 1.85rem);
+  line-height: 1.15;
+  letter-spacing: -.018em;
+  font-weight: 600;
+  margin: 0;
+  text-wrap: balance;
+  display: flex;
+  align-items: baseline;
+  gap: .7rem;
+}
+
+h2 .n {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .78rem;
+  font-weight: 500;
+  color: var(--ink-3);
+  letter-spacing: .08em;
+  flex: none;
+  transform: translateY(-.15em);
+}
+
+h3 {
+  font-size: 1.02rem;
+  font-weight: 600;
+  letter-spacing: -.005em;
+  margin: 0;
+}
+
+p { margin: 0; }
+.col > p + p, .col > h3 + p { margin-top: .85rem; }
+
+strong { font-weight: 600; color: var(--ink); }
+em { font-style: italic; }
+
+code {
+  font-size: .855em;
+  background: var(--surface-2);
+  border: 1px solid var(--line-soft);
+  border-radius: 2px;
+  padding: .06em .34em;
+  white-space: nowrap;
+}
+
+/* ---------- figure / diagram ---------- */
+
+.fig {
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+  padding: 1.35rem 1.15rem 1.1rem;
+  box-shadow: var(--shadow);
+  overflow-x: auto;
+}
+
+.fig svg { display: block; min-width: 40rem; width: 100%; height: auto; }
+
+.caption {
+  font-family: "IBM Plex Sans", sans-serif;
+  font-size: .82rem;
+  color: var(--ink-3);
+  margin-top: .9rem;
+  line-height: 1.5;
+  max-width: 58ch;
+}
+
+/* ---------- tables ---------- */
+
+.tw {
+  overflow-x: auto;
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: .875rem;
+  min-width: 34rem;
+}
+
+thead th {
+  text-align: left;
+  font-weight: 600;
+  font-size: .68rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding: .8rem .85rem;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+  background: var(--surface-2);
+}
+
+tbody td {
+  padding: .62rem .85rem;
+  border-bottom: 1px solid var(--line-soft);
+  vertical-align: baseline;
+  color: var(--ink-2);
+}
+
+tbody tr:last-child td { border-bottom: 0; }
+tbody td:first-child { color: var(--ink); font-weight: 500; }
+
+td.d, th.d { font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dash { color: var(--ink-3); }
+
+.tag {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: .66rem;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: .12rem .4rem;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+/* ---------- callout ---------- */
+
+.note {
+  border-left: 3px solid var(--line);
+  padding: .1rem 0 .1rem 1.15rem;
+  color: var(--ink-2);
+  max-width: var(--measure);
+}
+.note.warn { border-left-color: var(--alarm); }
+.note.warn strong { color: var(--alarm); }
+
+/* ---------- arithmetic panel ---------- */
+
+.sums {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 1px;
+  background: var(--line-soft);
+  border: 1px solid var(--line-soft);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.sums > div {
+  background: var(--surface);
+  padding: 1.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: .3rem;
+}
+
+.sums .lab {
+  font-size: .67rem;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.num {
+  font-size: clamp(1.5rem, 3.6vw, 2rem);
+  font-weight: 600;
+  letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  color: var(--ink);
+}
+.num.hot { color: var(--alarm); }
+.sums p { font-size: .85rem; color: var(--ink-2); line-height: 1.45; }
+
+/* ---------- lists ---------- */
+
+ul.plain { margin: 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: .5rem; }
+ul.plain li { color: var(--ink-2); }
+ul.plain li::marker { color: var(--ink-3); }
+
+footer {
+  border-top: 1px solid var(--line);
+  padding-top: 1.4rem;
+  font-family: "IBM Plex Sans", sans-serif;
+  font-size: .82rem;
+  color: var(--ink-3);
+  max-width: var(--measure);
+  line-height: 1.55;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a, .chip { transition: color .15s ease, background-color .15s ease; }
+}
+
+:focus-visible { outline: 2px solid var(--push); outline-offset: 2px; border-radius: 2px; }
+</style>
+
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">
+      <span>Vexel · Docker Control</span>
+      <span>Analisi di sistema</span>
+      <span>27 agosto 2026</span>
+    </div>
+    <h1>Il battito di Vexel</h1>
+    <p class="standfirst">
+      Come l'interfaccia si tiene aggiornata oggi: tre meccanismi diversi che convivono,
+      due progettati con cura e uno lasciato al caso. Misurato sul codice, non dedotto.
+    </p>
+  </header>
+
+  <hr class="rule">
+
+  <section>
+    <h2><span class="n">I</span> I tre canali</h2>
+    <div class="col">
+      <p>
+        Fra il browser e Docker c'è il nostro server. Ogni dato che vedi a schermo arriva per
+        <strong>una di tre strade</strong>, e le tre non si somigliano affatto: cambiano chi decide
+        il ritmo, quanto costano, e se si fermano quando nessuno guarda.
+      </p>
+    </div>
+
+    <div class="legend">
+      <div>
+        <span class="chip c-poll">Poll · a orologio</span>
+        <p>Il browser richiede a intervallo fisso. Il ritmo lo decide il client, il server esegue.
+           <strong>Non si ferma mai</strong>: né a finestra nascosta, né su schermate che non stai guardando.</p>
+      </div>
+      <div>
+        <span class="chip c-push">Push · a evento</span>
+        <p>Una sola connessione agli eventi del daemon, condivisa da tutta l'applicazione.
+           Quando Docker dice che qualcosa è cambiato, chi è iscritto rilegge. Costo a riposo: zero.</p>
+      </div>
+      <div>
+        <span class="chip c-stream">Stream · dedicato</span>
+        <p>Una connessione propria per ciò che scorre davvero — log, statistiche, build,
+           trasferimenti. Aperta solo mentre la vista è viva, chiusa quando la lasci.</p>
+      </div>
+    </div>
+
+    <div class="fig">
+      <svg viewBox="0 0 900 320" role="img" aria-label="Diagramma dei tre canali fra browser, server e daemon Docker">
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+
+        <!-- columns -->
+        <g font-family="IBM Plex Mono, monospace" font-size="11" letter-spacing="1.4" fill="var(--ink-3)">
+          <text x="88" y="26" text-anchor="middle">BROWSER</text>
+          <text x="450" y="26" text-anchor="middle">SERVER</text>
+          <text x="812" y="26" text-anchor="middle">DOCKER</text>
+        </g>
+        <g stroke="var(--line-soft)" stroke-width="1">
+          <line x1="176" y1="40" x2="176" y2="300"/>
+          <line x1="724" y1="40" x2="724" y2="300"/>
+        </g>
+
+        <!-- lane 1: poll -->
+        <g>
+          <rect x="16" y="52" width="144" height="52" rx="3" fill="var(--poll-soft)"/>
+          <text x="30" y="74" font-family="IBM Plex Sans, sans-serif" font-size="13" font-weight="600" fill="var(--poll)">5 liste</text>
+          <text x="30" y="92" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--poll)">setInterval 3 s</text>
+
+          <g color="var(--poll)" stroke="var(--poll)" stroke-width="1.6" fill="none">
+            <line x1="176" y1="78" x2="352" y2="78" marker-end="url(#ar)" stroke-dasharray="5 4"/>
+            <line x1="548" y1="78" x2="724" y2="78" marker-end="url(#ar)" stroke-dasharray="5 4"/>
+          </g>
+          <rect x="352" y="56" width="196" height="44" rx="3" fill="none" stroke="var(--poll)" stroke-width="1.3" stroke-dasharray="4 4"/>
+          <text x="450" y="83" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="12.5" fill="var(--poll)">pass-through — nessuna cache</text>
+          <text x="812" y="83" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--ink-3)">1 richiesta ciascuna</text>
+        </g>
+
+        <!-- lane 2: push -->
+        <g>
+          <rect x="16" y="132" width="144" height="52" rx="3" fill="var(--push-soft)"/>
+          <text x="30" y="154" font-family="IBM Plex Sans, sans-serif" font-size="13" font-weight="600" fill="var(--push)">event stream</text>
+          <text x="30" y="172" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--push)">1 EventSource</text>
+
+          <g color="var(--push)" stroke="var(--push)" stroke-width="1.6" fill="none">
+            <line x1="352" y1="158" x2="176" y2="158" marker-end="url(#ar)"/>
+            <line x1="724" y1="158" x2="548" y2="158" marker-end="url(#ar)"/>
+          </g>
+          <rect x="352" y="136" width="196" height="44" rx="3" fill="var(--push-soft)"/>
+          <text x="450" y="156" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="12.5" fill="var(--push)">1 sola connessione,</text>
+          <text x="450" y="172" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="12.5" fill="var(--push)">ri-pubblicata a tutti</text>
+          <text x="812" y="163" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--ink-3)">/events</text>
+        </g>
+
+        <!-- lane 3: stream -->
+        <g>
+          <rect x="16" y="212" width="144" height="52" rx="3" fill="var(--stream-soft)"/>
+          <text x="30" y="234" font-family="IBM Plex Sans, sans-serif" font-size="13" font-weight="600" fill="var(--stream)">statistiche</text>
+          <text x="30" y="252" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--stream)">disegna ogni 250 ms</text>
+
+          <g color="var(--stream)" stroke="var(--stream)" stroke-width="1.6" fill="none">
+            <line x1="352" y1="238" x2="176" y2="238" marker-end="url(#ar)"/>
+            <line x1="548" y1="238" x2="724" y2="238" marker-end="url(#ar)"/>
+          </g>
+          <rect x="352" y="216" width="196" height="44" rx="3" fill="var(--stream-soft)"/>
+          <text x="450" y="236" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="12.5" fill="var(--stream)">campiona ogni 10 s</text>
+          <text x="450" y="252" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="12.5" fill="var(--stream)">solo se qualcuno guarda</text>
+          <text x="812" y="243" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--ink-3)">/stats</text>
+        </g>
+
+        <text x="16" y="300" font-family="IBM Plex Mono, monospace" font-size="10.5" letter-spacing="1" fill="var(--ink-3)">
+          tratteggio = il client chiede · linea piena = il server spinge
+        </text>
+      </svg>
+      <p class="caption">
+        Le tre corsie non sono alternative fra cui l'applicazione sceglie: girano tutte
+        contemporaneamente. Le prime due portano in buona parte la stessa informazione.
+      </p>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <h2><span class="n">II</span> Cosa gira, e ogni quanto</h2>
+    <div class="col">
+      <p>
+        Undici hook interrogano a orologio. Sei di questi <strong>sono montati nella shell</strong>,
+        cioè restano attivi qualunque schermata tu stia guardando: servono a riempire la vista
+        <em>e</em> a tenere i contatori nella barra laterale. Gli altri vivono solo dentro la
+        propria schermata.
+      </p>
+    </div>
+
+    <div class="tw">
+      <table>
+        <thead>
+          <tr>
+            <th>Cosa</th>
+            <th class="d">Intervallo</th>
+            <th>Attivo</th>
+            <th>Sveglia anche a evento</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Container</td><td class="d">3 s</td><td><span class="tag c-alarm">sempre</span></td><td>sì — filtra le azioni che non cambiano la lista</td></tr>
+          <tr><td>Immagini</td><td class="d">3 s</td><td><span class="tag c-alarm">sempre</span></td><td>sì</td></tr>
+          <tr><td>Volumi</td><td class="d">3 s</td><td><span class="tag c-alarm">sempre</span></td><td>sì</td></tr>
+          <tr><td>Reti</td><td class="d">3 s</td><td><span class="tag c-alarm">sempre</span></td><td>sì</td></tr>
+          <tr><td>Progetti Compose</td><td class="d">3 s</td><td><span class="tag c-alarm">sempre</span></td><td>sì</td></tr>
+          <tr><td>Stato connessione</td><td class="d">5 s</td><td><span class="tag c-alarm">sempre</span></td><td><span class="dash">no</span></td></tr>
+          <tr><td>Contesti</td><td class="d">15 s</td><td><span class="tag c-alarm">sempre</span></td><td><span class="dash">no</span></td></tr>
+          <tr><td>Cache di build</td><td class="d">5 s</td><td><span class="tag c-push">su schermata</span></td><td><span class="dash">no</span></td></tr>
+          <tr><td>Builder</td><td class="d">5 s</td><td><span class="tag c-push">su schermata</span></td><td><span class="dash">no</span></td></tr>
+          <tr><td>Swarm</td><td class="d">10 s</td><td><span class="tag c-push">su schermata</span></td><td>sì</td></tr>
+          <tr><td>Plugin</td><td class="d">15 s</td><td><span class="tag c-push">su schermata</span></td><td>sì</td></tr>
+          <tr><td>Registry</td><td class="d">15 s</td><td><span class="tag c-push">su schermata</span></td><td><span class="dash">no</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <p>
+        Tredici viste in più non hanno alcun orologio e si aggiornano <strong>solo a evento</strong>:
+        il dettaglio di un container, l'inspect di un'immagine, di una rete, di un volume, i layer,
+        la panoramica di sistema, l'uso del disco. È il comportamento corretto, ed è già la
+        maggioranza dei casi.
+      </p>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <h2><span class="n">III</span> Dove il campionamento è fatto bene</h2>
+    <div class="col">
+      <p>
+        Due meccanismi mostrano che qualcuno ci ha pensato per davvero, e valgono come modello
+        per tutto il resto.
+      </p>
+    </div>
+
+    <div class="tw">
+      <table>
+        <thead>
+          <tr><th>Proprietà</th><th>Statistiche dei container</th><th>Eventi del daemon</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Connessioni a Docker</td><td>una sola, condivisa da tutti i consumatori</td><td>una sola, ri-pubblicata a tutti</td></tr>
+          <tr><td>Cadenza verso Docker</td><td class="d">10 s</td><td>nessuna — è Docker a parlare</td></tr>
+          <tr><td>Si spegne da solo</td><td>sì — contatore di iscritti, da 1 a 0 ferma il campionatore</td><td>no, ma è una connessione sola</td></tr>
+          <tr><td>Ritmo del disegno</td><td class="d">250 ms, disaccoppiato dal campionamento</td><td>immediato</td></tr>
+          <tr><td>Dato vecchio</td><td>dichiarato tale dopo 30 s, non spacciato per fresco</td><td>backlog di 50 eventi per chi arriva tardi</td></tr>
+          <tr><td>Se cade</td><td>riconnessione 1 s → 15 s</td><td>riconnessione 1 s → 30 s</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="col">
+      <p>
+        Il dettaglio che rivela l'attenzione: il rilascio dell'iscrizione alle statistiche è
+        <strong>idempotente</strong>, e il commento sul codice spiega perché — un contatore che
+        deriva verso l'alto «campiona il daemon per sempre e sembra perfetto».
+      </p>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <h2><span class="n">IV</span> Dove non c'è nessun campionamento</h2>
+
+    <div class="col">
+      <p>
+        Tutte le rotte di lista sono <strong>un tubo</strong>. Il browser chiede, il server gira la
+        domanda a Docker, uno a uno. Nessuna cache, nessuna finestra di validità, nessuna fusione
+        di richieste simultanee.
+      </p>
+      <p>
+        Le conseguenze sono tre, e sono tutte moltiplicative: il ritmo lo detta il
+        <code>setInterval</code> del client e non il server; <strong>due finestre aperte pesano il
+        doppio</strong> su Docker, perché non c'è niente che le unifichi; e le liste continuano a
+        chiedere anche su schermate che non le mostrano e a finestra nascosta.
+      </p>
+      <p>
+        In tutto il client esiste <strong>un solo</strong> punto che guarda la visibilità della
+        pagina — quello delle statistiche. Le liste non la guardano.
+      </p>
+    </div>
+
+    <div class="note warn">
+      <p>
+        <strong>Il caso peggiore non interroga nemmeno Docker.</strong> Lo stato della connessione
+        risponde anche su quali CLI sono installati, e per saperlo lancia tre programmi —
+        <code>docker --version</code>, <code>docker compose version</code>,
+        <code>docker buildx version</code>. Senza cache, a ogni chiamata, ogni 5 secondi.
+        Misurato su questa macchina: <strong>~60 ms</strong> per le tre in parallelo. Due delle tre
+        caricano un plugin binario del CLI.
+      </p>
+      <p style="margin-top:.7rem">
+        È l'unico costo dell'elenco che non è una richiesta di rete ma un <code>fork</code>/<code>exec</code>
+        ripetuto — per sapere quali programmi sono installati, cosa che non cambia mai mentre
+        l'applicazione è aperta.
+      </p>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <h2><span class="n">V</span> Il conto, a riposo</h2>
+    <div class="col">
+      <p>
+        Una finestra aperta, nessuno che tocca niente, nessuna schermata pesante selezionata —
+        solo ciò che gira sempre.
+      </p>
+    </div>
+
+    <div class="sums">
+      <div>
+        <span class="lab">Richieste al minuto</span>
+        <span class="num">116</span>
+        <p>100 dalle cinque liste a 3 s, 12 dallo stato connessione, 4 dai contesti.</p>
+      </div>
+      <div>
+        <span class="lab">Richieste all'ora</span>
+        <span class="num">~7.000</span>
+        <p>Anche a finestra ridotta a icona, anche di notte.</p>
+      </div>
+      <div>
+        <span class="lab">Processi lanciati all'ora</span>
+        <span class="num hot">~2.200</span>
+        <p>Solo per rileggere tre numeri di versione che non cambiano.</p>
+      </div>
+      <div>
+        <span class="lab">Con due finestre</span>
+        <span class="num">×2</span>
+        <p>Niente sul server unifica due client che chiedono la stessa lista.</p>
+      </div>
+    </div>
+
+    <div class="col">
+      <p>
+        A questi si aggiunge la schermata attiva: Builder ne porta 24 al minuto, Swarm 6,
+        Plugin e Registry 4 ciascuna.
+      </p>
+    </div>
+  </section>
+
+  <hr class="rule">
+
+  <section>
+    <h2><span class="n">VI</span> La contraddizione di fondo</h2>
+    <div class="col">
+      <p>
+        Sette delle dodici viste a orologio <strong>si aggiornano già a evento</strong>. Per quelle,
+        i due canali fanno lo stesso lavoro in parallelo — ma solo uno dei due costa qualcosa a
+        riposo.
+      </p>
+      <p>
+        La reattività che percepisci non viene dal polling: quando un container parte, lo vedi
+        perché il daemon lo ha annunciato, non perché sono passati tre secondi. Il polling serve a
+        coprire ciò che il daemon non annuncia e il caso in cui lo stream cada — cioè è
+        <strong>una rete di sicurezza che gira alla cadenza del canale principale</strong>.
+      </p>
+      <p>
+        È lì che sta il margine, e non richiede di inventare niente: il modello a domanda esiste
+        già nel progetto, scritto e funzionante, in una trentina di righe. Semplicemente non è mai
+        stato applicato alle liste.
+      </p>
+    </div>
+  </section>
+
+  <footer>
+    <p>
+      Analisi ricavata dal codice al 27 agosto 2026, ramo
+      <code>feat/…inspect_full_payload</code>. Intervalli e costanti letti alla sorgente; i tempi dei
+      sottoprocessi misurati su questa macchina, tre esecuzioni. I conteggi orari sono aritmetica
+      sugli intervalli, non traffico osservato.
+    </p>
+    <p style="margin-top:.8rem">
+      Pagina pubblicata come artifact:
+      <a href="https://claude.ai/code/artifact/329d3fba-837e-48ec-ab0e-fd2c50184409" style="color:var(--push)">claude.ai/code/artifact/329d3fba</a>.
+      Non è un'analisi del flusso spec-driven: non nasce da una richiesta e non porta requisiti.
+      È uno studio dello stato di fatto, tenuto qui perché è la cartella dove si guarda.
+    </p>
+  </footer>
+
+</div>
