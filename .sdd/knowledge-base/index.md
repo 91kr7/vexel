@@ -14,3 +14,4 @@ What the human has taught, one entry per row. Consult the entries whose `scope` 
 | kill-pending-processes-before-tests | how-to | test | Before launching the tests, kill every pending process — human-started ones included | `entries/kill-pending-processes-before-tests.md` |
 | leave-the-refresh-polling-study-alone | guideline | any | `.sdd/analysis/studies/refresh-and-polling.html` is never staged, committed, edited or reverted | `entries/leave-the-refresh-polling-study-alone.md` |
 | past-analyses-and-plans-are-never-touched | guideline | any | Past analyses and plans are a record and are never edited; specs and indexes mirror the app and follow it | `entries/past-analyses-and-plans-are-never-touched.md` |
+| technical-debt-goes-in-the-tech-debt-register | guideline | any | Technical debt is recorded in `.sdd/tech-debt/`, never as a code TODO or an unscoped plan item | `entries/technical-debt-goes-in-the-tech-debt-register.md` |
