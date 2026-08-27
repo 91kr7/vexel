@@ -20,7 +20,9 @@
     "dev:client": "npm run dev -w client",
     "dev:server": "npm run dev -w server",
     "build": "npm run build -w client && npm run build -w server",
-    "lint": "npm run lint -w client",
-    "test": "npm run test -w server && npm run test -w client"
+    "lint": "npm run lint:swarm-absence && npm run lint -w client",
+    "//lint:swarm-absence": "The one check that spans both source trees, so it lives here rather than in a workspace: swarm left the product on 2026-08-27 and this is what keeps it gone. It is also the whole automated proof that a daemon in swarm mode changes nothing, no check of this project ever initialising a swarm.",
+    "lint:swarm-absence": "node scripts/check-swarm-absence-conformance.mjs",
+    "test": "npm run lint:swarm-absence && npm run test -w server && npm run test -w client"
   }
 }

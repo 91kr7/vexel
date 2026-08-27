@@ -26,7 +26,6 @@ export { Grid, GridSpan, type GridProps, type GridSpanProps, type GridArrangemen
 export { ContentColumns, type ContentColumnsProps } from './layout/ContentColumns';
 export { type ContentClass } from './layout/content-columns';
 export { DashboardLayout, type DashboardLayoutProps } from './layout/DashboardLayout';
-export { QuadPanelLayout, type QuadPanelLayoutProps } from './layout/QuadPanelLayout';
 export { BandStack, type BandStackProps } from './layout/BandStack';
 export { Spacer } from './layout/Spacer';
 export { SplitPane, type SplitPaneProps } from './layout/SplitPane';
@@ -61,7 +60,6 @@ export { BulkActionBar, type BulkActionBarProps, type BulkActionBarAction } from
 export { FilePicker, type FilePickerProps } from './controls/FilePicker';
 export { ScreenToolbar, type ScreenToolbarProps, type ScreenToolbarAction } from './controls/ScreenToolbar';
 export { Tabs, type TabsProps, type TabItem } from './controls/Tabs';
-export { RevealableValue, type RevealableValueProps, type RevealableValueAction } from './controls/RevealableValue';
 export { NumberField, type NumberFieldProps } from './controls/NumberField';
 export { Stepper, type StepperProps } from './controls/Stepper';
 export { Select, type SelectProps, type SelectOption } from './controls/Select';

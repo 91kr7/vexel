@@ -5,7 +5,6 @@ import { expect, test, type Locator, type Page } from './support/test.js';
 import { CASE_LABEL, OWNER_LABEL, RUN_ID, openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
-import { clickAtItsCentre } from './support/settled.js';
 import { ALPINE_IMAGE, TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { containerCard, containerDetail, openContainerDetail, openRawPayload, rawPayloadSection } from './support/container-cards.js';
 
@@ -51,15 +50,12 @@ import { containerCard, containerDetail, openContainerDetail, openRawPayload, ra
  * compose project is this spec's own, carries the ownership labels, and is
  * removed in a `finally` with `docker rm -fv`. Nothing assumes an empty daemon —
  * each row is found through the screen's own search. Nothing reaches Docker Hub.
- * What needs a swarm manager skips with its reason stated.
+ *
+ * **Sites 13–19 were the swarm screen's** and left with the area on 2026-08-27
+ * (plan-docker_management_app-swarm_removal/REQ-1). The site numbers below are
+ * the delivered build's own and are kept as they were taken; what is swept is
+ * every site the product still has.
  */
-
-const { stdout: swarmInfo } = await execFileAsync('docker', ['info', '--format', '{{.Swarm.LocalNodeState}} {{.Swarm.ControlAvailable}}']);
-const [LOCAL_NODE_STATE = 'inactive', CONTROL_AVAILABLE = 'false'] = swarmInfo.trim().split(' ');
-const IS_MANAGER = LOCAL_NODE_STATE === 'active' && CONTROL_AVAILABLE === 'true';
-
-/** The survivors: the only controls any of the emptied containers may still hold. */
-const SURVIVING_CONTROLS = /^(Download|Re-run|Show|Hide|Rotate)$/;
 
 declare global {
   interface Window {
@@ -531,80 +527,6 @@ test('volumes & networks: neither inline inspect offers a copy, on a band or abo
     await execFileAsync('docker', ['network', 'rm', networkName]).catch(() => undefined);
     await execFileAsync('docker', ['volume', 'rm', '-f', volumeName]).catch(() => undefined);
   }
-});
-
-// ─── screen 4 · swarm (sites 13–19) ──────────────────────────────────────────
-
-// REQ-1, REQ-21, REQ-25, REQ-35 — the four panels' id bands, the service image, and both join
-// tokens. Everything here needs a manager, and skips **with its reason stated** on a daemon that is
-// not one, rather than being quietly dropped.
-test('swarm: no panel offers a copy on an id, and a join token is reachable only by revealing it', async ({ page }) => {
-  test.skip(!IS_MANAGER, `this daemon is not a swarm manager (swarm ${LOCAL_NODE_STATE}, control available ${CONTROL_AVAILABLE}), so no node, service, secret, config or join token exists to check`);
-
-  await openApp(page, 'swarm');
-  await expect(page.getByRole('heading', { level: 1, name: 'Swarm' })).toBeVisible({ timeout: 20_000 });
-
-  // Sites 13–17 — every band of every panel that lists an object, over every row present (REQ-26).
-  //
-  // **The markup is the object list's since batch 12** (`plan-ui-coherence-optimisation/REQ-55`):
-  // the five inventories left the hand-built card list for `DataTable`, a row's reveal is a
-  // `DetailPanel`, and the single `Configs & stacks` card became two, `Configs` and `Stacks`. Every
-  // assertion below is the one it always was — REQ-87 keeps bug-5 certified across the batches that
-  // touch its surfaces — and only the locators and the list of cards move with the migration. A
-  // stack's services are carried by its row rather than by a selection, so `Stacks` reveals no
-  // property band and is not one of the sites.
-  //
-  // A panel is now the innermost region carrying both its heading and its list: on every converted
-  // inventory the section header sits above the card rather than inside it
-  // (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`), which since
-  // that plan's batch 3 is all five of them — `Configs` and `Stacks` were the last two. The locator
-  // resolved to the card itself while an inventory was still drawn the old way and resolves to the
-  // section around it now; the sites and the assertions are the ones they always were.
-  for (const title of ['Nodes', 'Services & tasks', 'Secrets', 'Configs']) {
-    const panel = screenContent(page)
-      .locator('.ui-stack, .ui-surface')
-      .filter({ has: page.getByRole('heading', { level: 2, name: title, exact: true }) })
-      .filter({ has: page.locator('.ui-data-table') })
-      .last();
-    await expect(panel).toBeVisible({ timeout: 20_000 });
-    const rows = panel.locator('.ui-data-table__row');
-    const count = await rows.count();
-    for (let index = 0; index < count; index += 1) {
-      // On its first cell, with a real pointer: below the desktop breakpoint a row is wider than the
-      // box it is read in, so its own centre can sit over another column.
-      await clickAtItsCentre(page, rows.nth(index).locator('.ui-data-table__cell').first(), `${title} row ${index}: its own first cell`);
-      const expanded = panel.locator('.ui-detail-panel');
-      if ((await expanded.count()) === 0) continue;
-      await expectBandsHoldNoControl(expanded.locator('.ui-definition-list').first(), `Swarm → ${title}, row ${index}`);
-      // One detail is open at a time, so the row is closed again before the next one is opened.
-      await page.keyboard.press('Escape');
-    }
-  }
-
-  // Sites 18 and 19 — the two revealable values. REQ-21: the masked default, `Show`, `Hide` and the
-  // rotate action all survive, and they are the **only** route to the token now.
-  await screenContent(page).getByRole('button', { name: 'Join tokens' }).click();
-  const dialog = page.locator('.ui-modal').filter({ has: page.getByRole('heading', { name: 'Join tokens' }) });
-  await expect(dialog).toBeVisible();
-
-  const values = dialog.locator('.ui-revealable-value');
-  await expect(values).toHaveCount(2);
-  for (let index = 0; index < 2; index += 1) {
-    const value = values.nth(index);
-    const group = value.locator('.ui-revealable-value__actions');
-    const controls = await controlsOf(group);
-    expect(controls, `Swarm → join tokens, value ${index} — the action group holds something besides Show/Hide and Rotate`).toEqual(['Show', 'Rotate']);
-    expect(controls.every((label) => SURVIVING_CONTROLS.test(label))).toBe(true);
-
-    // Masked by default; revealed by `Show`; hidden again by `Hide` (REQ-21).
-    await expect(value.locator('.ui-revealable-value__mask')).toBeVisible();
-    await group.getByRole('button', { name: 'Show' }).click();
-    await expect(value.locator('.ui-revealable-value__text')).toHaveText(/^SWMTKN-/, { timeout: 10_000 });
-    await group.getByRole('button', { name: 'Hide' }).click();
-    await expect(value.locator('.ui-revealable-value__mask')).toBeVisible();
-  }
-
-  await expectNoClipboardWrite(page, 'Swarm');
 });
 
 // ─── screen 5 · plugins (sites 20–21) ────────────────────────────────────────

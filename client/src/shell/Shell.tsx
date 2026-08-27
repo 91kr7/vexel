@@ -36,7 +36,6 @@ import { ImagesScreen } from '../images/ImagesScreen';
 import { PluginsScreen } from '../plugins/PluginsScreen';
 import { RawConsoleScreen } from '../console/RawConsoleScreen';
 import { RegistriesScreen } from '../registries/RegistriesScreen';
-import { SwarmScreen } from '../swarm/SwarmScreen';
 import { SystemScreen } from '../system/SystemScreen';
 import { VolumesNetworksScreen } from '../volumes-networks/VolumesNetworksScreen';
 import { NetworksPanel } from '../volumes-networks/NetworksPanel';
@@ -258,8 +257,6 @@ export function Shell() {
               <RegistriesScreen />
             ) : activeScreen.id === 'builders-cache' ? (
               <BuildersScreen />
-            ) : activeScreen.id === 'swarm' ? (
-              <SwarmScreen />
             ) : activeScreen.id === 'contexts' ? (
               <ContextsScreen />
             ) : activeScreen.id === 'plugins' ? (

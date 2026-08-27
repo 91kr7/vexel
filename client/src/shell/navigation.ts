@@ -10,9 +10,9 @@ export interface ScreenDefinition {
 }
 
 /**
- * The thirteen screens of the application shell, grouped as shown in the
- * navigation rail. Later batches replace each placeholder screen; this list
- * is the single source of truth for navigation entries and page headers.
+ * The twelve screens of the application shell, grouped as shown in the
+ * navigation rail. This list is the single source of truth for navigation
+ * entries and page headers.
  */
 export const screens: ScreenDefinition[] = [
   {
@@ -38,14 +38,6 @@ export const screens: ScreenDefinition[] = [
     group: 'Workloads',
     title: 'Compose',
     description: 'Stacks, services and compose lifecycle',
-  },
-  {
-    id: 'swarm',
-    label: 'Swarm',
-    glyph: 'SW',
-    group: 'Workloads',
-    title: 'Swarm',
-    description: 'Nodes, services and swarm-wide operations',
   },
   {
     id: 'images-layers',

@@ -211,3 +211,50 @@ describe('Coverage map — a constant of the application (coverage/specs/coverag
     expect(areaById('raw-console').state).toBe('dedicated-screen');
   });
 });
+
+describe('Coverage map — the swarm areas, reclassified (plan-docker_management_app-swarm_removal/REQ-12)', () => {
+  /**
+   * The five entries the withdrawal leaves, identified by the command that
+   * reaches each: coverage-map.md fixes the command, the prose is the map's own.
+   */
+  const SWARM_AREAS = [
+    { area: 'swarm cluster and nodes', command: /\bdocker swarm\b.*\bdocker node ls\b/ },
+    { area: 'swarm services', command: /\bdocker service ls\b/ },
+    { area: 'swarm secrets and configs', command: /\bdocker secret ls\b.*\bdocker config ls\b/ },
+    { area: 'swarm stacks', command: /\bdocker stack ls\b/ },
+    { area: 'swarm stack deployment', command: /\bdocker stack deploy\b/ },
+  ];
+
+  // coverage-map.md — "The four swarm areas withdrawn on 2026-08-27 are reclassified, not deleted,
+  // and take the same form: console-only, each naming the command that reaches it and carrying the
+  // one reason the whole withdrawal shares." The fifth was already console-only.
+  it.each(SWARM_AREAS)('declares $area console-only, with its command and its reason', ({ command }) => {
+    const matching = coverageAreas.filter((area) => command.test(area.command ?? ''));
+
+    expect(matching.length, `no capability area names a command matching ${command}`).toBe(1);
+    const area = matching[0]!;
+    expect(area.state, `${describeArea(area)} names the command but is not declared console-only`).toBe('console-only');
+    expect(area.screenId, `${describeArea(area)} still claims a screen`).toBeUndefined();
+    expect(area.reason?.length ?? 0, `${describeArea(area)} states no reason`).toBeGreaterThan(0);
+  });
+
+  // REQ-12 — "no entry cites a screen that no longer exists", which is what the stack-deployment
+  // entry was reworded for: it justified itself by pointing at the Swarm screen.
+  it('leaves no entry naming the screen the product no longer has', () => {
+    for (const area of coverageAreas) {
+      const prose = `${area.name} ${area.summary} ${area.reason ?? ''}`;
+      expect(/\bSwarm screen\b/i.test(prose), `${describeArea(area)} still cites the Swarm screen`).toBe(false);
+    }
+  });
+
+  // coverage-map.md — "total does not move when an area is reclassified … four entries changed
+  // state, none was added or removed". The four are still counted, and they are counted as gaps.
+  it('keeps the four reclassified areas in the declaration, counted as console-only', () => {
+    const swarmAreas = coverageAreas.filter((area) => /swarm/i.test(`${area.id} ${area.name}`));
+
+    expect(swarmAreas.length, 'the swarm areas were deleted rather than reclassified').toBe(SWARM_AREAS.length);
+    for (const area of swarmAreas) {
+      expect(area.state, `${describeArea(area)} is not declared console-only`).toBe('console-only');
+    }
+  });
+});

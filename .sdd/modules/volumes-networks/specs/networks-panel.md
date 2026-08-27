@@ -65,7 +65,7 @@ Actions:
   (`client/e2e/networks.spec.ts:102`) is scoped to the panel and locates them by that shared name — so it
   has always resolved two controls whenever the list is empty, and passed only because this daemon
   happens to hold one. Green by luck. The single account, with the deferred ellipsis question, is in
-  `ui-library/specs/empty-state.md` and `swarm/specs/swarm-secrets-panel.md` (DEF-2).
+  `ui-library/specs/empty-state.md` (DEF-2).
 - "Prune" is disabled when there is no network to prune.
 - Every control on this screen is a control: attaching a container is an action of the row's cluster
   rather than bare text beside the chips, and the page-level actions sit in the toolbar under the

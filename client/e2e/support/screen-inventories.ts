@@ -12,10 +12,9 @@
  * measure — which is only true if the screens hold the same rows.
  *
  * **Why these are stubs and the reference lists are not.** A daemon will not
- * produce a builder whose endpoint is its own name, a managed plugin, or a swarm
- * cluster on demand, and obtaining any of them would move state on the
- * operator's own machine (`docker swarm init` reconfigures the daemon;
- * `docker plugin ls` is host-wide and no label can scope it). The repositories
+ * produce a builder whose endpoint is its own name or a managed plugin on
+ * demand, and obtaining either would move state on the operator's own machine
+ * (`docker plugin ls` is host-wide and no label can scope it). The repositories
  * list is stubbed for the reason `registries-row-geometry.spec.ts` records: the
  * only registry every machine has configured is the public index, and no test in
  * this suite reaches it (CLAUDE.md, "No test reaches Docker Hub").
@@ -27,7 +26,6 @@
  * depends on one having.
  */
 import type { Page, Route } from '@playwright/test';
-import { managerSwarmFixture, stubSwarmReading } from './swarm-reading.js';
 
 /**
  * Three builders and three cache records, differing in every value whose
@@ -208,8 +206,6 @@ export async function stubTheInventories(page: Page): Promise<void> {
   await page.route('**/api/plugins/disable', async (route) => {
     await route.fulfill({ json: { ...DAEMON_PLUGINS[1], enabled: false } });
   });
-
-  await stubSwarmReading(page, managerSwarmFixture());
 }
 
 /**

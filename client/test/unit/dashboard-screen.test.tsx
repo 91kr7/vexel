@@ -37,7 +37,7 @@ function overviewWith(overrides: Partial<SystemOverview> = {}): SystemOverview {
     containers: { total: 5, running: 2, paused: 1, stopped: 2 },
     images: { count: 12, sizeBytes: 3_145_728 },
     volumes: { count: 4, sizeBytes: 1_048_576 },
-    stacks: { compose: 2, swarm: 3, total: 5 },
+    stacks: { compose: 2, total: 2 },
     buildCache: { sizeBytes: 524_288, activeBuilder: 'multiarch' },
     diskUsage: {
       categories: [
@@ -204,9 +204,9 @@ describe('DashboardScreen — the summary tiles (plan-docker_management_app/REQ-
     expect(tile('Volumes').value).toBe('4');
     expect(tile('Volumes').subLabel).toMatch(/^\d+(\.\d+)?(B|KB|MB|GB|TB) on disk$/);
 
-    // "Stacks -> compose stacks plus swarm stacks; sub-label "<c> compose · <s> swarm"."
-    expect(tile('Stacks').value).toBe('5');
-    expect(tile('Stacks').subLabel).toBe('2 compose · 3 swarm');
+    // "Stacks -> the compose projects; sub-label "<c> compose"."
+    expect(tile('Stacks').value).toBe('2');
+    expect(tile('Stacks').subLabel).toBe('2 compose');
 
     // "Build cache -> the build cache's size; sub-label "buildx: <active builder>"."
     expect(tile('Build cache').value).toMatch(SIZE);
@@ -226,19 +226,16 @@ describe('DashboardScreen — the summary tiles (plan-docker_management_app/REQ-
     }
   });
 
-  // dashboard-screen.md — ""<c> compose · no swarm" when the daemon is not a swarm manager"
-  it('says the daemon carries no swarm when the swarm side could not be read', () => {
-    overviewState = {
-      loaded: true,
-      overview: overviewWith({
-        stacks: { compose: 2, swarm: 0, total: 2, swarmUnavailableDetail: 'This node is not a swarm manager' },
-      }),
-    };
+  // dashboard-screen.md — "Stacks → the compose projects; sub-label `"<c> compose"`": the tile
+  // states nothing about a cluster, on any host
+  // (plan-docker_management_app-swarm_removal/REQ-6).
+  it('names no cluster on the stacks tile, whatever the host is', () => {
+    overviewState = { loaded: true, overview: overviewWith({ stacks: { compose: 0, total: 0 } }) };
 
     renderScreen();
 
-    expect(tile('Stacks').value).toBe('2');
-    expect(tile('Stacks').subLabel).toBe('2 compose · no swarm');
+    expect(tile('Stacks').value).toBe('0');
+    expect(tile('Stacks').subLabel).toBe('0 compose');
   });
 
   // dashboard-screen.md — ""buildx: no active builder" when none is marked active"

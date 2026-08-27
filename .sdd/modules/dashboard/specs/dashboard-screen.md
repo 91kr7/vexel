@@ -35,8 +35,7 @@ Shows:
     every container that is neither running nor paused plus the paused ones.
   - `Images` → the number of images; sub-label `"<size> on disk"`.
   - `Volumes` → the number of volumes; sub-label `"<size> on disk"`.
-  - `Stacks` → compose stacks plus swarm stacks; sub-label `"<c> compose · <s> swarm"`, or
-    `"<c> compose · no swarm"` when the daemon is not a swarm manager.
+  - `Stacks` → the compose projects; sub-label `"<c> compose"`.
   - `Build cache` → the build cache's size; sub-label `"buildx: <active builder>"`, or
     `"buildx: no active builder"` when none is marked active, or `"buildx unavailable"` (with `—`
     for the value) when buildx could not be read.

@@ -61,7 +61,7 @@ Does not:
   is a prefix of another's is the same name to anything that finds a control by name, so "Create
   context…" beside "Create context" was one control under two labels; identical labels are not the
   repair, they are the same collision. The reasoning is recorded in full, once, in
-  `swarm/specs/swarm-secrets-panel.md` (DEF-2), together with the ellipsis question this deliberately
+  `ui-library/specs/empty-state.md` (DEF-2), together with the ellipsis question this deliberately
   leaves open.
 - The endpoint kinds a context can be *created* with are a subset of the kinds that can be *listed
   and used*: the list and the "Use" action treat every kind alike.

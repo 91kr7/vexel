@@ -61,10 +61,8 @@ export interface ContainerCounts {
 
 export interface StacksOverview {
   compose: number;
-  swarm: number;
+  /** Every kind of stack this application knows, which is the compose projects alone. */
   total: number;
-  /** Present exactly when the swarm side could not be read; `swarm` is then 0. */
-  swarmUnavailableDetail?: string;
 }
 
 export interface BuildCacheOverview {

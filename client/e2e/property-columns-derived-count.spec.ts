@@ -1,9 +1,5 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from './support/test.js';
-import { CASE_LABEL, OWNER_LABEL, RUN_ID, navEntry, openApp } from './support/fixtures.js';
-import { clickAtItsCentre } from './support/settled.js';
+import { navEntry, openApp } from './support/fixtures.js';
 import {
   COLUMN_GAP_PX,
   expectNothingClippedOrOverlapped,
@@ -13,13 +9,16 @@ import {
   type BandGeometry,
   type SectionGeometry,
 } from './support/property-bands.js';
-import { execFileAsync } from '../../server/test/support/docker-cli.js';
-import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 
 /**
- * **The five surfaces that stated their own count, measured where the count was
- * wrong.** REQ ids belong to `plan-docker_management_app-detail_property_columns`
+ * **The surface that stated its own count, measured where the count was wrong.**
+ * REQ ids belong to `plan-docker_management_app-detail_property_columns`
  * (REQ-25, REQ-26, REQ-27).
+ *
+ * It was five: the other four were the swarm screen's panels, and they left with
+ * the area on 2026-08-27 (plan-docker_management_app-swarm_removal/REQ-1). The
+ * About screen's coverage baseline is the one that remains, and it is the one
+ * available on any daemon.
  *
  * This file **replaces** batch 1's `property-columns-untouched-guard.spec.ts`,
  * which asserted the opposite of what is asserted here — two columns at every
@@ -55,12 +54,11 @@ import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images
  * set, a sentence — wrap, as REQ-8 says they must, and are reported rather than
  * asserted on.
  *
- * Every fixture carries the ownership labels and is removed in a `finally`;
- * nothing assumes an empty daemon, nothing initialises a swarm, nothing reaches
- * Docker Hub, and each test passes on its own.
+ * Nothing assumes an empty daemon, nothing reaches Docker Hub, and each test
+ * passes on its own.
  */
 
-/** What the five surfaces used to state for themselves, and the floor the derived count must not fall below at a wide width. */
+/** What the surface used to state for itself, and the floor the derived count must not fall below at a wide width. */
 const CALLER_STATED_COLUMNS = 2;
 
 /**
@@ -85,22 +83,6 @@ const NARROW_VIEWPORT = { width: 505, height: 900 };
  * screen's baseline list).
  */
 const WIDE_VIEWPORT = { width: 1920, height: 1080 };
-
-/**
- * The wide window for a **swarm** section.
- *
- * It used to be chosen for a card that was *half* the content width — the four
- * panels sat two per row above the 1024px breakpoint, ~1030px at 2560 and ~700px
- * at 1920 — so 2560 was the smallest width at which "at least the count it used
- * to state" said something about the arrangement rather than about the panel
- * being half a screen. `plan-ui-coherence-optimisation/REQ-55` stacked the
- * inventories at the content column's full width and the reveal is a
- * `DetailPanel`, so the section is 2132px here; 2560 is kept because the figures
- * this file's sibling records were re-taken at it
- * (`property-columns-ordinary-widths.spec.ts`) and a check that moved its own
- * window would compare two different measurements.
- */
-const WIDE_SWARM_VIEWPORT = { width: 2560, height: 1440 };
 
 function screenContent(page: Page): Locator {
   return page.locator('.ui-frame__content');
@@ -173,20 +155,7 @@ function expectNoFewerColumnsThanStated(geometry: SectionGeometry, evidence: str
   expectNothingClippedOrOverlapped(geometry, evidence);
 }
 
-/**
- * Whether this daemon is a swarm manager. The four swarm panels expand a property
- * card only inside a cluster, and initialising one is a global act on the
- * operator's own daemon — which is why the suite's cluster work lives apart, in
- * `e2e/exclusive/swarm-cluster.spec.ts`, and puts the daemon back as it found it.
- * Outside a swarm the swarm half of this measurement **skips with its reason
- * stated**, exactly as `swarm.spec.ts` and batch 1's guard do; it is not faked
- * and it is not dropped.
- */
-const { stdout: swarmInfo } = await execFileAsync('docker', ['info', '--format', '{{.Swarm.LocalNodeState}} {{.Swarm.ControlAvailable}}']);
-const [LOCAL_NODE_STATE = 'inactive', CONTROL_AVAILABLE = 'false'] = swarmInfo.trim().split(' ');
-const MANAGES_A_SWARM = LOCAL_NODE_STATE === 'active' && CONTROL_AVAILABLE === 'true';
-
-// REQ-26, REQ-2 — the fifth surface, and the one available on any daemon: the About screen's
+// REQ-26, REQ-2 — the surface, available on any daemon: the About screen's
 // coverage baseline. Opened with a real pointer on the rail's own entry (REQ-41), then the window is
 // narrowed the way the operator narrows it.
 test('the About screen’s baseline list: one column and nothing wrapped at ~400px, no fewer columns than it stated when wide', async ({ page }) => {
@@ -209,95 +178,4 @@ test('the About screen’s baseline list: one column and nothing wrapped at ~400
   const narrowEvidence = describe(`coverage baseline @${NARROW_VIEWPORT.width}×${NARROW_VIEWPORT.height}`, narrow);
   console.log(`[REQ-26] ${narrowEvidence}`);
   expectOneColumnNothingWrapped(narrow, narrowEvidence);
-});
-
-// REQ-26, REQ-2 — the four swarm panels: services, secrets, configs and nodes. Each is opened with a
-// real pointer on the row itself (REQ-41) and measured at the same two widths.
-//
-// **The markup is the object list's since batch 12** (`plan-ui-coherence-optimisation/REQ-55`): the
-// inventories left the hand-built card list for `DataTable`, a row's reveal is a `DetailPanel`, and
-// the single `Configs & stacks` card became two, `Configs` and `Stacks`. Each of them is now the
-// one presentation — its section header above one unpadded card holding its list
-// (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`, batches 2 and
-// 3) — and every assertion is the one it always was; only the locators and the card's name move
-// with the migration. `Stacks` is not among them — a stack's services are carried by its own row
-// rather than by a selection, so it reveals no property section at all.
-test('the four swarm panels: one column and nothing wrapped at ~400px, no fewer columns than they stated when wide', async ({ page }) => {
-  test.skip(
-    !MANAGES_A_SWARM,
-    `this daemon is ${LOCAL_NODE_STATE} and not a swarm manager, so no swarm panel expands a property card to measure. Nothing here initialises, joins or leaves a swarm: that is a global act on the operator's own daemon, and the suite's cluster work lives in e2e/exclusive/swarm-cluster.spec.ts`,
-  );
-
-  const suffix = `${RUN_ID}`;
-  const serviceName = `vexel-e2e-bug4-svc-${suffix}`;
-  const secretName = `vexel-e2e-bug4-secret-${suffix}`;
-  const configName = `vexel-e2e-bug4-config-${suffix}`;
-  const labelArgs = ['--label', `${OWNER_LABEL}=${RUN_ID}`, '--label', `${CASE_LABEL}=derived-count-everywhere`];
-
-  // Everything that can throw is inside the `try` whose `finally` removes the fixtures: a creation
-  // that fails between here and it would leave a service, a secret or a config on the operator's
-  // cluster with nobody left to remove them.
-  let materialDir: string | undefined;
-
-  try {
-    await ensureImage(ALPINE_IMAGE);
-    // A secret and a config are created from a file of their own: the CLI reads their content from
-    // one, and this suite's `docker` helper drives no stdin.
-    materialDir = await mkdtemp(join(tmpdir(), 'vexel-e2e-bug4-'));
-    const secretFile = join(materialDir, 'secret');
-    const configFile = join(materialDir, 'config');
-    await writeFile(secretFile, 'e2e-secret-value-never-displayed-back\n');
-    await writeFile(configFile, 'e2e-config-content\n');
-    await execFileAsync('docker', ['secret', 'create', ...labelArgs, secretName, secretFile]);
-    await execFileAsync('docker', ['config', 'create', ...labelArgs, configName, configFile]);
-    // `--no-resolve-image`: the image is the run's own mirrored copy and is already on this daemon,
-    // so the digest is not looked up in a registry.
-    await execFileAsync('docker', ['service', 'create', '--detach', '--no-resolve-image', '--replicas', '1', '--name', serviceName, ...labelArgs, ALPINE_IMAGE, 'sleep', '3600']);
-
-    for (const [panelTitle, rowText] of [
-      ['Services & tasks', serviceName],
-      ['Secrets', secretName],
-      ['Configs', configName],
-      ['Nodes', ''],
-    ] as const) {
-      for (const [viewport, expectation] of [
-        [WIDE_SWARM_VIEWPORT, 'wide'],
-        [NARROW_VIEWPORT, 'narrow'],
-      ] as const) {
-        await page.setViewportSize(viewport);
-        await openApp(page, 'swarm');
-        await expect(page.getByRole('heading', { level: 1, name: 'Swarm' })).toBeVisible({ timeout: 20_000 });
-
-        // The panel is named by **what it holds** rather than by the surface it used to be: an
-        // inventory's section header sits above the one unpadded card holding its list
-        // (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40`), so a
-        // card can no longer be found by the heading it used to hold. The innermost region carrying
-        // both the heading and the list is that region on every one of the four since that plan's
-        // batch 3 converted the last two, and resolved to the card itself on the ones still drawn
-        // the old way before it — which is how this locator held across the migration.
-        const panel = screenContent(page)
-          .locator('.ui-stack, .ui-surface')
-          .filter({ has: page.getByRole('heading', { level: 2, name: panelTitle, exact: true }) })
-          .filter({ has: page.locator('.ui-data-table') })
-          .last();
-        const row = rowText === '' ? panel.locator('.ui-data-table__row').first() : panel.locator('.ui-data-table__row', { hasText: rowText }).first();
-        await expect(row, `the ${panelTitle} panel lists nothing to open, so its property section cannot be measured`).toBeVisible({ timeout: 20_000 });
-        // On its first cell, with a real pointer: below the desktop breakpoint the row is wider than
-        // the box it is read in, so its own centre can sit over another column — or over a control.
-        await clickAtItsCentre(page, row.locator('.ui-data-table__cell').first(), `the ${panelTitle} row's own first cell`);
-
-        const section = panel.locator('.ui-detail-panel .ui-definition-list').first();
-        const geometry = await measureSection(section, `the ${panelTitle} property card`);
-        const evidence = describe(`${panelTitle} @${viewport.width}×${viewport.height}`, geometry);
-        console.log(`[${expectation === 'narrow' ? 'REQ-26' : 'REQ-2'}] ${evidence}`);
-        if (expectation === 'narrow') expectOneColumnNothingWrapped(geometry, evidence);
-        else expectNoFewerColumnsThanStated(geometry, evidence);
-      }
-    }
-  } finally {
-    await execFileAsync('docker', ['service', 'rm', serviceName]).catch(() => undefined);
-    await execFileAsync('docker', ['secret', 'rm', secretName]).catch(() => undefined);
-    await execFileAsync('docker', ['config', 'rm', configName]).catch(() => undefined);
-    if (materialDir) await rm(materialDir, { recursive: true, force: true }).catch(() => undefined);
-  }
 });

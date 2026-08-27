@@ -7,19 +7,19 @@ type: UI component
 # Badge
 
 **Purpose** → a small tag/count/status label (e.g. lifecycle state, resource counts), and the pair
-of treatments that lets two attributes of one object sit side by side without competing (a swarm
-node's role next to its availability).
+of treatments that lets two attributes of one object sit side by side without competing (a console
+entry's channel next to its exit status).
 
 ## Contract
 
 - `<Badge tone? variant? children?>`
   - `tone`: `'neutral' | 'info' | 'success' | 'warning' | 'danger'` (default `'neutral'`); `info`
-    carries the accent role — an attribute that classifies rather than warns (e.g. a role such as
-    "manager" or a mode such as "replicated").
+    carries the accent role — an attribute that classifies rather than warns (e.g. a channel such as
+    "CLI" or a kind such as "regular").
   - `variant`: `'solid' | 'quiet'` (default `'solid'`). `solid` is the filled pill. `quiet` drops the
     fill and renders the label in muted monospace, keeping its tone as the text colour — a secondary
-    attribute reading (e.g. an availability such as "active" / "drain") that must not read as a
-    second pill next to the first.
+    attribute reading (e.g. a console entry's channel beside its status, or a count beside a
+    section's title) that must not read as a second pill next to the first.
 ## Rules and invariants
 
 - **A badge is a statement, never a control.** It carries no activation of its own and offers no way

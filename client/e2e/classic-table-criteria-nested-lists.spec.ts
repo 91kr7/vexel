@@ -1,8 +1,9 @@
 /**
- * **The classic-table criteria on the lists batch 3 converts — the two that draw
- * a list inside a *row* of another list**: compose's projects with their
- * per-project services, and swarm's configs and stacks with the stacks' own
- * services
+ * **The classic-table criteria on the list batch 3 converts that draws a list
+ * inside a *row* of another list**: compose's projects with their per-project
+ * services. The swarm half of this file left with the area on 2026-08-27
+ * (plan-docker_management_app-swarm_removal/REQ-1); every criterion it stated is
+ * still stated here, on the list that remains
  * (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-2`
  * … `REQ-13`, `REQ-19`, `REQ-20`, `REQ-29`, `REQ-30`, `REQ-32`, `REQ-36`,
  * `REQ-39`, `REQ-40`).
@@ -16,8 +17,8 @@
  * added there, beside the vocabulary they belong to.
  *
  * **The count is the first thing this file asserts, because losing it is
- * silent.** A project row that has dropped its services, or a stack row that has
- * dropped its own, errors at nothing and shortens no list: the rows simply get
+ * silent.** A project row that has dropped its services errors at nothing and
+ * shortens no list: the rows simply get
  * shorter. So the services are counted against **the daemon's own reading** of
  * the same projects, in the same run, before any box is measured at all (REQ-6,
  * REQ-19, REQ-20).
@@ -36,11 +37,9 @@
  * against **real projects on the daemon** — two of them, one of two services and
  * one of one, `pull_policy: never` so nothing is fetched, every container
  * labelled and removed with `docker rm -fv` in an `afterAll` (REQ-32); that is
- * what makes "counted against the daemon's own reading" mean the daemon. Swarm is
- * answered **in the browser**, as every swarm spec in this suite is and for the
- * reason `support/swarm-reading.ts` records: swarm mode is a property of the whole
- * daemon and this one is the operator's. No assertion anywhere is about a total,
- * about a count of the machine's own objects, or about a list being empty.
+ * what makes "counted against the daemon's own reading" mean the daemon. No
+ * assertion anywhere is about a total, about a count of the machine's own
+ * objects, or about a list being empty.
  *
  * Every interaction is driven with a **real pointer at the visible control's own
  * coordinates**, never `element.click()` and never a dispatched event (CLAUDE.md,
@@ -54,7 +53,6 @@ import { CASE_LABEL, OWNER_LABEL, RUN_ID, openApp, ownershipArgs } from './suppo
 import { boxOf, boxThisFrame, clickAtItsCentre } from './support/settled.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
-import { managerSwarmFixture, stubSwarmReading } from './support/swarm-reading.js';
 import {
   VIEWPORTS,
   expectClassicTable,
@@ -79,23 +77,11 @@ const PHONE: Viewport = VIEWPORTS[2];
 /**
  * A list is named by a column only it carries — which is what makes the locator
  * survive the surface recomposition, the section header naming a panel no longer
- * being inside its card (REQ-40). The two **nested** lists carry none: they draw
- * no header at all, and are reached through their parent's column instead.
- *
- * **`NETWORKS` names the stacks list and `STACK` cannot**: four of the five lists
- * on the swarm screen carry a `STACK` column — services, secrets, configs and the
- * stacks list itself — and the probe takes the first table carrying the name, so
- * `STACK` hands back the configs list, which is drawn above it and holds no
- * nested list at all. `SERVICES`, `SECRETS`, `CONFIGS` and `NETWORKS` are each
- * the stacks list's alone (the neighbouring inventories name their own object in
- * the singular); `NETWORKS` is the one of the four that no other column's text
- * even contains, so it holds under the substring match `tableWithColumn` uses as
- * well as under the exact one `measureList` uses.
+ * being inside its card (REQ-40). The **nested** list carries none: it draws
+ * no header at all, and is reached through its parent's column instead.
  */
 const LISTS = {
   projects: 'SERVICES UP',
-  configs: 'CONFIG',
-  stacks: 'NETWORKS',
   images: 'DISK USAGE',
 } as const;
 
@@ -197,9 +183,6 @@ test.afterAll(async () => {
   if (composeDir) await rm(composeDir, { recursive: true, force: true }).catch(() => undefined);
 });
 
-/** The stacks the browser is answered with, and the services each of them holds. */
-const SWARM = managerSwarmFixture();
-
 /** How many services the **daemon** reports for a project, read in the same run as the rows. */
 async function servicesTheDaemonReports(page: Page, project: string): Promise<string[]> {
   const response = await page.request.get('/api/compose/projects');
@@ -210,40 +193,11 @@ async function servicesTheDaemonReports(page: Page, project: string): Promise<st
   return found!.services.map((service) => service.name).sort();
 }
 
-/**
- * What a stack row states in its **own** `SERVICES` column — the row's
- * independent witness of how many services the stack has, read from the browser
- * rather than from the reading the browser was answered with.
- *
- * It is what makes "nothing was silently dropped" a comparison of two readings
- * rather than of one against itself: a row that has lost its children still
- * states the count it always did.
- */
-async function statedServiceCount(page: Page, stackName: string): Promise<string> {
-  const table = tableWithColumn(page, LISTS.stacks);
-  const column = await table.evaluate((element) =>
-    [...element.querySelectorAll('.ui-data-table__header-cell')].findIndex(
-      (cell) => (cell.textContent ?? '').trim() === 'SERVICES',
-    ),
-  );
-  expect(column, `the stacks list draws no SERVICES column to read ${stackName}'s count from`).toBeGreaterThanOrEqual(0);
-  const row = table.locator('.ui-data-table__body > .ui-data-table__row').filter({ hasText: stackName }).first();
-  return (await row.locator('.ui-data-table__cell').nth(column).innerText()).trim();
-}
-
 async function openCompose(page: Page): Promise<void> {
   await openApp(page, 'compose');
   await expect(page.getByRole('heading', { level: 1, name: 'Compose' })).toBeVisible({ timeout: 20_000 });
   await expect(tableWithColumn(page, LISTS.projects).locator('.ui-data-table__row').first()).toBeVisible({
     timeout: 30_000,
-  });
-}
-
-async function openSwarm(page: Page): Promise<void> {
-  await openApp(page, 'swarm');
-  await expect(page.getByRole('heading', { level: 1, name: 'Swarm' })).toBeVisible({ timeout: 20_000 });
-  await expect(tableWithColumn(page, LISTS.stacks).locator('.ui-data-table__row').first()).toBeVisible({
-    timeout: 20_000,
   });
 }
 
@@ -273,40 +227,25 @@ async function readTheReference(page: Page, at: string): Promise<{ name: string;
   return [{ name: 'images', list: images }];
 }
 
-/** The three screen lists this batch converts, measured in one pass each. */
+/** The screen list this batch converts, measured in one pass. */
 async function readTheOuterLists(page: Page, at: string): Promise<Record<string, ListGeometry>> {
   await openCompose(page);
   const projects = await settledList(page, LISTS.projects);
 
-  await openSwarm(page);
-  const configs = await settledList(page, LISTS.configs);
-  const stacks = await settledList(page, LISTS.stacks);
-
-  const measured = { 'compose projects': projects, 'swarm configs': configs, 'swarm stacks': stacks };
+  const measured = { 'compose projects': projects };
   for (const [name, list] of Object.entries(measured)) reportList(at, name, list, 'b3');
   return measured;
 }
 
-/**
- * The nested lists, one per group, read under the row that carries them.
- *
- * The compose screen is on screen for the first two and the swarm screen for the
- * last two, so each is read where it is drawn; the caller opens neither twice.
- */
+/** The nested lists, one per group, read under the row that carries them. */
 async function readTheNestedLists(page: Page, at: string, step: number): Promise<Record<string, ListGeometry>> {
   await openCompose(page);
   const multi = await settledList(page, { nestedInside: LISTS.projects, underRow: MULTI_PROJECT });
   const solo = await settledList(page, { nestedInside: LISTS.projects, underRow: SOLO_PROJECT });
 
-  await openSwarm(page);
-  const stackServices = await settledList(page, { nestedInside: LISTS.stacks, underRow: SWARM.stacks[0].name as string });
-  const lonelyServices = await settledList(page, { nestedInside: LISTS.stacks, underRow: SWARM.stacks[1].name as string });
-
   const measured = {
     'compose services (two)': multi,
     'compose services (one)': solo,
-    'stack services (two)': stackServices,
-    'stack services (one)': lonelyServices,
   };
   for (const [name, list] of Object.entries(measured)) reportNestedList(at, name, list, step, 'b3');
   return measured;
@@ -326,16 +265,12 @@ async function readTheNestedLists(page: Page, at: string, step: number): Promise
  * presentation without the gate going in the same change would drop its content
  * with no error, no type change and no shorter list — only shorter rows.
  *
- * Counted against the **daemon's own reading** of the same projects on compose,
- * and against the reading the browser was answered with on swarm; never against
- * a number written here.
+ * Counted against the **daemon's own reading** of the same projects; never
+ * against a number written here.
  */
-test('every project row carries every one of its services, and every stack row every one of its own — 1440×1000', async ({
-  page,
-}) => {
+test('every project row carries every one of its services — 1440×1000', async ({ page }) => {
   test.setTimeout(300_000);
   await page.setViewportSize(DESKTOP);
-  await stubSwarmReading(page, SWARM);
 
   await openCompose(page);
   for (const project of [MULTI_PROJECT, SOLO_PROJECT]) {
@@ -346,31 +281,6 @@ test('every project row carries every one of its services, and every stack row e
     expect(nested.found, `the ${project} row draws no nested list at all`).toBe(true);
     expect(drawn, `the ${project} row does not carry every service the daemon reports for it`).toEqual(reported);
   }
-
-  await openSwarm(page);
-  const stacks = await settledList(page, LISTS.stacks);
-  for (const stack of SWARM.stacks) {
-    const expected = (stack.services as { name: string }[]).map((service) => service.name).sort();
-    const nested = await settledList(page, { nestedInside: LISTS.stacks, underRow: stack.name as string });
-    const drawn = nested.rows.map((row) => row.label).sort();
-    const stated = await statedServiceCount(page, stack.name as string);
-    console.log(
-      `[b3/REQ-20] 1440×1000 ${stack.name}: the reading holds ${JSON.stringify(expected)}, the row states "${stated}" and draws ${JSON.stringify(
-        drawn,
-      )}`,
-    );
-    expect(nested.found, `the ${stack.name} row draws no nested list at all`).toBe(true);
-    expect(drawn, `the ${stack.name} row does not carry every service the reading holds for it`).toEqual(expected);
-    // …and the stack is a row of the list, stating in its own SERVICES column the
-    // number of children it draws: the row's own witness that none went missing
-    // (REQ-13, and REQ-6's silence — a row that dropped its services still states
-    // the count it always did).
-    expect(
-      stacks.rows.some((candidate) => candidate.label === stack.name),
-      `the ${stack.name} stack is not a row of the stacks list at all`,
-    ).toBe(true);
-    expect(stated, `the ${stack.name} row states "${stated}" services and draws ${drawn.length}`).toBe(String(drawn.length));
-  }
 });
 
 // ---------------------------------------------------------------------------
@@ -380,13 +290,12 @@ test('every project row carries every one of its services, and every stack row e
 for (const viewport of VIEWPORTS) {
   const at = `${viewport.width}×${viewport.height}`;
 
-  // REQ-2 … REQ-5, REQ-13, REQ-19, REQ-20, REQ-39, REQ-40 — the three screen
-  // lists are the reference table, read in the same run so the equality is a
-  // comparison and not a coincidence.
-  test(`the projects, configs and stacks lists are the reference table, not a table like it — ${at}`, async ({ page }) => {
+  // REQ-2 … REQ-5, REQ-13, REQ-19, REQ-20, REQ-39, REQ-40 — the screen list is
+  // the reference table, read in the same run so the equality is a comparison
+  // and not a coincidence.
+  test(`the projects list is the reference table, not a table like it — ${at}`, async ({ page }) => {
     test.setTimeout(420_000);
     await page.setViewportSize(viewport);
-    await stubSwarmReading(page, SWARM);
 
     const references = await readTheReference(page, at);
     const measured = await readTheOuterLists(page, at);
@@ -404,21 +313,6 @@ for (const viewport of VIEWPORTS) {
       'SERVICES UP',
       'COMPOSE FILES',
       'DOCKER REPORTS',
-      'ACTIONS',
-    ]);
-    expect(measured['swarm stacks'].headers, `${at}: the stacks list does not state its columns in order`).toEqual([
-      'STACK',
-      'SERVICES',
-      'SECRETS',
-      'CONFIGS',
-      'NETWORKS',
-      'ACTIONS',
-    ]);
-    expect(measured['swarm configs'].headers, `${at}: the configs list does not state its columns in order`).toEqual([
-      'CONFIG',
-      'STACK',
-      'CREATED',
-      'UPDATED',
       'ACTIONS',
     ]);
     expect(
@@ -439,7 +333,6 @@ for (const viewport of VIEWPORTS) {
   test(`a service row is its parent's row inset by one spacing step, in the same surface — ${at}`, async ({ page }) => {
     test.setTimeout(420_000);
     await page.setViewportSize(viewport);
-    await stubSwarmReading(page, SWARM);
 
     const references = await readTheReference(page, at);
     const step = await spacingStep(page);
@@ -460,21 +353,15 @@ for (const viewport of VIEWPORTS) {
       expectSameRowAsReference(at, name, list, references);
     }
 
-    // The premise, so the loop cannot go vacuous: the two groups that carry two
-    // children really do carry two, which is what makes a child→child junction
+    // The premise, so the loop cannot go vacuous: the group that carries two
+    // children really does carry two, which is what makes a child→child junction
     // measurable at all.
     expect(nested['compose services (two)'].rows.length, `${at}: the two-service project draws fewer than two children`).toBe(2);
-    expect(nested['stack services (two)'].rows.length, `${at}: the two-service stack draws fewer than two children`).toBe(2);
 
     // Beside the boxes: the child keeps the columns it declares (REQ-7, REQ-13) —
-    // a service's own name, state, image and replicas on compose; name, image,
-    // mode and replicas on swarm.
+    // a service's own name, state, image and replicas.
     const composeChild = nested['compose services (two)'].rows.map((row) => row.label).sort();
     expect(composeChild, `${at}: the project's services are not the rows of its nested list`).toEqual(['api', 'web']);
-    const stackChild = nested['stack services (two)'].rows.map((row) => row.label).sort();
-    expect(stackChild, `${at}: the stack's services are not the rows of its nested list`).toEqual(
-      (SWARM.stacks[0].services as { name: string }[]).map((service) => service.name).sort(),
-    );
   });
 }
 
@@ -495,14 +382,9 @@ for (const viewport of VIEWPORTS) {
 test('a nested list pans with its parent, under one scrollbar — 375×812', async ({ page }) => {
   test.setTimeout(420_000);
   await page.setViewportSize(PHONE);
-  await stubSwarmReading(page, SWARM);
 
-  for (const [screen, parentColumn, underRow] of [
-    ['compose', LISTS.projects, MULTI_PROJECT],
-    ['swarm', LISTS.stacks, SWARM.stacks[0].name as string],
-  ] as const) {
-    if (screen === 'compose') await openCompose(page);
-    else await openSwarm(page);
+  for (const [screen, parentColumn, underRow] of [['compose', LISTS.projects, MULTI_PROJECT]] as const) {
+    await openCompose(page);
 
     // Read once the screen is up: the token lives in the loaded application, and
     // a step read from a blank page would be 0 (`spacingStep` refuses it).
@@ -573,7 +455,6 @@ test('selecting a project opens its panel under its own row without disturbing i
 }) => {
   test.setTimeout(300_000);
   await page.setViewportSize(DESKTOP);
-  await stubSwarmReading(page, SWARM);
   await openCompose(page);
   // Read once the screen is up, for the reason `spacingStep` states: a blank page
   // holds no token, and a step of 0 would turn "inset by one step" into "inset by
@@ -645,19 +526,16 @@ test('selecting a project opens its panel under its own row without disturbing i
   expectNestedByIndentationAlone('1440×1000 with a panel open', 'compose services', after, step);
   expect(list.surfacesInside, 'a surface appeared inside the table when the panel opened').toBe(0);
 
-  // …and nothing on either screen offers a copy affordance.
-  for (const screen of ['compose', 'swarm'] as const) {
-    if (screen === 'swarm') await openSwarm(page);
-    const copyControls = await page.evaluate(() => {
-      const inside = Array.from(document.querySelectorAll<HTMLElement>('.ui-data-table__row *'));
-      return inside
-        .filter((element) =>
-          /copy/i.test(`${element.getAttribute('aria-label') ?? ''} ${element.getAttribute('title') ?? ''} ${element.textContent ?? ''}`),
-        )
-        .map((element) => `${element.tagName.toLowerCase()} "${(element.textContent ?? '').trim().slice(0, 40)}"`);
-    });
-    expect(copyControls, `a row of the ${screen} screen offers a copy affordance`).toEqual([]);
-  }
+  // …and nothing on the screen offers a copy affordance.
+  const copyControls = await page.evaluate(() => {
+    const inside = Array.from(document.querySelectorAll<HTMLElement>('.ui-data-table__row *'));
+    return inside
+      .filter((element) =>
+        /copy/i.test(`${element.getAttribute('aria-label') ?? ''} ${element.getAttribute('title') ?? ''} ${element.textContent ?? ''}`),
+      )
+      .map((element) => `${element.tagName.toLowerCase()} "${(element.textContent ?? '').trim().slice(0, 40)}"`);
+  });
+  expect(copyControls, 'a row of the compose screen offers a copy affordance').toEqual([]);
 });
 
 // ---------------------------------------------------------------------------
@@ -701,7 +579,6 @@ test('the outer and nested lists hold the criteria, with the reference’s own f
   test.setTimeout(900_000);
   expect(baseURL, 'this run has no origin of its own').toBeTruthy();
   await page.setViewportSize(DESKTOP);
-  await stubSwarmReading(page, SWARM);
   const references = await readTheReference(page, 'after');
   const step = await spacingStep(page);
   const outer = await readTheOuterLists(page, 'after');

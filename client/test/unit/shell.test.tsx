@@ -46,7 +46,7 @@ const systemOverview = {
   containers: { total: 0, running: 0, paused: 0, stopped: 0 },
   images: { count: 0, sizeBytes: 0 },
   volumes: { count: 0, sizeBytes: 0 },
-  stacks: { compose: 0, swarm: 0, total: 0 },
+  stacks: { compose: 0, total: 0 },
   buildCache: { sizeBytes: 0 },
   diskUsage: {
     categories: [

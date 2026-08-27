@@ -127,7 +127,9 @@ test('the dashboard summarises the host in five tiles, each with its own sub-rea
   await expect(tileSubLabel(page, 'Volumes')).toHaveText(/^\d+(\.\d+)?(B|KB|MB|GB|TB) on disk$/);
 
   await expect(tileValue(page, 'Stacks')).toHaveText(/^\d+$/);
-  await expect(tileSubLabel(page, 'Stacks')).toHaveText(/^\d+ compose · (\d+ swarm|no swarm)$/);
+  // dashboard-screen.md — "Stacks → the compose projects; sub-label `"<c> compose"`": the tile
+  // speaks of compose alone since 2026-08-27 (plan-docker_management_app-swarm_removal/REQ-6).
+  await expect(tileSubLabel(page, 'Stacks')).toHaveText(/^\d+ compose$/);
 
   // A host without buildx says so, with no size to show; otherwise the size and the active builder.
   const buildCacheSubLabel = (await tileSubLabel(page, 'Build cache').textContent()) ?? '';
@@ -405,7 +407,7 @@ async function stubDiskUsage(page: Page): Promise<void> {
         containers: { total: 3, running: 1, paused: 0, stopped: 2 },
         images: { count: 4, sizeBytes: 3_145_728 },
         volumes: { count: 0, sizeBytes: 0 },
-        stacks: { compose: 0, swarm: 0, total: 0, swarmUnavailableDetail: 'This node is not a swarm manager' },
+        stacks: { compose: 0, total: 0 },
         buildCache: { sizeBytes: 0, unavailableDetail: 'buildx is not installed' },
         diskUsage: {
           categories: [

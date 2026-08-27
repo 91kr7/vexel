@@ -83,7 +83,7 @@ Does not:
   (plan-docker_management_app/REQ-25). A name that is a prefix of another's is the same name to
   anything that finds a control by name, so the empty state takes the invitation and never the
   toolbar's own word with a suffix; identical labels are not the repair, they are the same collision.
-  Reasoned out once, with the deferred ellipsis question, in `swarm/specs/swarm-secrets-panel.md`
+  Reasoned out once, with the deferred ellipsis question, in `ui-library/specs/empty-state.md`
   (DEF-2).
 - **A builder's name is rendered once per row**, whatever the driver reports as its endpoint.
 - **Both lists are the containers list**, not merely table-like: one header row over a continuous

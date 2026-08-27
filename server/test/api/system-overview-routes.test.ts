@@ -36,7 +36,7 @@ async function containerExists(name: string): Promise<boolean> {
 
 // plan-docker_management_app/REQ-14, plan-docker_management_app/REQ-16 — the whole reading the
 // dashboard is built from comes back in one payload: container counts by state, images, volumes,
-// stacks split compose/swarm, build cache with its builder, and the occupied-space breakdown
+// stacks, build cache with its builder, and the occupied-space breakdown
 test("GET /api/system/overview answers every section of the overview, with its figures consistent", async () => {
   const { url, close } = await startApp(buildApp("/api/system", systemRouter));
   try {
@@ -61,13 +61,12 @@ test("GET /api/system/overview answers every section of the overview, with its f
       assert.ok(section.sizeBytes >= 0);
     }
 
-    // overview-service.md — "total is compose + swarm"; a daemon that is not a swarm manager says so
-    // in its own section rather than failing the payload.
-    assert.equal(body.stacks.total, body.stacks.compose + body.stacks.swarm);
-    if (body.stacks.swarmUnavailableDetail !== undefined) {
-      assert.equal(body.stacks.swarm, 0);
-      assert.equal(typeof body.stacks.swarmUnavailableDetail, "string");
-    }
+    // overview-service.md — "stacks: { compose, total } … so the two figures are equal", and the
+    // section says nothing else at all: no cluster count, no reason one could not be read
+    // (plan-docker_management_app-swarm_removal/REQ-6).
+    assert.equal(typeof body.stacks.compose, "number");
+    assert.equal(body.stacks.total, body.stacks.compose);
+    assert.deepEqual(Object.keys(body.stacks).sort(), ["compose", "total"]);
 
     // overview-service.md — buildCache: a size, or the reason buildx could not be read.
     if (body.buildCache.unavailableDetail !== undefined) {

@@ -296,34 +296,16 @@ describe('no feature file anywhere states a count, a template or a width for a p
   const featureRoot = join(process.cwd(), 'src');
 
   /**
-   * The five surfaces, and **how each one states its property section now**.
+   * The surfaces that stated a count, and **how each one states its property
+   * section now**.
    *
-   * The four swarm panels used to render `<DefinitionList>` themselves. Since
-   * `plan-ui-coherence-optimisation/REQ-55` (batch 12) they hand their properties
-   * to `DetailPanel`, which renders the list for them: the props to read are
-   * `properties` and `propertiesContentClass` on that component. The coverage
-   * baseline still renders the list directly.
-   *
-   * **The content class each surface takes, and why the four swarm ones changed.**
-   * The certified rule is that the caller states the class and **never** the
-   * count, and that the class follows the content. When this check was written the
-   * four swarm sections held "ids, versions, dates and state words" — short
-   * scalars — and taking the long class would have cost them columns for nothing.
-   * Batch 12 changed what they hold: an image reference, environment lines, an
-   * address, a platform, and the sentence saying a secret's value is never
-   * displayed — single-line values of 56 to 60 characters, which is the content
-   * `long-single-line` was sized for (`ui-library/specs/content-columns.md`: "an
-   * environment or label value routinely passes 60 characters"). So the class
-   * moves with the content, which is the rule working rather than being broken.
-   * The predecessor's reasoning was not overturned; it was outgrown.
+   * They were five. Four were the swarm screen's panels, and they left with the
+   * area on 2026-08-27 (plan-docker_management_app-swarm_removal/REQ-1); the
+   * coverage baseline is the one that remains, and it renders the list directly.
+   * The rule they were all read against is unchanged and is asserted here in
+   * full: the caller states the class and **never** the count.
    */
-  const THE_FIVE = [
-    { path: 'swarm/SwarmServicesPanel.tsx', tag: 'DetailPanel', contentClass: 'long-single-line' },
-    { path: 'swarm/SwarmSecretsPanel.tsx', tag: 'DetailPanel', contentClass: 'long-single-line' },
-    { path: 'swarm/SwarmConfigsStacksPanel.tsx', tag: 'DetailPanel', contentClass: 'long-single-line' },
-    { path: 'swarm/SwarmNodesPanel.tsx', tag: 'DetailPanel', contentClass: 'long-single-line' },
-    { path: 'coverage/CoverageMatrixScreen.tsx', tag: 'DefinitionList', contentClass: null },
-  ] as const;
+  const THE_SURFACES = [{ path: 'coverage/CoverageMatrixScreen.tsx', tag: 'DefinitionList', contentClass: null }] as const;
 
   /**
    * Every `.tsx` under `src` that is not the library itself: the feature layer.
@@ -370,8 +352,8 @@ describe('no feature file anywhere states a count, a template or a width for a p
     return found;
   }
 
-  it('the five surfaces that stated a count state none, and take the class their content calls for', () => {
-    for (const { path, tag, contentClass } of THE_FIVE) {
+  it('the surfaces that stated a count state none, and take the class their content calls for', () => {
+    for (const { path, tag, contentClass } of THE_SURFACES) {
       const sections = propsOf(source(path), tag);
       expect(sections.length, `${path} no longer states a property section through <${tag}> at all`).toBeGreaterThan(0);
       const stating = sections.filter((props) => /\bproperties=\{|\bitems=\{/.test(props));
@@ -386,8 +368,7 @@ describe('no feature file anywhere states a count, a template or a width for a p
           // Short scalar, taken deliberately: this list holds versions and API numbers.
           expect(props, `${path} declares a content class where it takes the short-scalar default`).not.toMatch(/[cC]ontentClass/);
         } else {
-          // …and the half that follows the content. See THE_FIVE's own note: these sections now
-          // hold 56–60 character single-line values, which is the content this class is sized for.
+          // …and the half that follows the content: the class the section's own content calls for.
           expect(props, `${path} no longer states the class its content calls for`).toMatch(
             new RegExp(`[cC]ontentClass="${contentClass}"`),
           );

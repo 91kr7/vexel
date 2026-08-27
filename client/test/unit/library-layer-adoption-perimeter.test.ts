@@ -31,7 +31,8 @@ const clientRoot = process.cwd();
  * - batch 9 — contexts (`REQ-42` … `REQ-45`)
  * - batch 10 — plugins (`REQ-46` … `REQ-48`)
  * - batch 11 — compose (`REQ-49` … `REQ-51`)
- * - batch 12 — swarm (`REQ-52` … `REQ-56`)
+ * - batch 12 — swarm (`REQ-52` … `REQ-56`); its four panels left the product with the area on
+ *   2026-08-27 (plan-docker_management_app-swarm_removal/REQ-1)
  * - batch 13 — images and layers: the detail panel takes the primitive's own property grid
  *   (`REQ-61`) and the efficiency view's three lists take the object list, which is what let the
  *   retired list component be deleted (`REQ-82`)
@@ -44,10 +45,6 @@ const MIGRATED_FILES = [
   'src/images/LayerEfficiencyView.tsx',
   'src/plugins/PluginsScreen.tsx',
   'src/registries/RegistriesScreen.tsx',
-  'src/swarm/SwarmConfigsStacksPanel.tsx',
-  'src/swarm/SwarmNodesPanel.tsx',
-  'src/swarm/SwarmSecretsPanel.tsx',
-  'src/swarm/SwarmServicesPanel.tsx',
   'src/volumes-networks/NetworksPanel.tsx',
   'src/volumes-networks/VolumesPanel.tsx',
   'src/volumes-networks/VolumesNetworksScreen.tsx',
@@ -90,16 +87,15 @@ describe('the library layer is consumed only by the screens migrated onto it (RE
   // list of a project's services — which is the composition `GroupedRowsPanel` was retired against
   // (`REQ-49`), so it is stated here rather than answered by a component of its own.
   //
-  // The four are unchanged by the classic-table conversion, and that is the point of them: the slot
+  // The three are unchanged by the classic-table conversion, and that is the point of them: the slot
   // is **conditional on nothing** since `.../classic-table/REQ-6`, so all four supply it while
   // asking for no presentation at all — the chips of the first two exactly as before, and the
-  // nested lists of the last two now stating `nested`, which is a property of the child list and
+  // nested list of the last now stating `nested`, which is a property of the child list and
   // not a presentation of the parent.
-  it('has row content rendered by the networks list, the repositories list, the compose list and the stacks list', () => {
+  it('has row content rendered by the networks list, the repositories list and the compose list', () => {
     expect(featureCallSites(/renderRowContent[=:]/)).toEqual([
       'src/compose/ComposeScreen.tsx',
       'src/registries/RegistriesScreen.tsx',
-      'src/swarm/SwarmConfigsStacksPanel.tsx',
       'src/volumes-networks/NetworksPanel.tsx',
     ]);
   });
@@ -125,8 +121,9 @@ describe('the library layer is consumed only by the screens migrated onto it (RE
   // build-cache record's panel is the third (builders-screen.md, REQ-39), the context's the fourth,
   // where it is the route out of the endpoint the row truncates (REQ-21, REQ-42), the daemon
   // plugin's inspection the fifth (plugins-screen.md, REQ-46), the compose project's the sixth
-  // (compose-screen.md, REQ-50), swarm's four panels the last of the list migrations (REQ-55) and
-  // the image detail panel the last of all (REQ-61)
+  // (compose-screen.md, REQ-50) and the image detail panel the last of all (REQ-61). Swarm's four
+  // panels were the last of the list migrations (REQ-55) and left with the area on 2026-08-27
+  // (plan-docker_management_app-swarm_removal/REQ-1).
   it('has the panel properties stated through the new props by the migrated panels', () => {
     const panelsWithProperties = [
       'src/builders/BuildersScreen.tsx',
@@ -134,10 +131,6 @@ describe('the library layer is consumed only by the screens migrated onto it (RE
       'src/contexts/ContextsScreen.tsx',
       'src/images/ImageDetailPanel.tsx',
       'src/plugins/PluginsScreen.tsx',
-      'src/swarm/SwarmConfigsStacksPanel.tsx',
-      'src/swarm/SwarmNodesPanel.tsx',
-      'src/swarm/SwarmSecretsPanel.tsx',
-      'src/swarm/SwarmServicesPanel.tsx',
       'src/volumes-networks/NetworksPanel.tsx',
       'src/volumes-networks/VolumesPanel.tsx',
     ];
@@ -155,8 +148,7 @@ describe('the library layer is consumed only by the screens migrated onto it (RE
   // click on it and must not read as the statement beside it (REQ-43); the plugins screen because
   // removing a daemon plugin takes its data with it (REQ-46, plugins-screen.md); the compose screen
   // because bringing a stack down removes every container of it while bringing it up does not
-  // (REQ-49, compose-screen.md); and each swarm panel because removing a node, a service, a secret,
-  // a config or a stack is destructive (REQ-55).
+  // (REQ-49, compose-screen.md).
   it('has an action weight declared by the migrated screens', () => {
     expect(featureCallSites(/\bweight\s*[:=]/)).toEqual([
       'src/builders/BuildersScreen.tsx',
@@ -164,10 +156,6 @@ describe('the library layer is consumed only by the screens migrated onto it (RE
       'src/contexts/ContextsScreen.tsx',
       'src/plugins/PluginsScreen.tsx',
       'src/registries/RegistriesScreen.tsx',
-      'src/swarm/SwarmConfigsStacksPanel.tsx',
-      'src/swarm/SwarmNodesPanel.tsx',
-      'src/swarm/SwarmSecretsPanel.tsx',
-      'src/swarm/SwarmServicesPanel.tsx',
       'src/volumes-networks/NetworksPanel.tsx',
       'src/volumes-networks/VolumesPanel.tsx',
     ]);

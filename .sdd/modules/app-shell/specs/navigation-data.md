@@ -6,7 +6,7 @@ type: configuration
 
 # Navigation data
 
-**Purpose** → the single source of truth for the application's thirteen screens: which group they
+**Purpose** → the single source of truth for the application's twelve screens: which group they
 belong to, their rail glyph and their page-header title/description.
 
 ## Contract
@@ -19,9 +19,11 @@ belong to, their rail glyph and their page-header title/description.
 
 ## Rules and invariants
 
-- Exactly thirteen entries: Workloads → Dashboard, Containers, Compose, Swarm; Artifacts →
+- Exactly twelve entries: Workloads → Dashboard, Containers, Compose; Artifacts →
   Images & layers, Volumes & networks, Registries, Builders & cache; Environment → Contexts,
-  Plugins, System & prune; Full coverage → Raw console, About (REQ-1).
+  Plugins, System & prune; Full coverage → Raw console, About (REQ-1). The Swarm entry left on
+  2026-08-27 with the area (plan-docker_management_app-swarm_removal/REQ-1) and nothing took its
+  place: no disabled entry, no separator, no group left short of a member.
 - Every `id` is unique.
 - The entry the application dedicates to itself is labelled "About", with the matching `title` and a
   one-line `description`, and it is the last of the "Full coverage" group.

@@ -58,12 +58,11 @@ interface Viewport {
   height: number;
 }
 
-/** The thirteen screens of the shell, by the id the preference holds and the heading each one draws. */
+/** The twelve screens of the shell, by the id the preference holds and the heading each one draws. */
 const SCREENS: { id: string; heading: string }[] = [
   { id: 'dashboard', heading: 'Dashboard' },
   { id: 'containers', heading: 'Containers' },
   { id: 'compose', heading: 'Compose' },
-  { id: 'swarm', heading: 'Swarm' },
   { id: 'images-layers', heading: 'Images & layers' },
   { id: 'volumes-networks', heading: 'Volumes & networks' },
   { id: 'registries', heading: 'Registries' },

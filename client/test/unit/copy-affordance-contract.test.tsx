@@ -2,18 +2,20 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
-import { CodeViewer, ConsoleSurface, DefinitionList, LogStream, RevealableValue, type ConsoleEntry, type DefinitionItem } from '../../src/ui';
-import type { SwarmDataItem, SwarmListing, SwarmNode, SwarmService } from '../../src/data/swarm-client';
-import type { UseSwarmServiceDetailResult } from '../../src/data/use-swarm-service-detail';
+import { CodeViewer, ConsoleSurface, DefinitionList, LogStream, type ConsoleEntry, type DefinitionItem } from '../../src/ui';
 
 /**
- * **The five render sites and the surfaces behind them hold what their specs say
+ * **The render sites and the surfaces behind them hold what their specs say
  * they hold — and nothing else.** REQ ids belong to
  * `plan-docker_management_app-remove_copy_controls`.
  *
  * Written from the component specs (`ui-library/specs/{definition-list,
- * code-viewer,log-stream,console-surface,revealable-value}.md`) and the swarm
- * panel specs, never from the implementation.
+ * code-viewer,log-stream,console-surface}.md`), never from the implementation.
+ *
+ * **The masked-value site and the seven swarm ones left on 2026-08-27** with the
+ * area and with the component that carried the join tokens
+ * (plan-docker_management_app-swarm_removal/REQ-1, REQ-14). The registry login's
+ * own masked field is a different component and is covered by its own check.
  *
  * **The criterion is a control, never a word.** Every assertion below counts the
  * interactive elements a container holds and compares that list against the
@@ -28,10 +30,6 @@ import type { UseSwarmServiceDetailResult } from '../../src/data/use-swarm-servi
  * tree can say is *which elements exist* — the presence of an action row element
  * is checked here, the space it consumes is not.
  *
- * **It also covers the seven swarm sites the runtime sweep cannot reach on a
- * daemon that is not a manager** (`e2e/copy-affordance-absence.spec.ts` skips
- * them with their reason stated, per REQ-35). The panels take their listings as
- * props, so their bands can be driven here without a swarm existing anywhere.
  */
 
 /** A control the operator can operate, whatever it is called and whether or not it carries text. */
@@ -247,180 +245,6 @@ describe('ConsoleSurface — an entry keeps its status and its re-run (ui-librar
 
     expect(container.querySelector('.ui-console-surface__command')?.textContent).toBe('docker ps');
     expect(container.querySelector('.ui-console-surface__line')?.textContent).toBe('CONTAINER ID');
-  });
-});
-
-describe('RevealableValue — masked, revealed, and one extra action (ui-library/specs/revealable-value.md)', () => {
-  const TOKEN = 'SWMTKN-1-49nj1cmql0jkz5s954yi3oex3nedyz0fb0xx14ie39trti4wxv';
-
-  function group(): HTMLElement {
-    return document.querySelector('.ui-revealable-value__actions')!;
-  }
-
-  // "Show / Hide" and "the action, when given" — those, and nothing else (REQ-7, REQ-13, REQ-21).
-  it('offers the reveal control alone, and the caller\'s one action beside it when there is one', () => {
-    const { unmount } = render(<RevealableValue value={TOKEN} ariaLabel="Worker join token" revealed={false} onRevealedChange={() => undefined} />);
-    expect(controlsIn(group())).toEqual(['Show']);
-    unmount();
-
-    render(
-      <RevealableValue
-        value={TOKEN}
-        ariaLabel="Worker join token"
-        revealed={false}
-        onRevealedChange={() => undefined}
-        action={{ label: 'Rotate', onClick: () => undefined }}
-      />,
-    );
-    expect(controlsIn(group())).toEqual(['Show', 'Rotate']);
-  });
-
-  // REQ-21 — the masked default and the reveal survive, and they are now the **only** route to the
-  // value: the value is in no attribute of anything while it is hidden.
-  it('keeps the value out of the markup entirely while it is hidden, and shows it on request', async () => {
-    const user = userEvent.setup();
-    const onRevealedChange = vi.fn();
-    const { rerender } = render(<RevealableValue value={TOKEN} ariaLabel="Worker join token" revealed={false} onRevealedChange={onRevealedChange} />);
-
-    expect(document.body.innerHTML, 'the hidden value is somewhere in the markup after all').not.toContain(TOKEN);
-    expect(titledElements(), 'the hidden value could be taken from a tooltip').toEqual([]);
-
-    await user.click(screen.getByRole('button', { name: 'Show' }));
-    expect(onRevealedChange).toHaveBeenCalledWith(true);
-
-    rerender(<RevealableValue value={TOKEN} ariaLabel="Worker join token" revealed onRevealedChange={onRevealedChange} />);
-    expect(document.querySelector('.ui-revealable-value__text')?.textContent).toBe(TOKEN);
-    expect(controlsIn(group())).toEqual(['Hide']);
-  });
-});
-
-// ─── the swarm sites the runtime sweep skips on a daemon that is not a manager ─
-
-let serviceDetailResult: UseSwarmServiceDetailResult = { loaded: true, refresh: () => undefined };
-
-vi.mock('../../src/data/use-swarm-service-detail', () => ({
-  useSwarmServiceDetail: (serviceId?: string) => (serviceId === undefined ? { loaded: false, refresh: () => undefined } : serviceDetailResult),
-}));
-
-const { SwarmNodesPanel } = await import('../../src/swarm/SwarmNodesPanel');
-const { SwarmServicesPanel } = await import('../../src/swarm/SwarmServicesPanel');
-const { SwarmSecretsPanel } = await import('../../src/swarm/SwarmSecretsPanel');
-const { SwarmConfigsStacksPanel } = await import('../../src/swarm/SwarmConfigsStacksPanel');
-const { ConfirmationProvider } = await import('../../src/shell/services/ConfirmationService');
-const { ErrorReportingProvider } = await import('../../src/shell/services/ErrorReportingService');
-const { ProgressProvider } = await import('../../src/shell/services/ProgressService');
-const { ToastProvider } = await import('../../src/ui');
-
-function renderPanel(panel: ReactNode) {
-  render(
-    <ErrorReportingProvider>
-      <ProgressProvider>
-        <ConfirmationProvider>
-          <ToastProvider>{panel}</ToastProvider>
-        </ConfirmationProvider>
-      </ProgressProvider>
-    </ErrorReportingProvider>,
-  );
-}
-
-function listing<T>(items: T[]): SwarmListing<T> {
-  return { items };
-}
-
-const noop = async () => undefined as never;
-
-describe('the swarm panels offer no control on the ids they list (REQ-1, REQ-9)', () => {
-  const NODE: SwarmNode = {
-    id: 'node-1',
-    hostname: 'manager-alpha',
-    role: 'manager',
-    availability: 'active',
-    status: 'ready',
-    leader: true,
-    self: true,
-    version: 12,
-    labels: {},
-    engineVersion: '27.0.3',
-    address: '10.0.0.7',
-  };
-
-  const SERVICE: SwarmService = {
-    id: 'svc-1',
-    name: 'blog_api',
-    image: 'alpine:3.20',
-    mode: 'replicated',
-    replicasRunning: 2,
-    replicasDesired: 3,
-    ports: [{ published: 8080, target: 80, protocol: 'tcp' }],
-    stack: 'blog',
-    version: 5,
-  };
-
-  function dataItem(overrides: Partial<SwarmDataItem> = {}): SwarmDataItem {
-    return {
-      kind: 'secret',
-      id: 'sec-1',
-      name: 'db_password',
-      createdAt: new Date(Date.now() - 18 * 24 * 60 * 60 * 1000).toISOString(),
-      version: 3,
-      labels: {},
-      ...overrides,
-    };
-  }
-
-  // The node's id band (REQ-1, one of the seven swarm sites).
-  it('the nodes panel opens a node on its id alone', async () => {
-    const user = userEvent.setup();
-    renderPanel(<SwarmNodesPanel nodes={listing([NODE])} onUpdate={noop} onRemove={async () => undefined} />);
-
-    await user.click(screen.getByText((content) => content.startsWith('manager-alpha')));
-
-    expect(bands().length, 'the node did not open, so nothing about its bands was checked').toBeGreaterThan(0);
-    expect(controlsPerBand(), 'a node property band still holds a control').toEqual([]);
-    expect(document.body.textContent, 'the node id is no longer displayed at all').toContain('node-1');
-  });
-
-  // The service's id band and its image band — the two props one file carried (REQ-9).
-  it('the services panel opens a service on its id and its image alone', async () => {
-    const user = userEvent.setup();
-    renderPanel(<SwarmServicesPanel services={listing([SERVICE])} onCreate={noop} onUpdate={noop} onRemove={async () => undefined} />);
-
-    await user.click(screen.getByText((content) => content.startsWith('blog_api')));
-
-    expect(bands().length).toBeGreaterThan(0);
-    expect(controlsPerBand(), 'a service property band still holds a control').toEqual([]);
-    expect(document.body.textContent).toContain('svc-1');
-    expect(document.body.textContent).toContain('alpine:3.20');
-  });
-
-  it('the secrets panel opens a secret on its id alone', async () => {
-    const user = userEvent.setup();
-    renderPanel(<SwarmSecretsPanel secrets={listing([dataItem()])} onCreate={noop} onRemove={async () => undefined} />);
-
-    await user.click(screen.getByText('db_password'));
-
-    expect(bands().length).toBeGreaterThan(0);
-    expect(controlsPerBand(), 'a secret property band still holds a control').toEqual([]);
-    expect(document.body.textContent).toContain('sec-1');
-  });
-
-  it('the configs panel opens a config on its id alone', async () => {
-    const user = userEvent.setup();
-    renderPanel(
-      <SwarmConfigsStacksPanel
-        configs={listing([dataItem({ kind: 'config', id: 'cfg-1', name: 'nginx_conf' })])}
-        stacks={listing([])}
-        onCreateConfig={noop}
-        onRemoveConfig={async () => undefined}
-        onRemoveStack={noop}
-      />,
-    );
-
-    await user.click(screen.getByText('nginx_conf'));
-
-    expect(bands().length).toBeGreaterThan(0);
-    expect(controlsPerBand(), 'a config property band still holds a control').toEqual([]);
-    expect(document.body.textContent).toContain('cfg-1');
   });
 });
 

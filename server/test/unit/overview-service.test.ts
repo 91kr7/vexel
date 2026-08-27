@@ -5,17 +5,16 @@ import type { DiskUsageTotalCategory, DiskUsageTotals } from "../../src/system/d
 // SystemOverviewService assembles the dashboard's whole reading of the host out
 // of the services that already own each number (overview-service.md). All of
 // them are mocked here — the disk-usage accounting, the container listing, the
-// compose discovery, the builder inventory and the daemon's own service
-// listing — so what is under test is only the assembly: the counts by state,
-// where each figure is taken from, and how a capability the host lacks is
-// reported instead of failing the payload.
+// compose discovery and the builder inventory — so what is under test is only
+// the assembly: the counts by state, where each figure is taken from, and how a
+// capability the host lacks is reported instead of failing the payload. The
+// engine client is mocked too, recording every call, because the service is
+// contracted to issue none of its own.
 
 let diskUsageTotalsResult: () => Promise<DiskUsageTotals> = async () => totalsOf();
 let listContainersResult: () => Promise<unknown> = async () => [];
 let listComposeProjectsResult: () => Promise<unknown> = async () => [];
 let listBuildersResult: () => Promise<unknown> = async () => [];
-let servicesBody = "[]";
-let servicesFailure: Error | undefined;
 const requestedCalls: string[] = [];
 
 mock.module(new URL("../../src/connectivity/connection-status-service.ts", import.meta.url).href, {
@@ -23,10 +22,6 @@ mock.module(new URL("../../src/connectivity/connection-status-service.ts", impor
     getEngineClient: () => ({
       request: async (path: string, init?: { method?: string }) => {
         requestedCalls.push(`${init?.method ?? "GET"} ${path}`);
-        if (path === "/services") {
-          if (servicesFailure) throw servicesFailure;
-          return { statusCode: 200, body: servicesBody };
-        }
         throw new Error(`unexpected path: ${path}`);
       },
     }),
@@ -77,17 +72,11 @@ function builder(name: string, active: boolean) {
   return { name, driver: "docker", endpoint: "unix:///var/run/docker.sock", platforms: [], status: "running", active };
 }
 
-function swarmService(namespace?: string) {
-  return { Spec: { Labels: namespace ? { "com.docker.stack.namespace": namespace } : {} } };
-}
-
 beforeEach(() => {
   diskUsageTotalsResult = async () => totalsOf();
   listContainersResult = async () => [];
   listComposeProjectsResult = async () => [];
   listBuildersResult = async () => [];
-  servicesBody = "[]";
-  servicesFailure = undefined;
   requestedCalls.length = 0;
 });
 
@@ -142,38 +131,27 @@ test("takes the image and volume figures, and the whole breakdown, from the disk
   assert.deepEqual(overview.diskUsage, totals);
 });
 
-// overview-service.md — "stacks: { compose, swarm, total, … } — total is compose + swarm";
-// "swarm — the distinct values of the com.docker.stack.namespace label across the daemon's services"
-test("counts the distinct swarm namespaces beside the compose projects and totals the two", async () => {
+// overview-service.md — "stacks: { compose, total } — total is every kind of stack this
+// application knows, which since 2026-08-27 is the compose projects alone, so the two figures are
+// equal" (plan-docker_management_app-swarm_removal/REQ-6)
+test("counts the compose projects as the whole of the stacks, and totals them alone", async () => {
   listComposeProjectsResult = async () => [composeProject("shop"), composeProject("blog")];
-  servicesBody = JSON.stringify([
-    swarmService("monitoring"),
-    swarmService("monitoring"),
-    swarmService("logging"),
-    swarmService(undefined),
-  ]);
 
   const { stacks } = await getSystemOverview();
 
   assert.equal(stacks.compose, 2);
-  assert.equal(stacks.swarm, 2);
-  assert.equal(stacks.total, 4);
-  assert.equal(stacks.swarmUnavailableDetail, undefined);
+  assert.equal(stacks.total, 2);
 });
 
-// overview-service.md — "swarmUnavailableDetail — present exactly when the swarm side could not be
-// read (the ordinary case of a daemon that is not a swarm manager); swarm is then 0" and the rest of
-// the overview is still returned
-test("reports why the swarm side could not be read and still answers the rest of the overview", async () => {
+// plan-docker_management_app-swarm_removal/REQ-6 — no place outside the withdrawn screen summarises
+// cluster state any longer: the section carries the two figures and nothing else, neither a cluster
+// count nor a reason one could not be read.
+test("states nothing about a cluster in the stacks section", async () => {
   listComposeProjectsResult = async () => [composeProject("shop")];
-  servicesFailure = new Error("This node is not a swarm manager");
 
   const { stacks } = await getSystemOverview();
 
-  assert.equal(stacks.swarmUnavailableDetail, "This node is not a swarm manager");
-  assert.equal(stacks.swarm, 0);
-  assert.equal(stacks.compose, 1);
-  assert.equal(stacks.total, 1);
+  assert.deepEqual(Object.keys(stacks).sort(), ["compose", "total"]);
 });
 
 // overview-service.md — "A host without the compose plugin contributes 0 compose stacks rather than
@@ -182,14 +160,11 @@ test("a host whose compose discovery fails contributes no compose stack and no r
   listComposeProjectsResult = async () => {
     throw new Error("docker: 'compose' is not a docker command");
   };
-  servicesBody = JSON.stringify([swarmService("monitoring")]);
 
   const { stacks } = await getSystemOverview();
 
   assert.equal(stacks.compose, 0);
-  assert.equal(stacks.swarm, 1);
-  assert.equal(stacks.total, 1);
-  assert.equal(stacks.swarmUnavailableDetail, undefined);
+  assert.equal(stacks.total, 0);
 });
 
 // overview-service.md — "buildCache: sizeBytes — every build-cache record, whatever its usage
@@ -261,10 +236,12 @@ test("rejects when the disk-usage accounting itself cannot be read", async () =>
   await assert.rejects(getSystemOverview(), /daemon unreachable/);
 });
 
-// overview-service.md — "It reads nothing on its own except the swarm service listing" / "The
-// reading never removes anything and never starts anything on the daemon."
-test("issues no daemon request of its own other than the read-only swarm service listing", async () => {
+// overview-service.md — "It reads nothing on its own at all: the one reading it used to take for
+// itself was the daemon's service list, for a swarm stack count, and that left with the area on
+// 2026-08-27" (plan-docker_management_app-swarm_removal/REQ-6) / "The reading never removes anything
+// and never starts anything on the daemon."
+test("issues no daemon request of its own at all", async () => {
   await getSystemOverview();
 
-  assert.deepEqual(requestedCalls, ["GET /services"]);
+  assert.deepEqual(requestedCalls, []);
 });

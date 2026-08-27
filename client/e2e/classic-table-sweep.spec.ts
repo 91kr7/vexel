@@ -40,7 +40,7 @@
  * containers, two volumes, one image tag, one built image and two compose
  * projects, each labelled and each removed in an `afterAll`, containers with
  * `docker rm -fv`. The inventories a daemon will not produce on demand (builders,
- * contexts, plugins, swarm) are answered **in the browser** from
+ * contexts, plugins) are answered **in the browser** from
  * `support/screen-inventories.ts`, the same fixture batch 2 measures through, and
  * the registries screen is read from the suite's own fixture server so that no
  * credential store of the operator's is ever consulted. Nothing here asserts a
@@ -264,7 +264,6 @@ const WALK: { screen: string; heading: string; lists: number }[] = [
   { screen: 'contexts', heading: 'Contexts', lists: 1 },
   { screen: 'plugins', heading: 'Plugins', lists: 2 },
   { screen: 'compose', heading: 'Compose', lists: 2 },
-  { screen: 'swarm', heading: 'Swarm', lists: 5 },
   { screen: 'coverage-matrix', heading: 'About', lists: 0 },
 ];
 
@@ -479,8 +478,13 @@ for (const viewport of [DESKTOP, PHONE]) {
 
     // The sweep's own premise: it really did walk over lists, and enough of them.
     // A walk that found nothing would satisfy every assertion above.
+    //
+    // It was 18 while the swarm screen was in the product, and the screen contributed **five**
+    // lists to this walk. It left on 2026-08-27 (plan-docker_management_app-swarm_removal/REQ-1),
+    // so the floor moves by exactly those five and by nothing else: the margin it was chosen with
+    // is the margin it keeps.
     expect(swept.length, `${at}: the sweep found ${swept.length} list(s), which is fewer than this product draws`).toBeGreaterThanOrEqual(
-      18,
+      13,
     );
 
     // …and the exclusions are named rather than filtered: every one the walk

@@ -237,7 +237,7 @@ export function describeBox(box: Box): string {
  * Which list is being measured.
  *
  * A screen list is named by a column only it carries. A list drawn **inside a
- * row of another list** — compose's per-project services, swarm's per-stack ones
+ * row of another list** — compose's per-project services
  * — states `hideHeader` and therefore carries no column to be named by, so it is
  * named by its parent's column and by which group it belongs to. Its figures are
  * read in the same pass as that parent's row, which is what makes "inset from
@@ -956,7 +956,7 @@ export function expectListInsideADialog(at: string, name: string, list: ListGeom
 
 /**
  * REQ-40, for a list **nested inside the panel a row of another list opened** —
- * compose's per-project services, swarm's per-service tasks.
+ * compose's per-project services.
  *
  * It takes **no card of its own**: it is already inside its parent list's card,
  * and a card inside a card is two surfaces where REQ-4 admits one. So the

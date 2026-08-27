@@ -96,17 +96,36 @@ describe('Navigation data — the About screen (app-shell/specs/navigation-data.
 });
 
 describe('Navigation data — the inventory (app-shell/specs/navigation-data.md)', () => {
-  // "Exactly thirteen entries", "Every id is unique" — the rename adds and removes no screen
-  it('still declares the thirteen screens, each with a unique id', () => {
+  // "Exactly twelve entries", "Every id is unique" — the Swarm entry left on 2026-08-27 with the
+  // area (plan-docker_management_app-swarm_removal/REQ-1) and nothing took its place.
+  it('declares the twelve screens, each with a unique id', () => {
     const ids = screens.map((screen) => screen.id);
 
-    expect(screens).toHaveLength(13);
+    expect(screens).toHaveLength(12);
     expect(new Set(ids).size).toBe(ids.length);
     for (const screen of screens) {
       expect(screen.label.length, `${screen.id} must be labelled`).toBeGreaterThan(0);
       expect(screen.title.length, `${screen.id} must carry a header title`).toBeGreaterThan(0);
       expect(screen.glyph.length, `${screen.id} must carry a rail glyph`).toBeGreaterThan(0);
       expect(navGroupOrder, `${screen.id} belongs to a group the rail does not show`).toContain(screen.group);
+    }
+  });
+
+  // navigation-data.md — "The Swarm entry left on 2026-08-27 with the area
+  // (plan-docker_management_app-swarm_removal/REQ-1) and nothing took its place: no disabled
+  // entry, no separator, no group left short of a member" (REQ-1, REQ-3).
+  it('offers no swarm entry, and leaves no group short of a member where one was', () => {
+    for (const screen of screens) {
+      expect(/swarm/i.test(`${screen.id} ${screen.label} ${screen.title} ${screen.description}`), `the "${screen.id}" entry names swarm`).toBe(
+        false,
+      );
+    }
+
+    for (const group of navGroupOrder) {
+      expect(
+        screens.filter((screen) => screen.group === group).length,
+        `the "${group}" group holds no entry at all`,
+      ).toBeGreaterThan(0);
     }
   });
 

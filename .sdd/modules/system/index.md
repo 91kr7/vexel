@@ -3,7 +3,7 @@
 | Component | Type | Path | Responsibility | Spec |
 |-----------|------|------|-----------------|------|
 | DiskUsageService | backend service | `server/src/system/disk-usage-service.ts` | Reclaimable disk space broken down by stopped containers, dangling images, unused volumes, unused networks and build cache, each with its size and what it holds, plus the occupied-space breakdown by images, containers, volumes and build cache | `specs/disk-usage-service.md` |
-| SystemOverviewService | backend service | `server/src/system/overview-service.ts` | The host in one payload: container counts by state, images, volumes, stacks split compose/swarm, build cache with its active builder, and the occupied-space breakdown | `specs/overview-service.md` |
+| SystemOverviewService | backend service | `server/src/system/overview-service.ts` | The host in one payload: container counts by state, images, volumes, compose stacks, build cache with its active builder, and the occupied-space breakdown | `specs/overview-service.md` |
 | PruneService | backend service | `server/src/system/prune-service.ts` | Per-category prune and scoped system-wide prune through the existing per-area prunes, reporting what was removed and the space actually reclaimed | `specs/prune-service.md` |
 | BaselineService | backend service | `server/src/system/baseline-service.ts` | The declared Engine API and docker CLI baseline the coverage statement refers to, next to the connected daemon's own versions and the comparison between them | `specs/baseline-service.md` |
 | System endpoints | REST endpoint | `server/src/system/system-routes.ts` | Exposes the host overview, the reclaimable-space breakdown, the scoped prune and the declared baseline to the client | `specs/system-endpoints.md` |

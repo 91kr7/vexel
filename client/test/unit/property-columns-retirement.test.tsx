@@ -111,16 +111,11 @@ describe('the classification of every call site is on record', () => {
     expect(unrecorded, 'these components render a property section whose content class is recorded nowhere').toEqual([]);
   });
 
-  // REQ-6 — and the five that used to state a count are recorded as taking the default deliberately,
-  // which their sources must then actually do: a record and a source that disagree is worse than no
-  // record at all.
-  it.each([
-    ['swarm/SwarmServicesPanel.tsx'],
-    ['swarm/SwarmSecretsPanel.tsx'],
-    ['swarm/SwarmConfigsStacksPanel.tsx'],
-    ['swarm/SwarmNodesPanel.tsx'],
-    ['coverage/CoverageMatrixScreen.tsx'],
-  ])('%s is recorded, and states what the record says it states', (path) => {
+  // REQ-6 — and the surface that used to state a count is recorded as taking the default
+  // deliberately, which its source must then actually do: a record and a source that disagree is
+  // worse than no record at all. The other four were the swarm screen's panels and left with the
+  // area on 2026-08-27 (plan-docker_management_app-swarm_removal/REQ-1).
+  it.each([['coverage/CoverageMatrixScreen.tsx']])('%s is recorded, and states what the record says it states', (path) => {
     const component = path.slice(path.lastIndexOf('/') + 1).replace('.tsx', '');
     const rows = record.split('\n').filter((line) => line.startsWith(`| \`${component}\``));
     expect(rows.length, `${component} carries no row in the classification table`).toBeGreaterThan(0);

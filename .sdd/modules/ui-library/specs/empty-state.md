@@ -45,29 +45,42 @@ component insists on it rather than rendering whichever subset a caller happened
   containing the other.** Both controls are legitimate and both are drawn at the same time: a
   page-level action lives in the toolbar (plan-ui-coherence-optimisation/REQ-41), and an empty result
   states the way out of itself, which is why `action` is a required prop at all. So the caller gives
-  this one the **invitation** — "Create the first secret" — and never the toolbar's own word with a
+  this one the **invitation** — "Create the first volume" — and never the toolbar's own word with a
   suffix.
 
   **A suffix is not a different name**, and that clause is the whole of the finding: anything that
   finds a control *by name* — a screen reader's list of controls, a check, an operator saying "the
-  New secret button" — matches on the name it is given, and "New secret…" answers to "New secret".
-  Two identical names are the same collision rather than its repair. Written down here because it is
-  otherwise rediscovered only from the error a check throws when it finds two controls where the
-  contract promised one.
+  Create volume button" — matches on the name it is given, and "Create volume…" answers to
+  "Create volume". Two identical names are the same collision rather than its repair. Written down
+  here because it is otherwise rediscovered only from the error a check throws when it finds two
+  controls where the contract promised one.
 
-  Eight panels shipped one action under two names that shadowed each other, four of them — volumes,
-  networks, and the two swarm inventories — colliding outright, and only one ever surfaced:
-  `client/e2e/exclusive/swarm-cluster.spec.ts` drives a swarm that has just been initialised and
-  therefore holds no secret, so it is the one check that met an empty list at all.
+  **This is the whole account of DEF-2**, kept here rather than in the panel that first met it: the
+  panel it was found on was a swarm inventory, and swarm left the product on 2026-08-27
+  (plan-docker_management_app-swarm_removal/REQ-17). A finding about this component belongs to this
+  component, and it outlives any one caller.
+
+  Six panels ship one action under two names that shadow each other, and **two of them — volumes and
+  networks — collide outright**, their two controls carrying the *same* label since they were
+  written. The collision surfaced on none of them: it was found on a panel whose check drove a
+  freshly created, therefore empty, inventory — the state an empty state exists for, and the only one
+  in which the two controls are ever drawn together.
 
   **The other half of a rule this repository already half-states.** `CLAUDE.md` says a test may never
   assume an empty daemon; **it may not assume a populated one either**, and that is the half nobody
-  had written down. The volumes and networks panels are what it costs: their two controls carried the
-  *same* label, and `client/e2e/volumes.spec.ts:95` and `networks.spec.ts:102` locate them by that
-  shared name, scoped to the panel. Those checks resolve two controls whenever the list is empty and
-  have never once failed — not because they were latent, but because this daemon happens to hold a
-  volume and a network. **Green by luck**, and luck that any developer's fresh machine would have
-  withdrawn (DEF-2, reasoned out in `swarm/specs/swarm-secrets-panel.md`).
+  had written down. The volumes and networks panels are what it costs: `client/e2e/volumes.spec.ts`
+  and `networks.spec.ts` locate those controls by that shared name, scoped to the panel. Those checks
+  resolve two controls whenever the list is empty and have never once failed — not because they were
+  latent, but because this daemon happens to hold a volume and a network. **Green by luck**, and luck
+  that any developer's fresh machine would withdraw (DEF-2).
+- **The ellipsis question is deliberately left open here, and is named so it is not mistaken for an
+  oversight.** The product's toolbar primary actions are split on it — `Pull image…`, `Create
+  volume…`, `Run container…` and `Create network…` carry it, `Create builder`, `Create context` and
+  `Install plugin` do not. Which of the two is right is a question no requirement states, and
+  settling it renames controls that checks locate by name; it belongs to a report of its own. It sits
+  beside the rule above because the two are read together and were found together: a suffix is what
+  the rule forbids as a *distinguishing* device, and whether it belongs on the toolbar's own label at
+  all is this separate, unanswered question.
 - **It costs no width where the container gives the box one, and 2px where the container does not.**
   `box-sizing: border-box` is global, but it absorbs a border only into a width that has been
   specified; on an **auto-width** box the width is derived from the content and the hairline adds its
