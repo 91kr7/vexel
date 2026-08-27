@@ -17,7 +17,7 @@ requirement text; the REQ ↔ INT coverage validated the same day, without corre
 
 | Batch | Feature | REQ closed | Depends | Status | Human acceptance |
 | --- | --- | --- | --- | --- | --- |
-| `inspect-full-payload` | F1 … F8 — the whole plan | REQ-1 … REQ-35 | — | todo | Every field `docker inspect` returns is on screen, section by section |
+| `inspect-full-payload` | F1 … F8 — the whole plan | REQ-1 … REQ-35 | — | certified | Every field `docker inspect` returns is on screen, section by section |
 
 ## Departures
 
