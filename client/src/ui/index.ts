@@ -115,6 +115,30 @@ export {
 export { DefinitionList, type DefinitionListProps, type DefinitionItem, type DefinitionArrangement, type DefinitionValueTone } from './data/DefinitionList';
 export { FieldList, type FieldListProps, type FieldListEntry, type FieldListField, type FieldListArrangement } from './data/FieldList';
 export { PrivilegeList, type PrivilegeListProps, type PrivilegeItem } from './data/PrivilegeList';
+export {
+  payloadKind,
+  isEmptyPayloadValue,
+  payloadCount,
+  payloadLiteral,
+  payloadFields,
+  payloadPathKey,
+  splitTopLevelKeys,
+  flattenPayload,
+  matchPayload,
+  type PayloadKind,
+  type PayloadField,
+  type PayloadSplit,
+  type FlatPayloadNode,
+  type PayloadMatch,
+} from './data/payload-shape';
+export {
+  PayloadSections,
+  PAYLOAD_SCALARS_SECTION,
+  type PayloadSectionsProps,
+  type PayloadValueReading,
+  type PayloadReadingSource,
+} from './data/PayloadSections';
+export { PayloadExplorer, type PayloadExplorerProps } from './data/PayloadExplorer';
 export { CodeViewer, type CodeViewerProps } from './data/CodeViewer';
 export { CodeEditor, type CodeEditorProps } from './data/CodeEditor';
 export { TextViewer, type TextViewerProps, HexDumpViewer, type HexDumpViewerProps } from './data/ContentViewer';

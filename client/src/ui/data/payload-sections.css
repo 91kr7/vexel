@@ -1,0 +1,122 @@
+/* A JSON payload drawn as its own shape. Contract in
+   `.sdd/modules/ui-library/specs/payload-sections.md`. */
+.ui-payload-sections {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ui-payload-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* The leaf: label, the daemon's own literal, and the caller's reading beside it.
+   It wraps rather than clips, so no value is ever cut short. */
+.ui-payload-band {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-wash-1);
+}
+
+.ui-payload-band__label {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+/* The value takes the room the label leaves and gives way no further than its
+   own floor, below which it takes a line of its own instead of clipping. */
+.ui-payload-band__value {
+  flex: 1 1 var(--band-value-min);
+  min-width: 0;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.ui-payload-band__value--empty {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.ui-payload-band__value--tone-danger {
+  color: var(--color-danger-strong);
+}
+
+.ui-payload-band__reading {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+/* A nested node: its own label over its fields, indented under a hairline so
+   the depth is read from the ruling rather than counted. */
+.ui-payload-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-1) 0;
+}
+
+.ui-payload-group__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.ui-payload-group__label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.ui-payload-group__count {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.ui-payload-group__body {
+  min-width: 0;
+  padding-left: var(--space-3);
+  border-left: var(--border-width-hairline) solid var(--color-border-subtle);
+}
+
+/* At the phone width the band stops sharing a line: label over value, so a long
+   key and a long value each keep their own room and nothing scrolls sideways. */
+@media (max-width: 720px) {
+  .ui-payload-band {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-1);
+  }
+
+  .ui-payload-band__value {
+    flex: 0 0 auto;
+  }
+
+  .ui-payload-group__body {
+    padding-left: var(--space-2);
+  }
+}

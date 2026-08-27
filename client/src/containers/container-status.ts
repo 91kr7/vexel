@@ -26,14 +26,30 @@ export interface ContainerHealthOutcome {
   tone: StatusTone;
 }
 
+/** The one rule the health outcome is drawn by, whatever surface states it. */
+const HEALTH_TONE: Record<string, StatusTone> = {
+  healthy: 'success',
+  unhealthy: 'danger',
+  starting: 'warning',
+};
+
+/**
+ * The tone of a health outcome the daemon named as a plain string (the inspect
+ * payload's own `State.Health.Status`). An outcome the table does not name is
+ * drawn neutral.
+ */
+export function healthTone(status: string): StatusTone {
+  return HEALTH_TONE[status.toLowerCase()] ?? 'neutral';
+}
+
 // The daemon states the outcome inside the status sentence it already sends with
 // every listed container ("Up 4 minutes (healthy)"), so reading it costs no
 // request: a container with no health check carries no such parenthetical, which
 // is how "there is no health check" is told from an outcome.
 const HEALTH_OUTCOMES: { marker: string; label: string; tone: StatusTone }[] = [
-  { marker: '(unhealthy)', label: 'UNHEALTHY', tone: 'danger' },
-  { marker: '(healthy)', label: 'HEALTHY', tone: 'success' },
-  { marker: '(health: starting)', label: 'STARTING', tone: 'warning' },
+  { marker: '(unhealthy)', label: 'UNHEALTHY', tone: healthTone('unhealthy') },
+  { marker: '(healthy)', label: 'HEALTHY', tone: healthTone('healthy') },
+  { marker: '(health: starting)', label: 'STARTING', tone: healthTone('starting') },
 ];
 
 /** The health outcome the daemon's status sentence states, or `undefined` when it states none. */

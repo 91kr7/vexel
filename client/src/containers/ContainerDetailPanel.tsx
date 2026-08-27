@@ -15,6 +15,8 @@ import {
   Grid,
   KeyValueEditor,
   NumberField,
+  PayloadExplorer,
+  PAYLOAD_SCALARS_SECTION,
   RepeatableRowList,
   Row,
   ScrollArea,
@@ -27,6 +29,7 @@ import {
   Toggle,
   useToast,
   type KeyValuePair,
+  type PayloadValueReading,
 } from '../ui';
 import {
   updateContainerConfig,
@@ -40,7 +43,7 @@ import { ContainerLogsView } from './ContainerLogsView';
 import { ContainerProcessesView } from './ContainerProcessesView';
 import { ContainerSessionView } from './ContainerSessionView';
 import { ContainerStatsView } from './ContainerStatsView';
-import { stateTone } from './container-status';
+import { readContainerInspectValue } from './container-inspect-reading';
 import { useContainerDetail } from '../data/use-container-detail';
 import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
@@ -55,10 +58,12 @@ type ContainerDetailTab = 'logs' | 'stats' | 'config' | 'processes' | 'inspect' 
  */
 const DETAIL_TABS: { id: ContainerDetailTab; label: string; runningOnly?: boolean }[] = [
   { id: 'config', label: 'Config' },
+  // Second, immediately after Config (inspect_full_payload/REQ-1): what the
+  // daemon says about the container is read next to what it is configured with.
+  { id: 'inspect', label: 'Inspect' },
   { id: 'logs', label: 'Logs' },
   { id: 'stats', label: 'Stats' },
   { id: 'processes', label: 'Processes' },
-  { id: 'inspect', label: 'Inspect' },
   { id: 'exec', label: 'Exec', runningOnly: true },
   { id: 'attach', label: 'Attach', runningOnly: true },
 ];
@@ -547,81 +552,43 @@ export function ContainerDetailPanel({ container, onContainerReplaced }: Contain
     );
   }
 
+  /**
+   * The reading of a value of the container inspect payload, mapped onto the
+   * library's generic one: the reading is drawn beside the daemon's literal and
+   * never in place of it (REQ-17), and a key the module does not recognise gets
+   * none (`container-inspect-reading.ts`).
+   */
+  function inspectReading(path: readonly string[], value: unknown): PayloadValueReading | undefined {
+    const found = readContainerInspectValue(path, value);
+    if (!found) return undefined;
+    if (found.pill) return { node: <Badge tone={found.tone ?? 'neutral'}>{found.text}</Badge> };
+    return { node: found.text, tone: found.tone === 'danger' ? 'danger' : undefined };
+  }
+
+  /**
+   * The whole inspect payload, drawn as the payload's own shape (REQ-3): the
+   * sections are the response's own top-level keys and nothing is curated,
+   * filtered or summarised out of it. No summary block stands at its head — the
+   * dialog's header carries name, short id, state and health (REQ-5).
+   */
   function renderInspectView(data: ContainerInspect) {
-    // Bad news, and only that: a container that exited cleanly, or has not
-    // exited at all, reports `0` and is drawn like every other value (REQ-36).
-    const exitedBadly = data.state.exitCode !== undefined && data.state.exitCode !== 0;
     return (
-      <Stack gap="var(--space-4)">
-        {/*
-          Two questions instead of one list (REQ-34): what the container is, and how it has gone.
-          Each group states the class of the values it holds and nothing else, so the number of
-          columns each shows follows its own width, as one list of ten did before it.
-        */}
-        <Stack gap="var(--space-3)">
-          <SectionHeader variant="eyebrow" title="Identity" />
-          <DefinitionList
-            contentClass="short-scalar"
-            items={[
-              { label: 'Id', value: data.id.slice(0, 12) },
-              { label: 'Name', value: data.name },
-              { label: 'Image', value: data.image },
-              { label: 'Command', value: data.command.join(' ') || '–' },
-              { label: 'Entrypoint', value: data.entrypoint.join(' ') || '–' },
-              { label: 'Created', value: data.createdAt },
-            ]}
-          />
-        </Stack>
-        <Stack gap="var(--space-3)">
-          <SectionHeader variant="eyebrow" title="Lifecycle" />
-          <DefinitionList
-            contentClass="short-scalar"
-            items={[
-              // The state pill the card and the dialog's own header draw, from the module's one
-              // state→tone reading (REQ-35): a state is read here as it is read everywhere else.
-              { label: 'State', value: <Badge tone={stateTone(data.state.status)}>{data.state.status.toUpperCase()}</Badge> },
-              { label: 'Started at', value: data.state.startedAt || '–' },
-              { label: 'Finished at', value: data.state.finishedAt || '–' },
-              { label: 'Exit code', value: data.state.exitCode ?? '–', tone: exitedBadly ? 'danger' : undefined },
-            ]}
-          />
-        </Stack>
-        {/*
-          A section with a count of `0` is absent, not present and empty
-          (plan-ui-coherence-optimisation/REQ-60) — one rule, shared with the
-          image panel: the delivered panel drew a `Labels` section headed `0` on
-          every container declaring none. `Health` was already conditional on the
-          container defining one, which is the same rule stated a third way.
-        */}
-        {data.networks.length > 0 ? (
-          <CollapsibleSection title="Networks" summary={`${data.networks.length}`}>
-            <DefinitionList items={data.networks.map((network) => ({ label: network.name, value: network.ipAddress ?? '–' }))} />
+      <PayloadExplorer
+        payload={data.raw}
+        reading={inspectReading}
+        // Exactly two sections open on entry (REQ-11): the gathered scalars and
+        // `State`, the two questions a detail is opened on.
+        defaultOpenSections={[PAYLOAD_SCALARS_SECTION, 'State']}
+        // Pinned after every payload-derived section (REQ-12), closed on entry,
+        // the whole payload as real selectable text and with no action of its
+        // own: a hand-selection inside the block is how the full container id is
+        // obtained (plan-docker_management_app-remove_copy_controls/REQ-19).
+        trailing={
+          <CollapsibleSection title="Raw payload" summary="JSON">
+            <CodeViewer code={JSON.stringify(data.raw, null, 2)} maxHeight="320px" />
           </CollapsibleSection>
-        ) : null}
-        {Object.keys(data.labels).length > 0 ? (
-          <CollapsibleSection title="Labels" summary={`${Object.keys(data.labels).length}`}>
-            <DefinitionList contentClass="long-single-line" items={Object.entries(data.labels).map(([key, value]) => ({ label: key, value }))} />
-          </CollapsibleSection>
-        ) : null}
-        {data.health ? (
-          <CollapsibleSection title="Health" summary={data.health.status}>
-            <DefinitionList items={[{ label: 'Status', value: data.health.status }, { label: 'Failing streak', value: data.health.failingStreak ?? 0 }]} />
-            {data.health.log.map((entry, index) => (
-              <CodeViewer key={index} code={entry.output} maxHeight="120px" />
-            ))}
-          </CollapsibleSection>
-        ) : null}
-        {/*
-          A section like the tab's others, and closed when the tab opens (REQ-37) instead of the one
-          section always open. Nothing of it is lost by that: opening it shows the whole payload as
-          real selectable text (plan-ui-coherence-optimisation/REQ-65), with no action of its own —
-          a hand-selection inside the block is how the full container id is obtained
-          (plan-docker_management_app-remove_copy_controls/REQ-19).
-        */}
-        <CollapsibleSection title="Raw payload" summary="JSON">
-          <CodeViewer code={JSON.stringify(data.raw, null, 2)} maxHeight="320px" />
-        </CollapsibleSection>
-      </Stack>
+        }
+      />
     );
   }
 
