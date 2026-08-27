@@ -5,9 +5,9 @@
 //
 // The gaps are deliberate and each carries its reason: image building, swarm
 // stack deployment, build-cache export/import and TCP+TLS context creation were
-// withdrawn on 2026-08-07 (departures One and Three of the plan), and
-// vulnerability scanning was never modelled. This file is where the
-// "100% of Docker" claim is kept honest.
+// withdrawn on 2026-08-07 (departures One and Three of the plan), the rest of
+// swarm on 2026-08-27, and vulnerability scanning was never modelled. This
+// file is where the "100% of Docker" claim is kept honest.
 
 export type CoverageState = 'dedicated-screen' | 'console-only' | 'not-applicable';
 
@@ -25,6 +25,13 @@ export interface CoverageArea {
   /** Why the area has no screen of its own. Set exactly when the state is not `dedicated-screen`. */
   reason?: string;
 }
+
+// Swarm's own reason, shared by the five entries below: one decision, one
+// wording. The area was a dedicated screen until 2026-08-27, and the entries
+// stay listed — deleting them would make this screen understate what the
+// product reaches.
+const SWARM_WITHDRAWN_REASON =
+  'Swarm orchestration was withdrawn from the product on 2026-08-27: a legacy, niche mode the operator does not use, whose four panels every cross-cutting change had to be carried into. The commands remain issuable in full from the console, which is what keeps the coverage claim honest.';
 
 export const coverageAreas: CoverageArea[] = [
   {
@@ -175,29 +182,33 @@ export const coverageAreas: CoverageArea[] = [
     id: 'swarm-cluster',
     name: 'Swarm cluster and nodes',
     summary: 'Swarm state with init, join and leave, the join tokens, and the nodes with their role, availability and removal.',
-    state: 'dedicated-screen',
-    screenId: 'swarm',
+    state: 'console-only',
+    command: 'docker swarm init · docker swarm join · docker swarm leave · docker node ls',
+    reason: SWARM_WITHDRAWN_REASON,
   },
   {
     id: 'swarm-services',
     name: 'Swarm services',
     summary: 'Service inventory with create, update, scale, inspect with their tasks, and removal.',
-    state: 'dedicated-screen',
-    screenId: 'swarm',
+    state: 'console-only',
+    command: 'docker service ls · docker service create · docker service ps',
+    reason: SWARM_WITHDRAWN_REASON,
   },
   {
     id: 'swarm-secrets',
     name: 'Swarm secrets and configs',
     summary: 'Secrets and configs listed and created, their value written once and never read back.',
-    state: 'dedicated-screen',
-    screenId: 'swarm',
+    state: 'console-only',
+    command: 'docker secret ls · docker config ls',
+    reason: SWARM_WITHDRAWN_REASON,
   },
   {
     id: 'swarm-stacks',
     name: 'Swarm stacks',
     summary: 'Deployed stacks listed with the services they own, and stack removal.',
-    state: 'dedicated-screen',
-    screenId: 'swarm',
+    state: 'console-only',
+    command: 'docker stack ls · docker stack services · docker stack rm',
+    reason: SWARM_WITHDRAWN_REASON,
   },
   {
     id: 'swarm-stack-deploy',
@@ -206,7 +217,8 @@ export const coverageAreas: CoverageArea[] = [
     state: 'console-only',
     command: 'docker stack deploy',
     reason:
-      'A deployment consumes a compose file on the machine running the server, and a deployed stack keeps no link to it: its services, networks, secrets and configs become cluster objects. Listing and removing stacks needs no file and is covered by the Swarm screen.',
+      'A deployment consumes a compose file on the machine running the server, and a deployed stack keeps no link to it: its services, networks, secrets and configs become cluster objects. ' +
+      SWARM_WITHDRAWN_REASON,
   },
   {
     id: 'registries',

@@ -14,7 +14,7 @@ above the panels that detail that subsystem.
 
 - `<StateSummaryBar tone? title facts? actions? />`
   - `tone?: StatusTone` (default `neutral`) — colours the leading dot.
-  - `title: string` — the state in words (e.g. "Swarm active", "Swarm inactive").
+  - `title: string` — the state in words (e.g. "CLI channel · full daemon privileges").
   - `facts?: string[]` — the qualifying readings, rendered as one muted monospace line with the
     entries separated by `·`, in the order given; an empty or absent list renders no line.
   - `actions?: ReactNode` — trailing slot, right-aligned on the same row.

@@ -6,7 +6,7 @@ import './state-summary-bar.css';
 
 export interface StateSummaryBarProps {
   tone?: StatusTone;
-  /** The state in words, e.g. "Swarm active". */
+  /** The state in words, e.g. "CLI channel · full daemon privileges". */
   title: string;
   /** The readings qualifying the state; rendered as one monospace line separated by `·`. */
   facts?: string[];

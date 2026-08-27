@@ -1262,45 +1262,6 @@
   color: var(--color-text-secondary);
 }
 
-.ui-revealable-value {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-md);
-  border: var(--border-width-hairline) solid var(--color-border-subtle);
-  background: var(--color-wash-1);
-}
-
-.ui-revealable-value__value {
-  flex: 1 1 240px;
-  min-width: 0;
-  font-family: var(--font-family-mono);
-  font-size: var(--font-size-xs);
-}
-
-.ui-revealable-value__text {
-  color: var(--color-text-primary);
-  overflow-wrap: anywhere;
-}
-
-.ui-revealable-value__mask {
-  color: var(--color-text-secondary);
-  letter-spacing: 0.08em;
-}
-
-.ui-revealable-value__placeholder {
-  color: var(--color-text-muted);
-}
-
-.ui-revealable-value__actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  flex: none;
-}
-
 .ui-external-link {
   /* Same luminance as --color-text-secondary, so the documented body/secondary
      contrast over the Backdrop holds for a link too. */

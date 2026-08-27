@@ -35,6 +35,10 @@ an edit to a screen.
   build-cache export and import     docker buildx build --cache-to/from     (departure Three)
   TCP+TLS context creation          docker context create --docker "…"      (departure Three)
   vulnerability scanning (Scout)    docker scout cves · docker sbom         (never modelled)
+  swarm cluster and nodes           docker swarm … · docker node ls         (withdrawn 2026-08-27)
+  swarm services                    docker service ls · … create · … ps     (withdrawn 2026-08-27)
+  swarm secrets and configs         docker secret ls · docker config ls     (withdrawn 2026-08-27)
+  swarm stacks                      docker stack ls · … services · … rm     (withdrawn 2026-08-27)
   ```
 
 ## Rules and invariants
@@ -51,6 +55,15 @@ an edit to a screen.
 - The four capabilities withdrawn on 2026-08-07 (image building, swarm stack deployment,
   build-cache export/import, TCP+TLS context creation) are declared `console-only` and never
   `not-applicable`: each is genuinely reachable by typing its command in the raw console.
+- **The four swarm areas withdrawn on 2026-08-27 are reclassified, not deleted, and take the same
+  form** (plan-docker_management_app-swarm_removal/REQ-12): `console-only`, each naming the command
+  that reaches it and carrying the one reason the whole withdrawal shares. Deleting them would make
+  the screen understate what the product reaches, which is the opposite of what this map is for. The
+  fifth, swarm stack deployment, was already `console-only` and is reworded with them so that no
+  entry justifies itself by naming a screen that no longer exists.
+- **`total` does not move when an area is reclassified**, and it did not here: four entries changed
+  state, none was added or removed, so the About screen reports the same total with four fewer
+  dedicated screens.
 - `not-applicable` is reserved for what neither channel reaches at all (Docker Desktop's own
   application settings) or what has no meaning for a daemon manager (`docker init`, which
   interactively writes files into a working directory of the machine it runs on).

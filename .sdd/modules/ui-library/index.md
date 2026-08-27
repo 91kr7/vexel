@@ -22,7 +22,6 @@
 | GridSpan | UI component | `client/src/ui/layout/Grid.tsx` | A grid child occupying the whole row whatever the arrangement's track count is: a list's expansion, an empty state, a banner among tiles | `specs/layout-primitives.md` |
 | ContentColumns | UI component | `client/src/ui/layout/ContentColumns.tsx` | As many bands as the container's own box carries at its content class's minimum width — the library's one answer to "how many of these fit here", for a list of single values; the shared rule itself lives in `client/src/ui/layout/content-columns.ts` and `content-columns.css` and is consumed by DefinitionList for label→value pairs | `specs/content-columns.md` |
 | DashboardLayout | UI component | `client/src/ui/layout/DashboardLayout.tsx` | Overview arrangement: a row of equal tiles above a two-column panel grid whose two panels end at the same y, with an optional full-width panel below | `specs/dashboard-layout.md` |
-| QuadPanelLayout | UI component | `client/src/ui/layout/QuadPanelLayout.tsx` | Four equal panels in a two-by-two grid, collapsing to one column below the tablet breakpoint | `specs/quad-panel-layout.md` |
 | BandStack | UI component | `client/src/ui/layout/BandStack.tsx` | Vertical arrangement of intrinsic chrome bands above the single region that absorbs the remaining height; bounded by what it is placed in, and accepting no length from the caller | `specs/band-stack.md` |
 | Spacer | UI component | `client/src/ui/layout/Spacer.tsx` | Flexible spacer for Row/Stack siblings | `specs/layout-primitives.md` |
 | SplitPane | UI component | `client/src/ui/layout/SplitPane.tsx` | Two-pane surface — a fixed-width side next to a flexible one, divided by a hairline — for a tree/list next to its detail view; optionally filling the region it is placed in, top-aligning the trailing pane and stacking below the phone breakpoint | `specs/split-pane.md` |
@@ -49,7 +48,6 @@
 | FilePicker | UI component | `client/src/ui/controls/FilePicker.tsx` | Picks a file from the operator's own machine to upload, showing its chosen name and size | `specs/file-picker.md` |
 | ScreenToolbar | UI component | `client/src/ui/controls/ScreenToolbar.tsx` | Screen action bar: leading primary action, secondary actions, trailing destructive action, optional filters row | `specs/screen-toolbar.md` |
 | Tabs | UI component | `client/src/ui/controls/Tabs.tsx` | Single-select row of tabs switching a detail surface's active content panel | `specs/tabs.md` |
-| RevealableValue | UI component | `client/src/ui/controls/RevealableValue.tsx` | A received sensitive value (e.g. a join token): masked until an explicit reveal, with a slot for the action that replaces it | `specs/revealable-value.md` |
 | NumberField | UI component | `client/src/ui/controls/NumberField.tsx` | Single-line numeric form input | `specs/number-field.md` |
 | Stepper | UI component | `client/src/ui/controls/Stepper.tsx` | Decrement / value / increment control for a small bounded integer (e.g. a service's replica count) | `specs/stepper.md` |
 | Select | UI component | `client/src/ui/controls/Select.tsx` | Single-choice dropdown | `specs/select.md` |

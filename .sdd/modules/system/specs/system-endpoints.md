@@ -14,10 +14,10 @@ declared Docker baseline to the client.
 - `GET /api/system/disk-usage` → the reclaimable-space breakdown.
   - `200` → `DiskUsageBreakdown` (the five categories in their canonical order, plus the total).
 - `GET /api/system/overview` → the host overview a dashboard is built from.
-  - `200` → `SystemOverview`: container counts by state, images, volumes, stacks split
-    compose/swarm, build cache with its active builder, and the occupied-space breakdown.
-  - a capability the host lacks (buildx, a swarm) does not fail the response: its section carries
-    the reason instead.
+  - `200` → `SystemOverview`: container counts by state, images, volumes, compose stacks, build
+    cache with its active builder, and the occupied-space breakdown.
+  - a capability the host lacks (buildx) does not fail the response: its section carries the
+    reason instead.
 - `GET /api/system/baseline` → the Docker baseline the coverage statement refers to, next to the
   connected daemon.
   - `200` → `BaselineReport`: the declared Engine API and docker CLI baseline, the connected

@@ -202,13 +202,7 @@ export function DashboardScreen({ containers, containersLoaded, containersError,
               surface
               label="Stacks"
               value={stacks ? String(stacks.total) : '—'}
-              subLabel={
-                stacks
-                  ? stacks.swarmUnavailableDetail
-                    ? `${stacks.compose} compose · no swarm`
-                    : `${stacks.compose} compose · ${stacks.swarm} swarm`
-                  : 'reading…'
-              }
+              subLabel={stacks ? `${stacks.compose} compose` : 'reading…'}
               onActivate={() => navigateTo({ screenId: 'compose' })}
               ariaLabel="Stacks — open the Compose screen"
             />

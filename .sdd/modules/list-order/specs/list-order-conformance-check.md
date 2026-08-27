@@ -38,8 +38,7 @@ exactly how seven services came to sort and six not to.
 - an ordering on the check's own allow-list of orderings whose result carries meaning: the
   path-ordered outputs of `image-analysis` (`image-diff-service.ts`,
   `filesystem-extraction-service.ts`, `secret-pattern-scan.ts`), its size-ranked findings
-  (`layer-duplicate-detection.ts`, `layer-waste-analysis.ts`) and the timestamp-ordered task history
-  of `swarm/swarm-services-service.ts`
+  (`layer-duplicate-detection.ts`, `layer-waste-analysis.ts`)
 - an ordering carrying a `list-order-exception:` comment on its own line or on the line above it —
   the residual escape hatch, for a case genuinely outside the list
 
@@ -47,8 +46,11 @@ exactly how seven services came to sort and six not to.
 
 - The allow-list is **explicit and small**, and every entry on it is an ordering whose result carries
   meaning rather than a name comparison. An entry may be pinned to one comparison within its file
-  rather than exempting the whole of it, which is how the swarm task history is allow-listed while
-  the service listing in the same file is not.
+  rather than exempting the whole of it, so that a file holding one meaningful ordering does not
+  become exempt for every ordering it may later grow. The mechanism stays although no entry
+  currently uses it: the one that did pinned a task history inside a swarm service that left the
+  product on 2026-08-27, and its entry left with the file
+  (plan-docker_management_app-swarm_removal/REQ-5).
 - The check fails **closed**: an inline comparator is reported whatever it compares, because what a
   comparator sorts by cannot be judged without the types the check does not have, and a name
   comparison is what an inline comparator most often turns out to be.

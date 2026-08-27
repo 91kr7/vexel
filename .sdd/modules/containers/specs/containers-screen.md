@@ -192,7 +192,7 @@ Actions:
 - "Prune stopped" is disabled when no container is currently stopped.
 - **This screen is the one place in the product where an object list draws a surface per object**,
   admitted by name (and by two literal paths) in `check-ui-conformance.mjs` on 2026-08-25. Every
-  other object list — images, volumes, networks, compose, swarm, registries, contexts, plugins,
+  other object list — images, volumes, networks, compose, registries, contexts, plugins,
   builders, build cache, and the dashboard's own container list — is still a classic table.
   Consequently this screen no longer makes the table claims it used to: the row-height, header and
   column-typography parity with the Images table stopped applying to a screen with no table, and

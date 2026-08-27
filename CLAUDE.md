@@ -18,7 +18,7 @@ glass material are defined. That place is the UI library.
 - **UI library** — `client/src/ui/` — the ONLY location in the client allowed to emit raw DOM
   tags (`div`, `span`, `button`, `input`, `table`, …) and the ONLY location allowed to contain CSS.
 - **Feature code** — everything else under `client/src/` (pages, views, panels, domain components,
-  containers/images/volumes/networks/compose/swarm screens) — composes UI-library components and
+  containers/images/volumes/networks/compose screens) — composes UI-library components and
   nothing else.
 
 ### Forbidden in feature code
@@ -154,7 +154,7 @@ They receive data and callbacks as props. Docker knowledge lives in the feature 
 ## Visual reference
 
 The intended look and layout for each screen is mocked in `.sdd/analysis/ui-mock/`:
-`dashboard`, `containers`, `lmages-layers`, `volume-networks`, `compose`, `swarm`, `registries`,
+`dashboard`, `containers`, `lmages-layers`, `volume-networks`, `compose`, `registries`,
 `build-and-cache`, `context`, `plugins`, `system-and-prune`, `raw-console`.
 
 Read the relevant mockup before implementing a screen. Derive reusable primitives from what

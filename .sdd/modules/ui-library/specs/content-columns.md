@@ -125,21 +125,17 @@ the file states nothing and takes short scalar deliberately, not by accident.
 | `LayerExplorer` — build step | short scalar (default) | one band, which fills the width on its own, so the class changes nothing for it |
 | `ImageDiffView` — the two sides' metadata | short scalar (default) | size, permissions, owner, link target |
 | `FilesystemBrowser` — entry metadata | short scalar (default) | path, type, size, permissions, owner, modified — in a narrow pane, so one column, unchanged |
-| `SwarmServicesPanel` — tasks | short scalar (default) | a task state against its node |
-| `SwarmConfigsStacksPanel` — stack services | short scalar (default) | a service name against its replica count |
-| `SwarmServicesPanel` — the service card | short scalar (default) | service id, image reference, mode, replica counter, ports, stack, date; the joined `Environment` line wraps inside its band, as a value longer than its band does |
-| `SwarmSecretsPanel` — the secret card | short scalar (default) | secret id, two dates, stack; the joined label set and the "never displayed" sentence wrap inside their bands |
-| `SwarmConfigsStacksPanel` — the config card | short scalar (default) | config id, two dates, stack; the joined label set as above |
-| `SwarmNodesPanel` — the node card | short scalar (default) | node id, platform, reachability; the joined label set as above |
 | `CoverageMatrixScreen` — the coverage baseline | short scalar (default) | five version strings of at most twelve characters, against labels of up to 36 |
 
-- **Why none of those five declares the long class, though each holds one long value.** A section is
-  classed by what it holds, not by its longest item: four of the five are ids, dates, versions and
-  state words, and the joined label set or environment line among them wraps **inside its own band**,
-  which is what a value longer than its band does everywhere else in the product. Declaring the long
-  class for it would raise the minimum to 560px and hold the whole section to **one column at every
-  width these surfaces are ever given** — a swarm card is half the content width, ~700px at 1920 and
-  ~1030px at 2560 — which would cost the section the density this correction exists to give it and
-  would leave it below the two columns the retired count used to state. The caller-stated count is
+- **Why a section holding one long value still does not declare the long class.** A section is
+  classed by what it holds, not by its longest item: the `VolumesPanel`'s inspect is drivers, scopes,
+  dates and counts, and the mountpoint among them wraps **inside its own band**, which is what a
+  value longer than its band does everywhere else in the product; the coverage baseline is the same
+  shape, five short version strings against long labels. Declaring the long class for either would
+  raise the minimum to 560px and hold the whole section to **one column at every width these
+  surfaces are ever given** — a panel of the two-panel Volumes & networks layout is half the content
+  width, ~700px at 1920 and ~1030px at 2560 — which would cost the section the density this
+  correction exists to give it and would leave it below the two columns the retired count used to
+  state. The caller-stated count is
   retired precisely because a caller cannot know its width; replacing it with a class chosen to
   reach a count would be the same mistake in a new spelling.

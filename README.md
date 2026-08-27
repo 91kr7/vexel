@@ -1,7 +1,7 @@
 # Vexel
 
 A self-hosted web interface for managing a Docker daemon — containers, images and layers,
-volumes and networks, Compose projects, Swarm, registries, builders and build cache, contexts,
+volumes and networks, Compose projects, registries, builders and build cache, contexts,
 plugins, system pruning and a raw console.
 
 Vexel talks to the Docker Engine API over the socket of the active Docker context, so it

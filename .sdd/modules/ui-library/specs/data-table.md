@@ -7,7 +7,7 @@ type: UI component
 # DataTable
 
 **Purpose** → **the object list of the whole product bar one, in one presentation**: the
-column-defined table used by every list screen — images, volumes, networks, compose, swarm,
+column-defined table used by every list screen — images, volumes, networks, compose,
 registries, contexts, plugins, builders, build cache, the dashboard's own container list — one table
 surface, one column header at its top, ruled rows beneath it — with hover/selected row states and
 virtualised scrolling so a long list stays smooth (REQ-109).

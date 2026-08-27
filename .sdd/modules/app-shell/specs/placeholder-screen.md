@@ -11,7 +11,7 @@ hosts the foundation batch's end-to-end demo of the destructive-confirmation flo
 
 Since batch 30, every screen of the navigation data has its own content, so the Shell renders this
 only for an active id naming none of them. The REQ-6 demo it carries is now one destructive
-confirmation among many real ones (container removal, prunes, swarm leave, …), all of which go
+confirmation among many real ones (container removal, prunes, image removal, …), all of which go
 through the same `ConfirmationService`.
 
 ## Contract

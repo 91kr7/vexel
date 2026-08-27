@@ -26,7 +26,6 @@ const meaningfulOrderings = [
   { file: "image-analysis/secret-pattern-scan.ts", reason: "findings, path-ordered" },
   { file: "image-analysis/layer-duplicate-detection.ts", reason: "duplicates, ranked by wasted size" },
   { file: "image-analysis/layer-waste-analysis.ts", reason: "wasted files, ranked by size" },
-  { file: "swarm/swarm-services-service.ts", reason: "task history, newest first", only: /timestamp/ },
 ];
 
 // The services that ordered by name before the shared rule existed held a

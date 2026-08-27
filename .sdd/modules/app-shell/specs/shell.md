@@ -39,9 +39,7 @@ Shows:
   `registries` screen (REQ-85, REQ-86, REQ-87) — self-sufficient, reading its own registry inventory
   and repository browsing —, `BuildersScreen` for the
   `builders-cache` screen (REQ-88, REQ-89, REQ-91) — self-sufficient, reading its own builder and
-  build-cache inventories —, `SwarmScreen` for the `swarm` screen (REQ-79–REQ-84) —
-  self-sufficient, reading its own swarm state, nodes, services, stacks, secrets and configs —,
-  `ContextsScreen` for the `contexts` screen (REQ-92, REQ-93, REQ-94) —
+  build-cache inventories —, `ContextsScreen` for the `contexts` screen (REQ-92, REQ-93, REQ-94) —
   self-sufficient, reading its own context inventory and daemon information —, `PluginsScreen` for
   the `plugins` screen (REQ-98, REQ-99, REQ-111) — self-sufficient, reading its own CLI and daemon
   plugin inventories —, `SystemScreen` for
@@ -141,6 +139,13 @@ Navigation:
   `preferences.lastScreenId` (e.g. from another tab) never yanks the operator to a different screen
   while they are using this one (REQ-2, REQ-115). With no persisted `lastScreenId`, `defaultScreenId`
   stays active — that is the Dashboard, so a first run lands on the overview (REQ-14).
+- **A persisted id naming no screen leaves `defaultScreenId` active**, which is the guard, and it is
+  the whole of the landing an operator gets when a screen is withdrawn: a saved `swarm` is not a
+  known screen after 2026-08-27, so the Dashboard is shown, complete and working, with no error, no
+  blank area and no notice about a screen that has gone
+  (plan-docker_management_app-swarm_removal/REQ-9). The stored value is neither migrated nor
+  cleared — an unknown id is already a normal thing for the store to hold — and `PlaceholderScreen`
+  is **not** reached: it renders for an active id, and no unknown id ever becomes active.
 - The active context is read from the Docker installation itself (`useContexts()`), never from
   `OperatorPreferences.selectedContext`: the daemon in use is the one the local Docker configuration
   names, so the shell and a `docker context use` typed in a terminal can never disagree.

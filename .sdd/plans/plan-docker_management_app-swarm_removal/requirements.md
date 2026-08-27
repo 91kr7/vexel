@@ -65,4 +65,4 @@ status: validated
 | REQ-16 | The component specifications of the swarm module are withdrawn together with the feature, because a specification describes the application as it stands and the application no longer has this area. |
 | REQ-17 | The shared graphical decision that the builders, contexts and plugins material cites only inside a swarm specification is relocated into a surviving specification before the swarm material is removed, and those three cite it there, so no surviving screen is left citing a document that no longer exists. |
 | REQ-18 | No index of the project is left pointing at material that no longer exists: neither the root module index, nor a module index, nor a cross-reference from a surviving specification names a swarm specification or the swarm module. |
-| REQ-19 | The project's live instruction file no longer lists a swarm screen among the visual references to implement. |
+| REQ-19 | The project's live documents describing the product — its instruction file and its README — no longer name a swarm screen: neither among the visual references to implement, nor among the areas the product manages. |

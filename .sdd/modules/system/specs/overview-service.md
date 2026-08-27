@@ -20,12 +20,9 @@ by state, images, volumes, stacks, build cache and the occupied-space breakdown.
   - `images`: `{ count, sizeBytes }` — every image the daemon lists, and the disk the image store
     occupies with shared layers counted once.
   - `volumes`: `{ count, sizeBytes }`.
-  - `stacks`: `{ compose, swarm, total, swarmUnavailableDetail? }` — `total` is `compose + swarm`.
+  - `stacks`: `{ compose, total }` — `total` is every kind of stack this application knows, which
+    since 2026-08-27 is the compose projects alone, so the two figures are equal.
     - `compose` — the number of compose projects discovered on the host.
-    - `swarm` — the number of distinct swarm stacks: the distinct values of the
-      `com.docker.stack.namespace` label across the daemon's services.
-    - `swarmUnavailableDetail` — present exactly when the swarm side could not be read (the
-      ordinary case of a daemon that is not a swarm manager); `swarm` is then `0`.
   - `buildCache`: `{ sizeBytes, activeBuilder?, unavailableDetail? }`.
     - `sizeBytes` — every build-cache record, whatever its usage state.
     - `activeBuilder` — the name of the builder `docker buildx build` uses by default; absent when
@@ -42,16 +39,18 @@ by state, images, volumes, stacks, build cache and the occupied-space breakdown.
 ## Rules and invariants
 
 - A capability the host does not have reports its reason in its own section rather than failing the
-  payload: no buildx, no compose plugin, no swarm — the rest of the overview is still returned. A
+  payload: no buildx, no compose plugin — the rest of the overview is still returned. A
   daemon that cannot be reached at all does reject: there is then nothing to report, and the
   application already says so on its own.
-- A host without the compose plugin contributes `0` compose stacks rather than a reason: unlike
-  swarm, a missing plugin is a fact about the tooling, not about the host's stacks, and the
-  Compose screen is the place that explains it.
+- A host without the compose plugin contributes `0` compose stacks rather than a reason: a missing
+  plugin is a fact about the tooling, not about the host's stacks, and the Compose screen is the
+  place that explains it.
 - Every number comes from the service that already owns it — the container listing, the disk-usage
   accounting, the compose discovery, the builder inventory — so the overview can never disagree
-  with the screen the operator lands on after activating a tile. It reads nothing on its own except
-  the swarm service listing, which no other server area covers yet.
+  with the screen the operator lands on after activating a tile. It reads nothing on its own at
+  all: the one reading it used to take for itself was the daemon's service list, for a swarm stack
+  count, and that left with the area on 2026-08-27
+  (plan-docker_management_app-swarm_removal/REQ-6).
 - The tile numbers and the disk-usage breakdown come from one reading each, taken together, so no
   two figures in the same payload describe different moments.
 - The reading never removes anything and never starts anything on the daemon.
@@ -62,7 +61,6 @@ by state, images, volumes, stacks, build cache and the occupied-space breakdown.
 - containers: ContainersService (`listContainers`)
 - compose: ComposeDiscoveryService (`listComposeProjects`)
 - builders: BuildersService (`listBuilders`)
-- docker-access: Engine API client (via connectivity's `getEngineClient`)
 
 ## Requirements served
 
