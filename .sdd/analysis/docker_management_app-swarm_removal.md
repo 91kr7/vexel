@@ -52,6 +52,12 @@ against a real daemon, at no cost to any workflow actually in use.
   says nothing about the cluster and offers nothing to do about it.
 - Swarm commands must remain issuable through the raw console, unfiltered and unchanged — the
   escape hatch is what keeps the product's "no artificial ceiling" claim honest after this removal.
+- The Coverage screen must keep declaring the swarm areas, reclassified as reachable **from the
+  console only** and carrying the reason — exactly as image building, build-cache import/export and
+  TCP+TLS context creation were reclassified on 2026-08-07 rather than deleted. Deleting the entries
+  would make the screen understate what the product actually reaches. The existing swarm stack
+  deployment entry is already console-only but justifies itself by pointing at the Swarm screen, so
+  its wording is redone with the others.
 
 ### Non-functional
 
@@ -59,10 +65,18 @@ against a real daemon, at no cost to any workflow actually in use.
   networks, compose, registries, build, contexts, plugins and system are untouched.
 - Objects that exist *because of* swarm but are not swarm objects must keep appearing on the generic
   screens: overlay and ingress networks on networks, service task containers on containers.
-- Nothing about swarm may survive as a dead reference: no disabled navigation entry, no empty
-  screen, no "feature removed" notice, no leftover wording naming swarm in a surviving screen.
+- A shared element — a UI-library component, a service, a utility — is withdrawn only if swarm was
+  its last consumer; if any other consumer remains, it stays untouched. The masked-value field
+  serving the join tokens also serves registry login, and is the case in point.
+- No dead swarm *functionality* may survive: no disabled navigation entry, no empty screen, no
+  "feature removed" notice, no control leading nowhere. This is not a ban on the word — the raw
+  console's warnings before destructive commands still cover `docker swarm leave`, by the same
+  mechanism that covers prune and forced removals. They are the console's safety net, not a swarm
+  feature, and they stay for the same reason the commands stay.
 - The product's own documentation of the feature goes with it — the swarm visual mockup and the
   feature descriptions naming it — so no later phase can reinstate it from a leftover reference.
+  The Coverage screen is not documentation but a live screen of the product, and is governed by the
+  functional requirement above instead.
 
 ## Assumptions
 
@@ -85,6 +99,9 @@ against a real daemon, at no cost to any workflow actually in use.
 - **Over-reach on vocabulary.** "Stack", "service", "node" and "secret" also occur in the compose
   area and in generic Docker vocabulary. A removal driven by the words rather than by the feature
   would damage compose while looking correct.
+- **A shared decision recorded in one place.** Three surviving screens — builders, contexts and
+  plugins — cite a swarm specification as the only place where a graphical detail they share was
+  reasoned through. That reasoning is relocated before the swarm material goes, or it goes with it.
 - **A promise on record.** The founding analysis positions the product as covering 100% of Docker
   with no artificial ceiling, and this is the first deliberate subtraction of a whole Docker area.
   It is defensible only while the raw console keeps swarm reachable.
@@ -100,5 +117,7 @@ documentation references.
 **Out of scope**: hiding swarm behind a flag or a setting instead of removing it; any change to
 compose projects; removing overlay/ingress networks or service task containers from the generic
 network and container screens; filtering swarm fields out of raw inspect or console output;
-restricting which commands the raw console may issue; any redesign of the screens that remain
-beyond the disappearance of the swarm entry from the navigation.
+restricting which commands the raw console may issue; removing the console's warnings on commands
+that stay executable; deleting the swarm entries from the Coverage screen instead of reclassifying
+them; withdrawing any shared element that still has a consumer outside swarm; any redesign of the
+screens that remain beyond the disappearance of the swarm entry from the navigation.
