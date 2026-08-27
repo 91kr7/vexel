@@ -20,8 +20,8 @@
  *
  * **The perimeter is the file**, because the panels this rule is about draw
  * their toolbar and their empty state together, and a screen file that holds two
- * sections (`SwarmConfigsStacksPanel`) draws both of them at once as well. It
- * makes no claim about two controls that never share a screen.
+ * sections draws both of them at once as well. It makes no claim about two
+ * controls that never share a screen.
  *
  * **It makes no runtime claim.** It reads JSX; it cannot compute an accessible
  * name, and a label built at runtime is invisible to it — which is why it also
@@ -147,9 +147,11 @@ function shadowedPairs(panel: Panel): string[] {
 
 describe('An empty state names its way out apart from the toolbar (empty-state.md)', () => {
   // The check is worthless if it discovers nothing: the panels are found by what they compose, and
-  // the product has had eight of them since the swarm screens landed.
+  // empty-state.md records six of them shipping one action under two names. The floor was eight
+  // while the swarm screens were in the product; they left on 2026-08-27
+  // (plan-docker_management_app-swarm_removal/REQ-1) and the floor follows the panels that remain.
   it('finds the panels that compose a toolbar action and an empty state action', () => {
-    expect(panels.length).toBeGreaterThanOrEqual(8);
+    expect(panels.length).toBeGreaterThanOrEqual(6);
   });
 
   // empty-state.md — the two controls must be tellable apart by their accessible names, with

@@ -126,10 +126,10 @@ describe('SectionHeader — the sublabel that moves no baseline (REQ-26)', () =>
 
   // section-header.md — the description is the line *under* the title, distinct from the sublabel
   it('keeps the description under the title, where the sublabel never goes', () => {
-    render(<SectionHeader title="Secrets" sublabel="4" description="Swarm-wide secrets." />);
+    render(<SectionHeader title="Networks" sublabel="4" description="Host-wide networks." />);
 
     const description = document.querySelector('.ui-section-header__description') as HTMLElement;
-    expect(description.textContent).toBe('Swarm-wide secrets.');
+    expect(description.textContent).toBe('Host-wide networks.');
     expect(title().contains(description)).toBe(false);
   });
 

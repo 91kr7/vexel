@@ -15,7 +15,7 @@ async function openOnScreen(page: Page, screenId: string, screenLabel: string): 
 }
 
 const groups: Record<string, string[]> = {
-  Workloads: ['Dashboard', 'Containers', 'Compose', 'Swarm'],
+  Workloads: ['Dashboard', 'Containers', 'Compose'],
   Artifacts: ['Images & layers', 'Volumes & networks', 'Registries', 'Builders & cache'],
   Environment: ['Contexts', 'Plugins', 'System & prune'],
   'Full coverage': ['Raw console', 'About'],
@@ -32,7 +32,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 // plan-docker_management_app/REQ-1, plan-docker_management_app/REQ-115
-test('opens on the Vexel — Docker Control shell with the thirteen entries grouped as in the mockups', async ({ page }) => {
+test('opens on the Vexel — Docker Control shell with the twelve entries grouped as in the mockups', async ({ page }) => {
   // The shell opens on the persisted screen, not on a fixed one (REQ-115).
   await openOnScreen(page, 'dashboard', 'Dashboard');
 
@@ -49,7 +49,7 @@ test('opens on the Vexel — Docker Control shell with the thirteen entries grou
     const railGroup = page.locator(`div:has(> .ui-nav-group__label:text-is("${group}")) .ui-nav-group__items`);
     await expect(railGroup.locator('.ui-nav-item__label')).toHaveText(labels);
   }
-  expect(allScreenLabels).toHaveLength(13);
+  expect(allScreenLabels).toHaveLength(12);
 
   // The restored screen is the persisted one, and it is the one the rail marks active.
   await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible();

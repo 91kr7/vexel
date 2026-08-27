@@ -1,7 +1,8 @@
 /**
  * **The classic-table criteria, on the lists batch 2 converts** — builders and
- * build cache, contexts, both plugin inventories, and swarm's nodes, services
- * and secrets, with the services' nested tasks list beside them
+ * build cache, contexts and both plugin inventories. Swarm's nodes, services and
+ * secrets, and the nested tasks list beside them, left with the area on
+ * 2026-08-27 (plan-docker_management_app-swarm_removal/REQ-1)
  * (`plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-2`
  * … `REQ-5`, `REQ-8` … `REQ-13`, `REQ-16`, `REQ-17`, `REQ-18`, `REQ-20`,
  * `REQ-29`, `REQ-30`, `REQ-32`, `REQ-36`, `REQ-39`, `REQ-40`).
@@ -12,25 +13,15 @@
  * uses too. A criterion restated twice is a criterion that will one day be two,
  * and this plan exists because a target was described rather than pointed at.
  *
- * **Eight lists here, and the ninth is nested.** The tasks list inside a
- * service's detail panel takes **no card of its own**: it is already inside the
- * services list's card, and a card inside a card is two surfaces where REQ-4
- * admits one — which is how the reference itself nests a list in a panel
- * (`ContainerProcessesView`, `LayerExplorer`). Asserting "the table's edges sit
- * within 1px of its own surface's" on it would therefore assert the wrong thing,
- * so it is measured by `expectNestedWithoutACardOfItsOwn` instead, and the
- * exemption is stated here rather than left as a silently missing assertion.
- *
  * **The named case is the CLI plugins list's `WHY UNAVAILABLE` column**, which
  * the reference analysis read roughly 1100px from the values under it. It is
  * asserted as boxes, at 1440×1000 (REQ-18, REQ-29).
  *
- * **The four inventories are stubbed at the browser's own request**, as the
+ * **The inventories are stubbed at the browser's own request**, as the
  * per-screen geometry specs already stub them, and for the same reasons: a
- * daemon will not produce a builder whose endpoint is its own name, a managed
- * plugin, or a swarm cluster on demand, and obtaining any of them would move
- * state on the operator's own machine (`docker swarm init` reconfigures the
- * daemon; `docker plugin ls` is host-wide and no label can scope it). Nothing
+ * daemon will not produce a builder whose endpoint is its own name or a managed
+ * plugin on demand, and obtaining either would move state on the operator's own
+ * machine (`docker plugin ls` is host-wide and no label can scope it). Nothing
  * here creates, changes or reads anything on the daemon **except** the two
  * fixtures the reference lists need — one container and one image tag, both
  * labelled and both removed in an `afterAll`, the container with `docker rm -fv`
@@ -46,14 +37,12 @@ import { openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { stubTheInventories } from './support/screen-inventories.js';
-import { boxOf, boxThisFrame, clickAtItsCentre, movePointerOverTheRow } from './support/settled.js';
+import { boxOf, boxThisFrame, movePointerOverTheRow } from './support/settled.js';
 import {
   VIEWPORTS,
   expectBothLinesUnclipped,
   expectClassicTable,
-  expectNestedWithoutACardOfItsOwn,
   expectPanReachesLastColumn,
-  expectSameRowAsReference,
   expectSameTableAsReference,
   measureList,
   reportList,
@@ -79,10 +68,6 @@ const LISTS = {
   contexts: 'TLS',
   cliPlugins: 'WHY UNAVAILABLE',
   daemonPlugins: 'INTERFACE',
-  nodes: 'AVAILABILITY',
-  services: 'PUBLISHED PORTS',
-  secrets: 'SECRET',
-  tasks: 'SLOT',
   images: 'DISK USAGE',
 } as const;
 
@@ -170,13 +155,7 @@ async function readTheConvertedLists(page: Page, at: string): Promise<Record<str
   const cliPlugins = await settledList(page, LISTS.cliPlugins);
   const daemonPlugins = await settledList(page, LISTS.daemonPlugins);
 
-  await openApp(page, 'swarm');
-  await expect(page.getByRole('heading', { level: 1, name: 'Swarm' })).toBeVisible({ timeout: 20_000 });
-  const nodes = await settledList(page, LISTS.nodes);
-  const services = await settledList(page, LISTS.services);
-  const secrets = await settledList(page, LISTS.secrets);
-
-  const measured = { builders, 'build cache': buildCache, contexts, 'CLI plugins': cliPlugins, 'daemon plugins': daemonPlugins, nodes, services, secrets };
+  const measured = { builders, 'build cache': buildCache, contexts, 'CLI plugins': cliPlugins, 'daemon plugins': daemonPlugins };
   for (const [name, list] of Object.entries(measured)) reportList(at, name, list, 'b2');
   return measured;
 }
@@ -185,7 +164,7 @@ for (const viewport of VIEWPORTS) {
   const at = `${viewport.width}×${viewport.height}`;
 
   // REQ-2 … REQ-5, REQ-8, REQ-12, REQ-16, REQ-17, REQ-18, REQ-20, REQ-39, REQ-40 —
-  // the whole of the criteria on the eight screen lists, with the two reference
+  // the whole of the criteria on the five screen lists, with the two reference
   // lists read in the same run so the equality is a comparison and not a
   // coincidence.
   test(`the plain lists are the reference table, not a table like it — ${at}`, async ({ page }) => {
@@ -254,7 +233,6 @@ test('every converted list pans to its last column under a real wheel — 375×8
     ['builders-cache', 'Builders & cache', [LISTS.builders, LISTS.buildCache]],
     ['contexts', 'Contexts', [LISTS.contexts]],
     ['plugins', 'Plugins', [LISTS.cliPlugins, LISTS.daemonPlugins]],
-    ['swarm', 'Swarm', [LISTS.nodes, LISTS.services, LISTS.secrets]],
   ] as const) {
     await openApp(page, screen);
     await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible({ timeout: 20_000 });
@@ -398,52 +376,6 @@ test('the WHY UNAVAILABLE column and its values share one left edge — 1440×10
     .last()
     .textContent();
   expect(reason ?? '', '1440×1000: the refused plugin explains nothing').toContain('permission denied');
-});
-
-/**
- * REQ-20, REQ-40 — **the ninth call site**: the tasks list inside a service's
- * detail panel.
- *
- * It is the same table, in the same one presentation, and it takes **no card of
- * its own**: it is already inside the services list's card, and a card inside a
- * card is two surfaces where REQ-4 admits one. So its row is held equal to the
- * reference's exactly as every other list's is, and its surface is asserted by
- * the nesting rather than by an inset it must not have.
- */
-test('the nested tasks list is the same row, inside its parent’s card and on no card of its own — 1440×1000', async ({ page }) => {
-  test.setTimeout(300_000);
-  await page.setViewportSize(DESKTOP);
-  await stubTheInventories(page);
-
-  const references = await readTheReference(page, 'nested');
-
-  await openApp(page, 'swarm');
-  await expect(page.getByRole('heading', { level: 1, name: 'Swarm' })).toBeVisible({ timeout: 20_000 });
-  const services = tableWithColumn(page, LISTS.services);
-  await expect(services.locator('.ui-data-table__row').first()).toBeVisible({ timeout: 20_000 });
-
-  // A real pointer on the row's **first cell**: the row's own centre can sit
-  // over another column, or over a control.
-  await clickAtItsCentre(page, services.locator('.ui-data-table__row').first().locator('.ui-data-table__cell').first(), 'the service row’s own first cell');
-
-  await expect(page.locator('.ui-detail-panel'), 'selecting a service opened no detail panel').toBeVisible({ timeout: 20_000 });
-  const tasks = await settledList(page, LISTS.tasks);
-  reportList('1440×1000', 'tasks (nested)', tasks, 'b2');
-
-  expectClassicTable('1440×1000', 'tasks', tasks);
-  expectSameRowAsReference('1440×1000', 'tasks', tasks, references);
-  expectNestedWithoutACardOfItsOwn('1440×1000', 'tasks', tasks, 'services');
-
-  // Beside the boxes: a task is still listed with its state, its node and the
-  // message the daemon reports (REQ-13).
-  expect(tasks.headers, '1440×1000: the tasks list does not state its columns in order').toEqual([
-    'SLOT',
-    'NODE',
-    'STATE',
-    'DESIRED',
-    'DAEMON REPORTS',
-  ]);
-  await expect(page.locator('.ui-detail-panel')).toContainText('no suitable node');
 });
 
 /**

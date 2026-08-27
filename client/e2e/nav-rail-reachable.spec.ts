@@ -45,7 +45,7 @@ interface Viewport {
 }
 
 /**
- * The thirteen destinations REQ-1 names, in the order the rail lists them. The
+ * The twelve destinations REQ-1 names, in the order the rail lists them. The
  * screen each one opens carries a level-1 heading of the same words, which is
  * how "the click actually changes the screen" is observed.
  */
@@ -53,7 +53,6 @@ const DESTINATIONS = [
   'Dashboard',
   'Containers',
   'Compose',
-  'Swarm',
   'Images & layers',
   'Volumes & networks',
   'Registries',
@@ -65,7 +64,7 @@ const DESTINATIONS = [
   'About',
 ] as const;
 
-/** The screen the sweep starts on: the last of the thirteen, so that every one of the thirteen clicks is a change. */
+/** The screen the sweep starts on: the last of the twelve, so that every one of the twelve clicks is a change. */
 const STARTING_SCREEN = { id: 'coverage-matrix', label: 'About' };
 
 /** Below this width the rail has left the flex flow and is the off-canvas drawer (frame.md). */

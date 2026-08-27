@@ -43,7 +43,7 @@ function overviewWith(imageCount = 3): SystemOverview {
     containers: { total: 2, running: 1, paused: 0, stopped: 1 },
     images: { count: imageCount, sizeBytes: 1_024 },
     volumes: { count: 1, sizeBytes: 512 },
-    stacks: { compose: 1, swarm: 0, total: 1 },
+    stacks: { compose: 1, total: 1 },
     buildCache: { sizeBytes: 0 },
     diskUsage: {
       categories: [

@@ -44,12 +44,11 @@ const SECTIONS = [
 /** The section the delivered build drew that REQ-71 takes off this screen. */
 const REMOVED_SECTION = 'Daemon event stream';
 
-/** The thirteen screens of the shell, by the id the preference holds and the heading each draws. */
+/** The twelve screens of the shell, by the id the preference holds and the heading each draws. */
 const SCREENS: { id: string; heading: string }[] = [
   { id: 'dashboard', heading: 'Dashboard' },
   { id: 'containers', heading: 'Containers' },
   { id: 'compose', heading: 'Compose' },
-  { id: 'swarm', heading: 'Swarm' },
   { id: 'images-layers', heading: 'Images & layers' },
   { id: 'volumes-networks', heading: 'Volumes & networks' },
   { id: 'registries', heading: 'Registries' },

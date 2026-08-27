@@ -31,7 +31,7 @@ describe('Badge (ui-library/specs/badge.md)', () => {
   });
 
   // badge.md — "tone: 'neutral' | 'info' | 'success' | 'warning' | 'danger'"; "variant: 'solid' |
-  // 'quiet'" — the pair of treatments that lets a swarm node's role sit beside its availability
+  // 'quiet'" — the pair of treatments that lets a container's state sit beside its classification
   // (REQ-81, REQ-82)
   it('renders its label in every tone and both variants', () => {
     for (const tone of TONES) {

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -223,12 +223,12 @@ test("ignores an ordering merely named in a comment or inside a literal", () => 
 // self-expiry, seen from the outside (REQ-23).
 test("reports a service that still writes an ordering of its own, the awaiting-adoption list being empty", () => {
   const result = runCheckOver({
-    "swarm/swarm-services-service.ts": anOrderingOfItsOwn,
+    "contexts/contexts-service.ts": anOrderingOfItsOwn,
     "registries/registries-service.ts": anOrderingOfItsOwn,
   });
 
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /server\/src\/swarm\/swarm-services-service\.ts:1\b/);
+  assert.match(result.stderr, /server\/src\/contexts\/contexts-service\.ts:1\b/);
   assert.match(result.stderr, /server\/src\/registries\/registries-service\.ts:1\b/);
   assert.match(result.stderr, /a comparator written inline/);
 });
@@ -283,4 +283,22 @@ test("passes over the repository's own server source tree", () => {
 
   assert.equal(run.status, 0, run.stderr);
   assert.match(run.stdout, /passed/i);
+});
+
+// list-order-conformance-check.md: "The allow-list is explicit and small" — an entry exempting a
+// file the server no longer has exempts nothing and hides the next ordering written at that path.
+// The one that pinned a task history inside a swarm service left with the file
+// (plan-docker_management_app-swarm_removal/REQ-5, REQ-13).
+test("every allow-listed ordering names a file the server source tree still holds", () => {
+  const source = readFileSync(realScript, "utf8");
+  const allowList = source.slice(source.indexOf("const meaningfulOrderings"), source.indexOf("const awaitingAdoption"));
+  const files = [...allowList.matchAll(/file: "([^"]+)"/g)].map((match) => match[1] as string);
+
+  assert.ok(files.length > 0, "the allow-list must still be readable from the check");
+  for (const file of files) {
+    assert.ok(
+      existsSync(new URL(`../../src/${file}`, import.meta.url).pathname),
+      `the allow-list exempts server/src/${file}, which the source tree does not hold`,
+    );
+  }
 });
