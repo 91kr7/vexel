@@ -20,8 +20,10 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   - `state`: `'created' | 'running' | 'paused' | 'restarting' | 'removing' | 'exited' | 'dead'`.
   - `status` is the daemon's own human-readable status text (e.g. `"Up 3 days"`,
     `"Exited (0) 2 hours ago"`).
-  - `ports`: `{ privatePort, publicPort?, type }[]`, **each mapping appearing exactly once**, in a
-    **total order of this service's own**: by private port, then public port, then protocol.
+  - `ports`: `{ privatePort, publicPort?, type }[]` — the container's **publications on the host and
+    only those**, as `getContainerInspect`'s own `ports` states them: an entry the daemon returns
+    with no public port is an exposure and is not a mapping. **Each mapping appears exactly once**,
+    in a **total order of this service's own**: by private port, then public port, then protocol.
   - `cpuPercent`/`memoryUsageBytes`/`memoryLimitBytes`/`onlineCpus`/`networkRxBytes`/
     `networkTxBytes` are present only for a `running` container whose latest sample is **less than
     30 seconds old**; all six come from **one** sample and are absent together, and a container the
@@ -115,10 +117,13 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   daemon's port maps to state them.** `HostConfig.PortBindings` is what the operator asked for: it
   names the set of publications, carries the host IP of each, and is the only map a stopped container
   fills. `NetworkSettings.Ports` is consulted for the one thing it alone knows — **the host port the
-  daemon chose** where the operator named none. A binding arriving with an empty host port (`-p 80`)
-  is completed from it; before that the tab read `not published` on a port that was published, while
-  the container's own card, reading the daemon's list, showed the number. An entry of that map
-  carrying **no** host port is an exposure and not a publication, and is never an entry here.
+  daemon chose** where the operator named none. Before that the tab read `not published` on a port
+  that was published, while the container's own card, reading the daemon's list, showed the number.
+  **"You choose" has two spellings and both are read as one**: an empty `HostPort` (`-p 80`, `-P`)
+  and a `HostPort` of `0` (`-p 0:5432`), which the daemon stores exactly as written. A host port of
+  `0` is therefore not a host port in force, and a binding carrying either is completed from the
+  observed map. An entry of that map carrying no host port is an exposure and not a publication, and
+  is never an entry here.
 - **One publication is one entry.** `NetworkSettings.Ports` records a publication once per IP stack,
   so `-p 8080:8080` appears there twice under one host port; a container port already accounted for
   is never added again, so it stays the single entry it is. A publication the **operator** made twice
@@ -141,10 +146,24 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   narrowed
   `plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-52` to
   what its own title always said: mappings).
-- **The card and the detail now answer the same question.** `GET /containers/json` lists what the
-  daemon publishes; so does this reading. The divergence that made a card advertise a port its detail
-  did not show is closed by both sides stating publications, rather than by giving either of them a
-  third map.
+- **The two shapes answer the same question, and it took a change to each of them.** `GET
+  /containers/json` does **not** list publications: it lists every port the container states, so
+  `toSummary` passed exposures straight through and a container run `--expose 7777` from
+  `registry:2` came back as two mappings on `/api/containers` and none at all on its inspect —
+  measured on the built server on 2026-08-27, after the inspect reading had already been narrowed.
+  So the summary drops an entry carrying no public port, by the same criterion the inspect reading
+  uses on `NetworkSettings.Ports`: what binds nothing on the host is an exposure, not a mapping.
+  **This reverses a ruling of this service's own**, and the reversal is the same human's, taken on
+  2026-08-27 on new evidence and confirmed after they were shown their earlier decision and its
+  reason: the 2026-08-25 annotation of `plan-docker_management_app-containers_card_view/REQ-5` had
+  the chips carry exposed-but-unpublished ports as well as published mappings, grounded on
+  `plan-docker_management_app-containers_card_view/REQ-12` — no value the delivered row showed may
+  disappear from the card. An exposed port binds no host port and gates no container-to-container
+  traffic, so what leaves the card is not a value being lost but an entry that never told the
+  operator anything; REQ-12 stands for every other value the row showed
+  (`plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-60`).
+  The absence itself is still stated — the card's `PORTS` row reads `none` rather than vanishing,
+  which is `containers_card_view`'s own rule and is untouched here.
 - **`ports` is ordered by this service, and the order is imposed rather than observed.** The
   daemon's own order is **not stable across reads**: three consecutive reads of the same unchanged
   container return the same mappings rotated. That is invisible to a consumer showing all of them
@@ -209,3 +228,4 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 - plan-docker_management_app-containers_card_view/REQ-58
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-52
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-59
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-60

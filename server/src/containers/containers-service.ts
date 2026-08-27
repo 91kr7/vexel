@@ -367,7 +367,7 @@ function portsFromRaw(bindings: Record<string, { HostIp?: string; HostPort?: str
 // a `-P`, which fills no bindings at all — the publication itself. An entry of that map carrying no
 // host port is an exposure and not a publication: it is never an entry here.
 function inspectPorts(raw: RawInspect): PortBinding[] {
-  const published = portsFromRaw(raw.NetworkSettings?.Ports).filter((port) => port.hostPort !== undefined);
+  const published = portsFromRaw(raw.NetworkSettings?.Ports).filter((port) => isChosen(port.hostPort));
   const declared = portsFromRaw(raw.HostConfig?.PortBindings).map((port) => resolveHostPort(port, published));
   const accounted = new Set(declared.map(exposureKey));
   const daemonChosen: PortBinding[] = [];
@@ -385,14 +385,22 @@ function inspectPorts(raw: RawInspect): PortBinding[] {
   );
 }
 
-// A publication whose host port the operator left to the daemon (`-p 80`) arrives with an empty
-// `HostPort`; the number actually in force is only in `NetworkSettings.Ports`. One publication stays
-// one entry however many IP stacks observed it: a container port already accounted for is not added
-// a second time, so `-p 8080:8080` does not become the two its dual-stack record would make it.
+// A publication whose host port the operator left to the daemon arrives without one, and the number
+// actually in force is only in `NetworkSettings.Ports`. Two spellings mean "you choose", and both
+// are read the same way: an empty `HostPort` (`-p 80`) and a `HostPort` of `0` (`-p 0:5432`). One
+// publication stays one entry however many IP stacks observed it: a container port already accounted
+// for is not added again, so `-p 8080:8080` does not become the two its dual-stack record would make
+// it.
 function resolveHostPort(port: PortBinding, published: PortBinding[]): PortBinding {
-  if (port.hostPort !== undefined) return port;
+  if (isChosen(port.hostPort)) return port;
   const chosen = published.find((candidate) => exposureKey(candidate) === exposureKey(port));
   return chosen ? { ...port, hostPort: chosen.hostPort } : port;
+}
+
+// Whether a host port is a number in force. `0` is not one: it is how the operator spells
+// "any free port", and it survives into `HostConfig.PortBindings` exactly as written.
+function isChosen(hostPort: number | undefined): boolean {
+  return hostPort !== undefined && hostPort !== 0;
 }
 
 // What makes two records the same publication: the container port and its protocol.
@@ -547,12 +555,15 @@ function computeUsage(raw: RawStats): SampledUsage {
   };
 }
 
-// The order is imposed, not observed: the daemon's own order of a container's
-// ports is not stable across reads, and a reader showing a subset of them would
-// be handed a different subset each time.
+// The container's publications and only those, as the inspect reading states them
+// (REQ-60): an entry with no public port binds nothing on the host, so it is an
+// exposure and never a mapping. The order is imposed, not observed: the daemon's
+// own order of a container's ports is not stable across reads, and a reader
+// showing a subset of them would be handed a different subset each time.
 function summaryPorts(ports: RawContainer["Ports"]): ContainerPort[] {
   const byMapping = new Map<string, ContainerPort>();
   for (const port of ports ?? []) {
+    if (port.PublicPort === undefined) continue;
     const mapping = { privatePort: port.PrivatePort, publicPort: port.PublicPort, type: port.Type };
     byMapping.set(portMappingKey(mapping), mapping);
   }

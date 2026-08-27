@@ -115,14 +115,26 @@ Actions:
   not being stable across reads. A card showing a subset of an unstably ordered set shows a
   *different* subset each poll, which reads as two chips swapping identity under a container that
   has not changed.
-- **Ports are worded exactly as the delivered list worded them**, published and merely exposed
-  alike: `publicPort→privatePort` where the port is published, the bare `privatePort` where it is
-  only exposed. Both kinds, because no value the delivered row showed may disappear from the card
-  (REQ-12); no chip is ever truncated or reworded.
+- **A chip is a publication**, and only a publication: the card lists what the container publishes on
+  the host, which is what its Config tab lists, so the two readings answer the same question on the
+  same container (`containers-service.md`,
+  `plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-60`).
+  A chip is worded exactly as the delivered list worded it — `publicPort→privatePort` — and no chip
+  is ever truncated or reworded.
+  **This reverses the annotation of 2026-08-25 on REQ-5**, which had the chips carry
+  exposed-but-unpublished ports as well, the bare `privatePort` being the wording for one. That
+  annotation grounded itself on REQ-12 — no value the delivered row showed may disappear from the
+  card — and the reversal is the same human's, taken on 2026-08-27 and confirmed after they were
+  shown their earlier ruling and its reason. An exposed port binds nothing on the host and gates no
+  container-to-container traffic; on their own container the one it drew came from `registry:2`'s
+  Dockerfile rather than from them. So it is not a value being lost but an entry that never told the
+  operator anything. **REQ-12 stands for every other value the delivered row showed**; what narrows
+  is this one class of port.
 - **The ports are read with the metrics, not with the image** (2026-08-25). The image says what the
   container is made of, the ports say how it is reached — operational information, of a kind with
   the figures beside it. The row's label anchors it, so a container with one port and one with four
-  keep the same shape, and a container with none says `none` rather than dropping the row.
+  keep the same shape, and a container with none says `none` rather than dropping the row — which is
+  what a container that merely exposes now reads, the absence stated rather than the row vanishing.
 - **The detail control is live, and it is the only route into the detail.** It was shipped present
   and inert by the human's decision of 2026-08-25, with its click declared to arrive with the
   intervention that moved the container's detail onto the dialog surface; it has. It keeps the
@@ -204,3 +216,4 @@ Actions:
 - plan-docker_management_app-containers_card_view-detail_modal/REQ-8
 - plan-docker_management_app-containers_card_view-detail_modal/REQ-9
 - plan-docker_management_app-containers_card_view-detail_modal/REQ-30
+- plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-60

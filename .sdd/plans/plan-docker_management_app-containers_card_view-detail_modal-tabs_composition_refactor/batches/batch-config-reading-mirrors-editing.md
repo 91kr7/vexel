@@ -1,7 +1,7 @@
 ---
 batch: config-reading-mirrors-editing
 feature: F3b — Config in reading is the edit form, read
-closed_req: [REQ-46, REQ-47, REQ-48, REQ-49, REQ-50, REQ-51, REQ-52, REQ-53, REQ-54, REQ-55, REQ-56, REQ-57, REQ-59]
+closed_req: [REQ-46, REQ-47, REQ-48, REQ-49, REQ-50, REQ-51, REQ-52, REQ-53, REQ-54, REQ-55, REQ-56, REQ-57, REQ-59, REQ-60]
 depends: [config-reading-layout, config-editing-cards]
 amended: 2026-08-27, from the human's review of the first pass
 ---
@@ -74,6 +74,7 @@ in `requirements.md` under REQ-54 … REQ-56.
 | INT-13 | modify | `client/src/ui/` and `client/src/containers/ContainerDetailPanel.tsx` | A mount is given its row's real width: a volume source is not wrapped over four lines inside a 180px track with 942px empty beside it. Source, destination and the `ro`/`rw` chip stay the three parts they are (REQ-21). | REQ-56 | INT-11 |
 | ~~INT-15~~ | — | — | ~~`Config.ExposedPorts` as a third source.~~ **Implemented and then withdrawn the same day**, see REQ-58. Reverted, not left dormant. | ~~REQ-58~~ | — |
 | INT-16 | modify | `server/src/containers/containers-service.ts` | The inspect reading is the container's publications and only those. `Config.ExposedPorts` is dropped as a source and so is the `NetworkSettings.Ports` **supplement**, which existed to surface an exposed-only port; `HostConfig.PortBindings` states the set. `NetworkSettings.Ports` stays for one job it alone can do: **resolving the host port the daemon chose** where the operator named none, so a `-p 80` / `-P` publication states its real host port instead of reading `not published`. Resolution, never addition — it introduces no container port the bindings do not name, so a `-p 8080:8080` stays one entry and does not become the two its dual-stack record would make it. | REQ-59 | INT-8 |
+| INT-17 | modify | `server/src/containers/containers-service.ts` (`toSummary`), and the card's own coverage | The container summary reports publications only, so the card and the Config tab answer the same question on the same container. An entry of `GET /containers/json` without a public port is an exposure and is dropped. The `PORTS` row still states the absence, reading `none` rather than vanishing. **And the paragraph of `containers-service.md` claiming "the card and the detail now answer the same question" — false when it was written, since the summary passed exposures through — becomes true and is corrected on the same pass.** | REQ-60 | INT-16 |
 
 **INT-16's mechanism was written wrong and corrected on evidence, 2026-08-27.** The intervention said
 a `-P` publication "arrives as `{"80/tcp":[{"HostIp":"","HostPort":""}]}`" and could therefore be
@@ -99,6 +100,20 @@ written at a call site, no raw tag and no CSS, changes no endpoint, payload or c
 own checks assert the dialog's box across the interaction they drive.
 
 ## What this batch supersedes, deliberately and by name
+
+**`plan-docker_management_app-containers_card_view/REQ-5` (its annotation of 2026-08-25) and, with
+it, `containers_card_view/REQ-12` as that annotation applied it.** The annotation ruled that the
+card's port chips carry *"exposed-but-unpublished ports as well as published mappings"*, and grounded
+it on REQ-12: *"no value the delivered row showed may disappear from the card"*. REQ-60 reverses it.
+**The reversal is the same human's, taken on 2026-08-27 and confirmed after being shown their own
+earlier ruling and its reason** — so this is a decision changed on new evidence, not a requirement
+overlooked. The evidence: an exposed port binds nothing on the host and does not gate
+container-to-container traffic, its one effect being that `docker run -P` publishes what it names;
+on their own container the `5000/tcp` came from `registry:2`'s Dockerfile, not from them. So it is
+not a value being lost but an entry that never meant anything to the operator reading it. REQ-12
+stands for every other value the delivered row showed; what narrows is the one class of port it
+counted. `containers_card_view`'s own coverage of the exposed-port chip is rewritten here, not left
+asserting the old rule.
 
 **`plan-ui-coherence-optimisation/REQ-60` — a section with a count of `0` is absent, not present and
 empty.** REQ-51 asks for the opposite on this tab, and the reversal is the human's, taken on
