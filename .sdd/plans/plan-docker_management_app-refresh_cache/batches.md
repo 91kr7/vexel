@@ -15,7 +15,7 @@ status: validated
 | lists-from-refresh-cache | The lists are answered from values the server keeps current | REQ-9, REQ-10, REQ-11, REQ-12, REQ-13, REQ-14, REQ-15, REQ-16, REQ-17 | read-once-values | certified | The operator's own action is visible at once |
 | volume-sizes-separated | Volume sizes are read on their own schedule | REQ-18, REQ-19, REQ-20, REQ-21, REQ-22, REQ-23 | lists-from-refresh-cache | certified | Volumes still show their sizes |
 | warm-start | The server is warm before it accepts requests | REQ-24, REQ-25, REQ-26, REQ-27, REQ-28, REQ-29 | lists-from-refresh-cache, volume-sizes-separated | todo | The first screen after a restart is answered at once |
-| remaining-checks-reload | The remaining checks reload through the control | REQ-30 | — | todo | The context, builder and build-cache checks pass wherever they run |
+| remaining-checks-reload | The remaining checks reload through the control | REQ-30 | — | certified | The context, builder and build-cache checks pass wherever they run |
 
 ## What the plan builds
 
