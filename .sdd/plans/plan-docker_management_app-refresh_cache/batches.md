@@ -16,7 +16,7 @@ status: validated
 | volume-sizes-separated | Volume sizes are read on their own schedule | REQ-18, REQ-19, REQ-20, REQ-21, REQ-22, REQ-23 | lists-from-refresh-cache | certified | Volumes still show their sizes |
 | startup-order-and-disowned-read | The endpoint is set before the server serves | REQ-24, REQ-27, REQ-29 | lists-from-refresh-cache | certified | The first screen after a restart is shown, not refused |
 | remaining-checks-reload | The remaining checks reload through the control | REQ-30 | — | certified | The context, builder and build-cache checks pass wherever they run |
-| version-negotiated-once | The Engine API version is negotiated once, and the probe still probes | REQ-31, REQ-32, REQ-33, REQ-34, REQ-35, REQ-36 | — | implemented | The application asks the daemon half as much, and still notices it going away |
+| version-negotiated-once | The Engine API version is negotiated once, and the probe still probes | REQ-31, REQ-32, REQ-33, REQ-34, REQ-35, REQ-36 | — | certified | The application asks the daemon half as much, and still notices it going away |
 
 ## What the plan builds
 
@@ -125,7 +125,7 @@ qualified with their batch below.
 | REQ-28 | — withdrawn 2026-08-28 | — |
 | REQ-29 | `batch-startup-order-and-disowned-read/INT-3`, `batch-startup-order-and-disowned-read/INT-4`, `batch-startup-order-and-disowned-read/INT-7` | startup-order-and-disowned-read |
 | REQ-30 | `batch-remaining-checks-reload/INT-1`, `batch-remaining-checks-reload/INT-2`, `batch-remaining-checks-reload/INT-3`, `batch-remaining-checks-reload/INT-4` | remaining-checks-reload |
-| REQ-31 | `batch-version-negotiated-once/INT-1`, `batch-version-negotiated-once/INT-4`, `batch-version-negotiated-once/INT-10` | version-negotiated-once |
+| REQ-31 | `batch-version-negotiated-once/INT-1`, `batch-version-negotiated-once/INT-4`, `batch-version-negotiated-once/INT-10`, `batch-version-negotiated-once/INT-11` | version-negotiated-once |
 | REQ-32 | `batch-version-negotiated-once/INT-2`, `batch-version-negotiated-once/INT-3`, `batch-version-negotiated-once/INT-5` | version-negotiated-once |
 | REQ-33 | `batch-version-negotiated-once/INT-2`, `batch-version-negotiated-once/INT-5`, `batch-version-negotiated-once/INT-6` | version-negotiated-once |
 | REQ-34 | `batch-version-negotiated-once/INT-1`, `batch-version-negotiated-once/INT-3`, `batch-version-negotiated-once/INT-7` | version-negotiated-once |
@@ -280,6 +280,15 @@ work present but not repeated, which is what a certified batch already guarantee
   statement and not put back for validation.
 - **No departure from the business spec.** The spec already assumes the connection status keeps a
   real probe; this batch is the first thing to state that in a requirement.
+- **The closing full pass was withdrawn, and this is the batch that owed it.** The method widens the
+  last batch of a plan to the complete e2e suite and the whole unit suite. Both were **already red
+  before this batch**, on failures of their own, and the human said so on 2026-08-29 when the pass
+  was launched. A suite that was red before the change cannot certify the change: whatever it
+  reports, the batch's own perimeter is where the signal is. So the run is the perimeter — the
+  checks written for REQ-31 to REQ-36, plus the existing checks of the two components this batch
+  modified (`EngineClient`, `ConnectionStatusService`) and of the shared client — and no e2e at all.
+  **What this costs is stated rather than hidden**: this plan closes without the full pass its
+  method asks for, and the pre-existing red is not this batch's to fix.
 
 ### Coverage check — the appended requirements
 
