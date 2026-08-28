@@ -95,10 +95,17 @@ test("a run of REST calls costs the daemon fewer connections than the Engine API
     setActiveEndpoint({ kind: "unix", socketPath: proxy.socketPath });
     resetConnectionPools();
 
+    const listing = await fetch(`${url}/api/containers`);
+    assert.equal(listing.status, 200);
+    assert.ok(Array.isArray(await listing.json()), "the containers endpoint answers a list, as it does today");
+
+    // Detail reads, because a run of *list* calls no longer reaches the daemon at all: a listing is
+    // answered from a value the server holds (plan-docker_management_app-refresh_cache/REQ-9) while
+    // an inspect stays a direct read of the daemon (REQ-22). It is the direct reads that put a run
+    // of Engine API calls over the connection this check is about.
     for (let index = 0; index < 5; index += 1) {
-      const response = await fetch(`${url}/api/containers`);
-      assert.equal(response.status, 200);
-      assert.ok(Array.isArray(await response.json()), "the containers endpoint answers a list, as it does today");
+      const response = await fetch(`${url}/api/containers/vexel-no-such-container/inspect`);
+      assert.equal(response.status, 404, "an unknown container still answers with the daemon's own 404");
     }
 
     assert.ok(proxy.daemonRequests >= 5, `only ${proxy.daemonRequests} Engine API calls reached the daemon`);
@@ -132,7 +139,7 @@ test("after the active endpoint changes, no REST call is served over a connectio
     resetConnectionPools();
 
     for (let index = 0; index < 3; index += 1) {
-      assert.equal((await fetch(`${url}/api/containers`)).status, 200);
+      assert.equal((await fetch(`${url}/api/containers/vexel-no-such-container/inspect`)).status, 404);
     }
     assert.ok(previous.openConnections >= 1, "no connection was held open for the first endpoint");
     const servedByPrevious = previous.daemonRequests;
@@ -141,10 +148,11 @@ test("after the active endpoint changes, no REST call is served over a connectio
     await delay(100);
     assert.equal(previous.openConnections, 0, "a connection to the previous endpoint stayed open after the change");
 
+    // Direct reads again, for the reason above: a listing would be answered without the daemon
+    // being called at all, which proves nothing about which endpoint a call reaches.
     for (let index = 0; index < 3; index += 1) {
-      const response = await fetch(`${url}/api/containers`);
-      assert.equal(response.status, 200);
-      assert.ok(Array.isArray(await response.json()));
+      const response = await fetch(`${url}/api/containers/vexel-no-such-container/inspect`);
+      assert.equal(response.status, 404);
     }
 
     assert.equal(previous.daemonRequests, servedByPrevious, "a call reached the previous endpoint after the change");
