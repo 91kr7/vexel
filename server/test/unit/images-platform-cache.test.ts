@@ -1,10 +1,10 @@
-import { test, mock } from "node:test";
+import { test, mock, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 
 // The daemon stands in for itself here: what is under test is how many inspect
-// calls a listing costs, so every call is counted per image id. Each test uses
-// ids of its own, since what the service remembers about an id is meant to
-// outlive the listing that established it.
+// calls a listing costs, so every call is counted per image id. The ids are
+// named after what each test does with them; nothing is carried from one test
+// to the next.
 let listBody = "[]";
 const inspectBodies: Record<string, string> = {};
 const inspectFailureIds = new Set<string>();
@@ -28,7 +28,15 @@ mock.module(new URL("../../src/connectivity/connection-status-service.ts", impor
   },
 });
 
-const { listImages } = await import("../../src/images/images-service.js");
+const { listImages, resetImagePlatformCache } = await import("../../src/images/images-service.js");
+
+// What the service remembers about an id outlives the listing that established
+// it (REQ-2), so every test starts from a service that remembers nothing.
+beforeEach(() => {
+  resetImagePlatformCache();
+  inspectCounts.clear();
+  inspectFailureIds.clear();
+});
 
 function listing(ids: string[]): string {
   return JSON.stringify(ids.map((id) => ({ Id: id, RepoTags: [`${id}:1`], Created: 1_700_000_000, Size: 10 })));
@@ -90,16 +98,12 @@ test("listImages inspects again an image whose inspect call failed, without fail
   inspectFailureIds.add(id);
   listBody = listing([id]);
 
-  try {
-    const first = await listImages();
-    const second = await listImages();
+  const first = await listImages();
+  const second = await listImages();
 
-    assert.deepEqual(first[0]!.platforms, []);
-    assert.deepEqual(second[0]!.platforms, []);
-    assert.equal(inspectCounts.get(id), 2, "a failed inspect is expected to be attempted again on the next listing");
-  } finally {
-    inspectFailureIds.delete(id);
-  }
+  assert.deepEqual(first[0]!.platforms, []);
+  assert.deepEqual(second[0]!.platforms, []);
+  assert.equal(inspectCounts.get(id), 2, "a failed inspect is expected to be attempted again on the next listing");
 });
 
 // plan-docker_management_app-refresh_cache/REQ-2 — what is remembered belongs to

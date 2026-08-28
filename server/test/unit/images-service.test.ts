@@ -35,9 +35,12 @@ mock.module(new URL("../../src/connectivity/connection-status-service.ts", impor
   },
 });
 
-const { listImages, getImageInspect } = await import("../../src/images/images-service.js");
+const { listImages, getImageInspect, resetImagePlatformCache } = await import("../../src/images/images-service.js");
 
 beforeEach(() => {
+  // A platform resolved here outlives the test that resolved it (REQ-2), and
+  // several tests below share the id sha256:abc.
+  resetImagePlatformCache();
   listBody = "[]";
   inspectBodies = {};
   historyBody = "[]";
