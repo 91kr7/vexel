@@ -28,6 +28,7 @@ means writing the analysis and the plan for it in the normal way — see
 | compose-list-spawns-subprocesses | server | high | The Compose list spawns `compose ls` every 3 s, plus one `compose ps` per project | `entries/compose-list-spawns-subprocesses.md` |
 | polled-hooks-do-not-coalesce-events | client | high | The twelve polled views re-read once per event; the grouping exists only in the two that poll least | `entries/polled-hooks-do-not-coalesce-events.md` |
 | detail-views-reread-on-unrelated-events | both | high | Detail views re-read on events about other objects; a volume detail pulls `/system/df` per container event | `entries/detail-views-reread-on-unrelated-events.md` |
+| engine-version-negotiated-on-every-call | server | high | Every Engine call re-negotiates the API version first: two round trips per call, +62% locally | `entries/engine-version-negotiated-on-every-call.md` |
 | new-socket-per-engine-call | server | high | A fresh socket per Engine call: negligible locally, an `ssh` process per request on a remote context | `entries/new-socket-per-engine-call.md` |
 | cli-version-detection-uncached | server | medium | Three programs launched every 5 s to read versions that cannot change while the app runs | `entries/cli-version-detection-uncached.md` |
 | container-listing-fetched-three-times | server | medium | The same container listing is fetched three times per round; 40 of 60 calls a minute are derivative | `entries/container-listing-fetched-three-times.md` |
