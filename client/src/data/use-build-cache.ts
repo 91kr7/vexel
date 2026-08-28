@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToActiveContextChange } from './active-context';
+import { subscribeToReload } from './reload-signal';
 import { fetchBuildCache, pruneBuildCache, type BuildCachePruneResult, type BuildCacheRecord } from './builders-client';
 
 const POLL_INTERVAL_MS = 5000;
@@ -23,7 +24,7 @@ export function useBuildCache(): UseBuildCacheResult {
   const cancelledRef = useRef(false);
 
   const refresh = useCallback(() => {
-    fetchBuildCache()
+    return fetchBuildCache()
       .then((list) => {
         if (cancelledRef.current) return;
         setRecords(list);
@@ -50,6 +51,9 @@ export function useBuildCache(): UseBuildCacheResult {
   // Another context means another daemon: what is held here belongs to
   // the one left behind and is re-read at once (REQ-93).
   useEffect(() => subscribeToActiveContextChange(refresh), [refresh]);
+
+  // The reload signal waits for this read, which is why `refresh` returns its promise (REQ-11).
+  useEffect(() => subscribeToReload(refresh), [refresh]);
 
   useEffect(() => {
     const interval = window.setInterval(refresh, POLL_INTERVAL_MS);

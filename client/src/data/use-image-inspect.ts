@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { subscribeToReload } from './reload-signal';
 import { fetchImageInspect, type ImageInspect } from './images-client';
 import { daemonEventConcerns, subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
 
@@ -23,7 +24,7 @@ export function useImageInspect(id: string | undefined): UseImageInspectResult {
 
   const refresh = useCallback(() => {
     if (!id) return;
-    fetchImageInspect(id)
+    return fetchImageInspect(id)
       .then((result) => {
         if (cancelledRef.current) return;
         setInspect(result);
@@ -57,6 +58,9 @@ export function useImageInspect(id: string | undefined): UseImageInspectResult {
       }),
     [id, refresh],
   );
+
+  // The reload signal waits for this read, which is why `refresh` returns its promise (REQ-12).
+  useEffect(() => subscribeToReload(refresh), [refresh]);
 
   return { inspect, loaded, error, refresh };
 }

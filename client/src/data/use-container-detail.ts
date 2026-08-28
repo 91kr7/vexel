@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { subscribeToReload } from './reload-signal';
 import { fetchContainerInspect, type ContainerInspect } from './containers-client';
 import { daemonEventConcerns, subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
 
@@ -34,7 +35,7 @@ export function useContainerDetail(id: string | undefined): UseContainerDetailRe
 
   const refresh = useCallback(() => {
     if (!id) return;
-    fetchContainerInspect(id)
+    return fetchContainerInspect(id)
       .then((result) => {
         if (cancelledRef.current) return;
         setInspect(result);
@@ -70,6 +71,9 @@ export function useContainerDetail(id: string | undefined): UseContainerDetailRe
       }),
     [id, refresh],
   );
+
+  // The reload signal waits for this read, which is why `refresh` returns its promise (REQ-12).
+  useEffect(() => subscribeToReload(refresh), [refresh]);
 
   return { inspect, loaded, error, refresh };
 }

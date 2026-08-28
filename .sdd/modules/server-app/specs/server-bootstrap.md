@@ -15,6 +15,7 @@ type: configuration
 - Mounts `connectivityRouter` at `/api/connectivity`, `contextsRouter` at `/api/contexts`,
   `eventsRouter` at `/api/events`,
   `persistenceRouter` at `/api/persistence`, `hostPathsRouter` at `/api/host-paths`,
+  `refreshRouter` at `/api/refresh`,
   `volumesRouter` at `/api/volumes`, `networksRouter` at `/api/networks`, `registriesRouter` at
   `/api/registries`, `composeRouter` at
   `/api/compose`, `systemRouter` at `/api/system`, `consoleRouter` at `/api/console`, and

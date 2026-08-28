@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToActiveContextChange } from './active-context';
+import { subscribeToReload } from './reload-signal';
 import { fetchDaemonInfo, type DaemonInfo } from './contexts-client';
 
 export interface UseDaemonInfoResult {
@@ -21,7 +22,7 @@ export function useDaemonInfo(): UseDaemonInfoResult {
   const cancelledRef = useRef(false);
 
   const refresh = useCallback(() => {
-    fetchDaemonInfo()
+    return fetchDaemonInfo()
       .then((next) => {
         if (cancelledRef.current) return;
         setInfo(next);
@@ -47,6 +48,9 @@ export function useDaemonInfo(): UseDaemonInfoResult {
   }, [refresh]);
 
   useEffect(() => subscribeToActiveContextChange(refresh), [refresh]);
+
+  // The reload signal waits for this read, which is why `refresh` returns its promise (REQ-11).
+  useEffect(() => subscribeToReload(refresh), [refresh]);
 
   return { info, loaded, error, refresh };
 }

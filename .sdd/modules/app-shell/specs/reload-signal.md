@@ -1,0 +1,35 @@
+---
+module: app-shell
+component: Reload signal
+type: frontend data client
+---
+
+# Reload signal
+
+**Purpose** → the application-wide "read it all again" broadcast, beside the active-context one. A
+mounted view subscribes with its own read; one call raises the signal and ends only when every
+subscribed read has ended. That is what lets a caller say "the reload has finished" and mean "the
+screen in front of the operator is already showing the reloaded data".
+
+## Contract
+
+- `subscribeToReload(listener) → unsubscribe` — registers a read; `listener` may return a promise,
+  and that promise is what the signal waits on. Calling the returned function removes it.
+- `requestReload() → Promise<void>` — runs every subscribed read at once and settles when all of
+  them have settled.
+  - a read that rejects does not reject the signal and does not abandon the other reads: the view
+    that failed keeps what it had and reports its own failure the way it always does
+  - with nothing subscribed it settles immediately
+
+## Rules and invariants
+
+- It carries no data and no Docker vocabulary: it says only that everything is to be read again.
+- It says nothing about the server. Asking the server to reload what it holds is the caller's step,
+  before raising this signal.
+- Subscribing does not read: a view is read only when the signal is raised.
+
+## Requirements served
+
+- plan-docker_management_app-refresh_cache-manual_refresh/REQ-3
+- plan-docker_management_app-refresh_cache-manual_refresh/REQ-11
+- plan-docker_management_app-refresh_cache-manual_refresh/REQ-12

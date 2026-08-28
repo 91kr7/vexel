@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToActiveContextChange } from './active-context';
+import { subscribeToReload } from './reload-signal';
 import { subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
 import {
   fetchDiskUsage,
@@ -40,7 +41,7 @@ export function useDiskUsage(): UseDiskUsageResult {
   const cancelledRef = useRef(false);
 
   const refresh = useCallback(() => {
-    fetchDiskUsage()
+    return fetchDiskUsage()
       .then((next) => {
         if (cancelledRef.current) return;
         setBreakdown(next);
@@ -80,6 +81,9 @@ export function useDiskUsage(): UseDiskUsageResult {
   // Another context means another daemon: what is held here belongs to
   // the one left behind and is re-read at once (REQ-93).
   useEffect(() => subscribeToActiveContextChange(refresh), [refresh]);
+
+  // The reload signal waits for this read, which is why `refresh` returns its promise (REQ-11).
+  useEffect(() => subscribeToReload(refresh), [refresh]);
 
   const prune = useCallback(
     async (scope: DiskUsageCategoryId[]) => {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { subscribeToReload } from './reload-signal';
 import { fetchContainerProcesses, type ContainerProcess } from './container-stats-client';
 
 export interface UseContainerProcessesResult {
@@ -26,7 +27,7 @@ export function useContainerProcesses(id: string | undefined): UseContainerProce
   const refresh = useCallback(() => {
     if (!id) return;
     setLoading(true);
-    fetchContainerProcesses(id)
+    return fetchContainerProcesses(id)
       .then((result) => {
         if (cancelledRef.current) return;
         setProcesses(result.processes);
@@ -56,6 +57,9 @@ export function useContainerProcesses(id: string | undefined): UseContainerProce
       cancelledRef.current = true;
     };
   }, [id, refresh]);
+
+  // The reload signal waits for this read, which is why `refresh` returns its promise (REQ-12).
+  useEffect(() => subscribeToReload(refresh), [refresh]);
 
   return { processes, titles, loaded, loading, error, refresh };
 }

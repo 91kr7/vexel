@@ -50,7 +50,8 @@ supported way to reload, through the product's own path instead of a test-only h
 ### Functional
 
 - The top bar carries a refresh control, present and operable on every screen.
-- Pressing it makes the server read again, from the daemon, every list value it holds.
+- Pressing it makes the server read again, from the daemon, every value it holds in cache, whatever
+  kind it is, the connection status included.
 - When the reload finishes, the current screen shows the reloaded data, with no further action from
   the operator.
 - The control shows that it is working while the reload runs, and that the reload has finished.
@@ -97,7 +98,7 @@ supported way to reload, through the product's own path instead of a test-only h
 **In scope**
 
 - a refresh control in the top bar, on every screen;
-- a server-side reload of every held list value, on the operator's request;
+- a server-side reload of every value the backend holds in cache, on the operator's request;
 - the current screen showing the reloaded data, an open detail view included;
 - the working, finished and failed states of the control;
 - the 7 e2e specs using the control instead of waiting out the period.

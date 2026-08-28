@@ -25,14 +25,21 @@ related daemon event arrives.
   ever missed (plan-docker_management_app-refresh_cache/REQ-8).
 - Every `container` event still re-reads, whichever container it is about: the containers mounting
   the volume are part of what the view shows, and a container event can change that list.
+- Re-reads on the manual reload signal, and that signal waits for this read: an open detail
+  view shows the reloaded data when the operator's refresh ends. Its event filter and its
+  object scope are unchanged, and the view is neither closed nor reset
+  (plan-docker_management_app-refresh_cache-manual_refresh/REQ-12, plan-docker_management_app-refresh_cache-manual_refresh/REQ-13).
 
 ## Dependencies
 
 - Volumes client (fetchVolumeInspect)
 - events: subscribeToDaemonEvents, daemonEventConcerns
+- app-shell: Reload signal
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-71
 - plan-docker_management_app-refresh_cache/REQ-7
 - plan-docker_management_app-refresh_cache/REQ-8
+- plan-docker_management_app-refresh_cache-manual_refresh/REQ-12
+- plan-docker_management_app-refresh_cache-manual_refresh/REQ-13

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { subscribeToReload } from './reload-signal';
 import { fetchNetworkInspect, type NetworkInspect } from './networks-client';
 import { daemonEventConcerns, subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
 
@@ -25,7 +26,7 @@ export function useNetworkInspect(id: string | undefined): UseNetworkInspectResu
 
   const refresh = useCallback(() => {
     if (!id) return;
-    fetchNetworkInspect(id)
+    return fetchNetworkInspect(id)
       .then((result) => {
         if (cancelledRef.current) return;
         setInspect(result);
@@ -60,6 +61,9 @@ export function useNetworkInspect(id: string | undefined): UseNetworkInspectResu
       }),
     [id, refresh],
   );
+
+  // The reload signal waits for this read, which is why `refresh` returns its promise (REQ-12).
+  useEffect(() => subscribeToReload(refresh), [refresh]);
 
   return { inspect, loaded, error, refresh };
 }

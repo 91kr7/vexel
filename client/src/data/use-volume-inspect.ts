@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { subscribeToReload } from './reload-signal';
 import { fetchVolumeInspect, type VolumeInspect } from './volumes-client';
 import { daemonEventConcerns, subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
 
@@ -25,7 +26,7 @@ export function useVolumeInspect(name: string | undefined): UseVolumeInspectResu
 
   const refresh = useCallback(() => {
     if (!name) return;
-    fetchVolumeInspect(name)
+    return fetchVolumeInspect(name)
       .then((result) => {
         if (cancelledRef.current) return;
         setInspect(result);
@@ -60,6 +61,9 @@ export function useVolumeInspect(name: string | undefined): UseVolumeInspectResu
       }),
     [name, refresh],
   );
+
+  // The reload signal waits for this read, which is why `refresh` returns its promise (REQ-12).
+  useEffect(() => subscribeToReload(refresh), [refresh]);
 
   return { inspect, loaded, error, refresh };
 }

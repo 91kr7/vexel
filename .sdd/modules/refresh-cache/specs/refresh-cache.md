@@ -60,6 +60,22 @@ are **refreshers**, one per kind.
   held, no refresher running, no demand. The seam a check uses between two cases, so neither
   inherits what the other read.
 
+- `reloadHeldValues() → { reloaded: string[], skipped: string[], failed: { key, error }[] }` — the
+  operator's "read it all again now"
+  - reads again, at once, every kind that currently holds a value, whatever kind it is
+  - a kind holding nothing is **skipped**, not read: nobody is asking for it
+  - ends only when every one of those reads has ended
+  - a read that fails leaves the kind's held value untouched and is listed under `failed`; the
+    operation itself never throws
+  - changes nothing else about the cache: no period restarted, no refresher started, no demand
+    renewed, no event subscription touched
+
+- `POST /api/refresh` → runs that reload
+  - request: no body
+  - `200` → `{ ok, reloaded, skipped, failed }`; `ok` is false when at least one read failed. The
+    response is written only once the reload has ended, so a client that has this answer knows the
+    values it will be served next are the reloaded ones.
+
 - `sendHeld(response, held)` — writes a held value as the body of an HTTP response and its read time
   as headers
   - body → `held.value` as JSON, **unchanged**: no endpoint's body shape moves because of the cache
@@ -92,6 +108,9 @@ are **refreshers**, one per kind.
   first-request path once.
 - The event subscription is a single listener on the republished daemon event stream, whatever the
   number of registered kinds.
+- A manual reload never joins a read that started before the request was made: when the read it
+  awaited turns out to be an older one, it reads once more. Otherwise "read it all again now" could
+  be answered with a value read seconds before the operator pressed anything.
 
 ## Dependencies
 
@@ -109,3 +128,7 @@ are **refreshers**, one per kind.
 - plan-docker_management_app-refresh_cache/REQ-15
 - plan-docker_management_app-refresh_cache/REQ-16
 - plan-docker_management_app-refresh_cache/REQ-17
+- plan-docker_management_app-refresh_cache-manual_refresh/REQ-7
+- plan-docker_management_app-refresh_cache-manual_refresh/REQ-8
+- plan-docker_management_app-refresh_cache-manual_refresh/REQ-9
+- plan-docker_management_app-refresh_cache-manual_refresh/REQ-10

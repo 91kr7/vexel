@@ -24,11 +24,18 @@ type: frontend hook
 - A layer whose association does not exist is not an error: it arrives inside `trace` carrying its
   own reason.
 - A read that settles after the hook is unmounted or after `id` changed is discarded.
+- Re-reads on the manual reload signal, and that signal waits for this read: an open detail
+  view shows the reloaded data when the operator's refresh ends. Its event filter and its
+  object scope are unchanged, and the view is neither closed nor reset
+  (plan-docker_management_app-refresh_cache-manual_refresh/REQ-12, plan-docker_management_app-refresh_cache-manual_refresh/REQ-13).
 
 ## Dependencies
 
 - images: Image layers client (`fetchImageBuildCacheTrace`)
+- app-shell: Reload signal
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-68
+- plan-docker_management_app-refresh_cache-manual_refresh/REQ-12
+- plan-docker_management_app-refresh_cache-manual_refresh/REQ-13

@@ -33,12 +33,19 @@ the size they weigh (REQ-86).
   view of which registries are reachable and how (REQ-93).
 - Results are what an anonymous client can reach: no credential is read back to widen them
   (REQ-87).
+- Re-reads on the manual reload signal, and that signal waits for this read: when the
+  operator's refresh ends, the screen is already showing the reloaded data. The read replaces
+  the data in place — nothing is closed, navigated or reset (plan-docker_management_app-refresh_cache-manual_refresh/REQ-11,
+  plan-docker_management_app-refresh_cache-manual_refresh/REQ-13).
 
 ## Dependencies
 
 - registries: Registries client
 - contexts: Active-context broadcast
+- app-shell: Reload signal
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-86
+- plan-docker_management_app-refresh_cache-manual_refresh/REQ-11
+- plan-docker_management_app-refresh_cache-manual_refresh/REQ-13

@@ -37,14 +37,21 @@ keeping the breakdown true to the host after each one.
 - A context switch drops what is held and re-reads at once: the breakdown belongs to a daemon, not
   to the screen (REQ-93).
 - A read that settles after the hook is unmounted updates nothing.
+- Re-reads on the manual reload signal, and that signal waits for this read: when the
+  operator's refresh ends, the screen is already showing the reloaded data. The read replaces
+  the data in place — nothing is closed, navigated or reset (plan-docker_management_app-refresh_cache-manual_refresh/REQ-11,
+  plan-docker_management_app-refresh_cache-manual_refresh/REQ-13).
 
 ## Dependencies
 
 - system: System client
 - events: Event stream client (`subscribeToDaemonEvents`)
 - contexts: active-context broadcast (`subscribeToActiveContextChange`)
+- app-shell: Reload signal
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-95
 - plan-docker_management_app/REQ-96
+- plan-docker_management_app-refresh_cache-manual_refresh/REQ-11
+- plan-docker_management_app-refresh_cache-manual_refresh/REQ-13

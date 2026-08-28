@@ -36,15 +36,22 @@ of the daemon ones.
 - The poll is deliberately slow: every state change this hook drives emits a `plugin` daemon event,
   so the interval only has to notice a `docker plugin` command run from a terminal, or a CLI plugin
   dropped into the installation — neither of which announces itself.
+- Re-reads on the manual reload signal, and that signal waits for this read: when the
+  operator's refresh ends, the screen is already showing the reloaded data. The read replaces
+  the data in place — nothing is closed, navigated or reset (plan-docker_management_app-refresh_cache-manual_refresh/REQ-11,
+  plan-docker_management_app-refresh_cache-manual_refresh/REQ-13).
 
 ## Dependencies
 
 - plugins: Plugins client
 - contexts: Active-context broadcast
 - events: daemon event subscription
+- app-shell: Reload signal
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-98
 - plan-docker_management_app/REQ-99
 - plan-docker_management_app/REQ-111
+- plan-docker_management_app-refresh_cache-manual_refresh/REQ-11
+- plan-docker_management_app-refresh_cache-manual_refresh/REQ-13

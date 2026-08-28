@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToActiveContextChange } from './active-context';
+import { subscribeToReload } from './reload-signal';
 import {
   fetchRegistries,
   loginToRegistry,
@@ -34,7 +35,7 @@ export function useRegistries(): UseRegistriesResult {
   const cancelledRef = useRef(false);
 
   const refresh = useCallback(() => {
-    fetchRegistries()
+    return fetchRegistries()
       .then((list) => {
         if (cancelledRef.current) return;
         if (!Array.isArray(list)) throw new Error('The server did not answer with a list of registries.');
@@ -62,6 +63,9 @@ export function useRegistries(): UseRegistriesResult {
   // Another context means another daemon: the insecure-registry flags held
   // here belong to the one left behind and are re-read at once (REQ-93).
   useEffect(() => subscribeToActiveContextChange(refresh), [refresh]);
+
+  // The reload signal waits for this read, which is why `refresh` returns its promise (REQ-11).
+  useEffect(() => subscribeToReload(refresh), [refresh]);
 
   useEffect(() => {
     const interval = window.setInterval(refresh, POLL_INTERVAL_MS);

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToActiveContextChange } from './active-context';
+import { subscribeToReload } from './reload-signal';
 import { subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
 import { fetchSystemOverview, type SystemOverview } from './system-client';
 
@@ -40,7 +41,7 @@ export function useSystemOverview(): UseSystemOverviewResult {
   const cancelledRef = useRef(false);
 
   const refresh = useCallback(() => {
-    fetchSystemOverview()
+    return fetchSystemOverview()
       .then((next) => {
         if (cancelledRef.current) return;
         setOverview(next);
@@ -81,6 +82,9 @@ export function useSystemOverview(): UseSystemOverviewResult {
   // Another context means another daemon: what is held here belongs to
   // the one left behind and is re-read at once (REQ-93).
   useEffect(() => subscribeToActiveContextChange(refresh), [refresh]);
+
+  // The reload signal waits for this read, which is why `refresh` returns its promise (REQ-11).
+  useEffect(() => subscribeToReload(refresh), [refresh]);
 
   return { overview, loaded, error, refresh };
 }

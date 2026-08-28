@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToActiveContextChange } from './active-context';
+import { subscribeToReload } from './reload-signal';
 import { fetchNetworks, type NetworkSummary } from './networks-client';
 import { subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
 
@@ -24,7 +25,7 @@ export function useNetworks(): UseNetworksResult {
   const cancelledRef = useRef(false);
 
   const refresh = useCallback(() => {
-    fetchNetworks()
+    return fetchNetworks()
       .then((list) => {
         if (cancelledRef.current) return;
         setNetworks(list);
@@ -59,6 +60,9 @@ export function useNetworks(): UseNetworksResult {
   // Another context means another daemon: what is held here belongs to
   // the one left behind and is re-read at once (REQ-93).
   useEffect(() => subscribeToActiveContextChange(refresh), [refresh]);
+
+  // The reload signal waits for this read, which is why `refresh` returns its promise (REQ-11).
+  useEffect(() => subscribeToReload(refresh), [refresh]);
 
   useEffect(() => {
     const interval = window.setInterval(refresh, POLL_INTERVAL_MS);

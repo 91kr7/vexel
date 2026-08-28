@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToActiveContextChange } from './active-context';
+import { subscribeToReload } from './reload-signal';
 import { fetchCoverageBaseline, type BaselineReport } from './system-client';
 import { coverageAreas, countCoverage, type CoverageArea, type CoverageCounts } from '../coverage/coverage-map';
 
@@ -50,7 +51,7 @@ export function useCoverage(): UseCoverageResult {
   const cancelledRef = useRef(false);
 
   const refresh = useCallback(() => {
-    fetchCoverageBaseline()
+    return fetchCoverageBaseline()
       .then((report) => {
         if (cancelledRef.current) return;
         setBaseline(requireBaseline(report));
@@ -76,6 +77,9 @@ export function useCoverage(): UseCoverageResult {
 
   // The daemon half of the baseline belongs to a daemon, not to the screen.
   useEffect(() => subscribeToActiveContextChange(refresh), [refresh]);
+
+  // The reload signal waits for this read, which is why `refresh` returns its promise (REQ-11).
+  useEffect(() => subscribeToReload(refresh), [refresh]);
 
   return { areas: coverageAreas, counts: countCoverage(coverageAreas), baseline, loaded, error, refresh };
 }

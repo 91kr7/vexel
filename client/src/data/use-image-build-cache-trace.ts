@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { subscribeToReload } from './reload-signal';
 import { fetchImageBuildCacheTrace, type ImageBuildCacheTrace } from './image-layers-client';
 
 export interface UseImageBuildCacheTraceResult {
@@ -28,7 +29,7 @@ export function useImageBuildCacheTrace(id: string | undefined): UseImageBuildCa
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-    fetchImageBuildCacheTrace(id, controller.signal)
+    return fetchImageBuildCacheTrace(id, controller.signal)
       .then((result) => {
         if (controller.signal.aborted) return;
         setTrace(result);
@@ -51,6 +52,9 @@ export function useImageBuildCacheTrace(id: string | undefined): UseImageBuildCa
       abortRef.current?.abort();
     };
   }, [id, refresh]);
+
+  // The reload signal waits for this read, which is why `refresh` returns its promise (REQ-12).
+  useEffect(() => subscribeToReload(refresh), [refresh]);
 
   return { trace, loaded, error, refresh };
 }

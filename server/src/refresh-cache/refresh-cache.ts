@@ -21,6 +21,16 @@ export interface HeldValue<T> {
   error?: string;
 }
 
+/** What a manual reload did, kind by kind. */
+export interface ReloadReport {
+  /** Keys read again from the daemon. */
+  reloaded: string[];
+  /** Keys holding nothing, so not read. */
+  skipped: string[];
+  /** Keys whose read failed; each keeps the value it held. */
+  failed: { key: string; error: string }[];
+}
+
 export interface RefreshKindOptions<T> {
   key: string;
   read: () => Promise<T>;
@@ -46,7 +56,15 @@ interface RegisteredKind {
   markDue(): void;
   discard(): void;
   reset(): void;
+  reloadHeld(): Promise<KindReloadOutcome>;
 }
+
+/** What one kind did during a manual reload. */
+export type KindReloadOutcome =
+  | { status: "reloaded" }
+  /** Nothing is held, so there is nothing to read again. */
+  | { status: "skipped" }
+  | { status: "failed"; error: string };
 
 interface Held<T> {
   value: T;
@@ -117,6 +135,24 @@ class Kind<T> implements RefreshKind<T>, RegisteredKind {
   dispose(): void {
     this.reset();
     unregisterKind(this);
+  }
+
+  /**
+   * Reads again now, on the operator's request. Only a kind that holds a value
+   * is read (REQ-8), and the schedule is left exactly as it was: no period is
+   * restarted, no refresher is started for a kind nobody asks for, and no
+   * demand is renewed (REQ-10). A failure keeps the held value and is reported
+   * rather than thrown (REQ-9).
+   */
+  async reloadHeld(): Promise<KindReloadOutcome> {
+    if (!this.held) return { status: "skipped" };
+    const requestedAt = Date.now();
+    await this.refresh();
+    // The read just awaited may be one that started before the request: it
+    // cannot answer for the daemon's state now, so one more does.
+    if (this.lastReadStartedAt < requestedAt) await this.refresh();
+    if (this.stale) return { status: "failed", error: errorMessage(this.failure) };
+    return { status: "reloaded" };
   }
 
   /** An event says this kind may have changed: read again, within the grouping window. */
@@ -303,6 +339,25 @@ export function discardHeldValues(): void {
  */
 export function resetRefreshCache(): void {
   kinds.forEach((kind) => kind.reset());
+}
+
+/**
+ * Reads again, at once, every value currently held — whatever kind it is — and
+ * ends only when all those reads have ended (REQ-7). A kind holding nothing is
+ * skipped rather than read (REQ-8); a kind whose read fails keeps what it held
+ * and is reported (REQ-9). Nothing else about the cache moves (REQ-10).
+ */
+export async function reloadHeldValues(): Promise<ReloadReport> {
+  const entries = [...kinds.values()];
+  const outcomes = await Promise.all(entries.map((kind) => kind.reloadHeld()));
+  const report: ReloadReport = { reloaded: [], skipped: [], failed: [] };
+  entries.forEach((kind, index) => {
+    const outcome = outcomes[index] as KindReloadOutcome;
+    if (outcome.status === "reloaded") report.reloaded.push(kind.key);
+    else if (outcome.status === "skipped") report.skipped.push(kind.key);
+    else report.failed.push({ key: kind.key, error: outcome.error });
+  });
+  return report;
 }
 
 function unregisterKind(kind: RegisteredKind): void {

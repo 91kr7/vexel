@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { subscribeToReload } from './reload-signal';
 import { fetchBuildCacheUsage, type BuildCacheUsage } from './builders-client';
 
 export interface UseBuildCacheUsageResult {
@@ -28,7 +29,7 @@ export function useBuildCacheUsage(recordId: string | undefined): UseBuildCacheU
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-    fetchBuildCacheUsage(recordId, controller.signal)
+    return fetchBuildCacheUsage(recordId, controller.signal)
       .then((result) => {
         if (controller.signal.aborted) return;
         setUsage(result);
@@ -51,6 +52,9 @@ export function useBuildCacheUsage(recordId: string | undefined): UseBuildCacheU
       abortRef.current?.abort();
     };
   }, [recordId, refresh]);
+
+  // The reload signal waits for this read, which is why `refresh` returns its promise (REQ-12).
+  useEffect(() => subscribeToReload(refresh), [refresh]);
 
   return { usage, loaded, error, refresh };
 }
