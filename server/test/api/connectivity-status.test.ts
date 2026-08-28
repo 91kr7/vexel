@@ -5,6 +5,7 @@ import type { AddressInfo } from "node:net";
 import { connectivityRouter } from "../../src/connectivity/connectivity-routes.js";
 import type { ConnectionStatus } from "../../src/connectivity/connection-status-service.js";
 import { setActiveEndpoint } from "../../src/docker/endpoint.js";
+import { resetCliAvailabilityCache } from "../../src/docker/cli-runner.js";
 
 function startApp(app: Express): Promise<{ url: string; close: () => Promise<void> }> {
   return new Promise((resolve) => {
@@ -50,7 +51,11 @@ test("GET /api/connectivity/status reports the docker CLI available with its ver
   }
 });
 
-// plan-docker_management_app/REQ-110 — missing CLI tools are reported explicitly, naming the unavailable capabilities
+// plan-docker_management_app/REQ-110 — missing CLI tools are reported explicitly, naming the unavailable capabilities.
+// The probe is kept for the process's lifetime
+// (plan-docker_management_app-refresh_cache/REQ-1), so an empty PATH is only
+// read if the remembered answer is discarded first — and discarded again
+// afterwards, so the tests below this one see the real PATH.
 test("GET /api/connectivity/status names the unavailable capabilities when no CLI tool is on PATH", async () => {
   const app = express();
   app.use("/api/connectivity", connectivityRouter);
@@ -58,6 +63,7 @@ test("GET /api/connectivity/status names the unavailable capabilities when no CL
   const originalPath = process.env.PATH;
   try {
     process.env.PATH = "";
+    resetCliAvailabilityCache();
     const response = await fetch(`${url}/api/connectivity/status`);
     const body = (await response.json()) as ConnectionStatus;
     assert.equal(body.cli.docker.available, false);
@@ -70,6 +76,33 @@ test("GET /api/connectivity/status names the unavailable capabilities when no CL
     assert.match(joined, /multi-platform builds/);
   } finally {
     process.env.PATH = originalPath;
+    resetCliAvailabilityCache();
+    await close();
+  }
+});
+
+// plan-docker_management_app-refresh_cache/REQ-1, plan-docker_management_app-refresh_cache/REQ-3 —
+// the CLI half of the status is determined once for as long as the server runs.
+// Observable from the route: with PATH emptied between the two calls, a second
+// call that probed anything would report the three tools gone; reporting the
+// same values instead is the proof that it launched no program.
+test("GET /api/connectivity/status reports the same CLI values on a later call, without probing again", async () => {
+  const app = express();
+  app.use("/api/connectivity", connectivityRouter);
+  const { url, close } = await startApp(app);
+  const originalPath = process.env.PATH;
+  try {
+    resetCliAvailabilityCache();
+    const first = (await (await fetch(`${url}/api/connectivity/status`)).json()) as ConnectionStatus;
+
+    process.env.PATH = "";
+    const second = (await (await fetch(`${url}/api/connectivity/status`)).json()) as ConnectionStatus;
+
+    assert.deepEqual(second.cli, first.cli);
+    assert.deepEqual(second.unavailableCapabilities, first.unavailableCapabilities);
+  } finally {
+    process.env.PATH = originalPath;
+    resetCliAvailabilityCache();
     await close();
   }
 });

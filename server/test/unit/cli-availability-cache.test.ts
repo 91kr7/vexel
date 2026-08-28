@@ -63,3 +63,30 @@ test("detectCliAvailability keeps and reuses a degraded answer, without probing 
     assert.deepEqual(second, first);
   }, "buildx");
 });
+
+// plan-docker_management_app-refresh_cache/REQ-1, plan-docker_management_app-refresh_cache/REQ-3
+test("detectCliAvailability reports the version the program printed, and reports it again unchanged", async () => {
+  await withRecordingDocker(async () => {
+    const first = await detectCliAvailability();
+    const second = await detectCliAvailability();
+
+    for (const tool of [first.docker, first.compose, first.buildx]) {
+      assert.equal(tool.available, true);
+      assert.ok(typeof tool.version === "string" && tool.version.includes("27.0.0"), "the version is expected to come from what the program printed");
+    }
+    assert.deepEqual(second, first);
+  });
+});
+
+// plan-docker_management_app-refresh_cache/REQ-1 — what is kept is the probe's own answer:
+// discarding it probes the three programs again and yields the same thing.
+test("detectCliAvailability probes the three programs again once the remembered answer is discarded", async () => {
+  await withRecordingDocker(async (invocations) => {
+    const first = await detectCliAvailability();
+    resetCliAvailabilityCache();
+    const second = await detectCliAvailability();
+
+    assert.equal(await invocations(), 6, "a discarded answer is expected to cost one more probe of the three programs");
+    assert.deepEqual(second, first);
+  });
+});
