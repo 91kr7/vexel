@@ -5,6 +5,7 @@
 import { getEngineClient } from "../connectivity/connection-status-service.js";
 import { INTERNAL_CONTAINER_LABEL } from "../image-analysis/filesystem-extraction-service.js";
 import { byNameThenIdentity } from "../list-order/list-order.js";
+import { registerRefreshKind, type HeldValue } from "../refresh-cache/refresh-cache.js";
 
 export type ContainerState = "created" | "running" | "paused" | "restarting" | "removing" | "exited" | "dead";
 
@@ -189,6 +190,41 @@ export async function listContainers(): Promise<ContainerSummary[]> {
     .filter((container) => container.Labels?.[INTERNAL_CONTAINER_LABEL] !== "true")
     .map(toSummary)
     .sort(byNameThenIdentity({ name: (container) => container.name, identity: (container) => container.id }));
+}
+
+/**
+ * The container listing as the refresh cache keeps it: read on its own period
+ * and whenever a `container` event or one of this application's own operations
+ * says so (REQ-9, REQ-11, REQ-12, REQ-13).
+ */
+export const containerListCache = registerRefreshKind({
+  key: "containers",
+  periodMs: 20000,
+  eventTypes: ["container"],
+  read: listContainers,
+});
+
+/**
+ * The listing the endpoint answers with: the held list, carrying the sampler's
+ * *current* figures rather than the ones frozen into it when it was read. The
+ * sampler runs on its own, faster schedule and is not part of what is held.
+ */
+export async function readContainerList(): Promise<HeldValue<ContainerSummary[]>> {
+  const held = await containerListCache.read();
+  return { ...held, value: held.value.map(withCurrentSample) };
+}
+
+function withCurrentSample(container: ContainerSummary): ContainerSummary {
+  const usage = freshSample(container.id);
+  return {
+    ...container,
+    cpuPercent: usage?.cpuPercent,
+    memoryUsageBytes: usage?.memoryUsageBytes,
+    memoryLimitBytes: usage?.memoryLimitBytes,
+    onlineCpus: usage?.onlineCpus,
+    networkRxBytes: usage?.networkRxBytes,
+    networkTxBytes: usage?.networkTxBytes,
+  };
 }
 
 export async function startContainer(id: string): Promise<void> {

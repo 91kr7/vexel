@@ -10,7 +10,8 @@ type: REST endpoint
 
 ## Contract
 
-- `GET /api/images` → `200`, `ImageSummary[]` (see `images-service.md`).
+- `GET /api/images` → `200`, `ImageSummary[]` (see `images-service.md`), **answered from the
+  refresh cache**.
 - `GET /api/images/:id/inspect` → `200`, `ImageInspect` (see `images-service.md`).
 - `GET /api/images/pull/stream?reference=...&platform=...` → the pull progress stream, as
   server-sent events: `step` (`ImageTransferStep`, see `image-transfer-service.md`), `error` (`{
@@ -33,6 +34,13 @@ type: REST endpoint
 
 ## Rules and invariants
 
+- **`GET /api/images` never calls the daemon while the client waits.** It answers the value the
+  refresh cache holds (kind `images`); only a listing never read before waits for a read. The body
+  is unchanged; the response carries `X-Vexel-Read-At`, `X-Vexel-Age-Ms`, and `X-Vexel-Stale` when
+  the last read attempt failed.
+- **Pull, push, tag, untag, remove, prune and load mark that kind changed once they have
+  succeeded**, so what the operator just transferred shows on the next request without waiting for a
+  timer. The progress streams themselves, `save` and inspect stay **direct**.
 - Any daemon rejection responds with the daemon's own `statusCode` (falling back to `502`) and `{
   error: message }` carrying the daemon's own message verbatim.
 - The pull/push stream endpoints cancel the upstream Engine API stream as soon as the client
@@ -50,3 +58,6 @@ type: REST endpoint
 - plan-docker_management_app/REQ-39
 - plan-docker_management_app/REQ-40
 - plan-docker_management_app/REQ-42
+- plan-docker_management_app-refresh_cache/REQ-9
+- plan-docker_management_app-refresh_cache/REQ-12
+- plan-docker_management_app-refresh_cache/REQ-13

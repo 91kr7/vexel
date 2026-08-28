@@ -11,7 +11,7 @@ active context to the client.
 
 ## Contract
 
-- `GET /api/contexts` → the context inventory.
+- `GET /api/contexts` → the context inventory, **answered from the refresh cache**.
   - `200` → `ContextSummary[]`, every context whatever its endpoint kind.
 - `GET /api/contexts/daemon-info` → the daemon of the active context (REQ-94).
   - `200` → `DaemonInfo`.
@@ -32,6 +32,14 @@ active context to the client.
 
 ## Rules and invariants
 
+- **`GET /api/contexts` never runs the CLI while the client waits.** It answers the value the
+  refresh cache holds (kind `contexts`); only an inventory never read before — which a context
+  switch makes the case again, since the switch discards every held value — waits for a read. The
+  body is unchanged; the response carries `X-Vexel-Read-At`, `X-Vexel-Age-Ms`, and `X-Vexel-Stale`
+  when the last read attempt failed.
+- Create, select-active and remove mark that kind changed on success, through `ContextsService`.
+  `GET /api/contexts/daemon-info` stays **direct**.
+
 - `daemon-info` is matched before the `:name` routes, so the daemon reading can never be taken for a
   context named "daemon-info".
 
@@ -44,3 +52,6 @@ active context to the client.
 - plan-docker_management_app/REQ-92
 - plan-docker_management_app/REQ-93
 - plan-docker_management_app/REQ-94
+- plan-docker_management_app-refresh_cache/REQ-9
+- plan-docker_management_app-refresh_cache/REQ-13
+- plan-docker_management_app-refresh_cache/REQ-16

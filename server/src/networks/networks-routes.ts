@@ -6,16 +6,18 @@ import {
   createNetwork,
   detachContainer,
   getNetworkInspect,
-  listNetworks,
+  networkListCache,
   pruneNetworks,
   removeNetwork,
 } from "./networks-service.js";
+import { sendHeld } from "../refresh-cache/refresh-cache-response.js";
 
 export const networksRouter = Router();
 
+/** Answered from the value the refresh cache holds (REQ-9); only a listing never read before waits for the daemon. */
 networksRouter.get("/", async (_req, res) => {
   try {
-    res.json(await listNetworks());
+    sendHeld(res, await networkListCache.read());
   } catch (error) {
     respondError(res, error);
   }

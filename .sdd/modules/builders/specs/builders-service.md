@@ -27,6 +27,10 @@ and select-active.
   - The **active builder keeps its alphabetical place**: it is marked by `active`, never promoted.
   - The same builders produce the **same sequence on every read**, whatever order buildx listed
     them in.
+- `builderListCache` — the refresh-cache kind the inventory is held under: key `builders`, period
+  30 s, **no event type** — buildx publishes none, and the operations below say so themselves (see
+  `refresh-cache.md`, module `refresh-cache`). `listBuilders` is its read; the inventory above is
+  unchanged by this.
 - `createBuilder(input): Promise<BuilderSummary>`
   - `input`: `{ name, driver, endpoint?, platforms: string[] }`.
   - Rejects with the daemon's own message on a name collision or an invalid driver/endpoint.
@@ -37,6 +41,10 @@ and select-active.
   - Sets `name` as the builder used by default; resolves with its resulting summary (now `active`).
 
 ## Rules and invariants
+
+- `createBuilder`, `removeBuilder` and `useBuilder` say the inventory has changed once they have
+  succeeded, so the operator's own action shows on the next request without waiting for a timer. A
+  failed call marks nothing.
 
 - Every call goes through the CLI channel (`docker buildx …`), never a direct daemon socket call.
 - `docker buildx ls`/`du` output is read as newline-delimited JSON, a single bare JSON object (the
@@ -53,6 +61,7 @@ and select-active.
 
 - docker-access: CLI runner
 - list-order: List order (`byNameThenIdentity`)
+- refresh-cache: Refresh cache (`registerRefreshKind`)
 
 ## Requirements served
 
@@ -60,3 +69,6 @@ and select-active.
 - plan-docker_management_app/REQ-89
 - plan-docker_management_app-list_ordering/REQ-11
 - plan-docker_management_app-list_ordering/REQ-12
+- plan-docker_management_app-refresh_cache/REQ-9
+- plan-docker_management_app-refresh_cache/REQ-11
+- plan-docker_management_app-refresh_cache/REQ-13

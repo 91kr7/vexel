@@ -46,6 +46,10 @@ data.
       shortened, and a dangling image still carries an empty `tags`.
   - The same images produce the **same sequence on every read**, whatever order the daemon supplied
     them — or their `RepoTags` — in.
+- `imageListCache` — the refresh-cache kind the listing is held under: key `images`, period 60 s,
+  marked due by `image` daemon events (see `refresh-cache.md`, module `refresh-cache`).
+  `listImages` is its read; the listing above is unchanged by this. `getImageInspect` is **not**
+  held: a detail read stays direct.
 - `resetImagePlatformCache(): void` — discards the platforms remembered above, so the next listing
   resolves them again. It exists for the checks, which need to observe the resolving itself; the
   server never calls it.
@@ -77,6 +81,7 @@ data.
 
 - docker-access: EngineClient (via `getEngineClient()`), DockerDaemonError
 - list-order: List order (`byNameThenIdentity`, `byNamedThenUnnamedNewest`)
+- refresh-cache: Refresh cache (`registerRefreshKind`)
 
 ## Requirements served
 
@@ -90,3 +95,6 @@ data.
 - plan-docker_management_app-list_ordering/REQ-22
 - plan-docker_management_app-refresh_cache/REQ-2
 - plan-docker_management_app-refresh_cache/REQ-3
+- plan-docker_management_app-refresh_cache/REQ-9
+- plan-docker_management_app-refresh_cache/REQ-11
+- plan-docker_management_app-refresh_cache/REQ-12

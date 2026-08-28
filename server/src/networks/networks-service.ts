@@ -4,6 +4,7 @@
 // merged in from /containers/json (each container's own NetworkSettings).
 import { getEngineClient } from "../connectivity/connection-status-service.js";
 import { byNameThenIdentity } from "../list-order/list-order.js";
+import { registerRefreshKind } from "../refresh-cache/refresh-cache.js";
 
 export interface NetworkSummary {
   id: string;
@@ -104,6 +105,19 @@ export async function listNetworks(): Promise<NetworkSummary[]> {
     .sort(byNameThenIdentity({ name: (network) => network.name, identity: (network) => network.id }));
 }
 
+/**
+ * The network listing as the refresh cache keeps it: read on its own period and
+ * whenever a `network` or `container` event — a container attaching or leaving
+ * changes what the list shows — or one of this application's own operations
+ * says so (REQ-9, REQ-11, REQ-12, REQ-13).
+ */
+export const networkListCache = registerRefreshKind({
+  key: "networks",
+  periodMs: 30000,
+  eventTypes: ["network", "container"],
+  read: listNetworks,
+});
+
 /** `GET /networks/{id}` itself rejects with a daemon 404 for an unknown id/name; its own `Containers` map is authoritative. */
 export async function getNetworkInspect(id: string): Promise<NetworkInspect> {
   const response = await getEngineClient().request(`/networks/${encodeURIComponent(id)}`);
@@ -129,17 +143,20 @@ export async function createNetwork(input: CreateNetworkInput): Promise<NetworkS
   });
   const response = await getEngineClient().request("/networks/create", { method: "POST", body });
   const created = JSON.parse(response.body) as { Id: string };
+  networkListCache.markChanged();
   return getNetworkInspect(created.Id);
 }
 
 export async function removeNetwork(id: string): Promise<void> {
   await getEngineClient().request(`/networks/${encodeURIComponent(id)}`, { method: "DELETE" });
+  networkListCache.markChanged();
 }
 
 /** Prunes every network not currently used by a container, reporting the removed names. */
 export async function pruneNetworks(): Promise<NetworkPruneResult> {
   const response = await getEngineClient().request("/networks/prune", { method: "POST" });
   const payload = JSON.parse(response.body) as { NetworksDeleted?: string[] };
+  networkListCache.markChanged();
   return { removedNames: payload.NetworksDeleted ?? [] };
 }
 
@@ -149,6 +166,7 @@ export async function attachContainer(networkId: string, containerId: string): P
     method: "POST",
     body: JSON.stringify({ Container: containerId }),
   });
+  networkListCache.markChanged();
   return getNetworkInspect(networkId);
 }
 
@@ -158,5 +176,6 @@ export async function detachContainer(networkId: string, containerId: string): P
     method: "POST",
     body: JSON.stringify({ Container: containerId, Force: true }),
   });
+  networkListCache.markChanged();
   return getNetworkInspect(networkId);
 }

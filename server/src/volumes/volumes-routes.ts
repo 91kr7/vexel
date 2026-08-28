@@ -1,13 +1,15 @@
 import { Router } from "express";
 import type { Response } from "express";
 import { DockerDaemonError } from "../docker/errors.js";
-import { createVolume, getVolumeInspect, listVolumes, pruneVolumes, removeVolume } from "./volumes-service.js";
+import { sendHeld } from "../refresh-cache/refresh-cache-response.js";
+import { createVolume, getVolumeInspect, pruneVolumes, removeVolume, volumeListCache } from "./volumes-service.js";
 
 export const volumesRouter = Router();
 
+/** Answered from the value the refresh cache holds (REQ-9); only a listing never read before waits for the daemon. */
 volumesRouter.get("/", async (_req, res) => {
   try {
-    res.json(await listVolumes());
+    sendHeld(res, await volumeListCache.read());
   } catch (error) {
     respondError(res, error);
   }

@@ -11,13 +11,15 @@ import {
   tagImage,
   untagImage,
 } from "./image-transfer-service.js";
-import { getImageInspect, listImages } from "./images-service.js";
+import { sendHeld } from "../refresh-cache/refresh-cache-response.js";
+import { getImageInspect, imageListCache } from "./images-service.js";
 
 export const imagesRouter = Router();
 
+/** Answered from the value the refresh cache holds (REQ-9); only a listing never read before waits for the daemon. */
 imagesRouter.get("/", async (_req, res) => {
   try {
-    res.json(await listImages());
+    sendHeld(res, await imageListCache.read());
   } catch (error) {
     respondError(res, error);
   }

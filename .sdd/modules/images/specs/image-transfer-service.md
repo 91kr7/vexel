@@ -49,6 +49,13 @@ browser-facing save/load tarball streams (REQ-42).
 
 ## Rules and invariants
 
+- **Every operation here that changes the image listing says so** to the refresh cache once it has
+  succeeded (`imageListCache.markChanged()`, module `refresh-cache`): pull and push when their
+  stream has ended on a success, tag, untag, remove, prune and load when their call has returned.
+  Marking is done here rather than in the endpoints because every caller of these operations must
+  mark, and only one place can guarantee that. A failed operation marks nothing.
+- `openImageSaveStream` and `sanitizeTarFilename` change nothing and mark nothing.
+
 - Pull/push progress is decoded from the daemon's newline-delimited JSON stream, one `onStep`/
   `onError` call per line; a malformed/partial line is skipped rather than failing the transfer.
 - A pull or push outcome is **stated, never inferred**: success is concluded only from a success the
@@ -73,6 +80,7 @@ browser-facing save/load tarball streams (REQ-42).
 ## Dependencies
 
 - docker-access: EngineClient (via `getEngineClient()`), DockerDaemonError
+- images: ImagesService (`imageListCache`)
 
 ## Requirements served
 
@@ -84,3 +92,4 @@ browser-facing save/load tarball streams (REQ-42).
 - plan-docker_management_app-push_failure_reporting/REQ-3
 - plan-docker_management_app-push_failure_reporting/REQ-5
 - plan-docker_management_app-push_failure_reporting/REQ-6
+- plan-docker_management_app-refresh_cache/REQ-13

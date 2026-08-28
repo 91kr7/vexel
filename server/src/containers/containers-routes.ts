@@ -7,10 +7,11 @@ import { streamContainerStats } from "./container-stats-service.js";
 import { importFilesystemImage, openContainerExportStream } from "./container-transfer-service.js";
 import { sanitizeTarFilename } from "../images/image-transfer-service.js";
 import { acquireStatsDemand } from "./stats-demand-registry.js";
+import { sendHeld } from "../refresh-cache/refresh-cache-response.js";
 import {
+  containerListCache,
   getContainerInspect,
   killContainer,
-  listContainers,
   pauseContainer,
   pruneStoppedContainers,
   removeContainer,
@@ -19,6 +20,7 @@ import {
   startContainer,
   stopContainer,
   unpauseContainer,
+  readContainerList,
   updateContainerConfig,
   STATS_SAMPLE_INTERVAL_MS,
   type ContainerConfigUpdate,
@@ -26,9 +28,15 @@ import {
 
 export const containersRouter = Router();
 
+/**
+ * Answered from the value the refresh cache holds, never by reading the daemon
+ * while the client waits (REQ-9). Only a listing never read before — the first
+ * request after the process started, or after a context change — is fetched
+ * with the client waiting.
+ */
 containersRouter.get("/", async (_req, res) => {
   try {
-    res.json(await listContainers());
+    sendHeld(res, await readContainerList());
   } catch (error) {
     respondError(res, error);
   }
@@ -78,6 +86,7 @@ containersRouter.post("/", async (req, res) => {
     onImageResolved: (pulled) => writeNdjson(res, { type: "image-resolved", pulled }),
     onPullStep: (step) => writeNdjson(res, { type: "pull-step", step }),
     onCreated: (result) => {
+      containerListCache.markChanged();
       writeNdjson(res, { type: "created", result });
       res.end();
     },
@@ -174,7 +183,9 @@ containersRouter.get("/:id/inspect", async (req, res) => {
 containersRouter.patch("/:id/config", async (req, res) => {
   try {
     const update = (req.body ?? {}) as ContainerConfigUpdate;
-    res.json(await updateContainerConfig(req.params.id, update));
+    const result = await updateContainerConfig(req.params.id, update);
+    containerListCache.markChanged();
+    res.json(result);
   } catch (error) {
     respondError(res, error);
   }
@@ -211,6 +222,7 @@ containersRouter.get("/:id/processes", async (req, res) => {
 containersRouter.post("/prune", async (_req, res) => {
   try {
     const result = await pruneStoppedContainers();
+    containerListCache.markChanged();
     res.json({ removedCount: result.removedIds.length, reclaimedBytes: result.reclaimedBytes });
   } catch (error) {
     respondError(res, error);
@@ -284,9 +296,15 @@ async function runEventStream(req: Request, res: Response, open: () => Promise<(
   }
 }
 
+/**
+ * Every lifecycle and rename route ends here, so none of them can forget to
+ * say the listing has changed: without it the operator's own action would wait
+ * for a timer to show (REQ-13).
+ */
 async function runLifecycle(res: Response, action: () => Promise<void>): Promise<void> {
   try {
     await action();
+    containerListCache.markChanged();
     res.status(204).end();
   } catch (error) {
     respondError(res, error);

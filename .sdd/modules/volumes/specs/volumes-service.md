@@ -30,6 +30,11 @@ containers, read a volume's full inspect data, create, remove and prune unused v
       the anonymous ones: no heuristic rescues it.
   - The same volumes produce the **same sequence on every read**, whatever order the daemon
     supplied them in.
+- `volumeListCache` — the refresh-cache kind the listing is held under: key `volumes`, period 30 s,
+  marked due by `volume` **and `container`** daemon events — a container mounting or releasing a
+  volume changes what the list shows (see `refresh-cache.md`, module `refresh-cache`).
+  `listVolumes` is its read; the listing above is unchanged by this. `getVolumeInspect` is **not**
+  held: a detail read stays direct.
 - `getVolumeInspect(name): Promise<VolumeInspect>` — via `GET /volumes/{name}`; rejects with the
   daemon's own 404 for an unknown name.
   - `VolumeInspect`: `VolumeSummary & { raw }`; `raw` is the full inspect payload exactly as
@@ -49,10 +54,17 @@ containers, read a volume's full inspect data, create, remove and prune unused v
   cached: they reflect other containers' mounts and the daemon's own disk-usage bookkeeping at call
   time.
 
+### The refresh cache
+
+- `createVolume`, `removeVolume` and `pruneVolumes` say the listing has changed once they have
+  succeeded, so the operator's own action shows on the next request without waiting for a timer.
+  A failed call marks nothing.
+
 ## Dependencies
 
 - docker-access: EngineClient (via `getEngineClient()`), DockerDaemonError
 - list-order: List order (`byNamedThenUnnamedNewest`)
+- refresh-cache: Refresh cache (`registerRefreshKind`)
 
 ## Requirements served
 
@@ -62,3 +74,7 @@ containers, read a volume's full inspect data, create, remove and prune unused v
 - plan-docker_management_app-list_ordering/REQ-14
 - plan-docker_management_app-list_ordering/REQ-15
 - plan-docker_management_app-list_ordering/REQ-16
+- plan-docker_management_app-refresh_cache/REQ-9
+- plan-docker_management_app-refresh_cache/REQ-11
+- plan-docker_management_app-refresh_cache/REQ-12
+- plan-docker_management_app-refresh_cache/REQ-13

@@ -1,6 +1,7 @@
 // Image listing and inspect over the Engine API (REQ-37, REQ-40).
 import { getEngineClient } from "../connectivity/connection-status-service.js";
 import { byNamedThenUnnamedNewest, byNameThenIdentity, type NameKey } from "../list-order/list-order.js";
+import { registerRefreshKind } from "../refresh-cache/refresh-cache.js";
 
 export interface ImageSummary {
   id: string;
@@ -140,6 +141,19 @@ function lowestDigestRepository(digests: string[]): string | undefined {
 function orderReferences(references: string[]): string[] {
   return references.sort(byNameThenIdentity({ name: splitReference, identity: (reference) => reference }));
 }
+
+/**
+ * The image listing as the refresh cache keeps it: read on its own period and
+ * whenever an `image` event or one of this application's own registry
+ * operations says so (REQ-9, REQ-11, REQ-12, REQ-13). Inspect is not held: a
+ * detail read stays direct.
+ */
+export const imageListCache = registerRefreshKind({
+  key: "images",
+  periodMs: 60000,
+  eventTypes: ["image"],
+  read: listImages,
+});
 
 export async function getImageInspect(id: string): Promise<ImageInspect> {
   const client = getEngineClient();

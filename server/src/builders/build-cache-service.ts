@@ -1,6 +1,7 @@
 // Build-cache inventory and prune through the CLI channel (REQ-91): record
 // id, type, size and usage state, and reclaiming unused records.
 import { byNameThenIdentity } from "../list-order/list-order.js";
+import { registerRefreshKind } from "../refresh-cache/refresh-cache.js";
 import { parseHumanSize, runBuildxCapture, runBuildxJsonArray } from "./buildx-cli.js";
 
 export type BuildCacheUsageState = "shared" | "in-use" | "reclaimable";
@@ -36,9 +37,21 @@ export async function listBuildCache(): Promise<BuildCacheRecord[]> {
   return raw.map(toCacheRecord).sort(byNameThenIdentity({ name: (record) => record.id, identity: (record) => record.id }));
 }
 
+/**
+ * The build-cache inventory as the refresh cache keeps it (REQ-9, REQ-11,
+ * REQ-13). No event type: buildx publishes none, and the prune below says so
+ * itself.
+ */
+export const buildCacheListCache = registerRefreshKind({
+  key: "build-cache",
+  periodMs: 30000,
+  read: listBuildCache,
+});
+
 /** Prunes reclaimable build-cache records, reporting the space reclaimed. */
 export async function pruneBuildCache(): Promise<BuildCachePruneResult> {
   const output = await runBuildxCapture(["prune", "--force"]);
+  buildCacheListCache.markChanged();
   return { reclaimedBytes: parseReclaimedBytes(output) };
 }
 

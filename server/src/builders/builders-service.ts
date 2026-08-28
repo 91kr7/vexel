@@ -2,6 +2,7 @@
 // REQ-89): name, driver, endpoint, supported platforms, status and cache
 // size, which builder is active, plus select-active, create and remove.
 import { byNameThenIdentity } from "../list-order/list-order.js";
+import { registerRefreshKind } from "../refresh-cache/refresh-cache.js";
 import { parseHumanSize, runBuildxCapture, runBuildxJsonArray } from "./buildx-cli.js";
 
 export interface BuilderSummary {
@@ -50,21 +51,35 @@ export async function listBuilders(): Promise<BuilderSummary[]> {
   return builders.sort(byNameThenIdentity({ name: (builder) => builder.name, identity: (builder) => builder.name }));
 }
 
+/**
+ * The builder inventory as the refresh cache keeps it (REQ-9, REQ-11, REQ-13).
+ * No event type: buildx publishes none, and the routes that change a builder
+ * say so themselves.
+ */
+export const builderListCache = registerRefreshKind({
+  key: "builders",
+  periodMs: 30000,
+  read: listBuilders,
+});
+
 export async function createBuilder(input: CreateBuilderInput): Promise<BuilderSummary> {
   const args = ["create", "--name", input.name, "--driver", input.driver];
   for (const platform of input.platforms) args.push("--platform", platform);
   if (input.endpoint) args.push(input.endpoint);
   await runBuildxCapture(args);
+  builderListCache.markChanged();
   return getBuilder(input.name);
 }
 
 export async function removeBuilder(name: string): Promise<void> {
   await runBuildxCapture(["rm", name]);
+  builderListCache.markChanged();
 }
 
 /** Sets `name` as the builder `docker buildx build` uses by default. */
 export async function useBuilder(name: string): Promise<BuilderSummary> {
   await runBuildxCapture(["use", name]);
+  builderListCache.markChanged();
   return getBuilder(name);
 }
 

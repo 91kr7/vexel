@@ -6,6 +6,8 @@
 import { detectCliAvailability, type CliAvailability } from "../docker/cli-runner.js";
 import { getEngineClient } from "../docker/engine-client.js";
 import { DockerDaemonError } from "../docker/errors.js";
+import { eventStreamService } from "../events/event-stream-service.js";
+import { registerRefreshKind } from "../refresh-cache/refresh-cache.js";
 
 export { getEngineClient };
 
@@ -27,6 +29,24 @@ export async function getConnectionStatus(): Promise<ConnectionStatus> {
     unavailableCapabilities: unavailableCapabilitiesFor(cli),
   };
 }
+
+/**
+ * The connection status as the refresh cache keeps it (REQ-9, REQ-11, REQ-15).
+ * It **keeps a real probe**: the status also carries the negotiated Engine API
+ * and engine versions, which only a call to the daemon returns. An unreachable
+ * daemon is a successful read reporting it, not a failure, so the interface is
+ * told it cannot reach the daemon instead of being handed a stale "reachable".
+ */
+export const connectionStatusCache = registerRefreshKind({
+  key: "connection-status",
+  periodMs: 30000,
+  read: getConnectionStatus,
+});
+
+// The daemon event stream is already open against the same daemon, so its
+// connection dropping or coming back is the earliest reachability signal the
+// server has — cheaper and faster than shortening the period.
+eventStreamService.onConnectionChanged(() => connectionStatusCache.markChanged());
 
 async function probeDaemon() {
   try {

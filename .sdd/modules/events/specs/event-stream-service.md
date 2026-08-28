@@ -14,6 +14,10 @@ events to server-side subscribers (REQ-11, REQ-12), independent of how many clie
 - `start()` — begins the connect loop; idempotent (a second call is a no-op).
 - `getBacklog(): DaemonEvent[]` — the most recent events (up to 50), oldest first, for late
   subscribers to catch up on connect.
+- `onConnectionChanged(listener): () => void` — registers `listener` to run whenever this stream's
+  own connection to the daemon drops or comes back, with `true`/`false`; returns the unsubscribe
+  function. Fires only on a change, never twice for one state.
+- `isConnected(): boolean` — whether the stream is currently reading from the daemon.
 - Emits `'event'` with a `DaemonEvent` for every event as it arrives.
   - `DaemonEvent`: `{ id, timestamp (ISO 8601), type, action, actor?, actorId? }` — `type`/`action`
     come from the daemon's own `Type`/`Action` fields (container, image, network, volume, builder,
@@ -32,6 +36,10 @@ events to server-side subscribers (REQ-11, REQ-12), independent of how many clie
 - On a stream error or the daemon being unreachable, reconnects with exponential backoff (starting
   at 1s, capped at 30s), so the app recovers automatically once the daemon is back (REQ-9, REQ-11).
 - A malformed event line is skipped rather than stopping the stream.
+- The connection state is the stream's own, and it is the cheapest liveness signal the server has:
+  the stream is already open against the daemon every other area talks to, so whoever holds a
+  reachability answer re-reads on it instead of shortening its own period. Reconnection, backlog and
+  republishing are unchanged by this.
 - **An identity is minted once, when the event arrives, and never recomputed**: the same event
   carries the same `id` on every emission and every appearance in the backlog, so a subscriber
   reading it twice can recognize it as one event.
@@ -62,3 +70,4 @@ events to server-side subscribers (REQ-11, REQ-12), independent of how many clie
 - plan-docker_management_app/REQ-12
 - plan-docker_management_app/REQ-93
 - plan-docker_management_app-refresh_cache/REQ-6
+- plan-docker_management_app-refresh_cache/REQ-15

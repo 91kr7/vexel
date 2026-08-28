@@ -26,11 +26,20 @@ state.
   - Calling the returned cancel function kills the underlying process before it terminates on its
     own; neither `onResult` nor `onError` fires afterwards.
 
+## Rules and invariants
+
+- **Every command that exits successfully says the discovery has changed** to the refresh cache
+  (`composeProjectsCache.markChanged()`, module `refresh-cache`), before the project is re-read, so
+  the stack the operator just started shows on the next request without waiting for a timer. It is
+  done in the one place all four commands pass through, so none of them can forget. A command that
+  failed or was cancelled marks nothing.
+
 ## Dependencies
 
-- compose: ComposeDiscoveryService (`getComposeProject`)
+- compose: ComposeDiscoveryService (`getComposeProject`, `composeProjectsCache`)
 - docker-access: CLI runner (`runCliCommand`)
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-76
+- plan-docker_management_app-refresh_cache/REQ-13

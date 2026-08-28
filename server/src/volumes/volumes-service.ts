@@ -4,6 +4,7 @@
 // (per-volume UsageData) and /containers/json (each container's own Mounts).
 import { getEngineClient } from "../connectivity/connection-status-service.js";
 import { byNamedThenUnnamedNewest } from "../list-order/list-order.js";
+import { registerRefreshKind } from "../refresh-cache/refresh-cache.js";
 
 export interface VolumeSummary {
   name: string;
@@ -116,6 +117,19 @@ export async function listVolumes(): Promise<VolumeSummary[]> {
 }
 
 /**
+ * The volume listing as the refresh cache keeps it: read on its own period and
+ * whenever a `volume` or `container` event — a container mounting or releasing
+ * a volume changes what the list shows — or one of this application's own
+ * operations says so (REQ-9, REQ-11, REQ-12, REQ-13).
+ */
+export const volumeListCache = registerRefreshKind({
+  key: "volumes",
+  periodMs: 30000,
+  eventTypes: ["volume", "container"],
+  read: listVolumes,
+});
+
+/**
  * The name shape the daemon generates for a volume nobody named. A volume an
  * operator deliberately named that way is grouped with the anonymous ones and
  * is not rescued by a heuristic: it is cosmetic, and the alternative is
@@ -148,11 +162,13 @@ export async function createVolume(input: CreateVolumeInput): Promise<VolumeSumm
   });
   const response = await getEngineClient().request("/volumes/create", { method: "POST", body });
   const raw = JSON.parse(response.body) as RawVolume;
+  volumeListCache.markChanged();
   return toSummary(raw, new Map(), new Map());
 }
 
 export async function removeVolume(name: string): Promise<void> {
   await getEngineClient().request(`/volumes/${encodeURIComponent(name)}?force=true`, { method: "DELETE" });
+  volumeListCache.markChanged();
 }
 
 /** Prunes every currently unused volume, named or anonymous (`filters={"all":["true"]}`), reporting the reclaimed space. */
@@ -160,5 +176,6 @@ export async function pruneVolumes(): Promise<VolumePruneResult> {
   const filters = encodeURIComponent(JSON.stringify({ all: ["true"] }));
   const response = await getEngineClient().request(`/volumes/prune?filters=${filters}`, { method: "POST" });
   const payload = JSON.parse(response.body) as { VolumesDeleted?: string[]; SpaceReclaimed?: number };
+  volumeListCache.markChanged();
   return { removedNames: payload.VolumesDeleted ?? [], reclaimedBytes: payload.SpaceReclaimed ?? 0 };
 }

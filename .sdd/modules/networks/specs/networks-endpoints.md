@@ -10,7 +10,8 @@ type: REST endpoint
 
 ## Contract
 
-- `GET /api/networks` → `200`, `NetworkSummary[]` (see `networks-service.md`).
+- `GET /api/networks` → `200`, `NetworkSummary[]` (see `networks-service.md`), **answered from the
+  refresh cache**.
 - `GET /api/networks/:id/inspect` → `200`, `NetworkInspect`; `404` with `{ error }` for an unknown
   id/name.
 - `POST /api/networks` → request body `{ name, driver?, subnet?, gateway?, ipRange?, options?,
@@ -25,6 +26,10 @@ type: REST endpoint
 
 ## Rules and invariants
 
+- **`GET /api/networks` never calls the daemon while the client waits.** It answers the value the
+  refresh cache holds (kind `networks`); only a listing never read before waits for a read. The body
+  is unchanged; the response carries `X-Vexel-Read-At`, `X-Vexel-Age-Ms`, and `X-Vexel-Stale` when
+  the last read attempt failed. Inspect stays direct.
 - Any daemon rejection responds with the daemon's own `statusCode` (falling back to `502`) and `{
   error: message }` carrying the daemon's own message verbatim.
 
@@ -37,3 +42,6 @@ type: REST endpoint
 - plan-docker_management_app/REQ-72
 - plan-docker_management_app/REQ-73
 - plan-docker_management_app/REQ-74
+- plan-docker_management_app-refresh_cache/REQ-9
+- plan-docker_management_app-refresh_cache/REQ-12
+- plan-docker_management_app-refresh_cache/REQ-13

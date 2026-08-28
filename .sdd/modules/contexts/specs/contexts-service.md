@@ -31,6 +31,10 @@ configuration.
   - The **active context keeps its alphabetical place**: it is marked by `active`, never promoted.
   - The same contexts produce the **same sequence on every read**, whatever order Docker listed
     them in.
+- `contextListCache` — the refresh-cache kind the inventory is held under: key `contexts`, period
+  5 minutes, **no event type** — a context changes only when the operator changes one, and the
+  operations below say so themselves (see `refresh-cache.md`, module `refresh-cache`).
+  `listContexts` is its read; the inventory above is unchanged by this.
 - `createContext(input): Promise<ContextSummary>`
   - `input`: `{ name, kind: 'local' | 'ssh', host?, description? }`.
   - `local` → the endpoint is the default Docker socket of the machine running the server; the
@@ -57,6 +61,16 @@ configuration.
 
 ## Rules and invariants
 
+- `createContext`, `activateContext` and `removeContext` say the inventory has changed once they
+  have succeeded. `activateContext` marks it **after** publishing the new endpoint, so the discard
+  that switch triggers cannot undo the mark.
+- This inventory is also what reports **which** context is active, so a switch discards it like
+  every other held value: the next request reads it again with the client waiting. The interface is
+  never left without an answer, and is never shown the answer of the context left behind.
+- `listContexts` is still called directly where the answer must not come from a held value: the
+  endpoint resolution behind `publishActiveEndpoint`, and the single-context lookup the three
+  operations above return.
+
 - Creation covers the local-socket and SSH kinds only. A TCP+TLS context needs three certificate
   files on the *server's* filesystem, which the operator cannot see; its creation was withdrawn
   (departure Three, 2026-08-07) and is console-only. **This restricts creation, not support**: such
@@ -74,6 +88,7 @@ configuration.
 
 - docker-access: CLI runner, Active endpoint
 - list-order: List order (`byNameThenIdentity`)
+- refresh-cache: Refresh cache (`registerRefreshKind`)
 
 ## Requirements served
 
@@ -81,3 +96,7 @@ configuration.
 - plan-docker_management_app/REQ-93
 - plan-docker_management_app-list_ordering/REQ-10
 - plan-docker_management_app-list_ordering/REQ-12
+- plan-docker_management_app-refresh_cache/REQ-9
+- plan-docker_management_app-refresh_cache/REQ-11
+- plan-docker_management_app-refresh_cache/REQ-13
+- plan-docker_management_app-refresh_cache/REQ-16
