@@ -61,6 +61,7 @@ a client that stays broken until the context changes.
 | INT-8 | create | server check tree, unit | A negotiation that failed is not held: the call that hit it reports the daemon's own message, and a call made once the daemon answers again negotiates and succeeds rather than inheriting the failure. | REQ-35 | INT-2 |
 | INT-9 | create | server check tree, api | Against the real daemon: the connection status still reports a negotiated Engine API version and an engine version, and the list endpoints answer what they answer today — the guardrail that this batch removed calls and nothing else. | REQ-36 | INT-1, INT-2 |
 | INT-10 | modify | `.sdd/tech-debt/entries/engine-version-negotiated-on-every-call.md`, `.sdd/tech-debt/index.md` | Close the debt entry that recorded this: `status: closed`, naming this plan and this batch as what closed it. The entry stays standing — the register is a record. | REQ-31 | INT-1, INT-2 |
+| INT-11 | modify | `server/test/unit/engine-client.test.ts` | One comment in the check tree states "every request negotiates through `/version`" as the reason no caller is handed a raw parse error. REQ-31 makes that false as a general statement, while the check itself stays correct — a client holding nothing still negotiates, which is the case it drives. Correct the sentence to what the product now guarantees. Found by the tester after the perimeter came back green; recorded as an intervention rather than fixed out of band. | REQ-31 | INT-1 |
 
 ## Human acceptance
 
