@@ -77,6 +77,11 @@ const NONE_TAG = "<none>:<none>";
 // An image id is a content digest, so the platform under it never changes.
 const platformByImageId = new Map<string, string>();
 
+/** Test seam: discards the remembered platforms, which the process itself never does. */
+export function resetImagePlatformCache(): void {
+  platformByImageId.clear();
+}
+
 export async function listImages(): Promise<ImageSummary[]> {
   const response = await getEngineClient().request("/images/json?all=false");
   const raw = JSON.parse(response.body) as RawImageSummary[];

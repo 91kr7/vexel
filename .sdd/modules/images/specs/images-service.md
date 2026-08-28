@@ -46,6 +46,9 @@ data.
       shortened, and a dangling image still carries an empty `tags`.
   - The same images produce the **same sequence on every read**, whatever order the daemon supplied
     them — or their `RepoTags` — in.
+- `resetImagePlatformCache(): void` — discards the platforms remembered above, so the next listing
+  resolves them again. It exists for the checks, which need to observe the resolving itself; the
+  server never calls it.
 - `getImageInspect(id): Promise<ImageInspect>` — via `GET /images/{id}/json` plus `GET
   /images/{id}/history` (REQ-40).
   - `ImageInspect`: `{ id, tags, digest?, platforms, sizeBytes, createdAt, entrypoint, command, env,
