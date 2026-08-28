@@ -36,6 +36,7 @@
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
 import { boxOf, clickAtItsCentre, readOnceSettled } from './support/settled.js';
+import { refreshThroughTheControl } from './support/refresh-control.js';
 // The shared classic-table instrument, extended by each batch rather than copied: what replaced the
 // retired presentation's class name here is a measurement, and it is the same measurement every
 // other converted list is judged by (`e2e/support/classic-table.ts`).
@@ -338,6 +339,11 @@ async function openScreen(page: Page, viewport: Viewport): Promise<void> {
   await page.setViewportSize(viewport);
   await openApp(page, 'contexts');
   await expect(page.getByRole('heading', { level: 1, name: 'Contexts' })).toBeVisible({ timeout: 20_000 });
+  // Docker publishes no context event, so the press is what puts the two fixtures on
+  // screen (plan-docker_management_app-refresh_cache/REQ-30). Waiting instead would pass
+  // only while nothing had read the context list yet, and cost a whole period once
+  // something had.
+  await refreshThroughTheControl(page);
   for (const fixture of FIXTURES) {
     await expect(rowOf(page, fixture.name), `the fixture context ${fixture.name} is not listed`).toBeVisible({ timeout: 20_000 });
   }

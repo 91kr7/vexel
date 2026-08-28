@@ -6,6 +6,7 @@ import { openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { containerCards, containerDetail, detailName, openContainerDetail } from './support/container-cards.js';
+import { refreshThroughTheControl } from './support/refresh-control.js';
 
 /**
  * The order every list service now decides survives to the screen
@@ -385,7 +386,10 @@ test.describe('Contexts', () => {
       for (const name of names) {
         await execFileAsync('docker', ['context', 'create', name, '--docker', 'host=ssh://operator@build-host']);
       }
-      await page.reload();
+      // Docker publishes no context event, so the press is what puts the four fixtures on
+      // screen; a reload alone re-reads only what the server already holds
+      // (plan-docker_management_app-refresh_cache/REQ-30).
+      await refreshThroughTheControl(page);
       // The list is the object list — the same table containers and images ship
       // (plan-ui-coherence-optimisation/REQ-42, and the classic-table plan's REQ-17); the order it
       // is served in is unchanged by that.
@@ -432,7 +436,10 @@ test.describe('Builders', () => {
       // Never bootstrapped: creating an instance writes buildx configuration and starts nothing, so
       // no builder image is needed and no registry is reached.
       for (const name of names) await execFileAsync('docker', ['buildx', 'create', '--name', name, '--driver', 'docker-container']);
-      await page.reload();
+      // Docker publishes no builder event either, so the four fixtures arrive through the
+      // press rather than through a reload of a value the server holds
+      // (plan-docker_management_app-refresh_cache/REQ-30).
+      await refreshThroughTheControl(page);
       // The builders panel is the object list since `plan-ui-coherence-optimisation/REQ-39`, and
       // the card list it replaced was deleted at REQ-82: a row is a row of the object list.
       const rows = panelTitled(page, 'buildx builders').locator('.ui-data-table__row');

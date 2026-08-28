@@ -38,6 +38,7 @@
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { clickAtItsCentre, readOnceSettled } from './support/settled.js';
+import { refreshThroughTheControl } from './support/refresh-control.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import {
   F4_VIEWPORTS,
@@ -436,6 +437,10 @@ test('contexts: a long endpoint never inks over the active pill, at all three vi
     await createContextQuietly(context, endpoint);
     for (const viewport of F4_VIEWPORTS) {
       await openScreen(page, 'contexts', 'Contexts', viewport);
+      // Docker publishes no context event, so the fixture reaches the screen through the
+      // press rather than through the period the server reads contexts on
+      // (plan-docker_management_app-refresh_cache/REQ-30).
+      await refreshThroughTheControl(page);
       // `plan-ui-coherence-optimisation/REQ-42` moved this list onto the object
       // list, where the endpoint and the values beside it are cells of declared
       // columns rather than one row of `.ui-truncating-run` / `.ui-truncating-meta`.
