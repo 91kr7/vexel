@@ -16,6 +16,7 @@ status: validated
 | volume-sizes-separated | Volume sizes are read on their own schedule | REQ-18, REQ-19, REQ-20, REQ-21, REQ-22, REQ-23 | lists-from-refresh-cache | certified | Volumes still show their sizes |
 | startup-order-and-disowned-read | The endpoint is set before the server serves | REQ-24, REQ-27, REQ-29 | lists-from-refresh-cache | certified | The first screen after a restart is shown, not refused |
 | remaining-checks-reload | The remaining checks reload through the control | REQ-30 | — | certified | The context, builder and build-cache checks pass wherever they run |
+| version-negotiated-once | The Engine API version is negotiated once, and the probe still probes | REQ-31, REQ-32, REQ-33, REQ-34, REQ-35, REQ-36 | — | todo | The application asks the daemon half as much, and still notices it going away |
 
 ## What the plan builds
 
@@ -124,6 +125,12 @@ qualified with their batch below.
 | REQ-28 | — withdrawn 2026-08-28 | — |
 | REQ-29 | `batch-startup-order-and-disowned-read/INT-3`, `batch-startup-order-and-disowned-read/INT-4`, `batch-startup-order-and-disowned-read/INT-7` | startup-order-and-disowned-read |
 | REQ-30 | `batch-remaining-checks-reload/INT-1`, `batch-remaining-checks-reload/INT-2`, `batch-remaining-checks-reload/INT-3`, `batch-remaining-checks-reload/INT-4` | remaining-checks-reload |
+| REQ-31 | `batch-version-negotiated-once/INT-1`, `batch-version-negotiated-once/INT-4`, `batch-version-negotiated-once/INT-10` | version-negotiated-once |
+| REQ-32 | `batch-version-negotiated-once/INT-2`, `batch-version-negotiated-once/INT-3`, `batch-version-negotiated-once/INT-5` | version-negotiated-once |
+| REQ-33 | `batch-version-negotiated-once/INT-2`, `batch-version-negotiated-once/INT-5`, `batch-version-negotiated-once/INT-6` | version-negotiated-once |
+| REQ-34 | `batch-version-negotiated-once/INT-1`, `batch-version-negotiated-once/INT-3`, `batch-version-negotiated-once/INT-7` | version-negotiated-once |
+| REQ-35 | `batch-version-negotiated-once/INT-2`, `batch-version-negotiated-once/INT-3`, `batch-version-negotiated-once/INT-8` | version-negotiated-once |
+| REQ-36 | `batch-version-negotiated-once/INT-9` | version-negotiated-once |
 
 **Three notes on this coverage.**
 
@@ -225,3 +232,63 @@ Two notes on it.
   `batch-startup-order-and-disowned-read/INT-5` drives the discard against a read in flight directly
   on the cache, because the case it guards — a context changed while a first read is running —
   outlives the startup ordering that hid it.
+
+## Appended on 2026-08-29 — one batch
+
+The Docker call log shipped on 2026-08-28 made this plan's own subject readable for the first time,
+and the first thing it showed is that **half the traffic is echo**: 235 of 447 socket calls at rest
+were `GET /version`, one before every real call. It was recorded as debt the same day
+(`.sdd/tech-debt/entries/engine-version-negotiated-on-every-call.md`) and promoted to a fix by the
+human on 2026-08-29. The batch below closes it.
+
+Per the knowledge base, work found after a batch is appended as a further batch and never edited into
+one already closed: **nothing above this line was changed**, beyond the one row added to the batch
+table and the six coverage rows. No certified batch is reopened.
+
+**Execution order.** `version-negotiated-once` depends on nothing in this plan. It changes
+`EngineClient`, which `daemon-connection-reused` last touched and which is certified; it needs that
+work present but not repeated, which is what a certified batch already guarantees.
+
+### Assumptions and decisions
+
+- **The version is read for two purposes, and only one of them is cached.** Composing a path wants a
+  number, not a fresh one. Deciding whether the daemon is there wants a real call and nothing else.
+  `getVersion()` keeps meaning the second — it is the connection status's probe, and the source of
+  the two versions that status publishes — and the held value is an internal reading beside it, not
+  a replacement for it. **A probe served from a memo stops probing** is the one way this batch could
+  ship something worse than the cost it removes.
+- **The held value has no expiry of its own, on purpose.** It is refreshed by every negotiation that
+  reached the daemon (REQ-33), and the probe performs one on its own schedule while a client is
+  asking. So the value is never older than the last successful probe, and a daemon upgraded under a
+  running server is picked up with no timer and no eviction rule to tune. Adding a TTL beside that
+  would be a second mechanism answering a question the first already answers.
+- **The scoping needs nothing new and must not be thrown away.** The shared client is already
+  discarded and rebuilt on a change of the active endpoint, so a value held on the instance cannot
+  outlive the daemon it was negotiated with. Held module-wide it would survive that discard. REQ-34
+  exists to make that a check rather than a code review.
+- **The debt entry is closed, not deleted.** `status: closed`, naming this batch — the register is a
+  record, like the analyses.
+- **The second finding of the same audit is not in this batch.** The three services that each fetch
+  the whole container list is a different cause — a cache holding a narrowed projection — and it
+  already has its own register entry. Bundling them would put two causes in one batch.
+
+### Departures
+
+- **The validation gates were not held, again.** The human stated the contract themselves — the
+  version composing the path reads from cache, the reachability probe does not — and asked for it to
+  be developed in the same turn. The requirements and the coverage below were written to that
+  statement and not put back for validation.
+- **No departure from the business spec.** The spec already assumes the connection status keeps a
+  real probe; this batch is the first thing to state that in a requirement.
+
+### Coverage check — the appended requirements
+
+REQ-31 to REQ-36 are each served by at least one intervention of `version-negotiated-once`, and every
+one of its ten interventions serves at least one of them; the rows are in the table above. No
+appended REQ is split across batches — all six close here. There is no enabling intervention.
+
+One note on it. **REQ-32 is the requirement that protects the product from this batch.** REQ-31 is
+the saving and it is easy to check by counting; REQ-32 is what stops the saving from being taken out
+of the reachability probe, and a check that only counted calls would be satisfied by the very defect
+it must refuse. `batch-version-negotiated-once/INT-5` counts in the opposite direction — n calls to
+`getVersion()`, n requests — for that reason.

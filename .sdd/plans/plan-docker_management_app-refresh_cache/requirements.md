@@ -96,3 +96,26 @@ status: validated
 | ID | Requirement |
 |----|-------------|
 | REQ-30 | A check that creates a context, a builder or a build-cache record out of band sees it by pressing the refresh control, not by waiting out a period; what each check asserts does not change. |
+
+## Appended on 2026-08-29 — the version negotiation
+
+> Appended after the Docker call log made the traffic readable: **half of everything this server
+> asks the daemon is a re-negotiation of the API version**. Measured at rest, 235 of 447 socket
+> calls were `/version` — one before every single call, on the cheapest transport this application
+> supports. Recorded first as debt (`.sdd/tech-debt/entries/engine-version-negotiated-on-every-call.md`),
+> promoted to a fix here on the human's decision of 2026-08-29.
+>
+> Per [[every-change-updates-spec-requirements-plan]] this is appended as a further batch. **Nothing
+> above this line was changed**, beyond the one row added to the batch table in `batches.md` and its
+> coverage rows: no certified batch is reopened.
+
+## Feature — The Engine API version is negotiated once, and the probe still probes
+
+| ID | Requirement |
+|----|-------------|
+| REQ-31 | Composing the path of a call to the daemon uses a version the server already holds: a run of calls negotiates the Engine API version once, not once per call. Calls issued while a negotiation is in flight wait on that one instead of each starting their own. |
+| REQ-32 | Determining whether the daemon can be reached still calls the daemon every time it is asked. Reachability is never reported from a held value, and neither are the Engine API and engine versions the connection status carries. |
+| REQ-33 | A negotiation that actually reached the daemon becomes the value the paths are composed with, so what the calls use is never older than the last successful probe; an upgraded daemon is picked up without restarting the server. |
+| REQ-34 | The held version belongs to the endpoint it was negotiated with: after the active context changes, no call is composed with the previous daemon's version. |
+| REQ-35 | A negotiation that failed is not held. The call that hit the failure reports the daemon's own message exactly as it does today, and the next call negotiates again rather than inheriting the failure or a value from before it. |
+| REQ-36 | Nothing else moves: the same paths are dialed, every endpoint answers what it answers today, and the connection status still reports the negotiated Engine API version and the engine version. |
