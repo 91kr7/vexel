@@ -6,7 +6,7 @@ import { pruneBuildCache } from "../builders/build-cache-service.js";
 import { pruneStoppedContainers } from "../containers/containers-service.js";
 import { pruneDanglingImages } from "../images/image-transfer-service.js";
 import { pruneNetworks } from "../networks/networks-service.js";
-import { pruneVolumes } from "../volumes/volumes-service.js";
+import { pruneVolumes, volumeSizeCache } from "../volumes/volumes-service.js";
 import { DISK_USAGE_CATEGORY_IDS, type DiskUsageCategoryId } from "./disk-usage-service.js";
 
 export interface CategoryPruneOutcome {
@@ -75,6 +75,10 @@ export async function pruneScope(scope: DiskUsageCategoryId[]): Promise<PruneRun
       categories.push({ categoryId, removed: [], removedCount: 0, reclaimedBytes: 0, error: (error as Error).message });
     }
   }
+  // A prune that succeeded says the volume sizes are due, so the space the
+  // operator just reclaimed is not withheld until their own five-minute period
+  // comes round (plan-docker_management_app-refresh_cache/REQ-18).
+  if (categories.some((category) => category.error === undefined)) volumeSizeCache.markChanged();
   return { categories, reclaimedBytes: categories.reduce((total, category) => total + category.reclaimedBytes, 0) };
 }
 

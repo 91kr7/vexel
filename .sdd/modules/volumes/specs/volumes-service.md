@@ -7,15 +7,17 @@ type: backend service
 # VolumesService
 
 **Purpose** → talks to the Docker Engine API to list local volumes with their size and mounting
-containers, read a volume's full inspect data, create, remove and prune unused volumes.
+containers, read a volume's full inspect data, create, remove and prune unused volumes. The sizes
+are held on a schedule of their own, far slower than the listing's.
 
 ## Contract
 
 - `listVolumes(): Promise<VolumeSummary[]>` — every volume via `GET /volumes`.
   - `VolumeSummary`: `{ name, driver, mountpoint, scope, createdAt, labels, options, sizeBytes?,
     mountedBy }`.
-  - `sizeBytes` — from `GET /system/df`'s per-volume `UsageData.Size`; `undefined` when the daemon
-    has not computed disk usage for that volume yet.
+  - `sizeBytes` — **joined in from the held sizes** (`volumeSizeCache` below), never read by this
+    call; `undefined` for a volume no size is held for yet. A listing never waits for a size: a
+    volume created a moment ago is listed at once, without one, and gains it on a later read.
   - `mountedBy` — names of every container (running or stopped) whose own mounts reference the
     volume, derived from `GET /containers/json?all=true`; empty for an unattached volume.
   - **Ordered named-first, anonymous last.** A volume is **anonymous** when its name is exactly 64
@@ -35,8 +37,20 @@ containers, read a volume's full inspect data, create, remove and prune unused v
   volume changes what the list shows (see `refresh-cache.md`, module `refresh-cache`).
   `listVolumes` is its read; the listing above is unchanged by this. `getVolumeInspect` is **not**
   held: a detail read stays direct.
+- `volumeSizeCache` — the refresh-cache kind the **per-volume sizes** are held under, separately
+  from the listing: key `volume-sizes`, period 5 minutes — the longest in the cache — read as
+  `GET /system/df`'s per-volume `UsageData.Size`, keyed by volume name.
+  - marked due by what can make a size **drop**: a volume removed, a container removed (their
+    `destroy` events), and this application's own `removeVolume`, `pruneVolumes` and successful
+    system prune. Other `volume`/`container` events — a container started, stopped or health-checked
+    — do not mark it due, however many of them arrive.
+  - `listVolumes` and `getVolumeInspect` ask for it and **do not wait for it**: they join in what is
+    already held. The first sizes to arrive mark the listing changed, so they show without waiting
+    for the listing's own period.
 - `getVolumeInspect(name): Promise<VolumeInspect>` — via `GET /volumes/{name}`; rejects with the
-  daemon's own 404 for an unknown name.
+  daemon's own 404 for an unknown name. A direct read of the daemon, as it was — with `sizeBytes`
+  joined in from the held sizes on the same terms as the listing, so one volume's detail no longer
+  makes the daemon account for the whole host's disk usage.
   - `VolumeInspect`: `VolumeSummary & { raw }`; `raw` is the full inspect payload exactly as
     received.
 - `createVolume(input): Promise<VolumeSummary>` — `POST /volumes/create` (REQ-71).
@@ -50,19 +64,26 @@ containers, read a volume's full inspect data, create, remove and prune unused v
 ## Rules and invariants
 
 - Every call rejects with a `DockerDaemonError` carrying the daemon's own message on failure.
-- `sizeBytes` and `mountedBy` are computed fresh on every `listVolumes`/`getVolumeInspect` call, not
-  cached: they reflect other containers' mounts and the daemon's own disk-usage bookkeeping at call
-  time.
+- `mountedBy` is computed fresh on every `listVolumes`/`getVolumeInspect` call: it reflects other
+  containers' mounts at call time.
+- **No call of this service makes the daemon compute its whole disk usage.** `/system/df` is read by
+  the size kind's own refresher and by nothing else, so listing volumes and opening one's detail
+  cost the daemon a listing each, whatever the host holds.
+- An absent `sizeBytes` is a size not known **yet**, never an error and never a zero: the volume is
+  shown without one.
 
 ### The refresh cache
 
 - `createVolume`, `removeVolume` and `pruneVolumes` say the listing has changed once they have
   succeeded, so the operator's own action shows on the next request without waiting for a timer.
   A failed call marks nothing.
+- `removeVolume` and `pruneVolumes` say the same of the sizes; `createVolume` does not — a volume
+  that has just been created occupies nothing, and it is listed at once without a size.
 
 ## Dependencies
 
 - docker-access: EngineClient (via `getEngineClient()`), DockerDaemonError
+- events: Event stream (the `destroy` events that mark the sizes due)
 - list-order: List order (`byNamedThenUnnamedNewest`)
 - refresh-cache: Refresh cache (`registerRefreshKind`)
 
@@ -78,3 +99,5 @@ containers, read a volume's full inspect data, create, remove and prune unused v
 - plan-docker_management_app-refresh_cache/REQ-11
 - plan-docker_management_app-refresh_cache/REQ-12
 - plan-docker_management_app-refresh_cache/REQ-13
+- plan-docker_management_app-refresh_cache/REQ-18
+- plan-docker_management_app-refresh_cache/REQ-19
