@@ -31,10 +31,18 @@ type: configuration
     and the remedy reported once.
 - Handles the HTTP `upgrade` hook on the `http.Server` itself, outside the middleware chain, so the
   interactive container sessions are unaffected by anything mounted on the app.
-- Calls `publishActiveEndpoint()` once at startup, before anything dials the daemon, so every area
-  talks to the daemon of the active Docker context rather than to the platform-default socket; its
-  failure (no `docker` CLI, unreadable configuration) is not fatal and leaves the default in place
-  (REQ-93).
+- Resolves and sets the active Docker endpoint (`publishActiveEndpoint()`) **and waits for it before
+  it listens**, so every area talks to the daemon of the active Docker context rather than to the
+  platform-default socket, and no request is ever served while that resolution is still pending
+  (`plan-docker_management_app-refresh_cache/REQ-24`).
+  - failure (no `docker` CLI, unreadable configuration) → not fatal: the endpoint already in place
+    stays, and the startup carries on (REQ-93)
+  - resolution slower than **5 s** → the startup stops waiting and opens the port anyway; if the
+    resolution ends later it publishes its endpoint then
+    (`plan-docker_management_app-refresh_cache/REQ-29`)
+  - nothing is read from the daemon here: no held value is warmed, and the first request for a value
+    never read before still fetches it with the client waiting
+    (`plan-docker_management_app-refresh_cache/REQ-9`)
 - Starts `eventStreamService` so the daemon event subscription is live as soon as the server boots,
   independent of whether any client has connected yet.
 - **Starts no per-container stats sampler.** Booting the process asks the daemon for no stats at
@@ -55,6 +63,12 @@ type: configuration
   `404`, then the client serving, then `listen`. A new router goes before the API `404`; anything
   registered after the client serving would be unreachable for a page request, and anything
   registered before `/api` could shadow the API.
+- **Startup order is load-bearing too**: the active endpoint is set before the port is opened. A
+  process that starts listening first discards every held value the moment the resolution lands, and
+  a request being served at that instant is answered with a failure against a reachable daemon.
+- **The port opens whatever the daemon does.** No startup step may make the server fail to listen or
+  wait indefinitely: an unreachable daemon is reported by the endpoints that need it, exactly as it
+  is once the server is running.
 - The interface and the API share one origin and one port; there is no arrangement in which one is
   exposed without the other, and the process introduces no authentication, authorisation or
   transport-security layer of its own.
@@ -97,3 +111,5 @@ type: configuration
 - plan-docker_management_app-single_process_serving/REQ-12
 - plan-docker_management_app-containers_card_view/REQ-41
 - plan-docker_management_app-containers_card_view/REQ-44
+- plan-docker_management_app-refresh_cache/REQ-24
+- plan-docker_management_app-refresh_cache/REQ-29

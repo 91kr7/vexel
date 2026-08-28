@@ -29,7 +29,7 @@ are **refreshers**, one per kind.
   - `stale` is true when the last read attempt failed and this is the previous value; `error` is
     that failure's message
   - renews the kind's demand and starts its refresher if it was not running
-  - answers **from the held value, without calling the daemon**, except in the two cases below
+  - answers **from the held value, without calling the daemon**, except in the cases below
   - **no value has ever been held** → waits for a read; a read already running is joined rather than
     started again, so two callers arriving together cost one read
   - **the kind was marked changed and the held value predates that change** → waits for the read
@@ -38,6 +38,11 @@ are **refreshers**, one per kind.
     returned with `stale` true
   - a read failing when no value has ever been held rethrows that failure unchanged, so the caller
     still maps a daemon error the way it does today
+  - **the read it was waiting on was disowned by a discard** (the active endpoint changed while it
+    was in flight, so it stored neither a value nor a failure) → reads again, against the endpoint
+    now active, and answers with that value or with that daemon's own failure. It is never answered
+    with "the value could not be read", which is what neither of the two would mean (REQ-27). Up to
+    three such attempts, so a chain of discards cannot hold the caller indefinitely
 
 - `RefreshKind.markChanged()`
   - states that the application itself has just changed this data, and that any value read before
@@ -103,7 +108,9 @@ are **refreshers**, one per kind.
 - **Timers never hold the process open**: every timer is unreferenced, so a server with nothing else
   to do still exits.
 - A read whose result arrives after `discardHeldValues()` is thrown away rather than stored: no
-  value read from the daemon left behind is ever served.
+  value read from the daemon left behind is ever served — and the caller that was waiting on it is
+  handed a read against the daemon now active, not the absence the discard left behind. Never a
+  value, never an error is not an outcome this cache produces (REQ-27).
 - The cache holds nothing on disk. A restarted server has read nothing, and every kind takes the
   first-request path once.
 - The event subscription is a single listener on the republished daemon event stream, whatever the
@@ -128,6 +135,7 @@ are **refreshers**, one per kind.
 - plan-docker_management_app-refresh_cache/REQ-15
 - plan-docker_management_app-refresh_cache/REQ-16
 - plan-docker_management_app-refresh_cache/REQ-17
+- plan-docker_management_app-refresh_cache/REQ-27
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-7
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-8
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-9

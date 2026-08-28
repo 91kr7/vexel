@@ -73,9 +73,38 @@ app.use("/api", (_req, res) => {
 // (plan-docker_management_app-single_process_serving/REQ-1).
 mountClientApp(app);
 
-// Point every area at the daemon of the active Docker context before anything
-// dials it; a failure here leaves the default endpoint in place (REQ-93).
-void publishActiveEndpoint();
+/** How long the startup waits for the active context before it opens the port anyway. */
+const ENDPOINT_RESOLUTION_TIMEOUT_MS = 5000;
+
+/**
+ * Points every area at the daemon of the active Docker context, and does it
+ * before the port accepts anything: resolving it afterwards discards every held
+ * value a fraction of a second in, and a first read caught by that discard left
+ * its caller with neither a value nor an error
+ * (plan-docker_management_app-refresh_cache/REQ-24). A failure here leaves the
+ * default endpoint in place, as before (REQ-93).
+ *
+ * Bounded, and never fatal: reading the local Docker configuration can hang, and
+ * a daemon that cannot be reached must still leave a listening port that reports
+ * the failure the way it does today
+ * (plan-docker_management_app-refresh_cache/REQ-29). Past the bound the startup
+ * carries on with the endpoint it already has, and the resolution publishes
+ * itself if it ever ends.
+ */
+async function setActiveEndpointBeforeServing(): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const bound = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, ENDPOINT_RESOLUTION_TIMEOUT_MS);
+    timer.unref?.();
+  });
+  try {
+    await Promise.race([publishActiveEndpoint().catch(() => undefined), bound]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+await setActiveEndpointBeforeServing();
 
 eventStreamService.start();
 // No sampler is started here: the per-container stats sampler runs only while a

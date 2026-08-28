@@ -8,6 +8,8 @@ import { eventStreamService, type DaemonEvent } from "../events/event-stream-ser
 export const EVENT_GROUPING_WINDOW_MS = 750;
 /** Longer than the longest interval a client polls at (15 s), so a slow kind never expires between two of its own requests. */
 export const DEMAND_EXPIRY_MS = 60000;
+/** How many times a caller whose read was disowned by a discard reads again before giving up. */
+const DISOWNED_READ_ATTEMPTS = 3;
 
 export interface HeldValue<T> {
   value: T;
@@ -101,17 +103,29 @@ class Kind<T> implements RefreshKind<T>, RegisteredKind {
     this.groupingWindowMs = options.groupingWindowMs ?? EVENT_GROUPING_WINDOW_MS;
   }
 
+  /**
+   * A discard — the active endpoint changed — drops what is held and disowns
+   * the read in flight, which then stores neither a value nor a failure. The
+   * caller waiting on that read reads again, against the endpoint now active,
+   * so it is answered with a value or with the daemon's own failure and never
+   * with neither (REQ-27). The bound stops a chain of discards from holding a
+   * request.
+   */
   async read(): Promise<HeldValue<T>> {
     this.lastAskedAt = Date.now();
     this.startRefresher();
 
-    if (!this.held) {
-      await (this.inFlight ?? this.refresh());
-      if (!this.held) throw this.failure ?? new Error(`The value "${this.key}" could not be read.`);
-    } else {
-      await this.awaitChangeCoverage();
+    for (let attempt = 0; attempt < DISOWNED_READ_ATTEMPTS; attempt += 1) {
+      const generation = this.generation;
+      if (this.held) await this.awaitChangeCoverage();
+      else await (this.inFlight ?? this.refresh());
+      if (this.held) return this.snapshot();
+      if (this.failure) break;
+      // Nothing held, nothing to report and no discard: reading again would
+      // only repeat what just happened.
+      if (this.generation === generation) break;
     }
-    return this.snapshot();
+    throw this.failure ?? new Error(`The value "${this.key}" could not be read.`);
   }
 
   markChanged(): void {
