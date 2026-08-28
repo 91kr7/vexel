@@ -9,7 +9,7 @@ status: validated
 
 | Batch | Feature | REQ closed | Depends | Status | Human acceptance |
 |-------|---------|------------|---------|--------|------------------|
-| manual-refresh | The refresh control, the reload behind it and the screen that shows the result | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-9, REQ-10, REQ-11, REQ-12, REQ-13, REQ-14, REQ-15 | — | implemented | A context created from the terminal appears after one press |
+| manual-refresh | The refresh control, the reload behind it and the screen that shows the result | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-9, REQ-10, REQ-11, REQ-12, REQ-13, REQ-14, REQ-15 | — | certified | A context created from the terminal appears after one press |
 | e2e-reload | The e2e suite reloads through the control | REQ-16 | manual-refresh | todo | The context and builder checks pass without waiting out a period |
 
 ## What the plan builds
