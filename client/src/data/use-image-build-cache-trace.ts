@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { subscribeToReload } from './reload-signal';
 import { fetchImageBuildCacheTrace, type ImageBuildCacheTrace } from './image-layers-client';
 
 export interface UseImageBuildCacheTraceResult {
@@ -20,7 +21,9 @@ export function useImageBuildCacheTrace(id: string | undefined): UseImageBuildCa
   const [error, setError] = useState<string | undefined>(undefined);
   const abortRef = useRef<AbortController | undefined>(undefined);
 
-  const refresh = useCallback(() => {
+  // `readOnce` returns its promise so the reload signal can wait for it; `refresh` returns
+  // nothing, the shape the screens use (plan-docker_management_app-refresh_cache/REQ-21).
+  const readOnce = useCallback(() => {
     if (!id) return;
     // Each read owns its controller and aborts the one it supersedes, so a
     // slower answer for a previous image can neither arrive nor overwrite the
@@ -28,7 +31,7 @@ export function useImageBuildCacheTrace(id: string | undefined): UseImageBuildCa
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-    fetchImageBuildCacheTrace(id, controller.signal)
+    return fetchImageBuildCacheTrace(id, controller.signal)
       .then((result) => {
         if (controller.signal.aborted) return;
         setTrace(result);
@@ -42,6 +45,10 @@ export function useImageBuildCacheTrace(id: string | undefined): UseImageBuildCa
       });
   }, [id]);
 
+  const refresh = useCallback(() => {
+    void readOnce();
+  }, [readOnce]);
+
   useEffect(() => {
     setTrace(undefined);
     setLoaded(false);
@@ -51,6 +58,8 @@ export function useImageBuildCacheTrace(id: string | undefined): UseImageBuildCa
       abortRef.current?.abort();
     };
   }, [id, refresh]);
+
+  useEffect(() => subscribeToReload(readOnce), [readOnce]);
 
   return { trace, loaded, error, refresh };
 }

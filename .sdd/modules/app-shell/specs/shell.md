@@ -16,9 +16,9 @@ Description:
   any screen it renders can call `useToast()`/`useConfirmation()` without the caller wiring them).
   Inside, renders a `Frame` whose rail is a `NavRail` built from the navigation data (one
   `NavGroup` per group, one `NavItem` per screen), whose header is a `PageHeader` for the active
-  screen (with a live-events `StatusPill` and an "Engine API v…" `Badge` when the daemon is
-  reachable — and nothing else: the header states what is true of the connection and offers no
-  control of its own), and whose footer status (active Docker context) is shown inside the rail.
+  screen (the `RefreshControl` first, then a live-events `StatusPill` and an "Engine API v…" `Badge`
+  when the daemon is reachable — and nothing else), and whose footer status (active Docker context)
+  is shown inside the rail.
 Shows:
 - The active screen's title and description in the header; in the content area: any active
   `ErrorBanner`s (REQ-7), an unreachable-daemon `ErrorBanner` with cause and retry when the daemon
@@ -64,6 +64,8 @@ Actions:
   the same path as an operator's own selection — so it is persisted as `lastScreenId` too. The
   Shell does not clear the request: the destination screen reveals the object and acknowledges it
   (REQ-68, REQ-69).
+- The header's `RefreshControl` reloads what the server holds and then every mounted view; the Shell
+  passes it nothing and reads nothing back (plan-docker_management_app-refresh_cache-manual_refresh/REQ-1).
 - The status pill's inline "Retry" action and the unreachable-daemon banner's retry both call
   `useConnectionStatus().retry()` to re-probe the daemon immediately (REQ-10).
 - The "Local storage" card's "Clear" action calls `clearAnalysisCache()` then refreshes the shown
@@ -124,14 +126,28 @@ Navigation:
   enough that the pill and the version badge no longer fit on one line.
 - Every control the header renders answers a real click, and the header advertises no keyboard
   shortcut: it carries no control without a handler, no keyboard hint for a keystroke nothing
-  answers, and no second route to a destination the rail already offers. On a reachable daemon that
-  leaves the header with **no interactive control at all** — the status pill grows its inline
-  "Retry" only while the daemon is unreachable, and the version badge is a label. Removing the
-  search control and the console action closed the space they occupied; the remaining two keep the
-  order, spacing and height they were delivered with, and nothing replaced either — no disabled
-  control, no tooltip, no placeholder field (plan-ui-coherence-optimisation/REQ-12,
-  plan-ui-coherence-optimisation/REQ-13, plan-ui-coherence-optimisation/REQ-14,
-  plan-ui-coherence-optimisation/REQ-15, plan-ui-coherence-optimisation/REQ-16).
+  answers, and no second route to a destination the rail already offers. Those clauses stand.
+- **The header carries exactly one interactive control: the refresh control**, and that
+  **reverses** plan-ui-coherence-optimisation/REQ-12–REQ-16, which left the header with no
+  interactive control at all on a reachable daemon. The reversal is deliberate and was confirmed by
+  the human on 2026-08-28: the operator needs one place, present on every screen, to say "read it
+  all again now", and the top bar is the only surface every screen shares
+  (plan-docker_management_app-refresh_cache-manual_refresh/REQ-1). What that earlier decision
+  removed is **not** restored by it: no search control, no second route to the console, no keyboard
+  hint, no disabled control and no placeholder field.
+- The refresh control is the **first** item of the action row, so the status pill and the version
+  badge keep the coordinates they had: the row is right-aligned, and an item added at its head
+  extends the group leftwards instead of pushing the other two along
+  (plan-docker_management_app-refresh_cache-manual_refresh/REQ-15). Nothing else in the header
+  moved, and the pill still grows its inline "Retry" only while the daemon is unreachable.
+- **At the phone breakpoint the action row wraps, and that is accepted, not a regression.** At 390px
+  the row is 308px wide and its three items need 321.7px (32 + 8 + 165.6 + 8 + 108.1), so the
+  version badge takes a line of its own and the header region grows from **178.7px to 211.2px**.
+  Measured on the delivered build and accepted by the human on 2026-08-28: the `Row` already carried
+  `wrap` for exactly this case, and the result reads as a left-aligned stack rather than as an
+  overflow. No breakpoint rule hides the badge and no label is shortened at that width. Anyone
+  measuring the header at the phone breakpoint is measuring this, not a defect
+  (plan-docker_management_app-refresh_cache-manual_refresh/REQ-15).
 - Once `usePreferences()` reports `loaded`, the active screen is set to `preferences.lastScreenId`
   if it names a known screen; this restore runs at most once per mount and only while the operator
   has not yet selected a screen themselves. A preferences read that settles after the operator has
@@ -155,7 +171,7 @@ Navigation:
 
 - ui-library: Frame, NavRail, NavBrand, NavGroup, NavItem, FooterStatus, PageHeader, StatusPill,
   Badge, Row, Stack, Card, SectionHeader, ErrorBanner, StorageUsageRow, ToastProvider
-- Navigation data, AboutNotice, PlaceholderScreen, ConfirmationService, ErrorReportingService, ProgressService,
+- Navigation data, RefreshControl, AboutNotice, PlaceholderScreen, ConfirmationService, ErrorReportingService, ProgressService,
   ConnectionStatusService
 - local-persistence: usePreferences, fetchAnalysisCacheUsage, clearAnalysisCache
 - dashboard: DashboardScreen
@@ -210,3 +226,5 @@ Navigation:
 - plan-ui-coherence-optimisation/REQ-70
 - plan-ui-coherence-optimisation/REQ-71
 - plan-ui-coherence-optimisation/REQ-72
+- plan-docker_management_app-refresh_cache-manual_refresh/REQ-1
+- plan-docker_management_app-refresh_cache-manual_refresh/REQ-15

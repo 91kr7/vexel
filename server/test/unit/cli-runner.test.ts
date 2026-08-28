@@ -1,9 +1,12 @@
-import { test } from "node:test";
+import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { detectCliAvailability, runCliCommand } from "../../src/docker/cli-runner.js";
+import { detectCliAvailability, resetCliAvailabilityCache, runCliCommand } from "../../src/docker/cli-runner.js";
 import type { DockerEndpoint } from "../../src/docker/types.js";
 
 const localEndpoint: DockerEndpoint = { kind: "unix", socketPath: "/var/run/docker.sock" };
+
+// The probe is kept for the process's lifetime, so each check below establishes its own.
+beforeEach(resetCliAvailabilityCache);
 
 // docker-access/specs/cli-runner.md — a tool missing from PATH reports available:false rather than throwing
 test("detectCliAvailability reports docker/compose/buildx unavailable, without throwing, when nothing is on PATH", async () => {

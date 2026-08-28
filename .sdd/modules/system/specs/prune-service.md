@@ -43,16 +43,20 @@ removed and the space the daemon says was actually reclaimed.
   and the outcome names both what went and what failed.
 - The scope is honored exactly: a category the caller did not name is never pruned, however cheap
   it would be to include.
+- A run in which at least one category succeeded says the **volume sizes** are due, so the space the
+  operator just reclaimed is not withheld until that kind's own 5-minute period comes round. A run
+  in which every category failed marks nothing.
 
 ## Dependencies
 
 - system: DiskUsageService (category ids and their canonical order)
 - containers: ContainersService (`pruneStoppedContainers`)
 - images: ImageTransferService (`pruneDanglingImages`)
-- volumes: VolumesService (`pruneVolumes`)
+- volumes: VolumesService (`pruneVolumes`, `volumeSizeCache`)
 - networks: NetworksService (`pruneNetworks`)
 - builders: BuildCacheService (`pruneBuildCache`)
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-96
+- plan-docker_management_app-refresh_cache/REQ-18

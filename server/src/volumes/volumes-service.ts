@@ -2,8 +2,12 @@
 // (REQ-70, REQ-71). Size and mounting-container information are not part of
 // the daemon's own /volumes listing: they are merged in from /system/df
 // (per-volume UsageData) and /containers/json (each container's own Mounts).
+// The sizes are held on a schedule of their own, far slower than the listing's
+// (plan-docker_management_app-refresh_cache/REQ-18).
 import { getEngineClient } from "../connectivity/connection-status-service.js";
+import { eventStreamService, type DaemonEvent } from "../events/event-stream-service.js";
 import { byNamedThenUnnamedNewest } from "../list-order/list-order.js";
+import { registerRefreshKind } from "../refresh-cache/refresh-cache.js";
 
 export interface VolumeSummary {
   name: string;
@@ -13,7 +17,7 @@ export interface VolumeSummary {
   createdAt: string;
   labels: Record<string, string>;
   options: Record<string, string>;
-  /** Undefined when the daemon has not computed disk usage yet (REQ-70). */
+  /** Undefined while no size is held for this volume yet (REQ-70, plan-docker_management_app-refresh_cache/REQ-18). */
   sizeBytes?: number;
   /** Names of the containers (running or stopped) mounting this volume; empty when unattached. */
   mountedBy: string[];
@@ -98,9 +102,9 @@ function toSummary(raw: RawVolume, sizes: Map<string, number>, mountedBy: Map<st
 }
 
 export async function listVolumes(): Promise<VolumeSummary[]> {
-  const [volumesResponse, sizes, mountedBy] = await Promise.all([
+  const sizes = heldVolumeSizes();
+  const [volumesResponse, mountedBy] = await Promise.all([
     getEngineClient().request("/volumes"),
-    readVolumeSizes(),
     readMountedBy(),
   ]);
   const payload = JSON.parse(volumesResponse.body) as { Volumes?: RawVolume[] | null };
@@ -113,6 +117,58 @@ export async function listVolumes(): Promise<VolumeSummary[]> {
         identity: (volume) => volume.name,
       }),
     );
+}
+
+/**
+ * The volume listing as the refresh cache keeps it: read on its own period and
+ * whenever a `volume` or `container` event — a container mounting or releasing
+ * a volume changes what the list shows — or one of this application's own
+ * operations says so (REQ-9, REQ-11, REQ-12, REQ-13).
+ */
+export const volumeListCache = registerRefreshKind({
+  key: "volumes",
+  periodMs: 30000,
+  eventTypes: ["volume", "container"],
+  read: listVolumes,
+});
+
+/**
+ * The per-volume sizes, held as a kind of their own on the longest period in
+ * the cache: a volume's size is the slowest changing value the application
+ * shows, and /system/df — the only way to obtain it — makes the daemon account
+ * for the whole host's disk usage (REQ-18).
+ */
+export const volumeSizeCache = registerRefreshKind({
+  key: "volume-sizes",
+  periodMs: 300000,
+  read: readVolumeSizes,
+});
+
+// Only a removal can make a size drop — writing into a volume announces
+// nothing — so the sizes are marked due by the removals alone, and not by
+// every `volume`/`container` event as the listing is: at this price per read,
+// a container's start, stop or health check must not pay for one.
+eventStreamService.on("event", (event: DaemonEvent) => {
+  if (event.action !== "destroy") return;
+  if (event.type === "volume" || event.type === "container") volumeSizeCache.markChanged();
+});
+
+/**
+ * The sizes currently held — and demand for them either way: the read is asked
+ * for and deliberately not awaited, so a listing never waits for /system/df. A
+ * volume whose size is not known yet is listed without one and gains it on the
+ * next read; the first sizes to arrive say the listing has changed, so they
+ * show without waiting for its period (REQ-18, REQ-19).
+ */
+function heldVolumeSizes(): Map<string, number> {
+  const held = volumeSizeCache.peek();
+  void volumeSizeCache.read().then(
+    () => {
+      if (!held) volumeListCache.markChanged();
+    },
+    () => {},
+  );
+  return held?.value ?? new Map();
 }
 
 /**
@@ -130,9 +186,9 @@ function isAnonymousName(name: string): boolean {
 /** `GET /volumes/{name}` itself rejects with a daemon 404 for an unknown name. */
 export async function getVolumeInspect(name: string): Promise<VolumeInspect> {
   const client = getEngineClient();
-  const [inspectResponse, sizes, mountedBy] = await Promise.all([
+  const sizes = heldVolumeSizes();
+  const [inspectResponse, mountedBy] = await Promise.all([
     client.request(`/volumes/${encodeURIComponent(name)}`),
-    readVolumeSizes(),
     readMountedBy(),
   ]);
   const raw = JSON.parse(inspectResponse.body) as RawVolume;
@@ -148,11 +204,14 @@ export async function createVolume(input: CreateVolumeInput): Promise<VolumeSumm
   });
   const response = await getEngineClient().request("/volumes/create", { method: "POST", body });
   const raw = JSON.parse(response.body) as RawVolume;
+  volumeListCache.markChanged();
   return toSummary(raw, new Map(), new Map());
 }
 
 export async function removeVolume(name: string): Promise<void> {
   await getEngineClient().request(`/volumes/${encodeURIComponent(name)}?force=true`, { method: "DELETE" });
+  volumeListCache.markChanged();
+  volumeSizeCache.markChanged();
 }
 
 /** Prunes every currently unused volume, named or anonymous (`filters={"all":["true"]}`), reporting the reclaimed space. */
@@ -160,5 +219,7 @@ export async function pruneVolumes(): Promise<VolumePruneResult> {
   const filters = encodeURIComponent(JSON.stringify({ all: ["true"] }));
   const response = await getEngineClient().request(`/volumes/prune?filters=${filters}`, { method: "POST" });
   const payload = JSON.parse(response.body) as { VolumesDeleted?: string[]; SpaceReclaimed?: number };
+  volumeListCache.markChanged();
+  volumeSizeCache.markChanged();
   return { removedNames: payload.VolumesDeleted ?? [], reclaimedBytes: payload.SpaceReclaimed ?? 0 };
 }

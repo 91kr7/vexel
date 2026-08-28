@@ -1,6 +1,7 @@
 // Image listing and inspect over the Engine API (REQ-37, REQ-40).
 import { getEngineClient } from "../connectivity/connection-status-service.js";
 import { byNamedThenUnnamedNewest, byNameThenIdentity, type NameKey } from "../list-order/list-order.js";
+import { registerRefreshKind } from "../refresh-cache/refresh-cache.js";
 
 export interface ImageSummary {
   id: string;
@@ -74,6 +75,14 @@ interface RawHistoryEntry {
 
 const NONE_TAG = "<none>:<none>";
 
+// An image id is a content digest, so the platform under it never changes.
+const platformByImageId = new Map<string, string>();
+
+/** Test seam: discards the remembered platforms, which the process itself never does. */
+export function resetImagePlatformCache(): void {
+  platformByImageId.clear();
+}
+
 export async function listImages(): Promise<ImageSummary[]> {
   const response = await getEngineClient().request("/images/json?all=false");
   const raw = JSON.parse(response.body) as RawImageSummary[];
@@ -133,6 +142,19 @@ function orderReferences(references: string[]): string[] {
   return references.sort(byNameThenIdentity({ name: splitReference, identity: (reference) => reference }));
 }
 
+/**
+ * The image listing as the refresh cache keeps it: read on its own period and
+ * whenever an `image` event or one of this application's own registry
+ * operations says so (REQ-9, REQ-11, REQ-12, REQ-13). Inspect is not held: a
+ * detail read stays direct.
+ */
+export const imageListCache = registerRefreshKind({
+  key: "images",
+  periodMs: 60000,
+  eventTypes: ["image"],
+  read: listImages,
+});
+
 export async function getImageInspect(id: string): Promise<ImageInspect> {
   const client = getEngineClient();
   const inspectResponse = await client.request(`/images/${id}/json`);
@@ -154,12 +176,17 @@ async function toSummary(raw: RawImageSummary): Promise<ImageSummary> {
   };
 }
 
-/** Best-effort per-image platform lookup; an inspect failure degrades to an empty list rather than failing the whole listing. */
+/** An unresolved platform degrades to an empty list and is not remembered, so the image is inspected again next time (plan-docker_management_app-refresh_cache/REQ-2). */
 async function resolvePlatforms(id: string): Promise<string[]> {
+  const known = platformByImageId.get(id);
+  if (known !== undefined) return [known];
   try {
     const response = await getEngineClient().request(`/images/${id}/json`);
     const raw = JSON.parse(response.body) as RawImageInspect;
-    return raw.Os && raw.Architecture ? [formatPlatform(raw.Os, raw.Architecture, raw.Variant)] : [];
+    if (!raw.Os || !raw.Architecture) return [];
+    const platform = formatPlatform(raw.Os, raw.Architecture, raw.Variant);
+    platformByImageId.set(id, platform);
+    return [platform];
   } catch {
     return [];
   }

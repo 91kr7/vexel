@@ -32,7 +32,7 @@
 | PageHeader | UI component | `client/src/ui/controls/PageHeader.tsx` | Screen header: title, description, trailing actions | `specs/page-header.md` |
 | StatusPill | UI component | `client/src/ui/controls/StatusPill.tsx` | Dot + label status indicator, with an optional inline action (e.g. retry) | `specs/status-pill.md` |
 | Button | UI component | `client/src/ui/controls/Button.tsx` | Button with primary/secondary/ghost/destructive variants, optionally stating why it is in the state it is in | `specs/button.md` |
-| IconButton | UI component | `client/src/ui/controls/IconButton.tsx` | Square icon-only button with a required accessible label | `specs/icon-button.md` |
+| IconButton | UI component | `client/src/ui/controls/IconButton.tsx` | Square icon-only button with a required accessible label, and a busy state for work that has to travel | `specs/icon-button.md` |
 | Badge | UI component | `client/src/ui/controls/Badge.tsx` | Small tag/count/status label in five tones, in a solid or quiet variant (a secondary attribute next to a filled one); a statement and never a control | `specs/badge.md` |
 | ExternalLink | UI component | `client/src/ui/controls/ExternalLink.tsx` | Route to a document outside the application, followed in one step and — unlabelled — legible as the URL itself | `specs/external-link.md` |
 | PathInput | UI component | `client/src/ui/controls/PathInput.tsx` | Host-path text field with a validation state, refusal message and browse hint | `specs/path-input.md` |

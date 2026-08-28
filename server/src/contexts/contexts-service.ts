@@ -12,6 +12,7 @@ import { defaultLocalSocket, parseEndpointUrl, setActiveEndpoint } from "../dock
 import { DockerDaemonError } from "../docker/errors.js";
 import type { DockerEndpoint, TlsOptions } from "../docker/types.js";
 import { byNameThenIdentity } from "../list-order/list-order.js";
+import { registerRefreshKind } from "../refresh-cache/refresh-cache.js";
 import { runDockerCapture, runDockerJsonArray } from "./docker-cli.js";
 
 export type ContextEndpointKind = "local" | "ssh" | "tcp";
@@ -75,10 +76,28 @@ export async function listContexts(): Promise<ContextSummary[]> {
     .sort(byNameThenIdentity({ name: (context) => context.name, identity: (context) => context.name }));
 }
 
+/**
+ * The context inventory as the refresh cache keeps it (REQ-9, REQ-11, REQ-13).
+ * No event type: a context changes only when the operator changes one, and the
+ * routes that do say so. Five minutes is the period that covers a change made
+ * with the `docker` CLI outside the application.
+ *
+ * This inventory is also what reports **which** context is active, so a switch
+ * discards it like every other held value (REQ-16) and the next request reads
+ * it again with the client waiting — the interface is never left without an
+ * answer, and never shown the previous answer.
+ */
+export const contextListCache = registerRefreshKind({
+  key: "contexts",
+  periodMs: 300000,
+  read: listContexts,
+});
+
 export async function createContext(input: CreateContextInput): Promise<ContextSummary> {
   const args = ["context", "create", input.name, "--docker", `host=${hostFor(input)}`];
   if (input.description) args.push("--description", input.description);
   await runDockerCapture(args);
+  contextListCache.markChanged();
   return getContext(input.name);
 }
 
@@ -91,13 +110,17 @@ export async function createContext(input: CreateContextInput): Promise<ContextS
 export async function activateContext(name: string): Promise<ContextSummary> {
   await runDockerCapture(["context", "use", name]);
   const summary = await getContext(name);
+  // After the endpoint is published, so the discard the switch triggers cannot
+  // undo the mark (REQ-13, REQ-16).
   await publishActiveEndpoint();
+  contextListCache.markChanged();
   return summary;
 }
 
 export async function removeContext(name: string): Promise<void> {
   await runDockerCapture(["context", "rm", name]);
   await publishActiveEndpoint();
+  contextListCache.markChanged();
 }
 
 /**

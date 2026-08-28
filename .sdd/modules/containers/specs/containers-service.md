@@ -38,6 +38,12 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
     containers whose names differ only in case or in leading zeros separated by their ids.
   - The same containers produce the **same sequence on every read**, whatever order the daemon
     supplied them in.
+- `containerListCache` — the refresh-cache kind the listing is held under: key `containers`,
+  period 20 s, marked due by `container` daemon events (see `refresh-cache.md`, module
+  `refresh-cache`). `listContainers` is its read; the listing above is unchanged by this.
+- `readContainerList(): Promise<HeldValue<ContainerSummary[]>>` — the listing the endpoint answers
+  with: the held list, carrying the sampler's **current** figures rather than the ones frozen into
+  it when it was read.
 - `startContainer(id)`, `stopContainer(id)`, `restartContainer(id)`, `pauseContainer(id)`,
   `unpauseContainer(id)`, `killContainer(id)`: `Promise<void>` — the matching Engine API lifecycle
   call.
@@ -199,6 +205,11 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   replaced container's volumes so that editing a setting never destroys data. A volume is only
   removed along with its container where the container was the application's own, created and never
   handed to the operator (the intermediate extraction container).
+- The **six sampled figures are not held by the refresh cache**: they are merged onto the held list
+  at every read, so a figure stays as fresh as the sampler's own interval whatever the listing's
+  period is.
+- Calling `listContainers` directly still reaches the daemon. It is what the cache reads with, and
+  what the host overview still calls.
 
 ## Dependencies
 
@@ -206,6 +217,7 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 - containers: StatsDemandRegistry (the caller of the start/stop pair; no import in this direction)
 - image-analysis: `INTERNAL_CONTAINER_LABEL`
 - list-order: List order (`byNameThenIdentity`)
+- refresh-cache: Refresh cache (`registerRefreshKind`)
 
 ## Requirements served
 
@@ -229,3 +241,6 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-52
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-59
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-60
+- plan-docker_management_app-refresh_cache/REQ-9
+- plan-docker_management_app-refresh_cache/REQ-11
+- plan-docker_management_app-refresh_cache/REQ-12

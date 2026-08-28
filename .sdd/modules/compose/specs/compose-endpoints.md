@@ -11,7 +11,8 @@ log streaming to the client.
 
 ## Contract
 
-- `GET /api/compose/projects` → every discovered `ComposeProjectSummary`.
+- `GET /api/compose/projects` → every discovered `ComposeProjectSummary`, **answered from the
+  refresh cache**.
 - `POST /api/compose/projects/:name/up` → NDJSON stream: `{ type: 'output', line }*`, then exactly
   one `{ type: 'result', project }` or `{ type: 'error', message }`. Closing the connection cancels
   the compose process.
@@ -31,6 +32,13 @@ log streaming to the client.
   terminal `error` event, HTTP status staying `200`.
 
 ## Rules and invariants
+
+- **`GET /api/compose/projects` never runs the CLI while the client waits.** It answers the value
+  the refresh cache holds (kind `compose-projects`); only a discovery never read before waits for a
+  read. The body is unchanged; the response carries `X-Vexel-Read-At`, `X-Vexel-Age-Ms`, and
+  `X-Vexel-Stale` when the last read attempt failed.
+- Up, down, restart and scale mark that kind changed on success, through
+  `ComposeLifecycleService`. File read and write, validation and log streaming stay **direct**.
 
 - A client that disconnects mid-run leaves no compose process behind: up, down, restart and scale
   kill the running `docker compose`, and the cli-plugin under it, as soon as the connection goes
@@ -58,3 +66,6 @@ log streaming to the client.
 - plan-docker_management_app/REQ-77
 - plan-docker_management_app/REQ-78
 - plan-docker_management_app/REQ-116
+- plan-docker_management_app-refresh_cache/REQ-9
+- plan-docker_management_app-refresh_cache/REQ-12
+- plan-docker_management_app-refresh_cache/REQ-13

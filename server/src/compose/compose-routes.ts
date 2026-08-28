@@ -1,6 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import { DockerDaemonError } from "../docker/errors.js";
-import { getComposeProject, listComposeProjects } from "./compose-discovery-service.js";
+import { composeProjectsCache, getComposeProject } from "./compose-discovery-service.js";
 import { readComposeFiles, validateComposeFile, writeComposeFile } from "./compose-file-service.js";
 import {
   runComposeDown,
@@ -10,12 +10,14 @@ import {
   type ComposeCommandHandlers,
 } from "./compose-lifecycle-service.js";
 import { streamComposeLogs } from "./compose-logs-service.js";
+import { sendHeld } from "../refresh-cache/refresh-cache-response.js";
 
 export const composeRouter = Router();
 
+/** Answered from the value the refresh cache holds (REQ-9); only a discovery never read before waits for the CLI. */
 composeRouter.get("/projects", async (_req, res) => {
   try {
-    res.json(await listComposeProjects());
+    sendHeld(res, await composeProjectsCache.read());
   } catch (error) {
     respondError(res, error);
   }

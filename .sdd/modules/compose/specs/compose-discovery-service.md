@@ -21,6 +21,11 @@ CLI channel; the compose file path is never operator-typed, it comes straight fr
     `app-01`).
   - The same projects produce the **same sequence on every read**, whatever order
     `docker compose ls` listed them in.
+- `composeProjectsCache` — the refresh-cache kind the discovery is held under: key
+  `compose-projects`, period 30 s, marked due by `container` daemon events — a compose project is
+  read from container labels and Docker publishes no compose event of its own (see
+  `refresh-cache.md`, module `refresh-cache`). `listComposeProjects` is its read; the listing above
+  is unchanged by this. `getComposeProject` is **not** held: a single-project read stays direct.
 - `getComposeProject(name): Promise<ComposeProjectSummary>`
   - Re-reads a single project's own status (e.g. right after a lifecycle action).
 - `ComposeProjectSummary`: `{ name, configFiles, state, services, error? }`
@@ -46,6 +51,7 @@ CLI channel; the compose file path is never operator-typed, it comes straight fr
 
 - docker-access: CLI runner (`runCliCommand`, via the module-internal `compose-cli.ts` helper)
 - list-order: List order (`byNameThenIdentity`)
+- refresh-cache: Refresh cache (`registerRefreshKind`)
 
 ## Requirements served
 
@@ -53,3 +59,6 @@ CLI channel; the compose file path is never operator-typed, it comes straight fr
 - plan-docker_management_app-list_ordering/REQ-35
 - plan-docker_management_app-list_ordering/REQ-36
 - plan-docker_management_app-list_ordering/REQ-43
+- plan-docker_management_app-refresh_cache/REQ-9
+- plan-docker_management_app-refresh_cache/REQ-11
+- plan-docker_management_app-refresh_cache/REQ-12

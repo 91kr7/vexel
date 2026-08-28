@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { subscribeToActiveContextChange } from '../../data/active-context';
+import { subscribeToReload } from '../../data/reload-signal';
 import { fetchConnectionStatus, type ConnectionStatus } from '../../data/connectivity-client';
 
 const POLL_INTERVAL_MS = 5000;
@@ -30,9 +31,11 @@ export function ConnectionStatusProvider({ children }: { children?: ReactNode })
   const [status, setStatus] = useState<ConnectionStatus>(initialStatus);
   const [loading, setLoading] = useState(true);
 
-  const refresh = useCallback(() => {
+  // `readOnce` returns its promise so the reload signal can wait for it; `refresh` returns
+  // nothing, the shape the screens use (plan-docker_management_app-refresh_cache/REQ-21).
+  const readOnce = useCallback(() => {
     setLoading(true);
-    fetchConnectionStatus()
+    return fetchConnectionStatus()
       .then((next) => setStatus(next))
       .catch(() =>
         setStatus((previous) => ({
@@ -43,6 +46,10 @@ export function ConnectionStatusProvider({ children }: { children?: ReactNode })
       .finally(() => setLoading(false));
   }, []);
 
+  const refresh = useCallback(() => {
+    void readOnce();
+  }, [readOnce]);
+
   useEffect(() => {
     refresh();
     const interval = setInterval(refresh, POLL_INTERVAL_MS);
@@ -52,6 +59,8 @@ export function ConnectionStatusProvider({ children }: { children?: ReactNode })
   // The status describes the daemon of the active context: another context is
   // another daemon, re-probed at once instead of at the next poll (REQ-93).
   useEffect(() => subscribeToActiveContextChange(refresh), [refresh]);
+
+  useEffect(() => subscribeToReload(readOnce), [readOnce]);
 
   const value = useMemo(() => ({ ...status, loading, retry: refresh }), [status, loading, refresh]);
 

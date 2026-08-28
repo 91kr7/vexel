@@ -152,6 +152,23 @@
   cursor: not-allowed;
 }
 
+/* Busy is not unavailable: the control stays at full strength and its indicator
+   sits inside its own box, so neither the control nor its neighbours move. */
+.ui-icon-button--busy:disabled {
+  opacity: 1;
+  cursor: progress;
+}
+
+.ui-icon-button--busy .ui-spinner {
+  width: 16px;
+  height: 16px;
+}
+
+.ui-icon-button--sm.ui-icon-button--busy .ui-spinner {
+  width: 12px;
+  height: 12px;
+}
+
 .ui-stepper {
   display: inline-flex;
   align-items: center;

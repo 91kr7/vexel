@@ -10,7 +10,8 @@ type: REST endpoint
 
 ## Contract
 
-- `GET /api/containers` → `200`, `ContainerSummary[]` (see `containers-service.md`).
+- `GET /api/containers` → `200`, `ContainerSummary[]` (see `containers-service.md`), **answered
+  from the refresh cache**.
 - `POST /api/containers/:id/start` → `204`.
 - `POST /api/containers/:id/stop` → `204`.
 - `POST /api/containers/:id/restart` → `204`.
@@ -30,6 +31,17 @@ type: REST endpoint
 
 ## Rules and invariants
 
+- **`GET /api/containers` never calls the daemon while the client waits.** It answers the value the
+  refresh cache holds (kind `containers`); only a listing never read before — the first request
+  after the process started, or the first after a context change — waits for a read. The body is
+  unchanged; the response carries `X-Vexel-Read-At`, `X-Vexel-Age-Ms`, and `X-Vexel-Stale` when the
+  last read attempt failed.
+- **Every route that changes the listing marks that kind changed once it has succeeded**, so the
+  operator's own action shows on the next request without waiting for a timer: start, stop, restart,
+  pause, unpause, kill, remove, rename, prune, the configuration change, and a creation that reached
+  its `created` event. A route that fails marks nothing.
+- Inspect, logs, statistics, processes, the sessions and the export/import routes stay **direct**:
+  no value is held for any of them.
 - `GET /api/containers` answers whatever the sampler has: with no consumer subscribed the summaries
   carry no figures at all, and the endpoint neither starts sampling nor waits for a sample. Reading
   the list is not being a consumer.
@@ -53,3 +65,6 @@ type: REST endpoint
 - plan-docker_management_app/REQ-26
 - plan-docker_management_app-containers_card_view/REQ-41
 - plan-docker_management_app-containers_card_view/REQ-55
+- plan-docker_management_app-refresh_cache/REQ-9
+- plan-docker_management_app-refresh_cache/REQ-12
+- plan-docker_management_app-refresh_cache/REQ-13

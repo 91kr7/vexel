@@ -31,12 +31,19 @@ type: backend service
     else if record is shared     → "shared"      (reclaimable, referenced by more than one build)
     else                         → "reclaimable"
     ```
+- `buildCacheListCache` — the refresh-cache kind the inventory is held under: key `build-cache`,
+  period 30 s, **no event type** — buildx publishes none, and the prune below says so itself (see
+  `refresh-cache.md`, module `refresh-cache`). `listBuildCache` is its read; the inventory above is
+  unchanged by this.
 - `pruneBuildCache(): Promise<BuildCachePruneResult>`
   - `BuildCachePruneResult`: `{ reclaimedBytes }`.
   - Removes every reclaimable record; rejects if `buildx prune`'s own reclaimed-space report cannot
     be parsed, rather than reporting zero.
 
 ## Rules and invariants
+
+- `pruneBuildCache` says the inventory has changed once it has succeeded, so the reclaimed records
+  disappear on the next request without waiting for a timer.
 
 - Every call goes through the CLI channel (`docker buildx …`), never a direct daemon socket call.
 - `docker buildx du` output is read as newline-delimited JSON, a single bare JSON object (the
@@ -51,6 +58,7 @@ type: backend service
 
 - docker-access: CLI runner
 - list-order: List order (`byNameThenIdentity`, the identifier standing in for the name)
+- refresh-cache: Refresh cache (`registerRefreshKind`)
 
 ## Requirements served
 
@@ -60,3 +68,6 @@ type: backend service
 - plan-docker_management_app-list_ordering/REQ-37
 - plan-docker_management_app-list_ordering/REQ-38
 - plan-docker_management_app-list_ordering/REQ-43
+- plan-docker_management_app-refresh_cache/REQ-9
+- plan-docker_management_app-refresh_cache/REQ-11
+- plan-docker_management_app-refresh_cache/REQ-13

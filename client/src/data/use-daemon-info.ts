@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToActiveContextChange } from './active-context';
+import { subscribeToReload } from './reload-signal';
 import { fetchDaemonInfo, type DaemonInfo } from './contexts-client';
 
 export interface UseDaemonInfoResult {
@@ -20,8 +21,10 @@ export function useDaemonInfo(): UseDaemonInfoResult {
   const [error, setError] = useState<string | undefined>(undefined);
   const cancelledRef = useRef(false);
 
-  const refresh = useCallback(() => {
-    fetchDaemonInfo()
+  // `readOnce` returns its promise so the reload signal can wait for it; `refresh` returns
+  // nothing, the shape the screens use (plan-docker_management_app-refresh_cache/REQ-21).
+  const readOnce = useCallback(() => {
+    return fetchDaemonInfo()
       .then((next) => {
         if (cancelledRef.current) return;
         setInfo(next);
@@ -38,6 +41,10 @@ export function useDaemonInfo(): UseDaemonInfoResult {
       });
   }, []);
 
+  const refresh = useCallback(() => {
+    void readOnce();
+  }, [readOnce]);
+
   useEffect(() => {
     cancelledRef.current = false;
     refresh();
@@ -47,6 +54,8 @@ export function useDaemonInfo(): UseDaemonInfoResult {
   }, [refresh]);
 
   useEffect(() => subscribeToActiveContextChange(refresh), [refresh]);
+
+  useEffect(() => subscribeToReload(readOnce), [readOnce]);
 
   return { info, loaded, error, refresh };
 }

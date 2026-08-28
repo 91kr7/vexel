@@ -24,6 +24,11 @@ data.
   - `platforms` — `["os/architecture[/variant]"]`, resolved per image via its own inspect call;
     empty when the daemon does not report an OS/architecture for that image (an inspect failure for
     one image degrades to an empty platform list for it, not a failed listing).
+    **Resolved once per image id** (plan-docker_management_app-refresh_cache/REQ-2): a later listing
+    inspects only the ids whose platform is not known yet, and every row carries the same value it
+    carries today (plan-docker_management_app-refresh_cache/REQ-3). Only a **resolved** platform is
+    kept, so an image left empty — inspect failed, or the daemon reported no OS/architecture — is
+    inspected again on the next listing instead of staying blank for the rest of the session.
   - `createdAt` — ISO-8601 instant.
   - **Ordered named-first, dangling last.**
     - a **tagged** image sorts by its **lowest tag** — the head of the ordered `tags` above, never
@@ -41,6 +46,13 @@ data.
       shortened, and a dangling image still carries an empty `tags`.
   - The same images produce the **same sequence on every read**, whatever order the daemon supplied
     them — or their `RepoTags` — in.
+- `imageListCache` — the refresh-cache kind the listing is held under: key `images`, period 60 s,
+  marked due by `image` daemon events (see `refresh-cache.md`, module `refresh-cache`).
+  `listImages` is its read; the listing above is unchanged by this. `getImageInspect` is **not**
+  held: a detail read stays direct.
+- `resetImagePlatformCache(): void` — discards the platforms remembered above, so the next listing
+  resolves them again. It exists for the checks, which need to observe the resolving itself; the
+  server never calls it.
 - `getImageInspect(id): Promise<ImageInspect>` — via `GET /images/{id}/json` plus `GET
   /images/{id}/history` (REQ-40).
   - `ImageInspect`: `{ id, tags, digest?, platforms, sizeBytes, createdAt, entrypoint, command, env,
@@ -59,6 +71,9 @@ data.
 - `tags` never contains the daemon's dangling-image placeholder (`<none>:<none>`).
 - A reference is split into repository and tag at the last `:` that follows the last `/`, so a
   registry host carrying a port (`localhost:5000/nginx:1.25`) keeps its port in the repository.
+- A platform kept against an image id stays valid for the process's lifetime and across a change of
+  active context: the id is a content digest, and the same content has the same OS/architecture on
+  any daemon.
 - `getImageInspect` leaves its own `tags` exactly as the daemon returned them: the ordering above is
   a property of the list, which is where the row's sort key is defined.
 
@@ -66,6 +81,7 @@ data.
 
 - docker-access: EngineClient (via `getEngineClient()`), DockerDaemonError
 - list-order: List order (`byNameThenIdentity`, `byNamedThenUnnamedNewest`)
+- refresh-cache: Refresh cache (`registerRefreshKind`)
 
 ## Requirements served
 
@@ -77,3 +93,8 @@ data.
 - plan-docker_management_app-list_ordering/REQ-20
 - plan-docker_management_app-list_ordering/REQ-21
 - plan-docker_management_app-list_ordering/REQ-22
+- plan-docker_management_app-refresh_cache/REQ-2
+- plan-docker_management_app-refresh_cache/REQ-3
+- plan-docker_management_app-refresh_cache/REQ-9
+- plan-docker_management_app-refresh_cache/REQ-11
+- plan-docker_management_app-refresh_cache/REQ-12

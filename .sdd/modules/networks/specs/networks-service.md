@@ -24,6 +24,11 @@ network's full inspect data, create, remove and prune unused networks, and attac
     Docker does not guarantee network-name uniqueness — ordered by their ids rather than shuffled.
   - The same networks produce the **same sequence on every read**, whatever order the daemon
     supplied them in.
+- `networkListCache` — the refresh-cache kind the listing is held under: key `networks`, period
+  30 s, marked due by `network` **and `container`** daemon events — a container attaching or leaving
+  changes what the list shows (see `refresh-cache.md`, module `refresh-cache`). `listNetworks` is
+  its read; the listing above is unchanged by this. `getNetworkInspect` is **not** held: a detail
+  read stays direct.
 - `getNetworkInspect(id): Promise<NetworkInspect>` — via `GET /networks/{id}`; rejects with the
   daemon's own 404 for an unknown id/name.
   - `NetworkInspect`: `NetworkSummary & { raw }`; `raw` is the full inspect payload exactly as
@@ -47,10 +52,17 @@ network's full inspect data, create, remove and prune unused networks, and attac
 - `attachedContainers` is computed fresh on every `listNetworks`/`getNetworkInspect` call, not
   cached.
 
+### The refresh cache
+
+- `createNetwork`, `removeNetwork`, `pruneNetworks`, `attachContainer` and `detachContainer` say the
+  listing has changed once they have succeeded, so the operator's own action shows on the next
+  request without waiting for a timer. A failed call marks nothing.
+
 ## Dependencies
 
 - docker-access: EngineClient (via `getEngineClient()`), DockerDaemonError
 - list-order: List order (`byNameThenIdentity`)
+- refresh-cache: Refresh cache (`registerRefreshKind`)
 
 ## Requirements served
 
@@ -59,3 +71,7 @@ network's full inspect data, create, remove and prune unused networks, and attac
 - plan-docker_management_app/REQ-74
 - plan-docker_management_app-list_ordering/REQ-9
 - plan-docker_management_app-list_ordering/REQ-12
+- plan-docker_management_app-refresh_cache/REQ-9
+- plan-docker_management_app-refresh_cache/REQ-11
+- plan-docker_management_app-refresh_cache/REQ-12
+- plan-docker_management_app-refresh_cache/REQ-13

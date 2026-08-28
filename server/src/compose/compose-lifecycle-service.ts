@@ -3,7 +3,7 @@
 // the project's resulting state.
 import { runCliCommand } from "../docker/cli-runner.js";
 import { resolveActiveEndpoint } from "../docker/endpoint.js";
-import { getComposeProject, type ComposeProjectSummary } from "./compose-discovery-service.js";
+import { composeProjectsCache, getComposeProject, type ComposeProjectSummary } from "./compose-discovery-service.js";
 
 export interface ComposeCommandHandlers {
   onOutput: (line: string) => void;
@@ -44,6 +44,10 @@ function runComposeCommand(name: string, args: string[], handlers: ComposeComman
       fail(`docker compose exited with code ${exitCode}`);
       return;
     }
+    // Every up/down/restart/scale ends here, so none of them can forget to say
+    // the discovery has changed: without it the stack the operator just started
+    // would wait for a timer to show (REQ-13).
+    composeProjectsCache.markChanged();
     try {
       const project = await getComposeProject(name);
       if (settled) return;

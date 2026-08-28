@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { expect, test, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { chooseImageRowAnalysis } from './support/images-screen.js';
+import { refreshThroughTheControl } from './support/refresh-control.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 const RUN_ID = `${process.pid}-${Date.now()}`;
@@ -186,10 +187,15 @@ test('reaches the images and layers a build-cache record relates to, and follows
     await openApp(page, 'builders-cache');
     await expect(page.getByRole('heading', { level: 1, name: 'Builders & cache' })).toBeVisible();
 
+    // The build the fixture came from left its cache record out of band, and Docker
+    // publishes no build-cache event, so the press is what puts it on screen instead of a
+    // wait shorter than the period (plan-docker_management_app-refresh_cache/REQ-30).
+    await refreshThroughTheControl(page);
+
     // builders-screen.md — the record's recorded build step is one of its subtitle lines, which is
     // what identifies this spec's own record among the host's.
     const ownRecord = buildCacheCard(page).locator('.ui-data-table__row', { hasText: fixture.marker });
-    await expect(ownRecord).toBeVisible({ timeout: 20_000 });
+    await expect(ownRecord).toBeVisible();
 
     await ownRecord.click();
 

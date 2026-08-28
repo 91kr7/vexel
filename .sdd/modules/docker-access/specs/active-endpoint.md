@@ -41,6 +41,10 @@ endpoint of the active Docker context, and the announcement of its change.
   pushes its endpoint in. That keeps the access layer free of any dependency on the CLI channel.
 - The active endpoint is process-wide: every area dials the same daemon at any instant, so no two
   screens can be reading different daemons.
+- The change notification is what makes a switch of daemon complete: on it the Engine API client is
+  rebuilt, the daemon event stream re-established, and every connection held open for the previous
+  daemon is closed (plan-docker_management_app-refresh_cache/REQ-5). Nothing opened for one endpoint
+  outlives it.
 
 ## Dependencies
 
@@ -49,3 +53,4 @@ endpoint of the active Docker context, and the announcement of its change.
 ## Requirements served
 
 - plan-docker_management_app/REQ-93
+- plan-docker_management_app-refresh_cache/REQ-5

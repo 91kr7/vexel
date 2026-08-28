@@ -31,13 +31,20 @@ type: frontend hook
 - It re-reads on the active-context broadcast: another context can mean another daemon, and with it
   another view of which registries are insecure (REQ-93).
 - A read that settles after the hook unmounts updates nothing.
+- Re-reads on the manual reload signal, and that signal waits for this read: when the
+  operator's refresh ends, the screen is already showing the reloaded data. The read replaces
+  the data in place — nothing is closed, navigated or reset (plan-docker_management_app-refresh_cache-manual_refresh/REQ-11,
+  plan-docker_management_app-refresh_cache-manual_refresh/REQ-13).
 
 ## Dependencies
 
 - registries: Registries client
 - contexts: Active-context broadcast
+- app-shell: Reload signal
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-85
 - plan-docker_management_app/REQ-87
+- plan-docker_management_app-refresh_cache-manual_refresh/REQ-11
+- plan-docker_management_app-refresh_cache-manual_refresh/REQ-13

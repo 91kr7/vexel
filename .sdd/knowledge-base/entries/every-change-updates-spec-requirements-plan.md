@@ -20,3 +20,10 @@ module's `index.md` row. Planning: new requirement ids under a feature section o
 `requirements.md`, and a new batch in `batches/` registered in `batches.md` — a change made outside
 the batches is appended as a further batch, never edited into a certified one. Test: the checks the
 change invalidates are rewritten against the new artifacts, not deleted.
+
+**When the change is a new need, not an adjustment** → "ovviamente va ingaggiato analista e Plan
+perché aggiornino i file di loro competenza", said on 2026-08-28 when a decision taken mid-batch
+called for a control the product did not have. A need that surfaces during development gets its own
+analysis and its own plan, written by `sdd-analyst` and `sdd-planner` through their commands — the
+orchestrator does not write those files by hand, and development does not start before they exist.
+See [[development-goes-through-sdd-dev]].

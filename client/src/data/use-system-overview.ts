@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToActiveContextChange } from './active-context';
+import { subscribeToReload } from './reload-signal';
 import { subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
 import { fetchSystemOverview, type SystemOverview } from './system-client';
 
@@ -39,8 +40,10 @@ export function useSystemOverview(): UseSystemOverviewResult {
   const [error, setError] = useState<string | undefined>(undefined);
   const cancelledRef = useRef(false);
 
-  const refresh = useCallback(() => {
-    fetchSystemOverview()
+  // `readOnce` returns its promise so the reload signal can wait for it; `refresh` returns
+  // nothing, the shape the screens use (plan-docker_management_app-refresh_cache/REQ-21).
+  const readOnce = useCallback(() => {
+    return fetchSystemOverview()
       .then((next) => {
         if (cancelledRef.current) return;
         setOverview(next);
@@ -55,6 +58,10 @@ export function useSystemOverview(): UseSystemOverviewResult {
         setLoaded(true);
       });
   }, []);
+
+  const refresh = useCallback(() => {
+    void readOnce();
+  }, [readOnce]);
 
   useEffect(() => {
     cancelledRef.current = false;
@@ -81,6 +88,8 @@ export function useSystemOverview(): UseSystemOverviewResult {
   // Another context means another daemon: what is held here belongs to
   // the one left behind and is re-read at once (REQ-93).
   useEffect(() => subscribeToActiveContextChange(refresh), [refresh]);
+
+  useEffect(() => subscribeToReload(readOnce), [readOnce]);
 
   return { overview, loaded, error, refresh };
 }

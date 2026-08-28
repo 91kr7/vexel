@@ -27,11 +27,18 @@ asks for it.
 - Changing `id` empties the previous container's listing before the new read.
 - A failed read leaves `processes` empty and reports the message rather than keeping stale rows.
 - Results arriving after the caller unmounted are discarded.
+- Re-reads on the manual reload signal, and that signal waits for this read: an open detail
+  view shows the reloaded data when the operator's refresh ends. Its event filter and its
+  object scope are unchanged, and the view is neither closed nor reset
+  (plan-docker_management_app-refresh_cache-manual_refresh/REQ-12, plan-docker_management_app-refresh_cache-manual_refresh/REQ-13).
 
 ## Dependencies
 
 - Container stats client (fetchContainerProcesses, ContainerProcess)
+- app-shell: Reload signal
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-33
+- plan-docker_management_app-refresh_cache-manual_refresh/REQ-12
+- plan-docker_management_app-refresh_cache-manual_refresh/REQ-13

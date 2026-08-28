@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToActiveContextChange } from './active-context';
+import { subscribeToReload } from './reload-signal';
 import {
   fetchRegistries,
   loginToRegistry,
@@ -33,8 +34,10 @@ export function useRegistries(): UseRegistriesResult {
   const [error, setError] = useState<string | undefined>(undefined);
   const cancelledRef = useRef(false);
 
-  const refresh = useCallback(() => {
-    fetchRegistries()
+  // `readOnce` returns its promise so the reload signal can wait for it; `refresh` returns
+  // nothing, the shape the screens use (plan-docker_management_app-refresh_cache/REQ-21).
+  const readOnce = useCallback(() => {
+    return fetchRegistries()
       .then((list) => {
         if (cancelledRef.current) return;
         if (!Array.isArray(list)) throw new Error('The server did not answer with a list of registries.');
@@ -51,6 +54,10 @@ export function useRegistries(): UseRegistriesResult {
       });
   }, []);
 
+  const refresh = useCallback(() => {
+    void readOnce();
+  }, [readOnce]);
+
   useEffect(() => {
     cancelledRef.current = false;
     refresh();
@@ -62,6 +69,8 @@ export function useRegistries(): UseRegistriesResult {
   // Another context means another daemon: the insecure-registry flags held
   // here belong to the one left behind and are re-read at once (REQ-93).
   useEffect(() => subscribeToActiveContextChange(refresh), [refresh]);
+
+  useEffect(() => subscribeToReload(readOnce), [readOnce]);
 
   useEffect(() => {
     const interval = window.setInterval(refresh, POLL_INTERVAL_MS);

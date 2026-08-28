@@ -104,6 +104,42 @@ test("GET /api/images lists a local image with its tags, size and creation age",
   }
 });
 
+// plan-docker_management_app-refresh_cache/REQ-2, plan-docker_management_app-refresh_cache/REQ-3 —
+// an image's platform is resolved once per identity, and the row still carries
+// the value the daemon itself reports, on the first listing and on the next.
+// The expected value is read from the daemon (`docker image inspect`), not from
+// what the service happened to answer first.
+test("GET /api/images reports the daemon's own platform for an image, and the same one when the list is read again", async () => {
+  const tag = `vexel-test-platform-${Date.now()}:v1`;
+  const app = buildApp();
+  const { url, close } = await startApp(app);
+  try {
+    await ensureImage(ALPINE_IMAGE);
+    await execFileAsync("docker", ["tag", ALPINE_IMAGE, tag]);
+    const { stdout } = await execFileAsync("docker", [
+      "image",
+      "inspect",
+      "--format",
+      "{{.Os}}/{{.Architecture}}{{with .Variant}}/{{.}}{{end}}",
+      tag,
+    ]);
+    const platform = stdout.trim();
+
+    const first = await fetchList(url);
+    const second = await fetchList(url);
+
+    const firstRow = first.find((image) => image.tags.includes(tag));
+    const secondRow = second.find((image) => image.tags.includes(tag));
+    assert.ok(firstRow, "the tagged image is expected in the first listing");
+    assert.ok(secondRow, "the tagged image is expected in the second listing");
+    assert.deepEqual(firstRow!.platforms, [platform]);
+    assert.deepEqual(secondRow!.platforms, [platform]);
+  } finally {
+    await removeTagQuietly(tag);
+    await close();
+  }
+});
+
 // plan-docker_management_app/REQ-40 — inspect data carries config, entrypoint/cmd, env, labels, exposed ports, size and history.
 // A synthetic image (built with docker commit --change) gives full control over its config, rather than asserting on the
 // internals of a third-party image, which can change across versions.

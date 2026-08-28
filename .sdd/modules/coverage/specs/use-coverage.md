@@ -36,14 +36,21 @@ as the screen needs them: the map is local data and always there, only the basel
   open — and a read that settles after the hook is unmounted updates nothing.
 - The map never fails and never waits: `areas` and `counts` are readable before, during and after
   any baseline read, so a server that cannot be reached hides no part of the coverage statement.
+- Re-reads on the manual reload signal, and that signal waits for this read: when the
+  operator's refresh ends, the screen is already showing the reloaded data. The read replaces
+  the data in place — nothing is closed, navigated or reset (plan-docker_management_app-refresh_cache-manual_refresh/REQ-11,
+  plan-docker_management_app-refresh_cache-manual_refresh/REQ-13).
 
 ## Dependencies
 
 - coverage: Coverage map
 - system: System client (`fetchCoverageBaseline`)
 - contexts: active-context broadcast (`subscribeToActiveContextChange`)
+- app-shell: Reload signal
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-105
 - plan-docker_management_app/REQ-106
+- plan-docker_management_app-refresh_cache-manual_refresh/REQ-11
+- plan-docker_management_app-refresh_cache-manual_refresh/REQ-13

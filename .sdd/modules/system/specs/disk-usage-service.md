@@ -70,6 +70,11 @@ down by images, containers, volumes and build cache.
   occupied breakdown is not derivable from the reclaimable one (an image in use occupies disk and
   reclaims nothing), and no caller reads the daemon's disk-usage accounting a second time of its
   own. Each call makes exactly one such reading, whichever question it answers.
+- **Both readings stay direct and are held nowhere.** They are read when the screen asks for them
+  and never on a schedule — the decision this area took from the start, because `/system/df` is the
+  most expensive call the daemon answers on a large host. The volume sizes, the one value that used
+  to be read from here for another screen, are now held under their own refresh-cache kind
+  (`volume-sizes`, module `volumes`); nothing about these two breakdowns changed with it.
 - The occupied breakdown counts every object, whatever its state — that is what makes it differ
   from the reclaimable one — except this application's own internal filesystem-extraction
   containers, which are plumbing the operator never sees anywhere in the application.

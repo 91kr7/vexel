@@ -7,6 +7,7 @@
 import type { IncomingMessage } from "node:http";
 import type { Readable } from "node:stream";
 import { getEngineClient } from "../connectivity/connection-status-service.js";
+import { imageListCache } from "./images-service.js";
 
 export interface ImageTransferStep {
   /** The layer id the step is about, or "overall" for a summary line. */
@@ -36,28 +37,31 @@ export async function pullImage(reference: string, platform: string | undefined,
   const { repository, tag } = splitReference(reference);
   const query = new URLSearchParams({ fromImage: repository, tag });
   if (platform && platform.trim() !== "") query.set("platform", platform.trim());
-  return streamTransfer(`/images/create?${query.toString()}`, handlers);
+  return streamTransfer(`/images/create?${query.toString()}`, markingListChanged(handlers));
 }
 
 export async function pushImage(reference: string, handlers: ImageTransferHandlers): Promise<() => void> {
   const { repository, tag } = splitReference(reference);
   const query = new URLSearchParams({ tag });
-  return streamTransfer(`/images/${repository}/push?${query.toString()}`, handlers, { "X-Registry-Auth": ANONYMOUS_REGISTRY_AUTH });
+  return streamTransfer(`/images/${repository}/push?${query.toString()}`, markingListChanged(handlers), { "X-Registry-Auth": ANONYMOUS_REGISTRY_AUTH });
 }
 
 export async function tagImage(id: string, newReference: string): Promise<void> {
   const { repository, tag } = splitReference(newReference);
   const query = new URLSearchParams({ repo: repository, tag });
   await getEngineClient().request(`/images/${id}/tag?${query.toString()}`, { method: "POST" });
+  imageListCache.markChanged();
 }
 
 /** Removes just this tag reference; the underlying image (and its other tags, if any) is left alone. */
 export async function untagImage(tagReference: string): Promise<void> {
   await getEngineClient().request(`/images/${tagReference}`, { method: "DELETE" });
+  imageListCache.markChanged();
 }
 
 export async function removeImage(id: string): Promise<void> {
   await getEngineClient().request(`/images/${id}?force=true`, { method: "DELETE" });
+  imageListCache.markChanged();
 }
 
 export interface ImageSaveStream {
@@ -113,6 +117,7 @@ export async function loadImages(
   response.on("end", () => {
     if (stopped) return;
     stopped = true;
+    imageListCache.markChanged();
     handlers.onEnd({ references });
   });
 
@@ -121,6 +126,22 @@ export async function loadImages(
     stopped = true;
     body.destroy();
     response.destroy();
+  };
+}
+
+/**
+ * Says the listing has changed once the transfer has ended, so what the
+ * operator just pulled or pushed shows without waiting for a timer (REQ-13).
+ * Marking is done here rather than in the routes because every caller of these
+ * operations must mark, and only one place can guarantee that.
+ */
+function markingListChanged(handlers: ImageTransferHandlers): ImageTransferHandlers {
+  return {
+    ...handlers,
+    onEnd: () => {
+      imageListCache.markChanged();
+      handlers.onEnd();
+    },
   };
 }
 
@@ -145,6 +166,7 @@ export async function pruneDanglingImages(): Promise<PruneResult> {
   const response = await getEngineClient().request(`/images/prune?filters=${filters}`, { method: "POST" });
   const payload = JSON.parse(response.body) as { ImagesDeleted?: { Deleted?: string; Untagged?: string }[]; SpaceReclaimed?: number };
   const removedIds = (payload.ImagesDeleted ?? []).map((entry) => entry.Deleted ?? entry.Untagged ?? "").filter(Boolean);
+  imageListCache.markChanged();
   return { removedIds, reclaimedBytes: payload.SpaceReclaimed ?? 0 };
 }
 

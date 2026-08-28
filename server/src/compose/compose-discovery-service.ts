@@ -3,6 +3,7 @@
 // `com.docker.compose.project.config_files` label via `docker compose ls`,
 // never typed — and overall/per-service state via `docker compose ps`.
 import { byNameThenIdentity } from "../list-order/list-order.js";
+import { registerRefreshKind } from "../refresh-cache/refresh-cache.js";
 import { runComposeJsonArray } from "./compose-cli.js";
 
 export interface ComposeServiceSummary {
@@ -43,6 +44,20 @@ export async function listComposeProjects(): Promise<ComposeProjectSummary[]> {
   // same name compared exactly.
   return projects.sort(byNameThenIdentity({ name: (project) => project.name, identity: (project) => project.name }));
 }
+
+/**
+ * Project discovery as the refresh cache keeps it: read on its own period and
+ * whenever a `container` event or one of this application's own stack
+ * operations says so (REQ-9, REQ-11, REQ-12, REQ-13). The event type is
+ * `container` because a compose project is read from container labels and
+ * Docker publishes no compose event of its own.
+ */
+export const composeProjectsCache = registerRefreshKind({
+  key: "compose-projects",
+  periodMs: 30000,
+  eventTypes: ["container"],
+  read: listComposeProjects,
+});
 
 /** Re-reads a single project's own status, e.g. right after a lifecycle action. */
 export async function getComposeProject(name: string): Promise<ComposeProjectSummary> {

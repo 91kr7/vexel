@@ -20,6 +20,7 @@ They cost memory and CPU for nothing, and the suite starts the server it needs o
 **How to apply** →
 - *test* → the run begins by listing what is alive (`ps` for `npm run`/`node dist`/`vite`/
   `playwright`, `lsof -nP -iTCP -sTCP:LISTEN` for the ports) and killing it, before the first
-  command of [[batch-closing-commands]] is typed. Do not stop to ask whose a process is.
+  test command of the run is typed, whatever the breadth of that run — a full pass
+  ([[full-suite-commands]]) or a handful of files. Do not stop to ask whose a process is.
 - *test* → a run interrupted halfway leaves objects on the daemon too: sweep them
   (`npm run test:sweep -w server`) in the same preliminary step.

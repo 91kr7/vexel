@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { subscribeToReload } from './reload-signal';
 import { fetchBuildCacheUsage, type BuildCacheUsage } from './builders-client';
 
 export interface UseBuildCacheUsageResult {
@@ -20,7 +21,9 @@ export function useBuildCacheUsage(recordId: string | undefined): UseBuildCacheU
   const [error, setError] = useState<string | undefined>(undefined);
   const abortRef = useRef<AbortController | undefined>(undefined);
 
-  const refresh = useCallback(() => {
+  // `readOnce` returns its promise so the reload signal can wait for it; `refresh` returns
+  // nothing, the shape the screens use (plan-docker_management_app-refresh_cache/REQ-21).
+  const readOnce = useCallback(() => {
     if (!recordId) return;
     // Each read owns its controller and aborts the one it supersedes, so a
     // slower answer for a previous record can neither arrive nor overwrite the
@@ -28,7 +31,7 @@ export function useBuildCacheUsage(recordId: string | undefined): UseBuildCacheU
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-    fetchBuildCacheUsage(recordId, controller.signal)
+    return fetchBuildCacheUsage(recordId, controller.signal)
       .then((result) => {
         if (controller.signal.aborted) return;
         setUsage(result);
@@ -42,6 +45,10 @@ export function useBuildCacheUsage(recordId: string | undefined): UseBuildCacheU
       });
   }, [recordId]);
 
+  const refresh = useCallback(() => {
+    void readOnce();
+  }, [readOnce]);
+
   useEffect(() => {
     setUsage(undefined);
     setLoaded(false);
@@ -51,6 +58,8 @@ export function useBuildCacheUsage(recordId: string | undefined): UseBuildCacheU
       abortRef.current?.abort();
     };
   }, [recordId, refresh]);
+
+  useEffect(() => subscribeToReload(readOnce), [readOnce]);
 
   return { usage, loaded, error, refresh };
 }

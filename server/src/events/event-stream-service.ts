@@ -11,7 +11,10 @@ export interface DaemonEvent {
   timestamp: string;
   type: string;
   action: string;
+  /** The object's name when the daemon reports one, else its identifier. */
   actor?: string;
+  /** The object's identifier, whatever the daemon reported as its name (plan-docker_management_app-refresh_cache/REQ-6). */
+  actorId?: string;
 }
 
 const BACKLOG_LIMIT = 50;
@@ -28,6 +31,7 @@ class EventStreamService extends EventEmitter {
   private wake?: () => void;
   private reconnectRequested = false;
   private nextArrivalOrdinal = 0;
+  private connected = false;
 
   start(): void {
     if (this.started) return;
@@ -38,6 +42,31 @@ class EventStreamService extends EventEmitter {
 
   getBacklog(): DaemonEvent[] {
     return [...this.backlog];
+  }
+
+  /**
+   * Registers `listener` to run whenever this stream's own connection to the
+   * daemon drops or comes back; returns the unsubscribe function. It is the
+   * cheapest liveness signal the server has — the stream is already open — so
+   * whoever holds a reachability answer re-reads on it instead of polling for
+   * the change (plan-docker_management_app-refresh_cache/REQ-15).
+   */
+  onConnectionChanged(listener: (connected: boolean) => void): () => void {
+    this.on("connection", listener);
+    return () => {
+      this.off("connection", listener);
+    };
+  }
+
+  /** Whether the stream is currently reading from the daemon. */
+  isConnected(): boolean {
+    return this.connected;
+  }
+
+  private setConnected(connected: boolean): void {
+    if (this.connected === connected) return;
+    this.connected = connected;
+    this.emit("connection", connected);
   }
 
   /**
@@ -65,11 +94,13 @@ class EventStreamService extends EventEmitter {
         // the daemon left behind: drop it before it republishes an event.
         if (this.reconnectRequested) stream.destroy();
         this.backoffMs = INITIAL_BACKOFF_MS;
+        this.setConnected(true);
         await this.consume(stream);
       } catch {
         // daemon unreachable or the stream broke; retried below with backoff
       } finally {
         this.currentStream = undefined;
+        this.setConnected(false);
       }
       if (this.takeReconnectRequest()) continue;
       await this.pause(this.backoffMs);
@@ -136,6 +167,7 @@ class EventStreamService extends EventEmitter {
         type: raw.Type ?? "unknown",
         action: raw.Action ?? "unknown",
         actor: raw.Actor?.Attributes?.name ?? raw.Actor?.ID,
+        actorId: raw.Actor?.ID,
       };
       this.backlog.push(event);
       if (this.backlog.length > BACKLOG_LIMIT) this.backlog.shift();

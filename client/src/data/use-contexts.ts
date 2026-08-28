@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { notifyActiveContextChanged, subscribeToActiveContextChange } from './active-context';
+import { subscribeToReload } from './reload-signal';
 import {
   activateContext,
   createContext,
@@ -49,8 +50,10 @@ export function useContexts(): UseContextsResult {
   const [error, setError] = useState<string | undefined>(undefined);
   const cancelledRef = useRef(false);
 
-  const refresh = useCallback(() => {
-    fetchContexts()
+  // `readOnce` returns its promise so the reload signal can wait for it; `refresh` returns
+  // nothing, the shape the screens use (plan-docker_management_app-refresh_cache/REQ-21).
+  const readOnce = useCallback(() => {
+    return fetchContexts()
       .then((list) => {
         if (cancelledRef.current) return;
         // A payload that is not a list is a failed read like any other: it is
@@ -69,6 +72,10 @@ export function useContexts(): UseContextsResult {
       });
   }, []);
 
+  const refresh = useCallback(() => {
+    void readOnce();
+  }, [readOnce]);
+
   useEffect(() => {
     cancelledRef.current = false;
     refresh();
@@ -86,6 +93,8 @@ export function useContexts(): UseContextsResult {
   // which is why the announcement, and never the local state, is what drives
   // the re-read: the shell and the screen then agree on the active context.
   useEffect(() => subscribeToActiveContextChange(refresh), [refresh]);
+
+  useEffect(() => subscribeToReload(readOnce), [readOnce]);
 
   useEffect(() => {
     inventoryListeners.add(refresh);

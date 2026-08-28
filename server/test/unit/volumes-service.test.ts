@@ -35,11 +35,16 @@ mock.module(new URL("../../src/connectivity/connection-status-service.ts", impor
   },
 });
 
-const { listVolumes, getVolumeInspect, createVolume, removeVolume, pruneVolumes } = await import(
+const { listVolumes, getVolumeInspect, createVolume, removeVolume, pruneVolumes, volumeSizeCache } = await import(
   "../../src/volumes/volumes-service.js"
 );
+const { resetRefreshCache } = await import("../../src/refresh-cache/refresh-cache.js");
 
 beforeEach(() => {
+  // The sizes are held process-wide and their refresher outlives the test that
+  // started it: without this, a removal in one test marks them due and the
+  // /system/df read that follows lands among the next test's recorded paths.
+  resetRefreshCache();
   volumesBody = "[]";
   dfBody = "{}";
   containersBody = "[]";
@@ -61,14 +66,24 @@ test("listVolumes leaves sizeBytes undefined for a volume /system/df has no usag
   assert.equal(volumes[0]!.sizeBytes, undefined);
 });
 
-// volumes-service.md — sizeBytes comes from /system/df's per-volume UsageData.Size
-test("listVolumes reads sizeBytes from /system/df's matching volume", async () => {
+// volumes-service.md — sizeBytes is joined in from the held sizes, never read by the listing: a
+// volume no size is held for yet is listed without one and gains it on a later read
+// (plan-docker_management_app-refresh_cache/REQ-18, REQ-19)
+test("listVolumes joins in a held size, and lists a volume without one until a size is held", async () => {
   volumesBody = JSON.stringify({ Volumes: [{ Name: "vol-a", Driver: "local", Mountpoint: "/data/vol-a", Scope: "local" }] });
   dfBody = JSON.stringify({ Volumes: [{ Name: "vol-a", UsageData: { Size: 4096 } }] });
 
-  const volumes = await listVolumes();
+  const beforeAnySizeIsHeld = await listVolumes();
+  assert.equal(
+    beforeAnySizeIsHeld[0]!.sizeBytes,
+    undefined,
+    "the listing waited for a size instead of listing the volume without one",
+  );
 
-  assert.equal(volumes[0]!.sizeBytes, 4096);
+  await volumeSizeCache.read();
+  const afterTheSizesArrived = await listVolumes();
+
+  assert.equal(afterTheSizesArrived[0]!.sizeBytes, 4096);
 });
 
 // volumes-service.md — mountedBy carries the names of every container (running or stopped) whose

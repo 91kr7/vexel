@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { subscribeToReload } from './reload-signal';
 import { fetchNetworkInspect, type NetworkInspect } from './networks-client';
-import { subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
+import { daemonEventConcerns, subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
 
 export interface UseNetworkInspectResult {
   inspect?: NetworkInspect;
@@ -10,9 +11,12 @@ export interface UseNetworkInspectResult {
 }
 
 /**
- * Reads a single network's inspect data, re-reading when `id` changes and
- * on every `network`/`container` daemon event. Returns an empty result when
- * `id` is undefined (no network selected).
+ * Reads a single network's inspect data, re-reading when `id` changes, on a
+ * `network` event about that same network
+ * (plan-docker_management_app-refresh_cache/REQ-7) and on every `container`
+ * event, since the containers attached to the network are part of what the
+ * view shows. Returns an empty result when `id` is undefined (no network
+ * selected).
  */
 export function useNetworkInspect(id: string | undefined): UseNetworkInspectResult {
   const [inspect, setInspect] = useState<NetworkInspect | undefined>(undefined);
@@ -20,9 +24,11 @@ export function useNetworkInspect(id: string | undefined): UseNetworkInspectResu
   const [error, setError] = useState<string | undefined>(undefined);
   const cancelledRef = useRef(false);
 
-  const refresh = useCallback(() => {
+  // `readOnce` returns its promise so the reload signal can wait for it; `refresh` returns
+  // nothing, the shape the screens use (plan-docker_management_app-refresh_cache/REQ-21).
+  const readOnce = useCallback(() => {
     if (!id) return;
-    fetchNetworkInspect(id)
+    return fetchNetworkInspect(id)
       .then((result) => {
         if (cancelledRef.current) return;
         setInspect(result);
@@ -38,6 +44,10 @@ export function useNetworkInspect(id: string | undefined): UseNetworkInspectResu
       });
   }, [id]);
 
+  const refresh = useCallback(() => {
+    void readOnce();
+  }, [readOnce]);
+
   useEffect(() => {
     cancelledRef.current = false;
     setInspect(undefined);
@@ -52,10 +62,13 @@ export function useNetworkInspect(id: string | undefined): UseNetworkInspectResu
   useEffect(
     () =>
       subscribeToDaemonEvents((event: DaemonEvent) => {
-        if (event.type === 'network' || event.type === 'container') refresh();
+        if (event.type === 'container') refresh();
+        else if (event.type === 'network' && daemonEventConcerns(event, id)) refresh();
       }),
-    [refresh],
+    [id, refresh],
   );
+
+  useEffect(() => subscribeToReload(readOnce), [readOnce]);
 
   return { inspect, loaded, error, refresh };
 }

@@ -56,11 +56,35 @@ TCP+TLS), negotiates the API version, and preserves the daemon's own error messa
     keep talking to the daemon left behind (REQ-93); a caller that held the previous instance keeps
     talking to the previous daemon, which is why every area calls this on each use rather than
     caching it.
+- `resetConnectionPools(): void`
+  - Closes every connection held for every endpoint, in flight ones included, and empties the pools.
+    Called on a change of the active endpoint, and the seam a check uses to start from no connection
+    at all.
 
 ## Rules and invariants
 
 - Every request goes through the endpoint's actual transport (unix socket, TCP(+TLS) socket, or an
   `ssh … docker system dial-stdio` tunnel) — no transport-specific branching in callers.
+- **A connection is opened once and reused by the calls that follow it**
+  (plan-docker_management_app-refresh_cache/REQ-4): `getVersion`, `request` and `requestRaw` take a
+  connection from the pool of the endpoint they are dialing and return it once the answer has been
+  read. A run of calls over one endpoint therefore opens fewer connections than it makes calls, and
+  a remote context pays its TLS handshake — or its `ssh` process — for the connection, not for the
+  call. What the caller receives does not change: same answers, same errors, same order.
+- **Streams and hijacked connections are dialed outside the pool** (REQ-4): a log follow, an event
+  stream or an `exec` owns its connection for its whole life, so it never blocks a pooled one and is
+  never handed to another call.
+- **A pool belongs to the endpoint it was opened for** (REQ-5): connections are held per endpoint and
+  never shared between two, and a change of the active endpoint closes every one of them. A call in
+  flight over the previous daemon at that instant fails as `DaemonUnreachable` instead of answering
+  with what that daemon had to say, and so does one still waiting for a connection to it.
+- The number of connections held for one endpoint is bounded: a burst of parallel calls is served by
+  at most sixteen of them, and at most four are kept once it is over. **The bound holds however the
+  burst is issued** — the calls over it wait for a connection to come free instead of opening their
+  own, including when the whole burst leaves in a single tick, which is the shape of a listing that
+  inspects every object it lists. A waiting call is served as soon as one ahead of it has read its
+  answer, and it is served in the order it arrived; nothing is ever refused for being over the
+  bound.
 - A `DockerDaemonError`'s `message` is always the daemon's own message when the daemon responded
   with one; otherwise a description of the low-level connection failure.
 - **Every failure of a request leaves this layer as a `DockerDaemonError`** — never as a raw stream,
@@ -77,7 +101,7 @@ TCP+TLS), negotiates the API version, and preserves the daemon's own error messa
 
 ## Dependencies
 
-- docker-access: Active endpoint (for the shared client only)
+- docker-access: Active endpoint (for the shared client, and for the change that discards the pools)
 - Node built-ins: `http`, `net`, `tls`, `child_process`
 
 ## Requirements served
@@ -90,3 +114,5 @@ TCP+TLS), negotiates the API version, and preserves the daemon's own error messa
 - plan-docker_management_app/REQ-35
 - plan-docker_management_app/REQ-101
 - plan-docker_management_app/REQ-106
+- plan-docker_management_app-refresh_cache/REQ-4
+- plan-docker_management_app-refresh_cache/REQ-5

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToActiveContextChange } from './active-context';
+import { subscribeToReload } from './reload-signal';
 import { fetchCoverageBaseline, type BaselineReport } from './system-client';
 import { coverageAreas, countCoverage, type CoverageArea, type CoverageCounts } from '../coverage/coverage-map';
 
@@ -49,8 +50,10 @@ export function useCoverage(): UseCoverageResult {
   const [error, setError] = useState<string | undefined>(undefined);
   const cancelledRef = useRef(false);
 
-  const refresh = useCallback(() => {
-    fetchCoverageBaseline()
+  // `readOnce` returns its promise so the reload signal can wait for it; `refresh` returns
+  // nothing, the shape the screens use (plan-docker_management_app-refresh_cache/REQ-21).
+  const readOnce = useCallback(() => {
+    return fetchCoverageBaseline()
       .then((report) => {
         if (cancelledRef.current) return;
         setBaseline(requireBaseline(report));
@@ -66,6 +69,10 @@ export function useCoverage(): UseCoverageResult {
       });
   }, []);
 
+  const refresh = useCallback(() => {
+    void readOnce();
+  }, [readOnce]);
+
   useEffect(() => {
     cancelledRef.current = false;
     refresh();
@@ -76,6 +83,8 @@ export function useCoverage(): UseCoverageResult {
 
   // The daemon half of the baseline belongs to a daemon, not to the screen.
   useEffect(() => subscribeToActiveContextChange(refresh), [refresh]);
+
+  useEffect(() => subscribeToReload(readOnce), [readOnce]);
 
   return { areas: coverageAreas, counts: countCoverage(coverageAreas), baseline, loaded, error, refresh };
 }

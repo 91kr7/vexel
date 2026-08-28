@@ -1,15 +1,17 @@
 import { Router, type Response } from "express";
 import { DockerDaemonError } from "../docker/errors.js";
-import { activateContext, createContext, listContexts, removeContext, type CreatableContextKind } from "./contexts-service.js";
+import { sendHeld } from "../refresh-cache/refresh-cache-response.js";
+import { activateContext, contextListCache, createContext, removeContext, type CreatableContextKind } from "./contexts-service.js";
 import { getDaemonInfo } from "./daemon-info-service.js";
 
 export const contextsRouter = Router();
 
 const CREATABLE_KINDS: CreatableContextKind[] = ["local", "ssh"];
 
+/** Answered from the value the refresh cache holds (REQ-9); only an inventory never read before waits for the CLI. */
 contextsRouter.get("/", async (_req, res) => {
   try {
-    res.json(await listContexts());
+    sendHeld(res, await contextListCache.read());
   } catch (error) {
     respondError(res, error);
   }

@@ -29,7 +29,21 @@ export interface CliRunHandle {
   done: Promise<CliRunResult>;
 }
 
+// Nothing can install or remove a CLI while the server runs, so the probe is
+// kept for the process's lifetime (plan-docker_management_app-refresh_cache/REQ-1).
+let cliAvailability: Promise<CliAvailability> | undefined;
+
 export async function detectCliAvailability(): Promise<CliAvailability> {
+  cliAvailability ??= probeCliAvailability();
+  return cliAvailability;
+}
+
+/** Test seam: discards the remembered probe, which the process itself never does. */
+export function resetCliAvailabilityCache(): void {
+  cliAvailability = undefined;
+}
+
+async function probeCliAvailability(): Promise<CliAvailability> {
   const [docker, compose, buildx] = await Promise.all([
     detect("docker", ["--version"]),
     detect("docker", ["compose", "version"]),

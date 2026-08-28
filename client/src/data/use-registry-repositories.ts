@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToActiveContextChange } from './active-context';
+import { subscribeToReload } from './reload-signal';
 import { fetchRepositories, fetchRepositoryTags, type RepositorySummary, type TagSummary } from './registries-client';
 
 const REPOSITORY_LIMIT = 10;
@@ -35,19 +36,41 @@ export function useRegistryRepositories(host: string | undefined, query: string)
   const [searching, setSearching] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
   const [reloadToken, setReloadToken] = useState(0);
+  // The browse runs in an effect, so the promise the reload signal waits on is
+  // settled by that effect rather than by the caller of `refresh` (REQ-11).
+  const settleRef = useRef<(() => void) | undefined>(undefined);
 
   const refresh = useCallback(() => setReloadToken((token) => token + 1), []);
+
+  const reload = useCallback(
+    () =>
+      new Promise<void>((resolve) => {
+        settleRef.current?.();
+        settleRef.current = resolve;
+        setReloadToken((token) => token + 1);
+      }),
+    [],
+  );
 
   // Another context can mean another daemon, and with it another view of which
   // registries are reachable and how (REQ-93).
   useEffect(() => subscribeToActiveContextChange(refresh), [refresh]);
 
+  useEffect(() => subscribeToReload(reload), [reload]);
+
   useEffect(() => {
+    // This run owns the reload waiting on it: taking the resolver here keeps a
+    // later run from settling it, and settling it twice is harmless.
+    const owned = settleRef.current;
+    settleRef.current = undefined;
+    const settle = () => owned?.();
+
     if (!host) {
       setEntries([]);
       setLoaded(false);
       setSearching(false);
       setError(undefined);
+      settle();
       return;
     }
 
@@ -88,12 +111,14 @@ export function useRegistryRepositories(host: string | undefined, query: string)
           setError(cause.message);
           setSearching(false);
           setLoaded(true);
-        });
+        })
+        .finally(settle);
     }, DEBOUNCE_MS);
 
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
+      settle();
     };
   }, [host, query, reloadToken]);
 

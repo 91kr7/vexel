@@ -1,14 +1,16 @@
 import { Router, type Response } from "express";
 import { DockerDaemonError } from "../docker/errors.js";
-import { pruneBuildCache, listBuildCache } from "./build-cache-service.js";
+import { buildCacheListCache, pruneBuildCache } from "./build-cache-service.js";
 import { getBuildCacheUsage } from "./build-cache-usage-service.js";
-import { createBuilder, listBuilders, removeBuilder, useBuilder } from "./builders-service.js";
+import { builderListCache, createBuilder, removeBuilder, useBuilder } from "./builders-service.js";
+import { sendHeld } from "../refresh-cache/refresh-cache-response.js";
 
 export const buildersRouter = Router();
 
+/** Answered from the value the refresh cache holds (REQ-9); only an inventory never read before waits for the CLI. */
 buildersRouter.get("/", async (_req, res) => {
   try {
-    res.json(await listBuilders());
+    sendHeld(res, await builderListCache.read());
   } catch (error) {
     respondError(res, error);
   }
@@ -51,9 +53,10 @@ buildersRouter.post("/:name/use", async (req, res) => {
   }
 });
 
+/** Answered from the value the refresh cache holds (REQ-9); only an inventory never read before waits for the CLI. */
 buildersRouter.get("/cache", async (_req, res) => {
   try {
-    res.json(await listBuildCache());
+    sendHeld(res, await buildCacheListCache.read());
   } catch (error) {
     respondError(res, error);
   }

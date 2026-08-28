@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { expect, test, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
 import { clickAtItsCentre } from './support/settled.js';
+import { refreshThroughTheControl } from './support/refresh-control.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 const RUN_ID = `${process.pid}-${Date.now()}`;
@@ -130,7 +131,10 @@ test('lists a context with its name, kind, endpoint and description, and marks t
   const name = fixtureName('list');
   await createContextQuietly(name, 'ssh://operator@build-host', ['--description', 'an e2e fixture']);
   try {
-    await page.reload();
+    // The context is host-level configuration Docker publishes no event for, so the
+    // press is what puts it on screen: the product's own control, not a wait
+    // (plan-docker_management_app-refresh_cache-manual_refresh/REQ-16).
+    await refreshThroughTheControl(page);
     const row = contextRow(page, name);
     await expect(row).toBeVisible({ timeout: 20_000 });
     await expect(await cellOf(page, row, /^CONTEXT$/i)).toContainText(name);
@@ -159,7 +163,10 @@ test('shows an externally created TCP+TLS context like any other, its TLS in a c
   const name = fixtureName('tls');
   const certDir = await createTlsContextQuietly(name);
   try {
-    await page.reload();
+    // The context is host-level configuration Docker publishes no event for, so the
+    // press is what puts it on screen: the product's own control, not a wait
+    // (plan-docker_management_app-refresh_cache-manual_refresh/REQ-16).
+    await refreshThroughTheControl(page);
     const row = contextRow(page, name);
     await expect(row).toBeVisible({ timeout: 20_000 });
     await expect(await cellOf(page, row, /^CONTEXT$/i)).toContainText('tcp');
@@ -246,7 +253,10 @@ test('removing a context asks for confirmation naming it, then drops it from the
   const name = fixtureName('remove');
   await createContextQuietly(name, 'ssh://operator@build-host');
   try {
-    await page.reload();
+    // The context is host-level configuration Docker publishes no event for, so the
+    // press is what puts it on screen: the product's own control, not a wait
+    // (plan-docker_management_app-refresh_cache-manual_refresh/REQ-16).
+    await refreshThroughTheControl(page);
     const row = contextRow(page, name);
     await expect(row).toBeVisible({ timeout: 20_000 });
 
@@ -301,7 +311,10 @@ test('switching the active context marks the row, confirms with a toast and rena
     if (request.method() === 'GET' && new URL(request.url()).pathname === '/api/contexts') inventoryReads.push(Date.now());
   });
   try {
-    await page.reload();
+    // The context is host-level configuration Docker publishes no event for, so the
+    // press is what puts it on screen: the product's own control, not a wait
+    // (plan-docker_management_app-refresh_cache-manual_refresh/REQ-16).
+    await refreshThroughTheControl(page);
     const row = contextRow(page, name);
     await expect(row).toBeVisible({ timeout: 20_000 });
 

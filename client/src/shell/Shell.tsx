@@ -41,6 +41,7 @@ import { VolumesNetworksScreen } from '../volumes-networks/VolumesNetworksScreen
 import { NetworksPanel } from '../volumes-networks/NetworksPanel';
 import { AboutNotice } from './AboutNotice';
 import { defaultScreenId, navGroupOrder, screens } from './navigation';
+import { RefreshControl } from './RefreshControl';
 import { PlaceholderScreen } from './screens/PlaceholderScreen';
 import { ConfirmationProvider } from './services/ConfirmationService';
 import { useConnectionStatus } from './services/ConnectionStatusService';
@@ -198,6 +199,9 @@ export function Shell() {
               description={activeScreen.description}
               actions={
                 <Row align="center" gap="var(--space-2)" wrap>
+                  {/* First in the group, so the pill and the version badge keep
+                      the coordinates they had (REQ-15). */}
+                  <RefreshControl />
                   <StatusPill
                     tone={statusTone}
                     action={!connection.daemon.reachable ? { label: 'Retry', onClick: connection.retry } : undefined}
