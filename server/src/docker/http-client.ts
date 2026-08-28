@@ -1,17 +1,23 @@
 // Minimal HTTP/1.1 request/stream helpers over a DockerEndpoint. Reuses Node's
 // own http module (header parsing, chunked transfer decoding, streaming) by
 // handing it an already-dialed socket through a custom Agent, so unix, TCP(+TLS)
-// and ssh endpoints are all served by the same request path.
+// and ssh endpoints are all served by the same request path. Buffered calls go
+// through a pool of connections held open per endpoint; streams and hijacked
+// connections are dialed on their own.
 import http from "node:http";
 import type { ClientRequestArgs } from "node:http";
 import type { Duplex, Readable } from "node:stream";
 import { dial } from "./transport.js";
+import { onActiveEndpointChanged } from "./endpoint.js";
 import { DockerDaemonError } from "./errors.js";
 import type { DockerEndpoint } from "./types.js";
 
 class EndpointAgent extends http.Agent {
-  constructor(private readonly endpoint: DockerEndpoint) {
-    super({ keepAlive: false });
+  constructor(
+    private readonly endpoint: DockerEndpoint,
+    options: http.AgentOptions = { keepAlive: false },
+  ) {
+    super(options);
   }
 
   override createConnection(_options: ClientRequestArgs, callback: (error: Error | null, socket: Duplex) => void): undefined {
@@ -21,6 +27,43 @@ class EndpointAgent extends http.Agent {
     return undefined;
   }
 }
+
+// Dialing costs a TLS handshake, or a whole `ssh` process, on every call to a
+// remote context, so calls share connections that stay open between them
+// (plan-docker_management_app-refresh_cache/REQ-4). Bounded: a burst is served
+// by at most this many links, and only a few are held once it is over.
+const MAX_CONNECTIONS_PER_ENDPOINT = 16;
+const MAX_IDLE_CONNECTIONS_PER_ENDPOINT = 4;
+
+// One pool per endpoint, keyed by the endpoint itself: a connection opened for
+// one daemon is never handed to a call meant for another (REQ-5).
+const pools = new Map<string, EndpointAgent>();
+
+function pooledAgent(endpoint: DockerEndpoint): EndpointAgent {
+  const key = JSON.stringify(endpoint);
+  let agent = pools.get(key);
+  if (!agent) {
+    agent = new EndpointAgent(endpoint, {
+      keepAlive: true,
+      maxSockets: MAX_CONNECTIONS_PER_ENDPOINT,
+      maxFreeSockets: MAX_IDLE_CONNECTIONS_PER_ENDPOINT,
+    });
+    pools.set(key, agent);
+  }
+  return agent;
+}
+
+/**
+ * Closes every held connection and empties the pools. Called when the active
+ * endpoint changes, so nothing opened for the daemon just left behind survives
+ * (REQ-5); also the seam a check uses to start from no connection at all.
+ */
+export function resetConnectionPools(): void {
+  pools.forEach((agent) => agent.destroy());
+  pools.clear();
+}
+
+onActiveEndpointChanged(resetConnectionPools);
 
 export interface DockerRequestOptions {
   method?: string;
@@ -36,9 +79,8 @@ export interface BufferedResponse {
   body: string;
 }
 
-function send(endpoint: DockerEndpoint, options: DockerRequestOptions): Promise<http.IncomingMessage> {
+function send(endpoint: DockerEndpoint, options: DockerRequestOptions, agent: http.Agent): Promise<http.IncomingMessage> {
   return new Promise((resolve, reject) => {
-    const agent = new EndpointAgent(endpoint);
     const request = http.request({
       agent,
       method: options.method ?? "GET",
@@ -65,7 +107,7 @@ function send(endpoint: DockerEndpoint, options: DockerRequestOptions): Promise<
  * than have a rejection raised in their place.
  */
 export async function requestBufferedRaw(endpoint: DockerEndpoint, options: DockerRequestOptions): Promise<BufferedResponse> {
-  const response = await send(endpoint, options);
+  const response = await send(endpoint, options, pooledAgent(endpoint));
   const body = await readAll(response);
   return { statusCode: response.statusCode ?? 0, headers: response.headers, body };
 }
@@ -83,8 +125,13 @@ export async function requestBuffered(endpoint: DockerEndpoint, options: DockerR
   return response;
 }
 
+/**
+ * A stream owns its connection for as long as it runs — a log follow lasts
+ * minutes — so it is dialed outside the pool and its connection is never
+ * offered to another call.
+ */
 export async function requestStream(endpoint: DockerEndpoint, options: DockerRequestOptions): Promise<http.IncomingMessage> {
-  const response = await send(endpoint, options);
+  const response = await send(endpoint, options, new EndpointAgent(endpoint));
   if ((response.statusCode ?? 0) >= 400) {
     const body = await readAll(response);
     throw new DockerDaemonError(
@@ -106,6 +153,7 @@ export interface HijackedConnection {
  * Sends a request that asks the daemon to hijack the connection (exec start,
  * attach): on success the daemon switches protocols and the raw duplex socket
  * carries the multiplexed/tty stdio directly, with no further HTTP framing.
+ * Dialed outside the pool for that reason: the caller keeps the connection.
  */
 export function hijack(endpoint: DockerEndpoint, options: DockerRequestOptions): Promise<HijackedConnection> {
   return new Promise((resolve, reject) => {

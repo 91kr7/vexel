@@ -62,6 +62,36 @@ function dialSsh(destination: string): Promise<Duplex> {
   });
 }
 
+/** The stdio streams are pipes at runtime, but typed as plain streams, which declare no ref/unref. */
+function asLoopHandle(value: unknown): { ref?: () => unknown; unref?: () => unknown } {
+  return value as { ref?: () => unknown; unref?: () => unknown };
+}
+
+/**
+ * A connection kept open between calls is handled by node's HTTP agent as a
+ * `net.Socket`: it asks it to hold the link alive, to drop its timeout and to
+ * stop (and resume) holding the event loop while it sits idle. The ssh tunnel
+ * is a `Duplex` over a child process's stdio, so it answers those itself — the
+ * link-level ones have nothing to do, and holding the loop is the child's.
+ */
+function asSocketLike(duplex: Duplex, child: import("node:child_process").ChildProcessWithoutNullStreams): Duplex {
+  // The pipes hold the event loop too, so ref/unref reaches them as well as the process.
+  const held = [child, child.stdout, child.stdin].map(asLoopHandle);
+  return Object.assign(duplex, {
+    setKeepAlive: () => duplex,
+    setNoDelay: () => duplex,
+    setTimeout: () => duplex,
+    ref: () => {
+      held.forEach((handle) => handle.ref?.());
+      return duplex;
+    },
+    unref: () => {
+      held.forEach((handle) => handle.unref?.());
+      return duplex;
+    },
+  });
+}
+
 function duplexFromChildProcess(child: import("node:child_process").ChildProcessWithoutNullStreams): Duplex {
   const duplex = new Duplex({
     read() {
@@ -81,5 +111,9 @@ function duplexFromChildProcess(child: import("node:child_process").ChildProcess
   child.stdout.on("data", (chunk: Buffer) => duplex.push(chunk));
   child.stdout.on("end", () => duplex.push(null));
   child.once("error", (error) => duplex.destroy(error));
-  return duplex;
+  // A connection held between calls must announce its own death, or a pool
+  // would keep handing out a tunnel whose ssh process is gone: destroying the
+  // duplex is what closes it, for the pool as for a request in flight.
+  child.once("exit", () => duplex.destroy());
+  return asSocketLike(duplex, child);
 }

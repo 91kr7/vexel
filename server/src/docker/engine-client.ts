@@ -8,6 +8,10 @@ import { DockerDaemonError } from "./errors.js";
 import { hijack, requestBuffered, requestBufferedRaw, requestStream, type HijackedConnection } from "./http-client.js";
 import type { DockerEndpoint } from "./types.js";
 
+// The pool of daemon connections is an internal of the transport; the seam that
+// discards it is part of this client's surface (refresh_cache/REQ-5).
+export { resetConnectionPools } from "./http-client.js";
+
 // The highest Engine API version this client was written against. Exported
 // because it is also the Engine API baseline the product's coverage statement
 // refers to (REQ-106): the number is declared once, here, and read from there.
