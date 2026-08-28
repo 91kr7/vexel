@@ -21,6 +21,39 @@ The requirements are in `../requirements.md` and are cited here by id.
 *refresh cache*, and its background workers *refreshers*. In this product "daemon" already means the
 Docker daemon, and "cache" alone would be confused with the image analysis cache.
 
+## Starting values
+
+These are the periods and windows the interventions below use. They are **starting values, chosen to
+be tuned**, not a contract. The analysis says the tuning is done by watching the application.
+
+| Kind | Period | Marked due by |
+|------|--------|---------------|
+| Containers | 20 s | `container` events |
+| Images | 60 s | `image` events |
+| Networks | 30 s | `network` and `container` events |
+| Volumes, the list | 30 s | `volume` and `container` events |
+| Compose projects | 30 s | `container` events |
+| Builders | 30 s | our own builder operations |
+| Build cache | 30 s | our own prune |
+| Contexts | 5 min | our own context operations |
+| Connection status | 30 s | the event stream connection dropping or recovering |
+
+| Window | Value | Why |
+|--------|-------|-----|
+| Event grouping | 750 ms | The value already used by the two views that group events today, `use-disk-usage.ts` and `use-system-overview.ts`. Reuse it instead of inventing a second one. |
+| Demand expiry | 60 s | **It must be longer than the longest client interval**, which is 15 s for contexts. A shorter window would expire while a slowly polled kind is between two requests, so its refresher would stop and start again all the time. |
+
+Three things decided these periods.
+
+- The client keeps its own intervals, which stay at 3 s, 5 s and 15 s. A value can only reach the
+  screen when the client next asks, so the period is chosen against that and not on its own.
+- Events cover the normal case. The period is what covers whatever Docker does not announce, and the
+  case where the event stream has dropped.
+- A period is short enough to be tolerable on its own. If the stream drops without being noticed,
+  the operator sees old data for one period, so 20 s to 60 s rather than several minutes. Contexts
+  are the exception: they change only when the operator changes them, and the application marks
+  them due when it does.
+
 ## Read before the table
 
 **The mistake to avoid.** If the endpoint answers only after reading again, or if the routes do not
@@ -43,18 +76,18 @@ more use it.
 | INT-2 | create | server, the area of INT-1 | Serving: a held value is returned without calling the daemon. A value is fetched with the caller waiting only when none has ever been read for that kind. | REQ-9 | INT-1 |
 | INT-3 | create | server, the area of INT-1 | One independent refresher per registered kind, each on its own period, so a slow read delays only its own kind. A read in flight never delays an answer and never turns one into an error. | REQ-10, REQ-11 | INT-1 |
 | INT-4 | create | server, the area of INT-1 | Failure handling: a read that fails leaves the previous value in place and reports how old it is, instead of replacing it with an error. | REQ-15 | INT-1 |
-| INT-5 | create | server, the area of INT-1 | Marking due: a kind can declare which daemon event types concern it. The cache subscribes to the events republished in process and marks those kinds due. Events that arrive together produce one read. | REQ-12 | INT-3 |
-| INT-6 | create | server, the area of INT-1 | The demand gate: a kind is refreshed only while it is asked for. Asking renews the demand, a bounded silence expires it, and the next ask starts it again. | REQ-14 | INT-3 |
+| INT-5 | create | server, the area of INT-1 | Marking due: a kind can declare which daemon event types concern it. The cache subscribes to the events republished in process and marks those kinds due. Events inside the grouping window of **Starting values** produce one read. | REQ-12 | INT-3 |
+| INT-6 | create | server, the area of INT-1 | The demand gate: a kind is refreshed only while it is asked for. Asking renews the demand, the expiry window of **Starting values** ends it, and the next ask starts it again. | REQ-14 | INT-3 |
 | INT-7 | create | server, the area of INT-1 | Discard on context change: every held value is dropped on the notification the active-endpoint component already publishes. The component gets its spec and its index row in the same turn. | REQ-16 | INT-1 |
-| INT-8 | modify | `server/src/containers/containers-service.ts`, `server/src/containers/containers-routes.ts` | Register the container listing as a kind, with its read, its period and `container` as its event type, and answer the list endpoint from it. Inspect, logs, statistics, processes and sessions stay direct. | REQ-9, REQ-11, REQ-12 | INT-2, INT-5, INT-6, INT-7 |
+| INT-8 | modify | `server/src/containers/containers-service.ts`, `server/src/containers/containers-routes.ts` | Register the container listing as a kind, with its read and the period and event type from **Starting values**, and answer the list endpoint from it. Inspect, logs, statistics, processes and sessions stay direct. | REQ-9, REQ-11, REQ-12 | INT-2, INT-5, INT-6, INT-7 |
 | INT-9 | modify | `server/src/containers/containers-routes.ts` | Every lifecycle, rename, prune and configuration route marks the container kind due once it succeeds. | REQ-13 | INT-8 |
 | INT-10 | modify | `server/src/images/images-service.ts`, `server/src/images/images-routes.ts`, `server/src/images/image-transfer-service.ts` | Register the image listing, marked due by `image` events. Pull, push, tag, untag, remove and prune mark it due. Progress streams, save, load and inspect stay direct. | REQ-9, REQ-11, REQ-12, REQ-13 | INT-8 |
 | INT-11 | modify | `server/src/volumes/volumes-service.ts`, `server/src/volumes/volumes-routes.ts` | Register the volume listing, marked due by `volume` and `container` events. Create, remove and prune mark it due. Inspect stays direct, and the size reading is left as it is here. | REQ-9, REQ-11, REQ-12, REQ-13 | INT-8 |
 | INT-12 | modify | `server/src/networks/networks-service.ts`, `server/src/networks/networks-routes.ts` | Register the network listing, marked due by `network` and `container` events. Create, remove, prune, attach and detach mark it due. Inspect stays direct. | REQ-9, REQ-11, REQ-12, REQ-13 | INT-8 |
 | INT-13 | modify | `server/src/compose/compose-discovery-service.ts`, `server/src/compose/compose-routes.ts`, `server/src/compose/compose-lifecycle-service.ts` | Register project discovery, marked due by `container` events, because compose projects come from container labels and Docker publishes no compose event. Up, down, restart and scaling mark it due. File read and write, and log streaming, stay direct. | REQ-9, REQ-11, REQ-12, REQ-13 | INT-8 |
-| INT-14 | modify | `server/src/contexts/contexts-service.ts`, `server/src/contexts/contexts-routes.ts` | Register the context inventory with a long period and no event type. Create, select-active and remove mark it due. **This listing reports which context is active**, so INT-7's discard must not leave the interface without an answer while the context is being switched. | REQ-9, REQ-11, REQ-13, REQ-16 | INT-8 |
-| INT-15 | modify | `server/src/builders/builders-service.ts`, `server/src/builders/build-cache-service.ts`, `server/src/builders/builders-routes.ts` | Register the builder and build-cache inventories, each with its own period and no event type. Create, remove, select-active and cache prune mark them due. | REQ-9, REQ-11, REQ-13 | INT-8 |
-| INT-16 | modify | `server/src/connectivity/connection-status-service.ts`, `server/src/connectivity/connectivity-routes.ts` | Register the connection status with a much longer period. It **keeps a real probe of the daemon**, because it reports the negotiated versions, and it is marked due when the daemon event stream's connection drops or recovers. | REQ-9, REQ-11, REQ-15 | INT-8 |
+| INT-14 | modify | `server/src/contexts/contexts-service.ts`, `server/src/contexts/contexts-routes.ts` | Register the context inventory with the period from **Starting values** and no event type. Create, select-active and remove mark it due. **This listing reports which context is active**, so INT-7's discard must not leave the interface without an answer while the context is being switched. | REQ-9, REQ-11, REQ-13, REQ-16 | INT-8 |
+| INT-15 | modify | `server/src/builders/builders-service.ts`, `server/src/builders/build-cache-service.ts`, `server/src/builders/builders-routes.ts` | Register the builder and build-cache inventories with the periods from **Starting values** and no event type. Create, remove, select-active and cache prune mark them due. | REQ-9, REQ-11, REQ-13 | INT-8 |
+| INT-16 | modify | `server/src/connectivity/connection-status-service.ts`, `server/src/connectivity/connectivity-routes.ts` | Register the connection status with the period from **Starting values**. It **keeps a real probe of the daemon**, because it reports the negotiated versions, and it is marked due when the daemon event stream's connection drops or recovers. | REQ-9, REQ-11, REQ-15 | INT-8 |
 | INT-17 | modify | the specs and index of every module touched by INT-8 to INT-16: containers, images, volumes, networks, compose, contexts, builders, connectivity | Carry each change into the spec of the component that changed, in the same turn: which listing is answered from the refresh cache, what marks it due, and what stays direct. | REQ-9, REQ-11, REQ-12, REQ-13 | INT-8, INT-9, INT-10, INT-11, INT-12, INT-13, INT-14, INT-15, INT-16 |
 | INT-18 | create | server check tree, unit | Checks of the component itself, not through a route: a held value is served without a read; a read in flight neither delays nor fails an answer; a failed read keeps the previous value and its age; a burst of events gives one read; expiring demand stops a refresher and asking restarts it; a context change discards what was held; one blocked kind leaves the others answering. | REQ-10, REQ-11, REQ-12, REQ-14, REQ-15, REQ-16 | INT-7 |
 | INT-19 | create | server check tree, api | A check against the running endpoints on a real daemon: a list endpoint answers without the daemon being called, two clients do not double the daemon's work, and an operation done through the application shows in the next request without waiting for a timer. | REQ-9, REQ-13, REQ-17 | INT-9, INT-10, INT-11, INT-12, INT-13, INT-14, INT-15, INT-16 |

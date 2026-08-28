@@ -19,11 +19,21 @@ The product already made this decision once, the other way round: the disk-usage
 This is also the last batch, so the four "nothing else moves" requirements close here. Only now has
 every list moved, and only now can they be answered for the whole change.
 
+## Starting values
+
+| Kind | Period | Marked due by |
+|------|--------|---------------|
+| Volume sizes | 5 min | a volume removed, a container removed, a prune |
+
+A starting value, chosen to be tuned. It is the longest period in the plan because the size of a
+volume is the slowest changing value the application shows, and `/system/df` is the most expensive
+call it makes. The events above cover every case where a size can drop.
+
 ## Interventions
 
 | ID | Type | Where | What | REQ | Depends |
 |----|------|-------|------|-----|---------|
-| INT-1 | modify | `server/src/volumes/volumes-service.ts` | Register volume sizes as a kind of their own in the refresh cache, with a period much longer than the list's, marked due by the events that can change them: a volume removed, a container removed, a prune. | REQ-18 | — |
+| INT-1 | modify | `server/src/volumes/volumes-service.ts` | Register volume sizes as a kind of their own in the refresh cache, with the period and the events from **Starting values**. | REQ-18 | — |
 | INT-2 | modify | `server/src/volumes/volumes-service.ts` | The listing reads the volumes and their mounting containers, and joins in whatever sizes are held. A volume whose size is not yet known is listed without one, instead of making the list wait, and gains it on the next read. | REQ-18, REQ-19 | INT-1 |
 | INT-3 | modify | `server/src/volumes/volumes-service.ts`, `server/src/volumes/volumes-routes.ts` | A single volume's inspect does the same whole-disk-usage read today for one size. It joins in the held size the same way, and otherwise stays the direct read it is. | REQ-18, REQ-19, REQ-22 | INT-1 |
 | INT-4 | modify | `server/src/system/disk-usage-service.ts` | The prune routes of this area mark the volume-size kind due once they succeed, so the sizes do not lag behind a reclaim the operator just performed. The disk-usage breakdown itself does not change and does not become a held value. | REQ-18, REQ-23 | INT-1 |
