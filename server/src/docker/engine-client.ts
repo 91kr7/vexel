@@ -1,6 +1,7 @@
-// Engine API client for the active context's endpoint: negotiates the API
-// version once reachability is confirmed, then prefixes every request path
-// with the negotiated version (mirrors the Docker CLI's own negotiation).
+// Engine API client for the active context's endpoint: prefixes every request
+// path with the negotiated API version (mirrors the Docker CLI's own
+// negotiation), which it negotiates once and holds — while `getVersion()` stays
+// a real call, since it is also the reachability probe.
 import type { IncomingMessage } from "node:http";
 import type { Readable } from "node:stream";
 import { onActiveEndpointChanged, resolveActiveEndpoint } from "./endpoint.js";
@@ -32,10 +33,50 @@ export interface EngineVersion {
 }
 
 export class EngineClient {
+  /**
+   * The version the request paths are composed with, or the negotiation in
+   * flight while there is one (refresh_cache/REQ-31). Held **on the instance**:
+   * the shared client is discarded when the active endpoint changes, so it
+   * cannot outlive the daemon it was negotiated with (refresh_cache/REQ-34).
+   */
+  private heldApiVersion?: Promise<string>;
+
   constructor(private readonly endpoint: DockerEndpoint) {}
 
-  /** Queries `/version` and negotiates the API version to use for subsequent requests. */
+  /**
+   * Queries `/version` and negotiates the API version — **a real call on every
+   * invocation**, because this is also how reachability is probed and the only
+   * way to report the daemon's own versions (refresh_cache/REQ-32). A
+   * negotiation that reached the daemon becomes what the paths are composed
+   * with from then on (refresh_cache/REQ-33); one that failed leaves the held
+   * value untouched and is raised to the caller.
+   */
   async getVersion(): Promise<EngineVersion> {
+    const version = await this.negotiateWithDaemon();
+    this.heldApiVersion = Promise.resolve(version.apiVersion);
+    return version;
+  }
+
+  /**
+   * The version a request path is composed with: the held one, negotiated once
+   * on a miss (refresh_cache/REQ-31). Calls arriving while a negotiation is in
+   * flight wait on that one instead of each starting their own. A failure is
+   * never held (refresh_cache/REQ-35): the next call negotiates again.
+   */
+  private async pathApiVersion(): Promise<string> {
+    const held = this.heldApiVersion;
+    if (held) return held;
+    const negotiating = this.negotiateWithDaemon().then((version) => version.apiVersion);
+    this.heldApiVersion = negotiating;
+    try {
+      return await negotiating;
+    } catch (error) {
+      if (this.heldApiVersion === negotiating) this.heldApiVersion = undefined;
+      throw error;
+    }
+  }
+
+  private async negotiateWithDaemon(): Promise<EngineVersion> {
     const response = await requestBuffered(this.endpoint, { path: "/version" });
     const payload = parseVersionPayload(response.body);
     if (!payload.ApiVersion) {
@@ -50,10 +91,10 @@ export class EngineClient {
   }
 
   async request(path: string, options: { method?: string; body?: string } = {}): Promise<{ statusCode: number; body: string }> {
-    const version = await this.getVersion();
+    const apiVersion = await this.pathApiVersion();
     const response = await requestBuffered(this.endpoint, {
       method: options.method,
-      path: `/v${version.apiVersion}${path}`,
+      path: `/v${apiVersion}${path}`,
       headers: options.body ? { "content-type": "application/json" } : undefined,
       body: options.body,
     });
@@ -68,7 +109,7 @@ export class EngineClient {
    */
   async requestRaw(path: string, options: { method?: string; body?: string } = {}): Promise<RawEngineResponse> {
     const versioned = /^\/v\d+(\.\d+)?\//.test(path);
-    const effectivePath = versioned ? path : `/v${(await this.getVersion()).apiVersion}${path}`;
+    const effectivePath = versioned ? path : `/v${await this.pathApiVersion()}${path}`;
     const response = await requestBufferedRaw(this.endpoint, {
       method: options.method,
       path: effectivePath,
@@ -87,13 +128,13 @@ export class EngineClient {
     path: string,
     options: { method?: string; headers?: Record<string, string>; body?: string | Readable } = {},
   ): Promise<IncomingMessage> {
-    const version = await this.getVersion();
+    const apiVersion = await this.pathApiVersion();
     // A streamed (non-string) body carries its own Content-Type (e.g. a
     // tarball upload); only a JSON string body gets the default here.
     const headers = typeof options.body === "string" ? { "content-type": "application/json", ...options.headers } : options.headers;
     return requestStream(this.endpoint, {
       method: options.method,
-      path: `/v${version.apiVersion}${path}`,
+      path: `/v${apiVersion}${path}`,
       headers,
       body: options.body,
     });
@@ -101,10 +142,10 @@ export class EngineClient {
 
   /** Opens a hijacked (exec start, attach) raw duplex stream against the negotiated API version. */
   async hijack(path: string, options: { method?: string; body?: string } = {}): Promise<HijackedConnection> {
-    const version = await this.getVersion();
+    const apiVersion = await this.pathApiVersion();
     return hijack(this.endpoint, {
       method: options.method ?? "POST",
-      path: `/v${version.apiVersion}${path}`,
+      path: `/v${apiVersion}${path}`,
       headers: options.body ? { "content-type": "application/json" } : undefined,
       body: options.body,
     });
@@ -116,7 +157,9 @@ let sharedClient: EngineClient | undefined;
 /**
  * The Engine API client of the active context, shared by every server module.
  * It is discarded and rebuilt as soon as another context becomes active, so no
- * caller ever keeps talking to the previous daemon (REQ-93).
+ * caller ever keeps talking to the previous daemon (REQ-93) — and the version it
+ * held goes with it, since that version is the previous daemon's
+ * (refresh_cache/REQ-34).
  */
 export function getEngineClient(): EngineClient {
   if (!sharedClient) sharedClient = new EngineClient(resolveActiveEndpoint());
@@ -133,9 +176,9 @@ interface VersionPayload {
   MinAPIVersion?: string;
 }
 
-// Every request negotiates through /version, so an endpoint that answers it with
-// something other than JSON would otherwise surface as a parse failure of ours
-// rather than as the typed daemon error the callers already handle.
+// A negotiation is how an endpoint is first reached, so one answering /version
+// with something other than JSON would otherwise surface as a parse failure of
+// ours rather than as the typed daemon error the callers already handle.
 function parseVersionPayload(body: string): VersionPayload {
   try {
     return JSON.parse(body) as VersionPayload;

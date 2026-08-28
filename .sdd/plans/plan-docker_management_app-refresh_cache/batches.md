@@ -16,7 +16,7 @@ status: validated
 | volume-sizes-separated | Volume sizes are read on their own schedule | REQ-18, REQ-19, REQ-20, REQ-21, REQ-22, REQ-23 | lists-from-refresh-cache | certified | Volumes still show their sizes |
 | startup-order-and-disowned-read | The endpoint is set before the server serves | REQ-24, REQ-27, REQ-29 | lists-from-refresh-cache | certified | The first screen after a restart is shown, not refused |
 | remaining-checks-reload | The remaining checks reload through the control | REQ-30 | — | certified | The context, builder and build-cache checks pass wherever they run |
-| version-negotiated-once | The Engine API version is negotiated once, and the probe still probes | REQ-31, REQ-32, REQ-33, REQ-34, REQ-35, REQ-36 | — | todo | The application asks the daemon half as much, and still notices it going away |
+| version-negotiated-once | The Engine API version is negotiated once, and the probe still probes | REQ-31, REQ-32, REQ-33, REQ-34, REQ-35, REQ-36 | — | implemented | The application asks the daemon half as much, and still notices it going away |
 
 ## What the plan builds
 

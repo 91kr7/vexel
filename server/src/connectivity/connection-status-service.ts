@@ -48,6 +48,10 @@ export const connectionStatusCache = registerRefreshKind({
 // server has — cheaper and faster than shortening the period.
 eventStreamService.onConnectionChanged(() => connectionStatusCache.markChanged());
 
+// `getVersion()` reaches the daemon on every invocation by contract
+// (refresh_cache/REQ-32) — a probe served from a held value stops probing — and
+// the negotiation it makes is what refreshes the version the request paths are
+// composed with (refresh_cache/REQ-33).
 async function probeDaemon() {
   try {
     const version = await getEngineClient().getVersion();

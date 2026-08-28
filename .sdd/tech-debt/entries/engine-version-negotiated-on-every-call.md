@@ -5,7 +5,7 @@ severity: high
 cost: at-rest
 date: 2026-08-28
 source: the Docker call log (server/src/docker/call-log.ts), read against the code and measured on the development machine
-status: open
+status: closed
 ---
 
 # The Engine API version is re-negotiated before every single call
@@ -70,3 +70,11 @@ negotiated with. A failed negotiation must not be memoized as a success.
 One caller wants the opposite and must be looked at rather than inherited:
 `server/src/connectivity/connection-status-service.ts:53` uses `getVersion()` as its reachability
 probe, and a probe served from a memo stops probing.
+
+**Closed on 2026-08-29** by `plan-docker_management_app-refresh_cache`, batch
+`version-negotiated-once` (REQ-31 to REQ-36). The version a request path is composed with is held on
+the `EngineClient` instance and negotiated once, the in-flight negotiation being what a burst waits
+on; `getVersion()` keeps calling the daemon on every invocation, since it is the reachability probe
+and the source of the versions the connection status reports, and a call of it that reached the
+daemon refreshes what is held. A failed negotiation is not held. The entry stays on file: the
+register is a record.
