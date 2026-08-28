@@ -2,7 +2,7 @@
 slug: docker_management_app-refresh_cache
 date: 2026-08-28
 spec: .sdd/analysis/docker_management_app-refresh_cache.md
-status: draft
+status: validated
 ---
 
 # Batches — refresh cache
@@ -72,12 +72,12 @@ destabilised.
 
 ## Departures
 
-- **The human validation gates were not performed, at the human's request.** The method stops after
-  the requirements (Step 2) and again after the coverage check (Step 5). The human asked for the
-  analysis and the whole plan in one pass, outside the `/sdd-plan` command and its subagent.
-  **`requirements.md` and this file both carry `status: draft`**, and nobody advances them until the
-  human has read the requirements and the coverage. The plan's content is unaffected; the
-  confirmation is what is missing.
+- **The two validation gates were performed after the plan was written, not during it.** The method
+  stops after the requirements (Step 2) and again after the coverage check (Step 5). The human asked
+  for the analysis and the whole plan in one pass, outside the `/sdd-plan` command and its subagent.
+  The human then read the requirements and the coverage, and validated both on 2026-08-28.
+  `requirements.md` and this file now carry `status: validated`. The plan's content never depended on
+  this. Only the confirmation was missing.
 - **No departure from the spec.** Every decision above sits inside what the spec states or assumes.
   The connection-status probe departs from the design study, not from the spec, which already records
   it as an assumption. Nothing here asks for a correction to the business spec.

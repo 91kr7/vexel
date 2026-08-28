@@ -2,7 +2,7 @@
 slug: docker_management_app-refresh_cache
 date: 2026-08-28
 spec: .sdd/analysis/docker_management_app-refresh_cache.md
-status: draft
+status: validated
 ---
 
 # Requirements — refresh cache
