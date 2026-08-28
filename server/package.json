@@ -15,15 +15,16 @@
     "test": "npm run test:typecheck && npm run lint:list-order && npm run test:unit && npm run test:api && npm run test:exclusive && npm run test:sweep",
     "test:typecheck": "tsc -p tsconfig.test.json",
     "lint:list-order": "node scripts/check-list-order-conformance.mjs",
-    "test:unit": "node --experimental-test-module-mocks --import tsx --test-reporter=dot --test-concurrency=1 --test \"test/unit/**/*.test.ts\"",
+    "//VEXEL_DOCKER_LOG": "Off for every automated pass. The call log is on by default because an operator running the product is meant to see what it asks of their daemon; a suite is the one reader that is not — a pass makes thousands of calls, and a line each would bury the reporter's own output in the exact place a failure has to be read. The check that covers the log turns it back on around its own calls.",
+    "test:unit": "VEXEL_DOCKER_LOG=off node --experimental-test-module-mocks --import tsx --test-reporter=dot --test-concurrency=1 --test \"test/unit/**/*.test.ts\"",
     "test:sweep": "tsx test/support/sweep.ts",
     "test:images": "tsx test/support/ensure-base-images.ts",
     "//test:registry": "The one step allowed to talk to a registry on the internet, and the reason no test has to: it brings up the run's own registry:2 on this machine and seeds it with every image the tests pull. Idempotent end to end, so an already-prepared registry is the normal case and one file run directly gets the same arrangement. The e2e suite runs this exact command from its global setup.",
     "test:registry": "tsx test/support/prepare-registry.ts",
     "test:reset-data-dir": "D=\"${TMPDIR:-/tmp}/vexel-server-test-data\" && rm -rf \"$D\" && mkdir -p \"$D\"",
     "//test:api": "One file at a time (--test-concurrency=1), like the exclusive pass and the e2e suite: every file drives the same daemon, so files in parallel turn contention into failures that say nothing about the product, and a file that stalls stalls behind a wall of unrelated output.",
-    "test:api": "npm run test:sweep && npm run test:images && npm run test:registry && VEXEL_DATA_DIR=\"${TMPDIR:-/tmp}/vexel-server-test-data\" node --experimental-test-module-mocks --import tsx --import ./test/support/fresh-data-dir.ts --test-reporter=dot --test-concurrency=1 --test \"test/api/**/*.test.ts\"",
-    "test:exclusive": "npm run test:sweep && npm run test:images && npm run test:registry && VEXEL_DATA_DIR=\"${TMPDIR:-/tmp}/vexel-server-test-data\" node --experimental-test-module-mocks --import tsx --import ./test/support/fresh-data-dir.ts --test-reporter=dot --test-concurrency=1 --test \"test/exclusive/**/*.test.ts\""
+    "test:api": "npm run test:sweep && npm run test:images && npm run test:registry && VEXEL_DOCKER_LOG=off VEXEL_DATA_DIR=\"${TMPDIR:-/tmp}/vexel-server-test-data\" node --experimental-test-module-mocks --import tsx --import ./test/support/fresh-data-dir.ts --test-reporter=dot --test-concurrency=1 --test \"test/api/**/*.test.ts\"",
+    "test:exclusive": "npm run test:sweep && npm run test:images && npm run test:registry && VEXEL_DOCKER_LOG=off VEXEL_DATA_DIR=\"${TMPDIR:-/tmp}/vexel-server-test-data\" node --experimental-test-module-mocks --import tsx --import ./test/support/fresh-data-dir.ts --test-reporter=dot --test-concurrency=1 --test \"test/exclusive/**/*.test.ts\""
   },
   "dependencies": {
     "express": "^5.2.1",

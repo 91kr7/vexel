@@ -7,6 +7,7 @@
 import http from "node:http";
 import type { ClientRequestArgs } from "node:http";
 import type { Duplex, Readable } from "node:stream";
+import { logSocketCall, type SocketCallMode } from "./call-log.js";
 import { dial } from "./transport.js";
 import { onActiveEndpointChanged } from "./endpoint.js";
 import { DockerDaemonError } from "./errors.js";
@@ -126,7 +127,15 @@ export interface BufferedResponse {
   body: string;
 }
 
-function send(endpoint: DockerEndpoint, options: DockerRequestOptions, agent: http.Agent): Promise<http.IncomingMessage> {
+function send(
+  endpoint: DockerEndpoint,
+  options: DockerRequestOptions,
+  agent: http.Agent,
+  mode: SocketCallMode,
+): Promise<http.IncomingMessage> {
+  // Before the request is issued, and before the agent dials anything for it:
+  // a call that never comes back is named in the log all the same.
+  logSocketCall(endpoint, { method: options.method ?? "GET", path: options.path, mode });
   return new Promise((resolve, reject) => {
     const request = http.request({
       agent,
@@ -157,7 +166,7 @@ export async function requestBufferedRaw(endpoint: DockerEndpoint, options: Dock
   const pool = poolFor(endpoint);
   await pool.take();
   try {
-    const response = await send(endpoint, options, pool.agent);
+    const response = await send(endpoint, options, pool.agent, "request");
     const body = await readAll(response);
     return { statusCode: response.statusCode ?? 0, headers: response.headers, body };
   } finally {
@@ -186,7 +195,7 @@ export async function requestBuffered(endpoint: DockerEndpoint, options: DockerR
  * offered to another call.
  */
 export async function requestStream(endpoint: DockerEndpoint, options: DockerRequestOptions): Promise<http.IncomingMessage> {
-  const response = await send(endpoint, options, new EndpointAgent(endpoint));
+  const response = await send(endpoint, options, new EndpointAgent(endpoint), "stream");
   if ((response.statusCode ?? 0) >= 400) {
     const body = await readAll(response);
     throw new DockerDaemonError(
@@ -211,6 +220,7 @@ export interface HijackedConnection {
  * Dialed outside the pool for that reason: the caller keeps the connection.
  */
 export function hijack(endpoint: DockerEndpoint, options: DockerRequestOptions): Promise<HijackedConnection> {
+  logSocketCall(endpoint, { method: options.method ?? "POST", path: options.path, mode: "hijack" });
   return new Promise((resolve, reject) => {
     const agent = new EndpointAgent(endpoint);
     const request = http.request({

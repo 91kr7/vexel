@@ -80,6 +80,10 @@ export default defineConfig({
     // `tsc` reports its diagnostics on stdout: ignoring it would turn a failed
     // build into a five-minute timeout with no stated reason.
     stdout: 'pipe',
-    env: { PORT: String(E2E_PORT), VEXEL_DATA_DIR: E2E_DATA_DIR },
+    // The Docker call log is on by default for an operator; here it is not.
+    // This process's stdout is piped into the reporter's own output, and a run
+    // makes thousands of calls — a line each would bury the dots and every
+    // failure among them.
+    env: { PORT: String(E2E_PORT), VEXEL_DATA_DIR: E2E_DATA_DIR, VEXEL_DOCKER_LOG: 'off' },
   },
 });
