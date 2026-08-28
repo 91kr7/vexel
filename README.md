@@ -32,6 +32,21 @@ Other workspace scripts, all run from the repository root:
 | `npm run lint`      | Lints the client                                                  |
 | `npm run test`      | Runs the server and client suites                                 |
 
+### Watching what it asks Docker
+
+Vexel writes one line to standard output **before** every call it makes to Docker, on both of the
+channels it uses — the Engine API over the socket, and the local `docker` CLI:
+
+```
+2026-08-28T17:39:55.222Z [docker socket] GET /v1.43/containers/json?all=true → unix:///var/run/docker.sock
+2026-08-28T17:39:55.212Z [docker socket] GET /v1.43/events (stream) → unix:///var/run/docker.sock
+2026-08-28T17:39:55.240Z [docker cli] docker compose ls --all --format json → unix:///var/run/docker.sock
+```
+
+Nothing is written after a call, so it stays one line per call. Bodies, headers and anything handed
+to a command on standard input are never written, and a credential typed into the raw console is
+redacted from the line. Set `VEXEL_DOCKER_LOG=off` to silence it.
+
 ### Developing
 
 For working on Vexel itself there is a second arrangement — two processes with hot reload,

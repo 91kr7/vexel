@@ -2,6 +2,7 @@
 // presence/version detection, and running a command against the active
 // context with streamed stdout/stderr, exit code and cancellation.
 import { spawn } from "node:child_process";
+import { logCliCall } from "./call-log.js";
 import { isExplicitEndpoint } from "./endpoint.js";
 import type { DockerEndpoint } from "./types.js";
 
@@ -78,6 +79,9 @@ const CANCEL_ESCALATION: ReadonlyArray<{ afterMs: number; signal: NodeJS.Signals
 
 /** Runs `command args...` against the active context; output streams as it is produced. */
 export function runCliCommand(command: string, args: string[], endpoint: DockerEndpoint, options: CliRunOptions = {}): CliRunHandle {
+  // Before the process exists. `options.stdin` is deliberately not passed on:
+  // it is the channel a secret travels on, and the log never carries one.
+  logCliCall(command, args, endpoint);
   // Detached so the child leads a process group of its own: a cancel signals
   // that whole group — the `docker` wrapper *and* the cli-plugin it spawns —
   // and the group can never be the server's own, whatever it was started from.
@@ -157,6 +161,8 @@ async function detect(command: string, args: string[]): Promise<CliToolStatus> {
 }
 
 function runOnce(command: string, args: string[]): Promise<{ stdout: string; exitCode: number }> {
+  // No endpoint: the probe asks the binary about itself and dials no daemon.
+  logCliCall(command, args);
   return new Promise((resolve, reject) => {
     const child = spawn(command, args);
     let stdout = "";
