@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchVolumeInspect, type VolumeInspect } from './volumes-client';
-import { subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
+import { daemonEventConcerns, subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
 
 export interface UseVolumeInspectResult {
   inspect?: VolumeInspect;
@@ -10,9 +10,12 @@ export interface UseVolumeInspectResult {
 }
 
 /**
- * Reads a single volume's inspect data, re-reading when `name` changes and
- * on every `volume`/`container` daemon event. Returns an empty result when
- * `name` is undefined (no volume selected).
+ * Reads a single volume's inspect data, re-reading when `name` changes, on a
+ * `volume` event about that same volume
+ * (plan-docker_management_app-refresh_cache/REQ-7) and on every `container`
+ * event, since the containers mounting the volume are part of what the view
+ * shows. Returns an empty result when `name` is undefined (no volume
+ * selected).
  */
 export function useVolumeInspect(name: string | undefined): UseVolumeInspectResult {
   const [inspect, setInspect] = useState<VolumeInspect | undefined>(undefined);
@@ -52,9 +55,10 @@ export function useVolumeInspect(name: string | undefined): UseVolumeInspectResu
   useEffect(
     () =>
       subscribeToDaemonEvents((event: DaemonEvent) => {
-        if (event.type === 'volume' || event.type === 'container') refresh();
+        if (event.type === 'container') refresh();
+        else if (event.type === 'volume' && daemonEventConcerns(event, name)) refresh();
       }),
-    [refresh],
+    [name, refresh],
   );
 
   return { inspect, loaded, error, refresh };

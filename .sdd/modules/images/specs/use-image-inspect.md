@@ -20,13 +20,19 @@ type: frontend hook
 
 ## Rules and invariants
 
-- Re-reads when `id` changes and whenever an `image`-typed daemon event arrives (REQ-40).
+- Re-reads when `id` changes and whenever an `image`-typed daemon event **about that same image**
+  arrives (REQ-40, plan-docker_management_app-refresh_cache/REQ-8).
+- An `image` event about another image is ignored: the daemon is not asked about the shown image
+  (plan-docker_management_app-refresh_cache/REQ-7). The event is attributed by its `actorId`; one
+  carrying none is treated as about the shown image, so no change is ever missed.
 
 ## Dependencies
 
 - Images client (fetchImageInspect)
-- events: subscribeToDaemonEvents
+- events: subscribeToDaemonEvents, daemonEventConcerns
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-40
+- plan-docker_management_app-refresh_cache/REQ-7
+- plan-docker_management_app-refresh_cache/REQ-8

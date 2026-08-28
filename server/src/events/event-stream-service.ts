@@ -11,7 +11,10 @@ export interface DaemonEvent {
   timestamp: string;
   type: string;
   action: string;
+  /** The object's name when the daemon reports one, else its identifier. */
   actor?: string;
+  /** The object's identifier, whatever the daemon reported as its name (plan-docker_management_app-refresh_cache/REQ-6). */
+  actorId?: string;
 }
 
 const BACKLOG_LIMIT = 50;
@@ -136,6 +139,7 @@ class EventStreamService extends EventEmitter {
         type: raw.Type ?? "unknown",
         action: raw.Action ?? "unknown",
         actor: raw.Actor?.Attributes?.name ?? raw.Actor?.ID,
+        actorId: raw.Actor?.ID,
       };
       this.backlog.push(event);
       if (this.backlog.length > BACKLOG_LIMIT) this.backlog.shift();

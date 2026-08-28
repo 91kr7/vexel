@@ -23,8 +23,13 @@ without the caller managing fetching or event subscriptions itself.
 
 ## Rules and invariants
 
-- Re-reads whenever `id` changes and whenever a `container`-typed daemon event arrives, so the
-  detail view reflects a lifecycle or configuration change without the operator refreshing.
+- Re-reads whenever `id` changes and whenever a `container`-typed daemon event **about that same
+  container** arrives, so the detail view reflects a lifecycle or configuration change without the
+  operator refreshing (plan-docker_management_app-refresh_cache/REQ-8).
+- A `container` event about another container is ignored: the daemon is not asked about the shown
+  container, and the view does not change (plan-docker_management_app-refresh_cache/REQ-7). The
+  event is attributed by its `actorId`; one carrying none is treated as about the shown container,
+  so no change is ever missed.
 - Does not re-read for a `resize`, `exec_create`, `exec_start`, `exec_die`, `exec_detach` or `top`
   action: these fire on every terminal resize or exec lifecycle step of an open exec/attach session
   (REQ-34, REQ-35) without changing anything the inspect payload reports, so refetching on them
@@ -33,9 +38,11 @@ without the caller managing fetching or event subscriptions itself.
 ## Dependencies
 
 - Containers client (fetchContainerInspect)
-- events: subscribeToDaemonEvents
+- events: subscribeToDaemonEvents, daemonEventConcerns
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-24
 - plan-docker_management_app/REQ-25
+- plan-docker_management_app-refresh_cache/REQ-7
+- plan-docker_management_app-refresh_cache/REQ-8

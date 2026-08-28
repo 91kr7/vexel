@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchContainerInspect, type ContainerInspect } from './containers-client';
-import { subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
+import { daemonEventConcerns, subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
 
 /**
  * Container actions that fire on every terminal resize or exec lifecycle step
@@ -18,11 +18,13 @@ export interface UseContainerDetailResult {
 
 /**
  * Reads a single container's inspect data, re-reading when `id` changes and
- * whenever a `container` daemon event that can change inspect data arrives
- * (REQ-24, REQ-25) — resize and exec lifecycle events are excluded, since an
- * open exec/attach session (REQ-34, REQ-35) fires those on every terminal
- * resize without changing anything inspect reports. Returns an empty result
- * when `id` is undefined (no container selected).
+ * whenever a `container` daemon event about that same container arrives
+ * (REQ-24, REQ-25, plan-docker_management_app-refresh_cache/REQ-7) — an event
+ * about another container changes nothing here. Resize and exec lifecycle
+ * events are excluded, since an open exec/attach session (REQ-34, REQ-35)
+ * fires those on every terminal resize without changing anything inspect
+ * reports. Returns an empty result when `id` is undefined (no container
+ * selected).
  */
 export function useContainerDetail(id: string | undefined): UseContainerDetailResult {
   const [inspect, setInspect] = useState<ContainerInspect | undefined>(undefined);
@@ -62,9 +64,11 @@ export function useContainerDetail(id: string | undefined): UseContainerDetailRe
   useEffect(
     () =>
       subscribeToDaemonEvents((event: DaemonEvent) => {
-        if (event.type === 'container' && !ACTIONS_NOT_AFFECTING_INSPECT.has(event.action)) refresh();
+        if (event.type !== 'container') return;
+        if (ACTIONS_NOT_AFFECTING_INSPECT.has(event.action)) return;
+        if (daemonEventConcerns(event, id)) refresh();
       }),
-    [refresh],
+    [id, refresh],
   );
 
   return { inspect, loaded, error, refresh };
