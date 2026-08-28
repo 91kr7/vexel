@@ -18,6 +18,11 @@ TCP+TLS), negotiates the API version, and preserves the daemon's own error messa
   - Calls the daemon's `/version`, then negotiates: the lower of the daemon's reported API version
     and this client's maximum supported version, raised to the daemon's `MinAPIVersion` when that
     floor is higher.
+  - **Reaches the daemon on every invocation**, never a held value: this is how reachability is
+    probed and the only way to report the daemon's own versions
+    (plan-docker_management_app-refresh_cache/REQ-32).
+  - A call that reached the daemon replaces the version the request paths are composed with; one
+    that failed leaves it as it was (refresh_cache/REQ-33).
   - Rejects with a `DockerDaemonError` (code `DaemonUnreachable`) when the endpoint cannot be
     reached, or `UnsupportedApiVersion` when the daemon reports no API version or answers `/version`
     with a body that is not valid JSON (an endpoint that is not a Docker daemon).
@@ -63,6 +68,24 @@ TCP+TLS), negotiates the API version, and preserves the daemon's own error messa
 
 ## Rules and invariants
 
+- **The version is read for two unrelated purposes, and only one of them is held.** Composing a
+  request path uses a held version; asking whether the daemon is there — `getVersion()` — is a real
+  call, every time. A probe served from a held value stops probing.
+- **A run of calls negotiates once, not once per call** (refresh_cache/REQ-31): the first call whose
+  path needs a version negotiates it, and every call after it composes its path from what that one
+  established. Calls issued while a negotiation is in flight wait on that one instead of each
+  starting their own, including when the whole burst leaves in a single tick. `request`,
+  `requestRaw`, `requestStream` and `hijack` share the one value; a `requestRaw` path that already
+  carries a version prefix negotiates nothing at all.
+- **What the calls compose with is never older than the last successful `getVersion()`**
+  (refresh_cache/REQ-33): a probe that reached the daemon replaces it, so a daemon upgraded under a
+  running server is composed against from that probe on, with no restart and no expiry of its own.
+- **The held version belongs to the endpoint it was negotiated with** (refresh_cache/REQ-34): it
+  lives on the client instance, and the shared client is discarded when the active endpoint changes,
+  so no call is ever composed with the previous daemon's version.
+- **A failed negotiation is never held** (refresh_cache/REQ-35): the call that hit it reports the
+  daemon's own message as it always did, and the next call negotiates again rather than inheriting
+  the failure.
 - Every request goes through the endpoint's actual transport (unix socket, TCP(+TLS) socket, or an
   `ssh … docker system dial-stdio` tunnel) — no transport-specific branching in callers.
 - **A connection is opened once and reused by the calls that follow it**
@@ -116,3 +139,9 @@ TCP+TLS), negotiates the API version, and preserves the daemon's own error messa
 - plan-docker_management_app/REQ-106
 - plan-docker_management_app-refresh_cache/REQ-4
 - plan-docker_management_app-refresh_cache/REQ-5
+- plan-docker_management_app-refresh_cache/REQ-31
+- plan-docker_management_app-refresh_cache/REQ-32
+- plan-docker_management_app-refresh_cache/REQ-33
+- plan-docker_management_app-refresh_cache/REQ-34
+- plan-docker_management_app-refresh_cache/REQ-35
+- plan-docker_management_app-refresh_cache/REQ-36

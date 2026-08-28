@@ -279,8 +279,9 @@ test("request() reports a connection dropped mid-body as DaemonUnreachable, with
 });
 
 // docker-access/specs/engine-client.md — UnsupportedApiVersion when the daemon "answers /version
-// with a body that is not valid JSON (an endpoint that is not a Docker daemon)". Every request
-// negotiates through /version, so no caller can be handed a raw parse error.
+// with a body that is not valid JSON (an endpoint that is not a Docker daemon)". A request whose
+// path needs a version and finds none held negotiates
+// (plan-docker_management_app-refresh_cache/REQ-31), so no caller can be handed a raw parse error.
 test("getVersion, and any request behind it, reject with UnsupportedApiVersion when /version answers with something that is not JSON", async () => {
   const daemon = await startDaemonStub((_req, res) => {
     res.writeHead(200, { "content-type": "text/html" });
