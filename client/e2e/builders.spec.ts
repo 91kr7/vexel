@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { expect, test, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
 import { boxOf, centreOf } from './support/settled.js';
+import { refreshThroughTheControl } from './support/refresh-control.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, localBuilderDriverArgs, mirroredImage } from '../../server/test/support/base-images.js';
 
@@ -133,7 +134,9 @@ test('removing a builder asks for confirmation and then removes it from the list
   const name = fixtureName('remove');
   await createBuilderQuietly(name);
   try {
-    await page.reload();
+    // Docker publishes no builder event, so the press is what puts the new builder on
+    // screen (plan-docker_management_app-refresh_cache-manual_refresh/REQ-16).
+    await refreshThroughTheControl(page);
     const row = builderRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
 
@@ -165,7 +168,9 @@ test('selecting a builder through its Use action marks it as the active one', as
   await createBuilderQuietly(name);
   const originalActive = await currentActiveBuilder();
   try {
-    await page.reload();
+    // Docker publishes no builder event, so the press is what puts the new builder on
+    // screen (plan-docker_management_app-refresh_cache-manual_refresh/REQ-16).
+    await refreshThroughTheControl(page);
     const row = builderRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
     const useAction = row.getByRole('button', { name: 'Use', exact: true });
@@ -192,7 +197,9 @@ test('a builder’s row states its name once, its status as a reading and its ac
   const name = fixtureName('shape');
   await createBuilderQuietly(name);
   try {
-    await page.reload();
+    // Docker publishes no builder event, so the press is what puts the new builder on
+    // screen (plan-docker_management_app-refresh_cache-manual_refresh/REQ-16).
+    await refreshThroughTheControl(page);
     const row = builderRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
 
@@ -269,6 +276,10 @@ test('lists a build-cache record with its type, size and usage state', async ({ 
     await execFileAsync('docker', ['buildx', 'build', '--builder', name, dir]);
 
     await openApp(page, 'builders-cache');
+    // The builder and the cache records it produced were made from the CLI, and Docker publishes no
+    // event for either, so the press is what puts them on screen — the same reason as the three
+    // checks above (plan-docker_management_app-refresh_cache-manual_refresh/REQ-16).
+    await refreshThroughTheControl(page);
     const row = builderRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
     await clickAtItsOwnCentre(page, row.getByRole('button', { name: 'Use', exact: true }), 'Use');
