@@ -63,27 +63,33 @@ status: validated
 | REQ-22 | Detail reads stay direct, with no value held on the server for them. |
 | REQ-23 | The live streams keep their behaviour: container logs, container statistics, build and transfer output, compose logs, and the daemon event stream's own subscription, backlog and reconnection. |
 
-## Feature — The server is warm before it accepts requests
+## Feature — The endpoint is set before the server serves
 
 > Appended on 2026-08-28, after a full pass showed a server started seconds earlier answering a list
-> endpoint with a failure against a reachable daemon.
+> endpoint with a failure against a reachable daemon. Reduced the same day: see the note under the
+> table.
 
 | ID | Requirement |
 |----|-------------|
 | REQ-24 | The server accepts no request until the active Docker endpoint has been resolved and set, so no held value is ever discarded by the startup resolution while a request is being served. |
-| REQ-25 | Before accepting requests, the server reads once the values it holds, so the first screen an operator opens is answered from a held value instead of paying for its own first read. |
-| REQ-26 | A value warmed at startup is subject to the same demand expiry as any other: if nobody asks for it within the expiry window it is dropped, so a client connecting long after startup is never served a value of unknown age. |
+| REQ-25 | *Withdrawn on 2026-08-28 — the startup warm read. See the note below.* |
+| REQ-26 | *Withdrawn on 2026-08-28 — demand expiry applied to warmed values. See the note below.* |
 | REQ-27 | A read disowned by a discard does not leave the waiting caller with neither a value nor an error. |
-| REQ-28 | The volume-size value is not warmed at startup: it is read by the first request that wants it, as it is today. |
+| REQ-28 | *Withdrawn on 2026-08-28 — the volume-size exclusion from the warm read. See the note below.* |
 | REQ-29 | A daemon that cannot be reached at startup does not stop the server from accepting requests: the port opens and the failure is served the way it is today. |
 
-> **Two departures, stated here because they are read with these requirements**; both are recorded in
-> `batches.md` under Departures. **REQ-14** says that while no client is asking, the application calls
-> the daemon for none of these values, and REQ-25 calls it with no client asking. It is one read at
-> process start, it does not recur, and REQ-26 keeps REQ-14's own scenario — a closed application asks
-> nothing — true. REQ-14 is not changed. **The plan's assumption** that a restart reads what it needs
-> on the first request is reversed by REQ-25: a restart now reads before serving. Nothing is persisted
-> either way, and the assumption is not changed.
+> **REQ-25, REQ-26 and REQ-28 are withdrawn on the human's decision of 2026-08-28**, before any of
+> them was developed. The warm read solved a problem REQ-9 already solves: a value never read before
+> is read by the first request that wants it, with the client waiting, so an operator never waits a
+> period for data. It bought only the latency of one read on the very first screen, and REQ-26 and
+> REQ-28 existed only to make it safe. The defect it was bundled with is real and is still closed
+> here, by REQ-24 and REQ-27, neither of which needs it. With the warm read gone there is no
+> deviation from REQ-14 and none from the plan's no-persistence assumption, so the two departures
+> that stood here are withdrawn with it.
+>
+> **The three ids are marked withdrawn where they stand and are never reused.** `identifiers.md`
+> makes ids stable after validation, this plan is validated, and REQ-30 — which would shift under a
+> renumbering — belongs to a batch already certified.
 
 ## Feature — The remaining checks reload through the control
 
