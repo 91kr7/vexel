@@ -18,11 +18,23 @@ const subscribeToDaemonEvents = vi.fn((listener: (event: DaemonEvent) => void) =
 vi.mock('../../src/data/images-client', () => ({
   fetchImageInspect: (...args: unknown[]) => fetchImageInspect(...args),
 }));
-vi.mock('../../src/data/event-stream', () => ({
+// Only the subscription is stood in for: the attribution rule that decides
+// which events reach the hook is the real one (event-stream-client.md).
+vi.mock('../../src/data/event-stream', async (importActual) => ({
+  ...(await importActual<typeof import('../../src/data/event-stream')>()),
   subscribeToDaemonEvents: (listener: (event: DaemonEvent) => void) => subscribeToDaemonEvents(listener),
 }));
 
 const { useImageInspect } = await import('../../src/data/use-image-inspect');
+
+// Identifiers of the shape the daemon reports, so the attribution rule is exercised on what it
+// actually receives rather than on two short labels.
+const SHOWN_IMAGE = 'sha256:9f8e7d6c5b4a39281706f5e4d3c2b1a09f8e7d6c5b4a39281706f5e4d3c2b1a0';
+const OTHER_IMAGE = 'sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
+
+function imagePayload(id: string) {
+  return { id, tags: [], platforms: [], sizeBytes: 0, createdAt: '', entrypoint: [], command: [], env: [], labels: {}, exposedPorts: [], history: [], raw: {} };
+}
 
 function daemonEvent(type: string): DaemonEvent {
   return { id: '1', timestamp: new Date().toISOString(), type, action: 'create' };
@@ -81,5 +93,44 @@ describe('useImageInspect', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(fetchImageInspect).not.toHaveBeenCalled();
+  });
+  // use-image-inspect.md — "An `image` event about another image is ignored: the daemon is not
+  // asked about the shown image" (plan-docker_management_app-refresh_cache/REQ-7)
+  it('does not read the shown image again for an image event about another image', async () => {
+    fetchImageInspect.mockResolvedValue(imagePayload(SHOWN_IMAGE));
+    const { result } = renderHook(() => useImageInspect(SHOWN_IMAGE));
+    await waitFor(() => expect(result.current.loaded).toBe(true));
+    fetchImageInspect.mockClear();
+
+    act(() => daemonListener?.({ ...daemonEvent('image'), actorId: OTHER_IMAGE, actor: 'other:latest' }));
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(fetchImageInspect).not.toHaveBeenCalled();
+  });
+
+  // use-image-inspect.md — re-reads for an `image` event about that same image
+  // (plan-docker_management_app-refresh_cache/REQ-8)
+  it('reads again for an image event carrying the shown image identifier', async () => {
+    fetchImageInspect.mockResolvedValue(imagePayload(SHOWN_IMAGE));
+    const { result } = renderHook(() => useImageInspect(SHOWN_IMAGE));
+    await waitFor(() => expect(result.current.loaded).toBe(true));
+    fetchImageInspect.mockClear();
+
+    act(() => daemonListener?.({ ...daemonEvent('image'), actorId: SHOWN_IMAGE }));
+
+    await waitFor(() => expect(fetchImageInspect).toHaveBeenCalledWith(SHOWN_IMAGE));
+  });
+
+  // use-image-inspect.md — "one carrying none is treated as about the shown image, so no change is
+  // ever missed" (plan-docker_management_app-refresh_cache/REQ-8)
+  it('reads again for an image event that carries no identifier at all', async () => {
+    fetchImageInspect.mockResolvedValue(imagePayload(SHOWN_IMAGE));
+    const { result } = renderHook(() => useImageInspect(SHOWN_IMAGE));
+    await waitFor(() => expect(result.current.loaded).toBe(true));
+    fetchImageInspect.mockClear();
+
+    act(() => daemonListener?.({ ...daemonEvent('image'), actor: 'another-image:latest' }));
+
+    await waitFor(() => expect(fetchImageInspect).toHaveBeenCalledWith(SHOWN_IMAGE));
   });
 });
