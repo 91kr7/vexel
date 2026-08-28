@@ -17,86 +17,78 @@ status: draft
 
 ## What the plan builds
 
-**One new component, the refresh cache**, built by `lists-from-refresh-cache` and named in that
-batch file before its table. Everything else in the plan is an existing component adopting it, or a
-value stopped from being re-read. No other batch creates a component.
+One new component, **the refresh cache**, built by `lists-from-refresh-cache` and named in that
+batch file before its table. Everything else is an existing component starting to use it, or a value
+stopped from being re-read.
 
-**Execution order**: the first three are independent of one another and of the rest, so any order
-among them will do. Then `lists-from-refresh-cache`, then `volume-sizes-separated`.
+**Execution order.** The first three are independent of each other and of the rest, so any order
+among them works. Then `lists-from-refresh-cache`, then `volume-sizes-separated`.
 
-The dependency of `lists-from-refresh-cache` on `read-once-values` is about the work, not about
-compilation: the image listing is one of the kinds moved onto the cache, and moving a listing that
-still inspects every image on the daemon means writing its refresher against a read we already know
-to be wasteful. Fixing that first means it is written once.
+`lists-from-refresh-cache` depends on `read-once-values` for the work, not for compilation. The image
+listing is one of the kinds moved onto the cache. Moving a listing that still inspects every image
+means writing its refresher against a read we already know is wasteful.
 
-**Why the cheap batches come first.** They are independent, they are small, and together they remove
-the larger part of the cost — before the one batch that can make the product worse if it is got
-wrong. If the work stops after the first three, the application is meaningfully better and nothing
-has been destabilised.
+**Why the cheap batches come first.** They are small and independent, and together they remove the
+larger part of the cost. They come before the one batch that can make the product worse if it is
+built wrong. If the work stops after the first three, the application is better and nothing has been
+destabilised.
 
 ## Assumptions and decisions
 
 - **The cache is one feature, not three.** The held value, its reaction to events and its demand gate
-  are one mechanism and are implemented together. A cache with only a timer reacts more slowly than
-  today's poll; one without a demand gate calls the daemon with no browser open, which today it does
-  not. Either alone is a regression, so neither is a shippable state of the product and neither is a
-  batch. This is the dogma's own rule about not splitting what is always implemented together.
+  are one mechanism, implemented together. A cache with only a timer reacts more slowly than today's
+  poll. One without a demand gate calls the daemon with no browser open, which today it does not.
+  Either alone is a regression, so neither is a state we could ship, and neither is a batch.
 - **"Prove it on containers first" is an intervention dependency, not a batch boundary.** It is
-  ordering inside `lists-from-refresh-cache`, carried by that batch's `Depends` column: INT-8 depends
-  on the component being built, and INT-10 to INT-16 all depend on INT-8. A batch boundary there
-  would have produced a batch closing no requirement.
-- **The component's name departs from the human's words, deliberately and once.** The request asked
-  for "a daemon that polls server-side and caches". It is called the **refresh cache**, with
-  **refreshers** as its background workers, because "daemon" already means the Docker daemon in this
-  product and "cache" alone would collide with the image analysis cache. The departure is stated in
-  the batch file where the name is introduced, so the human can map their word onto it.
-- **Detail reads stay direct — the human's decision of 2026-08-27**, and it is in the spec as such.
-  This plan therefore holds no value for inspect of any kind, and REQ-22 keeps it that way.
-- **The client's list hooks are untouched; the detail hooks are the stated exception.** REQ-21 covers
-  the list hooks. `detail-reread-scoped` changes four *detail* hooks, a different set under a
-  different requirement (REQ-7), which is why REQ-21 names the list hooks rather than "the client".
-- **The connection status keeps a real probe — a considered departure from the design study**, which
-  suggested deriving reachability from the event stream's health alone. The stream's state is a
-  sound liveness signal and INT-16 uses it to mark the status due, but the status also reports the
-  negotiated Engine API and engine versions, and only a real call returns those.
-- **What marks each kind due was read from the code, not guessed** — the event types each listing
-  already subscribes to today: containers ← `container`; images ← `image`; volumes ← `volume` and
-  `container`; networks ← `network` and `container`; compose ← `container`, compose projects being
-  derived from container labels and Docker publishing no compose event. Contexts, builders, build
-  cache and connection status subscribe to nothing today and get no event type.
-- **The daemon event stream is consumed in process and nothing about it changes.** It is already an
-  emitter with a single shared subscription and a backlog, so the cache subscribes to what it already
-  publishes. Its reconnection, backlog and republishing are untouched — half of REQ-23.
-- **The discard on context change reuses the signal that already exists**, the one the event stream
-  service already acts on for its backlog. INT-14 states the one case needing care: the context
-  listing itself, which is the thing being switched.
+  ordering inside `lists-from-refresh-cache`, carried by that batch's `Depends` column. A batch
+  boundary there would have produced a batch closing no requirement.
+- **The component's name departs from the request's own words, on purpose.** The request asked for "a
+  daemon that polls server-side and caches". It is called the **refresh cache**, with **refreshers**
+  as its workers, because "daemon" already means the Docker daemon here, and "cache" alone would be
+  confused with the image analysis cache. The departure is stated where the name is introduced.
+- **Detail reads stay direct.** This is the human's decision of 2026-08-27 and it is in the spec. The
+  plan holds no value for inspect of any kind, and REQ-22 keeps it that way.
+- **The client's list hooks are untouched; the detail hooks are the exception.** REQ-21 covers the
+  list hooks. `detail-reread-scoped` changes four detail hooks, under REQ-7. That is why REQ-21 names
+  the list hooks and not "the client".
+- **The connection status keeps a real probe.** This departs from the design study, which suggested
+  reading reachability from the event stream's health alone. The stream's state is a good liveness
+  signal, and INT-16 uses it to mark the status due. But the status also reports the negotiated
+  Engine API and engine versions, and only a real call returns those.
+- **What marks each kind due was read from the code.** These are the event types each listing
+  already subscribes to today. Containers ← `container`. Images ← `image`. Volumes ← `volume` and
+  `container`. Networks ← `network` and `container`. Compose ← `container`, because compose projects
+  come from container labels and Docker publishes no compose event. Contexts, builders, build cache
+  and connection status subscribe to nothing today, so they get no event type.
+- **The daemon event stream is consumed in process and does not change.** It is already an emitter
+  with one shared subscription and a backlog, so the cache subscribes to what it publishes. Its
+  reconnection, backlog and republishing stay as they are, which is half of REQ-23.
+- **The discard on context change reuses an existing signal**, the one the event stream service
+  already acts on for its backlog. INT-14 states the case that needs care: the context listing
+  itself, which is the thing being switched.
 - **Nothing is persisted.** Every held value lives in the running server and is gone when it stops. A
-  restart re-reads what it needs, which is the first-request path of REQ-9.
-- **Swarm does not appear in this plan.** Its removal is already reintegrated, so its listing is not
-  among the kinds moved onto the cache.
+  restart reads what it needs, which is the first-request path of REQ-9.
+- **Swarm is not in this plan.** Its removal is already reintegrated.
 
 ## Departures
 
-- **The human validation gates of the method were not performed, at the human's explicit request.**
-  The method stops after the requirements (Step 2) and again after the coverage check (Step 5). The
-  human asked for the analysis and the whole plan in one pass, in a session outside the `/sdd-plan`
-  command and its subagent, having judged that the subagent route would not carry the reasoning
-  already built up there. Consequently **`requirements.md` and this file both carry `status: draft`,
-  not `validated`**, and must not be advanced until the human has read the requirements and the
-  coverage. Nothing about the plan's content is affected; what is missing is the confirmation.
-- **No departure from the spec is recorded.** Every decision above sits inside what the spec states
-  or explicitly assumes. The connection-status probe departs from the *design study*, not from the
-  spec — which already records it as an assumption — so **nothing here asks for a correction to the
-  business spec**.
+- **The human validation gates were not performed, at the human's request.** The method stops after
+  the requirements (Step 2) and again after the coverage check (Step 5). The human asked for the
+  analysis and the whole plan in one pass, outside the `/sdd-plan` command and its subagent.
+  **`requirements.md` and this file both carry `status: draft`**, and nobody advances them until the
+  human has read the requirements and the coverage. The plan's content is unaffected; the
+  confirmation is what is missing.
+- **No departure from the spec.** Every decision above sits inside what the spec states or assumes.
+  The connection-status probe departs from the design study, not from the spec, which already records
+  it as an assumption. Nothing here asks for a correction to the business spec.
 
 ## Coverage check
 
-Every REQ is served by at least one INT, every INT serves at least one REQ, and **no REQ is split
-across batches** — each closes in the batch where its interventions live. There is **no enabling
-intervention** in this plan.
+Every REQ is served by at least one INT. Every INT serves at least one REQ. No REQ is split across
+batches. There is no enabling intervention.
 
-Intervention ids restart at `INT-1` in each batch, per the `identifiers.md` convention, and are
-therefore qualified with their batch below.
+Intervention ids restart at `INT-1` in each batch, per the `identifiers.md` convention, so they are
+qualified with their batch below.
 
 | REQ | Served by | Closes in |
 |-----|-----------|-----------|
@@ -124,19 +116,18 @@ therefore qualified with their batch below.
 | REQ-22 | `batch-volume-sizes-separated/INT-3`, `batch-volume-sizes-separated/INT-7` | volume-sizes-separated |
 | REQ-23 | `batch-volume-sizes-separated/INT-4`, `batch-volume-sizes-separated/INT-7` | volume-sizes-separated |
 
-**Three notes on the shape of this coverage, deliberate.**
+**Three notes on this coverage.**
 
-- **The plan's own guardrails are served by checks, not by changes.** REQ-20 to REQ-23 say that
-  nothing else moves, and a requirement of that kind is met by an intervention proving something did
-  *not* change: `batch-volume-sizes-separated/INT-7` walks the screens and the live streams,
-  `/INT-8` asserts the client's list hooks were not touched. The latter exists for a specific failure
-  this plan could have — finishing the work by moving it into the client instead of the server.
-- **REQ-17 rests on one intervention and it is the requirement the whole plan is for.** Two clients
-  costing what one costs is the only benefit here obtainable no other way, and the hardest to observe
+- **The guardrails are served by checks, not by changes.** REQ-20 to REQ-23 say nothing else moves,
+  and that kind of requirement is met by proving something did not change.
+  `batch-volume-sizes-separated/INT-7` walks the screens and the live streams. `/INT-8` asserts the
+  client's list hooks were not touched, which guards against finishing the plan by moving the work
+  into the client.
+- **REQ-17 rests on one intervention, and it is the requirement the plan exists for.** Two clients
+  costing what one costs cannot be obtained any other way, and it is the hardest thing here to see
   from a screen. If `batch-lists-from-refresh-cache/INT-19` is not written, the plan's central claim
-  has nothing behind it and must not be declared met by reasoning about the design.
+  has nothing behind it.
 - **REQ-13 is carried by ten interventions and is the one to watch.** Every kind moved onto the cache
-  must mark it due on its own write operations, and a single route that forgets produces exactly the
-  regression this plan must not ship: the operator acts and the screen does not follow. It is spread
-  one per area for that reason, so a missed area is a missing intervention rather than a forgotten
-  line.
+  must mark it due on its own write operations. One route that forgets produces the regression this
+  plan must not ship. It is spread one per area, so a missed area is a missing intervention rather
+  than a forgotten line.
