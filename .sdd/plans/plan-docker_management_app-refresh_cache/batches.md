@@ -14,6 +14,8 @@ status: validated
 | detail-reread-scoped | A detail view re-reads only for the object it shows | REQ-6, REQ-7, REQ-8 | — | certified | Another container's activity leaves the open detail alone |
 | lists-from-refresh-cache | The lists are answered from values the server keeps current | REQ-9, REQ-10, REQ-11, REQ-12, REQ-13, REQ-14, REQ-15, REQ-16, REQ-17 | read-once-values | certified | The operator's own action is visible at once |
 | volume-sizes-separated | Volume sizes are read on their own schedule | REQ-18, REQ-19, REQ-20, REQ-21, REQ-22, REQ-23 | lists-from-refresh-cache | implemented | Volumes still show their sizes |
+| warm-start | The server is warm before it accepts requests | REQ-24, REQ-25, REQ-26, REQ-27, REQ-28, REQ-29 | lists-from-refresh-cache, volume-sizes-separated | todo | The first screen after a restart is answered at once |
+| remaining-checks-reload | The remaining checks reload through the control | REQ-30 | — | todo | The context, builder and build-cache checks pass wherever they run |
 
 ## What the plan builds
 
@@ -115,6 +117,13 @@ qualified with their batch below.
 | REQ-21 | `batch-volume-sizes-separated/INT-8` | volume-sizes-separated |
 | REQ-22 | `batch-volume-sizes-separated/INT-3`, `batch-volume-sizes-separated/INT-7` | volume-sizes-separated |
 | REQ-23 | `batch-volume-sizes-separated/INT-4`, `batch-volume-sizes-separated/INT-7` | volume-sizes-separated |
+| REQ-24 | `batch-warm-start/INT-6`, `batch-warm-start/INT-8`, `batch-warm-start/INT-10` | warm-start |
+| REQ-25 | `batch-warm-start/INT-1`, `batch-warm-start/INT-6`, `batch-warm-start/INT-8`, `batch-warm-start/INT-9`, `batch-warm-start/INT-10` | warm-start |
+| REQ-26 | `batch-warm-start/INT-2`, `batch-warm-start/INT-8`, `batch-warm-start/INT-9` | warm-start |
+| REQ-27 | `batch-warm-start/INT-4`, `batch-warm-start/INT-8`, `batch-warm-start/INT-9`, `batch-warm-start/INT-10` | warm-start |
+| REQ-28 | `batch-warm-start/INT-3`, `batch-warm-start/INT-5`, `batch-warm-start/INT-8`, `batch-warm-start/INT-9` | warm-start |
+| REQ-29 | `batch-warm-start/INT-1`, `batch-warm-start/INT-7`, `batch-warm-start/INT-8`, `batch-warm-start/INT-11` | warm-start |
+| REQ-30 | `batch-remaining-checks-reload/INT-1`, `batch-remaining-checks-reload/INT-2`, `batch-remaining-checks-reload/INT-3`, `batch-remaining-checks-reload/INT-4` | remaining-checks-reload |
 
 **Three notes on this coverage.**
 
@@ -131,3 +140,73 @@ qualified with their batch below.
   must mark it due on its own write operations. One route that forgets produces the regression this
   plan must not ship. It is spread one per area, so a missed area is a missing intervention rather
   than a forgotten line.
+
+## Appended on 2026-08-28 — two batches
+
+A full pass surfaced three reproducible regressions, none of them inside `volume-sizes-separated`'s
+own perimeter. The two batches below close them. Per the knowledge base, work found after a batch is
+appended as a further batch and never edited into one already closed: **nothing above this line was
+changed**, beyond the two rows added to the batch table and the six coverage rows.
+
+**Execution order.** `warm-start` comes after `lists-from-refresh-cache` (the cache it warms) and
+after `volume-sizes-separated` (the volume-size kind it excludes from the warm read); it is the last
+of the source batches. `remaining-checks-reload` depends on neither and can be done at any point, but
+it is the cheaper of the two and it unblocks a full pass, so it is worth doing first.
+
+### Assumptions and decisions
+
+- **The warm read renews no demand.** That is what keeps the deviation from REQ-14 to one read at
+  process start: the refresher it schedules ticks once, finds nobody has asked, and drops what was
+  warmed **before** reading, so no second daemon call is made on the warm-up's account. Warming with
+  demand renewed would have polled every kind for a whole expiry window with no browser open, which
+  is the behaviour REQ-14 exists to forbid.
+- **The exclusion is a property of the kind, not a list in the bootstrap.** A kind declares itself
+  excluded from the warm read where it is registered, and is warmed by default. A list held in the
+  startup file would have to be found and updated by whoever adds the next kind; the default is the
+  safe one either way.
+- **The disowned read is fixed in the cache, not by the startup order.** Ordering the startup removes
+  the occasion this defect was found on; a genuine context change arriving while a first read is in
+  flight is the same hole and is not covered by ordering. REQ-27 closes it where it is.
+- **`remaining-checks-reload` changes no source.** It is checks only, and the product behaviour they
+  were failing on is the behaviour the human confirmed on 2026-08-28. A batch that touched a service
+  here would be reversing that decision through a test.
+- **Its real dependency is cross-plan** — the certified manual refresh control and its e2e helper,
+  in `plan-docker_management_app-refresh_cache-manual_refresh`. The `Depends` column takes ids from
+  this plan only, so the dependency is stated in prose in the batch file.
+
+### Departures
+
+- **REQ-25 departs from REQ-14.** REQ-14 says that while no client is asking, the application calls
+  the daemon for none of these values; the warm read calls it with no client asking. Bounded to one
+  read per warmed kind at process start, it does not recur, and REQ-26 keeps REQ-14's acceptance
+  scenario — a closed application asks nothing — true. **REQ-14 is not edited**, and the deviation is
+  repeated beside the new requirements themselves.
+- **REQ-25 departs from this plan's own assumption**, the one above reading "Nothing is persisted.
+  Every held value lives in the running server and is gone when it stops. A restart reads what it
+  needs, which is the first-request path of REQ-9." The second half is reversed: a restart now reads
+  what it needs **before** serving, not on the first request. The first half stands — nothing is
+  persisted either way. **The assumption is not edited**: it records what was decided then.
+- **Neither of these departs from the business spec**, so no correction to the spec is owed. Both
+  depart from decisions recorded inside this plan, which is why they are recorded here rather than
+  reported as a spec defect.
+- **The two validation gates were delegated, not held.** The human was unavailable and delegated
+  every decision above to the orchestrator, including the requirement wording, the startup order, the
+  answer to the staleness hazard and the volume-size exclusion. The planner did not stop at Step 2 or
+  Step 5. Nothing here is an open question; everything is a decision taken on the human's instruction.
+
+### Coverage check — the appended requirements
+
+Every one of REQ-24 to REQ-30 is served by at least one intervention, and every intervention of the
+two new batches serves at least one of them; the rows are in the table above. No appended REQ is
+split across batches: REQ-24 to REQ-29 close in `warm-start`, REQ-30 in `remaining-checks-reload`.
+There is no enabling intervention.
+
+Two notes on it.
+
+- **REQ-29 is the one that must not be lost to the fix.** Making the startup wait for the daemon is
+  the obvious way to warm it and the wrong one: it would turn an unreachable daemon into a server
+  that never listens. `batch-warm-start/INT-7` states it and `/INT-11` proves it, and they are the
+  reason the warm read reports a failure instead of throwing.
+- **REQ-27 is served by a check that does not go through the startup.** `batch-warm-start/INT-9`
+  drives the discard against a read in flight directly on the cache, because the case it guards —
+  a context changed while a first read is running — outlives the startup ordering that hid it.
