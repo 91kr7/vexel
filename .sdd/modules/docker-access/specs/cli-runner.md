@@ -16,6 +16,15 @@ detects presence and version, and runs a command against the active context.
     `docker compose version`, `docker buildx version` respectively.
   - A tool that is missing, or exits non-zero, or is not on `PATH`, reports `available: false`
     rather than throwing.
+  - **The three programs are run once per server process**
+    (plan-docker_management_app-refresh_cache/REQ-1). The first call probes; every later call — one
+    made while the first is still in flight included — answers with what that probe found and starts
+    no process. The answer is the same one probing would give today, degraded entries included
+    (plan-docker_management_app-refresh_cache/REQ-3): nothing installs or removes a CLI under a
+    running server, so it cannot go stale, and restarting the server is what reads it again.
+- `resetCliAvailabilityCache(): void` — discards the remembered probe, so the next call runs the
+  three programs again. It exists for the checks, which need to observe the probing itself; the
+  server never calls it.
 - `runCliCommand(command, args, endpoint, options?): CliRunHandle`
   - Spawns `command args…` targeting the active context.
   - `options.stdin?: string` — written to the child's standard input, which is then closed. Given
@@ -69,3 +78,5 @@ detects presence and version, and runs a command against the active context.
 - plan-docker_management_app/REQ-110
 - plan-docker_management_app/REQ-93
 - plan-docker_management_app/REQ-87
+- plan-docker_management_app-refresh_cache/REQ-1
+- plan-docker_management_app-refresh_cache/REQ-3

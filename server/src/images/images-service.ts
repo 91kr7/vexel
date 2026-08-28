@@ -74,6 +74,9 @@ interface RawHistoryEntry {
 
 const NONE_TAG = "<none>:<none>";
 
+// An image id is a content digest, so the platform under it never changes.
+const platformByImageId = new Map<string, string>();
+
 export async function listImages(): Promise<ImageSummary[]> {
   const response = await getEngineClient().request("/images/json?all=false");
   const raw = JSON.parse(response.body) as RawImageSummary[];
@@ -154,12 +157,17 @@ async function toSummary(raw: RawImageSummary): Promise<ImageSummary> {
   };
 }
 
-/** Best-effort per-image platform lookup; an inspect failure degrades to an empty list rather than failing the whole listing. */
+/** An unresolved platform degrades to an empty list and is not remembered, so the image is inspected again next time (plan-docker_management_app-refresh_cache/REQ-2). */
 async function resolvePlatforms(id: string): Promise<string[]> {
+  const known = platformByImageId.get(id);
+  if (known !== undefined) return [known];
   try {
     const response = await getEngineClient().request(`/images/${id}/json`);
     const raw = JSON.parse(response.body) as RawImageInspect;
-    return raw.Os && raw.Architecture ? [formatPlatform(raw.Os, raw.Architecture, raw.Variant)] : [];
+    if (!raw.Os || !raw.Architecture) return [];
+    const platform = formatPlatform(raw.Os, raw.Architecture, raw.Variant);
+    platformByImageId.set(id, platform);
+    return [platform];
   } catch {
     return [];
   }

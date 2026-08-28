@@ -24,6 +24,11 @@ data.
   - `platforms` — `["os/architecture[/variant]"]`, resolved per image via its own inspect call;
     empty when the daemon does not report an OS/architecture for that image (an inspect failure for
     one image degrades to an empty platform list for it, not a failed listing).
+    **Resolved once per image id** (plan-docker_management_app-refresh_cache/REQ-2): a later listing
+    inspects only the ids whose platform is not known yet, and every row carries the same value it
+    carries today (plan-docker_management_app-refresh_cache/REQ-3). Only a **resolved** platform is
+    kept, so an image left empty — inspect failed, or the daemon reported no OS/architecture — is
+    inspected again on the next listing instead of staying blank for the rest of the session.
   - `createdAt` — ISO-8601 instant.
   - **Ordered named-first, dangling last.**
     - a **tagged** image sorts by its **lowest tag** — the head of the ordered `tags` above, never
@@ -59,6 +64,9 @@ data.
 - `tags` never contains the daemon's dangling-image placeholder (`<none>:<none>`).
 - A reference is split into repository and tag at the last `:` that follows the last `/`, so a
   registry host carrying a port (`localhost:5000/nginx:1.25`) keeps its port in the repository.
+- A platform kept against an image id stays valid for the process's lifetime and across a change of
+  active context: the id is a content digest, and the same content has the same OS/architecture on
+  any daemon.
 - `getImageInspect` leaves its own `tags` exactly as the daemon returned them: the ordering above is
   a property of the list, which is where the row's sort key is defined.
 
@@ -77,3 +85,5 @@ data.
 - plan-docker_management_app-list_ordering/REQ-20
 - plan-docker_management_app-list_ordering/REQ-21
 - plan-docker_management_app-list_ordering/REQ-22
+- plan-docker_management_app-refresh_cache/REQ-2
+- plan-docker_management_app-refresh_cache/REQ-3
