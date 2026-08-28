@@ -50,7 +50,9 @@ export function useContexts(): UseContextsResult {
   const [error, setError] = useState<string | undefined>(undefined);
   const cancelledRef = useRef(false);
 
-  const refresh = useCallback(() => {
+  // `readOnce` returns its promise so the reload signal can wait for it; `refresh` returns
+  // nothing, the shape the screens use (plan-docker_management_app-refresh_cache/REQ-21).
+  const readOnce = useCallback(() => {
     return fetchContexts()
       .then((list) => {
         if (cancelledRef.current) return;
@@ -70,6 +72,10 @@ export function useContexts(): UseContextsResult {
       });
   }, []);
 
+  const refresh = useCallback(() => {
+    void readOnce();
+  }, [readOnce]);
+
   useEffect(() => {
     cancelledRef.current = false;
     refresh();
@@ -88,8 +94,7 @@ export function useContexts(): UseContextsResult {
   // the re-read: the shell and the screen then agree on the active context.
   useEffect(() => subscribeToActiveContextChange(refresh), [refresh]);
 
-  // The reload signal waits for this read, which is why `refresh` returns its promise (REQ-11).
-  useEffect(() => subscribeToReload(refresh), [refresh]);
+  useEffect(() => subscribeToReload(readOnce), [readOnce]);
 
   useEffect(() => {
     inventoryListeners.add(refresh);

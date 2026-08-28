@@ -27,6 +27,10 @@ screen in front of the operator is already showing the reloaded data".
 - It says nothing about the server. Asking the server to reload what it holds is the caller's step,
   before raising this signal.
 - Subscribing does not read: a view is read only when the signal is raised.
+- **A view subscribes its own internal read, never the `refresh()` it exposes.** The public
+  `refresh()` of every data hook returns nothing, and that shape is contractual
+  (plan-docker_management_app-refresh_cache/REQ-21): subscribing it would give the signal
+  nothing to wait on, and making it return a promise instead breaks the screens that call it.
 
 ## Requirements served
 

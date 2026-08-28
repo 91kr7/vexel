@@ -24,7 +24,9 @@ export function useVolumeInspect(name: string | undefined): UseVolumeInspectResu
   const [error, setError] = useState<string | undefined>(undefined);
   const cancelledRef = useRef(false);
 
-  const refresh = useCallback(() => {
+  // `readOnce` returns its promise so the reload signal can wait for it; `refresh` returns
+  // nothing, the shape the screens use (plan-docker_management_app-refresh_cache/REQ-21).
+  const readOnce = useCallback(() => {
     if (!name) return;
     return fetchVolumeInspect(name)
       .then((result) => {
@@ -41,6 +43,10 @@ export function useVolumeInspect(name: string | undefined): UseVolumeInspectResu
         setLoaded(true);
       });
   }, [name]);
+
+  const refresh = useCallback(() => {
+    void readOnce();
+  }, [readOnce]);
 
   useEffect(() => {
     cancelledRef.current = false;
@@ -62,8 +68,7 @@ export function useVolumeInspect(name: string | undefined): UseVolumeInspectResu
     [name, refresh],
   );
 
-  // The reload signal waits for this read, which is why `refresh` returns its promise (REQ-12).
-  useEffect(() => subscribeToReload(refresh), [refresh]);
+  useEffect(() => subscribeToReload(readOnce), [readOnce]);
 
   return { inspect, loaded, error, refresh };
 }

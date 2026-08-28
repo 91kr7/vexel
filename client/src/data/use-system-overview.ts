@@ -40,7 +40,9 @@ export function useSystemOverview(): UseSystemOverviewResult {
   const [error, setError] = useState<string | undefined>(undefined);
   const cancelledRef = useRef(false);
 
-  const refresh = useCallback(() => {
+  // `readOnce` returns its promise so the reload signal can wait for it; `refresh` returns
+  // nothing, the shape the screens use (plan-docker_management_app-refresh_cache/REQ-21).
+  const readOnce = useCallback(() => {
     return fetchSystemOverview()
       .then((next) => {
         if (cancelledRef.current) return;
@@ -56,6 +58,10 @@ export function useSystemOverview(): UseSystemOverviewResult {
         setLoaded(true);
       });
   }, []);
+
+  const refresh = useCallback(() => {
+    void readOnce();
+  }, [readOnce]);
 
   useEffect(() => {
     cancelledRef.current = false;
@@ -83,8 +89,7 @@ export function useSystemOverview(): UseSystemOverviewResult {
   // the one left behind and is re-read at once (REQ-93).
   useEffect(() => subscribeToActiveContextChange(refresh), [refresh]);
 
-  // The reload signal waits for this read, which is why `refresh` returns its promise (REQ-11).
-  useEffect(() => subscribeToReload(refresh), [refresh]);
+  useEffect(() => subscribeToReload(readOnce), [readOnce]);
 
   return { overview, loaded, error, refresh };
 }
