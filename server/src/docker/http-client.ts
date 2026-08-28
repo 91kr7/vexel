@@ -35,22 +35,69 @@ class EndpointAgent extends http.Agent {
 const MAX_CONNECTIONS_PER_ENDPOINT = 16;
 const MAX_IDLE_CONNECTIONS_PER_ENDPOINT = 4;
 
-// One pool per endpoint, keyed by the endpoint itself: a connection opened for
-// one daemon is never handed to a call meant for another (REQ-5).
-const pools = new Map<string, EndpointAgent>();
+/**
+ * The connections held for one endpoint: the agent that keeps them open, and
+ * the gate that keeps their number under the bound.
+ *
+ * The gate is not the agent's own `maxSockets`, and cannot be. Node's agent
+ * counts a connection only once it has been dialed, and dialing here is
+ * asynchronous, so every call of a burst issued in a single tick reads zero
+ * connections in use and opens its own — and a burst in a single tick is the
+ * shape of the traffic this layer gets, one `Promise.all` over every object of
+ * a listing. The gate counts a connection as soon as it is decided on, before
+ * it exists, and makes the calls over the bound wait for one to come free.
+ */
+class ConnectionPool {
+  readonly agent: EndpointAgent;
+  private inUse = 0;
+  private readonly waiting: { grant: () => void; refuse: (error: Error) => void }[] = [];
 
-function pooledAgent(endpoint: DockerEndpoint): EndpointAgent {
-  const key = JSON.stringify(endpoint);
-  let agent = pools.get(key);
-  if (!agent) {
-    agent = new EndpointAgent(endpoint, {
+  constructor(endpoint: DockerEndpoint) {
+    this.agent = new EndpointAgent(endpoint, {
       keepAlive: true,
       maxSockets: MAX_CONNECTIONS_PER_ENDPOINT,
       maxFreeSockets: MAX_IDLE_CONNECTIONS_PER_ENDPOINT,
     });
-    pools.set(key, agent);
   }
-  return agent;
+
+  /** Resolves at once while the pool is under the bound, otherwise when a call ahead of it frees a connection. */
+  take(): Promise<void> {
+    if (this.inUse < MAX_CONNECTIONS_PER_ENDPOINT) {
+      this.inUse += 1;
+      return Promise.resolve();
+    }
+    return new Promise((resolve, reject) => this.waiting.push({ grant: () => resolve(), refuse: reject }));
+  }
+
+  /** Hands the connection to the call that has waited longest — the count stays as it is — or back to the pool. */
+  release(): void {
+    const next = this.waiting.shift();
+    if (next) next.grant();
+    else if (this.inUse > 0) this.inUse -= 1;
+  }
+
+  /** Closes every connection and refuses the calls still waiting for one: the daemon they were queued for is gone. */
+  discard(): void {
+    this.agent.destroy();
+    this.inUse = 0;
+    for (const { refuse } of this.waiting.splice(0)) {
+      refuse(new DockerDaemonError("DaemonUnreachable", "The active Docker endpoint changed while the call waited for a connection"));
+    }
+  }
+}
+
+// One pool per endpoint, keyed by the endpoint itself: a connection opened for
+// one daemon is never handed to a call meant for another (REQ-5).
+const pools = new Map<string, ConnectionPool>();
+
+function poolFor(endpoint: DockerEndpoint): ConnectionPool {
+  const key = JSON.stringify(endpoint);
+  let pool = pools.get(key);
+  if (!pool) {
+    pool = new ConnectionPool(endpoint);
+    pools.set(key, pool);
+  }
+  return pool;
 }
 
 /**
@@ -59,7 +106,7 @@ function pooledAgent(endpoint: DockerEndpoint): EndpointAgent {
  * (REQ-5); also the seam a check uses to start from no connection at all.
  */
 export function resetConnectionPools(): void {
-  pools.forEach((agent) => agent.destroy());
+  pools.forEach((pool) => pool.discard());
   pools.clear();
 }
 
@@ -107,9 +154,17 @@ function send(endpoint: DockerEndpoint, options: DockerRequestOptions, agent: ht
  * than have a rejection raised in their place.
  */
 export async function requestBufferedRaw(endpoint: DockerEndpoint, options: DockerRequestOptions): Promise<BufferedResponse> {
-  const response = await send(endpoint, options, pooledAgent(endpoint));
-  const body = await readAll(response);
-  return { statusCode: response.statusCode ?? 0, headers: response.headers, body };
+  const pool = poolFor(endpoint);
+  await pool.take();
+  try {
+    const response = await send(endpoint, options, pool.agent);
+    const body = await readAll(response);
+    return { statusCode: response.statusCode ?? 0, headers: response.headers, body };
+  } finally {
+    // The connection is free the moment the body has been read, whether the
+    // call succeeded or not: anything left waiting gets it next.
+    pool.release();
+  }
 }
 
 export async function requestBuffered(endpoint: DockerEndpoint, options: DockerRequestOptions): Promise<BufferedResponse> {

@@ -77,9 +77,14 @@ TCP+TLS), negotiates the API version, and preserves the daemon's own error messa
 - **A pool belongs to the endpoint it was opened for** (REQ-5): connections are held per endpoint and
   never shared between two, and a change of the active endpoint closes every one of them. A call in
   flight over the previous daemon at that instant fails as `DaemonUnreachable` instead of answering
-  with what that daemon had to say.
+  with what that daemon had to say, and so does one still waiting for a connection to it.
 - The number of connections held for one endpoint is bounded: a burst of parallel calls is served by
-  at most sixteen of them, and at most four are kept once it is over.
+  at most sixteen of them, and at most four are kept once it is over. **The bound holds however the
+  burst is issued** — the calls over it wait for a connection to come free instead of opening their
+  own, including when the whole burst leaves in a single tick, which is the shape of a listing that
+  inspects every object it lists. A waiting call is served as soon as one ahead of it has read its
+  answer, and it is served in the order it arrived; nothing is ever refused for being over the
+  bound.
 - A `DockerDaemonError`'s `message` is always the daemon's own message when the daemon responded
   with one; otherwise a description of the low-level connection failure.
 - **Every failure of a request leaves this layer as a `DockerDaemonError`** — never as a raw stream,
