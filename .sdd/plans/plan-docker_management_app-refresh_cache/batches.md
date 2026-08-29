@@ -18,7 +18,7 @@ status: validated
 | remaining-checks-reload | The remaining checks reload through the control | REQ-30 | — | certified | The context, builder and build-cache checks pass wherever they run |
 | version-negotiated-once | The Engine API version is negotiated once, and the probe still probes | REQ-31, REQ-32, REQ-33, REQ-34, REQ-35, REQ-36 | — | certified | The application asks the daemon half as much, and still notices it going away |
 | container-listing-shared | One container listing serves every consumer | REQ-37, REQ-38, REQ-39, REQ-40, REQ-41, REQ-42, REQ-43, REQ-44 | — | certified | The daemon is asked for the container listing once, not four times |
-| change-coverage-check | The change-coverage check asserts the guarantee, not the daemon's timing | REQ-45, REQ-46 | — | todo | The container lifecycle check passes on every run |
+| change-coverage-check | The change-coverage check asserts the guarantee, not the daemon's timing | REQ-45, REQ-46 | — | certified | The container lifecycle check passes on every run |
 
 ## What the plan builds
 
@@ -487,6 +487,19 @@ table and the two coverage rows. No certified batch is reopened.
   operation has succeeded (`.sdd/modules/containers/specs/containers-endpoints.md`). It never says the
   daemon has reaped the container by then. Nothing here contradicts it, and no correction to it is
   owed.
+
+### Departures
+
+- **The development phase is empty, and the batch went straight to the tester.** `/sdd-dev` runs
+  development and then the checks, by two different agents on purpose. Every one of this batch's four
+  interventions is in `server/test/api/refresh-cache-routes.test.ts`; nothing under `server/src/` or
+  `client/src/` moves. There was nothing for the developer to do, and handing a check-tree file to
+  the agent that never writes checks would have been ceremony. The rule that whoever certifies is not
+  whoever wrote the code is not weakened here: there is no code.
+- **The closing full pass stays withdrawn**, for the third batch of this plan running. Both suites
+  were already red before this cycle, on failures of their own, and the human said so on 2026-08-29.
+  The run is this batch's own file, about ten times over — one green run proves nothing against a
+  failure that arrives one run in five.
 
 ### Coverage check — the appended requirements
 
