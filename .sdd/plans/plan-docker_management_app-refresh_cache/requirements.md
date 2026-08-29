@@ -188,3 +188,61 @@ status: validated
 > if the cache stopped re-reading and merely waited out its twenty-second period, which is to say it
 > would pass by ceasing to test REQ-13. `CLAUDE.md` states the case: a test that has quietly stopped
 > testing anything is worse than a slow one, and it is invisible because it passes.
+
+## Appended on 2026-08-30 — the statistics sampler's own container listing
+
+> Appended after the last reader that still fetches a container listing for itself was identified:
+> the **statistics sampler**. `sampleOnce()` calls `GET /containers/json` — running containers only —
+> every ten seconds, for one thing alone: which containers to ask statistics for. Six list reads a
+> minute, for as long as anyone is watching statistics.
+>
+> The server already holds that listing. `container-listing-shared` made it the daemon's own response
+> rather than a projection, so every entry of it carries the container's `State`, and the running set
+> is a filter over a value already in memory. That batch left the sampler out on purpose — its query
+> and its cadence are its own — and it is exactly what that batch changed that makes the sampler
+> reachable now.
+>
+> **The sampler reads with `peek()` and never with `read()`**, which is the opposite of the rule the
+> volume list, the network list and the dashboard follow, and the reason is the opposite too. They
+> need REQ-13's change coverage. The sampler is a background timer: nobody awaits its answer, and a
+> tick arriving while the previous pass is still out is dropped rather than queued, so a read that
+> waits costs **samples** and not milliseconds. And `peek()` registers no demand, which is the second
+> half of the decision: with `read()`, an operator watching statistics would keep the container
+> listing being read for a value nobody is displaying — the demand gate of REQ-14 pointed backwards.
+>
+> Decided by the human on 2026-08-30, design and perimeter together. Per
+> [[every-change-updates-spec-requirements-plan]] this is appended as a further batch. **Nothing above
+> this line was changed**, beyond the one row added to the batch table in `batches.md` and its five
+> coverage rows: no certified batch is reopened.
+
+## Feature — The statistics sampler reads the container listing the server already holds
+
+| ID | Requirement |
+|----|-------------|
+| REQ-47 | The statistics sampler derives the containers it samples from the container listing the server already holds. While a listing is held, a sampling pass asks the daemon for no container listing of its own. |
+| REQ-48 | When the server holds no container listing, the sampler reads one itself, as it does today, and samples on that same pass. It never skips a pass for want of a held listing. |
+| REQ-49 | The same containers are sampled as before: the ones the daemon reports when it is asked for running containers only — a paused and a restarting container among them — with one statistics call each. Every container that carries figures on the screen today still carries them. |
+| REQ-50 | Sampling statistics is not asking for the container listing: while nobody else asks for it, sampling neither starts its refresher nor keeps one alive. |
+| REQ-51 | A sampling pass never waits on the container listing: a read of it in flight, or a listing the application has just marked as changed, delays no pass and costs no sample. |
+
+> **REQ-48, REQ-50 and REQ-51 are requirements and not assumptions, because each is a way this batch
+> could be built wrong and still look right.** A sampler that skipped the pass when nothing was held
+> would blank the figures on exactly the screen it exists for; REQ-48 is the difference between
+> deriving a value and depending on one, and the case is ordinary rather than exceptional — `peek()`
+> returns nothing precisely because it keeps nothing alive. REQ-50 and REQ-51 are the two halves of
+> the `peek()` decision, and they fail differently: reading with `read()` breaks both at once, while a
+> `peek()` written to wait for a refresh in flight breaks only the second. Each is observable on its
+> own, so each is asserted on its own.
+>
+> **REQ-49 is the requirement that keeps the saving from being taken out of the product.** The set the
+> daemon returns for running containers is not the set whose `State` reads `running`: it includes
+> `paused` and `restarting`. Narrowing the filter by one word would stop sampling paused containers,
+> and their figures would leave the screen half a minute later.
+>
+> Measured at the daemon on 2026-08-30, not inferred from the documentation. A paused container and a
+> container in its restart backoff were each created and `GET /containers/json` — no `all`, the
+> sampler's own query — was read back over the socket. Both were **present**, reporting `State`
+> `paused` and `restarting` respectively; the states the listing carried across the whole host were
+> exactly `running` and `paused` while the probe stood. The predicate this batch writes is therefore a
+> set of three states and not an equality on one, and `batch-sampler-from-shared-listing/INT-8` is
+> what fails when someone narrows it.
