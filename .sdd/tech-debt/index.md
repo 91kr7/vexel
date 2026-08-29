@@ -32,7 +32,7 @@ means writing the analysis and the plan for it in the normal way — see
 | detail-views-reread-on-unrelated-events | both | high | Detail views re-read on events about other objects; a volume detail pulls `/system/df` per container event | `entries/detail-views-reread-on-unrelated-events.md` |
 | new-socket-per-engine-call | server | high | A fresh socket per Engine call: negligible locally, an `ssh` process per request on a remote context | `entries/new-socket-per-engine-call.md` |
 | cli-version-detection-uncached | server | medium | Three programs launched every 5 s to read versions that cannot change while the app runs | `entries/cli-version-detection-uncached.md` |
-| container-listing-fetched-three-times | server | medium | The same container listing is fetched three times per round; 40 of 60 calls a minute are derivative | `entries/container-listing-fetched-three-times.md` |
+| container-listing-refetched-by-every-consumer | server | medium | Four services fetch the container listing for themselves, a fifth fetches a narrower form: what the cache holds has already dropped the fields they need | `entries/container-listing-refetched-by-every-consumer.md` |
 | no-response-sequencing-guard | client | medium | No sequence number: an older response landing last overwrites a newer one | `entries/no-response-sequencing-guard.md` |
 | contexts-list-spawns-subprocesses | server | low | Two processes every 15 s for an inventory that changes when the operator changes it | `entries/contexts-list-spawns-subprocesses.md` |
 | object-type-invalidation-registry-unused | client | low | The by-object-type invalidation registry is exported and called from nowhere | `entries/object-type-invalidation-registry-unused.md` |
