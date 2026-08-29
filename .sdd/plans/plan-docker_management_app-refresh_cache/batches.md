@@ -18,6 +18,7 @@ status: validated
 | remaining-checks-reload | The remaining checks reload through the control | REQ-30 | — | certified | The context, builder and build-cache checks pass wherever they run |
 | version-negotiated-once | The Engine API version is negotiated once, and the probe still probes | REQ-31, REQ-32, REQ-33, REQ-34, REQ-35, REQ-36 | — | certified | The application asks the daemon half as much, and still notices it going away |
 | container-listing-shared | One container listing serves every consumer | REQ-37, REQ-38, REQ-39, REQ-40, REQ-41, REQ-42, REQ-43, REQ-44 | — | certified | The daemon is asked for the container listing once, not four times |
+| change-coverage-check | The change-coverage check asserts the guarantee, not the daemon's timing | REQ-45, REQ-46 | — | todo | The container lifecycle check passes on every run |
 
 ## What the plan builds
 
@@ -140,6 +141,8 @@ qualified with their batch below.
 | REQ-42 | `batch-container-listing-shared/INT-3`, `batch-container-listing-shared/INT-4`, `batch-container-listing-shared/INT-5`, `batch-container-listing-shared/INT-6`, `batch-container-listing-shared/INT-7`, `batch-container-listing-shared/INT-12` | container-listing-shared |
 | REQ-43 | `batch-container-listing-shared/INT-13` | container-listing-shared |
 | REQ-44 | `batch-container-listing-shared/INT-16`, `batch-container-listing-shared/INT-17`, `batch-container-listing-shared/INT-19` | container-listing-shared |
+| REQ-45 | `batch-change-coverage-check/INT-1`, `batch-change-coverage-check/INT-2`, `batch-change-coverage-check/INT-3`, `batch-change-coverage-check/INT-4` | change-coverage-check |
+| REQ-46 | `batch-change-coverage-check/INT-1`, `batch-change-coverage-check/INT-3` | change-coverage-check |
 
 **Three notes on this coverage.**
 
@@ -423,3 +426,75 @@ Two notes on it.
   cheaper, would pass every counting check, and would break the guarantee the whole refresh cache was
   built for. `batch-container-listing-shared/INT-9` drives an operation and then the derived lists,
   so that shortcut fails rather than passes.
+
+## Appended on 2026-08-30 — one batch
+
+One check for REQ-13 asserts something the daemon does not promise, and fails about one run in five.
+It kills a container through the application and asserts the very next listing reports it `exited`.
+`POST /containers/{id}/kill` answers when the signal has been **delivered**, not when the container
+has exited. Measured at the daemon on 2026-08-30: still `running` on the very next listing 14 times
+out of 15. The product is right and the check is wrong, which is why the batch below changes no
+product source.
+
+Per the knowledge base, work found after a batch is appended as a further batch and never edited into
+one already closed: **nothing above this line was changed**, beyond the one row added to the batch
+table and the two coverage rows. No certified batch is reopened.
+
+**Execution order.** `change-coverage-check` depends on nothing. It corrects a file written by
+`lists-from-refresh-cache`, which is certified; it needs that work present, not repeated. The
+`Depends` column is empty for that reason, and the batch file says where the file comes from.
+
+### Assumptions and decisions
+
+- **The batch changes checks only.** No source file, no component spec, no index. Whoever implements
+  it ends with the same application they started with. This follows `remaining-checks-reload`, which
+  was scoped the same way and for the same reason.
+- **The check anchors on the instant the operation was asked for, not on the instant it returned.**
+  The human's direction said "past the instant the kill returned". That order is not guaranteed: the
+  route marks the listing changed and then answers 204, so the covering read can start before the 204
+  reaches the check. The guaranteed order is the other one, and it makes the same statement about the
+  same read. The batch file states it where the check is described.
+- **The state assertion moves onto `stop`.** `POST /containers/{id}/stop` answers when the container
+  has stopped, and 304 when it had already stopped. The container reads `exited` in both cases. It
+  also keeps the `start` assertion meaningful: without a stop in front of it, a start issued while the
+  killed container is still running is a no-op, and `running` would have been true anyway.
+- **The eight sibling cases for REQ-13 were examined and none of them conflates.** Every operation
+  they drive — create, remove, rename, tag, untag, volume and network create and remove, attach,
+  detach, start, compose up and down, context and builder create and remove — has been applied by the
+  daemon when it answers. The batch file lists them with the reason for each family, and INT-4 has the
+  implementer read them again in the file.
+- **`containers-routes.test.ts` kills a container too and stays as it is.** It polls for the `exited`
+  state for up to fifteen seconds, and that is correct there: it is a check of
+  `plan-docker_management_app/REQ-20`, where the daemon catching up is the thing being observed. REQ-46
+  forbids the wait in the checks of REQ-13, where it would hide the mechanism under test.
+- **The known millisecond window is inherited, not widened.** A read starting in the same millisecond
+  as the change counts as covering it (`.sdd/tech-debt/entries/change-coverage-millisecond-window.md`).
+  A cache serving the old listing could pass the corrected assertion inside that same window. That is
+  REQ-13's boundary, it is already recorded as debt, and this batch neither widens it nor closes it.
+- **No new debt entry.** This is a defect being fixed now, not a cost being deferred.
+- **One green run does not certify this batch.** The failure appeared about one run in five, so the
+  file is run several times in a row. Ten runs would have shown the old failure about nine times out
+  of ten.
+
+### Departures
+
+- **The two validation gates were not held.** The human read the measurements on 2026-08-30, decided
+  the direction themselves — split the two claims, assert each where it is guaranteed, forbid the
+  retry loop — and asked for the plan and the development in one pass. The requirements and the
+  coverage below were written to that decision and not put back for validation. There is no open
+  question on the direction.
+- **No departure from the business spec.** The spec says the routes mark the listing changed once the
+  operation has succeeded (`.sdd/modules/containers/specs/containers-endpoints.md`). It never says the
+  daemon has reaped the container by then. Nothing here contradicts it, and no correction to it is
+  owed.
+
+### Coverage check — the appended requirements
+
+REQ-45 and REQ-46 are each served by at least one intervention of `change-coverage-check`, and each of
+its four interventions serves at least one of them; the rows are in the table above. Neither is split
+across batches: both close here. There is no enabling intervention.
+
+One note on it. **REQ-46 is the requirement that protects the check from its own repair.** REQ-45 can
+be satisfied by a check that also polls, and such a check would go green even if the cache stopped
+re-reading and merely waited out its period. `batch-change-coverage-check/INT-3` writes the
+prohibition where someone would otherwise add the loop.
