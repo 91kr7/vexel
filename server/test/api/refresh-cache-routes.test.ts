@@ -212,9 +212,13 @@ test("every list endpoint states its read time and serves the same value on a se
   }
 });
 
-// plan-docker_management_app-refresh_cache/REQ-13 — a lifecycle operation performed through the
-// application is visible in the next request, without waiting for a timer.
-test("killing and starting a container through the application shows in the very next list request", async () => {
+// plan-docker_management_app-refresh_cache/REQ-13, REQ-45 — the kill answers when the signal has
+// been delivered, not when the container has exited, so what is asserted after it is the read time
+// of the listing served, anchored on the instant the kill was sent because the route marks the
+// listing changed before it answers; the stop and the start answer with the state settled, so after
+// those two it is the state itself. REQ-46 — nothing here may wait, retry or poll for the value it
+// expects: such a check would pass while the cache had stopped reading and waited out its period.
+test("killing, stopping and starting a container through the application shows in the very next list request", async () => {
   const name = fixtureName("lifecycle");
   const { url, close } = await startApp(buildFullApp());
   try {
@@ -224,14 +228,24 @@ test("killing and starting a container through the application shows in the very
     const before = await getList<{ name: string; state: string }[]>(url, "/api/containers");
     assert.equal(before.body.find((one) => one.name === name)?.state, "running");
 
+    const killAskedAt = Date.now();
     const killed = await fetch(`${url}/api/containers/${id}/kill`, { method: "POST" });
     assert.equal(killed.status, 204);
 
     const afterKill = await getList<{ name: string; state: string }[]>(url, "/api/containers");
+    assert.ok(
+      Date.parse(afterKill.readAt ?? "") >= killAskedAt,
+      `the list served after the kill was read at ${afterKill.readAt}, and the kill was asked for at ${new Date(killAskedAt).toISOString()}`,
+    );
+
+    const stopped = await fetch(`${url}/api/containers/${id}/stop`, { method: "POST" });
+    assert.equal(stopped.status, 204);
+
+    const afterStop = await getList<{ name: string; state: string }[]>(url, "/api/containers");
     assert.equal(
-      afterKill.body.find((one) => one.name === name)?.state,
+      afterStop.body.find((one) => one.name === name)?.state,
       "exited",
-      "the list still reported the container running after the application killed it",
+      "the list still reported the container running after the application stopped it",
     );
 
     const started = await fetch(`${url}/api/containers/${id}/start`, { method: "POST" });

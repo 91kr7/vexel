@@ -153,3 +153,38 @@ status: validated
 > it, so a route that forgets to say so is a delay and not a wrong answer. Per
 > [[development-goes-through-sdd-dev]] a correction found mid-run becomes further interventions in
 > the same batch, which is where both live.
+
+## Appended on 2026-08-30 — the change-coverage check
+
+> Appended after a check for REQ-13 was found to fail about one run in five. It fails on a claim the
+> daemon does not make. The check is in `server/test/api/refresh-cache-routes.test.ts`, and it kills a
+> container through the application and then asserts the very next listing reports it `exited`.
+> `POST /containers/{id}/kill` answers 204 when the signal has been **delivered**, not when the
+> container has exited. Docker emits `container kill` at that moment, with the container still alive,
+> and `container die` later, when the process actually exits.
+>
+> Measured at the daemon on 2026-08-30, not assumed. A probe over the Engine API did create, start,
+> kill and then `GET /containers/json?all=true`, back to back in one process. It reported the
+> container still `running` on the very next listing **14 times out of 15**.
+>
+> The check makes two claims and only one of them is ours. That the listing served was read after the
+> operation is ours, and it is REQ-13. That the container reads `exited` in that listing is the
+> daemon's, and the 204 does not promise it. The cache does what REQ-13 asks. The check passes most of
+> the time only because Express and the round trip give the daemon those milliseconds.
+>
+> Per [[every-change-updates-spec-requirements-plan]] this is appended as a further batch. **Nothing
+> above this line was changed**, beyond the one row added to the batch table in `batches.md` and its
+> two coverage rows: no certified batch is reopened.
+
+## Feature — The change-coverage check asserts the guarantee, not the daemon's timing
+
+| ID | Requirement |
+|----|-------------|
+| REQ-45 | After an operation whose effect on the daemon is not complete when the operation answers, a check of REQ-13 asserts that the listing it is served next was read after the operation was asked for, instead of asserting the object's resulting state. It still asserts the resulting state after operations whose effect is complete when they answer. |
+| REQ-46 | No check of REQ-13 waits, retries or polls for a value to become what it expects. It reads the list once after the operation and asserts on that answer. |
+
+> **REQ-46 forbids the obvious repair, and that is why it is a requirement and not an assumption.** A
+> retry loop would turn a change-coverage check into an eventual-consistency one. It would pass even
+> if the cache stopped re-reading and merely waited out its twenty-second period, which is to say it
+> would pass by ceasing to test REQ-13. `CLAUDE.md` states the case: a test that has quietly stopped
+> testing anything is worse than a slow one, and it is invisible because it passes.
