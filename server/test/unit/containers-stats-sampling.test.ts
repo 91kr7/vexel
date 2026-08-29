@@ -14,8 +14,16 @@ import { installEngineMock } from "../support/engine-mock.js";
 // over is half a minute of waiting per assertion.
 const engine = installEngineMock();
 
-const { listContainers, startStatsSampling, stopStatsSampling, isStatsSamplingActive, STATS_SAMPLE_INTERVAL_MS } =
-  await import("../../src/containers/containers-service.js");
+const {
+  containerListCache,
+  listContainers,
+  readContainerList,
+  startStatsSampling,
+  stopStatsSampling,
+  isStatsSamplingActive,
+  STATS_SAMPLE_INTERVAL_MS,
+} = await import("../../src/containers/containers-service.js");
+const { resetRefreshCache } = await import("../../src/refresh-cache/refresh-cache.js");
 
 const CONTAINER_ID = "c0ffee0000000000";
 
@@ -58,6 +66,12 @@ async function advance(milliseconds: number): Promise<void> {
 }
 
 beforeEach(() => {
+  // The refresh cache is process-wide and its refreshers outlive the case that
+  // started them, so a held listing has to be a state a case sets rather than
+  // one it inherits (plan-docker_management_app-refresh_cache/REQ-47, REQ-48,
+  // REQ-50). Reset and not fill: the cases above hold nothing, and that is what
+  // makes them exercise the fallback.
+  resetRefreshCache();
   engine.reset();
   engine.on("GET", "/containers/json", () => [runningContainer()]);
   engine.on("GET", `/containers/${CONTAINER_ID}/stats`, () => statsFrame());
@@ -239,4 +253,179 @@ test("a stale reading is not redisplayed on return, and a fresh pass restores it
   const [afterFreshSample] = await listContainers();
 
   assert.equal(typeof afterFreshSample?.cpuPercent, "number");
+});
+
+// --- The set the sampler asks statistics for, and where it comes from
+// (plan-docker_management_app-refresh_cache/REQ-47 to REQ-51).
+//
+// The same measurement as above, pointed at a second call: the container
+// listing. The two listings share a pathname and differ only by their query, so
+// `engine.callsTo` — which strips the query — cannot tell them apart; the two
+// counters below do.
+
+/** The sampler's own listing: the daemon's running-only query, no `all`. */
+function ownListingCalls(): number {
+  return engine.calls.filter((call) => call.pathname === "/containers/json" && call.query.get("all") !== "true").length;
+}
+
+/** Reads of the listing the server holds: `GET /containers/json?all=true`. */
+function heldListingCalls(): number {
+  return engine.calls.filter((call) => call.path === "/containers/json?all=true").length;
+}
+
+/** Stats requests for one container since the last reset. */
+function statsRequestsFor(id: string): number {
+  return engine.calls.filter((call) => call.method === "GET" && call.pathname === `/containers/${id}/stats`).length;
+}
+
+/** A listing entry in a given state, as the daemon reports one. */
+function containerInState(state: string, id: string): unknown {
+  return {
+    Id: id,
+    Names: [`/c-${state}`],
+    Image: "alpine:3.20",
+    State: state,
+    Status: state,
+    Ports: [],
+    Labels: {},
+    Mounts: [],
+    NetworkSettings: { Networks: {} },
+  };
+}
+
+/**
+ * The daemon answering both listings: `?all=true` — the query the held listing
+ * is read with — carries every container, the running-only query carries the
+ * ones the daemon calls running.
+ */
+function serveListings(all: unknown[], running: unknown[]): void {
+  engine.on("GET", "/containers/json", (call) => (call.query.get("all") === "true" ? all : running));
+}
+
+/** One container per state the daemon reports, keyed by that state. */
+const STATE_IDS: Record<string, string> = {
+  running: "1111111111111111",
+  paused: "2222222222222222",
+  restarting: "3333333333333333",
+  created: "4444444444444444",
+  exited: "5555555555555555",
+  dead: "6666666666666666",
+};
+
+// REQ-47 — while a listing is held, the sampling passes cost no container listing of their own,
+// and the statistics keep going out on every one of them.
+test("with a listing held, several sampling passes ask the daemon for no container listing of their own", async () => {
+  serveListings([runningContainer()], [runningContainer()]);
+  await readContainerList();
+  assert.notEqual(containerListCache.peek(), undefined, "nothing is held: the case measures the fallback instead");
+
+  startStatsSampling();
+  await settle();
+  assert.equal(statsRequests(), 1, "the first pass took no sample");
+
+  await advance(STATS_SAMPLE_INTERVAL_MS);
+  assert.equal(statsRequests(), 2);
+
+  await advance(STATS_SAMPLE_INTERVAL_MS);
+  assert.equal(statsRequests(), 3, "the stats calls stopped going out on every pass");
+
+  assert.equal(ownListingCalls(), 0, "the sampler fetched a container listing of its own while one was held");
+});
+
+// REQ-48 — with nothing held, the pass reads the listing itself and samples on that same pass; it
+// is never skipped for want of a held listing.
+test("with nothing held, the sampler reads the listing itself and samples on that same pass", async () => {
+  serveListings([runningContainer()], [runningContainer()]);
+  assert.equal(containerListCache.peek(), undefined, "a listing is held: the case measures the wrong path");
+
+  startStatsSampling();
+  await settle();
+  assert.equal(ownListingCalls(), 1, "the pass read no listing of its own with nothing held");
+  assert.equal(statsRequests(), 1, "the pass was skipped for want of a held listing");
+
+  await advance(STATS_SAMPLE_INTERVAL_MS);
+  assert.equal(ownListingCalls(), 2);
+  assert.equal(statsRequests(), 2, "the next pass was skipped as well");
+});
+
+// REQ-49 — the set is the three states the daemon reports as running, one statistics call each, and
+// none for a container in any other state. A predicate narrowed to `State === "running"` fails here.
+test("a held listing is sampled by state: the running, paused and restarting ones, and no others", async () => {
+  const wholeListing = Object.entries(STATE_IDS).map(([state, id]) => containerInState(state, id));
+  const runningOnes = ["running", "paused", "restarting"].map((state) => containerInState(state, STATE_IDS[state]!));
+  serveListings(wholeListing, runningOnes);
+  engine.on("GET", /^\/containers\/[^/]+\/stats$/, () => statsFrame());
+
+  await readContainerList();
+  startStatsSampling();
+  await settle();
+
+  for (const state of ["running", "paused", "restarting"]) {
+    assert.equal(statsRequestsFor(STATE_IDS[state]!), 1, `the ${state} container was not asked for statistics exactly once`);
+  }
+  for (const state of ["created", "exited", "dead"]) {
+    assert.equal(statsRequestsFor(STATE_IDS[state]!), 0, `the ${state} container was asked for statistics`);
+  }
+  assert.equal(statsRequests(), 3, "the pass asked for statistics beyond the three containers the daemon calls running");
+  assert.equal(ownListingCalls(), 0, "the set was read from the daemon rather than derived from the held listing");
+});
+
+// REQ-50 — sampling is not asking for the container listing: with nobody else asking, the passes
+// neither start a refresher nor keep one alive. An implementation reading with `read()` passes the
+// REQ-47 case above and fails here.
+test("sampling alone puts the container listing under no refresh and reaches the daemon with no held-listing read", async () => {
+  serveListings([runningContainer()], [runningContainer()]);
+
+  startStatsSampling();
+  await settle();
+  // One interval at a time: the fake clock fires every tick of a longer jump
+  // before a single await runs, so the passes behind the first would be dropped
+  // as overlapping ones rather than taken.
+  for (let pass = 0; pass < 3; pass += 1) await advance(STATS_SAMPLE_INTERVAL_MS);
+
+  assert.equal(statsRequests(), 4, "the sampler did not run: the case would pass on a sampler doing nothing");
+  assert.equal(heldListingCalls(), 0, "sampling read the held container listing, which registers demand for it");
+  assert.equal(containerListCache.isRefreshing(), false, "sampling put the container listing under refresh");
+});
+
+// REQ-51 — a listing just marked changed, with the read covering that change still in flight, delays
+// no pass and costs no sample. This is where `read()` waits and `peek()` does not.
+test("a listing marked changed with its read in flight costs no sample", async () => {
+  const openReads: (() => void)[] = [];
+  let holdTheHeldRead = false;
+  engine.on("GET", "/containers/json", async (call) => {
+    if (call.query.get("all") === "true" && holdTheHeldRead) {
+      await new Promise<void>((resolve) => openReads.push(resolve));
+    }
+    return [runningContainer()];
+  });
+
+  try {
+    await readContainerList();
+    startStatsSampling();
+    await settle();
+    assert.equal(statsRequests(), 1, "the first pass is out");
+
+    // "The held value predates the change" is measured in whole milliseconds,
+    // and the mocked clock stands still unless it is moved: without this the
+    // held value carries the very instant of the change and a `read()` answers
+    // from it without waiting, which is the case being told apart here.
+    await advance(5);
+
+    // The application states the listing has changed; the mocked daemon keeps
+    // the read covering that change open for the rest of the case.
+    holdTheHeldRead = true;
+    containerListCache.markChanged();
+    await settle();
+    assert.equal(openReads.length, 1, "no read of the listing is in flight: the case measures nothing");
+
+    await advance(STATS_SAMPLE_INTERVAL_MS);
+    assert.equal(statsRequests(), 2, "the pass waited for the listing to be read again");
+
+    await advance(STATS_SAMPLE_INTERVAL_MS);
+    assert.equal(statsRequests(), 3, "a pass was lost while the read was in flight");
+  } finally {
+    for (const release of openReads.splice(0)) release();
+    await settle();
+  }
 });
