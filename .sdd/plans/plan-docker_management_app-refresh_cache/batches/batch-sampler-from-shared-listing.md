@@ -150,6 +150,36 @@ and the covering read held open by the mocked daemon. `read()` waits for that re
 what is held and the pass samples. Written against a slow read alone it would prove nothing —
 `read()` answers from the held value without waiting in that case.
 
+## What the checks were proved to detect, on 2026-08-30
+
+`CLAUDE.md` asks that a check drive the mechanism rather than confirm its presence, and this batch's
+own coverage was written for a defect that a passing check would not have caught. So each of the five
+was **run against a deliberately broken sampler** before the batch was certified — in a throwaway
+`git worktree`, since the check tree may not touch `server/src/` — and the case that must fail was
+confirmed to fail.
+
+| The sampler, mutated | Went red |
+|---|---|
+| the predicate narrowed to `State === "running"` | INT-8, and it alone |
+| `peek()` replaced by `read()` | INT-7, INT-9, INT-10 — **INT-6 stayed green** |
+| the pass skipped when nothing is held | INT-7, plus the eight pre-existing cases |
+| the sampler still fetching its own listing (today's behaviour) | INT-6 and INT-8 |
+
+**The second row is the one worth keeping.** It is the prediction this batch file made before the
+checks existed — that a `read()` implementation removes the six calls a minute all the same and so
+satisfies the check written for the saving — and it held: INT-6 passed on it. What caught it was
+INT-9, counting in the other direction. A batch that had stopped at "the calls are gone" would have
+shipped an inverted demand gate with a green run behind it.
+
+Two of the five did not discriminate as first written, and both were fake-clock artefacts rather than
+product defects. INT-10 passed vacuously because the mocked clock stands still: the held value carried
+the very instant of the change, so it did not *predate* it and `read()` answered without waiting — an
+advance of 5 ms before the change reproduces the waiting condition, the same hazard
+`shared-container-listing.test.ts` handles with its `anInstantPasses()`. INT-9 advanced three
+intervals in one jump, which fires three ticks before a single await runs, so the passes behind the
+first were dropped as overlapping ones — the documented no-overlap rule doing its job. It advances one
+interval at a time. Both reasons are written where the checks are.
+
 ## Human acceptance
 
 **REQ-50 has no scenario of its own, and that is deliberate.** Every screen that subscribes to the
