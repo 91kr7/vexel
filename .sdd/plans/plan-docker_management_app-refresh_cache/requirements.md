@@ -119,3 +119,37 @@ status: validated
 | REQ-34 | The held version belongs to the endpoint it was negotiated with: after the active context changes, no call is composed with the previous daemon's version. |
 | REQ-35 | A negotiation that failed is not held. The call that hit the failure reports the daemon's own message exactly as it does today, and the next call negotiates again rather than inheriting the failure or a value from before it. |
 | REQ-36 | Nothing else moves: the same paths are dialed, every endpoint answers what it answers today, and the connection status still reports the negotiated Engine API version and the engine version. |
+
+## Appended on 2026-08-29 — one container listing for every consumer
+
+> Appended after the second finding of the same call audit: **three services and the dashboard each
+> fetch the whole container listing for themselves**. The refresh cache cannot serve them, because
+> what it holds is a projection that has already dropped `Mounts` and `NetworkSettings` — the two
+> fields they exist to read. Seven `/containers/json?all=true` a minute while all three lists are
+> being asked for, four of them derivative. Recorded as debt on 2026-08-27 and revised on 2026-08-29
+> (`.sdd/tech-debt/entries/container-listing-refetched-by-every-consumer.md`), promoted to a fix by
+> the human on 2026-08-29.
+>
+> Per [[every-change-updates-spec-requirements-plan]] this is appended as a further batch. **Nothing
+> above this line was changed**, beyond the one row added to the batch table in `batches.md` and its
+> seven coverage rows: no certified batch is reopened.
+
+## Feature — One container listing serves every consumer
+
+| ID | Requirement |
+|----|-------------|
+| REQ-37 | The volume list, the network list and the dashboard overview are built from the container listing the server already holds; none of them calls the daemon for a container listing of its own. |
+| REQ-38 | Each of them is served a listing that covers the operator's own last action: after an operation the application performed on a container, the next volume list, network list and dashboard describe the containers as they are after it. |
+| REQ-39 | The listing the server holds is the daemon's own container response, and the projection the container endpoint answers with is produced when that endpoint is read. What `/api/containers` returns does not change: the same fields, the same values, the same order. |
+| REQ-40 | The sampled CPU, memory and network figures are merged onto the container listing once, when it is read, and every container still carries figures no older than the sampler's own interval. |
+| REQ-41 | The application's own internal extraction containers are excluded once, on the held listing: no volume is listed as mounted by one, and no network as attached to one. |
+| REQ-42 | Asking for the volume list, the network list or the dashboard overview counts as asking for the container listing, so it keeps being refreshed while one of those screens is open; while nobody asks for any of them or for the containers screen, it is refreshed no more. |
+| REQ-43 | Nothing else moves: every endpoint answers what it answers today — the same containers, the same volumes with the same mounting containers, the same networks with the same attached containers, the same dashboard counts, each in the same order. |
+| REQ-44 | The held container listing is marked due by the daemon's network events as well as its container ones, because a container's network attachments are part of what that listing now carries. |
+
+> **REQ-44 was added on 2026-08-29, during the batch**, after its checks found that attaching a
+> container to a network no longer showed in the next network list. REQ-38 already required the fix
+> for the operator's own action; REQ-44 is the other half — the listing must declare what invalidates
+> it, so a route that forgets to say so is a delay and not a wrong answer. Per
+> [[development-goes-through-sdd-dev]] a correction found mid-run becomes further interventions in
+> the same batch, which is where both live.

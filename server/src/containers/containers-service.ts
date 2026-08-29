@@ -118,7 +118,8 @@ export interface ContainerConfigUpdateResult {
   container: ContainerSummary;
 }
 
-interface RawContainer {
+/** The daemon's own listing entry: what the `containers` kind holds, and what every reader deriving from it is handed. */
+export interface RawContainer {
   Id: string;
   Names?: string[];
   Image: string;
@@ -126,6 +127,8 @@ interface RawContainer {
   Status: string;
   Ports?: { PrivatePort: number; PublicPort?: number; Type: string }[];
   Labels?: Record<string, string>;
+  Mounts?: { Type?: string; Name?: string }[];
+  NetworkSettings?: { Networks?: Record<string, unknown> | null } | null;
 }
 
 interface RawInspect {
@@ -181,50 +184,49 @@ const statsCache = new Map<string, SampledUsage>();
 let sampleTimer: ReturnType<typeof setInterval> | undefined;
 let passInFlight = false;
 
-export async function listContainers(): Promise<ContainerSummary[]> {
+// The daemon's own listing, minus the intermediate extraction containers: the
+// one exclusion every consumer of it inherits (plan-docker_management_app/REQ-54).
+async function readDaemonContainerList(): Promise<RawContainer[]> {
   const response = await getEngineClient().request("/containers/json?all=true");
   const raw = JSON.parse(response.body) as RawContainer[];
-  // Intermediate filesystem-extraction containers are internal plumbing
-  // (REQ-54): never shown as a container anywhere in the application.
-  return raw
-    .filter((container) => container.Labels?.[INTERNAL_CONTAINER_LABEL] !== "true")
-    .map(toSummary)
-    .sort(byNameThenIdentity({ name: (container) => container.name, identity: (container) => container.id }));
+  return raw.filter((container) => container.Labels?.[INTERNAL_CONTAINER_LABEL] !== "true");
 }
 
-/**
- * The container listing as the refresh cache keeps it: read on its own period
- * and whenever a `container` event or one of this application's own operations
- * says so (REQ-9, REQ-11, REQ-12, REQ-13).
- */
+/** A listing read straight from the daemon, projected and ordered: what answers where a held one cannot. */
+export async function listContainers(): Promise<ContainerSummary[]> {
+  return toSummaryList(await readDaemonContainerList());
+}
+
+// Holds the daemon's own response rather than a projection of it, so one read
+// serves every consumer (plan-docker_management_app-refresh_cache/REQ-37). It
+// carries each container's network attachments, so a `network` event invalidates
+// it as much as a `container` one (plan-docker_management_app-refresh_cache/REQ-44).
 export const containerListCache = registerRefreshKind({
   key: "containers",
   periodMs: 20000,
-  eventTypes: ["container"],
-  read: listContainers,
+  eventTypes: ["container", "network"],
+  read: readDaemonContainerList,
 });
 
-/**
- * The listing the endpoint answers with: the held list, carrying the sampler's
- * *current* figures rather than the ones frozen into it when it was read. The
- * sampler runs on its own, faster schedule and is not part of what is held.
- */
+// Projected and ordered at read time, which is what merges the sampler's
+// current figures onto it — once (plan-docker_management_app-refresh_cache/REQ-40).
 export async function readContainerList(): Promise<HeldValue<ContainerSummary[]>> {
   const held = await containerListCache.read();
-  return { ...held, value: held.value.map(withCurrentSample) };
+  return { ...held, value: toSummaryList(held.value) };
 }
 
-function withCurrentSample(container: ContainerSummary): ContainerSummary {
-  const usage = freshSample(container.id);
-  return {
-    ...container,
-    cpuPercent: usage?.cpuPercent,
-    memoryUsageBytes: usage?.memoryUsageBytes,
-    memoryLimitBytes: usage?.memoryLimitBytes,
-    onlineCpus: usage?.onlineCpus,
-    networkRxBytes: usage?.networkRxBytes,
-    networkTxBytes: usage?.networkTxBytes,
-  };
+// For the readers deriving from `Mounts` or `NetworkSettings`. Through `read()`
+// and never `peek()`: it covers the application's own last operation, and it
+// renews the demand that keeps the listing refreshed
+// (plan-docker_management_app-refresh_cache/REQ-38, REQ-42).
+export async function readHeldContainerList(): Promise<RawContainer[]> {
+  return (await containerListCache.read()).value;
+}
+
+function toSummaryList(raw: RawContainer[]): ContainerSummary[] {
+  return raw
+    .map(toSummary)
+    .sort(byNameThenIdentity({ name: (container) => container.name, identity: (container) => container.id }));
 }
 
 export async function startContainer(id: string): Promise<void> {

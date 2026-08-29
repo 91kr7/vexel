@@ -17,8 +17,11 @@ network's full inspect data, create, remove and prune unused networks, and attac
   - `subnet`/`gateway`/`ipRange` — from the network's own `IPAM.Config[0]`; `undefined` when the
     network carries no IPAM configuration.
   - `attachedContainers` — names of every container (running or stopped) currently attached to the
-    network, derived from `GET /containers/json?all=true`'s per-container `NetworkSettings.Networks`
-    (the listing endpoint's own payload carries no attachment data); empty for an unattached network.
+    network, derived from the per-container `NetworkSettings.Networks` of **the container listing the
+    server already holds** (`ContainersService`'s `readHeldContainerList`) and never from a listing
+    of this service's own — the networks endpoint's own payload carries no attachment data; empty
+    for an unattached network. The application's own internal extraction containers are excluded
+    there, so none of them is ever named here.
   - **Ordered by network name** under the list-order rule (`compareNames`), with the network's `id`
     as the final comparison: `net-2` before `net-10`, and two networks carrying the **same name** —
     Docker does not guarantee network-name uniqueness — ordered by their ids rather than shuffled.
@@ -42,25 +45,39 @@ network's full inspect data, create, remove and prune unused networks, and attac
   currently used by a container. `NetworkPruneResult`: `{ removedNames: string[] }`.
 - `attachContainer(networkId, containerId): Promise<NetworkInspect>` — `POST
   /networks/{networkId}/connect`; returns the network's updated inspect/attachment set (REQ-74).
+  Says **both** the container listing and the network listing have changed.
 - `detachContainer(networkId, containerId): Promise<NetworkInspect>` — `POST
   /networks/{networkId}/disconnect` (forced); returns the network's updated inspect/attachment set
-  (REQ-74).
+  (REQ-74). Says **both** listings have changed, as the attach does.
 
 ## Rules and invariants
 
 - Every call rejects with a `DockerDaemonError` carrying the daemon's own message on failure.
-- `attachedContainers` is computed fresh on every `listNetworks`/`getNetworkInspect` call, not
-  cached.
+- `attachedContainers` is read on every `listNetworks` call from the held container listing, through
+  the containers kind's `read()` and never its `peek()`: it covers the operation the application has
+  just performed on a container, so a container removed a moment ago is no longer named here.
+  `getNetworkInspect` does not use it at all — the inspect payload's own `Containers` map is
+  authoritative and stays the source there.
+- **This service issues no container listing of its own.** Asking for the network list therefore
+  counts as asking for the container listing, and keeps it refreshed while the networks screen is
+  open — the containers kind's own demand expiry stops it once nothing is asking for either.
 
 ### The refresh cache
 
 - `createNetwork`, `removeNetwork`, `pruneNetworks`, `attachContainer` and `detachContainer` say the
   listing has changed once they have succeeded, so the operator's own action shows on the next
   request without waiting for a timer. A failed call marks nothing.
+- **An attach or a detach says it of the container listing as well**, and of that one **first**, in
+  the same synchronous step. `attachedContainers` is derived from the container listing, so marking
+  only the network kind makes it re-read, correctly, a listing nobody refreshed: the attached
+  container would appear only once the two independent periods happened to line up. Marking the
+  container listing first is what makes the network refresh that immediately follows await a read
+  covering the change rather than the one before it.
 
 ## Dependencies
 
 - docker-access: EngineClient (via `getEngineClient()`), DockerDaemonError
+- containers: ContainersService (`readHeldContainerList`)
 - list-order: List order (`byNameThenIdentity`)
 - refresh-cache: Refresh cache (`registerRefreshKind`)
 
@@ -75,3 +92,8 @@ network's full inspect data, create, remove and prune unused networks, and attac
 - plan-docker_management_app-refresh_cache/REQ-11
 - plan-docker_management_app-refresh_cache/REQ-12
 - plan-docker_management_app-refresh_cache/REQ-13
+- plan-docker_management_app-refresh_cache/REQ-37
+- plan-docker_management_app-refresh_cache/REQ-38
+- plan-docker_management_app-refresh_cache/REQ-41
+- plan-docker_management_app-refresh_cache/REQ-42
+- plan-docker_management_app-refresh_cache/REQ-43

@@ -43,8 +43,13 @@ mock.module(new URL("../../src/connectivity/connection-status-service.ts", impor
 
 const { listNetworks, getNetworkInspect, createNetwork, removeNetwork, pruneNetworks, attachContainer, detachContainer } =
   await import("../../src/networks/networks-service.js");
+const { resetRefreshCache } = await import("../../src/refresh-cache/refresh-cache.js");
 
 beforeEach(() => {
+  // The container listing this service derives its attachments from is held
+  // process-wide: without this, a test is served what an earlier one's read put
+  // there, and a container it stubbed for itself is invisible to it.
+  resetRefreshCache();
   networksBody = "[]";
   containersBody = "[]";
   inspectBody = "{}";

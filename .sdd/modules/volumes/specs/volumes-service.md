@@ -19,7 +19,10 @@ are held on a schedule of their own, far slower than the listing's.
     call; `undefined` for a volume no size is held for yet. A listing never waits for a size: a
     volume created a moment ago is listed at once, without one, and gains it on a later read.
   - `mountedBy` — names of every container (running or stopped) whose own mounts reference the
-    volume, derived from `GET /containers/json?all=true`; empty for an unattached volume.
+    volume, **derived from the container listing the server already holds** (`ContainersService`'s
+    `readHeldContainerList`) and never from a listing of this service's own; empty for an unattached
+    volume. The application's own internal extraction containers are excluded there, so none of them
+    is ever named here.
   - **Ordered named-first, anonymous last.** A volume is **anonymous** when its name is exactly 64
     hexadecimal characters — the shape the daemon generates for a volume nobody named.
     - every **named** volume comes before every anonymous one, ordered by name under the list-order
@@ -64,8 +67,13 @@ are held on a schedule of their own, far slower than the listing's.
 ## Rules and invariants
 
 - Every call rejects with a `DockerDaemonError` carrying the daemon's own message on failure.
-- `mountedBy` is computed fresh on every `listVolumes`/`getVolumeInspect` call: it reflects other
-  containers' mounts at call time.
+- `mountedBy` is read on every `listVolumes`/`getVolumeInspect` call from the held container
+  listing, through the containers kind's `read()` and never its `peek()`: it covers the operation
+  the application has just performed on a container, so a container removed a moment ago is no
+  longer named here.
+- **This service issues no container listing of its own.** Asking for the volume list therefore
+  counts as asking for the container listing, and keeps it refreshed while the volumes screen is
+  open — the containers kind's own demand expiry stops it once nothing is asking for either.
 - **No call of this service makes the daemon compute its whole disk usage.** `/system/df` is read by
   the size kind's own refresher and by nothing else, so listing volumes and opening one's detail
   cost the daemon a listing each, whatever the host holds.
@@ -83,6 +91,7 @@ are held on a schedule of their own, far slower than the listing's.
 ## Dependencies
 
 - docker-access: EngineClient (via `getEngineClient()`), DockerDaemonError
+- containers: ContainersService (`readHeldContainerList`)
 - events: Event stream (the `destroy` events that mark the sizes due)
 - list-order: List order (`byNamedThenUnnamedNewest`)
 - refresh-cache: Refresh cache (`registerRefreshKind`)
@@ -101,3 +110,8 @@ are held on a schedule of their own, far slower than the listing's.
 - plan-docker_management_app-refresh_cache/REQ-13
 - plan-docker_management_app-refresh_cache/REQ-18
 - plan-docker_management_app-refresh_cache/REQ-19
+- plan-docker_management_app-refresh_cache/REQ-37
+- plan-docker_management_app-refresh_cache/REQ-38
+- plan-docker_management_app-refresh_cache/REQ-41
+- plan-docker_management_app-refresh_cache/REQ-42
+- plan-docker_management_app-refresh_cache/REQ-43

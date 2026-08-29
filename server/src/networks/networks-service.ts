@@ -1,8 +1,9 @@
 // Network listing, inspect, create, remove, prune and container
 // attach/detach over the Engine API (REQ-72, REQ-73, REQ-74). Attached
 // containers are not part of the daemon's own /networks listing: they are
-// merged in from /containers/json (each container's own NetworkSettings).
+// merged in from the container listing the server already holds.
 import { getEngineClient } from "../connectivity/connection-status-service.js";
+import { containerListCache, readHeldContainerList } from "../containers/containers-service.js";
 import { byNameThenIdentity } from "../list-order/list-order.js";
 import { registerRefreshKind } from "../refresh-cache/refresh-cache.js";
 
@@ -55,17 +56,13 @@ interface RawNetwork {
   Containers?: Record<string, { Name?: string }> | null;
 }
 
-interface RawContainerSummary {
-  Names?: string[];
-  NetworkSettings?: { Networks?: Record<string, unknown> | null } | null;
-}
-
-/** Every container's own NetworkSettings.Networks, grouped by network name. */
+// Every container's own NetworkSettings.Networks, grouped by network name —
+// derived from the listing the server already holds, never from one of this
+// service's own (plan-docker_management_app-refresh_cache/REQ-37).
 async function readAttachedContainers(): Promise<Map<string, string[]>> {
-  const response = await getEngineClient().request("/containers/json?all=true");
-  const raw = JSON.parse(response.body) as RawContainerSummary[];
+  const containers = await readHeldContainerList();
   const attached = new Map<string, string[]>();
-  for (const container of raw) {
+  for (const container of containers) {
     const name = (container.Names?.[0] ?? "").replace(/^\//, "");
     for (const networkName of Object.keys(container.NetworkSettings?.Networks ?? {})) {
       const names = attached.get(networkName) ?? [];
@@ -166,7 +163,7 @@ export async function attachContainer(networkId: string, containerId: string): P
     method: "POST",
     body: JSON.stringify({ Container: containerId }),
   });
-  networkListCache.markChanged();
+  markBothListingsChanged();
   return getNetworkInspect(networkId);
 }
 
@@ -176,6 +173,14 @@ export async function detachContainer(networkId: string, containerId: string): P
     method: "POST",
     body: JSON.stringify({ Container: containerId, Force: true }),
   });
-  networkListCache.markChanged();
+  markBothListingsChanged();
   return getNetworkInspect(networkId);
+}
+
+// The attachments this list shows live in the container listing, so both are
+// marked — the container one first, so the network refresh that follows awaits a
+// read covering the change (plan-docker_management_app-refresh_cache/REQ-38).
+function markBothListingsChanged(): void {
+  containerListCache.markChanged();
+  networkListCache.markChanged();
 }

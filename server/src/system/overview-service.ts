@@ -1,11 +1,12 @@
 // The dashboard's whole reading of the host in one payload (REQ-14, REQ-16):
 // container counts by state, images, volumes, stacks, build cache and the
 // occupied-space breakdown. Every number is taken from the service that
-// already owns it, so the dashboard never becomes a second, divergent way of
-// reading the same thing.
+// already owns it — the containers from the listing the server already holds
+// (plan-docker_management_app-refresh_cache/REQ-37) — so the dashboard never
+// becomes a second, divergent way of reading the same thing.
 import { listBuilders } from "../builders/builders-service.js";
 import { listComposeProjects } from "../compose/compose-discovery-service.js";
-import { listContainers } from "../containers/containers-service.js";
+import { readHeldContainerList, type RawContainer } from "../containers/containers-service.js";
 import { getDiskUsageTotals, type DiskUsageTotalCategory, type DiskUsageTotals } from "./disk-usage-service.js";
 
 export interface ContainerCounts {
@@ -60,7 +61,7 @@ export interface SystemOverview {
 export async function getSystemOverview(): Promise<SystemOverview> {
   const [diskUsage, containers, composeProjects, activeBuilder] = await Promise.all([
     getDiskUsageTotals(),
-    listContainers(),
+    readHeldContainerList(),
     readComposeStackCount(),
     readActiveBuilderName(),
   ]);
@@ -83,9 +84,9 @@ export async function getSystemOverview(): Promise<SystemOverview> {
   };
 }
 
-function countByState(containers: Awaited<ReturnType<typeof listContainers>>): ContainerCounts {
-  const running = containers.filter((container) => container.state === "running").length;
-  const paused = containers.filter((container) => container.state === "paused").length;
+function countByState(containers: RawContainer[]): ContainerCounts {
+  const running = containers.filter((container) => container.State === "running").length;
+  const paused = containers.filter((container) => container.State === "paused").length;
   return { total: containers.length, running, paused, stopped: containers.length - running - paused };
 }
 

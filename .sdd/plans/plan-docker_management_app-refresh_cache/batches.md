@@ -17,6 +17,7 @@ status: validated
 | startup-order-and-disowned-read | The endpoint is set before the server serves | REQ-24, REQ-27, REQ-29 | lists-from-refresh-cache | certified | The first screen after a restart is shown, not refused |
 | remaining-checks-reload | The remaining checks reload through the control | REQ-30 | — | certified | The context, builder and build-cache checks pass wherever they run |
 | version-negotiated-once | The Engine API version is negotiated once, and the probe still probes | REQ-31, REQ-32, REQ-33, REQ-34, REQ-35, REQ-36 | — | certified | The application asks the daemon half as much, and still notices it going away |
+| container-listing-shared | One container listing serves every consumer | REQ-37, REQ-38, REQ-39, REQ-40, REQ-41, REQ-42, REQ-43, REQ-44 | — | certified | The daemon is asked for the container listing once, not four times |
 
 ## What the plan builds
 
@@ -131,6 +132,14 @@ qualified with their batch below.
 | REQ-34 | `batch-version-negotiated-once/INT-1`, `batch-version-negotiated-once/INT-3`, `batch-version-negotiated-once/INT-7` | version-negotiated-once |
 | REQ-35 | `batch-version-negotiated-once/INT-2`, `batch-version-negotiated-once/INT-3`, `batch-version-negotiated-once/INT-8` | version-negotiated-once |
 | REQ-36 | `batch-version-negotiated-once/INT-9` | version-negotiated-once |
+| REQ-37 | `batch-container-listing-shared/INT-1`, `batch-container-listing-shared/INT-3`, `batch-container-listing-shared/INT-4`, `batch-container-listing-shared/INT-5`, `batch-container-listing-shared/INT-6`, `batch-container-listing-shared/INT-7`, `batch-container-listing-shared/INT-8`, `batch-container-listing-shared/INT-14` | container-listing-shared |
+| REQ-38 | `batch-container-listing-shared/INT-3`, `batch-container-listing-shared/INT-4`, `batch-container-listing-shared/INT-5`, `batch-container-listing-shared/INT-6`, `batch-container-listing-shared/INT-7`, `batch-container-listing-shared/INT-9`, `batch-container-listing-shared/INT-15`, `batch-container-listing-shared/INT-17`, `batch-container-listing-shared/INT-18` | container-listing-shared |
+| REQ-39 | `batch-container-listing-shared/INT-1`, `batch-container-listing-shared/INT-2`, `batch-container-listing-shared/INT-7`, `batch-container-listing-shared/INT-10` | container-listing-shared |
+| REQ-40 | `batch-container-listing-shared/INT-2`, `batch-container-listing-shared/INT-7`, `batch-container-listing-shared/INT-10` | container-listing-shared |
+| REQ-41 | `batch-container-listing-shared/INT-1`, `batch-container-listing-shared/INT-4`, `batch-container-listing-shared/INT-5`, `batch-container-listing-shared/INT-6`, `batch-container-listing-shared/INT-7`, `batch-container-listing-shared/INT-11` | container-listing-shared |
+| REQ-42 | `batch-container-listing-shared/INT-3`, `batch-container-listing-shared/INT-4`, `batch-container-listing-shared/INT-5`, `batch-container-listing-shared/INT-6`, `batch-container-listing-shared/INT-7`, `batch-container-listing-shared/INT-12` | container-listing-shared |
+| REQ-43 | `batch-container-listing-shared/INT-13` | container-listing-shared |
+| REQ-44 | `batch-container-listing-shared/INT-16`, `batch-container-listing-shared/INT-17`, `batch-container-listing-shared/INT-19` | container-listing-shared |
 
 **Three notes on this coverage.**
 
@@ -301,3 +310,116 @@ the saving and it is easy to check by counting; REQ-32 is what stops the saving 
 of the reachability probe, and a check that only counted calls would be satisfied by the very defect
 it must refuse. `batch-version-negotiated-once/INT-5` counts in the opposite direction — n calls to
 `getVersion()`, n requests — for that reason.
+
+## Appended on 2026-08-29 — one batch
+
+The second finding of the same call audit. Three services and the dashboard each fetch the whole
+container listing for themselves, and the refresh cache cannot serve them: what it holds is a
+projection that has already dropped `Mounts` and `NetworkSettings`, which are the two fields they
+exist to read. It was recorded as debt
+(`.sdd/tech-debt/entries/container-listing-refetched-by-every-consumer.md`) and promoted to a fix by
+the human on 2026-08-29, who chose the first of the entry's two roads and stated the design
+themselves: **the cache holds the daemon's own response, and the projection moves to the layer above
+it**.
+
+Per the knowledge base, work found after a batch is appended as a further batch and never edited into
+one already closed: **nothing above this line was changed**, beyond the one row added to the batch
+table and the seven coverage rows. No certified batch is reopened.
+
+**The claim.** Seven `/containers/json?all=true` a minute down to three while all three lists are
+being asked for, plus the overview's own reads gone.
+
+**Execution order.** `container-listing-shared` depends on nothing still open in this plan. It
+changes the containers kind built by `lists-from-refresh-cache` and the two listings moved onto the
+cache by it and by `volume-sizes-separated`, all certified; it needs that work present, not repeated.
+
+### Assumptions and decisions
+
+- **The exclusion is not a projection.** The held value is the daemon's own listing with the internal
+  extraction containers filtered out, because that exclusion is a rule the whole application shares
+  (`plan-docker_management_app/REQ-54`) and not a shape one consumer wants. Everything else the
+  container endpoint does to the response — the summary fields, the port collapsing, the ordering —
+  is a projection and moves to read time.
+- **Every consumer reads through the cache's `read()`, never `peek()`.** `read()` carries REQ-13's
+  change coverage: a caller is served a listing that covers an operation the application has just
+  performed. `peek()` returns whatever is held and would lose that, so a volume list read straight
+  after a container was removed could still name it. It also renews demand, which is what REQ-42
+  states.
+- **A volume's inspect derives from the held listing too.** `readMountedBy` is the one function
+  behind both `listVolumes` and `getVolumeInspect`, so both stop calling the daemon. This does not
+  reopen REQ-22: no inspect value is held, and the inspect already joins in the held `sizeBytes` on
+  exactly these terms (`volumes-service.md`). The network inspect is untouched — it reads its own
+  `Containers` map, which only an inspect populates.
+- **The double merge of the sampled figures collapses to one.** Today `toSummary` injects the current
+  sample when the cache fills, and `withCurrentSample` overwrites it at read time because the held
+  projection carries frozen figures. With the native response held, `toSummary` runs at read time and
+  the second merge answers a question that no longer exists.
+- **The direct summary read after a recreate stays direct.** `getContainerSummary` reads the daemon
+  to return the new container just created; it is once per configuration update, not a periodic cost,
+  and routing it through the cache would make an operation wait on a refresh.
+- **The stats sampler is out of scope**, and this is a decision rather than an oversight. Its read is
+  a different query — `/containers/json`, running only — on a 10 s cadence out of phase with
+  everyone else's, so it shares nothing with the four callers this batch joins. The debt entry says
+  so too: it is a separate decision, and it belongs with
+  `.sdd/tech-debt/entries/no-server-side-sampling-or-dedup.md`.
+- **The debt entry is removed, not marked closed.** The register holds what is still open, per the
+  knowledge base entry revised on 2026-08-29. This reverses what the previous appended batch did with
+  its own entry, and the reversal is the human's.
+- **The derived consumers inherit REQ-13's known limit and add nothing to it** — the
+  same-millisecond window recorded as `change-coverage-millisecond-window`. It is the cache's, not
+  this batch's, and it stays where it is.
+
+### Departures
+
+- **The closing full pass is withdrawn, and this batch owed it too.** This is the last batch of the
+  plan, so the method widens its run to the complete e2e suite and the whole unit suite. Both were
+  already red before this work, on failures of their own — the human said so on 2026-08-29 — and a
+  suite red before a change cannot certify the change. So the run is the batch's perimeter: the
+  checks written for REQ-37 to REQ-43, plus the existing checks of the four components this batch
+  modified and of the refresh cache they now all read from. **What it costs is stated rather than
+  hidden**: this plan closes, for the second batch running, without the full pass its method asks
+  for, and the pre-existing red is not this batch's to fix.
+
+- **The two validation gates were not held.** The human stated the design themselves on 2026-08-29 —
+  what the cache holds, where the projection moves, which consumers derive from it, and that every
+  one of them reads through `read()` — and asked for the plan and the development in one pass. The
+  requirements and the coverage below were written to that statement and not put back for validation.
+  There is no open question on the design.
+- **No departure from the business spec.** The spec describes what the screens show, and REQ-43 is
+  the requirement that nothing they show moves. No correction to the spec is owed.
+
+### Amended on 2026-08-29, during the batch
+
+Its own checks found a regression it had introduced: attaching a container to a network no longer
+showed in the next network list. `attachContainer` marked only the network listing, and since this
+batch the attached containers are derived from the **container** listing, which nobody refreshed —
+so the network list re-read, correctly, a listing held from before the attach. Up to about fifty
+seconds passed before the two periods, which run on independent clocks, put it right.
+
+Five interventions were appended to the batch rather than opened as a new one, per
+[[development-goes-through-sdd-dev]]: a correction found mid-run belongs to the batch that caused it.
+**REQ-44 was added with them** — the container listing declares `network` among the events that mark
+it due, because its content now carries each container's network attachments. REQ-38 already covered
+the operator's own action; REQ-44 makes a route that forgets to mark it a delay rather than a wrong
+answer.
+
+The human decided both on 2026-08-29, and accepted the cost the second one carries: one attach now
+costs two reads of the container listing, the application's own and the daemon's echo of it. The
+batch file states why that is accepted and what would remove it, which is work for the refresh cache
+and not for this batch.
+
+### Coverage check — the appended requirements
+
+REQ-37 to REQ-43 are each served by at least one intervention of `container-listing-shared`, and
+every one of its fourteen interventions serves at least one of them; the rows are in the table above.
+No appended REQ is split across batches — all seven close here. There is no enabling intervention.
+
+Two notes on it.
+
+- **REQ-43 is served by a check and by no change**, like REQ-20 to REQ-23 before it. This batch moves
+  where the work happens and must move nothing an operator can see, so what closes it is a proof that
+  four endpoints still answer what they answered.
+- **REQ-38 is the one that can be lost silently.** Reading the held value with `peek()` would be
+  cheaper, would pass every counting check, and would break the guarantee the whole refresh cache was
+  built for. `batch-container-listing-shared/INT-9` drives an operation and then the derived lists,
+  so that shortcut fails rather than passes.
