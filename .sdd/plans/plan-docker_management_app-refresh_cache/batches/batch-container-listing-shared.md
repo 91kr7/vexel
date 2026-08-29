@@ -1,7 +1,7 @@
 ---
 batch: container-listing-shared
 feature: One container listing serves every consumer
-closed_req: REQ-37, REQ-38, REQ-39, REQ-40, REQ-41, REQ-42, REQ-43
+closed_req: REQ-37, REQ-38, REQ-39, REQ-40, REQ-41, REQ-42, REQ-43, REQ-44
 depends: —
 ---
 
@@ -71,6 +71,33 @@ and it is still a change.
 | INT-12 | create | server check tree, unit | Asking for the volume list alone keeps the container listing refreshed; once nothing is asked for, the container listing is refreshed no more. | REQ-42 | INT-4 |
 | INT-13 | create | server check tree, api | The guardrail, against the real daemon and on the check's own fixtures: the container listing, the volume list with its mounting containers, the network list with its attached containers and the dashboard counts answer the same values in the same order as before this batch. | REQ-43 | INT-2, INT-4, INT-5, INT-6 |
 | INT-14 | modify | `.sdd/tech-debt/entries/container-listing-refetched-by-every-consumer.md`, `.sdd/tech-debt/index.md` | Remove the debt entry and its index row: the register holds what is still open. What closed it is this batch. | REQ-37 | INT-4, INT-5, INT-6 |
+| INT-15 | modify | `server/src/networks/networks-service.ts` | `attachContainer` and `detachContainer` mark the **container** listing changed as well as the network one. Since this batch the attached containers are derived from the container listing, and marking only the network kind makes it re-read a listing nobody refreshed. Found by this batch's own checks. | REQ-38 | INT-3, INT-5 |
+| INT-16 | modify | `server/src/containers/containers-service.ts` | The container listing kind declares `network` among the event types that mark it due, beside `container`. Its content now carries each container's network attachments, so a network event invalidates it and its declaration must say so. | REQ-44 | INT-1 |
+| INT-17 | modify | `.sdd/modules/networks/specs/networks-service.md`, `.sdd/modules/containers/specs/containers-service.md` | Carry both into the specs: an attach or a detach marks both listings, and the container listing is marked due by network events as well as container ones. | REQ-38, REQ-44 | INT-15, INT-16 |
+| INT-18 | create | server check tree, unit | An attach and a detach each mark the container listing changed, not only the network one, so the next network list carries the container the application has just attached and no longer carries the one it has just detached. | REQ-38 | INT-15 |
+| INT-19 | create | server check tree, unit | A `network` event marks the held container listing due: it is read again, without the application having said anything. | REQ-44 | INT-16 |
+
+## What the two appended interventions cost, and why it is accepted
+
+Marking the container listing on an attach means the daemon's own `network connect` event arrives
+shortly afterwards and marks it due a second time, so one attach costs **two** reads of the container
+listing instead of one.
+
+That is accepted, for two reasons. It is **not new**: every container operation already pays it —
+`containers-routes.ts` marks the listing after a start, a stop or a removal, and the daemon publishes
+a `container` event for the same operation, which marks it again. Networks were the exception, and
+the exception is what produced the defect INT-15 repairs. And it is **bounded**: `markDue` raises
+`dueAgain` instead of opening a second read while one is in flight, and groups events inside a 750 ms
+window, so it is at most one further read — per operator action, not per second. This batch removes
+four reads a minute continuously; this adds one when a button is pressed.
+
+**The general fix is not this batch's.** The cache cannot tell the daemon echoing an operation the
+application just performed from a different change that happened straight after its read started: a
+Docker event carries no marker for who caused it, and the `actorId` the event stream reads is the
+id of the object touched, not of the toucher. What would remove the double read is a change inside
+the refresh cache — Docker events carry `timeNano`, so `markDue` could skip when a read has already
+started *after* the instant of the event, instead of comparing against a fixed window. That would
+serve every operation at once, and it belongs to the refresh cache rather than to any route.
 
 ## Human acceptance
 

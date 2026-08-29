@@ -17,7 +17,7 @@ status: validated
 | startup-order-and-disowned-read | The endpoint is set before the server serves | REQ-24, REQ-27, REQ-29 | lists-from-refresh-cache | certified | The first screen after a restart is shown, not refused |
 | remaining-checks-reload | The remaining checks reload through the control | REQ-30 | — | certified | The context, builder and build-cache checks pass wherever they run |
 | version-negotiated-once | The Engine API version is negotiated once, and the probe still probes | REQ-31, REQ-32, REQ-33, REQ-34, REQ-35, REQ-36 | — | certified | The application asks the daemon half as much, and still notices it going away |
-| container-listing-shared | One container listing serves every consumer | REQ-37, REQ-38, REQ-39, REQ-40, REQ-41, REQ-42, REQ-43 | — | implemented | The daemon is asked for the container listing once, not four times |
+| container-listing-shared | One container listing serves every consumer | REQ-37, REQ-38, REQ-39, REQ-40, REQ-41, REQ-42, REQ-43, REQ-44 | — | in progress | The daemon is asked for the container listing once, not four times |
 
 ## What the plan builds
 
@@ -133,12 +133,13 @@ qualified with their batch below.
 | REQ-35 | `batch-version-negotiated-once/INT-2`, `batch-version-negotiated-once/INT-3`, `batch-version-negotiated-once/INT-8` | version-negotiated-once |
 | REQ-36 | `batch-version-negotiated-once/INT-9` | version-negotiated-once |
 | REQ-37 | `batch-container-listing-shared/INT-1`, `batch-container-listing-shared/INT-3`, `batch-container-listing-shared/INT-4`, `batch-container-listing-shared/INT-5`, `batch-container-listing-shared/INT-6`, `batch-container-listing-shared/INT-7`, `batch-container-listing-shared/INT-8`, `batch-container-listing-shared/INT-14` | container-listing-shared |
-| REQ-38 | `batch-container-listing-shared/INT-3`, `batch-container-listing-shared/INT-4`, `batch-container-listing-shared/INT-5`, `batch-container-listing-shared/INT-6`, `batch-container-listing-shared/INT-7`, `batch-container-listing-shared/INT-9` | container-listing-shared |
+| REQ-38 | `batch-container-listing-shared/INT-3`, `batch-container-listing-shared/INT-4`, `batch-container-listing-shared/INT-5`, `batch-container-listing-shared/INT-6`, `batch-container-listing-shared/INT-7`, `batch-container-listing-shared/INT-9`, `batch-container-listing-shared/INT-15`, `batch-container-listing-shared/INT-17`, `batch-container-listing-shared/INT-18` | container-listing-shared |
 | REQ-39 | `batch-container-listing-shared/INT-1`, `batch-container-listing-shared/INT-2`, `batch-container-listing-shared/INT-7`, `batch-container-listing-shared/INT-10` | container-listing-shared |
 | REQ-40 | `batch-container-listing-shared/INT-2`, `batch-container-listing-shared/INT-7`, `batch-container-listing-shared/INT-10` | container-listing-shared |
 | REQ-41 | `batch-container-listing-shared/INT-1`, `batch-container-listing-shared/INT-4`, `batch-container-listing-shared/INT-5`, `batch-container-listing-shared/INT-6`, `batch-container-listing-shared/INT-7`, `batch-container-listing-shared/INT-11` | container-listing-shared |
 | REQ-42 | `batch-container-listing-shared/INT-3`, `batch-container-listing-shared/INT-4`, `batch-container-listing-shared/INT-5`, `batch-container-listing-shared/INT-6`, `batch-container-listing-shared/INT-7`, `batch-container-listing-shared/INT-12` | container-listing-shared |
 | REQ-43 | `batch-container-listing-shared/INT-13` | container-listing-shared |
+| REQ-44 | `batch-container-listing-shared/INT-16`, `batch-container-listing-shared/INT-17`, `batch-container-listing-shared/INT-19` | container-listing-shared |
 
 **Three notes on this coverage.**
 
@@ -386,6 +387,26 @@ cache by it and by `volume-sizes-separated`, all certified; it needs that work p
   There is no open question on the design.
 - **No departure from the business spec.** The spec describes what the screens show, and REQ-43 is
   the requirement that nothing they show moves. No correction to the spec is owed.
+
+### Amended on 2026-08-29, during the batch
+
+Its own checks found a regression it had introduced: attaching a container to a network no longer
+showed in the next network list. `attachContainer` marked only the network listing, and since this
+batch the attached containers are derived from the **container** listing, which nobody refreshed —
+so the network list re-read, correctly, a listing held from before the attach. Up to about fifty
+seconds passed before the two periods, which run on independent clocks, put it right.
+
+Five interventions were appended to the batch rather than opened as a new one, per
+[[development-goes-through-sdd-dev]]: a correction found mid-run belongs to the batch that caused it.
+**REQ-44 was added with them** — the container listing declares `network` among the events that mark
+it due, because its content now carries each container's network attachments. REQ-38 already covered
+the operator's own action; REQ-44 makes a route that forgets to mark it a delay rather than a wrong
+answer.
+
+The human decided both on 2026-08-29, and accepted the cost the second one carries: one attach now
+costs two reads of the container listing, the application's own and the daemon's echo of it. The
+batch file states why that is accepted and what would remove it, which is work for the refresh cache
+and not for this batch.
 
 ### Coverage check — the appended requirements
 

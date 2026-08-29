@@ -145,3 +145,11 @@ status: validated
 | REQ-41 | The application's own internal extraction containers are excluded once, on the held listing: no volume is listed as mounted by one, and no network as attached to one. |
 | REQ-42 | Asking for the volume list, the network list or the dashboard overview counts as asking for the container listing, so it keeps being refreshed while one of those screens is open; while nobody asks for any of them or for the containers screen, it is refreshed no more. |
 | REQ-43 | Nothing else moves: every endpoint answers what it answers today — the same containers, the same volumes with the same mounting containers, the same networks with the same attached containers, the same dashboard counts, each in the same order. |
+| REQ-44 | The held container listing is marked due by the daemon's network events as well as its container ones, because a container's network attachments are part of what that listing now carries. |
+
+> **REQ-44 was added on 2026-08-29, during the batch**, after its checks found that attaching a
+> container to a network no longer showed in the next network list. REQ-38 already required the fix
+> for the operator's own action; REQ-44 is the other half — the listing must declare what invalidates
+> it, so a route that forgets to say so is a delay and not a wrong answer. Per
+> [[development-goes-through-sdd-dev]] a correction found mid-run becomes further interventions in
+> the same batch, which is where both live.
