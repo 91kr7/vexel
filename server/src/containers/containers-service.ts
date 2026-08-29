@@ -218,9 +218,18 @@ export async function readContainerList(): Promise<HeldValue<ContainerSummary[]>
 // For the readers deriving from `Mounts` or `NetworkSettings`. Through `read()`
 // and never `peek()`: it covers the application's own last operation, and it
 // renews the demand that keeps the listing refreshed
-// (plan-docker_management_app-refresh_cache/REQ-38, REQ-42).
+// (plan-docker_management_app-refresh_cache/REQ-38, REQ-42). The accessor below
+// is its deliberate opposite, for a caller neither reason holds for.
 export async function readHeldContainerList(): Promise<RawContainer[]> {
   return (await containerListCache.read()).value;
+}
+
+// For the statistics sampler, and the deliberate opposite of the accessor above:
+// through `peek()` and never `read()` — sampling registers no demand, and a pass
+// that waits costs a sample rather than a millisecond
+// (plan-docker_management_app-refresh_cache/REQ-50, REQ-51).
+export function peekHeldContainerList(): RawContainer[] | undefined {
+  return containerListCache.peek()?.value;
 }
 
 function toSummaryList(raw: RawContainer[]): ContainerSummary[] {
@@ -549,10 +558,24 @@ async function runSamplePass(): Promise<void> {
   }
 }
 
+// What the daemon answers with when asked for running containers only is not
+// the containers whose `State` reads `running`: a paused and a restarting one
+// are in it too (plan-docker_management_app-refresh_cache/REQ-49).
+const DAEMON_RUNNING_STATES = new Set(["running", "paused", "restarting"]);
+
+// Derived from the held listing when one is held, read from the daemon when
+// none is: a pass is never skipped for want of one
+// (plan-docker_management_app-refresh_cache/REQ-47, REQ-48).
+async function runningContainersToSample(): Promise<RawContainer[]> {
+  const held = peekHeldContainerList();
+  if (held) return held.filter((container) => DAEMON_RUNNING_STATES.has(container.State));
+  const response = await getEngineClient().request("/containers/json");
+  return JSON.parse(response.body) as RawContainer[];
+}
+
 async function sampleOnce(): Promise<void> {
   const client = getEngineClient();
-  const response = await client.request("/containers/json");
-  const running = JSON.parse(response.body) as RawContainer[];
+  const running = await runningContainersToSample();
   const runningIds = new Set(running.map((container) => container.Id));
   for (const id of statsCache.keys()) {
     if (!runningIds.has(id)) statsCache.delete(id);
