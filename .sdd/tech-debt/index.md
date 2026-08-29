@@ -12,9 +12,10 @@ means writing the analysis and the plan for it in the normal way — see
 ## How to use it
 
 - **Adding** → one file under `entries/`, frontmatter as below, plus a row in this table.
-- **Fixing** → when a cycle resolves a debt, set `status: closed` in the entry, name the plan that
-  closed it, mark its row below with **Closed**, and leave both in place. The register is a record;
-  it is not pruned.
+- **Fixing** → when a cycle resolves a debt, **remove the entry and its row**. The register holds
+  what is still open, so that its length is the size of the problem and not of the history. What
+  closed it is recorded where the work was done: the plan's requirements and batch, and the commit
+  that carried them. Human's decision of 2026-08-29.
 - **Frontmatter** → `id`, `area` (client | server | both), `severity` (high | medium | low),
   `cost` (at-rest | under-load | remote-only | correctness | architecture | dead-code), `date`,
   `source`, `status` (open | closed).
@@ -29,7 +30,6 @@ means writing the analysis and the plan for it in the normal way — see
 | compose-list-spawns-subprocesses | server | high | The Compose list spawns `compose ls` every 3 s, plus one `compose ps` per project | `entries/compose-list-spawns-subprocesses.md` |
 | polled-hooks-do-not-coalesce-events | client | high | The twelve polled views re-read once per event; the grouping exists only in the two that poll least | `entries/polled-hooks-do-not-coalesce-events.md` |
 | detail-views-reread-on-unrelated-events | both | high | Detail views re-read on events about other objects; a volume detail pulls `/system/df` per container event | `entries/detail-views-reread-on-unrelated-events.md` |
-| engine-version-negotiated-on-every-call | server | high | **Closed** — every Engine call re-negotiated the API version first: two round trips per call, +62% locally | `entries/engine-version-negotiated-on-every-call.md` |
 | new-socket-per-engine-call | server | high | A fresh socket per Engine call: negligible locally, an `ssh` process per request on a remote context | `entries/new-socket-per-engine-call.md` |
 | cli-version-detection-uncached | server | medium | Three programs launched every 5 s to read versions that cannot change while the app runs | `entries/cli-version-detection-uncached.md` |
 | container-listing-fetched-three-times | server | medium | The same container listing is fetched three times per round; 40 of 60 calls a minute are derivative | `entries/container-listing-fetched-three-times.md` |
