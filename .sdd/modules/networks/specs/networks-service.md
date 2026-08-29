@@ -45,9 +45,10 @@ network's full inspect data, create, remove and prune unused networks, and attac
   currently used by a container. `NetworkPruneResult`: `{ removedNames: string[] }`.
 - `attachContainer(networkId, containerId): Promise<NetworkInspect>` — `POST
   /networks/{networkId}/connect`; returns the network's updated inspect/attachment set (REQ-74).
+  Says **both** the container listing and the network listing have changed.
 - `detachContainer(networkId, containerId): Promise<NetworkInspect>` — `POST
   /networks/{networkId}/disconnect` (forced); returns the network's updated inspect/attachment set
-  (REQ-74).
+  (REQ-74). Says **both** listings have changed, as the attach does.
 
 ## Rules and invariants
 
@@ -66,6 +67,12 @@ network's full inspect data, create, remove and prune unused networks, and attac
 - `createNetwork`, `removeNetwork`, `pruneNetworks`, `attachContainer` and `detachContainer` say the
   listing has changed once they have succeeded, so the operator's own action shows on the next
   request without waiting for a timer. A failed call marks nothing.
+- **An attach or a detach says it of the container listing as well**, and of that one **first**, in
+  the same synchronous step. `attachedContainers` is derived from the container listing, so marking
+  only the network kind makes it re-read, correctly, a listing nobody refreshed: the attached
+  container would appear only once the two independent periods happened to line up. Marking the
+  container listing first is what makes the network refresh that immediately follows await a read
+  covering the change rather than the one before it.
 
 ## Dependencies
 

@@ -3,7 +3,7 @@
 // containers are not part of the daemon's own /networks listing: they are
 // merged in from the container listing the server already holds.
 import { getEngineClient } from "../connectivity/connection-status-service.js";
-import { readHeldContainerList } from "../containers/containers-service.js";
+import { containerListCache, readHeldContainerList } from "../containers/containers-service.js";
 import { byNameThenIdentity } from "../list-order/list-order.js";
 import { registerRefreshKind } from "../refresh-cache/refresh-cache.js";
 
@@ -163,7 +163,7 @@ export async function attachContainer(networkId: string, containerId: string): P
     method: "POST",
     body: JSON.stringify({ Container: containerId }),
   });
-  networkListCache.markChanged();
+  markBothListingsChanged();
   return getNetworkInspect(networkId);
 }
 
@@ -173,6 +173,14 @@ export async function detachContainer(networkId: string, containerId: string): P
     method: "POST",
     body: JSON.stringify({ Container: containerId, Force: true }),
   });
-  networkListCache.markChanged();
+  markBothListingsChanged();
   return getNetworkInspect(networkId);
+}
+
+// The attachments this list shows live in the container listing, so both are
+// marked — the container one first, so the network refresh that follows awaits a
+// read covering the change (plan-docker_management_app-refresh_cache/REQ-38).
+function markBothListingsChanged(): void {
+  containerListCache.markChanged();
+  networkListCache.markChanged();
 }

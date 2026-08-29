@@ -198,11 +198,13 @@ export async function listContainers(): Promise<ContainerSummary[]> {
 }
 
 // Holds the daemon's own response rather than a projection of it, so one read
-// serves every consumer (plan-docker_management_app-refresh_cache/REQ-37).
+// serves every consumer (plan-docker_management_app-refresh_cache/REQ-37). It
+// carries each container's network attachments, so a `network` event invalidates
+// it as much as a `container` one (plan-docker_management_app-refresh_cache/REQ-44).
 export const containerListCache = registerRefreshKind({
   key: "containers",
   periodMs: 20000,
-  eventTypes: ["container"],
+  eventTypes: ["container", "network"],
   read: readDaemonContainerList,
 });
 

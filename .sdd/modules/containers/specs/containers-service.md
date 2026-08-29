@@ -39,8 +39,9 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   - The same containers produce the **same sequence on every read**, whatever order the daemon
     supplied them in.
 - `containerListCache` — the refresh-cache kind the listing is held under: key `containers`,
-  period 20 s, marked due by `container` daemon events (see `refresh-cache.md`, module
-  `refresh-cache`). What it holds is **the daemon's own `GET /containers/json?all=true` response**,
+  period 20 s, marked due by `container` **and `network`** daemon events — what it holds carries
+  each container's network attachments, so a network event invalidates it as much as a container
+  one (see `refresh-cache.md`, module `refresh-cache`). What it holds is **the daemon's own `GET /containers/json?all=true` response**,
   with the internal filesystem-extraction containers removed and nothing else applied — not the
   projection the endpoint answers with. One read therefore serves every consumer of the listing:
   the container endpoint, the volume list, the network list and the host overview.
@@ -230,6 +231,10 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 - **Asking for the held listing is asking for this kind.** A screen showing only volumes, only
   networks or only the dashboard keeps the container listing refreshed; once none of them and no
   containers screen is being asked for, the kind's own demand expiry stops it.
+- **What invalidates this listing is stated on the kind, not left to the routes.** It carries each
+  container's network attachments, so it is marked due by `network` events beside `container` ones,
+  and `NetworksService`'s attach and detach mark it changed themselves. A route that forgot to say
+  so would then be a delay rather than a wrong answer.
 
 ## Dependencies
 
@@ -271,3 +276,4 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 - plan-docker_management_app-refresh_cache/REQ-41
 - plan-docker_management_app-refresh_cache/REQ-42
 - plan-docker_management_app-refresh_cache/REQ-43
+- plan-docker_management_app-refresh_cache/REQ-44
