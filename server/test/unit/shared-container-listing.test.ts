@@ -1,6 +1,7 @@
 import { test, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
 import { installEngineMock } from "../support/engine-mock.js";
+import type { DaemonEvent } from "../../src/events/event-stream-service.js";
 
 // One container listing serves every consumer
 // (plan-docker_management_app-refresh_cache/REQ-37, REQ-38, REQ-42).
@@ -26,9 +27,12 @@ mock.module(new URL("../../src/compose/compose-discovery-service.ts", import.met
 
 const { containerListCache, readContainerList } = await import("../../src/containers/containers-service.js");
 const { listVolumes, volumeListCache } = await import("../../src/volumes/volumes-service.js");
-const { listNetworks } = await import("../../src/networks/networks-service.js");
+const { attachContainer, detachContainer, listNetworks, networkListCache } = await import(
+  "../../src/networks/networks-service.js"
+);
 const { getSystemOverview } = await import("../../src/system/overview-service.js");
 const { resetRefreshCache, DEMAND_EXPIRY_MS } = await import("../../src/refresh-cache/refresh-cache.js");
+const { eventStreamService } = await import("../../src/events/event-stream-service.js");
 
 /** containers-service.md — the containers kind's own period. */
 const CONTAINER_PERIOD_MS = 20_000;
@@ -36,11 +40,13 @@ const CONTAINER_PERIOD_MS = 20_000;
 const VOLUME_NAME = "shared-data";
 const NETWORK_NAME = "shared-net";
 const GHOST_NAME = "ghost";
+const NETWORK_ID = "n".repeat(64);
+const CONTAINER_ID = "a".repeat(64);
 
 /** A running container as `GET /containers/json?all=true` reports one, mounting the volume and on the network. */
 function ghostContainer(): unknown {
   return {
-    Id: "a".repeat(64),
+    Id: CONTAINER_ID,
     Names: [`/${GHOST_NAME}`],
     Image: "alpine:3.20",
     State: "running",
@@ -53,6 +59,11 @@ function ghostContainer(): unknown {
 }
 
 let containerPayload: unknown[] = [];
+
+/** A republished daemon event, as the cache's own listener receives one. */
+function daemonEvent(type: string, action: string): DaemonEvent {
+  return { id: `${type}-${action}-${Math.random()}`, timestamp: new Date().toISOString(), type, action };
+}
 
 /** Container listings that have reached the daemon since the last reset. */
 function containerListCalls(): number {
@@ -82,7 +93,7 @@ beforeEach(() => {
   engine.on("GET", "/volumes", () => ({
     Volumes: [{ Name: VOLUME_NAME, Driver: "local", Mountpoint: `/data/${VOLUME_NAME}`, Scope: "local" }],
   }));
-  engine.on("GET", "/networks", () => [{ Id: "n".repeat(64), Name: NETWORK_NAME, Driver: "bridge", Scope: "local" }]);
+  engine.on("GET", "/networks", () => [{ Id: NETWORK_ID, Name: NETWORK_NAME, Driver: "bridge", Scope: "local" }]);
   engine.on("GET", "/system/df", () => ({ LayersSize: 0, Images: [], Containers: [], Volumes: [], BuildCache: [] }));
 });
 
@@ -172,6 +183,135 @@ test("asking for the volume list alone keeps the container listing refreshed, an
       containerListCalls(),
       whenEverythingHadGoneQuiet,
       "the daemon was still being asked for the container listing with nobody asking for it",
+    );
+  } finally {
+    mock.timers.reset();
+  }
+});
+
+/** The same container, off the network: what the daemon reports before an attach and after a detach. */
+function detachedContainer(): unknown {
+  return { ...(ghostContainer() as Record<string, unknown>), NetworkSettings: { Networks: {} } };
+}
+
+/**
+ * The daemon as it behaves around an attach: the connect call puts the
+ * container on the network, the disconnect takes it off, and both show in the
+ * container listing that is read afterwards — which is where the attachments
+ * are now read from.
+ */
+function daemonAttachesOnConnect(): void {
+  engine.on("POST", /^\/networks\/[^/]+\/connect$/, () => {
+    containerPayload = [ghostContainer()];
+    return {};
+  });
+  engine.on("POST", /^\/networks\/[^/]+\/disconnect$/, () => {
+    containerPayload = [detachedContainer()];
+    return {};
+  });
+  engine.on("GET", /^\/networks\/[^/]+$/, () => ({
+    Id: NETWORK_ID,
+    Name: NETWORK_NAME,
+    Driver: "bridge",
+    Scope: "local",
+    Containers: {},
+  }));
+}
+
+/**
+ * An operator's action lands a measurable instant after the listing that was
+ * held before it. A mocked daemon answers inside a single millisecond, which a
+ * real one never does, and "the value was read before the change" is measured
+ * in whole milliseconds.
+ */
+function anInstantPasses(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 5));
+}
+
+// REQ-38 — networks-service.md: "An attach or a detach says it of the container listing as well,
+// and of that one first, in the same synchronous step … Marking the container listing first is what
+// makes the network refresh that immediately follows await a read covering the change rather than
+// the one before it." Marking only the network kind — or marking it first — leaves this red.
+test("the next network list carries the container the application has just attached", async () => {
+  containerPayload = [detachedContainer()];
+  daemonAttachesOnConnect();
+
+  const before = await networkListCache.read();
+  assert.deepEqual(before.value[0]!.attachedContainers, [], "the container is on the network before the attach");
+  await anInstantPasses();
+
+  await attachContainer(NETWORK_ID, CONTAINER_ID);
+
+  const after = await networkListCache.read();
+  assert.deepEqual(
+    after.value[0]!.attachedContainers,
+    [GHOST_NAME],
+    "the network list does not name the container the application had just attached",
+  );
+});
+
+// REQ-38 — the other half of the same rule: a detach is equally an operation on a container.
+test("the next network list no longer carries the container the application has just detached", async () => {
+  containerPayload = [ghostContainer()];
+  daemonAttachesOnConnect();
+
+  const before = await networkListCache.read();
+  assert.deepEqual(before.value[0]!.attachedContainers, [GHOST_NAME]);
+  await anInstantPasses();
+
+  await detachContainer(NETWORK_ID, CONTAINER_ID);
+
+  const after = await networkListCache.read();
+  assert.deepEqual(
+    after.value[0]!.attachedContainers,
+    [],
+    "the network list still names the container the application had just detached",
+  );
+});
+
+// REQ-38, the cold path — refresh-cache.md: markChanged "does nothing while nobody is asking for the
+// kind: there is no held value to correct", and a kind holding nothing "waits for a read". So an
+// attach performed before anything was ever asked for needs no case of its own: the first ask reads
+// the daemon as it is after the attach.
+test("an attach made before anything was ever asked for is carried by the very first network list", async () => {
+  containerPayload = [detachedContainer()];
+  daemonAttachesOnConnect();
+  assert.equal(containerListCache.isRefreshing(), false, "something was already asking for the container listing");
+
+  await attachContainer(NETWORK_ID, CONTAINER_ID);
+
+  const first = await networkListCache.read();
+  assert.deepEqual(first.value[0]!.attachedContainers, [GHOST_NAME]);
+});
+
+// REQ-44 — "The held container listing is marked due by the daemon's network events as well as its
+// container ones, because a container's network attachments are part of what that listing now
+// carries" (containers-service.md — "What invalidates this listing is stated on the kind, not left
+// to the routes"). The application says nothing here: the event alone is what invalidates it.
+test("a network event makes the held container listing be read again, and an undeclared type does not", async () => {
+  mock.timers.enable({ apis: ["setTimeout", "setInterval", "Date"] });
+  try {
+    await readContainerList();
+    const afterTheFirstRead = containerListCalls();
+
+    // Clear of the grouping window, so what follows is not folded into the read
+    // that has just happened.
+    await advance(1_000);
+    eventStreamService.emit("event", daemonEvent("image", "pull"));
+    await advance(1_000);
+    assert.equal(
+      containerListCalls(),
+      afterTheFirstRead,
+      "an event of a type the container listing does not declare made it read again",
+    );
+
+    eventStreamService.emit("event", daemonEvent("network", "connect"));
+    await settle();
+
+    assert.equal(
+      containerListCalls(),
+      afterTheFirstRead + 1,
+      "a network event did not make the held container listing be read again",
     );
   } finally {
     mock.timers.reset();
