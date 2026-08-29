@@ -12,7 +12,7 @@ import type { DiskUsageTotalCategory, DiskUsageTotals } from "../../src/system/d
 // contracted to issue none of its own.
 
 let diskUsageTotalsResult: () => Promise<DiskUsageTotals> = async () => totalsOf();
-let listContainersResult: () => Promise<unknown> = async () => [];
+let heldContainerListResult: () => Promise<unknown> = async () => [];
 let listComposeProjectsResult: () => Promise<unknown> = async () => [];
 let listBuildersResult: () => Promise<unknown> = async () => [];
 const requestedCalls: string[] = [];
@@ -36,7 +36,7 @@ mock.module(new URL("../../src/system/disk-usage-service.ts", import.meta.url).h
 });
 
 mock.module(new URL("../../src/containers/containers-service.ts", import.meta.url).href, {
-  namedExports: { listContainers: () => listContainersResult() },
+  namedExports: { readHeldContainerList: () => heldContainerListResult() },
 });
 
 mock.module(new URL("../../src/compose/compose-discovery-service.ts", import.meta.url).href, {
@@ -60,8 +60,9 @@ function totalsOf(overrides: Partial<Record<DiskUsageTotalCategory["id"], Partia
   return { categories, totalBytes: categories.reduce((total, entry) => total + entry.sizeBytes, 0) };
 }
 
+/** A daemon listing entry, the shape the held container listing carries (containers-service.md, RawContainer). */
 function container(state: string, name = `fixture-${state}`) {
-  return { id: `id-${name}`, shortId: name.slice(0, 12), name, image: "alpine:3.20", state, status: "", ports: [] };
+  return { Id: `id-${name}`, Names: [`/${name}`], Image: "alpine:3.20", State: state, Status: "", Ports: [] };
 }
 
 function composeProject(name: string) {
@@ -74,7 +75,7 @@ function builder(name: string, active: boolean) {
 
 beforeEach(() => {
   diskUsageTotalsResult = async () => totalsOf();
-  listContainersResult = async () => [];
+  heldContainerListResult = async () => [];
   listComposeProjectsResult = async () => [];
   listBuildersResult = async () => [];
   requestedCalls.length = 0;
@@ -83,7 +84,7 @@ beforeEach(() => {
 // overview-service.md — "stopped is every container that is neither running nor paused (created,
 // restarting, removing, exited, dead), so running + paused + stopped === total"
 test("counts the containers by state, with everything that is neither running nor paused counted as stopped", async () => {
-  listContainersResult = async () => [
+  heldContainerListResult = async () => [
     container("running", "run-one"),
     container("running", "run-two"),
     container("paused"),
@@ -107,7 +108,7 @@ test("counts the containers by state, with everything that is neither running no
 // listing …": the overview counts what that listing reports and nothing else, which is also what
 // keeps this application's own internal containers out of the figure.
 test("counts exactly the containers the container listing reports", async () => {
-  listContainersResult = async () => [container("running"), container("exited")];
+  heldContainerListResult = async () => [container("running"), container("exited")];
 
   assert.equal((await getSystemOverview()).containers.total, 2);
 });

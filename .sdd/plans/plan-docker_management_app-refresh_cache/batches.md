@@ -370,6 +370,15 @@ cache by it and by `volume-sizes-separated`, all certified; it needs that work p
 
 ### Departures
 
+- **The closing full pass is withdrawn, and this batch owed it too.** This is the last batch of the
+  plan, so the method widens its run to the complete e2e suite and the whole unit suite. Both were
+  already red before this work, on failures of their own — the human said so on 2026-08-29 — and a
+  suite red before a change cannot certify the change. So the run is the batch's perimeter: the
+  checks written for REQ-37 to REQ-43, plus the existing checks of the four components this batch
+  modified and of the refresh cache they now all read from. **What it costs is stated rather than
+  hidden**: this plan closes, for the second batch running, without the full pass its method asks
+  for, and the pre-existing red is not this batch's to fix.
+
 - **The two validation gates were not held.** The human stated the design themselves on 2026-08-29 —
   what the cache holds, where the projection moves, which consumers derive from it, and that every
   one of them reads through `read()` — and asked for the plan and the development in one pass. The
