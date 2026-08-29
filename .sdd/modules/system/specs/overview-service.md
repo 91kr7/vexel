@@ -13,10 +13,11 @@ by state, images, volumes, stacks, build cache and the occupied-space breakdown.
 
 - `getSystemOverview(): Promise<SystemOverview>`
   - `SystemOverview`: `{ containers, images, volumes, stacks, buildCache, diskUsage }`.
-  - `containers`: `{ total, running, paused, stopped }` — `stopped` is every container that is
-    neither running nor paused (created, restarting, removing, exited, dead), so
+  - `containers`: `{ total, running, paused, stopped }` — counted from the container listing the
+    server already holds, never from a listing of this service's own. `stopped` is every container
+    that is neither running nor paused (created, restarting, removing, exited, dead), so
     `running + paused + stopped === total`. This application's own internal
-    filesystem-extraction containers are counted nowhere.
+    filesystem-extraction containers are excluded on the held listing, so they are counted nowhere.
   - `images`: `{ count, sizeBytes }` — every image the daemon lists, and the disk the image store
     occupies with shared layers counted once.
   - `volumes`: `{ count, sizeBytes }`.
@@ -51,6 +52,10 @@ by state, images, volumes, stacks, build cache and the occupied-space breakdown.
   all: the one reading it used to take for itself was the daemon's service list, for a swarm stack
   count, and that left with the area on 2026-08-27
   (plan-docker_management_app-swarm_removal/REQ-6).
+- **The container counts cost no container listing.** They are taken from the held one, through the
+  containers kind's `read()` and never its `peek()`, so the dashboard covers the operation the
+  application has just performed on a container — and asking for the overview counts as asking for
+  that listing, keeping it refreshed while the Dashboard is open.
 - The tile numbers and the disk-usage breakdown come from one reading each, taken together, so no
   two figures in the same payload describe different moments.
 - The reading never removes anything and never starts anything on the daemon.
@@ -58,7 +63,7 @@ by state, images, volumes, stacks, build cache and the occupied-space breakdown.
 ## Dependencies
 
 - system: DiskUsageService (`getDiskUsageTotals`)
-- containers: ContainersService (`listContainers`)
+- containers: ContainersService (`readHeldContainerList`)
 - compose: ComposeDiscoveryService (`listComposeProjects`)
 - builders: BuildersService (`listBuilders`)
 
@@ -66,3 +71,8 @@ by state, images, volumes, stacks, build cache and the occupied-space breakdown.
 
 - plan-docker_management_app/REQ-14
 - plan-docker_management_app/REQ-16
+- plan-docker_management_app-refresh_cache/REQ-37
+- plan-docker_management_app-refresh_cache/REQ-38
+- plan-docker_management_app-refresh_cache/REQ-41
+- plan-docker_management_app-refresh_cache/REQ-42
+- plan-docker_management_app-refresh_cache/REQ-43

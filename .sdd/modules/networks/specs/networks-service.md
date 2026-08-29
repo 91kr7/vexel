@@ -17,8 +17,11 @@ network's full inspect data, create, remove and prune unused networks, and attac
   - `subnet`/`gateway`/`ipRange` — from the network's own `IPAM.Config[0]`; `undefined` when the
     network carries no IPAM configuration.
   - `attachedContainers` — names of every container (running or stopped) currently attached to the
-    network, derived from `GET /containers/json?all=true`'s per-container `NetworkSettings.Networks`
-    (the listing endpoint's own payload carries no attachment data); empty for an unattached network.
+    network, derived from the per-container `NetworkSettings.Networks` of **the container listing the
+    server already holds** (`ContainersService`'s `readHeldContainerList`) and never from a listing
+    of this service's own — the networks endpoint's own payload carries no attachment data; empty
+    for an unattached network. The application's own internal extraction containers are excluded
+    there, so none of them is ever named here.
   - **Ordered by network name** under the list-order rule (`compareNames`), with the network's `id`
     as the final comparison: `net-2` before `net-10`, and two networks carrying the **same name** —
     Docker does not guarantee network-name uniqueness — ordered by their ids rather than shuffled.
@@ -49,8 +52,14 @@ network's full inspect data, create, remove and prune unused networks, and attac
 ## Rules and invariants
 
 - Every call rejects with a `DockerDaemonError` carrying the daemon's own message on failure.
-- `attachedContainers` is computed fresh on every `listNetworks`/`getNetworkInspect` call, not
-  cached.
+- `attachedContainers` is read on every `listNetworks` call from the held container listing, through
+  the containers kind's `read()` and never its `peek()`: it covers the operation the application has
+  just performed on a container, so a container removed a moment ago is no longer named here.
+  `getNetworkInspect` does not use it at all — the inspect payload's own `Containers` map is
+  authoritative and stays the source there.
+- **This service issues no container listing of its own.** Asking for the network list therefore
+  counts as asking for the container listing, and keeps it refreshed while the networks screen is
+  open — the containers kind's own demand expiry stops it once nothing is asking for either.
 
 ### The refresh cache
 
@@ -61,6 +70,7 @@ network's full inspect data, create, remove and prune unused networks, and attac
 ## Dependencies
 
 - docker-access: EngineClient (via `getEngineClient()`), DockerDaemonError
+- containers: ContainersService (`readHeldContainerList`)
 - list-order: List order (`byNameThenIdentity`)
 - refresh-cache: Refresh cache (`registerRefreshKind`)
 
@@ -75,3 +85,8 @@ network's full inspect data, create, remove and prune unused networks, and attac
 - plan-docker_management_app-refresh_cache/REQ-11
 - plan-docker_management_app-refresh_cache/REQ-12
 - plan-docker_management_app-refresh_cache/REQ-13
+- plan-docker_management_app-refresh_cache/REQ-37
+- plan-docker_management_app-refresh_cache/REQ-38
+- plan-docker_management_app-refresh_cache/REQ-41
+- plan-docker_management_app-refresh_cache/REQ-42
+- plan-docker_management_app-refresh_cache/REQ-43

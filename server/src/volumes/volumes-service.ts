@@ -1,10 +1,11 @@
 // Volume listing, inspect, create, remove and prune over the Engine API
 // (REQ-70, REQ-71). Size and mounting-container information are not part of
 // the daemon's own /volumes listing: they are merged in from /system/df
-// (per-volume UsageData) and /containers/json (each container's own Mounts).
-// The sizes are held on a schedule of their own, far slower than the listing's
-// (plan-docker_management_app-refresh_cache/REQ-18).
+// (per-volume UsageData) and from the container listing the server already
+// holds. The sizes are held on a schedule of their own, far slower than the
+// listing's (plan-docker_management_app-refresh_cache/REQ-18).
 import { getEngineClient } from "../connectivity/connection-status-service.js";
+import { readHeldContainerList } from "../containers/containers-service.js";
 import { eventStreamService, type DaemonEvent } from "../events/event-stream-service.js";
 import { byNamedThenUnnamedNewest } from "../list-order/list-order.js";
 import { registerRefreshKind } from "../refresh-cache/refresh-cache.js";
@@ -49,11 +50,6 @@ interface RawVolume {
   Options?: Record<string, string> | null;
 }
 
-interface RawContainerSummary {
-  Names?: string[];
-  Mounts?: { Type?: string; Name?: string }[];
-}
-
 interface RawDiskUsageVolume {
   Name: string;
   UsageData?: { Size?: number } | null;
@@ -70,12 +66,13 @@ async function readVolumeSizes(): Promise<Map<string, number>> {
   return sizes;
 }
 
-/** Every container's own Mounts list, filtered to its volume-type mounts, grouped by volume name. */
+// Every container's own volume-type mounts, grouped by volume name — derived
+// from the listing the server already holds, never from one of this service's
+// own (plan-docker_management_app-refresh_cache/REQ-37).
 async function readMountedBy(): Promise<Map<string, string[]>> {
-  const response = await getEngineClient().request("/containers/json?all=true");
-  const raw = JSON.parse(response.body) as RawContainerSummary[];
+  const containers = await readHeldContainerList();
   const mountedBy = new Map<string, string[]>();
-  for (const container of raw) {
+  for (const container of containers) {
     const name = (container.Names?.[0] ?? "").replace(/^\//, "");
     for (const mount of container.Mounts ?? []) {
       if (mount.Type !== "volume" || !mount.Name) continue;

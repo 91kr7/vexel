@@ -40,10 +40,22 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
     supplied them in.
 - `containerListCache` — the refresh-cache kind the listing is held under: key `containers`,
   period 20 s, marked due by `container` daemon events (see `refresh-cache.md`, module
-  `refresh-cache`). `listContainers` is its read; the listing above is unchanged by this.
+  `refresh-cache`). What it holds is **the daemon's own `GET /containers/json?all=true` response**,
+  with the internal filesystem-extraction containers removed and nothing else applied — not the
+  projection the endpoint answers with. One read therefore serves every consumer of the listing:
+  the container endpoint, the volume list, the network list and the host overview.
 - `readContainerList(): Promise<HeldValue<ContainerSummary[]>>` — the listing the endpoint answers
-  with: the held list, carrying the sampler's **current** figures rather than the ones frozen into
-  it when it was read.
+  with: the held response projected into `ContainerSummary` and ordered **when it is read**, which
+  is also the single point where the sampler's figures are merged onto it. Field for field, value
+  for value and in the same order as `listContainers` answers.
+- `readHeldContainerList(): Promise<RawContainer[]>` — the held listing itself, for the readers that
+  derive from a container's own `Mounts` or `NetworkSettings`: the volume list's mounting
+  containers, the network list's attached containers, and the host overview's counts by state.
+  - `RawContainer` is the daemon's own listing entry, unprojected: `Id`, `Names`, `Image`, `State`,
+    `Status`, `Ports`, `Labels`, `Mounts` and `NetworkSettings` as it returns them.
+  - It goes through the kind's `read()` and **never `peek()`**: the caller is served a listing that
+    covers the operation the application has just performed, and the call renews the demand that
+    keeps the listing refreshed.
 - `startContainer(id)`, `stopContainer(id)`, `restartContainer(id)`, `pauseContainer(id)`,
   `unpauseContainer(id)`, `killContainer(id)`: `Promise<void>` — the matching Engine API lifecycle
   call.
@@ -205,11 +217,19 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   replaced container's volumes so that editing a setting never destroys data. A volume is only
   removed along with its container where the container was the application's own, created and never
   handed to the operator (the intermediate extraction container).
-- The **six sampled figures are not held by the refresh cache**: they are merged onto the held list
-  at every read, so a figure stays as fresh as the sampler's own interval whatever the listing's
-  period is.
-- Calling `listContainers` directly still reaches the daemon. It is what the cache reads with, and
-  what the host overview still calls.
+- The **six sampled figures are not held by the refresh cache**: the projection that carries them
+  runs when the listing is read, so they are merged on **once** and stay as fresh as the sampler's
+  own interval whatever the listing's period is. A sample taken after the listing was held still
+  reaches the caller.
+- **The internal-container exclusion is applied once, on the held listing**, so every consumer
+  inherits it rather than repeating it: an intermediate filesystem-extraction container is named by
+  no volume as a mounting container, by no network as an attached one, and by no dashboard figure.
+- Calling `listContainers` directly still reaches the daemon, and it is **no longer what the cache
+  reads with**. It answers where a held listing cannot: the summary of a container the application
+  has just recreated, which has to be read after that operation rather than before it.
+- **Asking for the held listing is asking for this kind.** A screen showing only volumes, only
+  networks or only the dashboard keeps the container listing refreshed; once none of them and no
+  containers screen is being asked for, the kind's own demand expiry stops it.
 
 ## Dependencies
 
@@ -244,3 +264,10 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 - plan-docker_management_app-refresh_cache/REQ-9
 - plan-docker_management_app-refresh_cache/REQ-11
 - plan-docker_management_app-refresh_cache/REQ-12
+- plan-docker_management_app-refresh_cache/REQ-37
+- plan-docker_management_app-refresh_cache/REQ-38
+- plan-docker_management_app-refresh_cache/REQ-39
+- plan-docker_management_app-refresh_cache/REQ-40
+- plan-docker_management_app-refresh_cache/REQ-41
+- plan-docker_management_app-refresh_cache/REQ-42
+- plan-docker_management_app-refresh_cache/REQ-43
