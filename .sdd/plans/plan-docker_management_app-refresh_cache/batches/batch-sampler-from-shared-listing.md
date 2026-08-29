@@ -180,6 +180,34 @@ intervals in one jump, which fires three ticks before a single await runs, so th
 first were dropped as overlapping ones — the documented no-overlap rule doing its job. It advances one
 interval at a time. Both reasons are written where the checks are.
 
+## The saving, measured on the running product on 2026-08-30
+
+The checks above are the mechanism's proof and they run against a mocked daemon and a mocked clock.
+The **claim** — six list reads a minute become none — is about the product against a real daemon, so
+it was measured there as well, both ways round, before the batch was reported closed.
+
+Same machine, same two running containers, same screen, same sixty-five-second window; one built from
+this batch and one built from the commit before it, each served by `npm run serve` on its own
+`VEXEL_DATA_DIR`, with the Containers screen open and the figures moving. Counted off the product's
+own Docker call log, which is on by default.
+
+| In sixty-five seconds | before | after |
+|---|---|---|
+| the sampler's own listing — `GET /containers/json` | **6** | **0** |
+| the held listing — `GET /containers/json?all=true` | 3 | 3 |
+| the per-container statistics calls | 12 | 14 |
+
+**The first row is the batch.** The second and third are the control: the held listing keeps its own
+twenty-second period, which it has whether the sampler exists or not, and the statistics keep going
+out on the ten-second cadence for both containers — six passes caught in one window, seven in the
+other, which is where the run alignment fell. Nothing else moved.
+
+**The fallback was observed in the same log, not only in a check.** The sampler's very first pass, at
+`23:06:19.611`, read `GET /containers/json` itself: the process had just started and no listing was
+held, the first `?all=true` read landing ninety-two milliseconds later. It sampled on that pass, and
+it never read a listing of its own again for the rest of the run. That is REQ-48 followed by REQ-47,
+in that order, in the product.
+
 ## Human acceptance
 
 **REQ-50 has no scenario of its own, and that is deliberate.** Every screen that subscribes to the
