@@ -39,6 +39,18 @@ export interface RefreshKindOptions<T> {
   periodMs: number;
   /** Daemon event types that mark this kind due; none by default. */
   eventTypes?: readonly string[];
+  /**
+   * The key of the kind this one is derived from: when that kind stores a value
+   * its own `differs` calls different, this kind is marked due. Named by key and
+   * resolved through the registry, so the two may register in either order.
+   */
+  derivedFrom?: string;
+  /**
+   * Whether a value just read differs from the one it replaces, as far as
+   * whoever derives from this kind is concerned. Undeclared, nobody is ever
+   * told: the cache compares nothing it was not given a comparison for.
+   */
+  differs?: (previous: T, next: T) => boolean;
   demandExpiryMs?: number;
   groupingWindowMs?: number;
 }
@@ -81,6 +93,7 @@ class Kind<T> implements RefreshKind<T>, RegisteredKind {
   private readonly periodMs: number;
   private readonly demandExpiryMs: number;
   private readonly groupingWindowMs: number;
+  private readonly differs?: (previous: T, next: T) => boolean;
 
   private held?: Held<T>;
   private stale = false;
@@ -99,6 +112,7 @@ class Kind<T> implements RefreshKind<T>, RegisteredKind {
     this.key = options.key;
     this.readValue = options.read;
     this.periodMs = options.periodMs;
+    this.differs = options.differs;
     this.demandExpiryMs = options.demandExpiryMs ?? DEMAND_EXPIRY_MS;
     this.groupingWindowMs = options.groupingWindowMs ?? EVENT_GROUPING_WINDOW_MS;
   }
@@ -250,9 +264,13 @@ class Kind<T> implements RefreshKind<T>, RegisteredKind {
     });
     this.inFlight = gate;
     void (async () => {
+      // What this read replaced, for the kinds derived from it; left unset when
+      // the read failed, and when this is the first value ever held.
+      let replaced: { previous: T; next: T } | undefined;
       try {
         const value = await this.readValue();
         if (generation !== this.generation) return;
+        if (this.held) replaced = { previous: this.held.value, next: value };
         this.held = { value, readAt: Date.now(), startedAt };
         this.stale = false;
         this.failure = undefined;
@@ -264,21 +282,27 @@ class Kind<T> implements RefreshKind<T>, RegisteredKind {
         this.stale = true;
       } finally {
         if (this.inFlight === gate) this.inFlight = undefined;
-        if (generation === this.generation) this.afterRead(startedAt);
+        if (generation === this.generation) this.afterRead(startedAt, replaced);
         settle();
       }
     })();
     return gate;
   }
 
-  /** Chains the follow-up read when the one that just ended cannot have seen what it had to see. */
-  private afterRead(startedAt: number): void {
+  /**
+   * Chains the follow-up read when the one that just ended cannot have seen what
+   * it had to see, and tells whoever derives from this kind that the value they
+   * built on has been replaced by a different one. A first value tells nobody:
+   * there is no earlier copy anyone can have derived from.
+   */
+  private afterRead(startedAt: number, replaced?: { previous: T; next: T }): void {
     // A failed read is never chased: the failure would repeat, and the held
     // value already answers.
     if (this.stale) {
       this.dueAgain = false;
       return;
     }
+    if (replaced && this.differs?.(replaced.previous, replaced.next)) markKindsDerivedFrom(this.key);
     if (this.changedAt > startedAt) {
       void this.refresh();
       return;
@@ -323,6 +347,8 @@ class Kind<T> implements RefreshKind<T>, RegisteredKind {
 
 const kinds = new Map<string, RegisteredKind>();
 const kindsByEventType = new Map<string, Set<RegisteredKind>>();
+/** Keyed by the source kind's key, so a derived kind may register before or after it. */
+const kindsBySourceKey = new Map<string, Set<RegisteredKind>>();
 let wired = false;
 
 export function registerRefreshKind<T>(options: RefreshKindOptions<T>): RefreshKind<T> {
@@ -334,6 +360,11 @@ export function registerRefreshKind<T>(options: RefreshKindOptions<T>): RefreshK
     const listeners = kindsByEventType.get(type) ?? new Set<RegisteredKind>();
     listeners.add(kind);
     kindsByEventType.set(type, listeners);
+  }
+  if (options.derivedFrom) {
+    const derived = kindsBySourceKey.get(options.derivedFrom) ?? new Set<RegisteredKind>();
+    derived.add(kind);
+    kindsBySourceKey.set(options.derivedFrom, derived);
   }
   return kind;
 }
@@ -377,6 +408,16 @@ export async function reloadHeldValues(): Promise<ReloadReport> {
 function unregisterKind(kind: RegisteredKind): void {
   kinds.delete(kind.key);
   kindsByEventType.forEach((set) => set.delete(kind));
+  kindsBySourceKey.forEach((set) => set.delete(kind));
+}
+
+/**
+ * The value the derived kinds were built on has been replaced: they are marked
+ * due through the same path a daemon event uses, so the grouping window and the
+ * demand gate apply unchanged.
+ */
+function markKindsDerivedFrom(key: string): void {
+  kindsBySourceKey.get(key)?.forEach((kind) => kind.markDue());
 }
 
 /**

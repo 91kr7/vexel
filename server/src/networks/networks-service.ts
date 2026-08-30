@@ -3,7 +3,7 @@
 // containers are not part of the daemon's own /networks listing: they are
 // merged in from the container listing the server already holds.
 import { getEngineClient } from "../connectivity/connection-status-service.js";
-import { containerListCache, readHeldContainerList } from "../containers/containers-service.js";
+import { CONTAINER_LIST_KIND, containerListCache, readHeldContainerList } from "../containers/containers-service.js";
 import { byNameThenIdentity } from "../list-order/list-order.js";
 import { registerRefreshKind } from "../refresh-cache/refresh-cache.js";
 
@@ -107,11 +107,17 @@ export async function listNetworks(): Promise<NetworkSummary[]> {
  * whenever a `network` or `container` event — a container attaching or leaving
  * changes what the list shows — or one of this application's own operations
  * says so (REQ-9, REQ-11, REQ-12, REQ-13).
+ *
+ * Derived from the container listing, since `attachedContainers` comes from
+ * there: a listing replaced by a different one makes this one read again within
+ * a grouping window, instead of holding a list built on a copy already gone
+ * until its own period ends (plan-docker_management_app-refresh_cache/REQ-52).
  */
 export const networkListCache = registerRefreshKind({
   key: "networks",
   periodMs: 30000,
   eventTypes: ["network", "container"],
+  derivedFrom: CONTAINER_LIST_KIND,
   read: listNetworks,
 });
 
