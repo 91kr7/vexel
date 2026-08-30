@@ -253,6 +253,10 @@ test.describe('Container exec sessions (REQ-34, REQ-36)', () => {
     try {
       await createIdleContainer(name);
       const detail = await openTab(page, name, 'Exec');
+      // The fixture image ships `/bin/sh` and no bash, as small images do. Left on the
+      // control's own default the session launches `/bin/bash` and dies at once, so what
+      // follows is asserted against a session that is already over.
+      await detail.getByRole('combobox', { name: 'Shell' }).selectOption('/bin/sh');
       await detail.getByRole('button', { name: 'Launch session' }).click();
       await expect(detail.getByText(/Connecting|Connected/)).toBeVisible({ timeout: 15_000 });
 
@@ -366,6 +370,10 @@ test.describe('Session terminal sizing (REQ-34, REQ-35)', () => {
     try {
       await createIdleContainer(name);
       const detail = await openTab(page, name, 'Exec');
+      // The fixture image ships `/bin/sh` and no bash, as small images do. Left on the
+      // control's own default the session launches `/bin/bash` and dies at once, so what
+      // follows is asserted against a session that is already over.
+      await detail.getByRole('combobox', { name: 'Shell' }).selectOption('/bin/sh');
       await detail.getByRole('button', { name: 'Launch session' }).click();
       await expect(detail.getByText('Connected')).toBeVisible({ timeout: 15_000 });
 
@@ -395,6 +403,10 @@ test.describe('Session terminal sizing (REQ-34, REQ-35)', () => {
       await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
       await createIdleContainer(name);
       const detail = await openTab(page, name, 'Exec');
+      // The fixture image ships `/bin/sh` and no bash, as small images do. Left on the
+      // control's own default the session launches `/bin/bash` and dies at once, so what
+      // follows is asserted against a session that is already over.
+      await detail.getByRole('combobox', { name: 'Shell' }).selectOption('/bin/sh');
       await detail.getByRole('button', { name: 'Launch session' }).click();
       await expect(detail.getByText('Connected')).toBeVisible({ timeout: 15_000 });
 
@@ -466,6 +478,10 @@ test.describe('Session terminal sizing (REQ-34, REQ-35)', () => {
     try {
       await createIdleContainer(name);
       const detail = await openTab(page, name, 'Exec');
+      // The fixture image ships `/bin/sh` and no bash, as small images do. Left on the
+      // control's own default the session launches `/bin/bash` and dies at once, so what
+      // follows is asserted against a session that is already over.
+      await detail.getByRole('combobox', { name: 'Shell' }).selectOption('/bin/sh');
       await detail.getByRole('button', { name: 'Launch session' }).click();
       await expect(detail.getByText('Connected')).toBeVisible({ timeout: 15_000 });
 
