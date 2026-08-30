@@ -709,6 +709,53 @@ test("a kind derived from a key naming no registered kind is inert", async () =>
   assert.equal(reads, 1, `a kind derived from a key nobody registered was read ${reads} times`);
 });
 
+// REQ-55 — refresh-cache.md: the derivation is "declared on the derived kind and named by key, so
+// the two register in either order and the source needs to know nothing about who derives from it".
+// Here the derived kind is registered while nothing at all is registered under that key, which is
+// the order module load produces and nobody declares.
+test("a derived kind registered before its source is told just the same", async () => {
+  const sourceKey = "check-derivation-registration-order-source";
+  let sourceValue = "one";
+  let derivedReads = 0;
+
+  const derived = kindOf<string>({
+    key: "check-derivation-registration-order-derived",
+    derivedFrom: sourceKey,
+    read: async () => {
+      derivedReads += 1;
+      return sourceValue;
+    },
+    periodMs: 60_000,
+    groupingWindowMs: 20,
+  });
+  const source = kindOf<string>({
+    key: sourceKey,
+    read: async () => sourceValue,
+    periodMs: 60_000,
+    differs: (previous, next) => previous !== next,
+  });
+
+  await derived.read();
+  await source.read();
+  assert.equal(derivedReads, 1);
+
+  sourceValue = "two";
+  source.markChanged();
+  await source.read();
+  await wait(60);
+
+  assert.equal(
+    derivedReads,
+    2,
+    `the derived kind was read ${derivedReads} times: registering it before its source lost it the notification`,
+  );
+  assert.equal(
+    (await derived.read()).value,
+    "two",
+    "the derived kind still holds what it built on the value that was replaced",
+  );
+});
+
 // refresh-cache.md — registering the same key twice is a programming error.
 test("registering the same key twice throws", () => {
   kindOf<string>({ key: "check-duplicate-key", read: async () => "listed", periodMs: 60_000 });
