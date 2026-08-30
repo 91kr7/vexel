@@ -5,7 +5,7 @@
 // holds. The sizes are held on a schedule of their own, far slower than the
 // listing's (plan-docker_management_app-refresh_cache/REQ-18).
 import { getEngineClient } from "../connectivity/connection-status-service.js";
-import { readHeldContainerList } from "../containers/containers-service.js";
+import { CONTAINER_LIST_KIND, readHeldContainerList } from "../containers/containers-service.js";
 import { eventStreamService, type DaemonEvent } from "../events/event-stream-service.js";
 import { byNamedThenUnnamedNewest } from "../list-order/list-order.js";
 import { registerRefreshKind } from "../refresh-cache/refresh-cache.js";
@@ -121,11 +121,17 @@ export async function listVolumes(): Promise<VolumeSummary[]> {
  * whenever a `volume` or `container` event — a container mounting or releasing
  * a volume changes what the list shows — or one of this application's own
  * operations says so (REQ-9, REQ-11, REQ-12, REQ-13).
+ *
+ * Derived from the container listing, since `mountedBy` comes from there: a
+ * listing replaced by a different one makes this one read again within a
+ * grouping window, instead of holding a list built on a copy already gone until
+ * its own period ends (plan-docker_management_app-refresh_cache/REQ-52).
  */
 export const volumeListCache = registerRefreshKind({
   key: "volumes",
   periodMs: 30000,
   eventTypes: ["volume", "container"],
+  derivedFrom: CONTAINER_LIST_KIND,
   read: listVolumes,
 });
 

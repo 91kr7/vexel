@@ -32,6 +32,11 @@ network's full inspect data, create, remove and prune unused networks, and attac
   changes what the list shows (see `refresh-cache.md`, module `refresh-cache`). `listNetworks` is
   its read; the listing above is unchanged by this. `getNetworkInspect` is **not** held: a detail
   read stays direct.
+  - **Derived from the container listing**, since `attachedContainers` comes from there: when the
+    held container listing is replaced by one that differs by the containers kind's own declaration,
+    this kind is marked due and read again **within a grouping window**, rather than holding a list
+    built on a copy already gone until its 30 s period ends. It costs no container listing of its
+    own — the re-read is served the one already held.
 - `getNetworkInspect(id): Promise<NetworkInspect>` — via `GET /networks/{id}`; rejects with the
   daemon's own 404 for an unknown id/name.
   - `NetworkInspect`: `NetworkSummary & { raw }`; `raw` is the full inspect payload exactly as
@@ -58,6 +63,11 @@ network's full inspect data, create, remove and prune unused networks, and attac
   just performed on a container, so a container removed a moment ago is no longer named here.
   `getNetworkInspect` does not use it at all — the inspect payload's own `Containers` map is
   authoritative and stays the source there.
+- **A network's `attachedContainers` is never older than the container listing the server holds.** A
+  container attached to a network is named by that network within a fraction of a second of the
+  daemon holding it, on a server that already holds a listing as much as on one just started — and
+  the order in which the lists affected by one event happen to be read again changes nothing, since
+  what the re-read follows is the listing being stored and not the event.
 - **This service issues no container listing of its own.** Asking for the network list therefore
   counts as asking for the container listing, and keeps it refreshed while the networks screen is
   open — the containers kind's own demand expiry stops it once nothing is asking for either.
@@ -97,3 +107,5 @@ network's full inspect data, create, remove and prune unused networks, and attac
 - plan-docker_management_app-refresh_cache/REQ-41
 - plan-docker_management_app-refresh_cache/REQ-42
 - plan-docker_management_app-refresh_cache/REQ-43
+- plan-docker_management_app-refresh_cache/REQ-52
+- plan-docker_management_app-refresh_cache/REQ-54

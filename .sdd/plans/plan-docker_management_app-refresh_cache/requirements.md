@@ -246,3 +246,73 @@ status: validated
 > exactly `running` and `paused` while the probe stood. The predicate this batch writes is therefore a
 > set of three states and not an equality on one, and `batch-sampler-from-shared-listing/INT-8` is
 > what fails when someone narrows it.
+
+## Appended on 2026-08-30 — a derived list built on a listing already replaced
+
+> Appended after a defect measured the same day on the running API, with no browser involved. A volume
+> was created and four containers mounting it. `GET /api/volumes` reported the containers mounting it
+> as **0**, then **1**, and took **27.9 seconds** to report the 4 the daemon had held from the start:
+>
+> | | the API says | the daemon holds |
+> |---|---|---|
+> | t+0.0s | 0 | 4 |
+> | t+2.0s | 1 | 4 |
+> | t+27.9s | 4 | 4 |
+>
+> On the interface the operator watches the `MOUNTED BY` column of the Volumes & networks screen say
+> nothing, then one name, for half a minute.
+>
+> **The cause.** A `container` event marks four kinds due, and their re-reads are started one after
+> another without being awaited, so the daemon calls overlap but the decisions are ordered. The volume
+> list's re-read reaches the held container listing while the containers kind's own re-read is still in
+> flight — and because a value **is** held, it is answered from that value rather than joined to the
+> read replacing it. The volume list is therefore rebuilt on the **previous** container listing and
+> stored as good. Nothing marks it due again, so it stays wrong until its own period, 30 seconds.
+>
+> **It reproduces only on a warm server.** With nothing held, the derived read joins the read in flight
+> and the answer is right. That is why the end-to-end spec that surfaced it passes on the first run of
+> a process and fails on the second.
+>
+> **Three readers derive from the held container listing**: the volume list (its mounting containers),
+> the network list (its attached containers) and the dashboard overview (its counts by state). Only the
+> first two hold a listing of their own and can therefore hold a wrong one; the overview is computed on
+> each request. Compose discovery reacts to the same event and is **not** in the perimeter — it derives
+> from `docker compose`, not from the held listing.
+>
+> This is a regression of `container-listing-shared`. Before it, the volume list fetched a container
+> listing of its own, per request, and could not be built on a copy someone else had replaced.
+>
+> Per [[every-change-updates-spec-requirements-plan]] this is appended as a further batch. **Nothing
+> above this line was changed**, beyond the one row added to the batch table in `batches.md` and its
+> six coverage rows: no certified batch is reopened.
+
+## Feature — The derived lists follow the container listing they are built on
+
+| ID | Requirement |
+|----|-------------|
+| REQ-52 | When the container listing the server holds is replaced by a different one, the lists derived from it — the volume list and the network list — are read again within a grouping window instead of waiting out their own period. A volume's mounting containers and a network's attached containers are complete within a fraction of a second of the daemon holding them, on a server that already holds a listing as much as on one just started. |
+| REQ-53 | A container listing read again and found unchanged makes no derived list read again: the container listing's own period drags no volume-list and no network-list read behind it. |
+| REQ-54 | The derived lists are still built from the one container listing the server holds: closing this costs no further call to the daemon, and no list goes back to asking for a container listing of its own. |
+| REQ-55 | The derived lists end up describing the containers the server holds whatever the order in which the lists affected by one event are read again, and whatever delay a grouping window puts on the container listing's own re-read. |
+| REQ-56 | The checks that close these requirements start from a server that already holds a container listing, and each of them fails on the product as it stands before the correction. |
+| REQ-57 | Nothing waits, retries or polls to make them pass: neither the new checks, nor the end-to-end spec that surfaced the defect, which goes green on consecutive runs exactly as it is written today. |
+
+> **REQ-53 is what keeps the correction from costing more than the defect.** Notifying on every stored
+> value, changed or not, is the obvious and cheaper thing to write, and it would make each period of the
+> container listing drag a volume-list and a network-list read behind it — the cost three batches of
+> this plan have been spent removing. "Different" is therefore in the requirement and not in a comment.
+>
+> **REQ-55 is the requirement that refuses the alternatives argued and rejected on 2026-08-30**, each of
+> which satisfies REQ-52 in the case it was tested on and fails elsewhere. Making the derived reader
+> await the container read in flight closes only the instant in which that read has already started: if
+> the container listing's own re-read is postponed by its grouping window there is nothing to await, and
+> the defect returns unchanged. Serialising the fan-out works only because the containers kind happens
+> to be registered before the networks and volumes kinds — an order nobody declares, which falls out of
+> module load order and would change silently with a moved import — and it also turns overlapping reads
+> into the sum of their times. Both are visible only through this requirement.
+>
+> **REQ-56 and REQ-57 exist because the coverage is the part of this batch most likely to be wrong.** A
+> check written against a freshly started server passes before the correction and after it, since a cold
+> process joins the read in flight and answers correctly; it would certify nothing while looking like
+> proof. And the defect is a delay, so any wait added to a check dissolves it — the spec that surfaced it
+> would go green on a product still holding a listing built on a replaced copy for thirty seconds.

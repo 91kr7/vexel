@@ -192,6 +192,9 @@ async function readDaemonContainerList(): Promise<RawContainer[]> {
   return raw.filter((container) => container.Labels?.[INTERNAL_CONTAINER_LABEL] !== "true");
 }
 
+/** The key the listing is held under, and what a kind derived from it names. */
+export const CONTAINER_LIST_KIND = "containers";
+
 /** A listing read straight from the daemon, projected and ordered: what answers where a held one cannot. */
 export async function listContainers(): Promise<ContainerSummary[]> {
   return toSummaryList(await readDaemonContainerList());
@@ -202,10 +205,11 @@ export async function listContainers(): Promise<ContainerSummary[]> {
 // carries each container's network attachments, so a `network` event invalidates
 // it as much as a `container` one (plan-docker_management_app-refresh_cache/REQ-44).
 export const containerListCache = registerRefreshKind({
-  key: "containers",
+  key: CONTAINER_LIST_KIND,
   periodMs: 20000,
   eventTypes: ["container", "network"],
   read: readDaemonContainerList,
+  differs: (previous, next) => derivedShape(previous) !== derivedShape(next),
 });
 
 // Projected and ordered at read time, which is what merges the sampler's
@@ -230,6 +234,36 @@ export async function readHeldContainerList(): Promise<RawContainer[]> {
 // (plan-docker_management_app-refresh_cache/REQ-50, REQ-51).
 export function peekHeldContainerList(): RawContainer[] | undefined {
   return containerListCache.peek()?.value;
+}
+
+// What the readers above derive from, and the whole of it: a container's id, its
+// name, its volume mounts and its network attachments. Two listings agreeing on
+// this are the same listing to whoever derives from it, so replacing one with
+// the other tells nobody — which is why a reader that starts deriving from a
+// field absent here is not told when that field changes, and has to be added.
+// Not the whole response: `Status` is a humanized uptime ("Up 5 seconds", then
+// "Up 25 seconds"), so comparing it would report a difference on nearly every
+// read of a host where nothing has happened.
+// (plan-docker_management_app-refresh_cache/REQ-52, REQ-53)
+function derivedShape(containers: RawContainer[]): string {
+  return containers
+    .map((container) =>
+      [
+        container.Id,
+        container.Names?.[0] ?? "",
+        (container.Mounts ?? [])
+          .filter((mount) => mount.Type === "volume" && mount.Name)
+          .map((mount) => mount.Name)
+          // list-order-exception: canonicalises a container's volume names into the digest, read by nobody.
+          .sort()
+          .join(","),
+        // list-order-exception: canonicalises a container's network names into the digest, read by nobody.
+        Object.keys(container.NetworkSettings?.Networks ?? {}).sort().join(","),
+      ].join("|"),
+    )
+    // list-order-exception: canonicalises the container lines, so a listing returned in another order compares equal.
+    .sort()
+    .join("\n");
 }
 
 function toSummaryList(raw: RawContainer[]): ContainerSummary[] {

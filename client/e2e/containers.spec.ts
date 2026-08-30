@@ -1617,6 +1617,11 @@ test.describe('Container detail dialog, one stable height (REQ-1, REQ-3, REQ-4)'
 
         const exec = detail.getByRole('tab', { name: 'Exec', exact: true });
         await clickAtItsCentre(page, exec, 'the Exec tab');
+        // The fixture image ships `/bin/sh` and no bash, as small images do; on the control's
+        // own default the session dies at once and the surface measured below is a dead one.
+        // A native `select` is driven by `selectOption` and not by a pointer: a real click on
+        // one opens the platform's own dropdown, which the page cannot see.
+        await detail.getByRole('combobox', { name: 'Shell' }).selectOption('/bin/sh');
         await clickAtItsCentre(page, detail.getByRole('button', { name: 'Launch session' }), 'the Launch session control');
         await expect(detail.getByText('Connected')).toBeVisible({ timeout: 20_000 });
         const onExec = await boxesOf(page, { region: tabRegion(page), view: detail.locator('.ui-session-surface') }, 'the Exec tab');

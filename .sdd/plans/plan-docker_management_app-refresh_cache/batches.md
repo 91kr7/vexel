@@ -20,6 +20,7 @@ status: validated
 | container-listing-shared | One container listing serves every consumer | REQ-37, REQ-38, REQ-39, REQ-40, REQ-41, REQ-42, REQ-43, REQ-44 | — | certified | The daemon is asked for the container listing once, not four times |
 | change-coverage-check | The change-coverage check asserts the guarantee, not the daemon's timing | REQ-45, REQ-46 | — | certified | The container lifecycle check passes on every run |
 | sampler-from-shared-listing | The statistics sampler reads the container listing the server already holds | REQ-47, REQ-48, REQ-49, REQ-50, REQ-51 | — | certified | Watching statistics costs no container listing of its own |
+| derived-lists-follow-the-listing | The derived lists follow the container listing they are built on | REQ-52, REQ-53, REQ-54, REQ-55, REQ-56, REQ-57 | — | certified | The MOUNTED BY column names every container mounting the volume, at once |
 
 ## What the plan builds
 
@@ -149,6 +150,12 @@ qualified with their batch below.
 | REQ-49 | `batch-sampler-from-shared-listing/INT-2`, `batch-sampler-from-shared-listing/INT-4`, `batch-sampler-from-shared-listing/INT-8` | sampler-from-shared-listing |
 | REQ-50 | `batch-sampler-from-shared-listing/INT-1`, `batch-sampler-from-shared-listing/INT-4`, `batch-sampler-from-shared-listing/INT-5`, `batch-sampler-from-shared-listing/INT-9` | sampler-from-shared-listing |
 | REQ-51 | `batch-sampler-from-shared-listing/INT-1`, `batch-sampler-from-shared-listing/INT-4`, `batch-sampler-from-shared-listing/INT-10` | sampler-from-shared-listing |
+| REQ-52 | `batch-derived-lists-follow-the-listing/INT-1`, `batch-derived-lists-follow-the-listing/INT-2`, `batch-derived-lists-follow-the-listing/INT-3`, `batch-derived-lists-follow-the-listing/INT-4`, `batch-derived-lists-follow-the-listing/INT-5`, `batch-derived-lists-follow-the-listing/INT-6`, `batch-derived-lists-follow-the-listing/INT-7`, `batch-derived-lists-follow-the-listing/INT-8`, `batch-derived-lists-follow-the-listing/INT-9`, `batch-derived-lists-follow-the-listing/INT-13` | derived-lists-follow-the-listing |
+| REQ-53 | `batch-derived-lists-follow-the-listing/INT-1`, `batch-derived-lists-follow-the-listing/INT-2`, `batch-derived-lists-follow-the-listing/INT-3`, `batch-derived-lists-follow-the-listing/INT-6`, `batch-derived-lists-follow-the-listing/INT-7`, `batch-derived-lists-follow-the-listing/INT-10`, `batch-derived-lists-follow-the-listing/INT-15` | derived-lists-follow-the-listing |
+| REQ-54 | `batch-derived-lists-follow-the-listing/INT-11` | derived-lists-follow-the-listing |
+| REQ-55 | `batch-derived-lists-follow-the-listing/INT-1`, `batch-derived-lists-follow-the-listing/INT-2`, `batch-derived-lists-follow-the-listing/INT-6`, `batch-derived-lists-follow-the-listing/INT-12` | derived-lists-follow-the-listing |
+| REQ-56 | `batch-derived-lists-follow-the-listing/INT-8`, `batch-derived-lists-follow-the-listing/INT-9`, `batch-derived-lists-follow-the-listing/INT-13` | derived-lists-follow-the-listing |
+| REQ-57 | `batch-derived-lists-follow-the-listing/INT-8`, `batch-derived-lists-follow-the-listing/INT-9`, `batch-derived-lists-follow-the-listing/INT-14` | derived-lists-follow-the-listing |
 
 **Three notes on this coverage.**
 
@@ -644,3 +651,98 @@ Three notes on it.
 - **REQ-50 has no acceptance scenario, and the batch file says so.** Every screen that subscribes to
   the figures also asks for a list, so an inverted demand gate is not visible from the interface. It
   is a constraint protecting a future consumer, and `INT-9` is what proves it.
+
+## Appended on 2026-08-30 — one batch
+
+A volume mounted by four containers is listed as mounted by none, then by one, for **27.9 seconds**.
+Measured the same day on the running API, with no browser involved. A `container` event marks four
+kinds due and their re-reads are started without being awaited, so the volume list's re-read reaches
+the held container listing while the listing's own re-read is still in flight — and, because a value
+**is** held, it is answered from that value rather than joined to the read replacing it. The volume
+list is built on the previous container listing and stored as good, and nothing marks it due again
+until its own period. It reproduces on a warm server and never on a cold one, which is why the
+end-to-end spec that surfaced it passes on the first run of a process and fails on the second.
+
+It is a regression of `container-listing-shared` (`aa4fc5c`): before it, the mounting containers were
+fetched per request, and a per-request listing cannot be a copy somebody else has replaced. The
+correction keeps the shared copy and adds the half that was missing — **whoever derives is told when
+what they built on has been replaced**.
+
+Per the knowledge base, work found after a batch is appended as a further batch and never edited into
+one already closed: **nothing above this line was changed**, beyond the one row added to the batch
+table and its six coverage rows. No certified batch is reopened.
+
+**Execution order.** `derived-lists-follow-the-listing` depends on nothing still open in this plan. It
+changes the refresh cache built by `lists-from-refresh-cache` and the two derived listings moved onto
+the held container listing by `container-listing-shared`, both certified; it needs that work present,
+not repeated. The `Depends` column is empty for that reason.
+
+### Assumptions and decisions
+
+- **The notification is the human's decision of 2026-08-30, taken after three alternatives were argued
+  and rejected.** They are recorded in the batch file so they are not proposed again: awaiting the
+  container read in flight (closes only the instant in which that read has already started, and covers
+  nothing when the containers re-read is postponed by its grouping window); serialising the fan-out
+  (works only because of a registration order nobody declares, and turns overlapping reads into the sum
+  of their times); and sending each derived list back to asking the daemon for a container listing of
+  its own (undoes `container-listing-shared`).
+- **Only a reader that holds what it derived is in the perimeter.** The volume list and the network
+  list hold theirs. The dashboard overview derives from the same listing but computes on each request,
+  so it is never older than the listing itself. Compose discovery reacts to the same `container` event
+  and derives from `docker compose`, not from the held listing.
+- **The derived kind declares what it derives from, and the source declares what "different" means.**
+  Resolved by key through the registry, like the event-type map beside it, so which kind registers
+  first decides nothing — that is REQ-55 in the mechanism rather than in a comment.
+- **The comparison is not a deep comparison of the daemon's response.** Every entry carries `Status`, a
+  humanized uptime, so a whole-value comparison differs on nearly every read of a host where nothing
+  happened — indistinguishable, in traffic, from notifying unconditionally. It compares what the
+  derived readers read: per container, its id, its name, its volume mounts and its network attachments.
+- **That declaration is a contract, and it is how this goes wrong later.** A reader that starts
+  deriving from a field the declaration does not cover is not notified, and the defect returns for that
+  field alone. It is written beside the accessors that hand the listing out, where a new reader is
+  added.
+- **A first stored value notifies nobody.** With nothing held before it, no derived list can have been
+  built on an earlier copy: on a cold server every derived read joins the first container read, and a
+  discard on a context change drops the derived values too.
+- **The refresh cache still compares nothing on its own.** It holds values and does not read them; what
+  it gains is the ability to be told which of them differ, by whoever registered them. Its
+  domain-agnostic contract is unchanged.
+- **No debt entry is opened or closed.** This is a defect being fixed now, not a cost being deferred.
+
+### Departures
+
+- **The two validation gates were not held.** The human measured the defect on 2026-08-30, chose the
+  correction themselves after rejecting the three alternatives, and asked for the plan in the same
+  pass. The requirements and the coverage were written to that decision and not put back for
+  validation. There is no open question on the direction.
+- **No departure from the business spec.** `.sdd/analysis/docker_management_app-refresh_cache.md`
+  states that a value is served from what the server holds and read again when something says it has
+  changed. This batch names one more thing that says so, and contradicts nothing. No correction to the
+  spec is owed. **The component specs are a different matter and the batch owes them a correction**:
+  `refresh-cache.md` states the whole contract of the cache and does not yet carry the derivation, and
+  the three service specs state what marks each listing due. `INT-6` and `INT-7` carry it, per
+  [[every-change-updates-spec-requirements-plan]]. That is spec-carrying work, not a departure.
+- **The closing full pass stays withdrawn**, for the fifth batch of this plan running. Both suites were
+  red before this cycle on failures of their own. The run is this batch's own perimeter — its new
+  checks, the existing refresh-cache and shared-container-listing checks, and
+  `client/e2e/badge-list-pills.spec.ts` **twice in a row**, which is the only form in which that spec
+  says anything: one run of it passes on the unfixed product.
+
+### Coverage check — the appended requirements
+
+REQ-52 to REQ-57 are each served by at least one intervention of `derived-lists-follow-the-listing`,
+and each of its fourteen interventions serves at least one of them; the rows are in the table above. No
+appended REQ is split across batches: all six close here. There is no enabling intervention.
+
+Three notes on it.
+
+- **REQ-54 is served by a check and by no change**, like REQ-43 and REQ-20 to REQ-23 before it. It is
+  the guarantee that this correction does not pay for itself out of a saving already in the product,
+  and what closes it is a count of what reaches the daemon.
+- **REQ-52 and REQ-53 pull against each other, and both are needed.** The cheapest thing that satisfies
+  REQ-52 is to notify on every stored value, which fails REQ-53 and hands back the traffic three
+  batches of this plan removed. `INT-10` is what refuses it.
+- **REQ-55 is the requirement that the two rejected repairs fail.** Both satisfy REQ-52 in the case the
+  defect was reported on, so a batch that stopped at REQ-52 could ship either of them with a green run
+  behind it. `INT-12` drives the cache directly and arranges the two orders the fan-out does not
+  guarantee.

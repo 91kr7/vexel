@@ -16,10 +16,18 @@ are **refreshers**, one per kind.
 
 ## Contract
 
-- `registerRefreshKind({ key, read, periodMs, eventTypes?, demandExpiryMs?, groupingWindowMs? }) → RefreshKind`
+- `registerRefreshKind({ key, read, periodMs, eventTypes?, derivedFrom?, differs?, demandExpiryMs?, groupingWindowMs? }) → RefreshKind`
   - `key` names the kind; registering the same key twice is a programming error and throws
   - `read` is the function that produces the value; the cache never interprets it
   - `eventTypes` are the daemon event types that mark this kind due; none by default
+  - `derivedFrom` is the **key** of the kind this one is derived from: when that kind stores a value
+    **its own `differs` calls different** from the one it held, this kind is marked due, exactly as a
+    daemon event marks it due. Declared on the derived kind and named by key, so the two register in
+    either order and the source needs to know nothing about who derives from it. A key naming no
+    registered kind is inert.
+  - `differs(previous, next) → boolean` states whether a value just read differs from the one it
+    replaces, **as far as whoever derives from this kind is concerned**. It is the source kind's own
+    declaration, never the cache's: the cache holds values and does not read them
   - `demandExpiryMs` and `groupingWindowMs` default to the values under "Rules and invariants" and
     exist so a check can register a kind with its own timings
   - no daemon call is made by registering: nothing is read until the kind is first asked for
@@ -105,6 +113,20 @@ are **refreshers**, one per kind.
   landed after that read had begun, one more when the window ends — never one read per event. The
   first read of a burst starts immediately: an event is how something done outside the application
   reaches the interface, and delaying it would make the product slower than it is today.
+- **A replaced value tells whoever derived from it.** When a kind stores a value its own `differs`
+  calls different from the one it held, every kind that declared itself `derivedFrom` this one is
+  marked due and reads again within a grouping window. Their reads go through the ordinary path: the
+  demand gate applies (a derived kind nobody is asking for is not read), the grouping window applies,
+  and a derived kind whose read is in flight on the value just replaced reads once more when it ends.
+  - **A value found no different tells nobody.** A kind read again on its own period and unchanged
+    drags no derived read behind it, however many kinds derive from it.
+  - **A first value tells nobody.** With nothing held before it, there is no earlier copy anyone can
+    have derived from — and that includes the first value after a discard.
+  - **The cache compares nothing it was not given a comparison for.** Without `differs` a kind never
+    notifies, whoever declares themselves derived from it: what "different" means belongs to the
+    kind whose value it is, the only one that knows which parts of that value anybody reads.
+  - A failed read notifies nobody: nothing was stored, and the value held is the one the derived
+    kinds already built on.
 - **Timers never hold the process open**: every timer is unreferenced, so a server with nothing else
   to do still exits.
 - A read whose result arrives after `discardHeldValues()` is thrown away rather than stored: no
@@ -136,6 +158,9 @@ are **refreshers**, one per kind.
 - plan-docker_management_app-refresh_cache/REQ-16
 - plan-docker_management_app-refresh_cache/REQ-17
 - plan-docker_management_app-refresh_cache/REQ-27
+- plan-docker_management_app-refresh_cache/REQ-52
+- plan-docker_management_app-refresh_cache/REQ-53
+- plan-docker_management_app-refresh_cache/REQ-55
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-7
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-8
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-9

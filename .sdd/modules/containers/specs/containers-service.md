@@ -46,6 +46,17 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   with the internal filesystem-extraction containers removed and nothing else applied — not the
   projection the endpoint answers with. One read therefore serves every consumer of the listing:
   the container endpoint, the volume list, the network list and the host overview.
+  - It **declares what counts as a different listing** for whoever derives from it, and that
+    declaration is the contract between this listing and the lists built on it: per container, its
+    `Id`, its **name**, its **volume mounts** and its **network attachments**, compared in an order
+    of this service's own so that the same containers returned in another order — containers,
+    mounts or attachments — are not a difference. Nothing else
+    is compared, and in particular **not the whole response**: `Status` is a humanized uptime
+    (`"Up 5 seconds"`, then `"Up 25 seconds"`), so comparing it would report a difference on nearly
+    every read of a host where nothing has happened.
+  - A listing stored that differs by that declaration marks the kinds derived from it due —
+    `volumes` and `networks` — which read again within a grouping window. One found no different
+    marks nothing, so this kind's own 20 s period drags no derived read behind it.
 - `readContainerList(): Promise<HeldValue<ContainerSummary[]>>` — the listing the endpoint answers
   with: the held response projected into `ContainerSummary` and ordered **when it is read**, which
   is also the single point where the sampler's figures are merged onto it. Field for field, value
@@ -266,6 +277,10 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 - **Asking for the held listing is asking for this kind.** A screen showing only volumes, only
   networks or only the dashboard keeps the container listing refreshed; once none of them and no
   containers screen is being asked for, the kind's own demand expiry stops it.
+- **A reader deriving from a field the kind does not declare is not told when it changes.** The
+  declaration above is written beside the accessors that hand the listing out, which is where a new
+  reader is added: a list built on a field outside it would go on describing a listing already
+  replaced until its own period ended, and only for that field.
 - **What invalidates this listing is stated on the kind, not left to the routes.** It carries each
   container's network attachments, so it is marked due by `network` events beside `container` ones,
   and `NetworksService`'s attach and detach mark it changed themselves. A route that forgot to say
@@ -317,3 +332,5 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 - plan-docker_management_app-refresh_cache/REQ-49
 - plan-docker_management_app-refresh_cache/REQ-50
 - plan-docker_management_app-refresh_cache/REQ-51
+- plan-docker_management_app-refresh_cache/REQ-52
+- plan-docker_management_app-refresh_cache/REQ-53

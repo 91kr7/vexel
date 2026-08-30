@@ -40,6 +40,11 @@ are held on a schedule of their own, far slower than the listing's.
   volume changes what the list shows (see `refresh-cache.md`, module `refresh-cache`).
   `listVolumes` is its read; the listing above is unchanged by this. `getVolumeInspect` is **not**
   held: a detail read stays direct.
+  - **Derived from the container listing**, since `mountedBy` comes from there: when the held
+    container listing is replaced by one that differs by the containers kind's own declaration, this
+    kind is marked due and read again **within a grouping window**, rather than holding a list built
+    on a copy already gone until its 30 s period ends. It costs no container listing of its own — the
+    re-read is served the one already held.
 - `volumeSizeCache` — the refresh-cache kind the **per-volume sizes** are held under, separately
   from the listing: key `volume-sizes`, period 5 minutes — the longest in the cache — read as
   `GET /system/df`'s per-volume `UsageData.Size`, keyed by volume name.
@@ -71,6 +76,11 @@ are held on a schedule of their own, far slower than the listing's.
   listing, through the containers kind's `read()` and never its `peek()`: it covers the operation
   the application has just performed on a container, so a container removed a moment ago is no
   longer named here.
+- **A volume's `mountedBy` is never older than the container listing the server holds.** A container
+  that starts mounting a volume is named by that volume within a fraction of a second of the daemon
+  holding it, on a server that already holds a listing as much as on one just started — and the
+  order in which the lists affected by one event happen to be read again changes nothing, since what
+  the re-read follows is the listing being stored and not the event.
 - **This service issues no container listing of its own.** Asking for the volume list therefore
   counts as asking for the container listing, and keeps it refreshed while the volumes screen is
   open — the containers kind's own demand expiry stops it once nothing is asking for either.
@@ -115,3 +125,5 @@ are held on a schedule of their own, far slower than the listing's.
 - plan-docker_management_app-refresh_cache/REQ-41
 - plan-docker_management_app-refresh_cache/REQ-42
 - plan-docker_management_app-refresh_cache/REQ-43
+- plan-docker_management_app-refresh_cache/REQ-52
+- plan-docker_management_app-refresh_cache/REQ-54
