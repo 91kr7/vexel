@@ -254,11 +254,14 @@ function derivedShape(containers: RawContainer[]): string {
         (container.Mounts ?? [])
           .filter((mount) => mount.Type === "volume" && mount.Name)
           .map((mount) => mount.Name)
+          // list-order-exception: canonicalises a container's volume names into the digest, read by nobody.
           .sort()
           .join(","),
+        // list-order-exception: canonicalises a container's network names into the digest, read by nobody.
         Object.keys(container.NetworkSettings?.Networks ?? {}).sort().join(","),
       ].join("|"),
     )
+    // list-order-exception: canonicalises the container lines, so a listing returned in another order compares equal.
     .sort()
     .join("\n");
 }
