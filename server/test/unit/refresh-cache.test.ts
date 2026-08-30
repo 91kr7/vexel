@@ -380,6 +380,335 @@ test("a read that lands after a discard is thrown away", async () => {
   assert.equal(kind.peek(), undefined, "a value read from the daemon left behind was stored after the discard");
 });
 
+// REQ-55 — "The derived lists end up describing the containers the server holds whatever the order
+// in which the lists affected by one event are read again". Here the derived kind's own read starts
+// **before** the source stores anything and is still in flight when it does: the order the fan-out
+// produces, and the one an implementation that merely made the derived reader await the read in
+// flight does not cover, since what it would await had not started.
+test("a derived kind whose read started before the replacement is read again after it", async () => {
+  const sourceKey = "check-derivation-in-flight-source";
+  let sourceValue = "one";
+  let derivedReads = 0;
+  let holdTheNextDerivedRead = false;
+  let releaseTheDerivedRead: (() => void) | undefined;
+
+  const source = kindOf<string>({
+    key: sourceKey,
+    read: async () => sourceValue,
+    periodMs: 60_000,
+    differs: (previous, next) => previous !== next,
+  });
+  const derived = kindOf<string>({
+    key: "check-derivation-in-flight-derived",
+    derivedFrom: sourceKey,
+    // What a derived read takes from the source, it takes when it starts, and
+    // then does work of its own: the shape of a list built on a value replaced
+    // while that list was being built.
+    read: async () => {
+      derivedReads += 1;
+      const seen = sourceValue;
+      if (holdTheNextDerivedRead) {
+        holdTheNextDerivedRead = false;
+        await new Promise<void>((resolve) => {
+          releaseTheDerivedRead = resolve;
+        });
+      }
+      return seen;
+    },
+    periodMs: 60_000,
+    eventTypes: ["check-derivation-in-flight"],
+    groupingWindowMs: 20,
+  });
+
+  await source.read();
+  await derived.read();
+  assert.equal(derivedReads, 1);
+  await wait(40);
+
+  holdTheNextDerivedRead = true;
+  eventStreamService.emit("event", daemonEvent("check-derivation-in-flight", "changed"));
+  await wait(20);
+  assert.equal(derivedReads, 2, "the derived kind's own read never started, so nothing is in flight in this case");
+
+  sourceValue = "two";
+  source.markChanged();
+  await source.read();
+  assert.equal(source.peek()?.value, "two", "the source never stored the replacement this case is about");
+
+  // The read that started before the replacement now ends, holding what it saw.
+  releaseTheDerivedRead?.();
+  await wait(150);
+
+  assert.equal(derivedReads, 3, `the derived kind was read ${derivedReads} times: it was never told the value it built on had been replaced`);
+  assert.equal(
+    (await derived.read()).value,
+    "two",
+    "the derived kind still holds what it built on the value that was replaced",
+  );
+});
+
+// REQ-55 — "…and whatever delay a grouping window puts on the container listing's own re-read."
+// The source's re-read is postponed by its own window, so at the instant the event arrives there is
+// no read in flight for anyone to await: an implementation resting on that instant leaves this red,
+// and so does one that serialises the fan-out.
+test("a source read postponed by its own grouping window tells whoever derives from it just the same", async () => {
+  const sourceKey = "check-derivation-postponed-source";
+  let sourceValue = "one";
+  let sourceReads = 0;
+
+  const source = kindOf<string>({
+    key: sourceKey,
+    read: async () => {
+      sourceReads += 1;
+      return sourceValue;
+    },
+    periodMs: 60_000,
+    eventTypes: ["check-derivation-postponed"],
+    groupingWindowMs: 120,
+    differs: (previous, next) => previous !== next,
+  });
+  const derived = kindOf<string>({
+    key: "check-derivation-postponed-derived",
+    derivedFrom: sourceKey,
+    read: async () => sourceValue,
+    periodMs: 60_000,
+    groupingWindowMs: 20,
+  });
+
+  await derived.read();
+  await source.read();
+  assert.equal(sourceReads, 1);
+
+  sourceValue = "two";
+  // Inside the source's own window, so the read it asks for is scheduled rather
+  // than started.
+  eventStreamService.emit("event", daemonEvent("check-derivation-postponed", "changed"));
+  await wait(20);
+  assert.equal(sourceReads, 1, "the source read at once, so this case never arranges the postponement it is about");
+
+  await wait(300);
+  assert.equal(sourceReads, 2, "the postponed read never happened, so nothing was stored to tell anybody about");
+  assert.equal(
+    (await derived.read()).value,
+    "two",
+    "a source whose re-read was postponed by its grouping window told nobody it had changed",
+  );
+});
+
+// REQ-53 — the other half of the notification, and the one that keeps it from costing more than
+// the defect: refresh-cache.md, "a value found no different tells nobody". The source is read again
+// and stores what it already held, so nothing derived from it is read.
+test("a value found no different tells whoever derives from it nothing", async () => {
+  const sourceKey = "check-derivation-unchanged-source";
+  let derivedReads = 0;
+
+  const source = kindOf<string>({
+    key: sourceKey,
+    read: async () => "one",
+    periodMs: 60_000,
+    differs: (previous, next) => previous !== next,
+  });
+  const derived = kindOf<string>({
+    key: "check-derivation-unchanged-derived",
+    derivedFrom: sourceKey,
+    read: async () => {
+      derivedReads += 1;
+      return "derived";
+    },
+    periodMs: 60_000,
+    groupingWindowMs: 20,
+  });
+
+  await derived.read();
+  await source.read();
+  assert.equal(derivedReads, 1);
+
+  source.markChanged();
+  await source.read();
+  await wait(60);
+
+  assert.equal(derivedReads, 1, `the derived kind was read ${derivedReads} times: a value no different told it it had changed`);
+});
+
+// REQ-53 — refresh-cache.md, "a first value tells nobody … and that includes the first value after
+// a discard": with nothing held before it there is no earlier copy anyone can have derived from.
+// The comparison here calls everything different, so what is under check is the absence of a
+// previous value and not the comparison's verdict.
+test("a kind storing its first value tells whoever derives from it nothing", async () => {
+  const sourceKey = "check-derivation-first-value-source";
+  let sourceValue = "one";
+  let derivedReads = 0;
+
+  const source = kindOf<string>({
+    key: sourceKey,
+    read: async () => sourceValue,
+    periodMs: 60_000,
+    differs: () => true,
+  });
+  const derived = kindOf<string>({
+    key: "check-derivation-first-value-derived",
+    derivedFrom: sourceKey,
+    read: async () => {
+      derivedReads += 1;
+      return "derived";
+    },
+    periodMs: 60_000,
+    groupingWindowMs: 20,
+  });
+
+  await derived.read();
+  assert.equal(derivedReads, 1);
+
+  await source.read();
+  await wait(60);
+  assert.equal(derivedReads, 1, "the first value the source ever held was announced as a replacement");
+
+  // A discard leaves the same state: what the kinds held is gone, so the value
+  // read next is again a first one.
+  discardHeldValues();
+  sourceValue = "two";
+  await source.read();
+  await wait(60);
+
+  assert.equal(derivedReads, 1, `the derived kind was read ${derivedReads} times: the first value after a discard was announced as a replacement`);
+});
+
+// REQ-53 — refresh-cache.md, "the cache compares nothing it was not given a comparison for":
+// without `differs` a kind never notifies, whoever declares themselves derived from it. What
+// "different" means belongs to the kind whose value it is.
+test("a kind that declares no comparison notifies nobody, however different its values", async () => {
+  const sourceKey = "check-derivation-no-comparison-source";
+  let sourceValue = "one";
+  let derivedReads = 0;
+
+  const source = kindOf<string>({
+    key: sourceKey,
+    read: async () => sourceValue,
+    periodMs: 60_000,
+  });
+  const derived = kindOf<string>({
+    key: "check-derivation-no-comparison-derived",
+    derivedFrom: sourceKey,
+    read: async () => {
+      derivedReads += 1;
+      return "derived";
+    },
+    periodMs: 60_000,
+    groupingWindowMs: 20,
+  });
+
+  await derived.read();
+  await source.read();
+  assert.equal(derivedReads, 1);
+
+  sourceValue = "two";
+  source.markChanged();
+  await source.read();
+  await wait(60);
+
+  assert.equal(sourceValue, source.peek()?.value, "the source never stored the different value this case is about");
+  assert.equal(derivedReads, 1, `the derived kind was read ${derivedReads} times by a source that declares no comparison`);
+});
+
+// REQ-54 — refresh-cache.md: the derived re-read goes through the ordinary path, so the demand gate
+// applies to it. A derived kind nobody is asking for holds nothing and is not read, whatever the
+// source stores: the notification never revives a kind the interface stopped needing.
+test("a replacement reads no derived kind nobody is asking for", async () => {
+  const sourceKey = "check-derivation-undemanded-source";
+  let sourceValue = "one";
+  let derivedReads = 0;
+
+  const source = kindOf<string>({
+    key: sourceKey,
+    read: async () => sourceValue,
+    periodMs: 60_000,
+    differs: (previous, next) => previous !== next,
+  });
+  const derived = kindOf<string>({
+    key: "check-derivation-undemanded-derived",
+    derivedFrom: sourceKey,
+    read: async () => {
+      derivedReads += 1;
+      return "derived";
+    },
+    periodMs: 60_000,
+    groupingWindowMs: 20,
+  });
+
+  await source.read();
+  sourceValue = "two";
+  source.markChanged();
+  await source.read();
+  await wait(60);
+
+  assert.equal(derivedReads, 0, `a kind nobody asked for was read ${derivedReads} times`);
+  assert.equal(derived.peek(), undefined, "a kind nobody asked for holds a value");
+  assert.equal(derived.isRefreshing(), false, "a kind nobody asked for has a refresher running");
+});
+
+// refresh-cache.md — "A failed read notifies nobody: nothing was stored, and the value held is the
+// one the derived kinds already built on." The comparison here calls everything different, so what
+// is under check is the failure and not the comparison's verdict.
+test("a source whose read fails tells whoever derives from it nothing", async () => {
+  const sourceKey = "check-derivation-failed-read-source";
+  let sourceValue: string | undefined = "one";
+  let derivedReads = 0;
+
+  const source = kindOf<string>({
+    key: sourceKey,
+    read: async () => {
+      if (sourceValue === undefined) throw new Error("the daemon refused the read");
+      return sourceValue;
+    },
+    periodMs: 60_000,
+    differs: () => true,
+  });
+  const derived = kindOf<string>({
+    key: "check-derivation-failed-read-derived",
+    derivedFrom: sourceKey,
+    read: async () => {
+      derivedReads += 1;
+      return "derived";
+    },
+    periodMs: 60_000,
+    groupingWindowMs: 20,
+  });
+
+  await derived.read();
+  await source.read();
+  assert.equal(derivedReads, 1);
+
+  sourceValue = undefined;
+  source.markChanged();
+  await source.read();
+  await wait(60);
+
+  assert.equal(source.peek()?.stale, true, "the source's read did not fail, so this case is about nothing");
+  assert.equal(source.peek()?.value, "one", "the source did not keep the value its derived kinds had built on");
+  assert.equal(derivedReads, 1, `the derived kind was read ${derivedReads} times after a read that stored nothing`);
+});
+
+// refresh-cache.md — "A key naming no registered kind is inert": a kind may declare itself derived
+// from a key nobody registers, and is then read on its own period like any other.
+test("a kind derived from a key naming no registered kind is inert", async () => {
+  let reads = 0;
+  const orphan = kindOf<string>({
+    key: "check-derivation-orphan",
+    derivedFrom: "check-derivation-nothing-is-registered-under-this-key",
+    read: async () => {
+      reads += 1;
+      return "listed";
+    },
+    periodMs: 60_000,
+    groupingWindowMs: 20,
+  });
+
+  assert.equal((await orphan.read()).value, "listed");
+  await wait(60);
+
+  assert.equal(reads, 1, `a kind derived from a key nobody registered was read ${reads} times`);
+});
+
 // refresh-cache.md — registering the same key twice is a programming error.
 test("registering the same key twice throws", () => {
   kindOf<string>({ key: "check-duplicate-key", read: async () => "listed", periodMs: 60_000 });
