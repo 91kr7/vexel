@@ -112,6 +112,7 @@ The refresh cache itself compares nothing on its own: it holds values and does n
 | INT-12 | create | server check tree, unit, on the refresh cache itself | On two kinds of its own: a derived kind read again *before* the source stores anything is read again when it does, and a source read postponed by its grouping window notifies just the same. Neither order is arranged by the cache. | REQ-55 | INT-1, INT-2 |
 | INT-13 | create | server check tree, API pass against the real daemon, volumes area | The measurement of the report, from a warm server: a volume and the containers mounting it, and `GET /api/volumes` names every one of them on the request that follows, not a period later. | REQ-52, REQ-56 | INT-4 |
 | INT-14 | modify | `client/e2e/badge-list-pills.spec.ts` | Left exactly as written — no wait, no retry, no poll added. It is run twice in a row against one server process and is green both times. | REQ-57 | INT-4 |
+| INT-15 | modify | `server/src/containers/containers-service.ts`, the comparison declared by INT-3 | The three sorts inside that comparison carry the ordering check's own exception marker, naming what they are: a canonicalisation of a digest, never a list anybody reads. Found by this batch's own checks. | REQ-53 | INT-3 |
 
 ## How the checks are made able to fail
 
@@ -143,6 +144,27 @@ reproduce is the one those repairs cover — and fails here.
 on the `MOUNTED BY` column) fails on the second consecutive run and passes on the first and third. It
 goes green **as it is written**. A `waitFor` on the fourth pill would turn a wrong list into a slow one
 and hide exactly what this batch repairs.
+
+## The appended intervention, and why the marker rather than the shared rule
+
+`server/scripts/check-list-order-conformance.mjs` fails closed on every `.sort()` written under
+`server/src/` outside the ordering area, "because judging what a comparator sorts by needs the types
+the guard does not have". INT-3 wrote three of them and named none, so the check reports three
+violations — and, being chained ahead of the unit pass inside `npm run test -w server`, it stops the
+whole suite before a single test runs. It is a regression of this batch and it is repaired here.
+
+**The shared rule is the wrong tool for this, and adopting it would be the real violation.**
+`plan-docker_management_app-list_ordering/REQ-1` exists so that **names an operator reads** are
+compared by one rule in one place. Nothing here is read by anybody: the three sorts canonicalise a
+digest so that two listings the daemon returned in different orders compare equal — that equality is
+the whole of REQ-53, and the check "a shuffled listing does not count as different" is what asserts
+it. A human-facing collation applied to a digest would make the digest depend on the locale and on a
+rule that may legitimately change for presentation reasons, which is precisely how a comparison stops
+being an identity.
+
+So each of the three carries the marker the check itself prescribes, on the spot, saying what it
+canonicalises. The exception is per comparison, not per file: a name comparison written in this
+service later is a violation exactly as before.
 
 ## Human acceptance
 
