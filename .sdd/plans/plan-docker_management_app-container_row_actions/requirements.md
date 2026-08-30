@@ -54,3 +54,71 @@ it is delivered and accepted through its first consumer, the containers row.
 | REQ-24 | The containers list keeps updating from daemon events at the same rate and with the same fidelity as before, including while a menu is open. |
 | REQ-25 | The list's responsiveness does not regress at any list length: the per-row control costs no more than the buttons it replaces, and no per-row surface computes a runtime blur or any other backdrop filter — the single open menu is the only surface of this change entitled to the interface's overlay treatment. |
 | REQ-26 | The menu's labels, its destructive tone, its secondary hints and its disabled entries stay legible where it is used — over dense, live-updating data on the glass material — meeting the same documented minimum contrast the rest of the application is held to (`plan-docker_management_app/REQ-4`). |
+
+## Appended on 2026-08-31 — the menu that closes itself
+
+> Appended after three checks of one end-to-end run failed on 2026-08-31, all in
+> `client/e2e/containers.spec.ts`, all with the same signature: *the card menu lists exactly Rename…,
+> Export filesystem…, Kill and Remove, in that order*; *the card menu closes on Escape, on an outside
+> click and on choosing an entry, with focus back on its control*; *an outside click that lands on the
+> detail control closes the menu and still opens the detail*.
+>
+> **What the traces show.** The press on `More actions for <name>` opens and completes in about 50 ms,
+> so it reached the control. The wait for the menu then spends its whole five seconds on an element
+> that is not there, and the page snapshot at the failure holds the card and its trigger, with no menu
+> open anywhere. In all three the press lands a few milliseconds after the card appeared in the list.
+>
+> **What the operator sees is the same thing**: they press `…` on a container card and nothing appears.
+>
+> **The cause.** While a menu is open the component listens for `scroll` in the capture phase, so an
+> event from *any* scrolling container on the page closes it. It takes an event, not an operator, and
+> the Containers screen produces them on its own: the card region scrolls, the list is read again every
+> three seconds and on every daemon event, and the grid's height changes whenever a container is born,
+> dies or changes state. Bringing a control near the bottom into view before pressing it is itself a
+> scroll, and its event is delivered after the press it made possible — which is how one gesture opens
+> the menu and closes it.
+>
+> **The repository already carries the scar.** `client/e2e/support/row-overflow-menu.ts` is a retry
+> machine written to survive this, and its header cites two runs lost to the same signature while
+> calling the spontaneous close "the contract, not a flake". It is the contract, today, and the
+> contract is what is wrong.
+>
+> **The rule being changed had a good reason and a cure out of proportion to it.** A scroll does carry
+> the trigger out from under a popup left standing — but a menu that *follows* its trigger never floats
+> free, and the popup is already drawn outside every scrolling ancestor and already repositioned
+> against the trigger on every render.
+>
+> Per [[past-analyses-and-plans-are-never-touched]] and [[every-change-updates-spec-requirements-plan]]
+> this is appended as a further batch. **Nothing above this line was changed**, beyond the one row added
+> to the batch table in `batches.md` and its coverage rows: the certified batch is not reopened, and no
+> requirement of it is contradicted — REQ-13 lists the three dismissals a menu has (an entry chosen,
+> `Escape`, a click outside), and a scroll was never one of them; REQ-16 leaves "stays with that
+> container or closes" open, and what follows narrows that freedom rather than reversing it.
+
+## F2 — An open menu follows its control instead of closing on any scroll
+
+| ID | Requirement |
+| --- | --- |
+| REQ-27 | An overflow menu the operator has just opened is still open a moment later: a scroll produced by anything other than the operator taking its control out of sight — the list being read again, the region re-laid out as containers appear and disappear, the browser bringing the control itself into view before the press — leaves the menu open, complete and usable. |
+| REQ-28 | While the operator scrolls the region its control sits in, an open menu follows that control: the popup holds the same position against the control's box throughout the scroll, instead of standing where it was opened. |
+| REQ-29 | An open menu closes when its control is genuinely no longer there to be seen: scrolled entirely out of the region that holds it, or removed from the screen with the row it belongs to. It never floats over a place its control no longer occupies. |
+| REQ-30 | Pressing the control that opens a menu scrolls nothing: neither the page nor the region holding the control moves as the menu opens. |
+| REQ-31 | Following the control costs nothing while every menu is closed, and nothing outside the menu while one is open: no scroll handling is in place when no menu is open, and repositioning an open popup redraws no part of the list underneath it. |
+| REQ-32 | The check that closes REQ-27 and REQ-28 fails on the product as it stands. Every check of this feature drives the operator's own gesture — the wheel for a scroll, a real pointer at the visible control's own coordinates for a press — and, where what moves is a position, asserts the popup's rectangle in the viewport against its control's rather than its contents. |
+| REQ-33 | No check is weakened, retried or given a longer budget to accommodate a menu that dismisses itself. The gesture helper written to survive that dismissal stops absorbing it: a menu found gone while its control stayed where it was fails the check and says so, retrying is kept only for the dismissal that outlives this change — the control's own row replaced under the gesture — and the refusal to activate a destructive entry twice is untouched. |
+
+> **REQ-29 is what stops the repair from overshooting.** "Never closes on a scroll" is the cheapest
+> thing to write and it ships a popup floating over the place a card used to be. The closing condition
+> moves from *a scroll happened* to *the control has gone*, and REQ-29 is where that is stated.
+>
+> **REQ-31 is what stops the repair being paid for by the main view.** A popup that follows its trigger
+> is work done on every scroll frame, and an implementation that re-renders the list under it would
+> hand back, on the one screen with the longest list, everything `CLAUDE.md`'s background and blur rules
+> exist to protect.
+>
+> **REQ-30 is the second hypothesis, made falsifiable instead of argued.** Opening moves focus onto the
+> first entry with a bare `focus()`, and focus on a partly visible element makes a browser scroll —
+> the shape of the `bug-2` defect `CLAUDE.md` records. It is unlikely here, since the popup is fixed and
+> clamped inside the viewport, so there is nothing for a browser to scroll it into view; and after this
+> change a scroll caused by focus could not close a menu anyway. A requirement costs less than the
+> argument, and it fails loudly if the reasoning is wrong.
