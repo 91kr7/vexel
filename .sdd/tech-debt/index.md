@@ -39,6 +39,7 @@ means writing the analysis and the plan for it in the normal way — see
 | build-cache-prune-guard-blocked-by-run-fixtures | client | medium | The build-cache prune check can never run in a full pass: the run's own fixtures fill the cache its guard requires empty | `entries/build-cache-prune-guard-blocked-by-run-fixtures.md` |
 | change-coverage-millisecond-window | server | low | A read starting in the same millisecond as a change counts as covering it, on REQ-13's path | `entries/change-coverage-millisecond-window.md` |
 | layer-explorer-cancel-races-the-analysis | client | low | A check presses Cancel on an analysis that has already finished, and passes on speed rather than on contract | `entries/layer-explorer-cancel-races-the-analysis.md` |
+| open-app-retries-for-a-whole-test-budget | client | medium | `openApp` retries for 30 s, the whole default budget of the 562 tests that call it, so its own failure message can never be printed | `entries/open-app-retries-for-a-whole-test-budget.md` |
 
 ## Provenance of the three added on 2026-08-28
 

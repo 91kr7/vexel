@@ -161,3 +161,62 @@ requirements are testable, each with the reason and each cheap to retune in one 
 - **The liveness write is every 10 seconds** (REQ-50), the same as the sampling interval — the spec's
   own bound is "a time comparable to the sampling interval", and a dead connection is then discovered
   before the sampler has run twice for a reader who has gone.
+
+## Appended on 2026-08-31 — a check that declares a patience it cannot spend
+
+> Appended after `client/e2e/containers-card-geometry.spec.ts` died on `Test timeout of 30000ms
+> exceeded` in the run of 2026-08-31. The case is *"a live update changes the numbers, moves nothing,
+> and leaves the ports exactly as they were"* (line 915). **The defect is in the check, not in the
+> product.**
+>
+> The count, read from the source. `client/playwright.config.ts` sets no `timeout`, so every test gets
+> Playwright's default of 30 seconds. Before it reaches the assertion it exists for, the test creates
+> three fixtures with four published ports; calls `openNarrowedTo`, which loads the application and
+> declares two waits of 20 seconds each; waits for a first sample, 25 seconds declared; and measures
+> the list. Then it waits for a reading to change with a poll that declares **40 seconds inside a test
+> that has 30**. Those 40 seconds can never be spent: the poll gets whatever is left of the 30, about
+> fifteen. After it the test spends another 6 to 8 seconds on three port re-reads.
+>
+> **The slowness is not the defect.** The sampler reads every 10 seconds
+> (`STATS_SAMPLE_INTERVAL_MS`, `server/src/containers/containers-service.ts:179`), a cadence batch 3
+> of this plan decided and certified (REQ-39). Waiting for a reading to change therefore costs one
+> sampling interval, sometimes two. The test needs about 35 to 45 seconds and declares 30. It was
+> passing by luck.
+>
+> **The class is wider than the case that died.** A search of `client/e2e/` found seven files in which
+> a step declares a longer patience than the test that runs it — 23 tests in all, from a 40-second
+> poll to a 300-second `docker build`. The list is in the batch. The cure is the same for all of them:
+> the count is made honest and derived, never generous.
+>
+> Per [[every-change-updates-spec-requirements-plan]] this is appended as a further batch. **Nothing
+> above this line was changed**: no certified batch is reopened, and batches 1, 2 and 3 keep their
+> requirements word for word.
+
+## F4 — Every check declares a budget it can spend
+
+| ID | Requirement |
+| --- | --- |
+| REQ-64 | No test under `client/e2e/` declares a step budget larger than the budget of the test that runs it. This counts the steps written in the test and the steps written in the helper functions of its own file. |
+| REQ-65 | Every budget this change writes or moves carries, beside it, the arithmetic it comes from: the parts the number is made of, and where each part comes from. A reader redoes the count from the comment alone. |
+| REQ-66 | A step that waits for a sampled figure to arrive, or to change, derives its budget from the sampling cadence the product declares and from the list poll that carries a sample to the screen. It is written as a number of sampling intervals and a stated slack, not as a round figure. |
+| REQ-67 | Each repaired check asserts exactly what it asserted before. For the case that died: a reading changes, no card moves, the metric rows keep their horizontal position, the chip count does not grow, the port chips stay identical across three re-reads, and no card carries a transition or an animation. No assertion is removed, softened or replaced, no retry is added, and no wait is put in front of an assertion. |
+| REQ-68 | The change touches no product source. Nothing under `client/src/` or `server/src/` moves, and the per-container sampling keeps the 10-second cadence certified by batch 3. |
+| REQ-69 | A step budget larger than the budget of the test that runs it fails the build, naming the file, the test, the step's budget and the test's. |
+| REQ-70 | The default test budget is declared in `client/playwright.config.ts`, and the guard reads it from there. A guard that cannot read it fails instead of assuming a value. |
+| REQ-71 | The guard runs under `npm run lint` and under `npm run test` in the client workspace. It carries no skip and no exception marker, and both commands pass. |
+| REQ-72 | The guard is driven by a check of its own, over sources written for that check: it refuses a test whose step declares more than the test has, and it accepts one whose steps fit. It writes no spec file into `client/e2e/`. |
+
+> **Two of these requirements move budgets upward, and that is not the forbidden move.** The standing
+> rule is that no check gets a longer budget in order to pass ([[a-check-is-never-weakened-to-pass]]).
+> Every test in the perimeter passes today. What is wrong is that each declares, in one of its steps,
+> a patience the test cannot give it — so the step's own failure message can never be printed, and the
+> test dies at an arbitrary place instead. REQ-64 repairs that declaration. Where a step budget comes
+> **down** (REQ-66), it comes down to what the product's cadence requires. Where a test budget goes
+> **up**, it goes up to the sum REQ-65 writes out. No number is chosen by running the suite until it
+> is green.
+>
+> **REQ-69 is deliberately the weakest useful rule, and REQ-65 is what covers the rest.** A guard that
+> added budgets up would have to decide which worst cases can happen in the same run, and it would
+> refuse code that is correct — the daily nuisance that turns a guard into a formality. So the guard
+> refuses only a declaration that is impossible on its face. A test whose steps sum to more than it
+> has still passes the guard; the arithmetic written beside each budget is what a human reads instead.
