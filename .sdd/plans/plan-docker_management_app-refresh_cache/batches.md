@@ -19,6 +19,7 @@ status: validated
 | version-negotiated-once | The Engine API version is negotiated once, and the probe still probes | REQ-31, REQ-32, REQ-33, REQ-34, REQ-35, REQ-36 | — | certified | The application asks the daemon half as much, and still notices it going away |
 | container-listing-shared | One container listing serves every consumer | REQ-37, REQ-38, REQ-39, REQ-40, REQ-41, REQ-42, REQ-43, REQ-44 | — | certified | The daemon is asked for the container listing once, not four times |
 | change-coverage-check | The change-coverage check asserts the guarantee, not the daemon's timing | REQ-45, REQ-46 | — | certified | The container lifecycle check passes on every run |
+| sampler-from-shared-listing | The statistics sampler reads the container listing the server already holds | REQ-47, REQ-48, REQ-49, REQ-50, REQ-51 | — | certified | Watching statistics costs no container listing of its own |
 
 ## What the plan builds
 
@@ -143,6 +144,11 @@ qualified with their batch below.
 | REQ-44 | `batch-container-listing-shared/INT-16`, `batch-container-listing-shared/INT-17`, `batch-container-listing-shared/INT-19` | container-listing-shared |
 | REQ-45 | `batch-change-coverage-check/INT-1`, `batch-change-coverage-check/INT-2`, `batch-change-coverage-check/INT-3`, `batch-change-coverage-check/INT-4` | change-coverage-check |
 | REQ-46 | `batch-change-coverage-check/INT-1`, `batch-change-coverage-check/INT-3` | change-coverage-check |
+| REQ-47 | `batch-sampler-from-shared-listing/INT-1`, `batch-sampler-from-shared-listing/INT-2`, `batch-sampler-from-shared-listing/INT-4`, `batch-sampler-from-shared-listing/INT-5`, `batch-sampler-from-shared-listing/INT-6` | sampler-from-shared-listing |
+| REQ-48 | `batch-sampler-from-shared-listing/INT-3`, `batch-sampler-from-shared-listing/INT-4`, `batch-sampler-from-shared-listing/INT-5`, `batch-sampler-from-shared-listing/INT-7` | sampler-from-shared-listing |
+| REQ-49 | `batch-sampler-from-shared-listing/INT-2`, `batch-sampler-from-shared-listing/INT-4`, `batch-sampler-from-shared-listing/INT-8` | sampler-from-shared-listing |
+| REQ-50 | `batch-sampler-from-shared-listing/INT-1`, `batch-sampler-from-shared-listing/INT-4`, `batch-sampler-from-shared-listing/INT-5`, `batch-sampler-from-shared-listing/INT-9` | sampler-from-shared-listing |
+| REQ-51 | `batch-sampler-from-shared-listing/INT-1`, `batch-sampler-from-shared-listing/INT-4`, `batch-sampler-from-shared-listing/INT-10` | sampler-from-shared-listing |
 
 **Three notes on this coverage.**
 
@@ -511,3 +517,130 @@ One note on it. **REQ-46 is the requirement that protects the check from its own
 be satisfied by a check that also polls, and such a check would go green even if the cache stopped
 re-reading and merely waited out its period. `batch-change-coverage-check/INT-3` writes the
 prohibition where someone would otherwise add the loop.
+
+## Appended on 2026-08-30 — one batch
+
+The statistics sampler is the last reader of the container listing that still fetches one for itself.
+`sampleOnce()` calls `GET /containers/json` — running containers only — every ten seconds, purely to
+learn which containers to ask statistics for: six list reads a minute for as long as anyone is
+watching statistics. `container-listing-shared` moved the volume list, the network list and the
+dashboard onto the held listing and left the sampler out; what that batch changed — the held value is
+now the daemon's own response, so every entry carries `State` — is what makes the sampler reachable
+now. The batch below closes it.
+
+Per the knowledge base, work found after a batch is appended as a further batch and never edited into
+one already closed: **nothing above this line was changed**, beyond the one row added to the batch
+table and its five coverage rows. No certified batch is reopened.
+
+**The claim.** With the dashboard or the containers screen open, six `/containers/json` a minute
+become none. Watching statistics with nobody else asking, the fallback fires and it costs what it
+costs today.
+
+**Execution order.** `sampler-from-shared-listing` depends on nothing still open in this plan. It
+changes the sampler and the containers kind built by `lists-from-refresh-cache` and reshaped by
+`container-listing-shared`, both certified; it needs that work present, not repeated. The `Depends`
+column is empty for that reason.
+
+### Assumptions and decisions
+
+- **`peek()`, never `read()`, and the reasons are the mirror image of the sibling rule.** Every other
+  consumer of the held listing reads through `read()` because it needs REQ-13's change coverage and
+  because it should renew demand. The sampler needs neither and is harmed by both: it is a background
+  timer nobody awaits, whose tick is **dropped** rather than queued when the previous pass is still
+  out, so a wait costs samples (REQ-51); and demand registered by a sampler would keep the container
+  listing being read for a value nobody displays, which is the demand gate inverted (REQ-50). The
+  human's decision of 2026-08-30. It is not reopened here and is not presented as an option.
+- **The two comments in the source are written against each other.** `containers-service.ts:218-221`
+  states why `readHeldContainerList` uses `read()` and never `peek()`; the new accessor states why it
+  uses `peek()` and never `read()`. Read separately, either looks like the mistake the other corrects
+  — which is how one of them gets "fixed" into the other by a later reader. INT-1 makes the pair the
+  deliverable, not the accessor alone.
+- **The two listings are different queries, and the derivation absorbs the difference.** The held one
+  is `/containers/json?all=true` with the internal extraction containers removed
+  (`readDaemonContainerList`); the sampler's own is `/containers/json`, running only, with those
+  containers still in it. So the running set becomes a filter on `State`, and the exclusion the held
+  listing already applies is inherited. That is correct and not merely harmless: an intermediate
+  extraction container is the application's own, no screen shows statistics for one, and dropping it
+  saves a stats call per extraction container while a browse is running.
+- **The states that count are `running`, `paused` and `restarting`.** That is what the daemon returns
+  when asked for running containers only, and `freshSample` never looks at the state, so a filter
+  narrowed to `running` alone would take the figures off paused containers thirty seconds later.
+  **Measured on 2026-08-30 rather than inferred**: a paused container and a container in its restart
+  backoff were each read back from `GET /containers/json` over the socket, and both were present,
+  reporting `paused` and `restarting`. The evidence is in `requirements.md`, under the appended
+  section of 2026-08-30. REQ-49 states it and the batch file's INT-8 asserts it.
+- **The per-sample statistics calls do not move, and cannot.** One
+  `GET /containers/{id}/stats?stream=false` per running container per pass, as today. Docker reports
+  statistics one container at a time: there is no bulk form of that endpoint and no listing that
+  carries the figures. It is written into the batch file so that "the sampler now costs one call
+  less" is not read later as an invitation to fold the stats calls into something. There is nothing
+  to fold them into.
+- **The fallback is a normal state, not an error path.** `peek()` returns nothing whenever no value
+  is held — after a restart, after a context change discarded every held value, and whenever nobody
+  is asking for the listing. The pass then reads for itself and samples, exactly as today (REQ-48).
+- **A newly started container is no slower to appear.** The held listing declares `container` among
+  the event types that mark it due, and the daemon's `container start` event lands inside the 750 ms
+  grouping window, so a container started between two passes is in the held listing before the next
+  one reads it. The opposite case was already handled: a container that stopped after the listing was
+  read is asked for statistics, the call fails, and `sampleOnce`'s own `catch` has skipped it since it
+  was written.
+- **No debt entry is opened or closed.** `no-server-side-sampling-or-dedup` is the umbrella entry for
+  the list routes and this batch does not close it; nothing here is a cost being deferred.
+
+### Departures
+
+- **The two validation gates were not held.** The human stated the design themselves on 2026-08-30 —
+  `peek()` and not `read()`, the reason for each half, the fallback when nothing is held, and the
+  perimeter of the run — and asked for the plan and the development in one pass. The requirements and
+  the coverage below were written to that statement and not put back for validation. There is no open
+  question on the design.
+- **The closing full pass stays withdrawn**, for the fourth batch of this plan running. Both the e2e
+  suite and the unit suite were already red before this work, on failures of their own, and the human
+  said so. A suite red before a change cannot certify the change: whatever it reports, the batch's own
+  perimeter is where the signal is. So the run is that perimeter — this batch's new checks, plus the
+  existing checks of the components it touches: `server/test/unit/containers-stats-sampling.test.ts`,
+  `server/test/api/container-listing-guardrail.test.ts`,
+  `server/test/api/refresh-cache-routes.test.ts`,
+  `server/test/unit/container-list-read-projection.test.ts`, and the other refresh-cache and
+  containers unit files. **What it costs is stated rather than hidden**: this plan closes, for the
+  fourth batch running, without the full pass its method asks for, and the pre-existing red is not
+  this batch's to fix.
+- **No departure from the business spec.** `.sdd/analysis/docker_management_app-refresh_cache.md` says
+  nothing about the sampler at all, so nothing here contradicts it and no correction to it is owed.
+  **The component spec is a different matter and the batch owes it a correction**:
+  `.sdd/modules/containers/specs/containers-service.md` states, under "Rules and invariants", that one
+  pass is `GET /containers/json` (running only) plus one stats call per running container. After this
+  batch the first half of that sentence is false. `batch-sampler-from-shared-listing/INT-4` carries
+  the change into that spec and into the component row of `.sdd/modules/containers/index.md`, per
+  [[every-change-updates-spec-requirements-plan]]. That is spec-carrying work, not a departure.
+
+### Explicitly out of scope
+
+- **The double read on a manual operation** — the application's own `markChanged()` plus the daemon's
+  echo of the same operation. It is annotated in `batches/batch-container-listing-shared.md` together
+  with what would remove it: a comparison against the event's `timeNano` inside the refresh cache. It
+  belongs to the refresh cache and not to this batch.
+- **The two red suites.** They were red before this work and they are not this batch's to repair.
+
+### Coverage check — the appended requirements
+
+REQ-47 to REQ-51 are each served by at least one intervention of `sampler-from-shared-listing`, and
+each of its ten interventions serves at least one of them. No appended REQ is split across batches:
+all five close here. There is no enabling intervention.
+
+
+Three notes on it.
+
+- **No appended REQ is served by a check and no code change.** Each of the five has at least one
+  source intervention behind it, which is a departure from REQ-43 and REQ-20 to REQ-23 in this same
+  plan: those were guarantees that nothing moved, and this batch moves something on every one of its
+  five. The nearest to check-only is REQ-49, whose source change is one predicate inside INT-2 — and
+  that predicate is where the whole risk of this batch sits.
+- **REQ-47 is the saving and REQ-50 is what stops the saving being taken back.** A check that only
+  counted `/containers/json` would go green on an implementation reading with `read()`, which removes
+  six calls a minute and adds a refresher nobody asked for. `INT-9` counts in the other direction:
+  with the sampler running alone, the container listing must not be under refresh and no
+  `?all=true` may reach the daemon at all.
+- **REQ-50 has no acceptance scenario, and the batch file says so.** Every screen that subscribes to
+  the figures also asks for a list, so an inverted demand gate is not visible from the interface. It
+  is a constraint protecting a future consumer, and `INT-9` is what proves it.

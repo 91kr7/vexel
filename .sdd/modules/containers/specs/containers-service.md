@@ -25,10 +25,11 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
     with no public port is an exposure and is not a mapping. **Each mapping appears exactly once**,
     in a **total order of this service's own**: by private port, then public port, then protocol.
   - `cpuPercent`/`memoryUsageBytes`/`memoryLimitBytes`/`onlineCpus`/`networkRxBytes`/
-    `networkTxBytes` are present only for a `running` container whose latest sample is **less than
-    30 seconds old**; all six come from **one** sample and are absent together, and a container the
-    sampler has never read, one that has stopped, and one whose reading has gone stale are
-    indistinguishable to a caller — each simply has no figures.
+    `networkTxBytes` are present only for a container the sampler covers — the daemon's own running
+    set, `running`, `paused` or `restarting` — whose latest sample is **less than 30 seconds old**;
+    all six come from **one** sample and are absent together, and a container the sampler has never
+    read, one that has stopped, and one whose reading has gone stale are indistinguishable to a
+    caller — each simply has no figures.
   - `onlineCpus` is the number of host CPUs `cpuPercent` is measured against, so `cpuPercent`
     reaches `onlineCpus × 100` at full load and a caller can state the reading over its capacity.
   - `networkRxBytes`/`networkTxBytes` are the bytes received and sent since the container started,
@@ -57,6 +58,16 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   - It goes through the kind's `read()` and **never `peek()`**: the caller is served a listing that
     covers the operation the application has just performed, and the call renews the demand that
     keeps the listing refreshed.
+- `peekHeldContainerList(): RawContainer[] | undefined` — the held listing when one is held, and
+  nothing when none is: the statistics sampler's own accessor.
+  - It goes through the kind's `peek()` and **never `read()`** — the mirror image of the accessor
+    above, for the mirror image of its reasons. The call **registers no demand and starts no
+    refresher**, so watching the figures never keeps the listing being read for a value nobody
+    displays; and it **never waits**, neither for a read in flight nor for a listing just marked
+    changed.
+  - Holding nothing is an ordinary answer, not an error: a server that has just started, one whose
+    active context has just changed and one nobody is asking the listing of all get it, precisely
+    because `peek()` keeps nothing alive.
 - `startContainer(id)`, `stopContainer(id)`, `restartContainer(id)`, `pauseContainer(id)`,
   `unpauseContainer(id)`, `killContainer(id)`: `Promise<void>` — the matching Engine API lifecycle
   call.
@@ -105,17 +116,41 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 
 ## Rules and invariants
 
-- One pass is `GET /containers/json` (running only) plus one `GET
-  /containers/{id}/stats?stream=false` per running container: a bounded refresh rate, not a
-  per-request fetch, so listing containers never blocks on the daemon's stats endpoint.
+- **While a listing is held, one pass asks the daemon for no container listing of its own.** The
+  containers to sample are derived from the held listing by `State`, and the pass is then one `GET
+  /containers/{id}/stats?stream=false` per container of that set: a bounded refresh rate, not a
+  per-request fetch, so listing containers never blocks on the daemon's stats endpoint. The
+  per-container statistics call does not move and cannot: the daemon reports statistics one
+  container at a time, there is no bulk form of that endpoint and no listing carries the figures —
+  so there is nothing to fold it into.
+- **The set is the three states the daemon reports as running — `running`, `paused` and
+  `restarting` — and not `State === "running"`.** Asked for running containers only, the daemon
+  answers with a paused and a restarting container too (measured at the daemon on 2026-08-30, not
+  taken from the documentation). An equality on the one state would stop sampling a paused
+  container, whose figures would then leave its card one staleness bound later — nothing else holds
+  them, since a sample's freshness never looks at the state. The derivation also **inherits the
+  internal-container exclusion** the held listing applies and the sampler's own call did not: an
+  intermediate extraction container carries figures on no screen, and a browse in progress now costs
+  no statistics call per extraction container.
+- **With nothing held, the pass reads `GET /containers/json` itself and samples on that same pass.**
+  It is never skipped for want of a held listing: that is the ordinary state of a server that has
+  just started, and skipping would blank the one screen the sampler exists for.
+- **Sampling registers no demand and waits on nothing.** It reads the held listing through `peek()`,
+  so an operator watching the figures with nothing else asking for the listing neither starts its
+  refresher nor keeps one alive, and a read in flight or a listing just marked changed delays no
+  pass. A pass that waited would cost a **sample** rather than a millisecond, since a tick arriving
+  while the previous pass is still out is dropped rather than queued and nobody awaits the sampler's
+  answer.
 - **The sampler runs only while it is started, and nothing here starts it.** It is started and
   stopped by `StatsDemandRegistry`, on the count of consumers being shown the figures; a process
   with no consumer issues no stats request at all, on any screen and with no browser attached.
 - **Passes never overlap and never queue.** A tick arriving while the previous pass is still out is
   dropped, so a pass slower than the interval gains no second pass beside it and no backlog builds
   up — however slow the daemon is and however many containers are running.
-- A container's cached sample is dropped as soon as it no longer appears in the running set, so a
-  stopped container never reports a stale CPU/memory reading.
+- A container's cached sample is dropped as soon as it no longer appears in the running set the pass
+  ended up with — derived or read — so a stopped container never reports a stale CPU/memory reading.
+  A container that stopped between the listing being read and its statistics call going out is
+  simply skipped for that pass.
 - **A reading older than three intervals reaches no consumer**, by the same route a stopped
   container's absent sample already takes: the bound is stated in exactly one place, as a multiple
   of the interval, and it is what stops a number measured before the gate closed from being
@@ -277,3 +312,8 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 - plan-docker_management_app-refresh_cache/REQ-42
 - plan-docker_management_app-refresh_cache/REQ-43
 - plan-docker_management_app-refresh_cache/REQ-44
+- plan-docker_management_app-refresh_cache/REQ-47
+- plan-docker_management_app-refresh_cache/REQ-48
+- plan-docker_management_app-refresh_cache/REQ-49
+- plan-docker_management_app-refresh_cache/REQ-50
+- plan-docker_management_app-refresh_cache/REQ-51
