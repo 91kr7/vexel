@@ -629,15 +629,23 @@ async function sampleOnce(): Promise<void> {
     running.map(async (container) => {
       try {
         const statsResponse = await client.request(`/containers/${container.Id}/stats?stream=false`);
-        statsCache.set(container.Id, computeUsage(JSON.parse(statsResponse.body) as RawStats));
+        const usage = computeUsage(JSON.parse(statsResponse.body) as RawStats);
+        // an answer that is no measurement also drops the reading held: it measured a run that ended
+        if (usage) statsCache.set(container.Id, usage);
+        else statsCache.delete(container.Id);
       } catch {
-        // container stopped mid-sample or stats unavailable for it: skip this tick
+        // the call itself failed: a container that stopped mid-pass is answered, not refused
       }
     }),
   );
 }
 
-function computeUsage(raw: RawStats): SampledUsage {
+// An answer with no memory limit is no measurement: the daemon answers a container that stopped
+// after the listing was read with 200 and an empty frame, never a failure
+// (plan-docker_management_app-containers_card_view-stopped-container-no-sample/REQ-8, REQ-9).
+function computeUsage(raw: RawStats): SampledUsage | undefined {
+  const memoryLimitBytes = raw.memory_stats.limit;
+  if (!memoryLimitBytes) return undefined;
   const cpuDelta = raw.cpu_stats.cpu_usage.total_usage - raw.precpu_stats.cpu_usage.total_usage;
   const systemDelta = (raw.cpu_stats.system_cpu_usage ?? 0) - (raw.precpu_stats.system_cpu_usage ?? 0);
   const onlineCpus = raw.cpu_stats.online_cpus ?? raw.cpu_stats.cpu_usage.percpu_usage?.length ?? 1;
@@ -653,7 +661,7 @@ function computeUsage(raw: RawStats): SampledUsage {
   return {
     cpuPercent,
     memoryUsageBytes,
-    memoryLimitBytes: raw.memory_stats.limit ?? 0,
+    memoryLimitBytes,
     onlineCpus,
     networkRxBytes,
     networkTxBytes,
@@ -694,8 +702,11 @@ function freshSample(id: string): SampledUsage | undefined {
   return Date.now() - usage.sampledAt <= STATS_STALE_AFTER_MS ? usage : undefined;
 }
 
+// The figures come out of the same listing the state does: a container this
+// reading does not put in the running set is answered with none of them
+// (plan-docker_management_app-containers_card_view-stopped-container-no-sample/REQ-1).
 function toSummary(raw: RawContainer): ContainerSummary {
-  const usage = freshSample(raw.Id);
+  const usage = DAEMON_RUNNING_STATES.has(raw.State) ? freshSample(raw.Id) : undefined;
   return {
     id: raw.Id,
     shortId: raw.Id.slice(0, 12),

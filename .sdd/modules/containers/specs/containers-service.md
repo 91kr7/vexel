@@ -25,11 +25,14 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
     with no public port is an exposure and is not a mapping. **Each mapping appears exactly once**,
     in a **total order of this service's own**: by private port, then public port, then protocol.
   - `cpuPercent`/`memoryUsageBytes`/`memoryLimitBytes`/`onlineCpus`/`networkRxBytes`/
-    `networkTxBytes` are present only for a container the sampler covers — the daemon's own running
-    set, `running`, `paused` or `restarting` — whose latest sample is **less than 30 seconds old**;
-    all six come from **one** sample and are absent together, and a container the sampler has never
-    read, one that has stopped, and one whose reading has gone stale are indistinguishable to a
-    caller — each simply has no figures.
+    `networkTxBytes` are present only for a container **this same reading of the listing** puts in
+    the daemon's running set — `running`, `paused` or `restarting` — and whose latest sample is
+    **less than 30 seconds old**. The state and the figures therefore come from one reading: a
+    container the listing shows as anything else is answered with none of the six, whatever the
+    sampler still holds for it, so no answer states `exited` and a measured value at once. All six
+    come from **one** sample and are absent together, and a container the sampler has never read,
+    one that has stopped and one whose reading has gone stale are indistinguishable to a caller —
+    each simply has no figures.
   - `onlineCpus` is the number of host CPUs `cpuPercent` is measured against, so `cpuPercent`
     reaches `onlineCpus × 100` at full load and a caller can state the reading over its capacity.
   - `networkRxBytes`/`networkTxBytes` are the bytes received and sent since the container started,
@@ -174,9 +177,27 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   dropped, so a pass slower than the interval gains no second pass beside it and no backlog builds
   up — however slow the daemon is and however many containers are running.
 - A container's cached sample is dropped as soon as it no longer appears in the running set the pass
-  ended up with — derived or read — so a stopped container never reports a stale CPU/memory reading.
-  A container that stopped between the listing being read and its statistics call going out is
-  simply skipped for that pass.
+  ended up with — derived or read. That is **maintenance of the cache, not what keeps a stopped
+  container's answer honest**: the drop happens on the next pass, up to one interval later, and
+  every listing read in between would still carry the reading. What withholds it is the projection
+  rule above, which asks the listing being answered with. A container that stopped between the
+  listing being read and its statistics call going out is skipped for that pass by the rule below.
+- **An answer that reports no memory limit is not a measurement: nothing is stored for it, and the
+  reading already held is dropped.** The daemon does not fail the statistics call of a container that
+  has just stopped: it answers `200` with an empty frame — `memory_stats: {}`, every CPU counter
+  zero, no `system_cpu_usage`, no `networks` (measured on Docker 29.7.2, not taken from the
+  documentation). Read as figures, that frame is a container using nothing — a measured zero — rather
+  than one nothing has been measured of. What separates it from a real reading is the **missing
+  memory limit**: a container that is running always reports the limit of its cgroup, so no real
+  reading is refused. The pass then asks the daemon for nothing more and holds nothing at all for
+  that container, so it has no figures until a pass measures it for real. **The reading held is
+  dropped rather than left standing**, and that is the point of the rule: it measured a run of the
+  container that has ended, and a figure taken from a process that no longer exists is not a current
+  figure however recently it was read. The mark is applied in **one place**, where a frame becomes a
+  reading. It is what a container stopped and started again inside one interval depends on: the
+  listing calls it `running` again and the projection rule hands out whatever is cached for it —
+  which is nothing, neither the zero measured while it was stopped nor the figure measured before it
+  stopped.
 - **A reading older than three intervals reaches no consumer**, by the same route a stopped
   container's absent sample already takes: the bound is stated in exactly one place, as a multiple
   of the interval, and it is what stops a number measured before the gate closed from being
@@ -328,6 +349,15 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 - plan-docker_management_app-containers_card_view/REQ-52
 - plan-docker_management_app-containers_card_view/REQ-55
 - plan-docker_management_app-containers_card_view/REQ-58
+- plan-docker_management_app-containers_card_view-stopped-container-no-sample/REQ-1
+- plan-docker_management_app-containers_card_view-stopped-container-no-sample/REQ-2
+- plan-docker_management_app-containers_card_view-stopped-container-no-sample/REQ-3
+- plan-docker_management_app-containers_card_view-stopped-container-no-sample/REQ-4
+- plan-docker_management_app-containers_card_view-stopped-container-no-sample/REQ-5
+- plan-docker_management_app-containers_card_view-stopped-container-no-sample/REQ-8
+- plan-docker_management_app-containers_card_view-stopped-container-no-sample/REQ-9
+- plan-docker_management_app-containers_card_view-stopped-container-no-sample/REQ-10
+- plan-docker_management_app-containers_card_view-stopped-container-no-sample/REQ-11
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-52
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-59
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-60
