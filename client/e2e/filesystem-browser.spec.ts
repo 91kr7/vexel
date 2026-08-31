@@ -258,6 +258,16 @@ test('opens the cost warning as the first thing after the row action, with the r
 // started extraction returns the operator to the images list, never to a surface offering to start
 // it again. plan-docker_management_app/REQ-55 is what the warning itself still serves.
 test('declining the cost warning leaves nothing open and nothing extracted, and cancelling a started extraction returns to the images list', async ({ page }) => {
+  // The largest budget in the suite, and it states what this case already permits itself.
+  // 360s = 300 + 30 + 20 + 10 (REQ-64, REQ-65):
+  //  300s — the `docker build` of the 40 000-entry fixture: the ceiling `createManyEntryImage`
+  //         declares, and the largest single step this case runs;
+  //   30s — the screen opened and pinned: `openApp` in this file's `beforeEach`, which spends the
+  //         test's own budget;
+  //   20s — the retried overflow-menu gesture after the warning has been declined;
+  //   10s — the fixture image and the content behind it, removed in the `finally`:
+  //         `removeImageAndContent` retries ten times, a second apart.
+  test.setTimeout(360_000);
   const tag = `vexel-e2e-fsbrowser-cost-${Date.now()}:v1`;
   const extractions = extractionStreamRequests(page);
   try {

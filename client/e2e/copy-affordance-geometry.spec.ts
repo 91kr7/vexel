@@ -365,6 +365,14 @@ test('the property section keeps its column count at its measured width, and is 
 // visually unchanged: the pane still lies inside its own half of the split, its bands still read one
 // per line, and nothing escapes it.
 test('the filesystem browser metadata pane is unchanged apart from the control it lost', async ({ page }) => {
+  // 120s = 60 + 25 + 20 + 15 (REQ-64, REQ-65):
+  //   60s — the extraction: the ceiling this case declares for the tree's first entry, and the
+  //         largest single step it runs;
+  //   25s — the image fixture: the single-layer image ensured on the daemon, then `docker create`
+  //         and `docker commit` here, and the image and its container removed in the `finally`;
+  //   20s — the images screen opens and the fixture's row appears in the list;
+  //   15s — the overflow-menu gesture, the cost warning, the entry click and the pane read.
+  test.setTimeout(120_000);
   const containerName = `vexel-e2e-nocopy-geom-fs-src-${Date.now()}`;
   const tag = `vexel-e2e-nocopy-geom-fs-${Date.now()}:v1`;
   try {

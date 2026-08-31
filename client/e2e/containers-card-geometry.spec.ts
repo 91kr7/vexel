@@ -12,6 +12,18 @@
  *
  * Fixtures are created and removed by this file, and the list is narrowed to them by the screen's
  * own search: the operator's own containers are none of its business.
+ *
+ * **Where this file's budgets come from** (`REQ-66`, `REQ-68`). Two figures the product states, and
+ * nothing else: the per-container sampler reads every 10s (`STATS_SAMPLE_INTERVAL_MS`,
+ * `server/src/containers/containers-service.ts`), and the list poll carries a sample to the screen
+ * every 3s (`POLL_INTERVAL_MS`, `client/src/data/use-containers.ts`). Both are certified decisions —
+ * the cadence by batch 3 of this plan (`REQ-39`) — so every wait below is written as a number of
+ * sampling intervals plus a stated slack, never as a round figure.
+ *
+ * **And the cadence is never changed to make a check here easier.** A wait that runs out means the
+ * arithmetic beside it is wrong, or the product is slower than it says it is; the answer is a
+ * corrected count, or a defect. A sampler reading more often would make this file quick and the
+ * product worse, and the reader tempted by that shortcut is the reader of this file.
  */
 import { expect, test, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
@@ -458,10 +470,32 @@ async function openNarrowedTo(page: Page, stem: string, expected: number, viewpo
   await expect(page.locator('.ui-error-banner'), 'the screen is showing an error banner').toHaveCount(0, { timeout: 20_000 });
 }
 
-/** Waits until the sampler has read this card at least once, so a measured figure is under test rather than a gap. */
+/**
+ * Waits until the sampler has read this card at least once, so a measured figure is under test
+ * rather than a gap.
+ *
+ * 16s = one sampling interval (10s, `STATS_SAMPLE_INTERVAL_MS`) + one list poll (3s,
+ * `POLL_INTERVAL_MS`) + 3s slack: the first reading of a newly listed container is taken within one
+ * interval, and reaches the card on the next poll (REQ-66).
+ */
 async function waitForASample(page: Page, name: string): Promise<void> {
-  await expect(containerCard(page, name), `${name} never received a sample`).not.toContainText('no sample', { timeout: 25_000 });
+  await expect(containerCard(page, name), `${name} never received a sample`).not.toContainText('no sample', { timeout: 16_000 });
 }
+
+/**
+ * One budget for the twelve tests of this file, declared once so twelve numbers cannot drift apart
+ * (REQ-64, REQ-65). 120s = 25 + 40 + 16 + 25 + 14:
+ *
+ * - 25s — the fixtures, created here and removed in the `finally`: the file's worst case is twelve
+ *   containers;
+ * - 40s — the screen opens, narrowed to them: the two 20s waits `openNarrowedTo` declares;
+ * - 16s — the first sample reaches the card: `waitForASample`, counted at its own declaration;
+ * - 25s — a reading changes: the live-update poll, counted at its own declaration;
+ * - 14s — the port re-reads and the settled measurements: three 1.5s waits, plus the measurement
+ *   passes over the list;
+ * - 120s — what the file therefore declares.
+ */
+test.describe.configure({ timeout: 120_000 });
 
 test.beforeAll(async () => {
   await ensureImage(ALPINE_IMAGE);
@@ -926,8 +960,12 @@ test('a live update changes the numbers, moves nothing, and leaves the ports exa
     const portsBefore = before.cards.find((card) => card.name === fixtures.running)!.ports!.chips.map((chip) => chip.text);
     expect(portsBefore, 'the many-ported card does not draw two chips and a count').toHaveLength(3);
 
+    // 25s = two sampling intervals (20s, `STATS_SAMPLE_INTERVAL_MS`) + one list poll (3s,
+    // `POLL_INTERVAL_MS`) + 2s slack. Two intervals and not one: the figure the card already shows
+    // may be a whole interval old, and a sample whose reading repeats the last one changes nothing
+    // (REQ-66).
     await expect
-      .poll(async () => readingOf(await measureListThisFrame(page), fixtures.running), { timeout: 40_000, intervals: [1_000] })
+      .poll(async () => readingOf(await measureListThisFrame(page), fixtures.running), { timeout: 25_000, intervals: [1_000] })
       .not.toBe(readingOf(before, fixtures.running));
 
     const after = await measureList(page);

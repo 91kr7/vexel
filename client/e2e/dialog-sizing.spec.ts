@@ -442,6 +442,14 @@ test('the glass card of a large dialog is exactly the size of the dialog it hold
 // re-laid out by plan-docker_management_app-filesystem_browser_layout: the card is the size of the
 // dialog it holds and keeps the designed wide format, exactly as the layer explorer does.
 test('the glass card of the filesystem browser is exactly the size of the dialog it holds, at the large format', async ({ page }) => {
+  // 120s = 60 + 20 + 20 + 10 + 10 (REQ-64, REQ-65):
+  //   60s — the extraction: the ceiling `openFilesystemBrowserDialog` declares for it, and the
+  //         largest single step this case runs;
+  //   20s — the images screen opens and the image's row appears: `chooseImageRowAnalysis`'s wait;
+  //   20s — the tree's first row, once the extraction is done: the same helper's wait;
+  //   10s — the single-layer image is on the daemon: `ensureImage`, which builds it when it is not;
+  //   10s — the menu gesture, the cost warning, the measurement pass and the dismissal.
+  test.setTimeout(120_000);
   const dialog = await openFilesystemBrowserDialog(page);
 
   const boxes = await measureOpenDialog(page, '.ui-modal');
@@ -547,6 +555,14 @@ test('the glass card of the container detail is exactly the size of the dialog i
 // entries, the card is strictly shorter than the cap and still agrees exactly with its content: no
 // band of empty glass below the tree.
 test('a filesystem with a handful of entries opens a dialog shorter than the cap, still the size of its content', async ({ page }) => {
+  // 120s = 60 + 20 + 20 + 10 + 10 (REQ-64, REQ-65):
+  //   60s — the extraction: the ceiling `openFilesystemBrowserDialog` declares for it, and the
+  //         largest single step this case runs;
+  //   20s — the images screen opens and the image's row appears: `chooseImageRowAnalysis`'s wait;
+  //   20s — the tree's first row, once the extraction is done: the same helper's wait;
+  //   10s — the single-layer image is on the daemon: `ensureImage`, which builds it when it is not;
+  //   10s — the menu gesture, the cost warning, the measurement pass and the dismissal.
+  test.setTimeout(120_000);
   const dialog = await openFilesystemBrowserDialog(page);
   const viewport = page.viewportSize();
   expect(viewport, 'this run has no viewport size to measure the bound against').not.toBeNull();
@@ -615,6 +631,14 @@ test.describe('at a phone-width viewport', () => {
   // designed width, is what bounds it: the panes stack there, and the card still agrees with its
   // content and stays inside the screen.
   test('the filesystem browser still fits its card exactly and stays inside the screen', async ({ page }) => {
+    // 120s = 60 + 20 + 20 + 10 + 10 (REQ-64, REQ-65):
+    //   60s — the extraction: the ceiling `openFilesystemBrowserDialog` declares for it, and the
+    //         largest single step this case runs;
+    //   20s — the images screen opens and the image's row appears: `chooseImageRowAnalysis`'s wait;
+    //   20s — the tree's first row, once the extraction is done: the same helper's wait;
+    //   10s — the single-layer image is on the daemon: `ensureImage`, which builds it when it is not;
+    //   10s — the menu gesture, the cost warning, the measurement pass and the dismissal.
+    test.setTimeout(120_000);
     const dialog = await openFilesystemBrowserDialog(page);
 
     const boxes = await measureOpenDialog(page, '.ui-modal');

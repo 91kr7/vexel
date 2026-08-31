@@ -157,6 +157,13 @@ async function seedAnalysisCache(page: Page): Promise<number> {
 // app-shell/specs/shell.md — the shell exposes the analysis-cache size with a Clear action, which
 // empties the cache and is disabled once there is nothing left to clear
 test('the Local storage card shows the analysis-cache size and clearing it disables the Clear action', async ({ page }) => {
+  // 120s = 60 + 30 + 15 + 15 (REQ-64, REQ-65):
+  //   60s — the extraction request that seeds the cache: the ceiling `seedAnalysisCache` declares,
+  //         and the largest single step this case runs;
+  //   30s — the About screen opens: `openApp`'s own retry;
+  //   15s — the first cache reading: the poll for the total falling below what was seeded;
+  //   15s — the second: the poll for the action's state agreeing with the size the card reports.
+  test.setTimeout(120_000);
   // The card is one of the three the shell keeps for itself; batch 30 replaced
   // the placeholder that used to sit under them with the coverage matrix, so the
   // screen they are shown on is the one labelled "About" (app-shell/specs/shell.md).
