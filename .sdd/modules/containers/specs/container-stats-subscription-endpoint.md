@@ -16,7 +16,8 @@ it is not.
   `Content-Type: text/event-stream`, `Cache-Control: no-cache`.
   - on open: one consumer is registered (`StatsDemandRegistry`) and the client is written to at
     once, so the response is observably open before anything else happens.
-  - while open: the server writes to the connection **every 10 seconds** (the sampling interval).
+  - while open: the server writes to the connection **every 10 seconds** (the sampling interval, which the
+    process's timing scale multiplies).
     The writes carry no figures — the container list is where those are read — and a client that
     ignores them entirely behaves correctly.
   - on close: the consumer is released, **once**, whether the client closed the connection, the

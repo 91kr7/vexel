@@ -15,6 +15,8 @@ import { byNameThenIdentity } from "../list-order/list-order.js";
 import { isDockerHub, normalizeRegistryHost, type RegistrySummary } from "./registries-service.js";
 
 const HUB_API = "https://hub.docker.com/v2";
+// Tolerance, not a cadence: how slow a registry on the internet may be.
+// Shortened, a slow but healthy registry reads as unreachable.
 const REQUEST_TIMEOUT_MS = 15000;
 /** How many tags of a v2 registry get their manifest read, and how many at a time. */
 const TAG_SIZE_CONCURRENCY = 4;

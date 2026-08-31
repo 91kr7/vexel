@@ -96,6 +96,12 @@ export default defineConfig({
     // This process's stdout is piped into the reporter's own output, and a run
     // makes thousands of calls — a line each would bury the dots and every
     // failure among them.
-    env: { PORT: String(E2E_PORT), VEXEL_DATA_DIR: E2E_DATA_DIR, VEXEL_DOCKER_LOG: 'off' },
+    env: {
+      PORT: String(E2E_PORT),
+      VEXEL_DATA_DIR: E2E_DATA_DIR,
+      VEXEL_DOCKER_LOG: 'off',
+      // The suite runs the product on a fifth of its own clock (plan-docker_management_app-timing_scale/REQ-18).
+      VEXEL_TIMING_SCALE: '0.2',
+    },
   },
 });

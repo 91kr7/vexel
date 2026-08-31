@@ -3,8 +3,9 @@ import { subscribeToActiveContextChange } from './active-context';
 import { subscribeToReload } from './reload-signal';
 import { fetchVolumes, type VolumeSummary } from './volumes-client';
 import { subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
+import { cadence } from '../timing/timing-scale';
 
-const POLL_INTERVAL_MS = 3000;
+const POLL_INTERVAL_MS = cadence(3000);
 
 export interface UseVolumesResult {
   volumes: VolumeSummary[];

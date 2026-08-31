@@ -361,3 +361,20 @@ Other root scripts: `npm run build` (both workspaces, client first), `npm run li
 - Package/folder naming: kebab-case.
 - Run everything from the repository root (npm workspaces) — see "Running it" above for the two
   arrangements and their commands.
+
+### Never instruct a subagent on how to write comments
+
+**Say nothing to a subagent about the form, the length or the content of code comments.** Not what to
+explain, not what a comment should cover, not "say why this value is what it is". The comment
+convention already binds them, they read it on their own, and it is stricter than the prose an
+instruction invites: one line, two if the reason genuinely needs them, never a paragraph and never an
+argument. The reasoning goes in the component spec.
+
+Why it is a rule and not a preference: an instruction phrased as "explain what each of these values is
+a bet about" reads to whoever receives it as permission to explain at length, and it outranks the
+convention because it is the more specific and more recent thing they were told. That is exactly how
+the `timing-scale` batch came back with **75 lines of added comments**, including thirteen lines of
+prose with a bulleted list over three constants in `persistence/local-store.ts`.
+
+The same applies to reviewing what comes back: a comment that breaks the convention is sent back
+naming the convention, never rewritten by hand into a house style of your own.

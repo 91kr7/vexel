@@ -76,6 +76,8 @@ function enqueue<T>(namespace: StoreNamespace, task: () => T | Promise<T>): Prom
   return queued;
 }
 
+// Tolerances, not cadences: bets on how slow this machine's disk and its other processes may be.
+// Sharpest is LOCK_STALE_MS — shortened, a live writer's lock is stolen and persisted state breaks.
 const LOCK_POLL_MS = 15;
 const LOCK_WAIT_TIMEOUT_MS = 5_000;
 const LOCK_STALE_MS = 15_000;

@@ -18,6 +18,8 @@ export interface UseContainerLogsResult {
 
 const DEFAULT_MAX_LINES = 5000;
 const FLUSH_INTERVAL_MS = 100;
+// Tolerances, not cadences: how long a dropped log stream is left alone before it is reopened.
+// Shortened, the retries storm a server that is not yet able to answer.
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 15000;
 

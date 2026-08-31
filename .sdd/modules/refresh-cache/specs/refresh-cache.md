@@ -102,6 +102,10 @@ are **refreshers**, one per kind.
 
 ## Rules and invariants
 
+- **Both defaults are declared figures the process's timing scale multiplies.** At the operator's
+  factor of `1` they are exactly the values above; at any other factor every cadence of the process
+  moves together, so the ratios these two are chosen for — the expiry longer than the slowest client
+  poll, the coverage wait counted in grouping windows — hold without a second decision.
 - **One refresher per kind, never one for all of them.** Each has its own timer and its own read, so
   a read that blocks delays its own kind and no other.
 - A refresher runs on a chained timer, never a repeating one: a read taking longer than the period

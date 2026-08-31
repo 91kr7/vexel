@@ -20,6 +20,8 @@ export interface DaemonEvent {
 const BACKLOG_LIMIT = 50;
 /** How far `JSON.parse` can move a nanosecond stamp of this magnitude. */
 const NANO_ROUNDING_MARGIN = 1024;
+// Tolerances, not cadences: how long a daemon that dropped the event stream is left alone.
+// Shortened, a reconnection becomes a retry storm against a daemon that is still coming back.
 const INITIAL_BACKOFF_MS = 1000;
 const MAX_BACKOFF_MS = 30000;
 

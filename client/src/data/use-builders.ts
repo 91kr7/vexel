@@ -9,8 +9,9 @@ import {
   type BuilderSummary,
   type CreateBuilderInput,
 } from './builders-client';
+import { cadence } from '../timing/timing-scale';
 
-const POLL_INTERVAL_MS = 5000;
+const POLL_INTERVAL_MS = cadence(5000);
 
 export interface UseBuildersResult {
   builders: BuilderSummary[];

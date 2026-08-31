@@ -19,7 +19,9 @@ type: configuration
   `volumesRouter` at `/api/volumes`, `networksRouter` at `/api/networks`, `registriesRouter` at
   `/api/registries`, `composeRouter` at
   `/api/compose`, `systemRouter` at `/api/system`, `consoleRouter` at `/api/console`, and
-  `imageAnalysisRouter` alongside `imagesRouter` at `/api/images`.
+  `imageAnalysisRouter` alongside `imagesRouter` at `/api/images`, plus `timingScaleRouter` at
+  `/api/timing-scale`, whose answer needs no daemon and is what the browser reads at bootstrap to
+  run on the same clock as this process.
 - After every `/api/*` router and before the interface, answers any remaining address under `/api`
   with `404` and a JSON body `{ error: <text> }`, so a mistyped, misspelled or removed call fails as
   an API error a program can detect and is never answered with the interface.
@@ -66,6 +68,11 @@ type: configuration
 - **Startup order is load-bearing too**: the active endpoint is set before the port is opened. A
   process that starts listening first discards every held value the moment the resolution lands, and
   a request being served at that instant is answered with a failure against a reachable daemon.
+- **A refused timing factor is the one thing that stops the process before it listens**, and it is
+  not a daemon condition: `VEXEL_TIMING_SCALE` is read when the timing area is first imported,
+  which is before anything here runs, and a malformed or out-of-range value throws there naming
+  the variable and the value. Every server cadence is computed from that factor at import, so a
+  check made later would come after the bad value had been used.
 - **The port opens whatever the daemon does.** No startup step may make the server fail to listen or
   wait indefinitely: an unreachable daemon is reported by the endpoints that need it, exactly as it
   is once the server is running.
@@ -89,6 +96,7 @@ type: configuration
 - registries: registriesRouter
 - compose: composeRouter
 - system: systemRouter
+- timing-scale: timingScaleRouter
 
 ## Requirements served
 
@@ -113,3 +121,4 @@ type: configuration
 - plan-docker_management_app-containers_card_view/REQ-44
 - plan-docker_management_app-refresh_cache/REQ-24
 - plan-docker_management_app-refresh_cache/REQ-29
+- plan-docker_management_app-timing_scale/REQ-7

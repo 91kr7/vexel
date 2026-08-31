@@ -26,7 +26,8 @@ that are unavailable when a tool is missing (REQ-9, REQ-10, REQ-13, REQ-110).
 
 ## Rules and invariants
 
-- Polls the server's connectivity endpoint every 5 seconds so a daemon that comes back stays
+- Polls the server's connectivity endpoint every 5 seconds — the declared figure, multiplied by
+  the page's timing scale — so a daemon that comes back stays
   detected without a manual refresh (REQ-9).
 - A fetch failure (server unreachable) is reflected as `daemon.reachable: false` with a cause,
   never as a thrown error or an empty screen (REQ-10).
