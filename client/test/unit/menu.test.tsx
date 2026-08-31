@@ -7,6 +7,10 @@ import userEvent from '@testing-library/user-event';
 import { Menu, type MenuEntry } from '../../src/ui';
 
 afterEach(cleanup);
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 const LABEL = 'More actions for web-1';
 
@@ -27,6 +31,58 @@ function trigger(label = LABEL) {
 
 function items() {
   return screen.getAllByRole('menuitem');
+}
+
+/** A box for an element jsdom measures as nothing: a placement is only observable against one. */
+function pinBox(element: Element, box: { top: number; left: number; width: number; height: number }): void {
+  const rect = {
+    x: box.left,
+    y: box.top,
+    top: box.top,
+    left: box.left,
+    right: box.left + box.width,
+    bottom: box.top + box.height,
+    width: box.width,
+    height: box.height,
+  };
+  element.getBoundingClientRect = () => ({ ...rect, toJSON: () => rect }) as DOMRect;
+}
+
+/** Where the popup has been placed, in the viewport coordinates it carries. */
+function popupPosition(): { top: number; left: number } {
+  const popup = screen.getByRole('menu').closest('.ui-menu__popup');
+  expect(popup, 'the open menu carries no popup').not.toBeNull();
+  const { top, left } = (popup as HTMLElement).style;
+  return { top: Number.parseFloat(top), left: Number.parseFloat(left) };
+}
+
+/** Scroll handling registered on the window and not yet taken back. */
+function watchScrollRegistrations(): { inPlace: () => number } {
+  const added = vi.spyOn(window, 'addEventListener');
+  const removed = vi.spyOn(window, 'removeEventListener');
+  const scrolls = (spy: typeof added) => spy.mock.calls.filter(([type]) => type === 'scroll').length;
+  return { inPlace: () => scrolls(added) - scrolls(removed) };
+}
+
+/** A recording stand-in for the setup file's inert observer: how many triggers are being watched. */
+function watchVisibilityObservers(): { watching: number } {
+  const state = { watching: 0 };
+  class Recording {
+    observe() {
+      state.watching += 1;
+    }
+    unobserve() {
+      state.watching -= 1;
+    }
+    disconnect() {
+      state.watching = 0;
+    }
+    takeRecords(): IntersectionObserverEntry[] {
+      return [];
+    }
+  }
+  vi.stubGlobal('IntersectionObserver', Recording);
+  return state;
 }
 
 /** The rules of the library's control stylesheet, keyed by selector (comments stripped). */
@@ -414,16 +470,24 @@ describe('Menu — where the popup is drawn (ui-library/specs/menu.md)', () => {
 });
 
 describe('Menu — an open menu never floats free (ui-library/specs/menu.md)', () => {
-  // menu.md — a scroll between the trigger and the viewport closes the menu, without pulling focus back to the trigger (REQ-16)
-  it('closes on a scroll without pulling the focus back', async () => {
+  // menu.md — an open menu follows its trigger through a scroll instead of closing: the popup holds the same
+  // position against the trigger's box, and the menu is left open and usable (REQ-27, REQ-28)
+  it('follows its trigger through a scroll instead of closing', async () => {
     const user = userEvent.setup();
     render(<Menu label={LABEL} entries={makeEntries()} />);
-    await user.click(trigger());
+    const control = trigger();
+    pinBox(control, { top: 300, left: 200, width: 32, height: 24 });
+    await user.click(control);
+    const before = popupPosition();
 
+    // The region the trigger sits in scrolls by 60px up and 25px left, and the event reaches the
+    // window from a container between the two.
+    pinBox(control, { top: 240, left: 175, width: 32, height: 24 });
     fireEvent.scroll(document);
 
-    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
-    expect(trigger()).not.toHaveFocus();
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    expect(popupPosition()).toEqual({ top: before.top - 60, left: before.left - 25 });
+    expect(items()[0]).toHaveFocus();
   });
 
   // menu.md — a resize closes it too (REQ-16)
@@ -458,5 +522,51 @@ describe('Menu — an open menu never floats free (ui-library/specs/menu.md)', (
     await user.click(screen.getByRole('button', { name: 'Drop the row' }));
 
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  // menu.md — no scroll handling and no visibility watch are in place while every menu is closed (REQ-31)
+  it('puts no scroll handling and no visibility watch in place while every menu is closed', async () => {
+    const user = userEvent.setup();
+    const scroll = watchScrollRegistrations();
+    const visibility = watchVisibilityObservers();
+    render(<Menu label={LABEL} entries={makeEntries()} />);
+
+    expect(scroll.inPlace(), 'a closed menu listens for scrolls').toBe(0);
+    expect(visibility.watching, 'a closed menu watches its trigger').toBe(0);
+
+    await user.click(trigger());
+    await user.keyboard('{Escape}');
+
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(scroll.inPlace(), 'a scroll listener outlived the menu that registered it').toBe(0);
+    expect(visibility.watching, 'a visibility watch outlived the menu that started it').toBe(0);
+  });
+
+  // menu.md — re-placing an open popup writes only the menu's own state, so no part of the list underneath is
+  // redrawn (REQ-31)
+  it('re-places the open popup on a scroll and redraws nothing around it', async () => {
+    const user = userEvent.setup();
+    let drawn = 0;
+    function ListUnderneath() {
+      drawn += 1;
+      return <p>web-1</p>;
+    }
+    render(
+      <>
+        <ListUnderneath />
+        <Menu label={LABEL} entries={makeEntries()} />
+      </>,
+    );
+    const control = trigger();
+    pinBox(control, { top: 300, left: 200, width: 32, height: 24 });
+    await user.click(control);
+    const before = popupPosition();
+    const drawnBeforeTheScroll = drawn;
+
+    pinBox(control, { top: 260, left: 200, width: 32, height: 24 });
+    fireEvent.scroll(document);
+
+    expect(popupPosition().top, 'the scroll did not re-place the popup').toBe(before.top - 40);
+    expect(drawn, 'a scroll under an open menu redrew the list underneath').toBe(drawnBeforeTheScroll);
   });
 });
