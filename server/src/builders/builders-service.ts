@@ -3,6 +3,7 @@
 // size, which builder is active, plus select-active, create and remove.
 import { byNameThenIdentity } from "../list-order/list-order.js";
 import { registerRefreshKind } from "../refresh-cache/refresh-cache.js";
+import { buildCacheListCache } from "./build-cache-service.js";
 import { parseHumanSize, runBuildxCapture, runBuildxJsonArray } from "./buildx-cli.js";
 
 export interface BuilderSummary {
@@ -80,6 +81,9 @@ export async function removeBuilder(name: string): Promise<void> {
 export async function useBuilder(name: string): Promise<BuilderSummary> {
   await runBuildxCapture(["use", name]);
   builderListCache.markChanged();
+  // `buildx du` answers for the active builder, so selecting one changes whose
+  // records the build-cache inventory holds (plan-docker_management_app-refresh_cache/REQ-65).
+  buildCacheListCache.markChanged();
   return getBuilder(name);
 }
 

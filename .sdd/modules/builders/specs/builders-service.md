@@ -39,12 +39,18 @@ and select-active.
   - Rejects with the daemon's own message if the builder does not exist or refuses removal.
 - `useBuilder(name): Promise<BuilderSummary>`
   - Sets `name` as the builder used by default; resolves with its resulting summary (now `active`).
+  - Marks **both** inventories changed: the builder one, and the build-cache one
+    (`BuildCacheService`), whose records are the active builder's own.
 
 ## Rules and invariants
 
 - `createBuilder`, `removeBuilder` and `useBuilder` say the inventory has changed once they have
   succeeded, so the operator's own action shows on the next request without waiting for a timer. A
   failed call marks nothing.
+- Selecting the active builder marks the **build-cache** inventory changed as well: that inventory
+  is read for whichever builder is active, so a selection changes whose records it holds exactly as
+  a prune changes which records exist. The first read after the selection therefore reports the
+  newly active builder's cache, without the operator refreshing or waiting out the 30 s period.
 
 - Every call goes through the CLI channel (`docker buildx …`), never a direct daemon socket call.
 - `docker buildx ls`/`du` output is read as newline-delimited JSON, a single bare JSON object (the
@@ -62,6 +68,7 @@ and select-active.
 - docker-access: CLI runner
 - list-order: List order (`byNameThenIdentity`)
 - refresh-cache: Refresh cache (`registerRefreshKind`)
+- BuildCacheService (`buildCacheListCache`, same module)
 
 ## Requirements served
 
@@ -72,3 +79,4 @@ and select-active.
 - plan-docker_management_app-refresh_cache/REQ-9
 - plan-docker_management_app-refresh_cache/REQ-11
 - plan-docker_management_app-refresh_cache/REQ-13
+- plan-docker_management_app-refresh_cache/REQ-65
