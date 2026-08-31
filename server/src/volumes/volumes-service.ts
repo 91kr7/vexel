@@ -8,7 +8,7 @@ import { getEngineClient } from "../connectivity/connection-status-service.js";
 import { CONTAINER_LIST_KIND, readHeldContainerList } from "../containers/containers-service.js";
 import { eventStreamService, type DaemonEvent } from "../events/event-stream-service.js";
 import { byNamedThenUnnamedNewest } from "../list-order/list-order.js";
-import { registerRefreshKind } from "../refresh-cache/refresh-cache.js";
+import { registerRefreshKind, type ReadOptions } from "../refresh-cache/refresh-cache.js";
 
 export interface VolumeSummary {
   name: string;
@@ -68,9 +68,12 @@ async function readVolumeSizes(): Promise<Map<string, number>> {
 
 // Every container's own volume-type mounts, grouped by volume name — derived
 // from the listing the server already holds, never from one of this service's
-// own (plan-docker_management_app-refresh_cache/REQ-37).
-async function readMountedBy(): Promise<Map<string, string[]>> {
-  const containers = await readHeldContainerList();
+// own (plan-docker_management_app-refresh_cache/REQ-37). Whether that listing
+// has to cover the daemon's latest announcement is the caller's to say: the
+// detail asks for it and the list does not
+// (plan-docker_management_app-refresh_cache/REQ-58, REQ-60).
+async function readMountedBy(options?: ReadOptions): Promise<Map<string, string[]>> {
+  const containers = await readHeldContainerList(options);
   const mountedBy = new Map<string, string[]>();
   for (const container of containers) {
     const name = (container.Names?.[0] ?? "").replace(/^\//, "");
@@ -186,13 +189,22 @@ function isAnonymousName(name: string): boolean {
   return ANONYMOUS_VOLUME_NAME.test(name);
 }
 
-/** `GET /volumes/{name}` itself rejects with a daemon 404 for an unknown name. */
+/**
+ * `GET /volumes/{name}` itself rejects with a daemon 404 for an unknown name.
+ *
+ * The mounting containers are asked for with coverage
+ * (plan-docker_management_app-refresh_cache/REQ-58): the detail is read on
+ * daemon events and on nothing else, so a request arriving on the very event
+ * that marked the listing due would otherwise be answered from the copy that
+ * event is replacing — and nobody would ask again. Docker's own volume inspect
+ * carries no such map, which is why this is derived at all.
+ */
 export async function getVolumeInspect(name: string): Promise<VolumeInspect> {
   const client = getEngineClient();
   const sizes = heldVolumeSizes();
   const [inspectResponse, mountedBy] = await Promise.all([
     client.request(`/volumes/${encodeURIComponent(name)}`),
-    readMountedBy(),
+    readMountedBy({ coverNotices: true }),
   ]);
   const raw = JSON.parse(inspectResponse.body) as RawVolume;
   return { ...toSummary(raw, sizes, mountedBy), raw };

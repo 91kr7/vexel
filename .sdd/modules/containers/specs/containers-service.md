@@ -61,14 +61,29 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   with: the held response projected into `ContainerSummary` and ordered **when it is read**, which
   is also the single point where the sampler's figures are merged onto it. Field for field, value
   for value and in the same order as `listContainers` answers.
-- `readHeldContainerList(): Promise<RawContainer[]>` — the held listing itself, for the readers that
-  derive from a container's own `Mounts` or `NetworkSettings`: the volume list's mounting
-  containers, the network list's attached containers, and the host overview's counts by state.
+- `readHeldContainerList({ coverNotices? }?): Promise<RawContainer[]>` — the held listing itself, for
+  the readers that derive from a container's own `Mounts` or `NetworkSettings`: the volume list's
+  mounting containers, the volume detail's mounting containers, the network list's attached
+  containers, and the host overview's counts by state.
   - `RawContainer` is the daemon's own listing entry, unprojected: `Id`, `Names`, `Image`, `State`,
     `Status`, `Ports`, `Labels`, `Mounts` and `NetworkSettings` as it returns them.
   - It goes through the kind's `read()` and **never `peek()`**: the caller is served a listing that
     covers the operation the application has just performed, and the call renews the demand that
     keeps the listing refreshed.
+  - `coverNotices` asks for a listing read **after the daemon's last announcement**, and is the third
+    way of reading the held listing rather than a fourth accessor. **One caller asks for it: the
+    volume detail's mounting containers.** That reader derives per request and is read on daemon
+    events and on nothing else, so a request arriving on the same announcement that marked the
+    listing due would be answered from the copy that announcement is replacing — and nobody would
+    ask it again while the panel stays open.
+  - **The list readers do not ask for it**, and neither does the overview: the volume list and the
+    network list are read again on their own whenever this listing is replaced by a different one,
+    and the overview is asked again every few seconds, so waiting would buy them nothing and would
+    put a grouping window in front of every list in the product. **The sampler cannot ask for it at
+    all**: it reads through the accessor below, which waits on nothing by design.
+  - It costs the daemon no call: the wait attaches to the read the announcement had already caused,
+    and is bounded — coverage not reached hands back the listing held (see `refresh-cache.md`,
+    "Notice coverage").
 - `peekHeldContainerList(): RawContainer[] | undefined` — the held listing when one is held, and
   nothing when none is: the statistics sampler's own accessor.
   - It goes through the kind's `peek()` and **never `read()`** — the mirror image of the accessor
@@ -334,3 +349,6 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 - plan-docker_management_app-refresh_cache/REQ-51
 - plan-docker_management_app-refresh_cache/REQ-52
 - plan-docker_management_app-refresh_cache/REQ-53
+- plan-docker_management_app-refresh_cache/REQ-58
+- plan-docker_management_app-refresh_cache/REQ-59
+- plan-docker_management_app-refresh_cache/REQ-60

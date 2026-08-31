@@ -5,7 +5,7 @@
 import { getEngineClient } from "../connectivity/connection-status-service.js";
 import { INTERNAL_CONTAINER_LABEL } from "../image-analysis/filesystem-extraction-service.js";
 import { byNameThenIdentity } from "../list-order/list-order.js";
-import { registerRefreshKind, type HeldValue } from "../refresh-cache/refresh-cache.js";
+import { registerRefreshKind, type HeldValue, type ReadOptions } from "../refresh-cache/refresh-cache.js";
 
 export type ContainerState = "created" | "running" | "paused" | "restarting" | "removing" | "exited" | "dead";
 
@@ -224,8 +224,19 @@ export async function readContainerList(): Promise<HeldValue<ContainerSummary[]>
 // renews the demand that keeps the listing refreshed
 // (plan-docker_management_app-refresh_cache/REQ-38, REQ-42). The accessor below
 // is its deliberate opposite, for a caller neither reason holds for.
-export async function readHeldContainerList(): Promise<RawContainer[]> {
-  return (await containerListCache.read()).value;
+//
+// `coverNotices` is asked for by one caller, the volume detail's `mountedBy`
+// (plan-docker_management_app-refresh_cache/REQ-58): it derives per request and
+// is never asked again, so a listing the daemon's own announcement is about to
+// replace stays on the operator's screen until they touch something. It costs
+// the daemon no call — the wait attaches to the read that announcement already
+// caused. The list readers do not ask for it: they are read again on their own
+// whenever the listing is replaced by a different one (REQ-52), so waiting would
+// buy them nothing and would put a grouping window in front of every list
+// (REQ-60). The sampler cannot ask for it at all: it reads through the accessor
+// below, which waits on nothing by design.
+export async function readHeldContainerList(options?: ReadOptions): Promise<RawContainer[]> {
+  return (await containerListCache.read(options)).value;
 }
 
 // For the statistics sampler, and the deliberate opposite of the accessor above:

@@ -10,6 +10,15 @@ export const EVENT_GROUPING_WINDOW_MS = 750;
 export const DEMAND_EXPIRY_MS = 60000;
 /** How many times a caller whose read was disowned by a discard reads again before giving up. */
 const DISOWNED_READ_ATTEMPTS = 3;
+/** How many reads a caller waits for before taking the value held: the one owed, plus a chained follow-up. */
+const CHANGE_COVERAGE_ATTEMPTS = 3;
+/**
+ * The wait's other bound, in grouping windows: the window that may defer the
+ * read a notice caused, plus room for that read and one chained follow-up.
+ * Capped at the kind's own period, so waiting is never longer than simply
+ * waiting for the next scheduled read.
+ */
+const COVERAGE_WAIT_WINDOWS = 4;
 
 export interface HeldValue<T> {
   value: T;
@@ -55,9 +64,20 @@ export interface RefreshKindOptions<T> {
   groupingWindowMs?: number;
 }
 
+/** What a caller may ask of one `read()`; everything here is off by default. */
+export interface ReadOptions {
+  /**
+   * Answer only from a value read after the last notice this kind held when the
+   * call arrived — a daemon event, or the source it derives from being
+   * replaced. The caller waits for the read that notice already caused and
+   * starts none of its own.
+   */
+  coverNotices?: boolean;
+}
+
 export interface RefreshKind<T> {
   readonly key: string;
-  read(): Promise<HeldValue<T>>;
+  read(options?: ReadOptions): Promise<HeldValue<T>>;
   markChanged(): void;
   peek(): HeldValue<T> | undefined;
   isRefreshing(): boolean;
@@ -104,7 +124,11 @@ class Kind<T> implements RefreshKind<T>, RegisteredKind {
   private lastAskedAt = 0;
   private lastReadStartedAt = 0;
   private changedAt = 0;
+  /** When something outside this kind last said it may have changed, whether or not a read followed. */
+  private noticedAt = 0;
   private dueAgain = false;
+  /** Callers waiting for a read that has not started yet; woken as each read ends. */
+  private readonly coverageWaiters = new Set<() => void>();
   /** Bumped by a discard, so a read still in flight against the previous daemon stores nothing. */
   private generation = 0;
 
@@ -125,13 +149,17 @@ class Kind<T> implements RefreshKind<T>, RegisteredKind {
    * with neither (REQ-27). The bound stops a chain of discards from holding a
    * request.
    */
-  async read(): Promise<HeldValue<T>> {
+  async read(options?: ReadOptions): Promise<HeldValue<T>> {
     this.lastAskedAt = Date.now();
     this.startRefresher();
+    // Taken once, as the call arrives (REQ-61): notices landing while this
+    // caller waits do not extend its wait. Zero for a caller that did not ask,
+    // which is then answered exactly as it was before (REQ-60).
+    const noticedUpTo = options?.coverNotices === true ? this.noticedAt : 0;
 
     for (let attempt = 0; attempt < DISOWNED_READ_ATTEMPTS; attempt += 1) {
       const generation = this.generation;
-      if (this.held) await this.awaitChangeCoverage();
+      if (this.held) await this.awaitChangeCoverage(noticedUpTo);
       else await (this.inFlight ?? this.refresh());
       if (this.held) return this.snapshot();
       if (this.failure) break;
@@ -185,6 +213,10 @@ class Kind<T> implements RefreshKind<T>, RegisteredKind {
 
   /** An event says this kind may have changed: read again, within the grouping window. */
   markDue(): void {
+    // Recorded whether or not a read follows, and before every reason not to
+    // start one, so a caller asking for coverage waits for a read started after
+    // this notice (REQ-58).
+    this.noticedAt = Date.now();
     if (!this.periodTimer) return;
     if (this.groupingTimer) return;
     if (this.inFlight) {
@@ -218,8 +250,10 @@ class Kind<T> implements RefreshKind<T>, RegisteredKind {
     this.stale = false;
     this.failure = undefined;
     this.changedAt = 0;
+    this.noticedAt = 0;
     this.dueAgain = false;
     this.clearGroupingTimer();
+    this.wakeCoverageWaiters();
   }
 
   private snapshot(): HeldValue<T> {
@@ -234,17 +268,54 @@ class Kind<T> implements RefreshKind<T>, RegisteredKind {
   }
 
   /**
-   * Waits for the read that covers a change the application itself made, when
-   * the held value predates it (REQ-13). It never starts one: `markChanged`
-   * already did. The bound stops a pathological chain from holding a request.
+   * Waits for the read that covers what the held value predates: a change the
+   * application itself made (REQ-13), and — only for a caller that asked for it
+   * — a notice this kind held when that caller called (REQ-58). It never starts
+   * a read: `markChanged` and `markDue` already did, at once or at the end of
+   * the grouping window, so the wait costs the daemon nothing (REQ-59). Bounded
+   * in reads and in time, so a daemon that stops answering hands the caller the
+   * value held rather than an error or an answer that never comes (REQ-60).
    */
-  private async awaitChangeCoverage(): Promise<void> {
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      if (!this.held || this.changedAt <= this.held.startedAt) return;
-      const inFlight = this.inFlight;
-      if (!inFlight) return;
-      await inFlight;
+  private async awaitChangeCoverage(noticedUpTo: number): Promise<void> {
+    const deadline = Date.now() + Math.min(this.groupingWindowMs * COVERAGE_WAIT_WINDOWS, this.periodMs);
+    for (let attempt = 0; attempt < CHANGE_COVERAGE_ATTEMPTS; attempt += 1) {
+      if (!this.held) return;
+      if (Math.max(this.changedAt, noticedUpTo) <= this.held.startedAt) return;
+      const covering = this.inFlight ?? this.awaitDeferredRead(noticedUpTo, deadline);
+      if (!covering) return;
+      await covering;
     }
+  }
+
+  /**
+   * The read a notice caused and the grouping window deferred: it has not
+   * started, so there is no promise to join and the caller is woken when it
+   * ends. Nothing to wait for is answered from the value held — no notice
+   * outstanding for this caller, no read owed (the last one failed, and a
+   * failed read is never chased), or the bound reached.
+   */
+  private awaitDeferredRead(noticedUpTo: number, deadline: number): Promise<void> | undefined {
+    if (!this.held || noticedUpTo <= this.held.startedAt) return undefined;
+    if (!this.groupingTimer) return undefined;
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) return undefined;
+    return new Promise<void>((resolve) => {
+      const wake = (): void => {
+        clearTimeout(timer);
+        this.coverageWaiters.delete(wake);
+        resolve();
+      };
+      const timer = setTimeout(wake, remaining);
+      timer.unref?.();
+      this.coverageWaiters.add(wake);
+    });
+  }
+
+  /** Every read that ends wakes them; whether it covered anything is theirs to re-check. */
+  private wakeCoverageWaiters(): void {
+    const waiting = [...this.coverageWaiters];
+    this.coverageWaiters.clear();
+    waiting.forEach((wake) => wake());
   }
 
   /**
@@ -284,6 +355,7 @@ class Kind<T> implements RefreshKind<T>, RegisteredKind {
         if (this.inFlight === gate) this.inFlight = undefined;
         if (generation === this.generation) this.afterRead(startedAt, replaced);
         settle();
+        this.wakeCoverageWaiters();
       }
     })();
     return gate;
