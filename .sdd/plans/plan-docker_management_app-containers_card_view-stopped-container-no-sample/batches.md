@@ -13,7 +13,7 @@ Batch numbers and `REQ-n`/`INT-n` ids are local to this plan.
 
 | Batch | Feature | REQ closed | Depends | Status | Human acceptance |
 | --- | --- | --- | --- | --- | --- |
-| 1 · figures-follow-the-listing | F1 — A container the listing does not call running is answered with no figures | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7 | — | todo | A stopped container says it has no measurement |
+| 1 · figures-follow-the-listing | F1 — A container the listing does not call running is answered with no figures | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7 | — | implemented | A stopped container says it has no measurement |
 | 2 · an-empty-frame-is-no-measurement | F2 — A pass refuses the answer given for a container that is no longer running | REQ-8, REQ-9, REQ-10, REQ-11 | 1 | todo | A container stopped and started again shows no figure it did not measure |
 
 Batch statuses (`todo | in progress | implemented | certified`) are advanced only by the

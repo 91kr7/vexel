@@ -694,8 +694,11 @@ function freshSample(id: string): SampledUsage | undefined {
   return Date.now() - usage.sampledAt <= STATS_STALE_AFTER_MS ? usage : undefined;
 }
 
+// The figures come out of the same listing the state does: a container this
+// reading does not put in the running set is answered with none of them
+// (plan-docker_management_app-containers_card_view-stopped-container-no-sample/REQ-1).
 function toSummary(raw: RawContainer): ContainerSummary {
-  const usage = freshSample(raw.Id);
+  const usage = DAEMON_RUNNING_STATES.has(raw.State) ? freshSample(raw.Id) : undefined;
   return {
     id: raw.Id,
     shortId: raw.Id.slice(0, 12),

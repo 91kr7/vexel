@@ -25,11 +25,14 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
     with no public port is an exposure and is not a mapping. **Each mapping appears exactly once**,
     in a **total order of this service's own**: by private port, then public port, then protocol.
   - `cpuPercent`/`memoryUsageBytes`/`memoryLimitBytes`/`onlineCpus`/`networkRxBytes`/
-    `networkTxBytes` are present only for a container the sampler covers — the daemon's own running
-    set, `running`, `paused` or `restarting` — whose latest sample is **less than 30 seconds old**;
-    all six come from **one** sample and are absent together, and a container the sampler has never
-    read, one that has stopped, and one whose reading has gone stale are indistinguishable to a
-    caller — each simply has no figures.
+    `networkTxBytes` are present only for a container **this same reading of the listing** puts in
+    the daemon's running set — `running`, `paused` or `restarting` — and whose latest sample is
+    **less than 30 seconds old**. The state and the figures therefore come from one reading: a
+    container the listing shows as anything else is answered with none of the six, whatever the
+    sampler still holds for it, so no answer states `exited` and a measured value at once. All six
+    come from **one** sample and are absent together, and a container the sampler has never read,
+    one that has stopped and one whose reading has gone stale are indistinguishable to a caller —
+    each simply has no figures.
   - `onlineCpus` is the number of host CPUs `cpuPercent` is measured against, so `cpuPercent`
     reaches `onlineCpus × 100` at full load and a caller can state the reading over its capacity.
   - `networkRxBytes`/`networkTxBytes` are the bytes received and sent since the container started,
@@ -174,9 +177,11 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   dropped, so a pass slower than the interval gains no second pass beside it and no backlog builds
   up — however slow the daemon is and however many containers are running.
 - A container's cached sample is dropped as soon as it no longer appears in the running set the pass
-  ended up with — derived or read — so a stopped container never reports a stale CPU/memory reading.
-  A container that stopped between the listing being read and its statistics call going out is
-  simply skipped for that pass.
+  ended up with — derived or read. That is **maintenance of the cache, not what keeps a stopped
+  container's answer honest**: the drop happens on the next pass, up to one interval later, and
+  every listing read in between would still carry the reading. What withholds it is the projection
+  rule above, which asks the listing being answered with. A container that stopped between the
+  listing being read and its statistics call going out is simply skipped for that pass.
 - **A reading older than three intervals reaches no consumer**, by the same route a stopped
   container's absent sample already takes: the bound is stated in exactly one place, as a multiple
   of the interval, and it is what stops a number measured before the gate closed from being
@@ -328,6 +333,11 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 - plan-docker_management_app-containers_card_view/REQ-52
 - plan-docker_management_app-containers_card_view/REQ-55
 - plan-docker_management_app-containers_card_view/REQ-58
+- plan-docker_management_app-containers_card_view-stopped-container-no-sample/REQ-1
+- plan-docker_management_app-containers_card_view-stopped-container-no-sample/REQ-2
+- plan-docker_management_app-containers_card_view-stopped-container-no-sample/REQ-3
+- plan-docker_management_app-containers_card_view-stopped-container-no-sample/REQ-4
+- plan-docker_management_app-containers_card_view-stopped-container-no-sample/REQ-5
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-52
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-59
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-60
