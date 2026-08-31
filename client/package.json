@@ -9,9 +9,11 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "oxlint && npm run lint:ui-boundary",
+    "lint": "oxlint && npm run lint:ui-boundary && npm run lint:check-budgets",
     "lint:ui-boundary": "node scripts/check-ui-conformance.mjs",
-    "test": "npm run test:typecheck && npm run lint:ui-boundary && npm run test:unit",
+    "//lint:check-budgets": "No skip and no exception marker, on purpose: a step allowed more patience than the test that runs it can never fail with its own message, so it is repaired rather than exempted. The tree to scan is an argument, so the check that drives this guard can point it at sources of its own instead of leaving a fixture spec where Playwright would run it.",
+    "lint:check-budgets": "node scripts/check-budget-conformance.mjs",
+    "test": "npm run test:typecheck && npm run lint:ui-boundary && npm run lint:check-budgets && npm run test:unit",
     "test:typecheck": "tsc -p tsconfig.test.json",
     "test:unit": "vitest run --reporter=dot",
     "test:e2e": "playwright test",
