@@ -72,11 +72,34 @@ Actions:
   is positioned against the trigger before it is shown and refined before the browser paints — an
   element a browser treats as invisible cannot take focus, so a popup hidden while it is measured
   would silently refuse the focus opening it gives it, and with it the entire keyboard model.
-- **An open menu never floats free of its trigger.** While it is open it follows the trigger's box
-  as the surface under it re-renders; a scroll anywhere between the trigger and the viewport, or a
-  resize, closes it; and it is gone with its trigger when the trigger is unmounted (a virtualised
-  table dropping its row). Focus is deliberately not pulled back to the trigger on a scroll close —
-  doing so would scroll it back into view against the operator's own scroll.
+- **An open menu follows its trigger instead of closing on a scroll.** It is placed against the
+  trigger's box as the surface under it re-renders *and* as anything between the trigger and the
+  window scrolls, holding the same position against that box throughout — the list being read again,
+  the region re-laid out as rows appear and disappear, or the operator's own scrolling. One
+  placement routine serves both paths.
+- **It closes when the trigger is genuinely no longer there to be seen**, and never floats over the
+  place the trigger used to occupy. Two departures: the trigger scrolled **entirely** out of the
+  area its clipping ancestors leave visible — not its rectangle against the viewport, which a
+  scrolling region clips long before the screen does, and not a threshold on partial clipping, which
+  is the same hair trigger a few pixels of scroll further on; and the trigger unmounted, a
+  virtualised table dropping its row, which takes the popup with it. The accepted cost of "entirely
+  out": while a row is half under a header, its open popup is drawn overlapping that header, for as
+  long as the scrolling lasts.
+- **A resize still closes it.** It is a deliberate gesture, never something a live list does under
+  the operator three times a second, and it changes every geometry at once — the navigation rail
+  included, which docks and undocks at the phone breakpoint.
+- **Focus is deliberately not pulled back to the trigger on either close.** Doing so would scroll
+  the trigger back into view, against the operator's own scroll.
+- **Following the trigger costs nothing while every menu is closed, and nothing outside the menu
+  while one is open.** No scroll handling and no visibility watch are in place with no menu open;
+  re-placing an open popup writes only this component's own state, so no part of the list underneath
+  is redrawn, and a scroll that leaves the trigger where it was redraws nothing at all.
+- **Opening a menu scrolls nothing** — neither the page nor the region the trigger sits in. Opening
+  moves focus onto the first entry, and focus on a partly visible element makes a browser scroll it
+  into view; there is nothing here to scroll into view, the popup being fixed with its top clamped
+  to zero and its left kept inside the viewport. Focus is not asked to prevent scrolling: the same
+  move between entries has to bring the last entry into the list's own scrolled box when a menu
+  reaches `--menu-max-height`.
 - The trigger stops click propagation, so opening a menu inside a table row never also selects the
   row; so does the popup, so does choosing an entry.
 - The trigger carries no overlay material and computes no filter: there is one of it per row of a
@@ -118,4 +141,9 @@ Actions:
 - plan-docker_management_app-container_row_actions/REQ-17
 - plan-docker_management_app-container_row_actions/REQ-25
 - plan-docker_management_app-container_row_actions/REQ-26
+- plan-docker_management_app-container_row_actions/REQ-27
+- plan-docker_management_app-container_row_actions/REQ-28
+- plan-docker_management_app-container_row_actions/REQ-29
+- plan-docker_management_app-container_row_actions/REQ-30
+- plan-docker_management_app-container_row_actions/REQ-31
 - plan-docker_management_app-container_detail_close/REQ-7

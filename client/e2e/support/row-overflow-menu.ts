@@ -2,23 +2,28 @@
  * **Choosing an entry from a list row's overflow menu, as one gesture — and at
  * most one activation of it.**
  *
- * The menu closes on a scroll anywhere between its trigger and the viewport, on
- * a resize, and with its trigger when the row is replaced
- * (`ui-library/specs/menu.md`); choosing an entry closes it too. Those are the
- * contract, not a flake — so a check that opens the menu in one retried step and
- * reaches for an entry in a separate, unretried one has written a race into
- * itself: any of the specified dismissals lands between the two steps and the
- * entry click then waits out its whole budget for something that is gone,
- * failing on a timeout that says nothing about the product.
+ * The menu goes with its trigger when the row is replaced or dropped under the
+ * gesture (`ui-library/specs/menu.md`), and choosing an entry closes it too.
+ * That is the contract, not a flake — so a check that opens the menu in one
+ * retried step and reaches for an entry in a separate, unretried one has written
+ * a race into itself: the row is re-read between the two steps and the entry
+ * click then waits out its whole budget for something that is gone, failing on a
+ * timeout that says nothing about the product.
  *
- * Two runs have been lost to exactly that, with the same signature —
- * `container-create-privileged.spec.ts` (the menu opened on the first attempt,
- * the entry click hung 59.7s of a 60s budget) and `layer-build-cache.spec.ts`
- * (29.3s of 30s) — and in both the snapshot at the timeout showed the row
- * present and no menu at all.
+ * So the opening **and** the choosing are retried as one unit.
  *
- * So the opening **and** the choosing are retried as one unit. Which raises the
- * hazard this module's second half exists for: several of the entries reached
+ * **What the retry no longer absorbs.** The other dismissal this module was
+ * written against — a menu that closed itself on any scroll, whoever produced it
+ * — was repaired in the product
+ * (`plan-docker_management_app-container_row_actions/REQ-27`): an open menu
+ * follows its trigger. A retry whose stated cause has been repaired is how the
+ * next regression of it passes unnoticed, so an attempt that finds **no menu
+ * while the trigger it pressed is still there, the same node at the same box**
+ * ends the gesture and names it, instead of trying again (`REQ-33`). A trigger
+ * whose node was replaced, or which has moved or gone, is the surviving case and
+ * still deserves another attempt.
+ *
+ * Which raises the hazard this module's second half exists for: several of the entries reached
  * this way are destructive (`Kill`, `Remove`, `Untag`), and a retry that
  * re-presses an entry whose action already ran runs it twice. **A menu that has
  * gone is not evidence that nothing happened** — it is equally the signature of
@@ -50,9 +55,10 @@
  *   so nothing here crosses that boundary; a caller that ever makes one do so
  *   must not use this.
  */
-import { expect, type Locator, type Page } from '@playwright/test';
+import { expect, type ElementHandle, type Locator, type Page } from '@playwright/test';
 import { settledList } from './classic-table.js';
 import { clickAt } from './pointer.js';
+import type { Rect } from './settled.js';
 
 /**
  * How long one attempt may wait for a control. Short on purpose: an attempt that
@@ -62,6 +68,9 @@ const ATTEMPT_TIMEOUT = 2_000;
 
 /** Where the page keeps what it saw. Namespaced so nothing of the product's can collide with it. */
 const ACTIVATION_KEY = '__vexelMenuActivations';
+
+/** Half a pixel: below what "the same box" distinguishes, above the browser's own float noise. */
+const SAME_BOX_PX = 0.5;
 
 export interface RowOverflowMenuOptions {
   /** The whole gesture's budget, retries included. */
@@ -119,6 +128,37 @@ async function activationsSoFar(page: Page): Promise<string[]> {
   return await page.evaluate((key) => ((window as unknown as Record<string, unknown>)[key] as string[]) ?? [], ACTIVATION_KEY);
 }
 
+/**
+ * The trigger as it was pressed — the node itself and where it sat. Both halves
+ * are needed to tell the two dismissals apart: a re-read list replaces a row with
+ * a new node of identical geometry, so the box alone would read that as the
+ * trigger having stayed put.
+ */
+interface PressedTrigger {
+  node: ElementHandle<SVGElement | HTMLElement>;
+  box: Rect;
+}
+
+async function readTrigger(trigger: Locator): Promise<PressedTrigger | null> {
+  const node = await trigger.elementHandle({ timeout: ATTEMPT_TIMEOUT }).catch(() => null);
+  if (node === null) return null;
+  const box = await node.boundingBox().catch(() => null);
+  if (box === null) {
+    await node.dispose();
+    return null;
+  }
+  return { node, box };
+}
+
+/** The very node that was pressed, still in the document and still at the box it was pressed at. */
+async function stayedPut(pressed: PressedTrigger | null): Promise<boolean> {
+  if (pressed === null) return false;
+  const stillInTheDocument = await pressed.node.evaluate((element) => element.isConnected).catch(() => false);
+  if (!stillInTheDocument) return false;
+  const box = await pressed.node.boundingBox().catch(() => null);
+  return box !== null && Math.abs(box.x - pressed.box.x) < SAME_BOX_PX && Math.abs(box.y - pressed.box.y) < SAME_BOX_PX;
+}
+
 /** An activation is the entry that was asked for when its accessible name is that entry, hint text aside. */
 function isTheEntry(activated: string, entry: string): boolean {
   return activated === entry || activated.startsWith(entry);
@@ -147,6 +187,7 @@ export async function chooseFromRowOverflowMenu(
   for (;;) {
     attempt += 1;
     await armActivationRecorder(page);
+    const pressed = await readTrigger(trigger);
     try {
       await clickAt(page, trigger, `the row’s overflow menu (attempt ${attempt})`, { timeout: ATTEMPT_TIMEOUT });
       await expect(page.getByRole('menu')).toBeVisible({ timeout: ATTEMPT_TIMEOUT });
@@ -167,6 +208,15 @@ export async function chooseFromRowOverflowMenu(
       return;
     } catch (error) {
       const activated = await activationsSoFar(page).catch(() => ['<the page could not be asked>']);
+      if (activated.length === 0 && (await page.getByRole('menu').count().catch(() => 1)) === 0 && (await stayedPut(pressed))) {
+        throw new Error(
+          `The “${entry}” gesture found no menu while the trigger it pressed was still on screen, ` +
+            `the same node at the same box (${JSON.stringify(pressed?.box)}). A menu that goes while its ` +
+            `control stays put is the dismissal repaired in ` +
+            `plan-docker_management_app-container_row_actions/REQ-27, and REQ-33 refuses to absorb it ` +
+            `here: not retried. Original failure: ${String(error)}`,
+        );
+      }
       if (activated.length > 0) {
         throw new Error(
           `The “${entry}” gesture failed after the browser had already delivered an activation ` +
@@ -176,11 +226,13 @@ export async function chooseFromRowOverflowMenu(
       }
       if (Date.now() >= deadline) {
         throw new Error(
-          `The “${entry}” gesture never reached the entry in ${attempt} attempt(s): the menu opened and ` +
-            `was dismissed before the press each time, and no activation was ever delivered. ` +
+          `The “${entry}” gesture never reached the entry in ${attempt} attempt(s): the row was replaced ` +
+            `under the gesture each time, and no activation was ever delivered. ` +
             `Last failure: ${String(error)}`,
         );
       }
+    } finally {
+      await pressed?.node.dispose().catch(() => undefined);
     }
   }
 }

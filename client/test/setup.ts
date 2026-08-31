@@ -28,3 +28,23 @@ if (!('EventSource' in globalThis)) {
   }
   globalThis.EventSource = MissingEventSource as unknown as typeof EventSource;
 }
+
+// jsdom implements no IntersectionObserver either, and every browser does: an
+// open Menu observes its trigger to know when it has been scrolled out of view.
+// Inert, so a trigger is never seen to leave here; a test whose subject *is*
+// that departure stubs its own over this one.
+if (!('IntersectionObserver' in globalThis)) {
+  class InertIntersectionObserver {
+    readonly root = null;
+    readonly rootMargin = '0px';
+    readonly thresholds: readonly number[] = [0];
+    constructor(_callback: IntersectionObserverCallback, _options?: IntersectionObserverInit) {}
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+    takeRecords(): IntersectionObserverEntry[] {
+      return [];
+    }
+  }
+  globalThis.IntersectionObserver = InertIntersectionObserver as unknown as typeof IntersectionObserver;
+}
