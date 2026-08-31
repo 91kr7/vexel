@@ -49,10 +49,20 @@ data it is given.
 
 | ID | Requirement |
 | --- | --- |
-| REQ-8 | A sampling pass stores no measurement for a container that stopped between the listing being read and its statistics call going out. The daemon answers such a call successfully with an empty frame; an empty frame is not a measurement. |
+| REQ-8 | A sampling pass stores no measurement for a container that stopped between the listing being read and its statistics call going out, and drops the reading that container holds in cache. The daemon answers such a call successfully with an empty frame: an empty frame is not a measurement, and it says the process the earlier reading measured is gone. **Amended 2026-08-31 — the cached reading is dropped, not left standing; see the note under this table.** |
 | REQ-9 | What marks an answer as no measurement is stated in one place: it reports no memory limit. A container that is running always reports the limit of its cgroup, so no real reading is refused. |
-| REQ-10 | A container stopped and started again within one sampling interval reads `—` until a reading is actually taken. It never shows the zero produced while it was stopped. |
-| REQ-11 | The pass is otherwise unchanged: the same 10-second cadence, the same rule that passes never overlap, the same dropping of containers that have left the running set, and no extra call to the daemon. |
+| REQ-10 | A container stopped and started again within one sampling interval reads `—` until a reading is actually taken. It shows neither the zero produced while it was stopped nor the figure it was measured at before it stopped. |
+| REQ-11 | The pass is otherwise unchanged: the same 10-second cadence, the same rule that passes never overlap, the same dropping of containers that have left the running set, and no extra call to the daemon. The drop REQ-8 adds is not an exception to this: it happens on an answer already received, and it costs no call. |
+
+> **Amended 2026-08-31 — a refused answer drops the reading the container had.** The human's
+> decision, taken while batch 2 was being written and before it was certified. As first written,
+> REQ-8 stored nothing and left the previous reading standing, which contradicted REQ-10 in one case:
+> a container measured at 12%, stopped, and started again three seconds later showed 12% once more,
+> because that reading was under thirty seconds old and its container was running again. No zero ever
+> appeared, so half of REQ-10 held and the dash never came. REQ-10 wins, for the reason the human
+> gave: that 12% measures a process that no longer exists. REQ-10 and REQ-11 carry the consequence —
+> REQ-10 now names both figures it refuses, REQ-11 states that the new drop is not a change to the
+> pass it protects.
 
 ## Values fixed here, and why
 

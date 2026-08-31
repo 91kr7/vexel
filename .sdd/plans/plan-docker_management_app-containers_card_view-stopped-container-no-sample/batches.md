@@ -35,10 +35,13 @@ the reported defect, so it goes first.
   daemon before every file. So the code and the checks are written and the batch is marked
   implemented; the suite is run, and the batches certified, in a later session, on the human's own
   outcome. This departs from the method's default, where green tests certify a batch.
-- **A refused frame does not evict what is cached** (batch 2). The pass stores nothing for that
-  container and leaves its previous reading alone. The eviction the pass already does removes it on
-  the pass whose running set no longer holds the container, and batch 1 keeps it off the card
-  meanwhile.
+- **A refused answer drops the reading that container had in cache** (batch 2) — the human's
+  decision of 2026-08-31, taken while batch 2 was being written and the reverse of what this plan
+  first assumed. The first form stored nothing and left the previous reading standing; a container
+  measured at 12%, stopped, and started again three seconds later then read 12% again, since that
+  reading was under thirty seconds old and its container was running once more. It measures a process
+  that no longer exists. The amendment is recorded under the F2 table of
+  [`requirements.md`](requirements.md); REQ-8 carries it and REQ-10 is what it serves.
 - **No new end-to-end check is written for F2.** The case is a container stopped and started again
   inside one sampling interval: a check for it would depend on a window of a few seconds and would be
   intermittent by construction, which is the class of defect this cycle exists to remove. F2 is

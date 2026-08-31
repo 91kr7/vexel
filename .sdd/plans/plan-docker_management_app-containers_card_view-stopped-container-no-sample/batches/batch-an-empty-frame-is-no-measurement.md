@@ -30,8 +30,12 @@ restate it here.
   the stopped one produced a zero. The conversion of a frame to a reading already reads
   `memory_stats.limit`, defaulting it to `0` — that default is where the false zero enters.
 - **Batch 1 is not made redundant by this**, and does not make this redundant. A reading taken while
-  the container really was running is a real measurement, so nothing here refuses it; only batch 1
-  keeps it off the card of a container that has since stopped.
+  the container really was running is a real measurement, and it stands until an empty answer says
+  the process it measured is gone. Between the two, only batch 1 keeps it off the card of a container
+  the listing shows as stopped.
+- **A refused answer drops the reading that container had** — the human's decision of 2026-08-31,
+  amending REQ-8 while this batch was being written. The reason and the case are recorded once, under
+  the F2 table of [`requirements.md`](../requirements.md). Read it before writing INT-1.
 - **The pass's other rules stand**: the 10-second cadence, the immediate first sample on start, one
   pass at a time with no backlog, the derivation of the set from the held listing through `peek()`,
   and the dropping of a cached reading for a container that has left the running set.
@@ -40,10 +44,10 @@ restate it here.
 
 | ID | Type | Where | What | REQ | Depends |
 | --- | --- | --- | --- | --- | --- |
-| INT-1 | modify | `server/src/containers/containers-service.ts` — the sampling pass (`sampleOnce`) and the conversion of a stats frame into a reading (`computeUsage`) | An answer that reports no memory limit is not a measurement: store nothing for that container on that pass, and leave the cached reading alone. Correct the comment beside the `catch`, which claims a failure that never happens. | REQ-8, REQ-9, REQ-10, REQ-11 | — |
-| INT-2 | modify | `.sdd/modules/containers/specs/containers-service.md` — the rule on a container that stopped between the listing and the statistics call | Make the line true and say what makes it true: the daemon answers such a call successfully, and an answer with no memory limit is not stored. | REQ-8, REQ-9 | INT-1 |
-| INT-3 | modify | `.sdd/modules/containers/index.md` — the `ContainersService` row | Beside "withheld once a reading is older than three intervals", add that an answer carrying no memory limit is not a reading at all. | REQ-8, REQ-9 | INT-1 |
-| INT-4 | modify | `server/test/unit/containers-stats-sampling.test.ts` | Cases: an answer with no memory limit stores nothing and provokes no second call; a complete frame is stored as today; a container the listing calls running whose answer is empty reports no figures, and reports them on the pass that measures it for real. | REQ-8, REQ-9, REQ-10, REQ-11 | INT-1 |
+| INT-1 | modify | `server/src/containers/containers-service.ts` — the sampling pass (`sampleOnce`) and the conversion of a stats frame into a reading (`computeUsage`) | An answer that reports no memory limit is not a measurement: store nothing for that container on that pass, and drop the reading it holds in cache. Correct the comment beside the `catch`, which claims a failure that never happens. | REQ-8, REQ-9, REQ-10, REQ-11 | — |
+| INT-2 | modify | `.sdd/modules/containers/specs/containers-service.md` — the rule on a container that stopped between the listing and the statistics call | Make the line true and say what makes it true: the daemon answers such a call successfully, an answer with no memory limit is not stored, and the reading that container had is dropped. | REQ-8, REQ-9 | INT-1 |
+| INT-3 | modify | `.sdd/modules/containers/index.md` — the `ContainersService` row | Beside "withheld once a reading is older than three intervals", add that an answer carrying no memory limit is not a reading at all, and drops the one held. | REQ-8, REQ-9 | INT-1 |
+| INT-4 | modify | `server/test/unit/containers-stats-sampling.test.ts` | Cases: an answer with no memory limit stores nothing, drops the reading that container had and provokes no second call; a complete frame is stored as today; a container measured, then answering empty, then measured again reports no figures in between and its own figures after. | REQ-8, REQ-9, REQ-10, REQ-11 | INT-1 |
 
 ## Order
 
@@ -52,7 +56,9 @@ restate it here.
 ## Out of this batch
 
 The projection of the listing, which is batch 1. The cadence, the gate on live consumers, the
-staleness bound and the eviction rule: all unchanged. No extra call to the daemon, and no second mark
+staleness bound and the ordinary eviction of a container that has left the running set: all
+unchanged — the drop INT-1 adds stands beside that eviction and does not replace it. No extra call to
+the daemon, and no second mark
 of an empty frame — the absent `system_cpu_usage` is not used, one mark is enough and two would have
 to be kept in step. Nothing under `client/src/`.
 
@@ -61,9 +67,9 @@ to be kept in step. Nothing under `client/src/`.
 ### Scenario: a container stopped and started again shows no figure it did not measure
 
 - REQ → REQ-8, REQ-9, REQ-10
-- Given → a container on the Containers screen, stopped and then started again within a few seconds
+- Given → a container measured at a non-zero CPU reading, then stopped, then started again within a few seconds
 - When → the operator watches its card while it says `RUNNING` again
-- Then → CPU and MEMORY read `—` with the *no sample* wording until a reading is taken, and never `0.0%`
+- Then → CPU and MEMORY read `—` with the *no sample* wording until a reading is taken — neither `0.0%` nor the figure it was measured at before it stopped
 - And → the first real figures appear within about ten seconds
 
 ### Scenario: the other cards keep measuring as they did

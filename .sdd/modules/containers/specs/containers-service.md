@@ -182,18 +182,22 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   every listing read in between would still carry the reading. What withholds it is the projection
   rule above, which asks the listing being answered with. A container that stopped between the
   listing being read and its statistics call going out is skipped for that pass by the rule below.
-- **An answer that reports no memory limit is not a measurement, and nothing is stored for it.** The
-  daemon does not fail the statistics call of a container that has just stopped: it answers `200`
-  with an empty frame — `memory_stats: {}`, every CPU counter zero, no `system_cpu_usage`, no
-  `networks` (measured on Docker 29.7.2, not taken from the documentation). Read as figures, that
-  frame is a container using nothing — a measured zero — rather than one nothing has been measured
-  of. What separates it from a real reading is the **missing memory limit**: a container that is
-  running always reports the limit of its cgroup, so no real reading is refused. The pass stores
-  nothing for that container, leaves the reading it already held standing and asks the daemon for
-  nothing more; the container is measured again on the next pass. The mark is applied in **one
-  place**, where a frame becomes a reading. It is what a container stopped and started again inside
-  one interval depends on: the listing calls it `running` again, the projection rule then hands out
-  whatever is cached for it, and the zero measured while it was stopped was never cached.
+- **An answer that reports no memory limit is not a measurement: nothing is stored for it, and the
+  reading already held is dropped.** The daemon does not fail the statistics call of a container that
+  has just stopped: it answers `200` with an empty frame — `memory_stats: {}`, every CPU counter
+  zero, no `system_cpu_usage`, no `networks` (measured on Docker 29.7.2, not taken from the
+  documentation). Read as figures, that frame is a container using nothing — a measured zero — rather
+  than one nothing has been measured of. What separates it from a real reading is the **missing
+  memory limit**: a container that is running always reports the limit of its cgroup, so no real
+  reading is refused. The pass then asks the daemon for nothing more and holds nothing at all for
+  that container, so it has no figures until a pass measures it for real. **The reading held is
+  dropped rather than left standing**, and that is the point of the rule: it measured a run of the
+  container that has ended, and a figure taken from a process that no longer exists is not a current
+  figure however recently it was read. The mark is applied in **one place**, where a frame becomes a
+  reading. It is what a container stopped and started again inside one interval depends on: the
+  listing calls it `running` again and the projection rule hands out whatever is cached for it —
+  which is nothing, neither the zero measured while it was stopped nor the figure measured before it
+  stopped.
 - **A reading older than three intervals reaches no consumer**, by the same route a stopped
   container's absent sample already takes: the bound is stated in exactly one place, as a multiple
   of the interval, and it is what stops a number measured before the gate closed from being

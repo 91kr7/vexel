@@ -630,8 +630,9 @@ async function sampleOnce(): Promise<void> {
       try {
         const statsResponse = await client.request(`/containers/${container.Id}/stats?stream=false`);
         const usage = computeUsage(JSON.parse(statsResponse.body) as RawStats);
-        // the reading already held stands: an answer that is no measurement replaces nothing
+        // an answer that is no measurement also drops the reading held: it measured a run that ended
         if (usage) statsCache.set(container.Id, usage);
+        else statsCache.delete(container.Id);
       } catch {
         // the call itself failed: a container that stopped mid-pass is answered, not refused
       }
