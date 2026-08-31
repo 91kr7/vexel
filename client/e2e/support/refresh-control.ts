@@ -2,12 +2,14 @@
  * **Pressing the top bar's refresh control, and returning when the reload has
  * ended** — the one way a spec asks the product to read the daemon again.
  *
- * Contexts and builders have no daemon event of their own
+ * Contexts, builders and build-cache records have no daemon event of their own
  * (`plan-docker_management_app-refresh_cache/REQ-12` lists the kinds that get
- * one, and neither is among them), so an object created from the CLI stays
- * invisible for a whole refresh period. The answer is the control the operator
- * has (`plan-docker_management_app-refresh_cache-manual_refresh/REQ-16`), driven
- * here exactly as they drive it.
+ * one, and none of the three is among them), so an object created from the CLI
+ * stays invisible for a whole refresh period. The answer is the control the
+ * operator has (`plan-docker_management_app-refresh_cache-manual_refresh/REQ-16`),
+ * driven here exactly as they drive it. That holds for every spec under
+ * `client/e2e/`, the destructive ones in `client/e2e/exclusive/` included
+ * (`plan-docker_management_app-refresh_cache/REQ-66`).
  *
  * Three constraints shape what is below, and each rules out a shortcut:
  *

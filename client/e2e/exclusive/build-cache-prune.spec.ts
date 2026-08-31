@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type Page } from '../support/test.js';
 import { openApp } from '../support/fixtures.js';
+import { refreshThroughTheControl } from '../support/refresh-control.js';
 import { execFileAsync } from '../../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, localBuilderDriverArgs, mirroredImage } from '../../../server/test/support/base-images.js';
 
@@ -101,6 +102,13 @@ test('pruning the build cache reclaims space and reports it, after confirmation'
     // The last active screen survives by design (REQ-115): pin it rather than inherit it.
     await openApp(page, 'builders-cache');
     await expect(page.getByRole('heading', { level: 1, name: 'Builders & cache' })).toBeVisible();
+
+    // Docker announces no builder, so on a server already holding the builder inventory the
+    // builder created above stays invisible for a whole period. The press is what puts it on
+    // screen, and no budget below is lengthened for it
+    // (plan-docker_management_app-refresh_cache/REQ-64, REQ-66, REQ-67).
+    await refreshThroughTheControl(page);
+
     const row = builderRow(page, name);
     await expect(row).toBeVisible({ timeout: 15_000 });
 
@@ -111,8 +119,12 @@ test('pruning the build cache reclaims space and reports it, after confirmation'
     // builder's cache, and the "in use" badge is how the screen says which builder that is.
     await expect(row.getByText('in use', { exact: true })).toBeVisible({ timeout: 15_000 });
 
-    // Guard rather than requirement: never issue a host-wide prune unless every record it
-    // would reclaim is this spec's own.
+    // plan-docker_management_app-refresh_cache/REQ-65 — the records the application reports
+    // after the selection are the fixture builder's own: `buildx du` answers for the active
+    // builder, so choosing one changes whose records this inventory holds, and the first read
+    // after it must already be the new builder's rather than the previous builder's.
+    // It is at the same time the guard on the prune below, which is host-wide: it is never
+    // issued unless every record it would reclaim is this spec's own.
     const beforeResponse = await page.request.get('/api/builders/cache');
     const before = (await beforeResponse.json()) as { id: string }[];
     expect(before.length).toBeGreaterThan(0);

@@ -13,6 +13,8 @@ type: backend service
 - `listBuildCache(): Promise<BuildCacheRecord[]>`
   - `BuildCacheRecord`: `{ id, type, sizeBytes, usageState, description? }`, `usageState`:
     `"shared" | "in-use" | "reclaimable"`.
+  - The records are the **active builder's own**: `buildx du` answers for whichever builder is
+    current, so which builder is active decides what this inventory is an inventory of.
   - `description` — the build step the record was produced by, as buildx recorded it (e.g.
     `mount / from exec /bin/sh -c …`, `[3/3] COPY x /y`, `local source for context`); absent when
     buildx recorded none or recorded it blank. It is what the traceability of REQ-68/REQ-69 matches
@@ -32,9 +34,10 @@ type: backend service
     else                         → "reclaimable"
     ```
 - `buildCacheListCache` — the refresh-cache kind the inventory is held under: key `build-cache`,
-  period 30 s, **no event type** — buildx publishes none, and the prune below says so itself (see
-  `refresh-cache.md`, module `refresh-cache`). `listBuildCache` is its read; the inventory above is
-  unchanged by this.
+  period 30 s, **no event type** — buildx publishes none, so the two operations that change what
+  this inventory answers say so themselves: the prune below, and selecting the active builder
+  (`BuildersService.useBuilder`) — see `refresh-cache.md`, module `refresh-cache`. `listBuildCache`
+  is its read; the inventory above is unchanged by this.
 - `pruneBuildCache(): Promise<BuildCachePruneResult>`
   - `BuildCachePruneResult`: `{ reclaimedBytes }`.
   - Removes every reclaimable record; rejects if `buildx prune`'s own reclaimed-space report cannot
@@ -44,6 +47,10 @@ type: backend service
 
 - `pruneBuildCache` says the inventory has changed once it has succeeded, so the reclaimed records
   disappear on the next request without waiting for a timer.
+- Its own prune is **not** the only thing that marks this inventory due: selecting the active
+  builder does too, because it changes whose records the inventory holds. Marked by the selection
+  itself (`BuildersService.useBuilder`), so the first read after it reports the newly active
+  builder's cache instead of the previous builder's for up to the 30 s period.
 
 - Every call goes through the CLI channel (`docker buildx …`), never a direct daemon socket call.
 - `docker buildx du` output is read as newline-delimited JSON, a single bare JSON object (the
@@ -71,3 +78,4 @@ type: backend service
 - plan-docker_management_app-refresh_cache/REQ-9
 - plan-docker_management_app-refresh_cache/REQ-11
 - plan-docker_management_app-refresh_cache/REQ-13
+- plan-docker_management_app-refresh_cache/REQ-65

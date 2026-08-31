@@ -36,16 +36,16 @@ means writing the analysis and the plan for it in the normal way — see
 | contexts-list-spawns-subprocesses | server | low | Two processes every 15 s for an inventory that changes when the operator changes it | `entries/contexts-list-spawns-subprocesses.md` |
 | object-type-invalidation-registry-unused | client | low | The by-object-type invalidation registry is exported and called from nowhere | `entries/object-type-invalidation-registry-unused.md` |
 | stale-thirteen-screen-count-in-checks | client | low | Thirteen checks still say "thirteen screens", two of them in failure messages, on a rail that has twelve | `entries/stale-thirteen-screen-count-in-checks.md` |
-| build-cache-prune-guard-blocked-by-run-fixtures | client | medium | The build-cache prune check can never run in a full pass: the run's own fixtures fill the cache its guard requires empty | `entries/build-cache-prune-guard-blocked-by-run-fixtures.md` |
 | change-coverage-millisecond-window | server | low | A read starting in the same millisecond as a change counts as covering it, on REQ-13's path | `entries/change-coverage-millisecond-window.md` |
 | layer-explorer-cancel-races-the-analysis | client | low | A check presses Cancel on an analysis that has already finished, and passes on speed rather than on contract | `entries/layer-explorer-cancel-races-the-analysis.md` |
 | open-app-retries-for-a-whole-test-budget | client | medium | `openApp` retries for 30 s, the whole default budget of the 562 tests that call it, so its own failure message can never be printed | `entries/open-app-retries-for-a-whole-test-budget.md` |
+| builder-writes-mark-one-inventory-of-the-two-they-change | server | medium | Removing a builder, and pruning the cache, each mark one of the two inventories they change, so a screen reports figures the operator's own action has invalidated | `entries/builder-writes-mark-one-inventory-of-the-two-they-change.md` |
 
-## Provenance of the three added on 2026-08-28
+## Provenance of the rows added after that study
 
-The last three rows do not come from that study. They were found by the closing full pass of
-`plan-docker_management_app-refresh_cache` on 28 August 2026, and each carries the run that found it
-in its own `source`. Two are defects in checks rather than in the product.
+The rows dated 2026-08-28 and later do not come from it: each names in its own `source` the run,
+batch or conversation that found it, and some are defects in checks rather than in the product. The
+count no longer matches a position in the table, entries having been removed as cycles closed them.
 
 ## Provenance of this first batch
 
