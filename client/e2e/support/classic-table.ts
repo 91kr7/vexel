@@ -258,6 +258,17 @@ export type ListTarget = string | { nestedInside: string; group?: number; underR
  */
 export interface ListRegionOptions {
   region?: string;
+  /**
+   * **How many lists the caller has already stated this region draws** — the
+   * count `listCountOnceItStops` waits to reach before it will call the number
+   * settled. Defaults to one, which is what every caller that names no figure
+   * gets and what this helper has always done.
+   *
+   * Pass **`0`** where an empty region is the answer rather than a read that has
+   * not landed. Without it a zero can never settle and the wait costs its whole
+   * budget — see the note on that function.
+   */
+  atLeast?: number;
 }
 
 /** The region a screen list is read in — the shell's own content column. */
@@ -1277,14 +1288,36 @@ export function tableWithColumn(page: Page, column: string, options: ListRegionO
  * before the read returned would walk one list, measure it, and report the screen
  * swept — which is the empty-premise failure one level up, since what went
  * unmeasured is exactly what nobody enumerated.
+ *
+ * **What it waits *for* is `atLeast`, and that used to be the constant one.** The
+ * condition was `current > 0`, which is the same guard for a region that draws
+ * three lists and for one whose answer is none: a zero could never equal the
+ * count before it and still be accepted, so an empty region polled until the
+ * budget ran out and then returned the zero it had read in the first 30ms.
+ * Measured on `classic-table-sweep.spec.ts`, which asks three such questions —
+ * the containers screen at two viewports, drawing cards and no table since
+ * 2026-08-25 (`plan-docker_management_app-containers_card_view/REQ-1`), and the
+ * dialog region of the counter-practice test, deliberately with no dialog open:
+ * **20.2s, 20.4s and 20.4s, out of a 117s file**. Every one of them the whole
+ * budget, none of them waiting for anything that could arrive.
+ *
+ * So the figure the caller already knows is the figure this waits for, and a
+ * region stated to draw none is settled on the same evidence as any other: two
+ * readings, one poll interval apart, that agree. A caller that states nothing
+ * gets one, which is the behaviour this always had. A caller that states two no
+ * longer accepts the first list as the whole answer while the second is still
+ * arriving — the count has to reach the stated figure *and* stop moving.
+ *
+ * It stays a wait and not an assertion: reaching the deadline returns what was
+ * read, and the premise written beside the caller's own figure is what fails.
  */
-async function listCountOnceItStops(page: Page, region: string, budget = 20_000): Promise<number> {
+async function listCountOnceItStops(page: Page, region: string, atLeast = 1, budget = 20_000): Promise<number> {
   const tables = page.locator(`${region} .ui-data-table`);
   const deadline = Date.now() + budget;
   let previous = -1;
   let current = await tables.count();
   while (Date.now() < deadline) {
-    if (current > 0 && current === previous) {
+    if (current >= atLeast && current === previous) {
       // The count has stopped changing across the content wait; the layout settle below is the
       // suite's own, so a list still being inserted is not counted mid-insertion.
       return await readOnceSettled(page, () => tables.count(), (before, after) => before === after);
@@ -1312,7 +1345,7 @@ async function listCountOnceItStops(page: Page, region: string, budget = 20_000)
  */
 export async function measureEveryList(page: Page, options: ListRegionOptions = {}): Promise<{ name: string; list: ListGeometry }[]> {
   const region = options.region ?? SCREEN_REGION;
-  const count = await listCountOnceItStops(page, region);
+  const count = await listCountOnceItStops(page, region, options.atLeast);
   const measured: { name: string; list: ListGeometry }[] = [];
   for (let index = 0; index < count; index += 1) {
     const list = await settledList(page, { index }, options);

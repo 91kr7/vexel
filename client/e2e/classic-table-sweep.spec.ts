@@ -49,7 +49,7 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { expect, test, type Page } from './support/test.js';
+import { expect, test, type Locator, type Page } from './support/test.js';
 import { CASE_LABEL, OWNER_LABEL, RUN_ID, openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
@@ -61,7 +61,7 @@ import {
   openTheAnalysedDialog,
   removeEfficiencyFixtureImage,
 } from './support/layer-efficiency-dialog.js';
-import { containerCard, containerDetail, openContainerDetail } from './support/container-cards.js';
+import { containerCard, containerCards, containerDetail, openContainerDetail } from './support/container-cards.js';
 import {
   LARGE_DIALOG_REGION,
   VIEWPORTS,
@@ -251,13 +251,26 @@ test.afterAll(async () => {
  * fixture that did not take — offers nothing to measure, and a walk that
  * measured nothing would pass. It is a *minimum* rather than an exact count so
  * that a screen gaining a list is covered rather than failed by this file.
+ *
+ * It is also **what the walker waits for**, and not only what is asserted once
+ * the walk is over: `measureEveryList` is handed this figure, so a screen stated
+ * to draw two is no longer read while only the first has arrived, and a screen
+ * stated to draw none settles on a stable zero instead of polling for twenty
+ * seconds against a condition it cannot meet (see `listCountOnceItStops`).
+ *
+ * `content` is how a screen that draws **no table at all** still proves it has
+ * loaded: its own content is waited for first, so the zero the walker then reads
+ * is a zero the screen means rather than a read that has not landed. Only the
+ * containers screen needs it — every other stop draws something the counter can
+ * see, whether the sweep keeps it or excludes it by name.
  */
-const WALK: { screen: string; heading: string; lists: number }[] = [
+const WALK: { screen: string; heading: string; lists: number; content?: (page: Page) => Locator }[] = [
   { screen: 'dashboard', heading: 'Dashboard', lists: 0 },
   // Zero on purpose since 2026-08-25: the containers screen draws one card per container and no
   // table at all (`plan-docker_management_app-containers_card_view/REQ-1`). It stays on the walk so
-  // that a list reappearing there is swept like any other rather than going unvisited.
-  { screen: 'containers', heading: 'Containers', lists: 0 },
+  // that a list reappearing there is swept like any other rather than going unvisited — and its
+  // cards are what the walk waits for, since it draws nothing the table counter could wait on.
+  { screen: 'containers', heading: 'Containers', lists: 0, content: containerCards },
   { screen: 'images-layers', heading: 'Images & layers', lists: 1 },
   { screen: 'volumes-networks', heading: 'Volumes & networks', lists: 2 },
   { screen: 'builders-cache', heading: 'Builders & cache', lists: 2 },
@@ -360,8 +373,10 @@ test('the sweep goes red when the region it walks draws no list — 1440×1000',
   const onTheScreen = await measureEveryList(page);
   expect(onTheScreen.length, 'the images screen draws no list, so this proves nothing about scoping').toBeGreaterThan(0);
 
-  // No dialog is open, so the dialog region matches nothing at all.
-  const nowhere = await measureEveryList(page, { region: LARGE_DIALOG_REGION });
+  // No dialog is open, so the dialog region matches nothing at all. `atLeast: 0` is what says that
+  // emptiness is the expected answer here: without it the counter waits its whole budget for a list
+  // that this test exists to prove will never come, which cost this file 20.2s of its 117s.
+  const nowhere = await measureEveryList(page, { region: LARGE_DIALOG_REGION, atLeast: 0 });
   console.log(`[b4/INT-4] with no dialog open, the walker finds ${nowhere.length} list(s) inside it`);
   expect(nowhere, 'the walker found lists inside a dialog that is not open').toEqual([]);
   expect(
@@ -390,7 +405,13 @@ for (const viewport of [DESKTOP, PHONE]) {
     for (const stop of WALK) {
       await openApp(page, stop.screen);
       await expect(page.getByRole('heading', { level: 1, name: stop.heading })).toBeVisible({ timeout: 30_000 });
-      const found = await measureEveryList(page);
+      if (stop.content) {
+        await expect(
+          stop.content(page).first(),
+          `${at} ${stop.screen}: the screen drew none of its own content, so a count of zero lists would prove nothing`,
+        ).toBeVisible({ timeout: 30_000 });
+      }
+      const found = await measureEveryList(page, { atLeast: stop.lists });
       const kept: Swept[] = [];
       for (const { name, list } of found) {
         const exclusion = excludedBy(list, stop.screen);
@@ -422,7 +443,7 @@ for (const viewport of [DESKTOP, PHONE]) {
       await openApp(registriesPage, 'registries');
       await expect(registriesPage.getByRole('heading', { level: 1, name: 'Registries' })).toBeVisible({ timeout: 30_000 });
       await registriesPage.getByLabel('Search repositories').fill('vexel-e2e');
-      const found = await measureEveryList(registriesPage);
+      const found = await measureEveryList(registriesPage, { atLeast: 2 });
       console.log(
         `[b4/INT-4] ${at} registries: ${found.length} table(s) drawn — ${JSON.stringify(found.map((candidate) => candidate.name))}`,
       );
@@ -439,7 +460,7 @@ for (const viewport of [DESKTOP, PHONE]) {
 
     // --- the dialog, the one converted list that is not on a screen -----------
     await openTheAnalysedDialog(page, efficiencyImage);
-    const inTheDialog = await measureEveryList(page, { region: LARGE_DIALOG_REGION });
+    const inTheDialog = await measureEveryList(page, { region: LARGE_DIALOG_REGION, atLeast: 3 });
     console.log(
       `[b4/INT-4] ${at} efficiency & signals: ${inTheDialog.length} table(s) drawn — ${JSON.stringify(
         inTheDialog.map((candidate) => candidate.name),
