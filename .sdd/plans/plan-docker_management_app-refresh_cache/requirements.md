@@ -380,3 +380,62 @@ status: validated
 > server answers correctly without the correction, and a wait added to a check dissolves a defect that is
 > a delay. The end-to-end spec is `client/e2e/detail-reread-scoped.spec.ts:170` and it is not to be
 > touched — [[a-check-is-never-weakened-to-pass]].
+
+## Appended on 2026-08-31 — the census that stopped at the folder boundary
+
+> The e2e pass of 2026-08-31 closed 647 green and one red:
+> `client/e2e/exclusive/build-cache-prune.spec.ts:80`, waiting 15 seconds at line 105 for a builder it had
+> created from the command line. The builder exists and its build had already left cache records — the
+> lines above the failure assert both. It is not listed because `builders` has a thirty-second period and
+> no daemon event: `buildx` publishes none.
+>
+> **That case is already decided.** The human decided it on 2026-08-28, in
+> `batches/batch-remaining-checks-reload.md` (REQ-30, certified): the period is the product's behaviour
+> and it stands; the answer for a check is the manual refresh control. That batch converted four files
+> with the existing helper `client/e2e/support/refresh-control.ts` and **never looked inside
+> `client/e2e/exclusive/`**, while its own acceptance scenario claimed the checks pass *wherever they
+> run*. REQ-64 and REQ-66 make that claim true instead of believed.
+>
+> **The census, run file by file over the whole tree this time**, found one repair to make and no other:
+> the eventless list kinds are `contexts` (300 s), `builders` and `build-cache` (30 s), and every other
+> site that creates one of their objects from the command line already presses — `contexts.spec.ts`,
+> `contexts-row-geometry.spec.ts`, `truncation-contract.spec.ts`, `list-order.spec.ts`,
+> `builders.spec.ts`, `layer-build-cache.spec.ts`. `manual-refresh.spec.ts` creates a context and asserts
+> it is **absent** before pressing: that is the control's own check and it stays as it is. The other four
+> files of `exclusive/` create containers, volumes and images, all of which the daemon announces.
+>
+> **The census also found a second cause in the same file, and it is in the product.** `buildx du`
+> reports the **active** builder's records, so the build-cache inventory means something different after
+> the operator selects a builder — and `useBuilder` marks only the builder inventory changed
+> (`server/src/builders/builders-service.ts:80`). The screen, and this check's own prune guard, are then
+> answered for up to thirty seconds with the previous builder's records. That is a gap in REQ-13, not a
+> new decision, and REQ-65 closes it in the product: repairing it in the check would be the weakening
+> [[a-check-is-never-weakened-to-pass]] forbids. It is very probably also what
+> `.sdd/tech-debt/entries/build-cache-prune-guard-blocked-by-run-fixtures.md` recorded on 2026-08-28 as
+> "the run itself fills the cache" — the gigabyte of foreign records it measured belongs to the default
+> builder, which the fixture builder's own `du` cannot see.
+>
+> Per [[every-change-updates-spec-requirements-plan]] this is appended as a further batch. **Nothing above
+> this line was changed**, beyond the one row added to the batch table in `batches.md` and its four
+> coverage rows: no certified batch is reopened.
+
+## Feature — The exclusive checks reload through the control
+
+| ID | Requirement |
+|----|-------------|
+| REQ-64 | The check that prunes the build cache lists the builder it created from the command line because it asked the interface to read again, not because it waited: it passes on a server that has been holding the builder inventory as surely as on one just started, and it asserts exactly what it asserted before. |
+| REQ-65 | Selecting the active builder changes what the build-cache inventory answers for, so the first read after the selection reports the newly active builder's records rather than the previous builder's, without waiting out a period. |
+| REQ-66 | No check under `client/e2e/`, `exclusive/` included, waits out a refresh period for an object it created from the command line in a list the daemon announces nothing about. |
+| REQ-67 | Nothing is made more patient to close these: no assertion softened, retried or given a longer budget, the prune check's own sixty seconds unchanged, and every step budget still inside the budget of the test that runs it. |
+
+> **REQ-66 is the requirement REQ-30 believed it had.** REQ-64 repairs the one file the census found;
+> REQ-66 is the statement that there is no second one, and it is what makes the next batch's author look
+> in `exclusive/` too.
+>
+> **REQ-65 is a product requirement inside a batch of checks, and that is deliberate.** Without it the
+> check goes green on a screen that names the wrong builder's cache, which is exactly the trade the
+> knowledge base refuses. It touches no period and no schedule: it names one more thing that marks an
+> inventory due, which is what REQ-13 already asks of every other write operation in the product.
+>
+> **REQ-67 is the guard against the shortcut the human named.** A budget raised to sit out thirty seconds
+> would close REQ-64 on paper and reverse the decision of 2026-08-28 in practice.

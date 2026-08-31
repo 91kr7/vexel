@@ -22,6 +22,7 @@ status: validated
 | sampler-from-shared-listing | The statistics sampler reads the container listing the server already holds | REQ-47, REQ-48, REQ-49, REQ-50, REQ-51 | — | certified | Watching statistics costs no container listing of its own |
 | derived-lists-follow-the-listing | The derived lists follow the container listing they are built on | REQ-52, REQ-53, REQ-54, REQ-55, REQ-56, REQ-57 | — | certified | The MOUNTED BY column names every container mounting the volume, at once |
 | detail-derivation-follows-the-listing | The detail's derived values follow the container listing too | REQ-58, REQ-59, REQ-60, REQ-61, REQ-62, REQ-63 | — | certified | The open volume panel stops naming a container that no longer exists |
+| exclusive-checks-reload | The exclusive checks reload through the control | REQ-64, REQ-65, REQ-66, REQ-67 | — | todo | The build-cache prune check passes on a server that is already holding its lists |
 
 ## What the plan builds
 
@@ -163,6 +164,10 @@ qualified with their batch below.
 | REQ-61 | `batch-detail-derivation-follows-the-listing/INT-1`, `batch-detail-derivation-follows-the-listing/INT-2`, `batch-detail-derivation-follows-the-listing/INT-3`, `batch-detail-derivation-follows-the-listing/INT-6`, `batch-detail-derivation-follows-the-listing/INT-9`, `batch-detail-derivation-follows-the-listing/INT-12` | detail-derivation-follows-the-listing |
 | REQ-62 | `batch-detail-derivation-follows-the-listing/INT-8`, `batch-detail-derivation-follows-the-listing/INT-9`, `batch-detail-derivation-follows-the-listing/INT-13` | detail-derivation-follows-the-listing |
 | REQ-63 | `batch-detail-derivation-follows-the-listing/INT-8`, `batch-detail-derivation-follows-the-listing/INT-14` | detail-derivation-follows-the-listing |
+| REQ-64 | `batch-exclusive-checks-reload/INT-1` | exclusive-checks-reload |
+| REQ-65 | `batch-exclusive-checks-reload/INT-2`, `batch-exclusive-checks-reload/INT-3`, `batch-exclusive-checks-reload/INT-4`, `batch-exclusive-checks-reload/INT-5` | exclusive-checks-reload |
+| REQ-66 | `batch-exclusive-checks-reload/INT-1`, `batch-exclusive-checks-reload/INT-6` | exclusive-checks-reload |
+| REQ-67 | `batch-exclusive-checks-reload/INT-1`, `batch-exclusive-checks-reload/INT-4` | exclusive-checks-reload |
 
 **Three notes on this coverage.**
 
@@ -861,3 +866,89 @@ Three notes on it.
 - **REQ-62 and REQ-63 carry the whole risk of the coverage**, as REQ-56 and REQ-57 did. A check written
   against a freshly started server passes with and without the correction, and a check that waits before
   asking is testing a listing that has already been replaced.
+
+## Appended on 2026-08-31 — one batch
+
+The full e2e pass of 2026-08-31 closed **647 green and one red**:
+`client/e2e/exclusive/build-cache-prune.spec.ts:80`, waiting fifteen seconds at line 105 for a builder it
+had itself created from the command line. The builder exists and its build had already left cache records
+— the lines above the failure assert both. `builders` has a thirty-second period and no daemon event, so
+fifteen seconds can never be enough.
+
+**That case was decided on 2026-08-28** and is written in `batches/batch-remaining-checks-reload.md`
+(REQ-30, certified): the period is the product's behaviour and it stands; the answer for a check is the
+manual refresh control. That batch converted four files and never looked inside `client/e2e/exclusive/`,
+while its own acceptance scenario claimed the checks pass *wherever they run*. **This batch decides
+nothing new — it applies a certified decision where the census stopped, and redoes the census over the
+whole tree.**
+
+Per the knowledge base, work found after a batch is appended as a further batch and never edited into one
+already closed: **nothing above this line was changed**, beyond the one row added to the batch table and
+its four coverage rows. No certified batch is reopened.
+
+**Execution order.** `exclusive-checks-reload` depends on nothing still open in this plan. The `Depends`
+column is empty for that reason; the batch file states the cross-plan dependency on the manual refresh
+control and its helper.
+
+### Assumptions and decisions
+
+- **The census is the deliverable, not a side effect.** It was run file by file over `client/e2e/`,
+  `exclusive/` included, against the eventless kinds read from the registrations in `server/src/`:
+  `contexts`, `builders`, `build-cache`. One file needs the repair and no other; the table naming every
+  site examined is in the batch file. "Wherever they run" is now checked rather than believed.
+- **`manual-refresh.spec.ts` creates a context and is not converted.** It asserts the object is **absent**
+  before the press: that is the control's own check, and pressing earlier would delete what it verifies.
+- **The second cause found by the census is in the product, and is repaired there.** `buildx du` answers
+  for the **active** builder, so selecting a builder changes what the build-cache inventory means — and
+  `useBuilder` marks only the builder inventory changed. The screen, and this check's own prune guard, are
+  answered with the previous builder's records for up to thirty seconds. REQ-65 closes it in
+  `builders-service.ts`. A second press in the check would have been the cheaper road and would have made
+  the check green over a screen naming the wrong builder's cache — [[a-check-is-never-weakened-to-pass]].
+- **REQ-65 touches no period and no schedule.** It names one more thing that marks an inventory due, which
+  is what REQ-13 already asks of every other write operation in the product. The human's instruction not
+  to touch the thirty seconds is respected exactly.
+- **An existing debt entry is very probably a misdiagnosis of that same cause.**
+  `build-cache-prune-guard-blocked-by-run-fixtures` (2026-08-28) records that the prune guard "can never
+  run in a full pass, because the run itself fills the cache", with a gigabyte of foreign records as
+  evidence. Those records belong to the **default** builder, which the fixture builder's own `du` cannot
+  see: the application reported them because its inventory had not been re-read after the selection.
+  `INT-5` settles it against the run instead of assuming it, either way.
+- **No new debt entry is opened.** Both causes are defects being fixed now, not costs being deferred.
+
+### Departures
+
+- **This batch changes one line of product source, and the human's instruction of 2026-08-31 said it would
+  change none.** That instruction was given to protect the thirty-second period, and the period is
+  untouched. What the census then found — an inventory whose meaning changes on an operation that does not
+  mark it due — is a second cause, in the product, and the knowledge base forbids absorbing it into the
+  check. If the human refuses the product change, `INT-2` to `INT-5` are withdrawn together and the second
+  cause becomes a batch of its own; `INT-1` and `INT-6` stand either way, and the check stays red on a
+  cause that is at least now diagnosed. **This is the one thing in the batch that needs a decision.**
+- **The two validation gates were not held.** The human was unavailable and said they would validate the
+  batch themselves. The planner did not stop at Step 2 or Step 5.
+- **No departure from the business spec.** `.sdd/analysis/docker_management_app-refresh_cache.md` says a
+  value is read again when something says it has changed; REQ-65 names one more thing that says so, and
+  contradicts nothing. No correction to the spec is owed. **The component specs are a different matter and
+  the batch owes them one**: `builders-service.md` and `build-cache-service.md` state what marks each
+  inventory due. `INT-3` carries it, per [[every-change-updates-spec-requirements-plan]].
+- **The closing full pass stays withdrawn**, for the seventh batch of this plan running. The run is the
+  batch's own perimeter, and for this file that means `--project=exclusive --no-deps` with
+  `--repeat-each=2` — one server process serves the run, so the first repetition warms it and only the
+  second says anything ([[exclusive-project-needs-no-deps]],
+  [[an-intermittent-failure-is-reproduced-first]]). The batch file carries the command and a two-command
+  reproduction that needs no pass at all.
+
+### Coverage check — the appended requirements
+
+REQ-64 to REQ-67 are each served by at least one intervention of `exclusive-checks-reload`, and each of its
+six interventions serves at least one of them; the rows are in the table above. No appended REQ is split
+across batches: all four close here. There is no enabling intervention.
+
+Two notes on it.
+
+- **REQ-67 is served by no change of its own**, like REQ-54 and REQ-43 before it. It is the guarantee that
+  the repair was not paid for with patience — the one shortcut the human named on 2026-08-31 and refused
+  on 2026-08-28 — and what closes it is that no budget in the file moved and
+  `client/scripts/check-budget-conformance.mjs` still passes.
+- **REQ-66 rests on the census and on `INT-6`.** The census is true today; `INT-6` is what makes the next
+  author look in `exclusive/` too, which is the exact miss this batch exists to repair.
