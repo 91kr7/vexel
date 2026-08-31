@@ -63,6 +63,7 @@ check would make it green over a screen that names the wrong builder's cache, wh
 | INT-4 | modify | `client/e2e/exclusive/build-cache-prune.spec.ts` | The existing prune guard becomes the check for REQ-65, with the reason written beside it: the records the application reports after the selection are the fixture builder's own. No assertion is added or relaxed. | REQ-65, REQ-67 | INT-2 |
 | INT-5 | modify | `.sdd/tech-debt/entries/build-cache-prune-guard-blocked-by-run-fixtures.md` | Settle it against the run: if the guard now passes, the entry is removed per [[technical-debt-goes-in-the-tech-debt-register]]; if it still refuses, its diagnosis is corrected with what the run showed. | REQ-65 | INT-2, INT-4 |
 | INT-6 | modify | `client/e2e/support/refresh-control.ts` | Its doc comment names build-cache records as the third eventless list beside contexts and builders, and states that the rule covers `client/e2e/exclusive/` too. | REQ-66 | — |
+| INT-7 | create | `.sdd/tech-debt/entries/`, plus its row in `.sdd/tech-debt/index.md` | Record the two siblings INT-2 uncovered and did not repair: `removeBuilder` returns buildx to the default builder and marks only the builder inventory, so the build-cache list shows the removed builder's records for up to a period; and `pruneBuildCache` changes the cache size each builder row carries and marks only the cache inventory. Both are the same hole in REQ-13 as INT-2, neither is reached by any check, and neither is repaired here. | REQ-65 | INT-2 |
 
 ## How it is reproduced, and how it is run
 
