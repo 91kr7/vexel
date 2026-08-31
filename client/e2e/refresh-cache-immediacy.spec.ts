@@ -74,6 +74,12 @@ function rowIn(panel: Locator, name: string): Locator {
 
 // REQ-13 — the operator stops a container from its screen and the card states it at once.
 test('stopping a container from its card updates the card without a period-length wait', async ({ page }) => {
+  // 90s = 60 + 20 + 6 + 4 (REQ-64, REQ-65):
+  //   60s — the write finishes: the ceiling `writeFinished` declares for the response;
+  //   20s — the screen opens and the fixture's row appears: `openApp`, then the wait written below;
+  //    6s — what the case itself measures, `VISIBLE_WITHIN_MS`;
+  //    4s — the fixture, created before and removed in the `finally`, through the CLI.
+  test.setTimeout(90_000);
   const name = `vexel-e2e-refresh-stop-${Date.now()}`;
   try {
     await createSleepingContainer(name);
@@ -104,6 +110,12 @@ test('stopping a container from its card updates the card without a period-lengt
 
 // REQ-13 — the operator removes a volume from its row and the list states it at once.
 test('removing a volume from its row updates the list without a period-length wait', async ({ page }) => {
+  // 90s = 60 + 20 + 6 + 4 (REQ-64, REQ-65):
+  //   60s — the write finishes: the ceiling `writeFinished` declares for the response;
+  //   20s — the screen opens and the fixture's row appears: `openApp`, then the wait written below;
+  //    6s — what the case itself measures, `VISIBLE_WITHIN_MS`;
+  //    4s — the fixture, created before and removed in the `finally`, through the CLI.
+  test.setTimeout(90_000);
   const name = `vexel-e2e-refresh-volume-${Date.now()}`;
   try {
     await execFileAsync('docker', ['volume', 'create', ...ownershipArgs(name), name]);
@@ -136,6 +148,12 @@ test('removing a volume from its row updates the list without a period-length wa
 
 // REQ-13 — the operator removes a network from its row and the list states it at once.
 test('removing a network from its row updates the list without a period-length wait', async ({ page }) => {
+  // 90s = 60 + 20 + 6 + 4 (REQ-64, REQ-65):
+  //   60s — the write finishes: the ceiling `writeFinished` declares for the response;
+  //   20s — the screen opens and the fixture's row appears: `openApp`, then the wait written below;
+  //    6s — what the case itself measures, `VISIBLE_WITHIN_MS`;
+  //    4s — the fixture, created before and removed in the `finally`, through the CLI.
+  test.setTimeout(90_000);
   const name = `vexel-e2e-refresh-network-${Date.now()}`;
   try {
     await execFileAsync('docker', ['network', 'create', ...ownershipArgs(name), name]);
@@ -168,6 +186,14 @@ test('removing a network from its row updates the list without a period-length w
 
 // REQ-13 — the operator brings a compose project up from its row and the list states it at once.
 test('bringing a compose project up from its row updates the row without a period-length wait', async ({ page }) => {
+  // 120s = 60 + 20 + 6 + 34 (REQ-64, REQ-65): the three parts the object cases count, and a compose
+  // project on top of them —
+  //   60s — the write finishes: the ceiling `writeFinished` declares for the response;
+  //   20s — the screen opens and the project's row appears: `openApp`, then the wait written below;
+  //    6s — what the case itself measures, `VISIBLE_WITHIN_MS`;
+  //   34s — the project through the CLI: `docker compose create` before the gesture, then the
+  //         containers and the network the `up` made, removed one by one in the `finally`.
+  test.setTimeout(120_000);
   const caseName = 'refresh-up';
   const projectName = `vexel-e2e-compose-${caseName}-${RUN_ID}`;
   const dir = await mkdtemp(join(tmpdir(), 'vexel-e2e-refresh-compose-'));

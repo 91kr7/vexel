@@ -17,8 +17,20 @@ import { E2E_DATA_DIR } from './e2e/support/fixtures';
 const E2E_PORT = 3100;
 const E2E_ORIGIN = `http://localhost:${E2E_PORT}`;
 
+/**
+ * What every test of this suite gets unless it says otherwise. It is Playwright's
+ * own default, written down rather than inherited: it is the ceiling every step
+ * budget in a test has to fit inside, and a ceiling nobody has written down is a
+ * ceiling nobody counts against — which is how a 40s wait came to be declared
+ * inside a 30s test (plan-docker_management_app-containers_card_view/REQ-70).
+ * Nothing changes at run time; `scripts/check-budget-conformance.mjs` reads the
+ * number from here.
+ */
+const DEFAULT_TEST_BUDGET_MS = 30_000;
+
 export default defineConfig({
   testDir: './e2e',
+  timeout: DEFAULT_TEST_BUDGET_MS,
   // One worker on purpose. Every spec drives the same Docker daemon, so running
   // them at once does not overlap idle time — it queues the same serialised
   // daemon work behind a 30s per-test budget and turns contention into spurious

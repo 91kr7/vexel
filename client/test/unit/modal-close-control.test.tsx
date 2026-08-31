@@ -265,9 +265,9 @@ describe('Modal — the focus return it is asked for (REQ-17)', () => {
 // `check-ui-conformance.mjs`; the exception marker is the one way past both, so it is counted here.
 describe('the blur perimeter this change leaves untouched (REQ-20)', () => {
   it('carries no blur exception anywhere in the application’s sources', () => {
-    const carrying = sourceFiles(join(process.cwd(), 'src'))
-      .filter((path) => !path.includes('__conformance-fixture__'))
-      .filter((path) => readFileSync(path, 'utf8').includes('ui-blur-exception:'));
+    const carrying = sourceFiles(join(process.cwd(), 'src')).filter((path) =>
+      readFileSync(path, 'utf8').includes('ui-blur-exception:'),
+    );
 
     expect(carrying).toEqual([]);
   });

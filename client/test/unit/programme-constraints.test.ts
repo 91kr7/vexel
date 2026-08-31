@@ -145,22 +145,11 @@ function blurHalfSource(source: string): string {
 
 /**
  * Every source file of the client, by kind: the library, and the feature code the
- * boundary applies to.
- *
- * `__conformance-fixture__` is skipped, exactly as the three other scans of this
- * tree skip it (`blur-policy.test.ts`, `overlay-glass.test.tsx`,
- * `truncation-contract.test.tsx`): `ui-conformance-check.test.ts` writes
- * deliberately illegal sources there for the length of its own run, so a scan of
- * the live tree that read them would be reporting **another test's fixture** as
- * feature code — and would pass or fail depending on whether that suite happened
- * to be mid-run (CLAUDE.md, "Tests" — a test depends on nothing another test
- * did). One directory name, and nothing else about the check is relaxed: a real
- * blur in a real feature file still fails it.
+ * boundary applies to. Everything the tree holds, no name excepted.
  */
 function sourceFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
-    if (entry.name === '__conformance-fixture__') return [];
     if (entry.isDirectory()) return entry.name === 'node_modules' || entry.name === 'dist' ? [] : sourceFiles(path);
     return /\.(tsx?|css)$/.test(entry.name) ? [path] : [];
   });
@@ -198,6 +187,11 @@ function relativeToClient(path: string): string {
  * mentioning neither it nor the retired list component's budget still fails.
  * (`plan-ui-coherence-optimisation/REQ-84`;
  * `.../classic-table/REQ-28`, `REQ-34`.)
+ *
+ * Widened once more on 2026-08-31, again by one named term and again with the
+ * reason on the spot: the scanned root
+ * (`plan-docker_management_app-containers_card_view/REQ-74`). A hunk naming none
+ * of the three still fails, and the byte-identity above is untouched.
  */
 describe('REQ-84 — the conformance check’s blur half was never edited', () => {
   // REQ-84 — "`blurAllowedOverlaySelectors` stays byte-identical to its state before batch 1, which
@@ -226,8 +220,8 @@ describe('REQ-84 — the conformance check’s blur half was never edited', () =
 
   // REQ-84 — "Its boundary half receives exactly one planned addition — the call-site budget of
   // REQ-94 … anything else added to this file is the same signal." A hunk is the unit of an edit,
-  // so every hunk of every version since must be about one of the two admitted changes.
-  it('was edited for nothing but the retiring list component’s budget and the card row’s guard', () => {
+  // so every hunk of every version since must be about one of the three admitted changes.
+  it('was edited for nothing but those three admitted changes', () => {
     const strayEdits: string[] = [];
     for (const revision of revisionsTouchingSinceTheBlurHalfSettled()) {
       const diff = git('diff', '--unified=0', BLUR_HALF_SETTLED, revision, '--', CONFORMANCE_SCRIPT);
@@ -237,11 +231,14 @@ describe('REQ-84 — the conformance check’s blur half was never edited', () =
           .filter((line) => /^[+-]/.test(line) && !/^[+-][+-]/.test(line))
           .join('\n');
         // The budget names the component it counts; its epitaph, which batch 13 left and batch 19
-        // removed, names what it was. `card row` is the one term added on 2026-08-16, and it is the
+        // removed, names what it was. `card row` is the term added on 2026-08-16, and it is the
         // whole of what `.../classic-table/REQ-23` admits: the pass that refuses the retired
-        // presentation names it in every declaration it introduces. A hunk mentioning none of them
-        // is an edit to something else.
-        if (!/cardlist|call-site budget|list component|card[- ]?row/i.test(changed)) {
+        // presentation names it in every declaration it introduces. `scanned root` is the term
+        // added on 2026-08-31 for `plan-docker_management_app-containers_card_view/REQ-74`, and it
+        // is the whole of what that requirement admits: the tree to scan becomes the script's first
+        // argument, so the check driving it writes its baits outside every tree another check
+        // reads. A hunk mentioning none of them is an edit to something else.
+        if (!/cardlist|call-site budget|list component|card[- ]?row|scanned root/i.test(changed)) {
           strayEdits.push(`${revision.slice(0, 7)}:\n${changed}`);
         }
       }

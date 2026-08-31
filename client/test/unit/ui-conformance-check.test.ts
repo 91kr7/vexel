@@ -1,6 +1,17 @@
+// The check that drives `client/scripts/check-ui-conformance.mjs`.
+//
+// Its baits live in a throwaway root under the operating system's temp
+// directory, handed to the script as the tree to scan: **a check never writes
+// inside a tree another check reads**. Many other checks list `client/src` and
+// then read every file the listing returned, with no catch around the read — an
+// unreadable file in a scanned tree is a broken tree, and no scan is asked to
+// tolerate one — so a bait written there is another pass's ENOENT, on an
+// assertion that has nothing to do with this one. And no product source is
+// edited to make a check calmer: what moved is where this check writes.
 import { afterEach, describe, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 // Resolved from the client workspace root (vitest's working directory), not
@@ -8,7 +19,6 @@ import { dirname, join } from 'node:path';
 // not preserve a file: scheme suitable for path resolution.
 const clientRoot = process.cwd();
 const scriptPath = join(clientRoot, 'scripts', 'check-ui-conformance.mjs');
-const fixtureDir = join(clientRoot, 'src', '__conformance-fixture__');
 
 /** The overlay surfaces the blur policy allows, per the component specification. */
 const allowListedOverlaySelectors = [
@@ -19,25 +29,83 @@ const allowListedOverlaySelectors = [
   '.ui-log-stream__jump',
 ];
 
-function writeFixture(fileName: string, content: string) {
-  mkdirSync(fixtureDir, { recursive: true });
-  writeFileSync(join(fixtureDir, fileName), content, 'utf8');
+/** The running case's own scanned root: created at its first bait, removed when the case ends. */
+let scannedRoot: string | undefined;
+
+function baitRoot(): string {
+  scannedRoot ??= mkdtempSync(join(tmpdir(), 'ui-conformance-'));
+  return scannedRoot;
 }
 
+/** Writes one bait at a path of the scanned root — the path the script reports it under. */
+function writeBait(path: string, content: string) {
+  const full = join(baitRoot(), path);
+  mkdirSync(dirname(full), { recursive: true });
+  writeFileSync(full, content, 'utf8');
+}
+
+/** A bait of the fixture directory: feature code, under the name every case below matches. */
+function writeFixture(fileName: string, content: string) {
+  writeBait(join('src', '__conformance-fixture__', fileName), content);
+}
+
+/** Runs the real script over the case's own scanned root. */
 function runCheck() {
+  return spawnSync(process.execPath, [scriptPath, join(baitRoot(), 'src')], { cwd: clientRoot, encoding: 'utf8' });
+}
+
+/** Runs it the way `npm run lint` does: no argument, so the client's own `src`. */
+function runCheckOverTheClient() {
   return spawnSync(process.execPath, [scriptPath], { cwd: clientRoot, encoding: 'utf8' });
 }
 
 afterEach(() => {
-  rmSync(fixtureDir, { recursive: true, force: true });
+  if (scannedRoot !== undefined) rmSync(scannedRoot, { recursive: true, force: true });
+  scannedRoot = undefined;
 });
+
+/** Every path inside the repository's two source trees, listed and never read. */
+function sourceTreeEntries(): string[] {
+  const walk = (directory: string): string[] =>
+    readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(directory, entry.name);
+      return entry.isDirectory() ? [path, ...walk(path)] : [path];
+    });
+  return [...walk(join(clientRoot, 'src')), ...walk(join(clientRoot, '..', 'server', 'src'))].sort();
+}
 
 describe('UI conformance check — library boundary', () => {
   // plan-docker_management_app/REQ-5
   it('passes on the current, conformant codebase', () => {
-    const result = runCheck();
+    const result = runCheckOverTheClient();
     expect(result.status).toBe(0);
     expect(result.stdout).toMatch(/passed/);
+  });
+
+  // plan-docker_management_app-containers_card_view/REQ-74 — with no argument the tree is
+  // `client/src`: the run that names that tree and the run that names nothing report the same
+  // thing, wording and exit code included.
+  it('scans client/src when it is given no tree at all', () => {
+    const implicit = runCheckOverTheClient();
+    const explicit = spawnSync(process.execPath, [scriptPath, join(clientRoot, 'src')], {
+      cwd: clientRoot,
+      encoding: 'utf8',
+    });
+
+    expect(explicit.status).toBe(implicit.status);
+    expect(explicit.stdout).toBe(implicit.stdout);
+    expect(explicit.stderr).toBe(implicit.stderr);
+  });
+
+  // plan-docker_management_app-containers_card_view/REQ-75 — the sub-tree read as the UI library is
+  // the given tree's own `src/ui`: the tag refused above is the library's business here.
+  it('reads the given tree’s own src/ui as the UI library', () => {
+    writeBait(join('src', 'ui', 'RawDiv.tsx'), 'export function RawDiv() { return <div>raw</div>; }\n');
+
+    const result = runCheck();
+
+    expect(result.stderr).not.toMatch(/raw DOM tag/);
+    expect(result.status).toBe(0);
   });
 
   // plan-docker_management_app/REQ-5
@@ -79,6 +147,37 @@ describe('UI conformance check — library boundary', () => {
 
     expect(result.status).toBe(1);
     expect(result.stderr).toMatch(/CSS import outside/);
+  });
+});
+
+/**
+ * REQ-73 — **the baits of this check are written outside the trees the other
+ * checks read.**
+ *
+ * Other checks of this tree list `client/src` and then read every file the
+ * listing returned. A bait written there is their feature code while it lasts,
+ * and a bait removed between a listing and a read is an `ENOENT` in a pass that
+ * has nothing to do with this one. So what is asserted is not that the baits are
+ * cleaned up afterwards but that they were never there: read **while** a case's
+ * baits are written, which is the only moment they could be seen.
+ */
+describe('UI conformance check — where its baits are written', () => {
+  it('leaves both source trees exactly as it found them while its baits are written', () => {
+    const before = sourceTreeEntries();
+
+    writeFixture('RawDiv.tsx', 'export function RawDiv() { return <div>raw</div>; }\n');
+    const result = runCheck();
+
+    expect(
+      existsSync(join(clientRoot, 'src', '__conformance-fixture__')),
+      'the baits were written inside client/src, where every other scan reads',
+    ).toBe(false);
+    expect(
+      sourceTreeEntries(),
+      'the run created or removed a path inside client/src or server/src',
+    ).toEqual(before);
+    // The premise: baits nothing scans would satisfy the two assertions above by doing nothing.
+    expect(result.status, 'the bait was not scanned at all, so this case proves nothing').toBe(1);
   });
 });
 
@@ -631,15 +730,10 @@ describe('UI conformance check — the card row stays retired', () => {
  * ran would otherwise read exactly like an admission.
  *
  * **Why a tree of its own.** Driving the admission means putting a card per item
- * at `client/src/containers/…`, a real product path. Unit test files run in
- * parallel here and several of them walk `client/src` (`blur-policy`,
- * `programme-constraints`, `card-row-presentation-retired`), so a fixture there
- * would be another suite's feature file for the length of this one's run —
- * exactly what the fixture directory below exists to avoid. The script is
- * therefore copied, unchanged, into a tree holding nothing but the fixtures, and
- * run from there: it resolves the client root from its own location and states
- * the admission as a path relative to it, so the two literal paths are read the
- * same way. What runs is still the checked script, byte for byte.
+ * at `src/containers/…`, a real product path. These cases therefore write into
+ * the same scanned root every other case here uses, and read the admission off
+ * it: the script states the admitted paths relative to the tree it was given, so
+ * the two literal paths are matched exactly as they are in the client.
  */
 describe('UI conformance check — the containers admission', () => {
   const DECISION = /an object list is one table — one header, ruled rows beneath it, no surface per row/;
@@ -648,36 +742,20 @@ describe('UI conformance check — the containers admission', () => {
   /** The two paths REQ-59 admits, as the requirement and `ui-conformance-check.md` state them. */
   const ADMITTED = ['src/containers/ContainersScreen.tsx', 'src/containers/ContainerCard.tsx'];
 
-  const sandboxRoot = join(clientRoot, '.card-row-sandbox');
-
   /** A list drawn as one surface per object — the form the card-row pass reports. */
   function cardPerItem(tag: string): string {
     return `export function List({ rows }: { rows: string[] }) {\n  return <Stack>{rows.map((row) => (\n    <${tag} key={row}>{row}</${tag}>\n  ))}</Stack>;\n}\n`;
   }
 
   function runCheckOver(files: Record<string, string>) {
-    rmSync(sandboxRoot, { recursive: true, force: true });
-    mkdirSync(join(sandboxRoot, 'src'), { recursive: true });
-    mkdirSync(join(sandboxRoot, 'scripts'), { recursive: true });
-    copyFileSync(scriptPath, join(sandboxRoot, 'scripts', 'check-ui-conformance.mjs'));
-    for (const [path, content] of Object.entries(files)) {
-      mkdirSync(dirname(join(sandboxRoot, path)), { recursive: true });
-      writeFileSync(join(sandboxRoot, path), content, 'utf8');
-    }
-    return spawnSync(process.execPath, [join(sandboxRoot, 'scripts', 'check-ui-conformance.mjs')], {
-      cwd: clientRoot,
-      encoding: 'utf8',
-    });
+    for (const [path, content] of Object.entries(files)) writeBait(path, content);
+    return runCheck();
   }
 
   /** The files a run reported a card per item in, in the order the script printed them. */
   function reportedPerItem(stderr: string): string[] {
     return [...stderr.matchAll(/(src[^\s:]+):\d+ — a list built as one </g)].map((match) => match[1]!.split('\\').join('/'));
   }
-
-  afterEach(() => {
-    rmSync(sandboxRoot, { recursive: true, force: true });
-  });
 
   // REQ-59 — the admission names the containers screen's own file and the component that carries the
   // card, in both of the tags this form is drawn with, and the control beside them is what makes the
@@ -714,7 +792,7 @@ describe('UI conformance check — the containers admission', () => {
   // are the only silence in the run. Read as a set, so an area that stopped being reported fails.
   it('reports a card per item in every feature area of the product, admitting the two containers paths alone', () => {
     const featureAreas = readdirSync(join(clientRoot, 'src'), { withFileTypes: true })
-      .filter((entry) => entry.isDirectory() && entry.name !== 'ui' && !entry.name.startsWith('__'))
+      .filter((entry) => entry.isDirectory() && entry.name !== 'ui')
       .map((entry) => entry.name);
     // The premise: a sweep over no area at all would report nothing and read as a green run.
     expect(featureAreas.length, 'no feature area was found under client/src, so this sweep checks nothing').toBeGreaterThan(5);
@@ -765,8 +843,7 @@ describe('UI conformance check — the containers admission', () => {
   });
 
   // REQ-61 — the admission is named in the script, never claimed by the file that needs it: a file
-  // that writes an admitted path into itself is still at its own path. Driven against the real
-  // script over the real tree, where the fixture directory is a path like any other.
+  // that writes an admitted path into itself is still at its own path.
   it.each([
     ['a file bearing the admitted name', 'ContainerCard.tsx', cardPerItem('Card')],
     [

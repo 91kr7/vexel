@@ -43,8 +43,6 @@ const CONTRACT_CLASSES = [
 function stylesheets(directory = SOURCE_ROOT): { path: string; css: string }[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
-    // The conformance suite writes illegal stylesheets in its own fixture directory while it runs.
-    if (entry.name === '__conformance-fixture__') return [];
     if (entry.isDirectory()) return stylesheets(path);
     return entry.name.endsWith('.css') ? [{ path, css: readFileSync(path, 'utf8') }] : [];
   });
@@ -62,7 +60,6 @@ function ruleBody(css: string, selector: string): string {
 function sourceFiles(directory = SOURCE_ROOT): { path: string; contents: string }[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
-    if (entry.name === '__conformance-fixture__') return [];
     if (entry.isDirectory()) return sourceFiles(path);
     return /\.(ts|tsx|css)$/.test(entry.name) ? [{ path, contents: readFileSync(path, 'utf8') }] : [];
   });

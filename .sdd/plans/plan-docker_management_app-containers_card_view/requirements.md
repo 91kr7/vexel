@@ -161,3 +161,117 @@ requirements are testable, each with the reason and each cheap to retune in one 
 - **The liveness write is every 10 seconds** (REQ-50), the same as the sampling interval — the spec's
   own bound is "a time comparable to the sampling interval", and a dead connection is then discovered
   before the sampler has run twice for a reader who has gone.
+
+## Appended on 2026-08-31 — a check that declares a patience it cannot spend
+
+> Appended after `client/e2e/containers-card-geometry.spec.ts` died on `Test timeout of 30000ms
+> exceeded` in the run of 2026-08-31. The case is *"a live update changes the numbers, moves nothing,
+> and leaves the ports exactly as they were"* (line 915). **The defect is in the check, not in the
+> product.**
+>
+> The count, read from the source. `client/playwright.config.ts` sets no `timeout`, so every test gets
+> Playwright's default of 30 seconds. Before it reaches the assertion it exists for, the test creates
+> three fixtures with four published ports; calls `openNarrowedTo`, which loads the application and
+> declares two waits of 20 seconds each; waits for a first sample, 25 seconds declared; and measures
+> the list. Then it waits for a reading to change with a poll that declares **40 seconds inside a test
+> that has 30**. Those 40 seconds can never be spent: the poll gets whatever is left of the 30, about
+> fifteen. After it the test spends another 6 to 8 seconds on three port re-reads.
+>
+> **The slowness is not the defect.** The sampler reads every 10 seconds
+> (`STATS_SAMPLE_INTERVAL_MS`, `server/src/containers/containers-service.ts:179`), a cadence batch 3
+> of this plan decided and certified (REQ-39). Waiting for a reading to change therefore costs one
+> sampling interval, sometimes two. The test needs about 35 to 45 seconds and declares 30. It was
+> passing by luck.
+>
+> **The class is wider than the case that died.** A search of `client/e2e/` found seven files in which
+> a step declares a longer patience than the test that runs it — 23 tests in all, from a 40-second
+> poll to a 300-second `docker build`. The list is in the batch. The cure is the same for all of them:
+> the count is made honest and derived, never generous.
+>
+> Per [[every-change-updates-spec-requirements-plan]] this is appended as a further batch. **Nothing
+> above this line was changed**: no certified batch is reopened, and batches 1, 2 and 3 keep their
+> requirements word for word.
+
+## F4 — Every check declares a budget it can spend
+
+| ID | Requirement |
+| --- | --- |
+| REQ-64 | No test under `client/e2e/` declares a step budget larger than the budget of the test that runs it. This counts the steps written in the test and the steps written in the helper functions of its own file. |
+| REQ-65 | Every budget this change writes or moves carries, beside it, the arithmetic it comes from: the parts the number is made of, and where each part comes from. A reader redoes the count from the comment alone. |
+| REQ-66 | A step that waits for a sampled figure to arrive, or to change, derives its budget from the sampling cadence the product declares and from the list poll that carries a sample to the screen. It is written as a number of sampling intervals and a stated slack, not as a round figure. |
+| REQ-67 | Each repaired check asserts exactly what it asserted before. For the case that died: a reading changes, no card moves, the metric rows keep their horizontal position, the chip count does not grow, the port chips stay identical across three re-reads, and no card carries a transition or an animation. No assertion is removed, softened or replaced, no retry is added, and no wait is put in front of an assertion. |
+| REQ-68 | The change touches no product source. Nothing under `client/src/` or `server/src/` moves, and the per-container sampling keeps the 10-second cadence certified by batch 3. |
+| REQ-69 | A step budget larger than the budget of the test that runs it fails the build, naming the file, the test, the step's budget and the test's. |
+| REQ-70 | The default test budget is declared in `client/playwright.config.ts`, and the guard reads it from there. A guard that cannot read it fails instead of assuming a value. |
+| REQ-71 | The guard runs under `npm run lint` and under `npm run test` in the client workspace. It carries no skip and no exception marker, and both commands pass. |
+| REQ-72 | The guard is driven by a check of its own, over sources written for that check: it refuses a test whose step declares more than the test has, and it accepts one whose steps fit. It writes no spec file into `client/e2e/`. |
+
+> **Two of these requirements move budgets upward, and that is not the forbidden move.** The standing
+> rule is that no check gets a longer budget in order to pass ([[a-check-is-never-weakened-to-pass]]).
+> Every test in the perimeter passes today. What is wrong is that each declares, in one of its steps,
+> a patience the test cannot give it — so the step's own failure message can never be printed, and the
+> test dies at an arbitrary place instead. REQ-64 repairs that declaration. Where a step budget comes
+> **down** (REQ-66), it comes down to what the product's cadence requires. Where a test budget goes
+> **up**, it goes up to the sum REQ-65 writes out. No number is chosen by running the suite until it
+> is green.
+>
+> **REQ-69 is deliberately the weakest useful rule, and REQ-65 is what covers the rest.** A guard that
+> added budgets up would have to decide which worst cases can happen in the same run, and it would
+> refuse code that is correct — the daily nuisance that turns a guard into a formality. So the guard
+> refuses only a declaration that is impossible on its face. A test whose steps sum to more than it
+> has still passes the guard; the arithmetic written beside each budget is what a human reads instead.
+
+## Appended on 2026-08-31 (second) — a check that writes inside the tree the other checks read
+
+> Appended after `npm run test -w client` failed on its **first** run and passed on the second, with
+> `ENOENT: no such file or directory … client/src/__conformance-fixture__/body-row-gap.css` raised in
+> `client/test/unit/no-unload-signalling.test.ts`. **The defect is in the checks, not in the product.**
+>
+> The mechanism. `client/test/unit/ui-conformance-check.test.ts` drives
+> `client/scripts/check-ui-conformance.mjs` over bait sources, and the script scans `client/src` and
+> nothing else — it takes no root — so the baits are written **into `client/src`**, in a directory
+> created and removed around each case. Vitest runs test files in parallel. Other checks walk that
+> same tree, listing every file and then reading each one; between the listing and the read the
+> directory can be gone.
+>
+> **It is a class, and the count was verified in the tree rather than grepped.** Seventeen unit checks
+> touch `client/src`. Eight defend themselves by skipping the directory **by name**, plus the file
+> that owns it. **Nine scans, in nine files, do not** — `no-unload-signalling` (the one that failed),
+> `card-list-deleted`, `card-row-presentation-retired`, `copy-affordance-absence`,
+> `empty-state-action-names`, `filesystem-browser`, `library-layer-adoption-perimeter`,
+> `modal-composed-title`, and the **second scan of `modal-close-control`**, a file that defends one of
+> its two scans and leaves the other open. Two files that look exposed are not: `dialog-one-form` and
+> `section-header-one-treatment` walk `client/src/ui/` only, which the bait directory is not inside.
+>
+> **The defence by name is the wrong cure, applied eight times.** The cause is not that a scan forgets
+> a directory: it is that a temporary directory is created inside the tree every scan reads, so every
+> scan written from now on must remember it for ever. `client/vitest.config.ts` says in its own header
+> that the tests live outside `client/src` *"so the UI-boundary conformance check never scans test
+> code"* — the bait directory is the one thing that crosses that line. And it breaks the rule
+> `CLAUDE.md` opens its testing section with: a test leaves the machine exactly as it found it, and
+> depends on nothing another test did.
+>
+> Per [[every-change-updates-spec-requirements-plan]] this is appended as a further batch. **Nothing
+> above this line was changed**: batches 1, 2 and 3 stay certified, and batch 4 keeps its requirements
+> word for word.
+
+## F5 — A check writes nothing inside the tree the other checks read
+
+| ID | Requirement |
+| --- | --- |
+| REQ-73 | No check under `client/test/` creates, writes or removes a path inside `client/src/` or `server/src/` at any moment of a run. The check that drives the UI conformance script writes its bait sources in a throwaway directory outside the repository's source trees and removes it when the case ends. |
+| REQ-74 | `client/scripts/check-ui-conformance.mjs` takes the tree to scan as an argument. Invoked with no argument it scans `client/src/`, exactly as it does today. |
+| REQ-75 | The paths the script reports, the sub-tree it treats as the UI library, and the paths it matches its admissions against are all derived from the tree it was given, read relative to that tree's parent. With no argument every message, every admission and every exit code is what it is today. |
+| REQ-76 | The rule the script enforces is unchanged: the same violations are refused with the same wording, the blur allow-list holds the same five selectors, and the card-row admission holds the same two containers paths and no third. Its own check drives it over the same cases as before, none removed and none softened. |
+| REQ-77 | No scan of the source tree skips a directory by name in order to avoid a file another check wrote. Every scan covers exactly the files it covered. |
+| REQ-78 | No read failure is swallowed anywhere: no scan catches an error from reading a file it has just listed, no scan is retried, no assertion is softened and no wait is added. |
+| REQ-79 | The change touches no product source. Nothing under `client/src/` or `server/src/` moves. |
+
+> **REQ-77 widens no scan and narrows none.** Removing a skip adds the skipped directory to what a
+> scan walks — and after REQ-73 that directory never exists, in any run, so the set of files each scan
+> reads is identical. The skip is removed because a defence against something that cannot happen is
+> read as permission for it to happen again, which is how the eighth copy of it was written.
+>
+> **REQ-79 is the same absence REQ-68 states, for the same reason.** The conformance script is a
+> build check, not product: it lives outside `client/src/`, ships in nothing, and REQ-76 is what holds
+> its behaviour still while REQ-74 changes how it is invoked.
