@@ -36,16 +36,9 @@ let closeOpenMenu: (() => void) | null = null;
 
 /**
  * Overflow menu: a trigger that announces it opens a menu, and a popup of
- * labelled entries — each with an optional secondary hint, destructive tone,
- * separation from the entries above it, and a disabled state carrying the
- * reason it is disabled.
- *
- * The popup is rendered on `document.body` rather than beside its trigger, so
- * no scroll or overflow ancestor between the two can clip it, and is positioned
- * against the trigger's box, flipping above it when there is no room below. A
- * scroll or a resize anywhere closes it instead of leaving it floating where the
- * trigger no longer is; so does the trigger being unmounted (a virtualised table
- * dropping its row).
+ * labelled entries, portalled onto `document.body` so nothing clips it and
+ * placed against the trigger's box, which it follows until the trigger goes.
+ * The contract is `ui-library/specs/menu.md`.
  *
  * Domain-agnostic: it knows what an entry looks like, never what one does.
  */
@@ -92,23 +85,18 @@ export function Menu({ label, entries, glyph = '…' }: MenuProps) {
     };
   }, [open]);
 
-  // Opening moves focus into the menu, onto its first entry. The popup is
-  // committed already laid out and visible, never hidden while it is measured:
-  // an element a browser considers invisible cannot take focus, and a `focus()`
-  // on one is a silent no-op that leaves the whole keyboard model unreachable.
+  // The popup is committed laid out and visible, never hidden while measured: a
+  // browser refuses focus to an invisible element, silently.
+  // No `preventScroll`, here or in `focusEntry`: a menu at `--menu-max-height`
+  // needs its last entry scrolled into the list's own box.
   useEffect(() => {
     if (!open) return;
     focusEntry(0);
   }, [open, focusEntry]);
 
-  // Positioned against the trigger's box after every render, not only on open:
-  // the list under it keeps updating from live data while the menu is open, and
-  // the popup has to stay where its trigger is. Bails out when the box has not
-  // moved, so a render that changes nothing costs no second render — which is
-  // what makes running on every render safe rather than a loop.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useLayoutEffect(() => {
-    if (!open) return;
+  // The one placement routine, called by both the render path and the scroll
+  // path. Writes only when the result differs, so calling it again is free.
+  const place = useCallback(() => {
     const trigger = triggerRef.current;
     const popup = popupRef.current;
     if (!trigger || !popup) return;
@@ -120,28 +108,39 @@ export function Menu({ label, entries, glyph = '…' }: MenuProps) {
     const top = flip ? Math.max(0, triggerBox.top - popupBox.height) : triggerBox.bottom;
     setPlacement(flip ? 'above' : 'below');
     setPosition((current) => (current && current.top === top && current.left === left ? current : { top, left }));
+  }, []);
+
+  // After every render, not only on open: the list under it keeps updating from
+  // live data. The bail-out in `place` is what keeps this from looping.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    if (!open) return;
+    place();
   });
 
-  // A scroll anywhere between the trigger and the viewport (capture phase
-  // catches every scroll container, not just the window) moves the trigger out
-  // from under the popup, so the menu closes rather than floating free. Focus is
-  // deliberately not pulled back to the trigger here: doing so would scroll it
-  // back into view, fighting the scroll that caused this.
+  // Registered only while open, which is why a closed menu costs nothing. A
+  // scroll re-places the popup instead of closing it — in capture, so a scroll
+  // container between the trigger and the window is heard too. The close is the
+  // trigger leaving what its clipping ancestors leave visible, which its own
+  // rectangle cannot report, or a resize; focus is not returned, that would
+  // scroll the trigger back against the operator (menu.md).
   useEffect(() => {
     if (!open) return;
-    const dismiss = (event: Event) => {
-      const target = event.target;
-      if (target instanceof Node && popupRef.current?.contains(target)) return;
-      close(false);
-    };
+    const follow = () => place();
     const dismissOnResize = () => close(false);
-    window.addEventListener('scroll', dismiss, true);
+    const watchVisibility = new IntersectionObserver((records) => {
+      const latest = records[records.length - 1];
+      if (latest && !latest.isIntersecting) close(false);
+    });
+    if (triggerRef.current) watchVisibility.observe(triggerRef.current);
+    window.addEventListener('scroll', follow, true);
     window.addEventListener('resize', dismissOnResize);
     return () => {
-      window.removeEventListener('scroll', dismiss, true);
+      window.removeEventListener('scroll', follow, true);
       window.removeEventListener('resize', dismissOnResize);
+      watchVisibility.disconnect();
     };
-  }, [open, close]);
+  }, [open, close, place]);
 
   useEffect(() => {
     if (!open) return;
@@ -152,11 +151,8 @@ export function Menu({ label, entries, glyph = '…' }: MenuProps) {
       // The trigger's own click toggles the menu; closing here as well would
       // reopen it on the click that follows.
       if (triggerRef.current?.contains(target)) return;
-      // Focusing the trigger from inside a `mousedown` listener is undone a
-      // moment later by that same `mousedown`'s own default action, which moves
-      // focus to whatever was clicked (or to nothing). Refusing the default is
-      // what makes the focus return hold; the click itself still happens, so
-      // whatever was clicked still does what it does.
+      // The `mousedown`'s own default would move the focus away again; refusing
+      // it is what makes the return hold. The click itself still happens.
       event.preventDefault();
       close(true);
     };
@@ -164,23 +160,16 @@ export function Menu({ label, entries, glyph = '…' }: MenuProps) {
     return () => document.removeEventListener('mousedown', dismissOnOutsideClick);
   }, [open, close]);
 
-  // `Escape` is not a listener of this component's own: an open menu is a claim
-  // registered with the library's arbitration, so it takes the key ahead of any
-  // dismissible surface it was opened over — which then gets the next `Escape`,
-  // instead of both resolving on one keystroke. The claim is not conditional on
-  // where the focus sits, which is the reason the handling was on the document
-  // in the first place: an open menu can lose the focus and must still close.
+  // A claim with the library's arbitration, not a listener of this component: a
+  // menu opened over a dismissible surface takes the key alone, and takes it
+  // wherever the focus sits (escape-arbitration.md).
   useEscapeClaim(open, (event) => {
     event.preventDefault();
     close(true);
   });
 
-  // The rest of the keyboard model is bound to the document while the menu is
-  // open, not to the popup: a key never reaches a listener on an element that
-  // does not hold the focus, and an open menu can lose it — to a surface
-  // re-rendering underneath it, or by simply never having taken it. Bound here,
-  // an arrow key takes the focus back into the menu rather than needing it there
-  // first.
+  // On the document, not the popup: an open menu can lose the focus, and an
+  // arrow key must take it back rather than need it there already.
   useEffect(() => {
     if (!open) return;
     const handleKey = (event: KeyboardEvent) => {
@@ -228,9 +217,6 @@ export function Menu({ label, entries, glyph = '…' }: MenuProps) {
       ref={popupRef}
       className={`ui-menu__popup ui-menu__popup--${placement}`}
       // Computed geometry, not a design value: where the trigger happens to be.
-      // It is placed at the trigger from the very first commit and never hidden
-      // while it is measured — the refinement below runs before the browser
-      // paints, and a hidden popup could not take the focus opening it gives it.
       style={{ top: position?.top ?? 0, left: position?.left ?? 0 }}
       onClick={(event) => event.stopPropagation()}
     >
