@@ -61,6 +61,13 @@ are held on a schedule of their own, far slower than the listing's.
   makes the daemon account for the whole host's disk usage.
   - `VolumeInspect`: `VolumeSummary & { raw }`; `raw` is the full inspect payload exactly as
     received.
+  - **`mountedBy` is asked for with the daemon's last announcement covered**, which the listing's own
+    `mountedBy` is not. Docker's volume inspect carries no map of who mounts the volume, so this is
+    the one part of the detail that is derived rather than read; and the detail is asked for on
+    daemon events and on nothing else, so an answer built on the copy the announcement is replacing
+    would stay on the operator's screen for as long as the panel is open. The wait is on the read the
+    announcement had already caused, it costs the daemon no call of its own, and it is bounded — see
+    `containers-service.md` (module `containers`) and `refresh-cache.md` (module `refresh-cache`).
 - `createVolume(input): Promise<VolumeSummary>` — `POST /volumes/create` (REQ-71).
   - `input`: `{ name?, driver?, driverOpts?, labels? }`; an empty/blank `name` lets the daemon
     generate one; an empty/blank `driver` defaults to the daemon's own default (`local`).
@@ -81,6 +88,13 @@ are held on a schedule of their own, far slower than the listing's.
   holding it, on a server that already holds a listing as much as on one just started — and the
   order in which the lists affected by one event happen to be read again changes nothing, since what
   the re-read follows is the listing being stored and not the event.
+- **A volume's detail names the containers mounting it as the daemon holds them when the detail is
+  asked.** An answer given after the daemon has announced a container's removal never names that
+  container, and one given after it announced a container mounting the volume names it — a request
+  arriving on the announcement itself included, which is when the panel is in fact asked. The
+  guarantee above is the listing's, and it holds because the list is read again on its own; the
+  detail has no such second chance, so it is the one reader here that asks the held listing to cover
+  the announcement first. It still costs one `GET /volumes/{name}` and no container listing.
 - **This service issues no container listing of its own.** Asking for the volume list therefore
   counts as asking for the container listing, and keeps it refreshed while the volumes screen is
   open — the containers kind's own demand expiry stops it once nothing is asking for either.
@@ -127,3 +141,5 @@ are held on a schedule of their own, far slower than the listing's.
 - plan-docker_management_app-refresh_cache/REQ-43
 - plan-docker_management_app-refresh_cache/REQ-52
 - plan-docker_management_app-refresh_cache/REQ-54
+- plan-docker_management_app-refresh_cache/REQ-58
+- plan-docker_management_app-refresh_cache/REQ-59

@@ -316,3 +316,67 @@ status: validated
 > process joins the read in flight and answers correctly; it would certify nothing while looking like
 > proof. And the defect is a delay, so any wait added to a check dissolves it — the spec that surfaced it
 > would go green on a product still holding a listing built on a replaced copy for thirty seconds.
+
+## Appended on 2026-08-31 — a detail built on a listing already replaced
+
+> Appended after a defect reproduced deterministically the same night: **the detail panel of a volume
+> keeps naming, under `Mounted by`, a container that no longer exists, and does not stop while the panel
+> stays open.** The check that finds it is `client/e2e/detail-reread-scoped.spec.ts:170`, which closes
+> REQ-8; it fails 2 runs out of 2 with `--repeat-each=2` and failed in the full pass.
+>
+> **What the traces show, measured.** The panel opens and reads `GET /api/volumes/<name>/inspect`. The
+> container mounting the volume is removed with `docker rm -fv`, which emits `kill`, `die` and `destroy`
+> in sequence. The client re-reads the inspect **four times in 100 ms**, one per event — so the event
+> chain works and the client reacts. **After that last re-read the inspect endpoint is not called again
+> for 20 seconds**, while `/api/volumes` and `/api/containers` keep being asked every 3 seconds. The
+> panel stays on the wrong answer.
+>
+> **The cause is the same family as REQ-52, one step further in.** `getVolumeInspect` derives `mountedBy`
+> from the held container listing. A request arriving on the same event that marked that listing due is
+> answered **from the copy about to be replaced**: a value is held, so it is returned, and the wait for
+> change coverage returns at once because only the application's own operations raise that instant — a
+> daemon event never does. The listing is then replaced correctly, and nobody asks the detail again,
+> because the detail is read on events and on nothing else.
+>
+> REQ-52 repaired the readers that **hold** what they derived. This one is the reader that derives **per
+> request and is never asked again**: the volume detail. The dashboard overview derives per request too
+> and is asked again every 3 seconds, so it is out of the perimeter; the network detail does not derive
+> from the held listing at all — `GET /networks/{id}` returns its own `Containers` map, which the service
+> uses instead. Docker's `volume inspect` carries no such map, which is why the volume detail is the only
+> case.
+>
+> Per [[every-change-updates-spec-requirements-plan]] this is appended as a further batch. **Nothing
+> above this line was changed**, beyond the one row added to the batch table in `batches.md` and its six
+> coverage rows: no certified batch is reopened.
+
+## Feature — The detail's derived values follow the container listing too
+
+| ID | Requirement |
+|----|-------------|
+| REQ-58 | A volume's detail names the containers mounting it as the daemon holds them when it is asked: an answer given after the daemon has announced a container's removal never names that container, and an answer given after it announced a container mounting the volume names it. True on a server that already holds a container listing as much as on one just started. |
+| REQ-59 | Closing this costs the daemon no further call. The detail is still built from the one container listing the server holds, no read is started for it beyond the one the announcement had already caused, and no reader goes back to fetching a container listing of its own. |
+| REQ-60 | Only the reader that asks for it waits. The list endpoints, the dashboard overview and the statistics sampler are answered from the held value without waiting, exactly as they are today; and the reader that does wait is bounded — it never waits out the container listing's own period, and a daemon that stops answering hands it the last good value instead of an error or an answer that never comes. |
+| REQ-61 | The wait ends only on a listing read after the announcement, whether that read was already under way when the request arrived or the grouping window had deferred it, and announcements arriving while the request waits do not extend it. |
+| REQ-62 | The checks that close these requirements start from a server that already holds a container listing, and each of them fails on the product as it stands before the correction. |
+| REQ-63 | Nothing waits, retries or polls to make them pass: neither the new checks, nor the end-to-end spec that surfaced the defect, which goes green on consecutive runs exactly as it is written today. |
+
+> **REQ-59 is what keeps the obvious repair out.** Sending the detail back to the daemon for a container
+> listing of its own is local and simple, and it undoes `container-listing-shared` in the one place where
+> the rate is set by the daemon rather than by us: the volume detail re-reads on **every** container
+> event of any action, so a `compose up` or a running health check would each buy a full
+> `/containers/json?all=true`. The requirement is what makes that a failure rather than a judgement call.
+>
+> **REQ-60 is what keeps the correction from being paid for by everybody else.** Making every request
+> wait for the listing to catch up closes REQ-58 and breaks REQ-9 and REQ-10 on every list in the
+> product. The wait is asked for by one reader; the requirement is how a check can tell that the others
+> were not enrolled into it.
+>
+> **REQ-61 is the requirement that refuses the half-repair.** Waiting for whatever read is in flight
+> closes REQ-58 in the case the report measured and does nothing when the grouping window has deferred
+> the listing's re-read — which is the ordinary case, since the three events of a removal arrive inside
+> one window. It is the same objection REQ-55 raised against the same shortcut, in the same place.
+>
+> **REQ-62 and REQ-63 are inherited word for word from REQ-56 and REQ-57**, for the same reason: a cold
+> server answers correctly without the correction, and a wait added to a check dissolves a defect that is
+> a delay. The end-to-end spec is `client/e2e/detail-reread-scoped.spec.ts:170` and it is not to be
+> touched — [[a-check-is-never-weakened-to-pass]].

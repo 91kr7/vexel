@@ -32,7 +32,7 @@ are **refreshers**, one per kind.
     exist so a check can register a kind with its own timings
   - no daemon call is made by registering: nothing is read until the kind is first asked for
 
-- `RefreshKind.read() → { value, readAt, ageMs, stale, error? }`
+- `RefreshKind.read({ coverNotices? }?) → { value, readAt, ageMs, stale, error? }`
   - `readAt` is when the value was read (epoch ms), `ageMs` how old it is at this call
   - `stale` is true when the last read attempt failed and this is the previous value; `error` is
     that failure's message
@@ -42,6 +42,10 @@ are **refreshers**, one per kind.
     started again, so two callers arriving together cost one read
   - **the kind was marked changed and the held value predates that change** → waits for the read
     covering the change, which is already running; it never starts one on the caller's behalf
+  - **`coverNotices` was asked for and the held value predates the last notice the kind held when
+    this call arrived** → waits for the read that notice already caused, and starts none. See
+    "Notice coverage" below. Not asking is the default, and a caller that does not ask is answered
+    exactly as it is without the option
   - a read failing while a value is held never turns the answer into a failure: the held value is
     returned with `stale` true
   - a read failing when no value has ever been held rethrows that failure unchanged, so the caller
@@ -127,6 +131,12 @@ are **refreshers**, one per kind.
     kind whose value it is, the only one that knows which parts of that value anybody reads.
   - A failed read notifies nobody: nothing was stored, and the value held is the one the derived
     kinds already built on.
+- **A notice is recorded whether or not a read follows it.** Every time something outside a kind says
+  it may have changed — a daemon event, or the source it derives from being replaced — the kind
+  records the instant, **before every reason not to read at once**: a read already in flight, a
+  grouping window still open, nobody asking. It is a separate instant from the one `markChanged()`
+  records, and the two are waited for on different terms: the application's own operation is covered
+  for every caller, a notice only for the caller that asks.
 - **Timers never hold the process open**: every timer is unreferenced, so a server with nothing else
   to do still exits.
 - A read whose result arrives after `discardHeldValues()` is thrown away rather than stored: no
@@ -140,6 +150,30 @@ are **refreshers**, one per kind.
 - A manual reload never joins a read that started before the request was made: when the read it
   awaited turns out to be an older one, it reads once more. Otherwise "read it all again now" could
   be answered with a value read seconds before the operator pressed anything.
+
+### Notice coverage
+
+- **It is one caller's option, never the kind's rule** — `read({ coverNotices: true })`. The caller
+  is answered from a value read after the last notice the kind held **when its call arrived**;
+  everybody else is answered from the held value at once, exactly as before. That is the whole
+  difference between repairing one reader and putting a wait in front of every list in the product.
+- **The instant is taken once, at the call.** Notices landing while the caller waits do not extend
+  the wait, so a busy host never starves the request it is meant to answer.
+- **It starts no read, in any case.** The notice already caused one — at once, or at the end of the
+  grouping window — and the wait joins that read: the one in flight when the call arrived, or the one
+  the window has deferred and that has therefore not started yet. The daemon is asked for nothing
+  extra by the option existing or by its being used.
+- **It is bounded twice**, and reaching either bound hands the caller **the value held** rather than
+  an error or an answer that never comes:
+  - in reads — the read owed, plus one chained follow-up;
+  - in time — four grouping windows, capped at the kind's own period, so waiting for coverage is
+    never longer than simply waiting for the kind's next scheduled read.
+- **A read that fails ends the wait.** A failed read is never chased, so no further read is owed and
+  the caller takes the held value, `stale` and its error with it. A daemon that has stopped answering
+  therefore costs this caller one read's time, not its patience.
+- A discard ends it too: nothing is held any more, so the caller takes the first-request path.
+- **A caller that asks on a quiet kind waits for nothing.** With no notice outstanding — every
+  request on a host where nothing is happening — the held value is returned at once.
 
 ## Dependencies
 
@@ -161,6 +195,10 @@ are **refreshers**, one per kind.
 - plan-docker_management_app-refresh_cache/REQ-52
 - plan-docker_management_app-refresh_cache/REQ-53
 - plan-docker_management_app-refresh_cache/REQ-55
+- plan-docker_management_app-refresh_cache/REQ-58
+- plan-docker_management_app-refresh_cache/REQ-59
+- plan-docker_management_app-refresh_cache/REQ-60
+- plan-docker_management_app-refresh_cache/REQ-61
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-7
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-8
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-9

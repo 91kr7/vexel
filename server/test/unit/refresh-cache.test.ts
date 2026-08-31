@@ -756,6 +756,267 @@ test("a derived kind registered before its source is told just the same", async 
   );
 });
 
+// The notice coverage a caller may ask for (REQ-58, REQ-59, REQ-60, REQ-61), stated on kinds of
+// this file's own so that neither of the two orders it must hold in is left to a fan-out to
+// arrange. Every case below holds a value first: with nothing held the caller takes the
+// first-request path and is served the right value without any of this (REQ-62).
+
+/** A read whose start this file controls: it returns what the value was when it started, and can be held there. */
+function gatedRead(): {
+  read: (value: string) => Promise<string>;
+  holdTheNextRead: () => void;
+  release: () => void;
+  fail: (message: string) => void;
+  started: () => number;
+} {
+  let starts = 0;
+  let holdNext = false;
+  let releaseCurrent: (() => void) | undefined;
+  let failCurrent: ((error: Error) => void) | undefined;
+  return {
+    read: async (value) => {
+      starts += 1;
+      if (!holdNext) return value;
+      holdNext = false;
+      await new Promise<void>((resolve, reject) => {
+        releaseCurrent = resolve;
+        failCurrent = reject;
+      });
+      return value;
+    },
+    holdTheNextRead: () => {
+      holdNext = true;
+    },
+    release: () => releaseCurrent?.(),
+    fail: (message) => failCurrent?.(new Error(message)),
+    started: () => starts,
+  };
+}
+
+/**
+ * Fails loudly instead of hanging when a bounded wait turns out not to be
+ * bounded. The guard timer is deliberately **referenced**: every timer the cache
+ * itself sets is unreferenced, so a caller waiting for a read the grouping
+ * window deferred would otherwise be left with an empty event loop — which the
+ * runner reports as a cancelled test rather than as the wait it is. A server
+ * holding a listening socket has no such gap.
+ */
+async function answeredWithin<T>(promise: Promise<T>, ms: number, what: string): Promise<T> {
+  let guard: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_resolve, reject) => {
+        guard = setTimeout(() => reject(new Error(what)), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(guard);
+  }
+}
+
+// REQ-61 — coverage in the first of the two orders: the read the notice caused was already under
+// way when the request arrived.
+test("a caller asking for coverage waits for the read the notice already started", async () => {
+  const gate = gatedRead();
+  let value = "one";
+  const kind = kindOf<string>({
+    key: "check-coverage-in-flight",
+    read: () => gate.read(value),
+    periodMs: 60_000,
+    eventTypes: ["check-coverage-in-flight"],
+    groupingWindowMs: 20,
+  });
+
+  assert.equal((await kind.read()).value, "one");
+  await wait(40);
+
+  value = "two";
+  gate.holdTheNextRead();
+  eventStreamService.emit("event", daemonEvent("check-coverage-in-flight", "changed"));
+  await wait(5);
+  assert.equal(gate.started(), 2, "the notice started no read, so there is nothing in flight for this case to join");
+
+  let answered = false;
+  const covered = kind.read({ coverNotices: true }).then((held) => {
+    answered = true;
+    return held;
+  });
+  await wait(20);
+  assert.equal(answered, false, "the caller asking for coverage was answered from the value the notice is replacing");
+  assert.equal(gate.started(), 2, "the caller asking for coverage started a read of its own");
+
+  gate.release();
+  assert.equal((await covered).value, "two");
+});
+
+// REQ-61 — the second order, and the ordinary one: the grouping window had deferred the read the
+// notice caused, so at the instant the request arrives nothing is in flight to join. An
+// implementation resting on that instant leaves this red.
+test("a caller asking for coverage waits for the read the grouping window deferred", async () => {
+  let value = "one";
+  let reads = 0;
+  const kind = kindOf<string>({
+    key: "check-coverage-deferred",
+    read: async () => {
+      reads += 1;
+      return value;
+    },
+    periodMs: 60_000,
+    eventTypes: ["check-coverage-deferred"],
+    groupingWindowMs: 200,
+  });
+
+  assert.equal((await kind.read()).value, "one");
+  // Clear of the millisecond the first read started in, and well inside the
+  // window it opened (change-coverage-millisecond-window, tech debt).
+  await wait(10);
+
+  value = "two";
+  eventStreamService.emit("event", daemonEvent("check-coverage-deferred", "changed"));
+  await wait(10);
+  assert.equal(reads, 1, "the notice was read at once, so this case never arranges the deferral it is about");
+
+  let answered = false;
+  const covered = kind.read({ coverNotices: true }).then((held) => {
+    answered = true;
+    return held;
+  });
+  await wait(20);
+  assert.equal(answered, false, "the caller asking for coverage was answered from the value the notice is replacing");
+  assert.equal(reads, 1, "the caller asking for coverage started a read of its own instead of waiting for the deferred one");
+
+  assert.equal((await answeredWithin(covered, 1_000, "the coverage wait never ended")).value, "two");
+  assert.equal(reads, 2, "the caller was answered by a read other than the one the window had deferred");
+});
+
+// REQ-61 — "announcements arriving while the request waits do not extend it": the instant is taken
+// once, at the call, or a busy host would starve the request this exists to answer.
+test("notices arriving while the caller waits do not extend its wait", async () => {
+  const gate = gatedRead();
+  let value = "one";
+  const kind = kindOf<string>({
+    key: "check-coverage-not-extended",
+    read: () => gate.read(value),
+    periodMs: 60_000,
+    eventTypes: ["check-coverage-not-extended"],
+    groupingWindowMs: 20,
+  });
+
+  assert.equal((await kind.read()).value, "one");
+  await wait(40);
+
+  value = "two";
+  gate.holdTheNextRead();
+  eventStreamService.emit("event", daemonEvent("check-coverage-not-extended", "changed"));
+  await wait(5);
+  const covered = kind.read({ coverNotices: true });
+
+  // The host keeps announcing while the caller waits.
+  value = "three";
+  eventStreamService.emit("event", daemonEvent("check-coverage-not-extended", "changed"));
+  eventStreamService.emit("event", daemonEvent("check-coverage-not-extended", "changed"));
+  await wait(5);
+
+  gate.release();
+  assert.equal(
+    (await answeredWithin(covered, 1_000, "the coverage wait never ended")).value,
+    "two",
+    "a notice arriving while the caller waited pushed its answer on to a later read",
+  );
+});
+
+// REQ-60 — "a daemon that stops answering hands it the last good value instead of an error": a
+// failed read ends the wait, and is never chased.
+test("a read that fails ends the coverage wait with the value held", async () => {
+  const gate = gatedRead();
+  let value = "one";
+  const kind = kindOf<string>({
+    key: "check-coverage-failed-read",
+    read: () => gate.read(value),
+    periodMs: 60_000,
+    eventTypes: ["check-coverage-failed-read"],
+    groupingWindowMs: 20,
+  });
+
+  assert.equal((await kind.read()).value, "one");
+  await wait(40);
+
+  value = "two";
+  gate.holdTheNextRead();
+  eventStreamService.emit("event", daemonEvent("check-coverage-failed-read", "changed"));
+  await wait(5);
+  const covered = kind.read({ coverNotices: true });
+
+  gate.fail("the daemon stopped answering");
+  const held = await answeredWithin(covered, 1_000, "a failed read left the coverage wait running");
+  assert.equal(held.value, "one", "the caller was not handed the value held when the read it waited for failed");
+  assert.equal(held.stale, true, "the answer built on a failed read was not reported as stale");
+  assert.match(held.error ?? "", /the daemon stopped answering/);
+});
+
+// REQ-60 — the other bound: "it never waits out the container listing's own period", and reaching
+// the bound hands back the value held rather than an answer that never comes. The read the notice
+// started here never returns at all.
+test("a coverage wait that is never covered ends with the value held", async () => {
+  const gate = gatedRead();
+  let value = "one";
+  const kind = kindOf<string>({
+    key: "check-coverage-bounded-in-time",
+    read: () => gate.read(value),
+    periodMs: 60_000,
+    eventTypes: ["check-coverage-bounded-in-time"],
+    groupingWindowMs: 20,
+  });
+
+  assert.equal((await kind.read()).value, "one");
+  await wait(40);
+
+  value = "two";
+  gate.holdTheNextRead();
+  eventStreamService.emit("event", daemonEvent("check-coverage-bounded-in-time", "changed"));
+  await wait(5);
+
+  // The contract bounds the wait at four grouping windows — 80 ms here — capped
+  // at the kind's own period, so this guard is more than ten times the bound.
+  const held = await answeredWithin(
+    kind.read({ coverNotices: true }),
+    1_000,
+    "the coverage wait outlived its bound of four grouping windows (80 ms here) by more than tenfold",
+  );
+  assert.equal(held.value, "one", "the caller was not handed the value held when coverage could not be reached");
+});
+
+// refresh-cache.md — "A caller that asks on a quiet kind waits for nothing", which is every request
+// on a host where nothing is happening.
+test("a caller asking for coverage on a kind with no notice outstanding is answered at once", async () => {
+  let reads = 0;
+  const kind = kindOf<string>({
+    key: "check-coverage-quiet-kind",
+    read: async () => {
+      reads += 1;
+      return "listed";
+    },
+    periodMs: 60_000,
+    eventTypes: ["check-coverage-quiet-kind"],
+    groupingWindowMs: 20,
+  });
+
+  assert.equal((await kind.read()).value, "listed");
+  await wait(40);
+
+  let answered = false;
+  const covered = kind.read({ coverNotices: true }).then((held) => {
+    answered = true;
+    return held;
+  });
+  await wait(5);
+
+  assert.equal(answered, true, "a caller asking for coverage on a kind nothing had announced was made to wait");
+  assert.equal((await covered).value, "listed");
+  assert.equal(reads, 1, "asking for coverage on a quiet kind started a read");
+});
+
 // refresh-cache.md — registering the same key twice is a programming error.
 test("registering the same key twice throws", () => {
   kindOf<string>({ key: "check-duplicate-key", read: async () => "listed", periodMs: 60_000 });
