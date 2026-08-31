@@ -629,15 +629,22 @@ async function sampleOnce(): Promise<void> {
     running.map(async (container) => {
       try {
         const statsResponse = await client.request(`/containers/${container.Id}/stats?stream=false`);
-        statsCache.set(container.Id, computeUsage(JSON.parse(statsResponse.body) as RawStats));
+        const usage = computeUsage(JSON.parse(statsResponse.body) as RawStats);
+        // the reading already held stands: an answer that is no measurement replaces nothing
+        if (usage) statsCache.set(container.Id, usage);
       } catch {
-        // container stopped mid-sample or stats unavailable for it: skip this tick
+        // the call itself failed: a container that stopped mid-pass is answered, not refused
       }
     }),
   );
 }
 
-function computeUsage(raw: RawStats): SampledUsage {
+// An answer with no memory limit is no measurement: the daemon answers a container that stopped
+// after the listing was read with 200 and an empty frame, never a failure
+// (plan-docker_management_app-containers_card_view-stopped-container-no-sample/REQ-8, REQ-9).
+function computeUsage(raw: RawStats): SampledUsage | undefined {
+  const memoryLimitBytes = raw.memory_stats.limit;
+  if (!memoryLimitBytes) return undefined;
   const cpuDelta = raw.cpu_stats.cpu_usage.total_usage - raw.precpu_stats.cpu_usage.total_usage;
   const systemDelta = (raw.cpu_stats.system_cpu_usage ?? 0) - (raw.precpu_stats.system_cpu_usage ?? 0);
   const onlineCpus = raw.cpu_stats.online_cpus ?? raw.cpu_stats.cpu_usage.percpu_usage?.length ?? 1;
@@ -653,7 +660,7 @@ function computeUsage(raw: RawStats): SampledUsage {
   return {
     cpuPercent,
     memoryUsageBytes,
-    memoryLimitBytes: raw.memory_stats.limit ?? 0,
+    memoryLimitBytes,
     onlineCpus,
     networkRxBytes,
     networkTxBytes,

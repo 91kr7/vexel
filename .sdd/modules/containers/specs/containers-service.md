@@ -181,7 +181,19 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   container's answer honest**: the drop happens on the next pass, up to one interval later, and
   every listing read in between would still carry the reading. What withholds it is the projection
   rule above, which asks the listing being answered with. A container that stopped between the
-  listing being read and its statistics call going out is simply skipped for that pass.
+  listing being read and its statistics call going out is skipped for that pass by the rule below.
+- **An answer that reports no memory limit is not a measurement, and nothing is stored for it.** The
+  daemon does not fail the statistics call of a container that has just stopped: it answers `200`
+  with an empty frame — `memory_stats: {}`, every CPU counter zero, no `system_cpu_usage`, no
+  `networks` (measured on Docker 29.7.2, not taken from the documentation). Read as figures, that
+  frame is a container using nothing — a measured zero — rather than one nothing has been measured
+  of. What separates it from a real reading is the **missing memory limit**: a container that is
+  running always reports the limit of its cgroup, so no real reading is refused. The pass stores
+  nothing for that container, leaves the reading it already held standing and asks the daemon for
+  nothing more; the container is measured again on the next pass. The mark is applied in **one
+  place**, where a frame becomes a reading. It is what a container stopped and started again inside
+  one interval depends on: the listing calls it `running` again, the projection rule then hands out
+  whatever is cached for it, and the zero measured while it was stopped was never cached.
 - **A reading older than three intervals reaches no consumer**, by the same route a stopped
   container's absent sample already takes: the bound is stated in exactly one place, as a multiple
   of the interval, and it is what stops a number measured before the gate closed from being
@@ -338,6 +350,10 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 - plan-docker_management_app-containers_card_view-stopped-container-no-sample/REQ-3
 - plan-docker_management_app-containers_card_view-stopped-container-no-sample/REQ-4
 - plan-docker_management_app-containers_card_view-stopped-container-no-sample/REQ-5
+- plan-docker_management_app-containers_card_view-stopped-container-no-sample/REQ-8
+- plan-docker_management_app-containers_card_view-stopped-container-no-sample/REQ-9
+- plan-docker_management_app-containers_card_view-stopped-container-no-sample/REQ-10
+- plan-docker_management_app-containers_card_view-stopped-container-no-sample/REQ-11
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-52
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-59
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-60
