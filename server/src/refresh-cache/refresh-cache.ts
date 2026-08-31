@@ -100,6 +100,20 @@ export type KindReloadOutcome =
   | { status: "skipped" }
   | { status: "failed"; error: string };
 
+/** A promise settled from outside it, and nothing else: what a caller parks on. */
+interface Gate {
+  waited: Promise<void>;
+  settle(): void;
+}
+
+function openGate(): Gate {
+  let settle!: () => void;
+  const waited = new Promise<void>((resolve) => {
+    settle = resolve;
+  });
+  return { waited, settle };
+}
+
 interface Held<T> {
   value: T;
   readAt: number;
@@ -127,8 +141,14 @@ class Kind<T> implements RefreshKind<T>, RegisteredKind {
   /** When something outside this kind last said it may have changed, whether or not a read followed. */
   private noticedAt = 0;
   private dueAgain = false;
-  /** Callers waiting for a read that has not started yet; woken as each read ends. */
-  private readonly coverageWaiters = new Set<() => void>();
+  /**
+   * Settled as each read ends, then replaced by a fresh one: what a caller waits
+   * on when the read it needs has not started yet. One gate they all share and
+   * none of them is entered into, so a daemon that ends no read at all — the
+   * case the bound below exists for — leaves nothing behind however many callers
+   * wait on it.
+   */
+  private readEnded = openGate();
   /** Bumped by a discard, so a read still in flight against the previous daemon stores nothing. */
   private generation = 0;
 
@@ -277,13 +297,53 @@ class Kind<T> implements RefreshKind<T>, RegisteredKind {
    * value held rather than an error or an answer that never comes (REQ-60).
    */
   private async awaitChangeCoverage(noticedUpTo: number): Promise<void> {
-    const deadline = Date.now() + Math.min(this.groupingWindowMs * COVERAGE_WAIT_WINDOWS, this.periodMs);
+    // The bound in time belongs to the notice, so it is the caller that asked
+    // for coverage that carries it; every other caller waits as it did before
+    // (REQ-60). It is taken once and applies to both ways of waiting — joining
+    // the read in flight and being woken by the one the window deferred — since
+    // a daemon that accepts the request and then goes silent ends neither.
+    const deadline = noticedUpTo > 0 ? Date.now() + this.coverageWaitMs() : undefined;
     for (let attempt = 0; attempt < CHANGE_COVERAGE_ATTEMPTS; attempt += 1) {
       if (!this.held) return;
       if (Math.max(this.changedAt, noticedUpTo) <= this.held.startedAt) return;
-      const covering = this.inFlight ?? this.awaitDeferredRead(noticedUpTo, deadline);
+      const covering = this.inFlight ?? this.awaitDeferredRead(noticedUpTo);
       if (!covering) return;
-      await covering;
+      if (!(await this.settledWithin(covering, deadline))) return;
+    }
+  }
+
+  /** Four grouping windows — the window that may defer the read, that read and one follow-up — never longer than the period. */
+  private coverageWaitMs(): number {
+    return Math.min(this.groupingWindowMs * COVERAGE_WAIT_WINDOWS, this.periodMs);
+  }
+
+  /**
+   * Waits for a read to end, and no longer than the bound when there is one.
+   * Silence is neither a value nor a failure, so a daemon that has accepted the
+   * request and stopped answering ends no read at all: without the bound the
+   * caller would be answered never (REQ-60). `false` says the bound came first
+   * and the caller takes the value held. No read is started here, at the bound
+   * or ever (REQ-59), and the timer is unreferenced and cleared either way, so
+   * a race against it holds no process open.
+   */
+  private async settledWithin(read: Promise<void>, deadline?: number): Promise<boolean> {
+    if (deadline === undefined) {
+      await read;
+      return true;
+    }
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) return false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        read.then(() => true),
+        new Promise<boolean>((resolve) => {
+          timer = setTimeout(() => resolve(false), remaining);
+          timer.unref?.();
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
     }
   }
 
@@ -291,31 +351,24 @@ class Kind<T> implements RefreshKind<T>, RegisteredKind {
    * The read a notice caused and the grouping window deferred: it has not
    * started, so there is no promise to join and the caller is woken when it
    * ends. Nothing to wait for is answered from the value held — no notice
-   * outstanding for this caller, no read owed (the last one failed, and a
-   * failed read is never chased), or the bound reached.
+   * outstanding for this caller, or no read owed, the last one having failed
+   * and a failed read never being chased.
    */
-  private awaitDeferredRead(noticedUpTo: number, deadline: number): Promise<void> | undefined {
+  private awaitDeferredRead(noticedUpTo: number): Promise<void> | undefined {
     if (!this.held || noticedUpTo <= this.held.startedAt) return undefined;
     if (!this.groupingTimer) return undefined;
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) return undefined;
-    return new Promise<void>((resolve) => {
-      const wake = (): void => {
-        clearTimeout(timer);
-        this.coverageWaiters.delete(wake);
-        resolve();
-      };
-      const timer = setTimeout(wake, remaining);
-      timer.unref?.();
-      this.coverageWaiters.add(wake);
-    });
+    return this.readEnded.waited;
   }
 
-  /** Every read that ends wakes them; whether it covered anything is theirs to re-check. */
+  /**
+   * Every read that ends wakes whoever parked on the gate — whether it covered
+   * anything is theirs to re-check — and the gate is replaced, so a caller
+   * arriving next parks on one still open.
+   */
   private wakeCoverageWaiters(): void {
-    const waiting = [...this.coverageWaiters];
-    this.coverageWaiters.clear();
-    waiting.forEach((wake) => wake());
+    const ended = this.readEnded;
+    this.readEnded = openGate();
+    ended.settle();
   }
 
   /**
