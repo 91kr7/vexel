@@ -14,11 +14,13 @@ Batch numbers and `REQ-n`/`INT-n` ids are local to this plan.
 | Batch | Feature | REQ closed | Depends | Status | Human acceptance |
 | --- | --- | --- | --- | --- | --- |
 | 1 · copy-affordance-removed | F1–F8 — every copy affordance leaves the client: the controls on eight screens, the one component behind all of them, its export, the item field that switched it on, its confirmation state, the two containers it emptied, and every record and check written while it existed | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-9, REQ-10, REQ-11, REQ-12, REQ-13, REQ-14, REQ-15, REQ-16, REQ-17, REQ-18, REQ-19, REQ-20, REQ-21, REQ-22, REQ-23, REQ-24, REQ-25, REQ-26, REQ-27, REQ-28, REQ-29, REQ-30, REQ-31, REQ-32, REQ-33, REQ-34, REQ-35 | — | certified | **Start where the screenshot was, then refuse to stop there.** Images & layers → click an image row with the mouse → the panel shows **the same nine properties with the same values, and no `Copy` beside `Id`**. The `Id` band is now **the same height as every other band** — 33px against the 43px it was — so the property section reads as data, which is the whole visible gain. **Then check that nothing was bought with it**: the `Id` still reads `sha256:` plus twelve characters, unwidened; scroll to `Raw payload` below, where **no control sits above the block and no empty strip is left where one was**, and select the full id out of the JSON with the mouse — that is now the only route to it, and it must actually work. **Then the rest of that screen**: the layer explorer's `Build step`, and `Browse filesystem…` → select an entry → its `Path` — no control on either, and bug-3's metadata pane otherwise **visually unchanged**. **Then Containers**: `Inspect` → `Id` and `Image` bare; the health-log blocks bare; `Raw payload` bare; the logs view showing **`Download` and nothing else above the stream** — download a log and confirm the file holds the **whole** buffer, because putting a log on the clipboard is a capability that ends here and `Download` is what replaces it. **Then Compose with no project selected**: the stream's action row is **not there at all** — not an empty strip, not a gap, nothing — which is the one place where removing the only other child of a row leaves a row with no children. **Then Volumes & networks, Plugins, Registries** — mountpoint, plugin name, pull reference, every raw payload — and **Raw console**, where every entry keeps `Re-run` and its status badges and **only** the copy is gone, on every entry in the transcript and not merely the first. **Then Swarm, which is the one that costs something**: node, secret, config and service ids, a service image — all bare — and the two join tokens, **still masked, still revealed by `Show`, still rotatable, and no longer takeable without being shown on screen**. That is a real loss of the tranche and it is on the record as REQ-21; if it is unacceptable it is a new report, not a bug in this one. **Then the half a screenshot cannot show.** Open the devtools console on each screen and confirm **nothing reaches the clipboard**: not `navigator.clipboard`, not `writeText`, not `execCommand`. `grep` the client for those three and for `CopyButton`, `copyValue` and `Copied` and find **nothing at all** — in `client/src`, in `client/test` and in `client/e2e`. **`client/src/ui/controls/CopyButton.tsx` does not exist**, and neither does its line in `client/src/ui/index.ts`: a component left in the library unused is the product still shipping the thing he asked to remove, in the one place he cannot see it. **Thirteen `copyValue` props are gone, not twelve** — the analysis's total was short by one and its list was right; the enumeration in `requirements.md` is the checklist. **Then what must not have moved**: no server file in the diff; `check-ui-conformance.mjs` **unmodified** and passing; no blur value written; no `style`, no raw tag, no CSS in feature code; bug-4's column counts **identical at the same measured section width** — the section is shorter, and that is all — and bug-1's dialog, bug-2's route and bug-3's layout untouched. **Then the records**: `.sdd/modules/` names no `CopyButton` and describes no copy affordance anywhere it does not ship; `specs/copy-button.md` is **deleted**, not emptied; `plan-docker_management_app/REQ-26` carries a **dated amendment** narrowing "copyable" to "viewable and selectable" **beside** its delivered text, with the reason (the base analysis has no clipboard requirement at all), so the next reader sees a withdrawal and not a regression; and bug-4's REQ-32, the fence that reserved this control, carries its **discharge**. **Then the evidence the checks could have caught it**: INT-1, INT-2 and INT-3 were **run against the delivered build before INT-4 to INT-7 existed and observed failing, with their figures** — one clipboard implementation, five render sites, thirteen props, twenty-four sites, every instance labelled `Copy`, a 43px `Id` band against 33px neighbours — beside the same figures after. **A check that only searched for the string `Copy` is refused even if it is green**: the component's own `label` prop made an icon-only instance one edit away, and that check would have passed on a build still shipping one. **Test runs are batch-scoped**: `npm run lint`, `npm run test:typecheck -w client`, `npm run test -w client`, and this batch's e2e specs each on their own. The complete suites are the human's, at the end of the tranche. |
+| 2 · console-check-awaits-the-command | F9 — the raw-console check drives the console by its contract: the second command is sent after the first has ended, everything the check verifies stays, and the debt entry leaves the register | REQ-36, REQ-37, REQ-38, REQ-39, REQ-40, REQ-41, REQ-42 | — | certified | The console check passes wherever it is run |
 
 Batch statuses (`todo | in progress | implemented | certified`) are advanced only by the
 orchestrators of the later phases. On green tests a batch goes to `certified`.
 
-Batch file: [`batches/batch-copy-affordance-removed.md`](batches/batch-copy-affordance-removed.md).
+Batch files: [`batches/batch-copy-affordance-removed.md`](batches/batch-copy-affordance-removed.md),
+[`batches/batch-console-check-awaits-the-command.md`](batches/batch-console-check-awaits-the-command.md).
 
 ## Why one batch, written down because the instinct on a 24-site removal is to slice it
 
@@ -253,3 +255,110 @@ first half; the second half is why they are requirements at all.
   reader (REQ-5).
 - **The report is closed on a screenshot.** "The `Copy` is gone from the `Id` band" is one instance of
   twenty-four, and it is the one instance the human already saw.
+
+## Appended on 2026-08-31 — one batch
+
+One of this plan's own checks went red again last night. `client/e2e/copy-affordance-absence.spec.ts:725`
+types two commands into the raw console one after the other and waits for neither. The console
+declares the second submission inert: `.sdd/modules/ui-library/specs/console-surface.md:58` — "`Enter`
+in the prompt → calls `onSubmit`; **does nothing when `busy`** or when the value is blank". The
+product does what its contract says, and the check expects the opposite, so the batch below changes
+no product source.
+
+The failure was on the register as debt since 2026-08-28
+(`.sdd/tech-debt/entries/raw-console-second-entry-order-dependent.md`), with the measurement that
+settles it: 2 passes of 2 alone, 2 failures of 2 in the file. The entry asked for which of the two —
+check or product — was at fault to be established before anything was decided. It is established.
+The entry therefore leaves the register with this batch (REQ-41).
+
+Work found after a batch is appended as a further batch and never edited into one already closed:
+**nothing above this line was changed**, beyond the one row added to the batch table, the two batch
+file links beside it, and the coverage rows below. Batch 1 stays `certified`.
+
+**Execution order.** `console-check-awaits-the-command` depends on nothing. It corrects a file
+written by `copy-affordance-removed`, which is certified; it needs that work present, not repeated.
+The `Depends` column is empty for that reason.
+
+### Assumptions and decisions
+
+- **The batch changes checks and records only.** No source file, no component spec, no index. Whoever
+  implements it ends with the same application they started with (REQ-42).
+- **The condition waited for is the first entry's own status badge.** `console-surface.md` says an
+  entry shows a pending indicator while it runs and its status badge once it does not, so the badge is
+  the observable end of the busy state. The case already asserts that badge at the end; the batch
+  moves the same observation in front of the second submission.
+- **Waiting for the first command is not a weakening, and the distinction is written into REQ-38.**
+  A retry, a fixed delay or a wider budget would leave the case sending a command the product
+  refuses. Ordering the two actions the case already performs is the contract's precondition, and it
+  makes the case deterministic instead of dependent on how fast the daemon answers.
+- **The case is repaired, not replaced.** Its assertions are the reason it exists — every entry, more
+  than one entry — and REQ-37 keeps every one of them. A case rewritten around one entry would satisfy
+  the timing and lose the defect it was written for.
+- **This batch repairs the one case, not a class of them.** The two check trees were read for the same
+  bet and none of the other six console-driving checks makes it; the table is in the batch file, and
+  INT-4 has the implementer read them again. Repairing checks that are already correct would widen a
+  batch nobody scoped.
+- **One adjacent finding is reported and not repaired**: `client/e2e/containers.spec.ts:317-318`
+  presses `Enter` twice with no assertion between, the first to open the row menu and the second to
+  activate its focused entry. It is the same family — an activation sent before the state that
+  receives it is established — but it bets against no declared contract and has never been observed
+  failing. Touching another plan's certified check without evidence is exactly the unscoped widening
+  [[technical-debt-goes-in-the-tech-debt-register]] warns about. It is in the report for the human.
+- **No new debt entry.** This is a defect being fixed now, not a cost being deferred. The existing
+  entry goes, per the register's own rule and the human's decision of 2026-08-29.
+- **The case needs no fixture and must not grow one.** It runs `docker ps` filtered on a label nothing
+  carries, so it creates nothing on the daemon and has nothing to clean up. Its `toHaveCount(2)` is
+  over its own transcript in its own data directory, which is emptied before every test — it is not a
+  count over the operator's daemon.
+- **The product's silence while busy is not planned here.** Pressing `Enter` during a running command
+  produces no reply to that keypress. The behaviour is certified and deliberate, the busy state is
+  already visible, and the planner's opinion on it is in the report rather than in an intervention.
+
+### Departures
+
+- **The two validation gates were not held.** The human was not available. The direction was given
+  with the request — establish the cause, repair the check, keep every assertion, clear the register —
+  and the orchestrator validated in their place. The requirements and the coverage below were written
+  to that direction. There is no open question on it.
+- **No departure from the business spec.**
+  `.sdd/analysis/docker_management_app-remove_copy_controls.md` is untouched and is not contradicted:
+  it asks for the absence of the affordance to be checked over every entry, which is what the
+  corrected case does. No spec correction is owed.
+
+### Coverage check — the appended requirements
+
+Every one of REQ-36 to REQ-42 is served by at least one intervention of
+`console-check-awaits-the-command`, and each of its five interventions serves at least one of them.
+No requirement is split across batches: all seven close in batch 2. There is no enabling
+intervention.
+
+**REQ → INT.**
+
+| REQ | Interventions serving it | Closes in |
+| --- | --- | --- |
+| REQ-36 | INT-1, INT-2 | 2 |
+| REQ-37 | INT-3 | 2 |
+| REQ-38 | INT-1, INT-2 | 2 |
+| REQ-39 | INT-3 | 2 |
+| REQ-40 | INT-4 | 2 |
+| REQ-41 | INT-5 | 2 |
+| REQ-42 | INT-1, INT-3, INT-4, INT-5 (as a constraint on the diff) | 2 |
+
+**INT → REQ.**
+
+| INT | REQ served |
+| --- | --- |
+| INT-1 | REQ-36, REQ-38, REQ-42 |
+| INT-2 | REQ-36, REQ-38 |
+| INT-3 | REQ-37, REQ-39, REQ-42 |
+| INT-4 | REQ-40, REQ-42 |
+| INT-5 | REQ-41, REQ-42 |
+
+Two notes on that mapping.
+
+- **REQ-42 is a constraint, not work.** It is how the diff is judged: no file under `client/src` or
+  `server/src`, no component spec, no index. An edit to `ConsoleSurface` during this batch is the
+  signal that the repair went into the wrong place.
+- **INT-3 is what keeps the repair honest.** REQ-38 can be satisfied by a case that no longer checks
+  anything, and such a case would be green for ever. INT-3 keeps every assertion and has the corrected
+  case observed red against an entry given back a control it should not have.

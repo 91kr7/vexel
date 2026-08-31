@@ -36,18 +36,15 @@ means writing the analysis and the plan for it in the normal way — see
 | contexts-list-spawns-subprocesses | server | low | Two processes every 15 s for an inventory that changes when the operator changes it | `entries/contexts-list-spawns-subprocesses.md` |
 | object-type-invalidation-registry-unused | client | low | The by-object-type invalidation registry is exported and called from nowhere | `entries/object-type-invalidation-registry-unused.md` |
 | stale-thirteen-screen-count-in-checks | client | low | Thirteen checks still say "thirteen screens", two of them in failure messages, on a rail that has twelve | `entries/stale-thirteen-screen-count-in-checks.md` |
-| raw-console-second-entry-order-dependent | client | medium | The raw console's second transcript entry never completes when its whole file runs; passes alone, fails in file | `entries/raw-console-second-entry-order-dependent.md` |
 | build-cache-prune-guard-blocked-by-run-fixtures | client | medium | The build-cache prune check can never run in a full pass: the run's own fixtures fill the cache its guard requires empty | `entries/build-cache-prune-guard-blocked-by-run-fixtures.md` |
 | change-coverage-millisecond-window | server | low | A read starting in the same millisecond as a change counts as covering it, on REQ-13's path | `entries/change-coverage-millisecond-window.md` |
 | layer-explorer-cancel-races-the-analysis | client | low | A check presses Cancel on an analysis that has already finished, and passes on speed rather than on contract | `entries/layer-explorer-cancel-races-the-analysis.md` |
 
-## Provenance of the four added on 2026-08-28
+## Provenance of the three added on 2026-08-28
 
-The last four rows do not come from that study. They were found by the closing full pass of
+The last three rows do not come from that study. They were found by the closing full pass of
 `plan-docker_management_app-refresh_cache` on 28 August 2026, and each carries the run that found it
-in its own `source`. Three are defects in checks rather than in the product, and
-`raw-console-second-entry-order-dependent` is explicitly undecided between the two — its entry says
-so and says how to settle it.
+in its own `source`. Two are defects in checks rather than in the product.
 
 ## Provenance of this first batch
 
