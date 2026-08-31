@@ -722,19 +722,33 @@ test('compose: the aggregated log stream offers no copy, and holds Download exac
 
 // REQ-1, REQ-25, REQ-26 — one control per transcript entry: asserted over **every** entry, never the
 // first, and with `Re-run` and the status badges left exactly as delivered (REQ-13, REQ-18).
+//
+// The second command is sent only once the first entry carries its status, and that order is the
+// product's own precondition rather than a cover for a race
+// (plan-docker_management_app-remove_copy_controls/REQ-36, REQ-38). `console-surface.md` declares
+// `Enter` inert while the console is busy, so a line typed while the first command is still running
+// is dropped by contract and the transcript keeps one entry. This case used to type both lines in a
+// row: it passed on an idle daemon and failed whenever its own file ran. The status assertion that
+// closed the case is what the loop now waits on, so it covers both entries instead of the last one.
+// Nothing else may be added here to make it pass — no retry, no fixed delay, no wider budget and no
+// softened assertion.
 test('raw console: no transcript entry offers a copy, and every one keeps its Re-run and its status', async ({ page }) => {
   const marker = `vexel-e2e-nocopy-console-${RUN_ID}`;
   await openApp(page, 'raw-console');
   await expect(screenContent(page).getByRole('heading', { name: 'Raw command & API console' })).toBeVisible({ timeout: 20_000 });
 
   const prompt = page.getByLabel('Console prompt');
-  for (const suffix of ['first', 'second']) {
-    await prompt.fill(`docker ps --filter label=${marker}-${suffix}`);
+  const commands = ['first', 'second'].map((suffix) => `docker ps --filter label=${marker}-${suffix}`);
+  for (const command of commands) {
+    await prompt.fill(command);
     await prompt.press('Enter');
+    // The entry is found by the command it carries, never by its position in the transcript.
+    const entry = page.locator('.ui-console-surface__entry', { has: page.locator('.ui-console-surface__command', { hasText: command }) });
+    await expect(entry, `Raw console → \`${command}\` never reached its final status`).toContainText('exit 0', { timeout: 30_000 });
   }
+
   const entries = page.locator('.ui-console-surface__entry');
   await expect(entries).toHaveCount(2, { timeout: 30_000 });
-  await expect(entries.last()).toContainText('exit 0', { timeout: 30_000 });
 
   const count = await entries.count();
   for (let index = 0; index < count; index += 1) {
