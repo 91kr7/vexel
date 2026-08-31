@@ -468,6 +468,25 @@ const SIX_FIGURES = [
   "networkTxBytes",
 ] as const;
 
+// A CPU percentage is the result of a division, so it is compared as a measurement and not as a bit
+// pattern: the fixture builds the counters from the percentage and the service divides them back,
+// and that round trip is exact for 12 and lands on 7.000000000000001 for 7. The tolerance is far
+// below the tenth of a point the card prints, and it still tells one figure from another, from a
+// measured zero and from no reading at all. The other five figures are counters taken from the
+// frame as they are, so they are compared exactly.
+const CPU_PERCENT_TOLERANCE = 1e-9;
+
+/** Asserts the container was answered with a given CPU percentage. */
+function assertCpuPercent(actual: number | undefined, expected: number, message: string): void {
+  assert.equal(typeof actual, "number", `${message} (no CPU percentage at all)`);
+  assert.ok(Math.abs((actual ?? Number.NaN) - expected) <= CPU_PERCENT_TOLERANCE, `${message} (expected ${expected}, answered ${actual})`);
+}
+
+/** Asserts the CPU percentage answered is not a given one; no reading at all is not that one either. */
+function assertCpuPercentIsNot(actual: number | undefined, refused: number, message: string): void {
+  assert.ok(actual === undefined || Math.abs(actual - refused) > CPU_PERCENT_TOLERANCE, message);
+}
+
 // REQ-1, REQ-2 — the figures reach only a container the same listing puts in the running set.
 test("a container the listing reports as exited is answered with none of the six figures, fresh sample or not", async () => {
   serveListings([containerInState("running", STOPPED_ID)], [containerInState("running", STOPPED_ID)]);
@@ -500,7 +519,7 @@ test("a container measured at 12 per cent is answered with no figure at all once
   stopStatsSampling();
 
   const [whileRunning] = await listContainers();
-  assert.equal(whileRunning?.cpuPercent, 12, "the container was never reported at 12 per cent: the case measures nothing");
+  assertCpuPercent(whileRunning?.cpuPercent, 12, "the container was never reported at 12 per cent: the case measures nothing");
 
   serveListings([containerInState("exited", STOPPED_ID)], []);
   const [afterItStopped] = await listContainers();
@@ -534,7 +553,7 @@ test("a paused and a restarting container keep all six figures, and a measured z
   }
 
   const paused = listed.get(STATE_IDS.paused!);
-  assert.equal(paused?.cpuPercent, 0, "the paused container was not answered with the zero it was measured at");
+  assertCpuPercent(paused?.cpuPercent, 0, "the paused container was not answered with the zero it was measured at");
   assert.equal(paused?.memoryLimitBytes, PAUSED_MEMORY.limit, "a measured zero lost the capacity it is stated against");
   assert.equal(paused?.memoryUsageBytes, PAUSED_MEMORY.usage);
 
@@ -645,7 +664,7 @@ test("a complete frame is stored, and answered with the six figures it carries",
 
   const [summary] = await listContainers();
 
-  assert.equal(summary?.cpuPercent, 12);
+  assertCpuPercent(summary?.cpuPercent, 12, "the complete frame was not answered with the percentage it carries");
   assert.equal(summary?.memoryLimitBytes, DEFAULT_MEMORY.limit);
   // The page cache is subtracted from the raw usage, as `docker stats` reports it.
   assert.equal(summary?.memoryUsageBytes, DEFAULT_MEMORY.usage - DEFAULT_MEMORY.cache);
@@ -666,7 +685,7 @@ test("a container answering with an empty frame carries none of the six figures,
 
   const [whileRefused] = await listContainers();
   assert.equal(whileRefused?.state, "running");
-  assert.notEqual(whileRefused?.cpuPercent, 0, "the zero measured while the container was stopped reached the card");
+  assertCpuPercentIsNot(whileRefused?.cpuPercent, 0, "the zero measured while the container was stopped reached the card");
   for (const figure of SIX_FIGURES) {
     assert.equal(whileRefused?.[figure], undefined, `the empty frame was answered with a ${figure}`);
   }
@@ -675,7 +694,7 @@ test("a container answering with an empty frame carries none of the six figures,
   await advance(STATS_SAMPLE_INTERVAL_MS);
   const [afterAMeasuredPass] = await listContainers();
 
-  assert.equal(afterAMeasuredPass?.cpuPercent, 12, "the container was not measured on the pass that answered with a frame");
+  assertCpuPercent(afterAMeasuredPass?.cpuPercent, 12, "the container was not measured on the pass that answered with a frame");
   for (const figure of SIX_FIGURES) {
     assert.equal(typeof afterAMeasuredPass?.[figure], "number", `the measured pass left the ${figure} unanswered`);
   }
@@ -691,7 +710,7 @@ test("an empty answer drops the reading the container had, and puts no zero in i
   startStatsSampling();
   await settle();
   const [measured] = await listContainers();
-  assert.equal(measured?.cpuPercent, 12, "the container was never measured: the case measures nothing");
+  assertCpuPercent(measured?.cpuPercent, 12, "the container was never measured: the case measures nothing");
 
   // One interval later that reading is still well inside the staleness bound, so what the listing
   // reports next is the refusal's doing and not the age of the sample.
@@ -699,7 +718,7 @@ test("an empty answer drops the reading the container had, and puts no zero in i
   await advance(STATS_SAMPLE_INTERVAL_MS);
   const [afterTheRefusal] = await listContainers();
 
-  assert.notEqual(afterTheRefusal?.cpuPercent, 0, "the empty frame was stored as a measured zero");
+  assertCpuPercentIsNot(afterTheRefusal?.cpuPercent, 0, "the empty frame was stored as a measured zero");
   for (const figure of SIX_FIGURES) {
     assert.equal(afterTheRefusal?.[figure], undefined, `the refused answer left the ${figure} of the earlier reading standing`);
   }
@@ -716,7 +735,7 @@ test("a container measured, then answering empty, then measured again carries no
   startStatsSampling();
   await settle();
   const [whileRunning] = await listContainers();
-  assert.equal(whileRunning?.cpuPercent, 12, "the container was never measured: the case measures nothing");
+  assertCpuPercent(whileRunning?.cpuPercent, 12, "the container was never measured: the case measures nothing");
 
   // It stops. The listing is a few hundred milliseconds old and still calls it running, so the pass
   // asks for its statistics and the daemon answers with the empty frame.
@@ -726,8 +745,8 @@ test("a container measured, then answering empty, then measured again carries no
   // It is running again before the next pass, so what the card reads is what that pass left behind.
   const [afterTheRestart] = await listContainers();
   assert.equal(afterTheRestart?.state, "running");
-  assert.notEqual(afterTheRestart?.cpuPercent, 0, "the zero produced while the container was stopped reached the card");
-  assert.notEqual(afterTheRestart?.cpuPercent, 12, "the figure measured before the container stopped reached the card");
+  assertCpuPercentIsNot(afterTheRestart?.cpuPercent, 0, "the zero produced while the container was stopped reached the card");
+  assertCpuPercentIsNot(afterTheRestart?.cpuPercent, 12, "the figure measured before the container stopped reached the card");
   for (const figure of SIX_FIGURES) {
     assert.equal(afterTheRestart?.[figure], undefined, `the restarted container carries a ${figure} it was never measured at`);
   }
@@ -736,7 +755,7 @@ test("a container measured, then answering empty, then measured again carries no
   await advance(STATS_SAMPLE_INTERVAL_MS);
   const [afterAMeasuredPass] = await listContainers();
 
-  assert.equal(afterAMeasuredPass?.cpuPercent, 7, "the figures did not come back on the pass that measured the container again");
+  assertCpuPercent(afterAMeasuredPass?.cpuPercent, 7, "the figures did not come back on the pass that measured the container again");
   assert.equal(statsRequestsFor(RESTARTED_ID), 3, "the three passes cost anything other than one call each");
   for (const figure of SIX_FIGURES) {
     assert.equal(typeof afterAMeasuredPass?.[figure], "number", `the measured pass left the ${figure} unanswered`);
