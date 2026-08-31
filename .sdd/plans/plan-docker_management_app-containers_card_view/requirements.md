@@ -220,3 +220,58 @@ requirements are testable, each with the reason and each cheap to retune in one 
 > refuse code that is correct — the daily nuisance that turns a guard into a formality. So the guard
 > refuses only a declaration that is impossible on its face. A test whose steps sum to more than it
 > has still passes the guard; the arithmetic written beside each budget is what a human reads instead.
+
+## Appended on 2026-08-31 (second) — a check that writes inside the tree the other checks read
+
+> Appended after `npm run test -w client` failed on its **first** run and passed on the second, with
+> `ENOENT: no such file or directory … client/src/__conformance-fixture__/body-row-gap.css` raised in
+> `client/test/unit/no-unload-signalling.test.ts`. **The defect is in the checks, not in the product.**
+>
+> The mechanism. `client/test/unit/ui-conformance-check.test.ts` drives
+> `client/scripts/check-ui-conformance.mjs` over bait sources, and the script scans `client/src` and
+> nothing else — it takes no root — so the baits are written **into `client/src`**, in a directory
+> created and removed around each case. Vitest runs test files in parallel. Other checks walk that
+> same tree, listing every file and then reading each one; between the listing and the read the
+> directory can be gone.
+>
+> **It is a class, and the count was verified in the tree rather than grepped.** Seventeen unit checks
+> touch `client/src`. Eight defend themselves by skipping the directory **by name**, plus the file
+> that owns it. **Nine scans, in nine files, do not** — `no-unload-signalling` (the one that failed),
+> `card-list-deleted`, `card-row-presentation-retired`, `copy-affordance-absence`,
+> `empty-state-action-names`, `filesystem-browser`, `library-layer-adoption-perimeter`,
+> `modal-composed-title`, and the **second scan of `modal-close-control`**, a file that defends one of
+> its two scans and leaves the other open. Two files that look exposed are not: `dialog-one-form` and
+> `section-header-one-treatment` walk `client/src/ui/` only, which the bait directory is not inside.
+>
+> **The defence by name is the wrong cure, applied eight times.** The cause is not that a scan forgets
+> a directory: it is that a temporary directory is created inside the tree every scan reads, so every
+> scan written from now on must remember it for ever. `client/vitest.config.ts` says in its own header
+> that the tests live outside `client/src` *"so the UI-boundary conformance check never scans test
+> code"* — the bait directory is the one thing that crosses that line. And it breaks the rule
+> `CLAUDE.md` opens its testing section with: a test leaves the machine exactly as it found it, and
+> depends on nothing another test did.
+>
+> Per [[every-change-updates-spec-requirements-plan]] this is appended as a further batch. **Nothing
+> above this line was changed**: batches 1, 2 and 3 stay certified, and batch 4 keeps its requirements
+> word for word.
+
+## F5 — A check writes nothing inside the tree the other checks read
+
+| ID | Requirement |
+| --- | --- |
+| REQ-73 | No check under `client/test/` creates, writes or removes a path inside `client/src/` or `server/src/` at any moment of a run. The check that drives the UI conformance script writes its bait sources in a throwaway directory outside the repository's source trees and removes it when the case ends. |
+| REQ-74 | `client/scripts/check-ui-conformance.mjs` takes the tree to scan as an argument. Invoked with no argument it scans `client/src/`, exactly as it does today. |
+| REQ-75 | The paths the script reports, the sub-tree it treats as the UI library, and the paths it matches its admissions against are all derived from the tree it was given, read relative to that tree's parent. With no argument every message, every admission and every exit code is what it is today. |
+| REQ-76 | The rule the script enforces is unchanged: the same violations are refused with the same wording, the blur allow-list holds the same five selectors, and the card-row admission holds the same two containers paths and no third. Its own check drives it over the same cases as before, none removed and none softened. |
+| REQ-77 | No scan of the source tree skips a directory by name in order to avoid a file another check wrote. Every scan covers exactly the files it covered. |
+| REQ-78 | No read failure is swallowed anywhere: no scan catches an error from reading a file it has just listed, no scan is retried, no assertion is softened and no wait is added. |
+| REQ-79 | The change touches no product source. Nothing under `client/src/` or `server/src/` moves. |
+
+> **REQ-77 widens no scan and narrows none.** Removing a skip adds the skipped directory to what a
+> scan walks — and after REQ-73 that directory never exists, in any run, so the set of files each scan
+> reads is identical. The skip is removed because a defence against something that cannot happen is
+> read as permission for it to happen again, which is how the eighth copy of it was written.
+>
+> **REQ-79 is the same absence REQ-68 states, for the same reason.** The conformance script is a
+> build check, not product: it lives outside `client/src/`, ships in nothing, and REQ-76 is what holds
+> its behaviour still while REQ-74 changes how it is invoked.

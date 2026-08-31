@@ -19,6 +19,7 @@ and `REQ-n` / `INT-n` ids are **local to this plan**: `REQ-1` here is not
 | 3 · stats-sampling-gate | F2 — The per-container sampling runs at 10 seconds and only while somebody is consuming it | REQ-39, REQ-40, REQ-41, REQ-42, REQ-43, REQ-44, REQ-45, REQ-46, REQ-47, REQ-48, REQ-49, REQ-50, REQ-51, REQ-52, REQ-54, REQ-55, REQ-56, REQ-57, REQ-58 | 2 | certified | This one is verified at the daemon, not on the screen. Start the product, connect **no browser at all**, and watch what the daemon is asked (`docker events`, a daemon log, or the batch's own measured check): **nothing**. Zero stats requests, indefinitely. Now open the interface on Containers: sampling starts, and the cards get a figure **promptly** — not after ten seconds of dashes. Time two consecutive updates: **ten seconds**, not three. Move to Images: the daemon goes quiet within one interval. Go to the **Dashboard**: it starts again, and the Dashboard's CPU reading is alive — it did not lose its figure to this change, which is the regression to look for hardest. Switch to another tab in the browser: quiet. Come back: a figure promptly. Open a **second tab** on Containers: still one sampling cadence, not two. Close one: sampling continues for the other. Close both: quiet. Now the routes that send no notice — **kill the browser process**, and separately pull the network (turn Wi-Fi off with the tab open): within about a sampling interval the server discovers it and goes quiet on its own, having been told nothing. Do that whole cycle a dozen times and confirm the daemon goes quiet **every** time: a count that drifts upward is invisible from the interface and is the failure mode of this design. Leave the screen for several minutes and return: the cards show the *no sample* state for the gap, **not** the numbers from before you left presented as current, and no card anywhere shows how old a figure is. Confirm what did **not** change: the list still reflects a container started from a terminal within about three seconds (the list poll is untouched), and a container's detail panel → Stats tab still streams at its own rate with its own five readings, opening and closing with the panel. Search the client for `beforeunload`, `pagehide`, `unload` and `sendBeacon`: **none**, and the batch's own guard fails if one appears. `npm run lint`, `npm run test -w client`, `npm run test -w server` and the batch's own e2e and server checks pass. |
 
 | 4 · check-budgets-fit-the-test | F4 — Every check declares a budget it can spend | REQ-64, REQ-65, REQ-66, REQ-67, REQ-68, REQ-69, REQ-70, REQ-71, REQ-72 | 3 | todo | The check that died reports its own step instead of dying somewhere else |
+| 5 · checks-do-not-write-in-the-tree-they-read | F5 — A check writes nothing inside the tree the other checks read | REQ-73, REQ-74, REQ-75, REQ-76, REQ-77, REQ-78, REQ-79 | 4 | todo | Nothing appears inside the sources while the checks run |
 
 Batch statuses (`todo | in progress | implemented | certified`) are advanced only by the
 orchestrators of the later phases.
@@ -332,6 +333,13 @@ interventions are declared as such below; there are no others.
 | REQ-70 | 4 | INT-1, INT-9, INT-11 |
 | REQ-71 | 4 | INT-10 |
 | REQ-72 | 4 | INT-11 |
+| REQ-73 | 5 | INT-2, INT-3, INT-6 |
+| REQ-74 | 5 | INT-1, INT-5 |
+| REQ-75 | 5 | INT-1 |
+| REQ-76 | 5 | INT-1, INT-2 |
+| REQ-77 | 5 | INT-4 |
+| REQ-78 | 5 | INT-4, INT-6 |
+| REQ-79 | 5 | INT-6 |
 
 **One requirement is completed across two batches and it is declared here.** **REQ-52** (a figure too
 old is presented as *no sample*, never as current) **closes in batch 3**: the presentation it falls
@@ -392,6 +400,13 @@ moment the card exists and nothing in batch 3 could make it true or false. It cl
 | 4 | INT-12 | *(enabling — see below)* |
 | 4 | INT-13 | REQ-64, REQ-65 |
 | 4 | INT-14 | REQ-66, REQ-68 |
+| 5 | INT-1 | REQ-74, REQ-75, REQ-76 |
+| 5 | INT-2 | REQ-73, REQ-76 |
+| 5 | INT-3 | REQ-73 |
+| 5 | INT-4 | REQ-77, REQ-78 |
+| 5 | INT-5 | REQ-74 |
+| 5 | INT-6 | REQ-73, REQ-78, REQ-79 |
+| 5 | INT-7 | *(enabling — see below)* |
 
 **Two enabling interventions, declared as such**, and no others:
 
@@ -561,3 +576,83 @@ build check that no index names.
   the alternative is a declaration that lies about what the test allows.
 - **`openApp` stays on the line.** Anything that makes the default budget smaller, or that makes
   `openApp` slower, turns 562 passing tests into the same defect at once.
+
+## Appended on 2026-08-31 (second) — batch 5, a check that writes inside the tree the others read
+
+**Why there is a fifth batch.** `npm run test -w client` failed on its first run and passed on its
+second, with `ENOENT … client/src/__conformance-fixture__/body-row-gap.css` in
+`no-unload-signalling.test.ts`. The conformance check writes its bait sources **inside `client/src`**
+while other checks walk that tree. The census, the roads and the reproduction are in
+`batches/batch-checks-do-not-write-in-the-tree-they-read.md`; the requirements are in
+`requirements.md` under *Appended on 2026-08-31 (second)*.
+
+**Nothing above this line was changed**, beyond the one row added to the batch table and the coverage
+rows for REQ-73 to REQ-79 and for batch 5's interventions. Batches 1, 2 and 3 stay certified; batch 4
+keeps its requirements, its interventions and its acceptance word for word.
+
+**Execution order: after 4, and the dependency is one of sequence, not of content.** The two batches
+touch different trees — batch 4 `client/e2e/`, batch 5 `client/scripts/` and `client/test/unit/` —
+and neither needs the other to be correct. Batch 5 is placed after it because batch 4 is already
+written and appended, and because both give a check the tree to scan as an argument: doing them in
+this order means batch 5 adopts a form batch 4 has already established rather than inventing a second
+one.
+
+### Assumptions and decisions of batch 5
+
+- **The cause is removed, not defended against.** A temporary directory created inside the tree every
+  check reads is the defect; skipping it by name is a cure each new scan must copy for ever, and the
+  copies have already decayed twice (`modal-close-control.test.tsx` defends one of its two scans;
+  `programme-constraints.test.ts` still calls itself one of *"the three other scans"* when there are
+  eight).
+- **The census was verified file by file, and it corrects the grep.** Nine exposed scans in nine
+  files, not ten: `dialog-one-form` and `section-header-one-treatment` walk `client/src/ui/` only, and
+  the ninth exposed scan is the *second* scan of a file that was counted among the defenders.
+- **No new build check is added, unlike batch 4, and that is a decision.** Batch 4 built a guard
+  because it repaired 23 instances written over months and had to catch the twenty-fourth. Here there
+  is exactly one writer, and after the change nothing has a reason to write inside a scanned tree: the
+  script takes the tree to scan as an argument, so a check needing a tree of its own asks for one. A
+  static guard would have to decide, from the text of a call, whether a written path resolves inside
+  `client/src` — and it would fire on the batch's own throwaway root, whose path also ends in `src`. A
+  guard that reports the correct code is the guard batch 4 refused to build.
+- **The eight name-skips are removed rather than left standing.** They become useless, not wrong. They
+  are removed because a defence against something that cannot happen reads as permission for it to
+  happen again — and because the set of files each scan covers is unchanged, the skipped directory
+  never existing in any run.
+- **The blur half of the conformance script is not touched, and the variable `clientRoot` keeps its
+  name.** `programme-constraints.test.ts` pins six declarations of that script byte-identical at every
+  revision, and one of them reads `clientRoot`. INT-1 changes what that name resolves to, never the
+  name, so the pin passes untouched — the strongest available evidence that the blur policy did not
+  move.
+
+### Coverage check for batch 5
+
+Every one of REQ-73 to REQ-79 is served by at least one intervention, and every intervention of batch
+5 serves at least one requirement, except the one declared enabling below. All seven close in batch 5;
+none is spread across batches.
+
+**REQ-78 and REQ-79 are absences, and what serves them is a record.** Nothing can be built to make an
+absence true: the checks are `git diff` over the two source trees, and a search for a `catch` around a
+scan's read. INT-4 is where the absence is observable (the eight files are edited, and the edit is a
+removal), and INT-6 is what carries the prohibition forward, in the header of the file whose reader is
+the one who will be tempted to make a scan tolerant instead.
+
+**A fourth enabling intervention.** **Batch 5 / INT-7** amends the conformance check's component spec
+with the scanned root and its default. It closes no behaviour of its own; without it the spec would
+describe an invocation the script no longer has.
+
+### Risks carried forward by batch 5
+
+- **The check that fails after the commit, not before it.** `programme-constraints.test.ts`'s hunk
+  rule reads committed revisions, so INT-1's edit passes locally and fails on the next run. INT-5 is
+  what prevents it, and it must land in the same commit as INT-1.
+- **The bait directory keeps its name, inside the throwaway root**, so that the messages the check's
+  own cases match stay as they are — which is what makes *"it protects exactly what it protected"*
+  legible in the diff. The cost: a reader grepping the name still finds it, and has to notice it is no
+  longer under `client/src`.
+- **`client/.card-row-sandbox` disappears with the fixture directory.** It never sat inside a scanned
+  tree, so it caused nothing; it is folded in because it is the same mechanism, and it needed the
+  script copied only because the script had no root argument. Two mechanisms become one, and a diff
+  that leaves the sandbox standing has done half the batch.
+- **The nine exposed scans are repaired by nothing being done to them.** That is the point, and it is
+  also what makes the batch easy to under-deliver: if the baits are merely moved to another directory
+  inside `client/src`, every observation still passes for a while and the class is intact.
