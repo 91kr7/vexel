@@ -22,7 +22,7 @@ status: validated
 | sampler-from-shared-listing | The statistics sampler reads the container listing the server already holds | REQ-47, REQ-48, REQ-49, REQ-50, REQ-51 | — | certified | Watching statistics costs no container listing of its own |
 | derived-lists-follow-the-listing | The derived lists follow the container listing they are built on | REQ-52, REQ-53, REQ-54, REQ-55, REQ-56, REQ-57 | — | certified | The MOUNTED BY column names every container mounting the volume, at once |
 | detail-derivation-follows-the-listing | The detail's derived values follow the container listing too | REQ-58, REQ-59, REQ-60, REQ-61, REQ-62, REQ-63 | — | certified | The open volume panel stops naming a container that no longer exists |
-| exclusive-checks-reload | The exclusive checks reload through the control | REQ-64, REQ-65, REQ-66, REQ-67 | — | todo | The build-cache prune check passes on a server that is already holding its lists |
+| exclusive-checks-reload | The exclusive checks reload through the control | REQ-64, REQ-65, REQ-66, REQ-67 | — | certified | The build-cache prune check passes on a server that is already holding its lists |
 
 ## What the plan builds
 
