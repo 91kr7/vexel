@@ -21,6 +21,7 @@ status: validated
 | change-coverage-check | The change-coverage check asserts the guarantee, not the daemon's timing | REQ-45, REQ-46 | — | certified | The container lifecycle check passes on every run |
 | sampler-from-shared-listing | The statistics sampler reads the container listing the server already holds | REQ-47, REQ-48, REQ-49, REQ-50, REQ-51 | — | certified | Watching statistics costs no container listing of its own |
 | derived-lists-follow-the-listing | The derived lists follow the container listing they are built on | REQ-52, REQ-53, REQ-54, REQ-55, REQ-56, REQ-57 | — | certified | The MOUNTED BY column names every container mounting the volume, at once |
+| detail-derivation-follows-the-listing | The detail's derived values follow the container listing too | REQ-58, REQ-59, REQ-60, REQ-61, REQ-62, REQ-63 | — | todo | The open volume panel stops naming a container that no longer exists |
 
 ## What the plan builds
 
@@ -156,6 +157,12 @@ qualified with their batch below.
 | REQ-55 | `batch-derived-lists-follow-the-listing/INT-1`, `batch-derived-lists-follow-the-listing/INT-2`, `batch-derived-lists-follow-the-listing/INT-6`, `batch-derived-lists-follow-the-listing/INT-12` | derived-lists-follow-the-listing |
 | REQ-56 | `batch-derived-lists-follow-the-listing/INT-8`, `batch-derived-lists-follow-the-listing/INT-9`, `batch-derived-lists-follow-the-listing/INT-13` | derived-lists-follow-the-listing |
 | REQ-57 | `batch-derived-lists-follow-the-listing/INT-8`, `batch-derived-lists-follow-the-listing/INT-9`, `batch-derived-lists-follow-the-listing/INT-14` | derived-lists-follow-the-listing |
+| REQ-58 | `batch-detail-derivation-follows-the-listing/INT-1`, `batch-detail-derivation-follows-the-listing/INT-2`, `batch-detail-derivation-follows-the-listing/INT-4`, `batch-detail-derivation-follows-the-listing/INT-5`, `batch-detail-derivation-follows-the-listing/INT-6`, `batch-detail-derivation-follows-the-listing/INT-7`, `batch-detail-derivation-follows-the-listing/INT-8`, `batch-detail-derivation-follows-the-listing/INT-13` | detail-derivation-follows-the-listing |
+| REQ-59 | `batch-detail-derivation-follows-the-listing/INT-2`, `batch-detail-derivation-follows-the-listing/INT-7`, `batch-detail-derivation-follows-the-listing/INT-10` | detail-derivation-follows-the-listing |
+| REQ-60 | `batch-detail-derivation-follows-the-listing/INT-2`, `batch-detail-derivation-follows-the-listing/INT-3`, `batch-detail-derivation-follows-the-listing/INT-4`, `batch-detail-derivation-follows-the-listing/INT-5`, `batch-detail-derivation-follows-the-listing/INT-6`, `batch-detail-derivation-follows-the-listing/INT-11`, `batch-detail-derivation-follows-the-listing/INT-12` | detail-derivation-follows-the-listing |
+| REQ-61 | `batch-detail-derivation-follows-the-listing/INT-1`, `batch-detail-derivation-follows-the-listing/INT-2`, `batch-detail-derivation-follows-the-listing/INT-3`, `batch-detail-derivation-follows-the-listing/INT-6`, `batch-detail-derivation-follows-the-listing/INT-9`, `batch-detail-derivation-follows-the-listing/INT-12` | detail-derivation-follows-the-listing |
+| REQ-62 | `batch-detail-derivation-follows-the-listing/INT-8`, `batch-detail-derivation-follows-the-listing/INT-9`, `batch-detail-derivation-follows-the-listing/INT-13` | detail-derivation-follows-the-listing |
+| REQ-63 | `batch-detail-derivation-follows-the-listing/INT-8`, `batch-detail-derivation-follows-the-listing/INT-14` | detail-derivation-follows-the-listing |
 
 **Three notes on this coverage.**
 
@@ -746,3 +753,111 @@ Three notes on it.
   defect was reported on, so a batch that stopped at REQ-52 could ship either of them with a green run
   behind it. `INT-12` drives the cache directly and arranges the two orders the fan-out does not
   guarantee.
+
+## Appended on 2026-08-31 — one batch
+
+**The detail panel of a volume keeps naming a container that no longer exists, and does not stop while
+the panel stays open.** Reproduced deterministically the night of 2026-08-30:
+`client/e2e/detail-reread-scoped.spec.ts:170`, the check that closes REQ-8, fails 2 runs out of 2 with
+`--repeat-each=2` on that file alone and failed in the full pass. The traces measure the whole of it:
+the client re-reads the inspect four times in 100 ms, one per event of the removal, and then the
+endpoint is not called again for 20 seconds while the lists keep being asked every 3.
+
+It is the same family as `derived-lists-follow-the-listing`, one step further in. That batch repaired
+the readers that **hold** what they derived from the container listing. This is the reader that derives
+**per request and is never asked again** — the volume detail, whose `mountedBy` Docker does not supply
+and the application derives. The request arrives on the same event that marked the listing due and is
+answered from the copy about to be replaced; nothing asks it again.
+
+Per the knowledge base, work found after a batch is appended as a further batch and never edited into
+one already closed: **nothing above this line was changed**, beyond the one row added to the batch table
+and its six coverage rows. No certified batch is reopened.
+
+**Execution order.** `detail-derivation-follows-the-listing` depends on nothing still open in this plan.
+It changes the refresh cache built by `lists-from-refresh-cache`, the accessors of the shared listing
+built by `container-listing-shared` and extended by `derived-lists-follow-the-listing`, and the volume
+inspect — all certified; it needs that work present, not repeated. The `Depends` column is empty for
+that reason.
+
+### Assumptions and decisions
+
+- **"Detail reads stay direct" is not reopened.** That decision (REQ-22) says no inspect value is held
+  on the server, and none is. What this batch touches is the part of the volume detail that was never a
+  direct read: Docker's `volume inspect` does not say who mounts a volume, so `mountedBy` is derived —
+  from the held container listing, since `container-listing-shared`. The detail still calls the daemon
+  for the volume itself, on every request.
+- **The perimeter was verified reader by reader, and two readers are deliberately outside it.** The
+  network detail **cannot** have the defect: it does not read the held listing at all, but the
+  `Containers` map `GET /networks/{id}` returns, which the service's own spec calls authoritative —
+  checked in the source and in the spec before the row was written. The dashboard overview does read the
+  held listing, per request, and is **out of scope by decision**: it is asked again every 3 seconds, so
+  the request after the listing is replaced is already right, and no aggregate count reads as a
+  statement about an object that has ceased to exist. Making it wait would put the wait on the screen
+  where container events are most frequent, for a value that corrects itself.
+- **The wait is asked for, never imposed.** Raising the change instant on every daemon event would make
+  every request on every list wait for the listing to catch up — the cost this project refused from the
+  start, and a breach of REQ-9 and REQ-10 across the product to repair one panel. REQ-60 is that
+  constraint, and `INT-11` is what fails when someone takes the cheaper road.
+- **It costs the daemon nothing, and that is counted rather than argued.** The wait attaches to the read
+  the event already caused and starts none of its own; when coverage cannot be reached within its bound,
+  the caller is answered from the value held. `INT-10` counts the calls over the whole sequence.
+- **Sending the detail back to the daemon for its own container listing was refused, and the refusal of
+  2026-08-30 does extend to it** — for a reason specific to a detail rather than a general one. The
+  volume detail re-reads on **every** container event of any action
+  (`.sdd/tech-debt/entries/detail-views-reread-on-unrelated-events.md`), so its rate belongs to the
+  daemon and not to us: a `compose up`, or a running health check, would each buy a full
+  `/containers/json?all=true`. "One open panel, one request" is exactly what this reader is not.
+- **Telling the client across the server boundary was refused too.** It would add a new kind of notice to
+  the event stream and a new subscription to a detail hook, to end up asking the same endpoint again —
+  the same wait, one HTTP round trip later. The business spec puts "pushing values to the browser
+  instead of the browser asking" and any change to the client's hooks out of scope.
+- **A second client read after a delay is forbidden and was not weighed.** It is a wait put there to
+  make things pass.
+- **The known millisecond window is inherited, not widened.** A read starting in the same millisecond as
+  the notice counts as covering it (`.sdd/tech-debt/entries/change-coverage-millisecond-window.md`).
+  Here the covering read is the one that notice caused, so the case is narrower than the entry's. The
+  entry is neither closed nor extended.
+- **No debt entry is opened or closed.** This is a defect being fixed now, not a cost being deferred.
+  `detail-views-reread-on-unrelated-events` stays open and untouched: it is about which events justify a
+  re-read, and this batch is about what a re-read is answered with.
+
+### Departures
+
+- **The two validation gates were not held.** The human was unavailable and delegated every decision to
+  the orchestrator, including the requirement wording, the road chosen and the two readers left out of
+  the perimeter. The planner did not stop at Step 2 or Step 5. What was decided in the human's place is
+  listed above and in the batch file; nothing here is an open question.
+- **No departure from the business spec.**
+  `.sdd/analysis/docker_management_app-refresh_cache.md` says a detail view must show its object as the
+  daemon reports it now, and this batch is the first thing to make that true of the part of the volume
+  detail the daemon does not report. It holds no detail value, pushes nothing to the browser and changes
+  no client hook, so the three relevant out-of-scope entries are respected. No correction to the spec is
+  owed. **The component specs are a different matter and the batch owes them a correction**:
+  `refresh-cache.md` states the whole contract of `read()` and does not carry the coverage a caller may
+  ask for, and `volumes-service.md` states the "never older than the container listing" guarantee for
+  the **listing** alone. `INT-6` and `INT-7` carry it, per
+  [[every-change-updates-spec-requirements-plan]]. That is spec-carrying work, not a departure.
+- **The closing full pass stays withdrawn**, for the sixth batch of this plan running. Both suites were
+  red before this cycle on failures of their own. The run is this batch's own perimeter — its new
+  checks, the existing refresh-cache, shared-container-listing and derived-lists checks, the volumes
+  checks, and `client/e2e/detail-reread-scoped.spec.ts` with `--repeat-each=2`, which is the only form in
+  which that spec says anything about this defect.
+
+### Coverage check — the appended requirements
+
+REQ-58 to REQ-63 are each served by at least one intervention of `detail-derivation-follows-the-listing`,
+and each of its fourteen interventions serves at least one of them; the rows are in the table above. No
+appended REQ is split across batches: all six close here. There is no enabling intervention.
+
+Three notes on it.
+
+- **REQ-59 and REQ-60 are guardrails served by checks and by no change of their own**, like REQ-54 and
+  REQ-43 before them. They are the two ways this correction could pay for itself out of savings already
+  in the product: one by asking the daemon again, the other by making everybody wait.
+- **REQ-61 is what the half-repair fails.** Waiting for whatever read is in flight closes REQ-58 in the
+  case the report measured and does nothing when the grouping window has deferred the listing's re-read
+  — the ordinary case, since the three events of `docker rm -fv` arrive inside one window. `INT-9` and
+  `INT-12` are what refuse it.
+- **REQ-62 and REQ-63 carry the whole risk of the coverage**, as REQ-56 and REQ-57 did. A check written
+  against a freshly started server passes with and without the correction, and a check that waits before
+  asking is testing a listing that has already been replaced.
