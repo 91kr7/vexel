@@ -134,20 +134,24 @@ test("GET /api/images/:id/push/stream pushes an image to a registry and ends onc
 test("GET /api/images/:id/push/stream reports the daemon's rejection as an error event for an unpushable reference", async () => {
   const app = buildApp();
   const { url, close } = await startApp(app);
-  const reference = `localhost:1/nonexistent-registry-${Date.now()}:v1`;
+  // `127.0.0.1:1` and never `localhost:1`: see the budget note below.
+  const reference = `127.0.0.1:1/nonexistent-registry-${Date.now()}:v1`;
   try {
     await execFileAsync("docker", ["tag", "alpine:3.20", reference]);
     const { stdout: imageId } = await execFileAsync("docker", ["inspect", reference, "--format", "{{.Id}}"]);
     const response = await fetch(`${url}/api/images/${encodeURIComponent(imageId.trim())}/push/stream?reference=${encodeURIComponent(reference)}`);
-    // An unreachable host is a dial timeout on the daemon's side, not a fast rejection — and this
-    // daemon states that refusal at either 30.1s or 60.2s (one dial attempt or two), measured over
-    // six consecutive runs, about half and half. The forty-five seconds this budget used to grant
-    // sat between the two modes and lost roughly half the runs to a refusal the product had
-    // reported perfectly. 120s clears the slow mode; it is not a budget raised over a failure that
-    // never arrives, which REQ-10 forbids — the refusal arrives every time, carrying the daemon's
-    // address and cause verbatim (plan-docker_management_app-push_failure_reporting/REQ-10, as
-    // amended on 2026-08-27 with this measurement).
-    const events = await readSseUntilDone(response, 120_000);
+    // The refusal is stated in 0.06–0.08s, measured over three consecutive pushes, so this budget
+    // is patience for the stream and the route rather than for the daemon
+    // (plan-docker_management_app-push_failure_reporting/REQ-10).
+    //
+    // It used to be 120s, for a refusal recorded as arriving at "either 30.1s or 60.2s, one dial
+    // attempt or two". That was not the daemon being of two minds: the address was `localhost:1`,
+    // which resolves to `::1` first inside the daemon's VM, and `[::1]:1` swallows the connection
+    // instead of refusing it — so each attempt burned an entire dial timeout
+    // (`dial tcp [::1]:1: i/o timeout`) and the "slow mode" was simply two of them. The IPv4
+    // loopback refuses outright, is covered by the same `127.0.0.0/8` insecure-registry entry, and
+    // leaves no second mode to budget for.
+    const events = await readSseUntilDone(response, 15_000);
 
     const errorEvent = events.find((event) => event.event === "error");
     assert.ok(errorEvent, "expected an error event for an unpushable reference");

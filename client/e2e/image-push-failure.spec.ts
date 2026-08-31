@@ -12,11 +12,21 @@
  * `server/test/unit/image-transfer-service.test.ts` and
  * `server/test/unit/image-transfer-outcome-endpoint.test.ts`.
  *
- * No network is reached: `localhost:1` answers nothing, and the daemon takes
- * either 30.1s or 60.2s to give up on it (measured, see the budget below). Every
- * budget here is therefore well above the forty-five seconds the plan grants —
- * never below — and no assertion here is that a stretch of time passed without
- * events.
+ * No network is reached: nothing listens on port 1 of the loopback, and the daemon says so at once.
+ * The address is written **`127.0.0.1:1` and never `localhost:1`**, and that is the difference
+ * between a tenth of a second and thirty seconds. `localhost` resolves to `::1` first inside the
+ * daemon's own VM, and `[::1]:1` does not refuse the connection — it swallows it, so the daemon
+ * spends its entire dial timeout before giving up: `dial tcp [::1]:1: i/o timeout`, measured at
+ * 30.14s / 30.10s / 30.09s over three consecutive pushes. The IPv4 loopback answers
+ * `connect: connection refused` in 0.06–0.08s over the same three, and is covered by the same
+ * `127.0.0.0/8` entry of the daemon's insecure-registry list, so the registry is treated
+ * identically. That also retires the "30.1s or 60.2s, one dial attempt or two" this file used to
+ * record: the slow mode was two whole dial timeouts, not a daemon of two minds, and there is no
+ * bimodality left to budget for.
+ *
+ * A refusal is also what REQ-1 is written about — "when the daemon **refuses** a push" — so what is
+ * reproduced here is now the requirement's own case rather than its unreachable neighbour. No
+ * assertion here is that a stretch of time passed without events.
  */
 import { expect, test, type Page } from './support/test.js';
 import { CASE_LABEL, OWNER_LABEL, RUN_ID, openApp, ownershipArgs } from './support/fixtures.js';
@@ -25,17 +35,20 @@ import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
 import { clickAt } from './support/pointer.js';
 import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 
-/** The address that answers nothing: the refusal is reproduced without reaching any network. */
-const UNREACHABLE_REGISTRY = 'localhost:1';
+/**
+ * The address that refuses: nothing listens on port 1, and the IPv4 loopback states that rather
+ * than timing out on it. Never `localhost:1` — see the note at the top of this file.
+ */
+const UNREACHABLE_REGISTRY = '127.0.0.1:1';
 
 /**
- * Well above the forty-five seconds the plan grants, and deliberately not tuned
- * to the fast case: measured on this daemon, the same refusal is stated at
- * either 30.1s or 60.2s — one dial attempt or two — over six consecutive runs,
- * three of each. A budget between those two values fails half the time on a
- * refusal the product reported perfectly.
+ * The refusal itself costs 0.06–0.08s, measured over three consecutive pushes. What this budget
+ * covers is everything between it and the banner — the daemon's stream, the server's own
+ * translation of it and the render — with a wide margin, and it stays well above the refusal time
+ * as REQ-10's first clause requires. It is not tuned to a fast path that has a slow twin: with the
+ * connection refused instead of blackholed there is only the one path.
  */
-const REFUSAL_BUDGET = 150_000;
+const REFUSAL_BUDGET = 15_000;
 
 test.describe.configure({ mode: 'serial' });
 
@@ -78,9 +91,9 @@ test.beforeEach(async ({ page }) => {
 
 // plan-docker_management_app-push_failure_reporting/REQ-1, REQ-2, REQ-3, REQ-4, REQ-8, REQ-9, REQ-10
 test('a push to an address that answers nothing is shown as a failure, with the daemon’s own words, and stays until dismissed', async ({ page }) => {
-  // The daemon's own refusal is what is waited for, so the default per-test
-  // budget is not the measure of anything this test is about.
-  test.setTimeout(240_000);
+  // Above the default, because the fixture image is committed inside the test and the banner is
+  // then watched for three seconds standing still — not because the refusal is slow: it is not.
+  test.setTimeout(60_000);
   const containerName = `vexel-e2e-push-refused-${Date.now()}`;
   const reference = `${UNREACHABLE_REGISTRY}/vexel-e2e-push-refused-${Date.now()}:v1`;
   await createStandaloneImage(reference, containerName);
