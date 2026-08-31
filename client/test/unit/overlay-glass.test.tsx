@@ -36,17 +36,10 @@ interface CssRule {
   declarations: string;
 }
 
-/**
- * Every stylesheet shipped under client/src/, path and content, comments
- * stripped. The conformance check's fixture directory is skipped: that suite
- * writes deliberately illegal stylesheets there for the length of one spawn,
- * and a scan of the shipped code must not depend on whether it is mid-run
- * (CLAUDE.md, "Tests" — a test depends on nothing another test did).
- */
+/** Every stylesheet shipped under client/src/, path and content, comments stripped. */
 function stylesheets(directory = srcRoot): { path: string; css: string }[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
-    if (entry.name === '__conformance-fixture__') return [];
     if (entry.isDirectory()) return stylesheets(path);
     if (!entry.name.endsWith('.css')) return [];
     return [{ path, css: readFileSync(path, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '') }];

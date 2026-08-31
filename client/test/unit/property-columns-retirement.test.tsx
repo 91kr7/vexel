@@ -27,9 +27,6 @@ const source = (...parts: string[]) => readFileSync(join(clientRoot, ...parts), 
 function clientFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
-    // The conformance suite writes and removes fixtures in its own directory while it runs, so a
-    // scan that reaches into it reads files that are gone by the time it opens them.
-    if (entry.name === '__conformance-fixture__') return [];
     if (entry.isDirectory()) return entry.name === 'node_modules' || entry.name === 'dist' ? [] : clientFiles(path);
     return /\.(tsx?|css|mjs)$/.test(entry.name) ? [path] : [];
   });

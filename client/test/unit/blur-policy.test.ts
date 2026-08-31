@@ -57,16 +57,10 @@ function constantSelectors(): string[] {
   return [...declaration[1].matchAll(/['"`]([^'"`]+)['"`]/g)].map((match) => match[1]);
 }
 
-/**
- * Every stylesheet shipped under client/src/, path and content. The conformance
- * check's fixture directory is skipped: that suite writes deliberately illegal
- * stylesheets there while it runs, and this scan must not depend on whether it
- * is mid-run (CLAUDE.md, "Tests" — a test depends on nothing another test did).
- */
+/** Every stylesheet shipped under client/src/, path and content. */
 function stylesheets(directory = join(process.cwd(), 'src')): { path: string; css: string }[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
-    if (entry.name === '__conformance-fixture__') return [];
     if (entry.isDirectory()) return stylesheets(path);
     return entry.name.endsWith('.css') ? [{ path, css: readFileSync(path, 'utf8') }] : [];
   });
