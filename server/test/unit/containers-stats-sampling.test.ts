@@ -429,3 +429,153 @@ test("a listing marked changed with its read in flight costs no sample", async (
     await settle();
   }
 });
+
+// --- The state the six figures are answered against
+// (plan-docker_management_app-containers_card_view-stopped-container-no-sample/REQ-1 to REQ-5).
+//
+// Each case stops the sampler before the listing changes state, so the periodic drop of a cached
+// sample cannot be what makes it pass: the reading is still held, and still fresh.
+
+const STOPPED_ID = "7777777777777777";
+const SYSTEM_CPU_DELTA = 10_000_000_000;
+const ONLINE_CPUS = 4;
+const DEFAULT_MEMORY = { usage: 600 * 1024 * 1024, limit: 2048 * 1024 * 1024, cache: 100 * 1024 * 1024 };
+/** What a paused container reports, measured on the operator's daemon (REQ-4, "Values fixed here"). */
+const PAUSED_MEMORY = { usage: 831_488, limit: 18_830_254_080, cache: 0 };
+
+/** A stats frame that yields a given `cpuPercent` under the service's own formula. */
+function statsFrameAtCpuPercent(percent: number, memory = DEFAULT_MEMORY): unknown {
+  const cpuDelta = (percent * SYSTEM_CPU_DELTA) / (ONLINE_CPUS * 100);
+  return {
+    read: "2026-08-31T10:00:00.000000000Z",
+    cpu_stats: {
+      cpu_usage: { total_usage: 1_000_000_000 + cpuDelta },
+      system_cpu_usage: 1_000_000_000 + SYSTEM_CPU_DELTA,
+      online_cpus: ONLINE_CPUS,
+    },
+    precpu_stats: { cpu_usage: { total_usage: 1_000_000_000 }, system_cpu_usage: 1_000_000_000, online_cpus: ONLINE_CPUS },
+    memory_stats: { usage: memory.usage, limit: memory.limit, stats: { cache: memory.cache } },
+    networks: { eth0: { rx_bytes: 1000, tx_bytes: 2000 } },
+  };
+}
+
+const SIX_FIGURES = [
+  "cpuPercent",
+  "memoryUsageBytes",
+  "memoryLimitBytes",
+  "onlineCpus",
+  "networkRxBytes",
+  "networkTxBytes",
+] as const;
+
+// REQ-1, REQ-2 — the figures reach only a container the same listing puts in the running set.
+test("a container the listing reports as exited is answered with none of the six figures, fresh sample or not", async () => {
+  serveListings([containerInState("running", STOPPED_ID)], [containerInState("running", STOPPED_ID)]);
+  engine.on("GET", /^\/containers\/[^/]+\/stats$/, () => statsFrameAtCpuPercent(4));
+
+  startStatsSampling();
+  await settle();
+  stopStatsSampling();
+
+  const [whileRunning] = await listContainers();
+  assert.equal(typeof whileRunning?.cpuPercent, "number", "the case would pass on a sampler doing nothing");
+
+  serveListings([containerInState("exited", STOPPED_ID)], []);
+  const [afterItStopped] = await listContainers();
+
+  assert.equal(afterItStopped?.state, "exited");
+  for (const figure of SIX_FIGURES) {
+    assert.equal(afterItStopped?.[figure], undefined, `the answer states exited and a measured ${figure} at once`);
+  }
+  assert.equal(afterItStopped?.id, STOPPED_ID, "what is withheld is the reading, not the row");
+});
+
+// REQ-3 — what a stopped container loses is any reading, not only a zero.
+test("a container measured at 12 per cent is answered with no figure at all once the listing calls it exited", async () => {
+  serveListings([containerInState("running", STOPPED_ID)], [containerInState("running", STOPPED_ID)]);
+  engine.on("GET", /^\/containers\/[^/]+\/stats$/, () => statsFrameAtCpuPercent(12));
+
+  startStatsSampling();
+  await settle();
+  stopStatsSampling();
+
+  const [whileRunning] = await listContainers();
+  assert.equal(whileRunning?.cpuPercent, 12, "the container was never reported at 12 per cent: the case measures nothing");
+
+  serveListings([containerInState("exited", STOPPED_ID)], []);
+  const [afterItStopped] = await listContainers();
+
+  assert.equal(afterItStopped?.cpuPercent, undefined, "the last figure measured outlived the container it was measured on");
+  assert.equal(afterItStopped?.memoryUsageBytes, undefined);
+  assert.equal(afterItStopped?.memoryLimitBytes, undefined);
+});
+
+// REQ-4, REQ-1 — the daemon's running set keeps its figures, a measured zero included.
+test("a paused and a restarting container keep all six figures, and a measured zero keeps its capacity", async () => {
+  const wholeListing = Object.entries(STATE_IDS).map(([state, id]) => containerInState(state, id));
+  const runningOnes = ["running", "paused", "restarting"].map((state) => containerInState(state, STATE_IDS[state]!));
+  serveListings(wholeListing, runningOnes);
+  const pausedStatsPath = `/containers/${STATE_IDS.paused}/stats`;
+  engine.on("GET", /^\/containers\/[^/]+\/stats$/, (call) =>
+    call.pathname === pausedStatsPath ? statsFrameAtCpuPercent(0, PAUSED_MEMORY) : statsFrameAtCpuPercent(7),
+  );
+
+  startStatsSampling();
+  await settle();
+  stopStatsSampling();
+
+  const listed = new Map((await listContainers()).map((summary) => [summary.id, summary] as const));
+
+  for (const state of ["running", "paused", "restarting"]) {
+    const summary = listed.get(STATE_IDS[state]!);
+    for (const figure of SIX_FIGURES) {
+      assert.equal(typeof summary?.[figure], "number", `the ${state} container lost its ${figure}`);
+    }
+  }
+
+  const paused = listed.get(STATE_IDS.paused!);
+  assert.equal(paused?.cpuPercent, 0, "the paused container was not answered with the zero it was measured at");
+  assert.equal(paused?.memoryLimitBytes, PAUSED_MEMORY.limit, "a measured zero lost the capacity it is stated against");
+  assert.equal(paused?.memoryUsageBytes, PAUSED_MEMORY.usage);
+
+  for (const state of ["created", "exited", "dead"]) {
+    const summary = listed.get(STATE_IDS[state]!);
+    assert.notEqual(summary, undefined, `the ${state} container is not listed at all`);
+    for (const figure of SIX_FIGURES) {
+      assert.equal(summary?.[figure], undefined, `the ${state} container carries a ${figure}`);
+    }
+  }
+});
+
+// REQ-2 — the same rule on the listing the endpoint answers with, which is what serves a card.
+test("the listing the endpoint answers with withholds the figures of a container it reports as exited", async () => {
+  engine.on("GET", "/containers/json", (call) =>
+    call.query.get("all") === "true" ? [containerInState("exited", STOPPED_ID)] : [containerInState("running", STOPPED_ID)],
+  );
+  engine.on("GET", /^\/containers\/[^/]+\/stats$/, () => statsFrameAtCpuPercent(9));
+
+  startStatsSampling();
+  await settle();
+  stopStatsSampling();
+  assert.equal(statsRequestsFor(STOPPED_ID), 1, "the container was never sampled: the case would pass on an empty cache");
+
+  const [summary] = (await readContainerList()).value;
+
+  assert.equal(summary?.state, "exited");
+  for (const figure of SIX_FIGURES) {
+    assert.equal(summary?.[figure], undefined, `the endpoint's listing states exited and a measured ${figure} at once`);
+  }
+});
+
+// REQ-5 — a container the sampler has never read is still answered with no figures.
+test("a running container the sampler has never read is answered with none of the six figures", async () => {
+  serveListings([runningContainer()], [runningContainer()]);
+
+  const [summary] = await listContainers();
+
+  assert.equal(statsRequests(), 0, "the sampler ran: the container was not left unread");
+  assert.equal(summary?.state, "running");
+  for (const figure of SIX_FIGURES) {
+    assert.equal(summary?.[figure], undefined, `an unsampled container carries a ${figure}`);
+  }
+});
