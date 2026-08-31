@@ -23,6 +23,8 @@
     "lint": "npm run lint:swarm-absence && npm run lint -w client",
     "//lint:swarm-absence": "The one check that spans both source trees, so it lives here rather than in a workspace: swarm left the product on 2026-08-27 and this is what keeps it gone. It is also the whole automated proof that a daemon in swarm mode changes nothing, no check of this project ever initialising a swarm.",
     "lint:swarm-absence": "node scripts/check-swarm-absence-conformance.mjs",
-    "test": "npm run lint:swarm-absence && npm run test -w server && npm run test -w client"
+    "test": "npm run lint:swarm-absence && npm run test -w server && npm run test -w client",
+    "//test:e2e:per-file": "One file at a time, each with its own timestamps, so a slow spec can be told from a slow suite. Two details it cannot do without. The path is passed relative to the client workspace (`e2e/name.spec.ts`) and never the bare basename: `plugins.spec.ts` and `system-prune.spec.ts` exist in both directories, and a basename filter would run the pair. And a destructive spec is run with `--project=exclusive --no-deps`: that project declares the parallel one as its dependency, so without the flag one file drags the whole suite in front of it. A failing file does not stop the loop — its exit code is printed and the next file starts, since the point is to time all of them.",
+    "test:e2e:per-file": "for f in $(ls client/e2e/*.spec.ts client/e2e/exclusive/*.spec.ts); do t=${f#client/}; case $t in e2e/exclusive/*) p='--project=exclusive --no-deps';; *) p='--project=chromium';; esac; echo ''; echo \"=== $t\"; s=$(date +%s); echo \"start $(date '+%Y-%m-%d %H:%M:%S')\"; npm run test:e2e -w client -- --quiet \"$t\" $p; r=$?; e=$(date +%s); echo \"end   $(date '+%Y-%m-%d %H:%M:%S')  took $((e-s))s  exit $r\"; done"
   }
 }
