@@ -8,12 +8,24 @@
 // library nor a feature file may go back to drawing a surface per row, bar the
 // paths admitted by name below.
 // Wired into `npm run lint` and `npm run test` (client workspace).
+//
+// The tree to scan is the first argument; with none it is `client/src`, this
+// script's own client. That argument exists so the check driving this script
+// writes its bait sources in a scanned root of its own: a check never writes
+// inside a tree another check reads. Those scans list a directory and then read
+// every file it returned, with no catch around the read — an unreadable file in
+// a scanned root is a broken tree, and no scan is asked to tolerate one — so a
+// bait removed between the listing and the read kills a pass that has nothing to
+// do with it. And no product source is ever edited to make a check calmer.
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { extname, join, relative, sep } from 'node:path';
 import ts from 'typescript';
 
-const clientRoot = new URL('..', import.meta.url).pathname;
-const srcRoot = join(clientRoot, 'src');
+// The scanned root, and what is read off it: `clientRoot` keeps its name and
+// becomes that root's parent, so the reported paths, the UI-library sub-tree and
+// the `client/…` form the card-row admission matches all follow the tree given.
+const srcRoot = process.argv[2] ?? join(new URL('..', import.meta.url).pathname, 'src');
+const clientRoot = join(srcRoot, '..');
 const uiRoot = join(srcRoot, 'ui');
 const blurExceptionMarker = 'ui-blur-exception:';
 

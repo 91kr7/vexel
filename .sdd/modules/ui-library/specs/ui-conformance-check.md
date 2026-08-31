@@ -14,21 +14,26 @@ surfaces, only with the bounded blur token), and the retirement of the card-per-
 
 ## Contract
 
-- runs as a Node script over every `.ts` / `.tsx` / `.css` file under `client/src/`, invoked by the
-  client workspace's lint and test commands
+- runs as a Node script over every `.ts` / `.tsx` / `.css` file under the **tree it is given as its
+  first argument**; with no argument that tree is `client/src/`, resolved from the script's own
+  location, which is how the client workspace's lint and test commands invoke it
   - no violation → exit code `0`, one line on stdout saying the check passed
   - one or more violations → exit code `1`, and on stderr one line per violation followed by their
     count and a pointer to `CLAUDE.md`
-- every violation line names the file (relative to the client workspace) and the line number
+- everything else is read off that tree, relative to **its parent**: the path each violation names,
+  the `ui/` sub-tree treated as the UI library, and the `client/<path>` form the card-row admission
+  below is matched against. With no argument the parent is the client workspace, so every message,
+  every admission and every exit code is what it was before the argument existed
+- every violation line names the file (relative to the scanned tree's parent) and the line number
 
-### Boundary violations (feature code — everything under `client/src/` except `client/src/ui/`)
+### Boundary violations (feature code — the scanned tree except its own `ui/` sub-tree)
 
 - a raw DOM tag in JSX → reported as `raw DOM tag "<tag>"`
 - a `className` or a `style` prop on a JSX element → reported as `"className" prop` / `"style" prop`
 - an `import` of a `.css` file whose specifier does not target the UI library → reported as
   `CSS import outside client/src/ui/`
 
-### Blur policy (every stylesheet under `client/src/`, the UI library's own included)
+### Blur policy (every stylesheet in the scanned tree, the UI library's own included)
 
 - a declaration computes a runtime blur when it is a `backdrop-filter` (any vendor prefix) with a
   value other than `none`, or a `filter` whose value carries `blur(` or the blur token
@@ -48,7 +53,7 @@ surfaces, only with the bounded blur token), and the retirement of the card-per-
 - a `ui-blur-exception:` comment on the declaration's own line or on the line above it exempts that
   declaration from the whole policy — the residual escape hatch for a case outside the list
 
-### The card row stays retired (every file under `client/src/`)
+### The card row stays retired (every file in the scanned tree)
 
 An object list is one table — one header, ruled rows beneath it, **no surface per row**. Both ways
 back are refused, and every violation names the decision and points at the record that made it
@@ -100,6 +105,13 @@ back are refused, and every violation names the decision and points at the recor
   against `.ui-nav-rail`) is not allow-listed.
 - `backdrop-filter: none` and `filter: none` are not runtime blurs: switching the material off — as
   a reduced-transparency rule does — is always permitted, anywhere.
+- **The scanned tree is given, never written into.** A check that drives this script points it at a
+  tree of its own, outside the repository's source trees: nothing a check creates ever appears inside
+  a tree another check reads. That is the whole reason the argument exists, and the script's own
+  header states it.
+- **A file the scan listed is read with no catch around the read.** An unreadable file inside the
+  scanned tree is a broken tree, and the check fails on it rather than stepping over it; no read is
+  retried and no failure is swallowed.
 - The check reads text: it is a single pass with no dependency beyond TypeScript's own parser
   (already a client dependency) and never needs a CSS engine. Comments and quoted strings inside a
   stylesheet neither hide a declaration nor shift the line a violation is reported on.
@@ -144,3 +156,7 @@ back are refused, and every violation names the decision and points at the recor
 - plan-docker_management_app-containers_card_view/REQ-61
 - plan-docker_management_app-containers_card_view/REQ-62
 - plan-docker_management_app-containers_card_view/REQ-63
+- plan-docker_management_app-containers_card_view/REQ-74
+- plan-docker_management_app-containers_card_view/REQ-75
+- plan-docker_management_app-containers_card_view/REQ-76
+- plan-docker_management_app-containers_card_view/REQ-78
