@@ -14,13 +14,20 @@ Batch numbers and `REQ-n`/`INT-n` ids are local to this plan.
 | Batch | Feature | REQ closed | Depends | Status | Human acceptance |
 | --- | --- | --- | --- | --- | --- |
 | 1 · figures-follow-the-listing | F1 — A container the listing does not call running is answered with no figures | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7 | — | certified | A stopped container says it has no measurement |
-| 2 · an-empty-frame-is-no-measurement | F2 — A pass refuses the answer given for a container that is no longer running | REQ-8, REQ-9, REQ-10, REQ-11 | 1 | implemented | A container stopped and started again shows no figure it did not measure |
+| 2 · an-empty-frame-is-no-measurement | F2 — A pass refuses the answer given for a container that is no longer running | REQ-8, REQ-9, REQ-10, REQ-11 | 1 | certified | A container stopped and started again shows no figure it did not measure |
 
 Batch statuses (`todo | in progress | implemented | certified`) are advanced only by the
-orchestrators of the later phases. This cycle ran no test of its own — see the first assumption
-below — so **both batches were certified on the operator's own outcome**: they ran
-`containers-card-geometry.spec.ts` themselves on 2026-08-31, watched it in a visible browser, and
-reported the defect gone.
+orchestrators of the later phases. The batches were written without a run — see the first
+assumption below — and **certified afterwards on two complete passes**, on 2026-08-31, at the
+operator's own request once they were away from the machine: `npm run test` green end to end (lint,
+type-checks, the server's unit, API and exclusive passes, then 179 client files and 2673 cases), and
+`npm run test:e2e -w client -- --quiet` green with **648 tests passed in 35.6 minutes and nothing
+flaky**. The card check this plan exists for is among them, and it was run before that by the
+operator themselves in a visible browser.
+
+One case was red in between and was repaired: it compared a CPU percentage bit for bit, and a
+percentage that comes back out of a division is compared as a measurement. The product's own figure
+was correct and was not touched.
 
 Batch files:
 [`batches/batch-figures-follow-the-listing.md`](batches/batch-figures-follow-the-listing.md),
