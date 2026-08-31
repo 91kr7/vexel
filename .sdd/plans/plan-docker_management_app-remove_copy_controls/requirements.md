@@ -142,3 +142,52 @@ the fallback that genuinely remains, so that "recorded" is a verifiable claim an
 | REQ-33 | **Keyboard and assistive-technology operation does not regress.** Tab order shortens by exactly the removed controls and by nothing else; no value loses its association with its label; no focus is left pointing at a removed element; no surface is left with a focus trap, an empty labelled group or an action group announced with no members. No control anywhere was reachable only by tabbing past a copy control, so no keyboard route is lost — and that must remain true after the change. |
 | REQ-34 | **Nothing outside the client's copy affordance is touched.** No server file in the diff; no change to any Docker operation, to inspect, to digest shortening, to formatting, to caching or to any server response; no change to what the daemon returns or how it is transferred. **bug-1's progress dialog, bug-2's route into the filesystem browser, bug-3's interior layout of it, and bug-4's column rule, property set, ordering and content classes are delivered, certified and undisturbed** — bug-3's entry-metadata pane, which holds one of the removed controls, comes out otherwise visually unchanged. |
 | REQ-35 | **Verified against the real daemon, under the project's test discipline**: own fixtures carrying the ownership labels, full cleanup in a `finally`, `docker rm -fv`, no assumption of an empty daemon, no inherited application state, its own data directory, no test reaching Docker Hub, and **every spec passing on its own**. Checks that cannot run on a daemon that is not a swarm manager skip with their reason stated rather than being quietly dropped. English only, kebab-case for any new file or folder name. |
+
+## Appended on 2026-08-31 — the raw-console check bets against the console's contract
+
+> Appended after the check at `client/e2e/copy-affordance-absence.spec.ts:725` — *"raw console: no
+> transcript entry offers a copy, and every one keeps its Re-run and its status"* — went red again.
+> `expect(entries).toHaveCount(2)` receives 1, times out at 30 s and takes the test's budget with it.
+>
+> **The check types two commands one after the other and never waits for the first:**
+>
+> ```ts
+> for (const suffix of ['first', 'second']) {
+>   await prompt.fill(`docker ps --filter label=${marker}-${suffix}`);
+>   await prompt.press('Enter');
+> }
+> ```
+>
+> **The product declares that second submission inert.**
+> `.sdd/modules/ui-library/specs/console-surface.md:58` — "`Enter` in the prompt → calls `onSubmit`;
+> **does nothing when `busy`** or when the value is blank". The same section states what the operator
+> sees meanwhile: the running entry shows a pending indicator and a `Cancel` control appears. The
+> typed text stays in the prompt and is not lost.
+>
+> So the product does what its certified contract says, and the check expects the opposite. On an idle
+> machine the first `docker ps` finishes before the second `Enter` arrives, and the check passes. When
+> the whole file runs the daemon is loaded, the first command is still running, and the second
+> submission is ignored — by design.
+>
+> **The evidence was already on file**:
+> `.sdd/tech-debt/entries/raw-console-second-entry-order-dependent.md` — passes 2 of 2 when the case
+> runs alone, fails 2 of 2 when the whole file runs, seen in two consecutive full passes on
+> 2026-08-28. The failure snapshot shows the first entry complete (`exit 0`, `Re-run`) and the second
+> command's text sitting on the prompt line. That entry asked for which of the two was at fault to be
+> established before anything was decided. It is established, and it is the check.
+>
+> Per [[every-change-updates-spec-requirements-plan]] this is appended as a further batch. **Nothing
+> above this line was changed**, beyond the one row added to the batch table in `batches.md` and its
+> coverage rows. The certified batch is not reopened.
+
+## F9 — The raw-console check drives the console by its contract
+
+| ID | Requirement |
+| --- | --- |
+| REQ-36 | **The check sends its second command only after the first command's entry carries its final status.** It types into the prompt and presses `Enter` only while the console is not busy, so every command it sends is accepted. |
+| REQ-37 | **Nothing the check verifies changes.** It still asserts over **every** entry of the transcript, and over **more than one** entry, that no entry offers a copy control, that each keeps its `Re-run` and its status badge, and that no clipboard write is observed on the raw console screen. Absence is still read from what an entry's action group holds, never from the word `Copy` — the defect it was written for is that a check on the first entry alone says nothing about the others. |
+| REQ-38 | **The check passes when it runs alone and when its whole file runs, on every run of both.** It gets there with no retry, no softened assertion, no widened budget and no fixed delay. Waiting for the first command's own result is none of those: it is the precondition the product's contract states, and the check is deterministic with it and a race without it. |
+| REQ-39 | **The corrected check still fails if a copy affordance returns to a transcript entry.** A repair that makes the check green by making it blind is refused. |
+| REQ-40 | **No check in `client/e2e` or `client/test` submits a command to the console while another command is running.** The two trees are read for the same bet, and what is found is reported. |
+| REQ-41 | **`raw-console-second-entry-order-dependent` leaves the technical-debt register**: the entry file and its row in `.sdd/tech-debt/index.md` go, and the register's own text stops counting and naming it. No other entry moves. The register holds what is still open — the human's decision of 2026-08-29, written at the top of the register itself. |
+| REQ-42 | **The batch changes no product source.** Nothing under `client/src` or `server/src` moves, and no component spec and no module index changes. The console keeps ignoring `Enter` while it is busy, which is the behaviour this batch was written to respect. |
