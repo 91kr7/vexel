@@ -28,6 +28,13 @@ type: frontend hook
 - The inventory is re-read on a bounded poll — a slow one, because it changes only when somebody
   edits the local Docker configuration or the credential store (e.g. a `docker login` run from a
   terminal).
+- **What that now costs, since the server holds the inventory**
+  (`plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-59`): a `docker login`
+  or a `docker logout` typed in a terminal is noticed within the server's own period plus this poll
+  — about three quarters of a minute — and at once when the operator presses the refresh control. No
+  daemon event covers it: the credential lives in the local Docker configuration and the credential
+  store, which publish nothing. A log in or a log out made *here* is never subject to that bound:
+  the server states that the inventory has changed, so the read that follows describes it.
 - It re-reads on the active-context broadcast: another context can mean another daemon, and with it
   another view of which registries are insecure (REQ-93).
 - A read that settles after the hook unmounts updates nothing.
@@ -48,3 +55,4 @@ type: frontend hook
 - plan-docker_management_app/REQ-87
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-11
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-13
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-59

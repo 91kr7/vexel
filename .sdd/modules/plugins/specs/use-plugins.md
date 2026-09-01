@@ -35,6 +35,14 @@ of the daemon ones.
 - The poll is deliberately slow: every state change this hook drives re-reads the inventories on
   its own, so the interval only has to notice a `docker plugin` command run from a terminal, or a
   CLI plugin dropped into the installation.
+- **What that now costs, since the server holds the round**
+  (`plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-59`): a change made
+  outside the application is noticed within the server's own period plus this poll — about three
+  quarters of a minute — and at once when the operator presses the refresh control. A `docker
+  plugin` command marks the round due on the daemon's own event, so it is usually seen sooner; a
+  plugin dropped into the installation's CLI plugin directory announces nothing and takes the whole
+  bound. What the operator does *through the application* is never subject to it: each of those
+  operations states that the round has changed, so the read that follows describes it.
 - **A reading equal to the one in hand replaces nothing**
   (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-47): each listing keeps
   its identity while its own half is unchanged, so the panel over it is not redrawn — the round is
@@ -65,3 +73,4 @@ of the daemon ones.
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-13
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-47
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-48
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-59

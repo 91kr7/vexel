@@ -37,6 +37,12 @@ granted, and enabling, disabling and removing an installed one.
 - `disablePlugin(name) → DaemonPlugin` — answers with the plugin, now disabled.
 - `removePlugin(name) → void` — removes the plugin from the daemon.
   - rejects with the daemon's own refusal when the plugin is still enabled; nothing is forced.
+- **Each of the four operations states that the held round has changed**, once its own daemon call
+  has succeeded: install (as soon as the pull has ended), enable, disable and remove. So the listing
+  the screen reads back after the operator's action describes what they just did, never a state read
+  before it
+  (`plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-57`). An operation the
+  daemon refuses states nothing: nothing changed.
 
 ## Rules and invariants
 
@@ -55,9 +61,10 @@ granted, and enabling, disabling and removing an installed one.
 ## Dependencies
 
 - docker-access: EngineClient
-- plugins: DaemonPluginsService
+- plugins: DaemonPluginsService, PluginsInventoryService
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-99
 - plan-docker_management_app/REQ-111
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-57

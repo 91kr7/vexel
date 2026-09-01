@@ -1,4 +1,4 @@
-import { test, before, after } from "node:test";
+import { test, before, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:net";
 import { mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
@@ -10,6 +10,7 @@ import type { RepositorySummary, TagSummary } from "../../src/registries/registr
 import { ALPINE_IMAGE, REGISTRY_IMAGE, ensureImages } from "../support/base-images.js";
 import { buildApp, ownershipArgs, startApp } from "../support/fixtures.js";
 import { execFileAsync } from "../support/docker-cli.js";
+import { resetRefreshCache } from "../../src/refresh-cache/refresh-cache.js";
 
 // A pruned daemon is a starting state like any other: the base images these
 // fixtures are built on are ensured before anything else, with the operator's
@@ -209,6 +210,12 @@ async function captureProcessOutput(action: () => Promise<void>): Promise<string
   }
   return captured;
 }
+
+// The inventory is now a held value: cases that write the Docker configuration
+// behind the application's back must read it, not what a previous case held.
+beforeEach(() => {
+  resetRefreshCache();
+});
 
 before(async () => {
   await writeDockerConfig({ auths: {} });

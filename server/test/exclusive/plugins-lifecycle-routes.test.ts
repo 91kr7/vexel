@@ -1,4 +1,4 @@
-import { test, before, after } from "node:test";
+import { test, before, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { pluginsRouter } from "../../src/plugins/plugins-routes.js";
 import type { PluginListing } from "../../src/plugins/cli-plugins-service.js";
@@ -7,6 +7,7 @@ import { REGISTRY_IMAGE, ensureImages } from "../support/base-images.js";
 import { RUN_ID, buildApp, startApp } from "../support/fixtures.js";
 import { pluginIsInstalled, removePluginQuietly, startPluginFixture, type PluginFixture } from "../support/plugin-fixture.js";
 import { execFileAsync } from "../support/docker-cli.js";
+import { resetRefreshCache } from "../../src/refresh-cache/refresh-cache.js";
 
 // The one place a plugin is actually installed (REQ-111).
 //
@@ -49,6 +50,12 @@ async function reviewPrivileges(url: string, remote: string): Promise<unknown[]>
   assert.equal(status, 200, `reading the privileges failed: ${text}`);
   return body;
 }
+
+// The round is now a held value, and the last case installs a plugin with the
+// Docker CLI — outside the application, which states nothing — then reads it back.
+beforeEach(() => {
+  resetRefreshCache();
+});
 
 before(async () => {
   fixture = await startPluginFixture("plugins-lifecycle", `excl-${RUN_ID}`);

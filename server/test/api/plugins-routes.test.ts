@@ -1,4 +1,4 @@
-import { test, before, after } from "node:test";
+import { test, before, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { pluginsRouter } from "../../src/plugins/plugins-routes.js";
 import type { CliPlugin, PluginListing } from "../../src/plugins/cli-plugins-service.js";
@@ -8,6 +8,7 @@ import { byNameThenIdentity } from "../../src/list-order/list-order.js";
 import { REGISTRY_IMAGE, ensureImages } from "../support/base-images.js";
 import { RUN_ID, buildApp, startApp } from "../support/fixtures.js";
 import { pluginIsInstalled, removePluginQuietly, startPluginFixture, type PluginFixture } from "../support/plugin-fixture.js";
+import { resetRefreshCache } from "../../src/refresh-cache/refresh-cache.js";
 
 // The plugin endpoints against the operator's own daemon (REQ-98, REQ-99,
 // REQ-111).
@@ -50,6 +51,12 @@ async function postJson(url: string, path: string, body: unknown): Promise<{ sta
 function shapeOf(privileges: PluginPrivilege[]): string[] {
   return privileges.map((privilege) => `${privilege.name}=${privilege.values.join("|")}`).sort();
 }
+
+// The round is now a held value: each case reads the installation as it is when
+// it runs, not as a previous case left it held.
+beforeEach(() => {
+  resetRefreshCache();
+});
 
 before(async () => {
   fixture = await startPluginFixture("plugins-api", `api-${RUN_ID}`);

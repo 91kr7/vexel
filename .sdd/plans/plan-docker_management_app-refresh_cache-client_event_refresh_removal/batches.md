@@ -14,7 +14,7 @@ status: validated
 | `batch-container-detail-clock` | The container detail follows the container it shows | REQ-25, REQ-26, REQ-27, REQ-28, REQ-29, REQ-30, REQ-31, REQ-32, REQ-33, REQ-34, REQ-35, REQ-36, REQ-37, REQ-38, REQ-39 | `batch-dashboard-overview-clock` | implemented | The dialog stops contradicting itself |
 | `batch-volumes-networks-screen-scoped` | The volume and network listings are read only on their own screen | REQ-40, REQ-41, REQ-42, REQ-43, REQ-44, REQ-45, REQ-46 | `batch-container-detail-clock` | implemented | The server stops asking Docker too |
 | `batch-equal-reading-kept` | A reading equal to the one in hand replaces nothing | REQ-47, REQ-48, REQ-49, REQ-50, REQ-51, REQ-52, REQ-53 | `batch-volumes-networks-screen-scoped` | implemented | A list that has not changed stops being redrawn |
-| `batch-plugins-registries-held` | The plugins and the registries are held by the server | REQ-54, REQ-55, REQ-56, REQ-57, REQ-58, REQ-59, REQ-60, REQ-61, REQ-62 | `batch-equal-reading-kept` | todo | One reading of the installation, however many windows |
+| `batch-plugins-registries-held` | The plugins and the registries are held by the server | REQ-54, REQ-55, REQ-56, REQ-57, REQ-58, REQ-59, REQ-60, REQ-61, REQ-62 | `batch-equal-reading-kept` | implemented | One reading of the installation, however many windows |
 
 Execution order: the removal, then the Dashboard's clock, then the container detail's, then the three
 reductions in the human's own order — the two listings moving down onto their screen, the equal
