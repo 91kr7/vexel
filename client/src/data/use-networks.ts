@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToActiveContextChange } from './active-context';
 import { subscribeToReload } from './reload-signal';
 import { fetchNetworks, type NetworkSummary } from './networks-client';
+import { useKeptReading } from './use-kept-reading';
 import { cadence } from '../timing/timing-scale';
 
 const POLL_INTERVAL_MS = cadence(3000);
@@ -15,7 +16,7 @@ export interface UseNetworksResult {
 
 /** Reads the network list, re-reading on a bounded poll (REQ-72). */
 export function useNetworks(): UseNetworksResult {
-  const [networks, setNetworks] = useState<NetworkSummary[]>([]);
+  const [networks, keepNetworks] = useKeptReading<NetworkSummary[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
   const cancelledRef = useRef(false);
@@ -26,7 +27,7 @@ export function useNetworks(): UseNetworksResult {
     return fetchNetworks()
       .then((list) => {
         if (cancelledRef.current) return;
-        setNetworks(list);
+        keepNetworks(list);
         setError(undefined);
       })
       .catch((cause: Error) => {
@@ -37,7 +38,7 @@ export function useNetworks(): UseNetworksResult {
         if (cancelledRef.current) return;
         setLoaded(true);
       });
-  }, []);
+  }, [keepNetworks]);
 
   const refresh = useCallback(() => {
     void readOnce();

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToActiveContextChange } from './active-context';
 import { subscribeToReload } from './reload-signal';
 import { fetchVolumes, type VolumeSummary } from './volumes-client';
+import { useKeptReading } from './use-kept-reading';
 import { cadence } from '../timing/timing-scale';
 
 const POLL_INTERVAL_MS = cadence(3000);
@@ -15,7 +16,7 @@ export interface UseVolumesResult {
 
 /** Reads the volume list, re-reading on a bounded poll (REQ-70). */
 export function useVolumes(): UseVolumesResult {
-  const [volumes, setVolumes] = useState<VolumeSummary[]>([]);
+  const [volumes, keepVolumes] = useKeptReading<VolumeSummary[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
   const cancelledRef = useRef(false);
@@ -26,7 +27,7 @@ export function useVolumes(): UseVolumesResult {
     return fetchVolumes()
       .then((list) => {
         if (cancelledRef.current) return;
-        setVolumes(list);
+        keepVolumes(list);
         setError(undefined);
       })
       .catch((cause: Error) => {
@@ -37,7 +38,7 @@ export function useVolumes(): UseVolumesResult {
         if (cancelledRef.current) return;
         setLoaded(true);
       });
-  }, []);
+  }, [keepVolumes]);
 
   const refresh = useCallback(() => {
     void readOnce();

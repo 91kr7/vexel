@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToActiveContextChange } from './active-context';
 import { subscribeToReload } from './reload-signal';
 import { fetchContainers, type ContainerSummary } from './containers-client';
+import { useKeptReading } from './use-kept-reading';
 import { cadence } from '../timing/timing-scale';
 
 const POLL_INTERVAL_MS = cadence(3000);
@@ -15,7 +16,7 @@ export interface UseContainersResult {
 
 /** Reads the container list, re-reading on a bounded poll (REQ-19, REQ-20, REQ-21, REQ-22). */
 export function useContainers(): UseContainersResult {
-  const [containers, setContainers] = useState<ContainerSummary[]>([]);
+  const [containers, keepContainers] = useKeptReading<ContainerSummary[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
   const cancelledRef = useRef(false);
@@ -26,7 +27,7 @@ export function useContainers(): UseContainersResult {
     return fetchContainers()
       .then((list) => {
         if (cancelledRef.current) return;
-        setContainers(list);
+        keepContainers(list);
         setError(undefined);
       })
       .catch((cause: Error) => {
@@ -37,7 +38,7 @@ export function useContainers(): UseContainersResult {
         if (cancelledRef.current) return;
         setLoaded(true);
       });
-  }, []);
+  }, [keepContainers]);
 
   const refresh = useCallback(() => {
     void readOnce();

@@ -17,6 +17,7 @@ import {
   type PluginPrivilege,
   type PluginsReading,
 } from './plugins-client';
+import { useKeptReading } from './use-kept-reading';
 import { cadence } from '../timing/timing-scale';
 
 const POLL_INTERVAL_MS = cadence(15000);
@@ -58,8 +59,8 @@ export interface UsePluginsResult {
  * to the caller: they are the subject of a decision, never cached state.
  */
 export function usePlugins(): UsePluginsResult {
-  const [cli, setCli] = useState<PluginListing<CliPlugin>>(emptyListing);
-  const [daemon, setDaemon] = useState<PluginListing<DaemonPlugin>>(emptyListing);
+  const [cli, keepCli] = useKeptReading<PluginListing<CliPlugin>>(emptyListing());
+  const [daemon, keepDaemon] = useKeptReading<PluginListing<DaemonPlugin>>(emptyListing());
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
   const cancelledRef = useRef(false);
@@ -74,8 +75,8 @@ export function usePlugins(): UsePluginsResult {
         // the round rather than reach a panel.
         const nextCli = requireListing(reading?.cli, 'CLI plugins');
         const nextDaemon = requireListing(reading?.daemon, 'daemon plugins');
-        setCli(nextCli);
-        setDaemon(nextDaemon);
+        keepCli(nextCli);
+        keepDaemon(nextDaemon);
         setError(undefined);
       })
       .catch((cause: Error) => {
@@ -86,7 +87,7 @@ export function usePlugins(): UsePluginsResult {
         if (cancelledRef.current) return;
         setLoaded(true);
       });
-  }, []);
+  }, [keepCli, keepDaemon]);
 
   const refresh = useCallback(() => {
     void readOnce();

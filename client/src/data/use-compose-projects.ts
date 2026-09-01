@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToActiveContextChange } from './active-context';
 import { subscribeToReload } from './reload-signal';
 import { fetchComposeProjects, type ComposeProjectSummary } from './compose-client';
+import { useKeptReading } from './use-kept-reading';
 import { cadence } from '../timing/timing-scale';
 
 const POLL_INTERVAL_MS = cadence(3000);
@@ -15,7 +16,7 @@ export interface UseComposeProjectsResult {
 
 /** Reads the compose project list, re-reading on a bounded poll (REQ-75). */
 export function useComposeProjects(): UseComposeProjectsResult {
-  const [projects, setProjects] = useState<ComposeProjectSummary[]>([]);
+  const [projects, keepProjects] = useKeptReading<ComposeProjectSummary[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
   const cancelledRef = useRef(false);
@@ -26,7 +27,7 @@ export function useComposeProjects(): UseComposeProjectsResult {
     return fetchComposeProjects()
       .then((list) => {
         if (cancelledRef.current) return;
-        setProjects(list);
+        keepProjects(list);
         setError(undefined);
       })
       .catch((cause: Error) => {
@@ -37,7 +38,7 @@ export function useComposeProjects(): UseComposeProjectsResult {
         if (cancelledRef.current) return;
         setLoaded(true);
       });
-  }, []);
+  }, [keepProjects]);
 
   const refresh = useCallback(() => {
     void readOnce();

@@ -40,7 +40,10 @@ the inspect data beside them, while the listing is on screen.
   reports the daemon's own refusal verbatim (…-client_event_refresh_removal/REQ-34).
 - **A read that comes back the same as what is held replaces nothing**
   (…-client_event_refresh_removal/REQ-29): `processes` and `titles` keep their identity, so the
-  table is not redrawn and the operator's place in a long listing is kept.
+  table is not redrawn and the operator's place in a long listing is kept. **The rule lives in
+  app-shell's `useKeptReading`**, which each of the two is stored through: what a tick contracts
+  here is unchanged, and a tick now serialises the listing and the titles that arrived and nothing
+  else (…-client_event_refresh_removal/REQ-49, …-client_event_refresh_removal/REQ-50).
 - **A read that fails leaves the held listing in place** (…-client_event_refresh_removal/REQ-32) and
   reports the message through `error`, which is what the view draws instead of the table — the
   failure is told exactly as it was before the clock. This **replaces** the earlier rule that a
@@ -61,6 +64,7 @@ the inspect data beside them, while the listing is on screen.
 - Container stats client (fetchContainerProcesses, ContainerProcess)
 - timing-scale: Client timing scale (`cadence`)
 - app-shell: Reload signal
+- app-shell: useKeptReading
 
 ## Requirements served
 
@@ -74,3 +78,5 @@ the inspect data beside them, while the listing is on screen.
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-33
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-34
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-35
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-49
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-50

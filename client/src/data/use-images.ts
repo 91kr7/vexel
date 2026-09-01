@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToActiveContextChange } from './active-context';
 import { subscribeToReload } from './reload-signal';
 import { fetchImages, type ImageSummary } from './images-client';
+import { useKeptReading } from './use-kept-reading';
 import { cadence } from '../timing/timing-scale';
 
 const POLL_INTERVAL_MS = cadence(3000);
@@ -15,7 +16,7 @@ export interface UseImagesResult {
 
 /** Reads the image list, re-reading on a bounded poll (REQ-37, REQ-38, REQ-39). */
 export function useImages(): UseImagesResult {
-  const [images, setImages] = useState<ImageSummary[]>([]);
+  const [images, keepImages] = useKeptReading<ImageSummary[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
   const cancelledRef = useRef(false);
@@ -26,7 +27,7 @@ export function useImages(): UseImagesResult {
     return fetchImages()
       .then((list) => {
         if (cancelledRef.current) return;
-        setImages(list);
+        keepImages(list);
         setError(undefined);
       })
       .catch((cause: Error) => {
@@ -37,7 +38,7 @@ export function useImages(): UseImagesResult {
         if (cancelledRef.current) return;
         setLoaded(true);
       });
-  }, []);
+  }, [keepImages]);
 
   const refresh = useCallback(() => {
     void readOnce();

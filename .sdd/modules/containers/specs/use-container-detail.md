@@ -37,7 +37,10 @@ caller managing the fetching itself.
 - **A read that comes back the same as what is held replaces nothing**
   (…-client_event_refresh_removal/REQ-29): `inspect` keeps its identity, so nothing downstream is
   redrawn and what the operator has opened, typed, selected or scrolled to stays as it was. Only a
-  read that differs replaces.
+  read that differs replaces. **The rule lives in app-shell's `useKeptReading`**, which this hook
+  stores its reading through: what a tick contracts here is unchanged, and a tick now serialises the
+  payload that arrived and nothing else (…-client_event_refresh_removal/REQ-49,
+  …-client_event_refresh_removal/REQ-50).
 - **A read that fails leaves the last one in place** (…-client_event_refresh_removal/REQ-32):
   `inspect` is untouched and the message is reported through `error`, exactly as a failed manual
   refresh is. A container that has ceased to exist is reported the way it always was.
@@ -61,6 +64,7 @@ caller managing the fetching itself.
 - Containers client (fetchContainerInspect)
 - timing-scale: Client timing scale (`cadence`)
 - app-shell: Reload signal
+- app-shell: useKeptReading
 
 ## Requirements served
 
@@ -77,3 +81,5 @@ caller managing the fetching itself.
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-33
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-34
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-35
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-49
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-50

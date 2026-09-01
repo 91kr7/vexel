@@ -35,6 +35,12 @@ of the daemon ones.
 - The poll is deliberately slow: every state change this hook drives re-reads the inventories on
   its own, so the interval only has to notice a `docker plugin` command run from a terminal, or a
   CLI plugin dropped into the installation.
+- **A reading equal to the one in hand replaces nothing**
+  (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-47): each listing keeps
+  its identity while its own half is unchanged, so the panel over it is not redrawn — the round is
+  still one, both halves coming from the same answer. A half that differs replaces itself on the
+  tick it arrives, within the same period as before (…-client_event_refresh_removal/REQ-48). The
+  rule itself lives in app-shell's `useKeptReading`, which this hook stores each listing through.
 - Reads for no other reason of its own: a daemon event triggers nothing here
   (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1).
 - Re-reads on the manual reload signal, and that signal waits for this read: when the
@@ -47,6 +53,7 @@ of the daemon ones.
 - plugins: Plugins client
 - contexts: Active-context broadcast
 - app-shell: Reload signal
+- app-shell: useKeptReading
 
 ## Requirements served
 
@@ -56,3 +63,5 @@ of the daemon ones.
 - plan-docker_management_app/REQ-111
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-11
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-13
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-47
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-48
