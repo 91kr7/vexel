@@ -11,12 +11,13 @@ type: frontend hook
 ## Contract
 
 - `useComposeProjects(): { projects, loaded, error?, refresh }`
-  - Reads on mount, on a bounded poll, and on every `container` daemon event (a compose project is
-    made of containers).
+  - Reads on mount and on a bounded poll.
   - `refresh()` re-reads on demand (e.g. right after a lifecycle action).
 
 ## Rules and invariants
 
+- Reads for no other reason of its own: a daemon event triggers nothing here
+  (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1).
 - Re-reads from scratch when another context becomes the active one: the list belonged to the
   daemon left behind (REQ-93).
 - Re-reads on the manual reload signal, and that signal waits for this read: when the
@@ -27,13 +28,13 @@ type: frontend hook
 ## Dependencies
 
 - compose: Compose client (`fetchComposeProjects`)
-- events: daemon event subscription
 - contexts: Active-context broadcast
 - app-shell: Reload signal
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-75
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1
 - plan-docker_management_app/REQ-93
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-11
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-13

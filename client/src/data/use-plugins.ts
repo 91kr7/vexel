@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToActiveContextChange } from './active-context';
 import { subscribeToReload } from './reload-signal';
-import { subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
 import {
   disablePlugin,
   enablePlugin,
@@ -20,10 +19,6 @@ import {
 } from './plugins-client';
 import { cadence } from '../timing/timing-scale';
 
-// Installing, enabling, disabling and removing all emit a `plugin` daemon
-// event, so the poll only has to notice a `docker plugin` command run from a
-// terminal and a CLI plugin dropped into the installation — neither of which
-// announces itself. Hence a slow interval.
 const POLL_INTERVAL_MS = cadence(15000);
 
 function emptyListing<T>(): PluginListing<T> {
@@ -104,14 +99,6 @@ export function usePlugins(): UsePluginsResult {
       cancelledRef.current = true;
     };
   }, [refresh]);
-
-  useEffect(
-    () =>
-      subscribeToDaemonEvents((event: DaemonEvent) => {
-        if (event.type === 'plugin') refresh();
-      }),
-    [refresh],
-  );
 
   // Another context means another daemon: what is held here belongs to the one
   // left behind and is re-read at once (REQ-93).

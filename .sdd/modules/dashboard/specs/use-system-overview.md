@@ -6,8 +6,8 @@ type: frontend hook
 
 # useSystemOverview
 
-**Purpose** → holds the host overview the dashboard's tiles and disk-usage breakdown are built from,
-keeping it true to the daemon as the daemon changes.
+**Purpose** → holds the host overview the dashboard's tiles and disk-usage breakdown are built
+from.
 
 ## Contract
 
@@ -21,13 +21,12 @@ keeping it true to the daemon as the daemon changes.
 
 ## Rules and invariants
 
-- The overview is re-read whenever a `container`, `image`, `volume`, `network`, `builder` or
-  `service` daemon event arrives: those are the object types whose appearance, removal or state
-  change moves one of its numbers. A burst of such events — a compose up, a prune — leads to a
-  single re-read, not one per event.
-- `resize` and the exec lifecycle actions are ignored, exactly as the container list ignores them:
-  an open exec or attach session fires them on every keystroke-driven resize without moving
-  anything on the overview.
+- The overview is read when the dashboard is opened, when the operator asks for a refresh and on a
+  context switch — and at no other moment. A daemon event triggers nothing, so between those
+  moments the tiles show what was last read, and nothing on screen says so
+  (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1,
+  plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-2,
+  plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-10).
 - It does not poll: the reading behind it is the daemon's own disk-usage accounting, expensive on a
   large host, and a dashboard left open all day must not keep the daemon busy computing it.
 - What changes fast — a container's state, its CPU, its uptime — is not read here at all: the
@@ -44,13 +43,14 @@ keeping it true to the daemon as the daemon changes.
 ## Dependencies
 
 - system: System client (`fetchSystemOverview`)
-- events: Event stream client (`subscribeToDaemonEvents`)
 - contexts: active-context broadcast (`subscribeToActiveContextChange`)
 - app-shell: Reload signal
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-14
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-2
 - plan-docker_management_app/REQ-16
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-11
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-13

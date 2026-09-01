@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToReload } from './reload-signal';
 import { fetchImageInspect, type ImageInspect } from './images-client';
-import { daemonEventConcerns, subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
 
 export interface UseImageInspectResult {
   inspect?: ImageInspect;
@@ -11,10 +10,8 @@ export interface UseImageInspectResult {
 }
 
 /**
- * Reads a single image's inspect data (REQ-40), re-reading when `id` changes
- * and whenever an `image` daemon event about that same image arrives
- * (plan-docker_management_app-refresh_cache/REQ-7). Returns an empty result
- * when `id` is undefined (no image selected).
+ * Reads a single image's inspect data (REQ-40), re-reading when `id` changes. Returns an empty
+ * result when `id` is undefined (no image selected).
  */
 export function useImageInspect(id: string | undefined): UseImageInspectResult {
   const [inspect, setInspect] = useState<ImageInspect | undefined>(undefined);
@@ -56,14 +53,6 @@ export function useImageInspect(id: string | undefined): UseImageInspectResult {
       cancelledRef.current = true;
     };
   }, [id, refresh]);
-
-  useEffect(
-    () =>
-      subscribeToDaemonEvents((event: DaemonEvent) => {
-        if (event.type === 'image' && daemonEventConcerns(event, id)) refresh();
-      }),
-    [id, refresh],
-  );
 
   useEffect(() => subscribeToReload(readOnce), [readOnce]);
 

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToReload } from './reload-signal';
 import { fetchVolumeInspect, type VolumeInspect } from './volumes-client';
-import { daemonEventConcerns, subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
 
 export interface UseVolumeInspectResult {
   inspect?: VolumeInspect;
@@ -11,12 +10,8 @@ export interface UseVolumeInspectResult {
 }
 
 /**
- * Reads a single volume's inspect data, re-reading when `name` changes, on a
- * `volume` event about that same volume
- * (plan-docker_management_app-refresh_cache/REQ-7) and on every `container`
- * event, since the containers mounting the volume are part of what the view
- * shows. Returns an empty result when `name` is undefined (no volume
- * selected).
+ * Reads a single volume's inspect data, re-reading when `name` changes. Returns an empty result
+ * when `name` is undefined (no volume selected).
  */
 export function useVolumeInspect(name: string | undefined): UseVolumeInspectResult {
   const [inspect, setInspect] = useState<VolumeInspect | undefined>(undefined);
@@ -58,15 +53,6 @@ export function useVolumeInspect(name: string | undefined): UseVolumeInspectResu
       cancelledRef.current = true;
     };
   }, [name, refresh]);
-
-  useEffect(
-    () =>
-      subscribeToDaemonEvents((event: DaemonEvent) => {
-        if (event.type === 'container') refresh();
-        else if (event.type === 'volume' && daemonEventConcerns(event, name)) refresh();
-      }),
-    [name, refresh],
-  );
 
   useEffect(() => subscribeToReload(readOnce), [readOnce]);
 

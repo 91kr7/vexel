@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToActiveContextChange } from './active-context';
 import { subscribeToReload } from './reload-signal';
-import { subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
 import {
   fetchDiskUsage,
   pruneScope,
@@ -9,12 +8,6 @@ import {
   type DiskUsageCategoryId,
   type PruneRunResult,
 } from './system-client';
-
-/** The object types whose appearance or removal changes what is reclaimable. */
-const RELEVANT_EVENT_TYPES = new Set(['container', 'image', 'volume', 'network']);
-
-/** A prune emits one event per removed object: they are coalesced into a single re-read. */
-const EVENT_COALESCE_MS = 750;
 
 export interface UseDiskUsageResult {
   breakdown?: DiskUsageBreakdown;
@@ -25,14 +18,9 @@ export interface UseDiskUsageResult {
 }
 
 /**
- * Reads the reclaimable-space breakdown and drives the prunes over it
- * (REQ-95, REQ-96). The breakdown is re-read after every prune, and whenever a
- * daemon event says the host's objects have changed — which is also how the
- * container, image, volume and network lists of the other screens follow a
- * prune, each already subscribing to that same stream.
- *
- * `/system/df` is an expensive reading on a large host, so unlike the list
- * hooks this one does not poll: it re-reads on the events that can change it.
+ * Reads the reclaimable-space breakdown and drives the prunes over it (REQ-95, REQ-96), re-reading
+ * it after every prune. `/system/df` is an expensive reading on a large host, so unlike the list
+ * hooks this one does not poll.
  */
 export function useDiskUsage(): UseDiskUsageResult {
   const [breakdown, setBreakdown] = useState<DiskUsageBreakdown | undefined>(undefined);
@@ -68,19 +56,6 @@ export function useDiskUsage(): UseDiskUsageResult {
     refresh();
     return () => {
       cancelledRef.current = true;
-    };
-  }, [refresh]);
-
-  useEffect(() => {
-    let timer: number | undefined;
-    const unsubscribe = subscribeToDaemonEvents((event: DaemonEvent) => {
-      if (!RELEVANT_EVENT_TYPES.has(event.type)) return;
-      window.clearTimeout(timer);
-      timer = window.setTimeout(refresh, EVENT_COALESCE_MS);
-    });
-    return () => {
-      window.clearTimeout(timer);
-      unsubscribe();
     };
   }, [refresh]);
 

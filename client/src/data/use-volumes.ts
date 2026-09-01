@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToActiveContextChange } from './active-context';
 import { subscribeToReload } from './reload-signal';
 import { fetchVolumes, type VolumeSummary } from './volumes-client';
-import { subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
 import { cadence } from '../timing/timing-scale';
 
 const POLL_INTERVAL_MS = cadence(3000);
@@ -14,11 +13,7 @@ export interface UseVolumesResult {
   refresh: () => void;
 }
 
-/**
- * Reads the volume list, re-reading on a bounded poll, on every `volume`
- * daemon event, and on a `container` daemon event (a container's own mounts
- * change which volumes it mounts) (REQ-70).
- */
+/** Reads the volume list, re-reading on a bounded poll (REQ-70). */
 export function useVolumes(): UseVolumesResult {
   const [volumes, setVolumes] = useState<VolumeSummary[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -55,14 +50,6 @@ export function useVolumes(): UseVolumesResult {
       cancelledRef.current = true;
     };
   }, [refresh]);
-
-  useEffect(
-    () =>
-      subscribeToDaemonEvents((event: DaemonEvent) => {
-        if (event.type === 'volume' || event.type === 'container') refresh();
-      }),
-    [refresh],
-  );
 
   // Another context means another daemon: what is held here belongs to
   // the one left behind and is re-read at once (REQ-93).

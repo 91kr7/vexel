@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToActiveContextChange } from './active-context';
 import { subscribeToReload } from './reload-signal';
 import { fetchNetworks, type NetworkSummary } from './networks-client';
-import { subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
 import { cadence } from '../timing/timing-scale';
 
 const POLL_INTERVAL_MS = cadence(3000);
@@ -14,11 +13,7 @@ export interface UseNetworksResult {
   refresh: () => void;
 }
 
-/**
- * Reads the network list, re-reading on a bounded poll, on every `network`
- * daemon event, and on a `container` daemon event (a container's own
- * attachments change which networks list it) (REQ-72).
- */
+/** Reads the network list, re-reading on a bounded poll (REQ-72). */
 export function useNetworks(): UseNetworksResult {
   const [networks, setNetworks] = useState<NetworkSummary[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -55,14 +50,6 @@ export function useNetworks(): UseNetworksResult {
       cancelledRef.current = true;
     };
   }, [refresh]);
-
-  useEffect(
-    () =>
-      subscribeToDaemonEvents((event: DaemonEvent) => {
-        if (event.type === 'network' || event.type === 'container') refresh();
-      }),
-    [refresh],
-  );
 
   // Another context means another daemon: what is held here belongs to
   // the one left behind and is re-read at once (REQ-93).

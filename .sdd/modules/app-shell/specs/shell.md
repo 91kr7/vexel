@@ -101,9 +101,9 @@ Navigation:
   `plan-docker_management_app-about_license_notice/REQ-3`'s clause that the About screen keeps the
   daemon event stream: it is not to be restored here as a missing feature
   (plan-ui-coherence-optimisation/REQ-71).
-- The `DaemonEventStreamProvider` stays mounted in `App`, above the Shell: the Dashboard and the
-  invalidation registry read it, so one consumer stopping is the whole of the change — the service
-  itself, its connection handling and its content are untouched.
+- The `DaemonEventStreamProvider` stays mounted in `App`, above the Shell: the Dashboard reads it,
+  so one consumer stopping is the whole of the change — the service itself, its connection handling
+  and its content are untouched.
 - The About screen's content is `AboutNotice` first, then those two cards, then the coverage matrix.
   The notice going on top adds a card and reorders nothing: reaching the About entry of the
   permanent navigation is the single step that shows it, and no dialog, acknowledgement or first-run

@@ -8,7 +8,7 @@
 | ComposeLogsService | backend service | `server/src/compose/compose-logs-service.ts` | Aggregated log streaming for every service of a project through `docker compose logs --follow`, cancellable | `specs/compose-logs-service.md` |
 | Compose endpoints | REST endpoint | `server/src/compose/compose-routes.ts` | Exposes compose discovery answered from the refresh cache, plus lifecycle, scaling, file read/write/validate and aggregated log streaming to the client | `specs/compose-endpoints.md` |
 | Compose client | frontend data client | `client/src/data/compose-client.ts` | Typed `fetch` wrapper for the compose endpoints, including NDJSON reading of lifecycle/scale commands | `specs/compose-client.md` |
-| useComposeProjects | frontend hook | `client/src/data/use-compose-projects.ts` | Reads the compose project list, re-reading on a bounded poll and on `container` daemon events | `specs/use-compose-projects.md` |
+| useComposeProjects | frontend hook | `client/src/data/use-compose-projects.ts` | Reads the compose project list, re-reading on a bounded poll, on a context switch and on the reload signal | `specs/use-compose-projects.md` |
 | useComposeLifecycle | frontend hook | `client/src/data/use-compose-lifecycle.ts` | Drives stack lifecycle and per-service scaling | `specs/use-compose-lifecycle.md` |
 | useComposeFile | frontend hook | `client/src/data/use-compose-file.ts` | Reads a project's compose file(s), tracks unsaved edits, saves and validates on demand | `specs/use-compose-file.md` |
 | useComposeLogs | frontend hook | `client/src/data/use-compose-logs.ts` | Subscribes to a project's aggregated log stream, each line carrying its own service | `specs/use-compose-logs.md` |

@@ -20,15 +20,23 @@ type: frontend hook
 
 ## Rules and invariants
 
-- Re-reads when `id` changes and whenever an `image`-typed daemon event arrives (REQ-47, REQ-50).
+- Reads when `id` changes — the layer explorer being opened on an image — and at no other moment
+  (REQ-47, REQ-50). There is nothing else to follow: an image's `id` is the digest of its content,
+  so the layer stack of one `id` cannot change. A different stack is a different image, and that is
+  an `id` change (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1,
+  plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-2).
+- It subscribes to no daemon event and to no manual reload signal, and needs neither: both would
+  re-read a result that cannot have moved.
+- `refresh()` is exposed to the caller all the same, which offers it as the retry of a failed read.
 
 ## Dependencies
 
 - Image layers client (fetchImageLayerStack)
-- events: subscribeToDaemonEvents
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-47
 - plan-docker_management_app/REQ-48
 - plan-docker_management_app/REQ-50
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-2

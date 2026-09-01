@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToActiveContextChange } from './active-context';
 import { subscribeToReload } from './reload-signal';
 import { fetchComposeProjects, type ComposeProjectSummary } from './compose-client';
-import { subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
 import { cadence } from '../timing/timing-scale';
 
 const POLL_INTERVAL_MS = cadence(3000);
@@ -14,10 +13,7 @@ export interface UseComposeProjectsResult {
   refresh: () => void;
 }
 
-/**
- * Reads the compose project list, re-reading on a bounded poll and on every
- * `container` daemon event (compose projects are made of containers) (REQ-75).
- */
+/** Reads the compose project list, re-reading on a bounded poll (REQ-75). */
 export function useComposeProjects(): UseComposeProjectsResult {
   const [projects, setProjects] = useState<ComposeProjectSummary[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -54,14 +50,6 @@ export function useComposeProjects(): UseComposeProjectsResult {
       cancelledRef.current = true;
     };
   }, [refresh]);
-
-  useEffect(
-    () =>
-      subscribeToDaemonEvents((event: DaemonEvent) => {
-        if (event.type === 'container') refresh();
-      }),
-    [refresh],
-  );
 
   // Another context means another daemon: what is held here belongs to
   // the one left behind and is re-read at once (REQ-93).

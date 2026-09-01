@@ -1,13 +1,13 @@
 ---
 module: events
-component: subscribeToDaemonEvents, onDaemonObjectTypeChanged, daemonEventConcerns
+component: subscribeToDaemonEvents
 type: frontend data client
 ---
 
 # Event stream client
 
 **Purpose** → the client-side half of the live event channel: one shared `EventSource` connection,
-fanned out to listeners, plus an invalidation registry keyed by Docker object type.
+fanned out to listeners.
 
 ## Contract
 
@@ -17,31 +17,22 @@ fanned out to listeners, plus an invalidation registry keyed by Docker object ty
   - the event delivered is the server's own `DaemonEvent`, `actorId` included
     (plan-docker_management_app-refresh_cache/REQ-6): the identifier of the object the event is
     about, alongside `actor`, which stays the name-or-id it has always been.
-- `onDaemonObjectTypeChanged(objectType, invalidate): () => void` — calls `invalidate()` whenever an
-  event whose `type` equals `objectType` arrives, so a view showing that kind of object can re-read
-  it automatically (REQ-11); returns an unsubscribe function.
-- `daemonEventConcerns(event, identifier): boolean` — whether the event is about the object named by
-  `identifier`, so a view showing one object re-reads for its own events alone
-  (plan-docker_management_app-refresh_cache/REQ-7).
-  - `true` when the event's `actorId`, or its `actor`, names that object
-  - `true` when the event carries no `actorId`, or when `identifier` is undefined: an event that
-    cannot be attributed is treated as one about the shown object, so no view goes stale by ignoring
-    it (plan-docker_management_app-refresh_cache/REQ-8)
-  - `false` otherwise — the event is about another object
 
 ## Rules and invariants
 
 - A single `EventSource` is shared across all callers in the page: multiple subscribers never open
   multiple connections.
-- Two identifiers name one object when they are equal, ignoring case, a leading `sha256:` and
-  surrounding blanks, or when the shorter is the truncated form of the longer. Truncation is read
-  only into hexadecimal identifiers, and only from 12 characters — Docker's short form — so two
-  names sharing a prefix stay two objects.
+- The module offers no by-object-type invalidation and no event-attribution test: no view of the
+  interface reads its data again because an event arrived, so nothing serves that purpose
+  (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-3).
+- The event-feed service of the shell is the only caller in the client
+  (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-13).
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-11
 - plan-docker_management_app/REQ-12
 - plan-docker_management_app-refresh_cache/REQ-6
-- plan-docker_management_app-refresh_cache/REQ-7
-- plan-docker_management_app-refresh_cache/REQ-8
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-3
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-4
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-13
