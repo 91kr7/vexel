@@ -24,7 +24,6 @@ means writing the analysis and the plan for it in the normal way — see
 
 | Debt | Area | Sev | What | File |
 |------|------|-----|------|------|
-| images-list-inspects-every-image | server | medium | The images list costs `1 + one inspect per image` for an immutable value; since the refresh cache that pass runs every 60 s, not every 3 s | `entries/images-list-inspects-every-image.md` |
 | polled-hooks-do-not-coalesce-events | client | low | The polled views still re-read once per event; since the refresh cache, those re-reads are served from a held value and cost the daemon nothing | `entries/polled-hooks-do-not-coalesce-events.md` |
 | detail-views-reread-on-unrelated-events | both | high | Detail views re-read on events about other objects; a volume detail pulls `/system/df` per container event | `entries/detail-views-reread-on-unrelated-events.md` |
 | cli-version-detection-uncached | server | low | Three programs launched to read versions that cannot change while the app runs; since the refresh cache, every 30 s rather than every 5 s | `entries/cli-version-detection-uncached.md` |
@@ -54,7 +53,8 @@ project. The event burst was measured on the real lifecycle of a probe container
 **Most of that study is closed.** The refresh cache (`plan-docker_management_app-refresh_cache`)
 holds a value per kind at a period of its own, so the client's poll no longer sets the rate at
 which the daemon is questioned and N windows no longer cost N times. Five of its rows went with
-it, and two more of the survivors say at their own declaration what it reduced and what it left
+it, and a sixth with the same plan's read-once memo, which is a different batch and a different
+mechanism. Two more of the survivors say at their own declaration what it reduced and what it left
 standing. The figures in the entries that remain were measured before it, and each says so.
 
 Two things were deliberately left out. **Swarm** — its removal is already planned
