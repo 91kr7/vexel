@@ -87,9 +87,10 @@ worth about seventy seconds. They belong in `.sdd/tech-debt/`, one entry each, n
 
 ## Note for development
 
-This batch changes what every test pass waits for, so it will call for a full pass. **An agent never
-starts one**: it reports that a full pass is due and stops, and the human runs it. Knowledge base
-entry `the-human-launches-the-full-pass`.
+This batch changes what every test pass waits for, so it will call for a full pass. For this cycle
+the human runs it: an agent reports that a full pass is due and stops. A decision of this cycle, not
+a standing rule — it was briefly written into the knowledge base and withdrawn, having been scoped
+to one session rather than to the project.
 
 ## Coverage check
 
