@@ -447,6 +447,19 @@ test.describe('Session terminal sizing (REQ-34, REQ-35)', () => {
     }
   });
 
+  /** The container list's poll as the client declares it, unscaled (`use-containers.md`). */
+  const SHIPPED_LIST_POLL_MS = 3_000;
+  /** How long the open session is watched for. A wall-clock window, on no clock but the runner's. */
+  const OBSERVATION_MS = 6_000;
+  /**
+   * What the daemon's own events may add on top of the polls. An attach session's
+   * terminal settles into one or two `container resize` events, and each reaches
+   * the list; measured on the trace of the run that reported this bound, the
+   * event-driven reads arrived in one burst of three, 65–195 ms apart, against
+   * ten polls spaced at exactly the scaled interval.
+   */
+  const EVENT_READS_ALLOWED = 5;
+
   // plan-docker_management_app/REQ-19 — the list re-reads on daemon events; an open attach session must not turn that into a refetch storm
   test('an open attach session does not flood the container list with refetches', async ({ page }) => {
     const name = `vexel-e2e-attach-calls-${Date.now()}`;
@@ -460,12 +473,33 @@ test.describe('Session terminal sizing (REQ-34, REQ-35)', () => {
       await detail.getByRole('button', { name: 'Attach' }).click();
       await expect(detail.getByText('Connected')).toBeVisible({ timeout: 15_000 });
 
-      listReads.length = 0;
-      await page.waitForTimeout(6_000);
+      // What the poll costs on the clock this process was configured with. The
+      // figure is **asked of the running server** (`/api/timing-scale`, the same
+      // source the browser itself reads the factor from) rather than written
+      // here, so this spec still writes no scaled figure of its own
+      // (plan-docker_management_app-timing_scale/REQ-18) and the bound follows
+      // the configuration wherever it is set. Written as a constant, `10` was
+      // two polls plus slack on the shipped clock and eleven polls' worth of
+      // slack short of one on a fifth of it.
+      const { scale } = (await (await page.request.get('/api/timing-scale')).json()) as { scale: number };
+      const pollMs = Math.max(1, Math.round(SHIPPED_LIST_POLL_MS * scale));
+      // A window of W holds at most floor(W / poll) + 1 polls: one may land the
+      // instant it opens and one the instant it closes.
+      const polls = Math.floor(OBSERVATION_MS / pollMs) + 1;
+      const bound = polls + EVENT_READS_ALLOWED;
 
-      // The list polls every 3s (use-containers.md) plus the odd real event:
-      // a handful of reads over 6s, never hundreds.
-      expect(listReads.length, `expected a handful of container-list reads over 6s, got ${listReads.length}`).toBeLessThanOrEqual(10);
+      listReads.length = 0;
+      await page.waitForTimeout(OBSERVATION_MS);
+
+      // The list re-reads on its poll (use-containers.md) plus the odd real
+      // event: that many reads over the window, never hundreds. A refetch loop
+      // is not bounded by any cadence, so it passes this figure inside the first
+      // fraction of a second of the window.
+      expect(
+        listReads.length,
+        `expected at most ${bound} container-list reads over ${OBSERVATION_MS}ms — ${polls} polls at ${pollMs}ms ` +
+          `plus ${EVENT_READS_ALLOWED} event-driven reads — and got ${listReads.length}`,
+      ).toBeLessThanOrEqual(bound);
     } finally {
       await removeContainerQuietly(name);
     }
