@@ -8,16 +8,17 @@ type: backend service
 
 **Purpose** → talks to the Docker Engine API to list local volumes with their size and mounting
 containers, read a volume's full inspect data, create, remove and prune unused volumes. The sizes
-are held on a schedule of their own, far slower than the listing's.
+are one view of the server's held disk accounting, on a schedule far slower than the listing's.
 
 ## Contract
 
 - `listVolumes(): Promise<VolumeSummary[]>` — every volume via `GET /volumes`.
   - `VolumeSummary`: `{ name, driver, mountpoint, scope, createdAt, labels, options, sizeBytes?,
     mountedBy }`.
-  - `sizeBytes` — **joined in from the held sizes** (`volumeSizeCache` below), never read by this
-    call; `undefined` for a volume no size is held for yet. A listing never waits for a size: a
-    volume created a moment ago is listed at once, without one, and gains it on a later read.
+  - `sizeBytes` — **joined in from the held disk accounting** (`heldDiskUsage`, module `system`),
+    never read by this call; `undefined` for a volume no size is held for yet. A listing never waits
+    for a size: a volume created a moment ago is listed at once, without one, and gains it on a later
+    read.
   - `mountedBy` — names of every container (running or stopped) whose own mounts reference the
     volume, **derived from the container listing the server already holds** (`ContainersService`'s
     `readHeldContainerList`) and never from a listing of this service's own; empty for an unattached
@@ -45,19 +46,20 @@ are held on a schedule of their own, far slower than the listing's.
     kind is marked due and read again **within a grouping window**, rather than holding a list built
     on a copy already gone until its 30 s period ends. It costs no container listing of its own — the
     re-read is served the one already held.
-- `volumeSizeCache` — the refresh-cache kind the **per-volume sizes** are held under, separately
-  from the listing: key `volume-sizes`, period 5 minutes — the longest in the cache — read as
-  `GET /system/df`'s per-volume `UsageData.Size`, keyed by volume name.
-  - marked due by what can make a size **drop**: a volume removed, a container removed (their
-    `destroy` events), and this application's own `removeVolume`, `pruneVolumes` and successful
-    system prune. Other `volume`/`container` events — a container started, stopped or health-checked
-    — do not mark it due, however many of them arrive.
-  - `listVolumes` and `getVolumeInspect` ask for it and **do not wait for it**: they join in what is
-    already held. The first sizes to arrive mark the listing changed, so they show without waiting
-    for the listing's own period.
+- **The per-volume sizes are a view of the `disk-usage` kind**, held by the disk-usage service
+  (module `system`) on a 5-minute period — the longest in the cache — and read as `GET /system/df`.
+  This service registers no kind of its own for them: one reading of that call serves the sizes, the
+  occupied-space breakdown and the dashboard's figures alike. Each volume's size is its entry's
+  `UsageData.Size` in that reading, keyed by volume name.
+  - `removeVolume` and `pruneVolumes` mark that reading due, as they always did, and so do the
+    `destroy` events of a volume or a container and a successful system prune — what can make a size
+    drop. Other `volume`/`container` events do not, however many of them arrive.
+  - `listVolumes` and `getVolumeInspect` ask for the reading and **do not wait for it**: they join in
+    what is already held. The first sizes to arrive mark the listing changed, so they show without
+    waiting for the listing's own period.
 - `getVolumeInspect(name): Promise<VolumeInspect>` — via `GET /volumes/{name}`; rejects with the
   daemon's own 404 for an unknown name. A direct read of the daemon, as it was — with `sizeBytes`
-  joined in from the held sizes on the same terms as the listing, so one volume's detail no longer
+  joined in from the held disk accounting on the same terms as the listing, so one volume's detail no longer
   makes the daemon account for the whole host's disk usage.
   - `VolumeInspect`: `VolumeSummary & { raw }`; `raw` is the full inspect payload exactly as
     received.
@@ -99,8 +101,8 @@ are held on a schedule of their own, far slower than the listing's.
   counts as asking for the container listing, and keeps it refreshed while the volumes screen is
   open — the containers kind's own demand expiry stops it once nothing is asking for either.
 - **No call of this service makes the daemon compute its whole disk usage.** `/system/df` is read by
-  the size kind's own refresher and by nothing else, so listing volumes and opening one's detail
-  cost the daemon a listing each, whatever the host holds.
+  the `disk-usage` kind's own refresher and by nothing else, so listing volumes and opening one's
+  detail cost the daemon a listing each, whatever the host holds.
 - An absent `sizeBytes` is a size not known **yet**, never an error and never a zero: the volume is
   shown without one.
 
@@ -109,14 +111,15 @@ are held on a schedule of their own, far slower than the listing's.
 - `createVolume`, `removeVolume` and `pruneVolumes` say the listing has changed once they have
   succeeded, so the operator's own action shows on the next request without waiting for a timer.
   A failed call marks nothing.
-- `removeVolume` and `pruneVolumes` say the same of the sizes; `createVolume` does not — a volume
-  that has just been created occupies nothing, and it is listed at once without a size.
+- `removeVolume` and `pruneVolumes` say the same of the held disk accounting the sizes come from;
+  `createVolume` does not — a volume that has just been created occupies nothing, and it is listed at
+  once without a size.
 
 ## Dependencies
 
 - docker-access: EngineClient (via `getEngineClient()`), DockerDaemonError
 - containers: ContainersService (`readHeldContainerList`)
-- events: Event stream (the `destroy` events that mark the sizes due)
+- system: DiskUsageService (`heldDiskUsage`, `diskUsageCache`)
 - list-order: List order (`byNamedThenUnnamedNewest`)
 - refresh-cache: Refresh cache (`registerRefreshKind`)
 
@@ -143,3 +146,5 @@ are held on a schedule of their own, far slower than the listing's.
 - plan-docker_management_app-refresh_cache/REQ-54
 - plan-docker_management_app-refresh_cache/REQ-58
 - plan-docker_management_app-refresh_cache/REQ-59
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-22
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-23

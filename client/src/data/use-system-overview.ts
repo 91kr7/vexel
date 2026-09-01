@@ -2,6 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToActiveContextChange } from './active-context';
 import { subscribeToReload } from './reload-signal';
 import { fetchSystemOverview, type SystemOverview } from './system-client';
+import { cadence } from '../timing/timing-scale';
+
+const POLL_INTERVAL_MS = cadence(3000);
 
 export interface UseSystemOverviewResult {
   overview?: SystemOverview;
@@ -11,9 +14,10 @@ export interface UseSystemOverviewResult {
 }
 
 /**
- * Holds the dashboard's overview of the host (REQ-14, REQ-16). It does not poll: the reading behind
- * it is the daemon's own disk-usage accounting, expensive on a large host, and a dashboard left
- * open all day must not keep the daemon busy computing it.
+ * Holds the dashboard's overview of the host (REQ-14, REQ-16), re-reading it on the same 3 s clock
+ * as the container list under the tiles. The server assembles the payload from what it already
+ * holds, so a tick costs the daemon nothing
+ * (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-16, REQ-22).
  */
 export function useSystemOverview(): UseSystemOverviewResult {
   const [overview, setOverview] = useState<SystemOverview | undefined>(undefined);
@@ -57,6 +61,11 @@ export function useSystemOverview(): UseSystemOverviewResult {
   useEffect(() => subscribeToActiveContextChange(refresh), [refresh]);
 
   useEffect(() => subscribeToReload(readOnce), [readOnce]);
+
+  useEffect(() => {
+    const interval = window.setInterval(refresh, POLL_INTERVAL_MS);
+    return () => window.clearInterval(interval);
+  }, [refresh]);
 
   return { overview, loaded, error, refresh };
 }

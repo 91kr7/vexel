@@ -1,13 +1,16 @@
-// Disk space as the daemon accounts for it, in two readings that share one
-// /system/df call each: what a prune could reclaim, broken down by the five
-// categories a prune can act on (REQ-95), and what is occupied in total,
-// broken down by images, containers, volumes and build cache (REQ-16). The
-// daemon-side numbers come from /system/df plus the network listing; the build
-// cache is read through the build-cache service, the one channel that already
-// knows it.
+// Disk space as the daemon accounts for it, in two readings: what a prune
+// could reclaim, broken down by the five categories a prune can act on
+// (REQ-95), and what is occupied in total, broken down by images, containers,
+// volumes and build cache (REQ-16). The daemon-side numbers come from
+// /system/df plus the network listing; the build cache is read through the
+// build-cache service, the one channel that already knows it. The /system/df
+// reading is held here for the whole server
+// (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-22).
 import { getEngineClient } from "../connectivity/connection-status-service.js";
-import { listBuildCache } from "../builders/build-cache-service.js";
+import { buildCacheListCache, listBuildCache } from "../builders/build-cache-service.js";
+import { eventStreamService, type DaemonEvent } from "../events/event-stream-service.js";
 import { listNetworks } from "../networks/networks-service.js";
+import { registerRefreshKind } from "../refresh-cache/refresh-cache.js";
 import { INTERNAL_CONTAINER_LABEL } from "../image-analysis/filesystem-extraction-service.js";
 
 export type DiskUsageCategoryId =
@@ -95,7 +98,7 @@ interface RawDiskUsageVolume {
   UsageData?: { Size?: number; RefCount?: number } | null;
 }
 
-interface RawDiskUsage {
+export interface RawDiskUsage {
   Containers?: RawDiskUsageContainer[] | null;
   Images?: RawDiskUsageImage[] | null;
   Volumes?: RawDiskUsageVolume[] | null;
@@ -131,12 +134,13 @@ export async function getDiskUsage(): Promise<DiskUsageBreakdown> {
 
 /**
  * Space occupied per kind of object, whether or not a prune could reclaim it
- * (REQ-16). Same shape of resilience as the reclaimable breakdown: the build
- * cache, which is read through another channel, reports its reason in place of
- * a size rather than failing the whole reading.
+ * (REQ-16), assembled from held values alone. Same shape of resilience as the
+ * reclaimable breakdown: the build cache, which is read through another
+ * channel, reports its reason in place of a size rather than failing the whole
+ * reading.
  */
 export async function getDiskUsageTotals(): Promise<DiskUsageTotals> {
-  const [diskUsage, buildCache] = await Promise.all([readDiskUsage(), readTotalBuildCache()]);
+  const [diskUsage, buildCache] = await Promise.all([readHeldDiskUsage(), readTotalBuildCache()]);
   const containers = ownContainers(diskUsage);
 
   const categories: DiskUsageTotalCategory[] = [
@@ -173,7 +177,7 @@ function ownContainers(diskUsage: RawDiskUsage): RawDiskUsageContainer[] {
 
 async function readTotalBuildCache(): Promise<DiskUsageTotalCategory> {
   try {
-    const records = await listBuildCache();
+    const records = (await buildCacheListCache.read()).value;
     return {
       id: "build-cache",
       sizeBytes: records.reduce((total, record) => total + positive(record.sizeBytes), 0),
@@ -187,6 +191,50 @@ async function readTotalBuildCache(): Promise<DiskUsageTotalCategory> {
 async function readDiskUsage(): Promise<RawDiskUsage> {
   const response = await getEngineClient().request("/system/df");
   return JSON.parse(response.body) as RawDiskUsage;
+}
+
+/**
+ * The daemon's whole disk accounting, held on the longest period in the cache:
+ * /system/df is the most expensive call the daemon answers on a large host, so
+ * it is read once per period for every consumer — the per-volume sizes, the
+ * occupied-space breakdown and the dashboard's figures alike (REQ-18,
+ * plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-22).
+ */
+export const diskUsageCache = registerRefreshKind({
+  key: "disk-usage",
+  periodMs: 300000,
+  read: readDiskUsage,
+});
+
+// Only a removal can make a size drop — writing into a volume announces
+// nothing — so the reading is marked due by the removals alone, and not by
+// every `volume`/`container` event: at this price per read, a container's
+// start, stop or health check must not pay for one.
+eventStreamService.on("event", (event: DaemonEvent) => {
+  if (event.action !== "destroy") return;
+  if (event.type === "volume" || event.type === "container") diskUsageCache.markChanged();
+});
+
+/**
+ * The reading held — and demand for it either way: the read is asked for and
+ * deliberately not awaited, so no caller waits for /system/df. `onFirstRead`
+ * fires when a read lands while nothing was held, which is how a caller that
+ * answered without it knows there is something new to answer with.
+ */
+export function heldDiskUsage(onFirstRead?: () => void): RawDiskUsage | undefined {
+  const held = diskUsageCache.peek();
+  void diskUsageCache.read().then(
+    () => {
+      if (!held) onFirstRead?.();
+    },
+    () => {},
+  );
+  return held?.value;
+}
+
+/** The held reading, waiting only for the first one: a freshly started server answers figures, not zeros. */
+async function readHeldDiskUsage(): Promise<RawDiskUsage> {
+  return heldDiskUsage() ?? (await diskUsageCache.read()).value;
 }
 
 function stoppedContainers(diskUsage: RawDiskUsage): DiskUsageCategory {

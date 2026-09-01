@@ -18,9 +18,10 @@ by state, images, volumes, stacks, build cache and the occupied-space breakdown.
     that is neither running nor paused (created, restarting, removing, exited, dead), so
     `running + paused + stopped === total`. This application's own internal
     filesystem-extraction containers are excluded on the held listing, so they are counted nowhere.
-  - `images`: `{ count, sizeBytes }` — every image the daemon lists, and the disk the image store
-    occupies with shared layers counted once.
-  - `volumes`: `{ count, sizeBytes }`.
+  - `images`: `{ count, sizeBytes }` — `count` from the held image listing, `sizeBytes` the disk the
+    image store occupies with shared layers counted once, from the held disk accounting.
+  - `volumes`: `{ count, sizeBytes }` — `count` from the held volume listing, `sizeBytes` from the
+    held disk accounting.
   - `stacks`: `{ compose, total }` — `total` is every kind of stack this application knows, which
     since 2026-08-27 is the compose projects alone, so the two figures are equal.
     - `compose` — the number of compose projects discovered on the host.
@@ -36,36 +37,52 @@ by state, images, volumes, stacks, build cache and the occupied-space breakdown.
       operator can act on either way.
   - `diskUsage` — the occupied-space breakdown as `DiskUsageTotals` (images, containers, volumes,
     build cache), unchanged from the disk-usage service.
+  - The payload's shape is exactly what it was before the figures behind it became held values: no
+    field added, removed or renamed
+    (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-23).
 
 ## Rules and invariants
 
 - A capability the host does not have reports its reason in its own section rather than failing the
   payload: no buildx, no compose plugin — the rest of the overview is still returned. A
   daemon that cannot be reached at all does reject: there is then nothing to report, and the
-  application already says so on its own.
+  application already says so on its own. A listing this payload counts objects from rejects for the
+  same reason the disk accounting does — it is the daemon that is gone, not a capability.
 - A host without the compose plugin contributes `0` compose stacks rather than a reason: a missing
   plugin is a fact about the tooling, not about the host's stacks, and the Compose screen is the
   place that explains it.
 - Every number comes from the service that already owns it — the container listing, the disk-usage
-  accounting, the compose discovery, the builder inventory — so the overview can never disagree
-  with the screen the operator lands on after activating a tile. It reads nothing on its own at
-  all: the one reading it used to take for itself was the daemon's service list, for a swarm stack
-  count, and that left with the area on 2026-08-27
+  accounting, the image and volume listings, the compose discovery, the build-cache and builder
+  inventories — so the overview can never disagree with the screen the operator lands on after
+  activating a tile. It reads nothing on its own at all: the one reading it used to take for itself
+  was the daemon's service list, for a swarm stack count, and that left with the area on 2026-08-27
   (plan-docker_management_app-swarm_removal/REQ-6).
-- **The container counts cost no container listing.** They are taken from the held one, through the
-  containers kind's `read()` and never its `peek()`, so the dashboard covers the operation the
-  application has just performed on a container — and asking for the overview counts as asking for
-  that listing, keeping it refreshed while the Dashboard is open.
-- The tile numbers and the disk-usage breakdown come from one reading each, taken together, so no
-  two figures in the same payload describe different moments.
+- **Every figure is assembled from a value the server already holds, so a repeated caller asks the
+  daemon and the CLI for nothing.** The overview is read on the Dashboard's clock and by every open
+  window, and each of those readings would otherwise be one `/system/df` and three CLI spawns. Each
+  source is read through its kind's `read()` and never its `peek()`, so the overview covers the
+  operation the application has just performed and asking for it counts as asking for those values,
+  keeping them refreshed while the Dashboard is open
+  (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-22).
+- **Only the very first call waits for the disk accounting**, so a freshly started server paints
+  real figures rather than zeros. Afterwards the reading held is answered at once and a read is asked
+  for without being waited on: no repeated call ever waits for `/system/df`.
+- **A count and a size shown side by side may describe different moments.** The counts follow the
+  listings, which daemon events mark due, so they move as fast as their own screens; the sizes follow
+  the disk accounting, held on a five-minute period, so one tile can show a count that has moved
+  beside a size that has not. It is the price of adding no `/system/df` rate, and the operator's
+  refresh control closes the gap on demand. This replaces the earlier guarantee that no two figures
+  in one payload described the same moment.
 - The reading never removes anything and never starts anything on the daemon.
 
 ## Dependencies
 
 - system: DiskUsageService (`getDiskUsageTotals`)
 - containers: ContainersService (`readHeldContainerList`)
-- compose: ComposeDiscoveryService (`listComposeProjects`)
-- builders: BuildersService (`listBuilders`)
+- images: ImagesService (`imageListCache`)
+- volumes: VolumesService (`volumeListCache`)
+- compose: ComposeDiscoveryService (`composeProjectsCache`)
+- builders: BuildersService (`builderListCache`), BuildCacheService (`buildCacheListCache`)
 
 ## Requirements served
 
@@ -76,3 +93,5 @@ by state, images, volumes, stacks, build cache and the occupied-space breakdown.
 - plan-docker_management_app-refresh_cache/REQ-41
 - plan-docker_management_app-refresh_cache/REQ-42
 - plan-docker_management_app-refresh_cache/REQ-43
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-22
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-23

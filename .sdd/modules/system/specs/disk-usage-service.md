@@ -8,7 +8,8 @@ type: backend service
 
 **Purpose** → disk space as the daemon accounts for it, in two readings: what a prune could reclaim
 right now, broken down by the five categories a prune acts on, and what is occupied in total, broken
-down by images, containers, volumes and build cache.
+down by images, containers, volumes and build cache. It also owns the one held reading of
+`GET /system/df` the rest of the server derives its disk figures from.
 
 ## Contract
 
@@ -36,7 +37,9 @@ down by images, containers, volumes and build cache.
   build-cache        → build-cache records in the "reclaimable" state
                        size = sum of their sizes
   ```
-- `getDiskUsageTotals(): Promise<DiskUsageTotals>`
+- `getDiskUsageTotals(): Promise<DiskUsageTotals>` — answered from the **held** disk accounting
+  (`diskUsageCache` below) and the **held** build-cache inventory; only a call arriving when nothing
+  is held yet waits for a reading of its own.
   - `DiskUsageTotals`: `{ categories: DiskUsageTotalCategory[], totalBytes }`.
   - `DiskUsageTotalCategory`: `{ id, sizeBytes, itemCount, unavailableDetail? }`.
   - `id` is one of `"images" | "containers" | "volumes" | "build-cache"`, and the categories are
@@ -59,6 +62,22 @@ down by images, containers, volumes and build cache.
   build-cache → every build-cache record, whatever its usage state
                 size = sum of their sizes
   ```
+- `diskUsageCache` — the refresh-cache kind the daemon's whole disk accounting is held under: key
+  `disk-usage`, period 5 minutes — the longest in the cache — read as `GET /system/df` and holding
+  that payload as the daemon returned it (see `refresh-cache.md`, module `refresh-cache`).
+  - marked due by what can make a size **drop**: a volume removed, a container removed (their
+    `destroy` events), and this application's own `removeVolume`, `pruneVolumes` and successful
+    system prune. Other `volume`/`container` events — a container started, stopped or health-checked
+    — do not mark it due, however many of them arrive.
+  - it is the **only** held reading of that call on the server: the per-volume sizes and the
+    occupied-space breakdown are two views of it, not two readings.
+- `heldDiskUsage(onFirstRead?): RawDiskUsage | undefined` — the reading held right now, `undefined`
+  while none is. `RawDiskUsage` is the daemon's own `/system/df` payload: `Containers`, `Images`,
+  `Volumes`, `LayersSize`.
+  - it **never waits**: the read is asked for and deliberately not awaited, so no caller pays for
+    `/system/df` on a call of its own.
+  - `onFirstRead` is called once a read lands while nothing was held — how a caller that answered
+    without the reading knows there is something new to answer with.
 
 ## Rules and invariants
 
@@ -68,13 +87,18 @@ down by images, containers, volumes and build cache.
   readings behave this way.
 - Reclaimable and occupied are two different questions and each is answered once, here: the
   occupied breakdown is not derivable from the reclaimable one (an image in use occupies disk and
-  reclaims nothing), and no caller reads the daemon's disk-usage accounting a second time of its
-  own. Each call makes exactly one such reading, whichever question it answers.
-- **Both readings stay direct and are held nowhere.** They are read when the screen asks for them
-  and never on a schedule — the decision this area took from the start, because `/system/df` is the
-  most expensive call the daemon answers on a large host. The volume sizes, the one value that used
-  to be read from here for another screen, are now held under their own refresh-cache kind
-  (`volume-sizes`, module `volumes`); nothing about these two breakdowns changed with it.
+  reclaims nothing), and no caller reads the daemon's disk-usage accounting of its own.
+- **The reclaimable breakdown stays direct and is held nowhere.** It is read when the screen asks
+  for it and never on a schedule, which is the decision this area took from the start.
+- **`GET /system/df` is read once per period for the whole server, however many callers want it.**
+  It is the most expensive call the daemon answers on a large host, so it is held under one kind and
+  every consumer is a view of that one reading: the per-volume sizes (module `volumes`), the
+  occupied-space breakdown, and through it the dashboard's overview. A repeated caller therefore
+  asks the daemon for nothing
+  (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-22).
+- **Only the first call waits.** With nothing held, `getDiskUsageTotals` waits for the reading, so a
+  freshly started server answers with real figures rather than zeros. Every call after it answers
+  from what is held and asks for a read it does not wait for.
 - The occupied breakdown counts every object, whatever its state — that is what makes it differ
   from the reclaimable one — except this application's own internal filesystem-extraction
   containers, which are plumbing the operator never sees anywhere in the application.
@@ -92,10 +116,15 @@ down by images, containers, volumes and build cache.
 
 - docker-access: Engine API client (via connectivity's `getEngineClient`)
 - networks: NetworksService (`listNetworks`)
-- builders: BuildCacheService (`listBuildCache`)
+- builders: BuildCacheService (`listBuildCache`, `buildCacheListCache`)
 - image-analysis: FilesystemExtractionService (`INTERNAL_CONTAINER_LABEL`)
+- refresh-cache: RefreshCache (`registerRefreshKind`)
+- events: EventStreamService (the `destroy` events that mark the reading due)
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-95
 - plan-docker_management_app/REQ-16
+- plan-docker_management_app-refresh_cache/REQ-18
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-22
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-23

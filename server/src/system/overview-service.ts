@@ -1,12 +1,16 @@
 // The dashboard's whole reading of the host in one payload (REQ-14, REQ-16):
 // container counts by state, images, volumes, stacks, build cache and the
-// occupied-space breakdown. Every number is taken from the service that
-// already owns it — the containers from the listing the server already holds
-// (plan-docker_management_app-refresh_cache/REQ-37) — so the dashboard never
-// becomes a second, divergent way of reading the same thing.
-import { listBuilders } from "../builders/builders-service.js";
-import { listComposeProjects } from "../compose/compose-discovery-service.js";
+// occupied-space breakdown. Every number is taken from a value the server
+// already holds, so the dashboard never becomes a second, divergent way of
+// reading the same thing — and, read on a clock by every open window, costs the
+// daemon and the CLI nothing per read
+// (plan-docker_management_app-refresh_cache/REQ-37,
+// plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-22).
+import { builderListCache } from "../builders/builders-service.js";
+import { composeProjectsCache } from "../compose/compose-discovery-service.js";
 import { readHeldContainerList, type RawContainer } from "../containers/containers-service.js";
+import { imageListCache } from "../images/images-service.js";
+import { volumeListCache } from "../volumes/volumes-service.js";
 import { getDiskUsageTotals, type DiskUsageTotalCategory, type DiskUsageTotals } from "./disk-usage-service.js";
 
 export interface ContainerCounts {
@@ -59,9 +63,11 @@ export interface SystemOverview {
  * report, and the application already says so on its own.
  */
 export async function getSystemOverview(): Promise<SystemOverview> {
-  const [diskUsage, containers, composeProjects, activeBuilder] = await Promise.all([
+  const [diskUsage, containers, imageCount, volumeCount, composeProjects, activeBuilder] = await Promise.all([
     getDiskUsageTotals(),
     readHeldContainerList(),
+    imageListCache.read().then((held) => held.value.length),
+    volumeListCache.read().then((held) => held.value.length),
     readComposeStackCount(),
     readActiveBuilderName(),
   ]);
@@ -72,8 +78,11 @@ export async function getSystemOverview(): Promise<SystemOverview> {
 
   return {
     containers: countByState(containers),
-    images: { count: images.itemCount, sizeBytes: images.sizeBytes },
-    volumes: { count: volumes.itemCount, sizeBytes: volumes.sizeBytes },
+    // The counts follow the listings and the sizes the disk accounting, on two
+    // different periods: a tile may show a count that has moved beside a size
+    // that has not.
+    images: { count: imageCount, sizeBytes: images.sizeBytes },
+    volumes: { count: volumeCount, sizeBytes: volumes.sizeBytes },
     stacks: { compose: composeProjects, total: composeProjects },
     buildCache: {
       sizeBytes: buildCache.sizeBytes,
@@ -97,7 +106,7 @@ function category(totals: DiskUsageTotals, id: DiskUsageTotalCategory["id"]): Di
 /** Compose runs through the CLI: a host without the plugin contributes no stack rather than failing the overview. */
 async function readComposeStackCount(): Promise<number> {
   try {
-    return (await listComposeProjects()).length;
+    return (await composeProjectsCache.read()).value.length;
   } catch {
     return 0;
   }
@@ -105,7 +114,7 @@ async function readComposeStackCount(): Promise<number> {
 
 async function readActiveBuilderName(): Promise<string | undefined> {
   try {
-    return (await listBuilders()).find((builder) => builder.active)?.name;
+    return (await builderListCache.read()).value.find((builder) => builder.active)?.name;
   } catch {
     return undefined;
   }
