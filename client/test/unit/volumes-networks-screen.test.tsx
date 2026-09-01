@@ -1,15 +1,21 @@
 import type { ReactNode } from 'react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
-import { VolumesNetworksScreen } from '../../src/volumes-networks/VolumesNetworksScreen';
+import type { UseVolumesResult } from '../../src/data/use-volumes';
 import { ConfirmationProvider } from '../../src/shell/services/ConfirmationService';
 import { ErrorReportingProvider } from '../../src/shell/services/ErrorReportingService';
 import { ProgressProvider } from '../../src/shell/services/ProgressService';
 import { ToastProvider } from '../../src/ui';
 
-function baseVolumesProps() {
-  return { volumes: [], loaded: true, onRefresh: () => undefined };
-}
+// The screen reads the volume listing itself since
+// plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-40, so the reading is
+// supplied where the shell's prop used to be. Layout is what this file is about, and an empty
+// settled listing is the state that prop carried. That the screen mounts the hook at all is
+// `volume-network-listings-screen-scoped.test.tsx`.
+const volumesReading: UseVolumesResult = { volumes: [], loaded: true, refresh: () => undefined };
+vi.mock('../../src/data/use-volumes', () => ({ useVolumes: (): UseVolumesResult => volumesReading }));
+
+const { VolumesNetworksScreen } = await import('../../src/volumes-networks/VolumesNetworksScreen');
 
 afterEach(cleanup);
 
@@ -22,7 +28,7 @@ function renderScreen(networksPanel?: ReactNode) {
       <ProgressProvider>
         <ConfirmationProvider>
           <ToastProvider>
-            <VolumesNetworksScreen volumes={baseVolumesProps()} networksPanel={networksPanel} />
+            <VolumesNetworksScreen networksPanel={networksPanel} />
           </ToastProvider>
         </ConfirmationProvider>
       </ProgressProvider>

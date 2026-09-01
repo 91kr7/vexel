@@ -35,7 +35,10 @@ Shows:
   `useImages()`, since its create/run form suggests the local images (REQ-29) —, `ImagesScreen` for the `images-layers` screen
   (REQ-37–REQ-41), `ComposeScreen` for the `compose` screen (REQ-75–REQ-78) — fed the live project
   list from `useComposeProjects()` —, `VolumesNetworksScreen` for the `volumes-networks` screen
-  (REQ-70, REQ-71) — fed the live volume list from `useVolumes()` —, `RegistriesScreen` for the
+  (REQ-70, REQ-71) — self-sufficient, the screen reading the volume listing and the `NetworksPanel`
+  it is composed with reading the network listing, so neither runs on another screen
+  (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-40, REQ-44) —,
+  `RegistriesScreen` for the
   `registries` screen (REQ-85, REQ-86, REQ-87) — self-sufficient, reading its own registry inventory
   and repository browsing —, `BuildersScreen` for the
   `builders-cache` screen (REQ-88, REQ-89, REQ-91) — self-sufficient, reading its own builder and
@@ -178,8 +181,7 @@ Navigation:
 - containers: useContainers, ContainersScreen
 - images: useImages, ImagesScreen
 - compose: useComposeProjects, ComposeScreen
-- volumes: useVolumes
-- volumes-networks: VolumesNetworksScreen
+- volumes-networks: VolumesNetworksScreen, NetworksPanel
 - builders: BuildersScreen
 - contexts: useContexts, ContextsScreen
 - system: SystemScreen
@@ -228,3 +230,5 @@ Navigation:
 - plan-ui-coherence-optimisation/REQ-72
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-1
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-15
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-40
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-44

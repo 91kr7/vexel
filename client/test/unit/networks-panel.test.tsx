@@ -1,12 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { NetworksPanel } from '../../src/volumes-networks/NetworksPanel';
 import type { NetworkSummary } from '../../src/data/networks-client';
+import type { UseNetworksResult } from '../../src/data/use-networks';
 import { ConfirmationProvider } from '../../src/shell/services/ConfirmationService';
 import { ErrorReportingProvider, useErrorReporter } from '../../src/shell/services/ErrorReportingService';
 import { ProgressProvider } from '../../src/shell/services/ProgressService';
 import { ToastProvider } from '../../src/ui';
+
+// The panel reads the network listing itself since
+// plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-40, so `renderPanel`
+// supplies the reading and its re-read where the props used to be; every case below drives the
+// panel exactly as it did. That the panel mounts the hook at all, and where, is
+// `volume-network-listings-screen-scoped.test.tsx`.
+let networksReading: UseNetworksResult = { networks: [], loaded: true, refresh: () => undefined };
+vi.mock('../../src/data/use-networks', () => ({ useNetworks: (): UseNetworksResult => networksReading }));
+
+const { NetworksPanel } = await import('../../src/volumes-networks/NetworksPanel');
 
 function makeNetwork(overrides: Partial<NetworkSummary> = {}): NetworkSummary {
   return {
@@ -39,12 +49,13 @@ function ReportedErrors() {
 }
 
 function renderPanel(networks: NetworkSummary[], onRefresh = vi.fn()) {
+  networksReading = { networks, loaded: true, refresh: onRefresh };
   render(
     <ErrorReportingProvider>
       <ProgressProvider>
         <ConfirmationProvider>
           <ToastProvider>
-            <NetworksPanel networks={networks} loaded onRefresh={onRefresh} />
+            <NetworksPanel />
             <ReportedErrors />
           </ToastProvider>
         </ConfirmationProvider>

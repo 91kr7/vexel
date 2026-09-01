@@ -18,6 +18,13 @@ type: frontend hook
 
 ## Rules and invariants
 
+- **Mounted by `VolumesNetworksScreen` alone, so it runs only while that screen is on screen.** That
+  is what decides its cost: with nobody there it does not run, the server's demand for the volume
+  listing expires, and what the server held is dropped — nothing reads volumes from the daemon at all
+  until the screen is opened again
+  (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-40, REQ-41). The first
+  read after such an absence is therefore a real reading of the daemon rather than a held value: one
+  wait per visit, and accepted.
 - Reads for no other reason of its own: a daemon event triggers nothing here
   (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1).
 - Re-reads from scratch when another context becomes the active one: the list belonged to the
@@ -39,3 +46,5 @@ type: frontend hook
 - plan-docker_management_app/REQ-93
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-11
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-13
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-40
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-41
