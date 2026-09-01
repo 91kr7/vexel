@@ -40,21 +40,8 @@ mock.module(new URL("../../src/images/image-transfer-service.ts", import.meta.ur
   namedExports: { pruneDanglingImages: () => record("dangling-images", imagesOutcome) },
 });
 
-// The volume sizes are marked due by a run that reclaimed something
-// (prune-service.md), so the kind stands in the mock beside the prune itself and
-// counts what it was told.
-let sizesMarkedDue = 0;
-
 mock.module(new URL("../../src/volumes/volumes-service.ts", import.meta.url).href, {
-  namedExports: {
-    pruneVolumes: () => record("unused-volumes", volumesOutcome),
-    volumeSizeCache: {
-      key: "volume-sizes",
-      markChanged: () => {
-        sizesMarkedDue += 1;
-      },
-    },
-  },
+  namedExports: { pruneVolumes: () => record("unused-volumes", volumesOutcome) },
 });
 
 mock.module(new URL("../../src/networks/networks-service.ts", import.meta.url).href, {
@@ -64,18 +51,30 @@ mock.module(new URL("../../src/networks/networks-service.ts", import.meta.url).h
   },
 });
 
+const { registerRefreshKind } = await import("../../src/refresh-cache/refresh-cache.js");
+
 mock.module(new URL("../../src/builders/build-cache-service.ts", import.meta.url).href, {
   namedExports: {
     pruneBuildCache: () => record("build-cache", buildCacheOutcome),
     listBuildCache: async () => [],
+    buildCacheListCache: registerRefreshKind({ key: "build-cache", periodMs: 30000, read: async () => [] }),
   },
 });
 
 const { pruneCategory, pruneScope, isDiskUsageCategoryId } = await import("../../src/system/prune-service.js");
 
+// The held disk accounting is the real kind, so what is counted is the call the
+// service actually makes on the kind it actually depends on (prune-service.md).
+const { diskUsageCache } = await import("../../src/system/disk-usage-service.js");
+const markChanged = mock.method(diskUsageCache, "markChanged", () => undefined);
+
+function diskAccountingMarkedDue(): number {
+  return markChanged.mock.callCount();
+}
+
 beforeEach(() => {
   calls.length = 0;
-  sizesMarkedDue = 0;
+  markChanged.mock.resetCalls();
   containersOutcome = async () => ({ removedIds: [], reclaimedBytes: 0 });
   imagesOutcome = async () => ({ removedIds: [], reclaimedBytes: 0 });
   volumesOutcome = async () => ({ removedNames: [], reclaimedBytes: 0 });
@@ -231,9 +230,11 @@ test("pruneScope still totals what succeeded when one category failed", async ()
   assert.equal(result.categories.length, 2);
 });
 
-// prune-service.md — "A run in which at least one category succeeded says the volume sizes are due"
-// (plan-docker_management_app-refresh_cache/REQ-18, REQ-23)
-test("pruneScope says the volume sizes are due when a category succeeded", async () => {
+// prune-service.md — "A run in which at least one category succeeded says the held disk accounting
+// is due — the reading the volume sizes and the dashboard's figures are both views of"
+// (plan-docker_management_app-refresh_cache/REQ-18, REQ-23,
+// plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-22)
+test("pruneScope says the held disk accounting is due when a category succeeded", async () => {
   containersOutcome = async () => ({ removedIds: ["c1"], reclaimedBytes: 1_000 });
   buildCacheOutcome = async () => {
     throw new Error("buildx is not installed");
@@ -241,7 +242,7 @@ test("pruneScope says the volume sizes are due when a category succeeded", async
 
   await pruneScope(["stopped-containers", "build-cache"]);
 
-  assert.equal(sizesMarkedDue, 1, "a run that reclaimed something left the volume sizes unmarked");
+  assert.equal(diskAccountingMarkedDue(), 1, "a run that reclaimed something left the disk accounting unmarked");
 });
 
 // prune-service.md — "A run in which every category failed marks nothing."
@@ -255,7 +256,7 @@ test("pruneScope marks nothing when every category failed", async () => {
 
   await pruneScope(["stopped-containers", "build-cache"]);
 
-  assert.equal(sizesMarkedDue, 0, "a run in which nothing succeeded still marked the volume sizes due");
+  assert.equal(diskAccountingMarkedDue(), 0, "a run in which nothing succeeded still marked the disk accounting due");
 });
 
 // prune-service.md — "isDiskUsageCategoryId(value) — whether an unknown value names a category"

@@ -3,9 +3,11 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { act } from 'react';
 import type { DaemonEvent } from '../../src/data/event-stream';
 
-// useImages re-reads on a bounded poll and on every `image` daemon event
-// (use-images.md): the fetch and the event bus are mocked so the hook's own
-// filtering decision is the only thing under test.
+// useImages re-reads on a bounded poll and on nothing the daemon pushes
+// (use-images.md,
+// plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1):
+// the fetch is mocked, and the event subscription is watched so that reaching
+// it at all fails.
 const fetchImages = vi.fn();
 let daemonListener: ((event: DaemonEvent) => void) | undefined;
 const subscribeToDaemonEvents = vi.fn((listener: (event: DaemonEvent) => void) => {
@@ -46,28 +48,19 @@ describe('useImages', () => {
     expect(result.current.images).toHaveLength(1);
   });
 
-  // use-images.md — re-reads whenever an `image`-typed daemon event arrives, so a pull/push/tag/untag/remove/prune is reflected
-  it('refreshes when an image daemon event arrives', async () => {
+  // use-images.md — "a daemon event triggers nothing here"
+  // (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1, REQ-13)
+  it('subscribes to no daemon event, and reads for none delivered', async () => {
     fetchImages.mockResolvedValue([]);
     const { result } = renderHook(() => useImages());
     await waitFor(() => expect(result.current.loaded).toBe(true));
     fetchImages.mockClear();
 
-    act(() => daemonListener?.(daemonEvent('image')));
+    expect(subscribeToDaemonEvents).not.toHaveBeenCalled();
 
-    await waitFor(() => expect(fetchImages).toHaveBeenCalledTimes(1));
-  });
-
-  // use-images.md — unlike the container list, no action/type is excluded: only `image`-typed events matter here
-  it('does not refresh for a daemon event of an unrelated type', async () => {
-    fetchImages.mockResolvedValue([]);
-    const { result } = renderHook(() => useImages());
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    fetchImages.mockClear();
-
-    act(() => daemonListener?.(daemonEvent('container')));
-
-    // No refresh should have been scheduled for an unrelated object type.
+    act(() => {
+      for (const type of ['image', 'container', 'volume', 'network']) daemonListener?.(daemonEvent(type));
+    });
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(fetchImages).not.toHaveBeenCalled();
   });

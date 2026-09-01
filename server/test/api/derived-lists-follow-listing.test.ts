@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { volumesRouter } from "../../src/volumes/volumes-routes.js";
-import { volumeSizeCache, type VolumeSummary } from "../../src/volumes/volumes-service.js";
+import { type VolumeSummary } from "../../src/volumes/volumes-service.js";
+import { diskUsageCache } from "../../src/system/disk-usage-service.js";
 import { EVENT_GROUPING_WINDOW_MS, resetRefreshCache } from "../../src/refresh-cache/refresh-cache.js";
 import { eventStreamService } from "../../src/events/event-stream-service.js";
 import { TINY_IMAGE, ensureImage } from "../support/base-images.js";
@@ -61,13 +62,13 @@ test("GET /api/volumes names every container mounting the volume on a server tha
     await ensureImage(TINY_IMAGE);
     resetRefreshCache();
 
-    // The per-volume sizes are read on their own, are not waited for by a
-    // listing, and the **first** ones to arrive say the volume list has changed
+    // The one held /system/df reading the per-volume sizes are a view of is
+    // read on its own, is not waited for by a listing, and the **first** ones to arrive say the volume list has changed
     // — which reads it again at a moment nothing here controls, on /system/df's
     // own timing. A server "running for a while" holds them already, so they are
     // held before the fixtures exist rather than landing in the middle of the
     // case and correcting it by accident.
-    await volumeSizeCache.read();
+    await diskUsageCache.read();
 
     // Warm: the server now holds a volume list and, under it, the container
     // listing that list is built on — neither of which knows the fixtures below.

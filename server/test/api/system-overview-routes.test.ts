@@ -1,6 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import express from "express";
 import { systemRouter } from "../../src/system/system-routes.js";
+import { refreshRouter } from "../../src/refresh-cache/refresh-routes.js";
 import type { SystemOverview } from "../../src/system/overview-service.js";
 import {
   buildApp,
@@ -102,12 +104,29 @@ test("GET /api/system/overview answers every section of the overview, with its f
 // plan-docker_management_app/REQ-14 — the tiles carry the daemon's real objects: a container this
 // test is running and a volume it created are part of what the overview accounts for
 test("GET /api/system/overview accounts for a running container and a volume of this test's own", async () => {
-  const { url, close } = await startApp(buildApp("/api/system", systemRouter));
+  // Both routers: the occupied-space breakdown is now a held reading on a
+  // five-minute period, so a fixture created after it was held reaches it
+  // through the reload the operator's refresh control triggers, and through
+  // nothing else inside a test's lifetime
+  // (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-19,
+  // overview-service.md).
+  const app = express();
+  app.use(express.json());
+  app.use("/api/system", systemRouter);
+  app.use("/api/refresh", refreshRouter);
+  const { url, close } = await startApp(app);
   let containerName = "";
   let volumeName = "";
   try {
+    // Held before the fixtures exist, so the reload below is what carries them
+    // in rather than a first reading that happened to land late.
+    await fetch(`${url}/api/system/overview`);
+
     containerName = (await createSleepingContainer("overview-running")).name;
     volumeName = await createVolume("overview-volume");
+
+    const reloaded = await fetch(`${url}/api/refresh`, { method: "POST" });
+    assert.equal(reloaded.status, 200, "the reload the refresh control triggers did not succeed");
 
     const response = await fetch(`${url}/api/system/overview`);
     assert.equal(response.status, 200);

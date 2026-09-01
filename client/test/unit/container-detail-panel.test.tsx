@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ContainerDetailPanel } from '../../src/containers/ContainerDetailPanel';
 import type { ContainerInspect, ContainerSummary } from '../../src/data/containers-client';
@@ -1322,5 +1322,103 @@ describe('ContainerDetailPanel — Config tab in reading (REQ-48, REQ-50, REQ-51
     // What it does is unchanged.
     await user.click(action);
     expect(await screen.findByRole('combobox', { name: 'Restart policy' })).toBeInTheDocument();
+  });
+});
+
+describe('ContainerDetailPanel — the inspect clock is scoped to the tab showing it (container-detail-panel.md)', () => {
+  /**
+   * The period container-detail-panel.md declares for the inspect data, in the
+   * unscaled form a unit run uses: the timing scale is left at 1 here, so
+   * `cadence(3000)` is 3 000 ms.
+   */
+  const DECLARED_PERIOD_MS = 3_000;
+
+  function inspectReads(): number {
+    return fetchMock.mock.calls.filter((call) => String(call[0]).includes('/inspect')).length;
+  }
+
+  async function advance(ms: number): Promise<void> {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+  }
+
+  /** A tab switch under a fake clock, where userEvent's own timers cannot run. */
+  async function openTab(name: string): Promise<void> {
+    await act(async () => {
+      fireEvent.click(screen.getByRole('tab', { name }));
+    });
+  }
+
+  // plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-26, REQ-28 — "the panel
+  // tells useContainerDetail whether the active tab is Config or Inspect", and the detail opens on
+  // Config, so the reading is taken from the moment it opens.
+  it('follows the container while Config, the tab it opens on, is the active one', async () => {
+    vi.useFakeTimers();
+    try {
+      renderPanel();
+      await advance(0);
+      expect(inspectReads()).toBe(1);
+
+      await advance(DECLARED_PERIOD_MS);
+      expect(inspectReads()).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // …/REQ-28 — "on any other tab the reading is not taken at all"
+  it('takes no reading at all while a tab that does not show it is the active one', async () => {
+    vi.useFakeTimers();
+    try {
+      renderPanel();
+      await advance(0);
+      const whenOpened = inspectReads();
+
+      await openTab('Logs');
+      await advance(DECLARED_PERIOD_MS * 10);
+
+      expect(inspectReads()).toBe(whenOpened);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // …/REQ-28 — "Switching to either of the two reads at once, so the tab opens on what is true now
+  // instead of on what was true when the detail was opened"
+  it.each(['Config', 'Inspect'])('reads at once when %s becomes the active tab, without waiting for a period', async (tab) => {
+    vi.useFakeTimers();
+    try {
+      renderPanel();
+      await advance(0);
+      await openTab('Logs');
+      await advance(DECLARED_PERIOD_MS * 2);
+      const whileAway = inspectReads();
+
+      await openTab(tab);
+      await advance(0);
+
+      expect(inspectReads()).toBe(whileAway + 1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // …/REQ-35 — "Nothing on the detail says its data is on a clock: no indicator, no 'last updated',
+  // no control and no setting"
+  it('says nothing anywhere about the data being on a clock', async () => {
+    vi.useFakeTimers();
+    try {
+      renderPanel();
+      await advance(0);
+
+      for (const tab of ['Config', 'Inspect']) {
+        await openTab(tab);
+        await advance(DECLARED_PERIOD_MS);
+        expect(screen.queryByText(/last updated|auto-refresh|refreshing every|every \d+ ?s/i)).not.toBeInTheDocument();
+      }
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -29,10 +29,6 @@ vi.mock('../../src/data/builders-client', () => ({
   activateBuilder: vi.fn(),
   pruneBuildCache: vi.fn(),
 }));
-// The daemon event stream is the other source these hooks re-read on; a stub
-// keeps this file about the context switch alone.
-vi.mock('../../src/data/event-stream', () => ({ subscribeToDaemonEvents: () => () => undefined }));
-
 const { notifyActiveContextChanged } = await import('../../src/data/active-context');
 const { useContainers } = await import('../../src/data/use-containers');
 const { useImages } = await import('../../src/data/use-images');

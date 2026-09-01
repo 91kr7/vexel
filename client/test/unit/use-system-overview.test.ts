@@ -7,8 +7,10 @@ import type { SystemOverview } from '../../src/data/system-client';
 // useSystemOverview holds the host overview behind the dashboard's tiles and
 // disk-usage breakdown (dashboard/specs/use-system-overview.md): the data
 // client, the daemon event stream and the active-context broadcast are mocked,
-// so what is under test is only the hook's own re-read, coalescing and error
-// decisions.
+// so what is under test is only the hook's own clock, re-read and error
+// decisions. The event stream is kept mocked to state the absence: nothing here
+// subscribes to it
+// (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1).
 const fetchSystemOverview = vi.fn();
 let daemonListener: ((event: DaemonEvent) => void) | undefined;
 let contextListener: (() => void) | undefined;
@@ -35,8 +37,11 @@ vi.mock('../../src/data/active-context', () => ({
 
 const { useSystemOverview } = await import('../../src/data/use-system-overview');
 
-/** Long enough for any coalescing window the hook uses to have elapsed. */
-const AFTER_ANY_COALESCING_MS = 5_000;
+/**
+ * The period use-system-overview.md declares, in the unscaled form a unit run
+ * uses: the timing scale is left at 1 here, so `cadence(3000)` is 3 000 ms.
+ */
+const DECLARED_PERIOD_MS = 3_000;
 
 function overviewWith(imageCount = 3): SystemOverview {
   return {
@@ -119,92 +124,73 @@ describe('useSystemOverview (dashboard/specs/use-system-overview.md)', () => {
     expect(result.current.error).toBeUndefined();
   });
 
-  // use-system-overview.md — "The overview is re-read whenever a container, image, volume, network,
-  // builder or service daemon event arrives"
-  it.each(['container', 'image', 'volume', 'network', 'builder', 'service'])(
-    're-reads on a %s daemon event',
-    async (type) => {
-      vi.useFakeTimers();
-      const { result } = await mountSettled();
-      expect(result.current.loaded).toBe(true);
-      fetchSystemOverview.mockClear();
-
-      act(() => daemonListener?.(daemonEvent(type)));
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(AFTER_ANY_COALESCING_MS);
-      });
-
-      expect(fetchSystemOverview).toHaveBeenCalledTimes(1);
-    },
-  );
-
-  // use-system-overview.md — only the object types whose appearance, removal or state change moves
-  // one of its numbers are relevant
-  it('ignores a daemon event of an unrelated type', async () => {
+  // use-system-overview.md — "The clock: one interval of 3 000 ms, declared through the client's
+  // timing scale as cadence(3000)" (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-16,
+  // REQ-18). The figure is the one the contract states, and the tick before it must not read.
+  it('re-reads on its own at the declared period, and not before it', async () => {
     vi.useFakeTimers();
     const { result } = await mountSettled();
     expect(result.current.loaded).toBe(true);
-    fetchSystemOverview.mockClear();
+    expect(fetchSystemOverview).toHaveBeenCalledTimes(1);
 
-    act(() => daemonListener?.(daemonEvent('daemon')));
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(AFTER_ANY_COALESCING_MS);
+      await vi.advanceTimersByTimeAsync(DECLARED_PERIOD_MS - 1);
+    });
+    expect(fetchSystemOverview).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(fetchSystemOverview).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(DECLARED_PERIOD_MS * 3);
+    });
+    expect(fetchSystemOverview).toHaveBeenCalledTimes(5);
+  });
+
+  // use-system-overview.md — "The clock runs only while the hook is mounted, exactly as a list
+  // screen's does: leaving the dashboard stops it"
+  // (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-17)
+  it('stops ticking once the hook is unmounted', async () => {
+    vi.useFakeTimers();
+    const { result, unmount } = await mountSettled();
+    expect(result.current.loaded).toBe(true);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(DECLARED_PERIOD_MS);
+    });
+    expect(fetchSystemOverview).toHaveBeenCalledTimes(2);
+
+    unmount();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(DECLARED_PERIOD_MS * 10);
+    });
+
+    expect(fetchSystemOverview).toHaveBeenCalledTimes(2);
+  });
+
+  // use-system-overview.md — "A daemon event triggers nothing"
+  // (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1, REQ-13): the
+  // reads counted here are the clock's own, and no event adds one to them.
+  it('subscribes to no daemon event, and adds no read for one delivered', async () => {
+    vi.useFakeTimers();
+    const { result } = await mountSettled();
+    expect(result.current.loaded).toBe(true);
+
+    expect(daemonListener).toBeUndefined();
+
+    fetchSystemOverview.mockClear();
+    act(() => {
+      for (const type of ['container', 'image', 'volume', 'network', 'builder', 'service', 'daemon']) {
+        for (let index = 0; index < 30; index += 1) daemonListener?.(daemonEvent(type));
+      }
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(DECLARED_PERIOD_MS - 1);
     });
 
     expect(fetchSystemOverview).not.toHaveBeenCalled();
-  });
-
-  // use-system-overview.md — "resize and the exec lifecycle actions are ignored … an open exec or
-  // attach session fires them on every keystroke-driven resize without moving anything"
-  it.each(['resize', 'exec_create', 'exec_start', 'exec_die'])(
-    'ignores the %s container action an open session fires',
-    async (action) => {
-      vi.useFakeTimers();
-      const { result } = await mountSettled();
-      expect(result.current.loaded).toBe(true);
-      fetchSystemOverview.mockClear();
-
-      act(() => daemonListener?.(daemonEvent('container', action)));
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(AFTER_ANY_COALESCING_MS);
-      });
-
-      expect(fetchSystemOverview).not.toHaveBeenCalled();
-    },
-  );
-
-  // use-system-overview.md — "A burst of such events — a compose up, a prune — leads to a single
-  // re-read, not one per event."
-  it('coalesces a burst of daemon events into a single re-read', async () => {
-    vi.useFakeTimers();
-    const { result } = await mountSettled();
-    expect(result.current.loaded).toBe(true);
-    fetchSystemOverview.mockClear();
-
-    act(() => {
-      for (let index = 0; index < 30; index += 1) daemonListener?.(daemonEvent('container', 'destroy'));
-      for (let index = 0; index < 30; index += 1) daemonListener?.(daemonEvent('volume', 'destroy'));
-    });
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(AFTER_ANY_COALESCING_MS);
-    });
-
-    expect(fetchSystemOverview).toHaveBeenCalledTimes(1);
-  });
-
-  // use-system-overview.md — "It does not poll: … a dashboard left open all day must not keep the
-  // daemon busy computing it."
-  it('never re-reads on its own while nothing happens', async () => {
-    vi.useFakeTimers();
-    const { result } = await mountSettled();
-    expect(result.current.loaded).toBe(true);
-    expect(fetchSystemOverview).toHaveBeenCalledTimes(1);
-
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(600_000);
-    });
-
-    expect(fetchSystemOverview).toHaveBeenCalledTimes(1);
   });
 
   // use-system-overview.md — "A context switch drops what is held and re-reads at once: the overview

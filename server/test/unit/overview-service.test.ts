@@ -13,9 +13,14 @@ import type { DiskUsageTotalCategory, DiskUsageTotals } from "../../src/system/d
 
 let diskUsageTotalsResult: () => Promise<DiskUsageTotals> = async () => totalsOf();
 let heldContainerListResult: () => Promise<unknown> = async () => [];
-let listComposeProjectsResult: () => Promise<unknown> = async () => [];
-let listBuildersResult: () => Promise<unknown> = async () => [];
+let imageListResult: () => Promise<unknown[]> = async () => [];
+let volumeListResult: () => Promise<unknown[]> = async () => [];
+let listComposeProjectsResult: () => Promise<unknown[]> = async () => [];
+let listBuildersResult: () => Promise<unknown[]> = async () => [];
 const requestedCalls: string[] = [];
+
+/** How often each held source was actually read, which is how REQ-22 is counted below. */
+const reads = { images: 0, volumes: 0, compose: 0, builders: 0 };
 
 mock.module(new URL("../../src/connectivity/connection-status-service.ts", import.meta.url).href, {
   namedExports: {
@@ -36,15 +41,61 @@ mock.module(new URL("../../src/system/disk-usage-service.ts", import.meta.url).h
 });
 
 mock.module(new URL("../../src/containers/containers-service.ts", import.meta.url).href, {
-  namedExports: { readHeldContainerList: () => heldContainerListResult() },
+  namedExports: { readHeldContainerList: () => heldContainerListResult(), CONTAINER_LIST_KIND: "containers" },
+});
+
+// The four listings the overview counts from are held kinds of the refresh
+// cache and are read through their `read()`, so the stand-ins are real kinds
+// over stubbed readers: a second overview inside a period is then answered from
+// what is held, as the contract says.
+const { registerRefreshKind, resetRefreshCache } = await import("../../src/refresh-cache/refresh-cache.js");
+const imageListCache = registerRefreshKind({
+  key: "images",
+  periodMs: 30000,
+  read: async () => {
+    reads.images += 1;
+    return imageListResult();
+  },
+});
+const volumeListCache = registerRefreshKind({
+  key: "volumes",
+  periodMs: 30000,
+  read: async () => {
+    reads.volumes += 1;
+    return volumeListResult();
+  },
+});
+const composeProjectsCache = registerRefreshKind({
+  key: "compose-projects",
+  periodMs: 30000,
+  read: async () => {
+    reads.compose += 1;
+    return listComposeProjectsResult();
+  },
+});
+const builderListCache = registerRefreshKind({
+  key: "builders",
+  periodMs: 30000,
+  read: async () => {
+    reads.builders += 1;
+    return listBuildersResult();
+  },
+});
+
+mock.module(new URL("../../src/images/images-service.ts", import.meta.url).href, {
+  namedExports: { imageListCache },
+});
+
+mock.module(new URL("../../src/volumes/volumes-service.ts", import.meta.url).href, {
+  namedExports: { volumeListCache },
 });
 
 mock.module(new URL("../../src/compose/compose-discovery-service.ts", import.meta.url).href, {
-  namedExports: { listComposeProjects: () => listComposeProjectsResult() },
+  namedExports: { listComposeProjects: () => listComposeProjectsResult(), composeProjectsCache },
 });
 
 mock.module(new URL("../../src/builders/builders-service.ts", import.meta.url).href, {
-  namedExports: { listBuilders: () => listBuildersResult() },
+  namedExports: { listBuilders: () => listBuildersResult(), builderListCache },
 });
 
 const { getSystemOverview } = await import("../../src/system/overview-service.js");
@@ -74,12 +125,26 @@ function builder(name: string, active: boolean) {
 }
 
 beforeEach(() => {
+  // The held listings outlive the case that read them; without this a case is
+  // answered from what the one before it held.
+  resetRefreshCache();
   diskUsageTotalsResult = async () => totalsOf();
   heldContainerListResult = async () => [];
+  imageListResult = async () => [];
+  volumeListResult = async () => [];
   listComposeProjectsResult = async () => [];
   listBuildersResult = async () => [];
   requestedCalls.length = 0;
+  reads.images = 0;
+  reads.volumes = 0;
+  reads.compose = 0;
+  reads.builders = 0;
 });
+
+/** As many entries as asked for; only their number reaches the overview. */
+function listOf(count: number): unknown[] {
+  return Array.from({ length: count }, (_unused, index) => ({ id: `entry-${index}` }));
+}
 
 // overview-service.md — "stopped is every container that is neither running nor paused (created,
 // restarting, removing, exited, dead), so running + paused + stopped === total"
@@ -113,10 +178,11 @@ test("counts exactly the containers the container listing reports", async () => 
   assert.equal((await getSystemOverview()).containers.total, 2);
 });
 
-// overview-service.md — "images: { count, sizeBytes }" / "volumes: { count, sizeBytes }", taken from
-// the disk-usage accounting that already owns them, and "diskUsage — unchanged from the disk-usage
-// service"
-test("takes the image and volume figures, and the whole breakdown, from the disk-usage accounting", async () => {
+// overview-service.md — "images: count from the held image listing, sizeBytes … from the held disk
+// accounting" / "volumes: count from the held volume listing, sizeBytes from the held disk
+// accounting" / "diskUsage — unchanged from the disk-usage service". The listings and the accounting
+// are given different figures on purpose: that is what tells which one each half came from.
+test("counts the images and volumes from their held listings and sizes them from the disk accounting", async () => {
   const totals = totalsOf({
     images: { itemCount: 7, sizeBytes: 900_000 },
     containers: { itemCount: 3, sizeBytes: 1_000 },
@@ -124,11 +190,13 @@ test("takes the image and volume figures, and the whole breakdown, from the disk
     "build-cache": { itemCount: 2, sizeBytes: 20_000 },
   });
   diskUsageTotalsResult = async () => totals;
+  imageListResult = async () => listOf(9);
+  volumeListResult = async () => listOf(5);
 
   const overview = await getSystemOverview();
 
-  assert.deepEqual(overview.images, { count: 7, sizeBytes: 900_000 });
-  assert.deepEqual(overview.volumes, { count: 4, sizeBytes: 50_000 });
+  assert.deepEqual(overview.images, { count: 9, sizeBytes: 900_000 });
+  assert.deepEqual(overview.volumes, { count: 5, sizeBytes: 50_000 });
   assert.deepEqual(overview.diskUsage, totals);
 });
 
@@ -214,6 +282,7 @@ test("reports that the cache inventory could not be read, with no size and no bu
 // separate call, and its failure is not the cache inventory's.
 test("a failing active-builder reading leaves the section available, with its size and no builder", async () => {
   diskUsageTotalsResult = async () => totalsOf({ images: { itemCount: 2, sizeBytes: 10 }, "build-cache": { sizeBytes: 8_192 } });
+  imageListResult = async () => listOf(2);
   listBuildersResult = async () => {
     throw new Error("cannot list builders");
   };
@@ -225,6 +294,7 @@ test("a failing active-builder reading leaves the section available, with its si
   assert.equal(overview.buildCache.activeBuilder, undefined);
   // The rest of the payload is untouched by that one failing call.
   assert.equal(overview.images.count, 2);
+  assert.equal(overview.images.sizeBytes, 10);
 });
 
 // overview-service.md — "A daemon that cannot be reached at all does reject: there is then nothing
@@ -245,4 +315,37 @@ test("issues no daemon request of its own at all", async () => {
   await getSystemOverview();
 
   assert.deepEqual(requestedCalls, []);
+});
+
+// overview-service.md — "Every figure is assembled from a value the server already holds, so a
+// repeated caller asks the daemon and the CLI for nothing"
+// (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-22)
+test("a series of overviews inside one period reads each held source once", async () => {
+  imageListResult = async () => listOf(3);
+  volumeListResult = async () => listOf(2);
+  listComposeProjectsResult = async () => [composeProject("shop")];
+  listBuildersResult = async () => [builder("default", true)];
+
+  const first = await getSystemOverview();
+  assert.deepEqual(reads, { images: 1, volumes: 1, compose: 1, builders: 1 }, "the first overview pays for each source");
+
+  for (let index = 0; index < 20; index += 1) {
+    const later = await getSystemOverview();
+    assert.deepEqual(later, first, "an overview answered from held values reports the same figures");
+  }
+
+  assert.deepEqual(reads, { images: 1, volumes: 1, compose: 1, builders: 1 });
+});
+
+// overview-service.md — "The payload's shape is exactly what it was before the figures behind it
+// became held values: no field added, removed or renamed"
+// (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-23)
+test("the payload carries exactly the six sections it carried before, and no other field", async () => {
+  const overview = await getSystemOverview();
+
+  assert.deepEqual(Object.keys(overview).sort(), ["buildCache", "containers", "diskUsage", "images", "stacks", "volumes"]);
+  assert.deepEqual(Object.keys(overview.containers).sort(), ["paused", "running", "stopped", "total"]);
+  assert.deepEqual(Object.keys(overview.images).sort(), ["count", "sizeBytes"]);
+  assert.deepEqual(Object.keys(overview.volumes).sort(), ["count", "sizeBytes"]);
+  assert.deepEqual(Object.keys(overview.diskUsage).sort(), ["categories", "totalBytes"]);
 });

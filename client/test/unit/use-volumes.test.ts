@@ -3,9 +3,11 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { act } from 'react';
 import type { DaemonEvent } from '../../src/data/event-stream';
 
-// useVolumes re-reads on a bounded poll and on every `volume`/`container`
-// daemon event (use-volumes.md): the fetch and the event bus are mocked so
-// the hook's own re-read triggers are the only thing under test.
+// useVolumes re-reads on a bounded poll and on nothing the daemon pushes
+// (use-volumes.md,
+// plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1):
+// the fetch is mocked, and the event subscription is watched so that reaching
+// it at all fails.
 const fetchVolumes = vi.fn();
 let daemonListener: ((event: DaemonEvent) => void) | undefined;
 const subscribeToDaemonEvents = vi.fn((listener: (event: DaemonEvent) => void) => {
@@ -46,40 +48,19 @@ describe('useVolumes', () => {
     expect(result.current.volumes).toHaveLength(1);
   });
 
-  // use-volumes.md — re-reads on every `volume` daemon event
-  it('refreshes when a volume daemon event arrives', async () => {
+  // use-volumes.md — "a daemon event triggers nothing here"
+  // (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1, REQ-13)
+  it('subscribes to no daemon event, and reads for none delivered', async () => {
     fetchVolumes.mockResolvedValue([]);
     const { result } = renderHook(() => useVolumes());
     await waitFor(() => expect(result.current.loaded).toBe(true));
     fetchVolumes.mockClear();
 
-    act(() => daemonListener?.(daemonEvent('volume')));
+    expect(subscribeToDaemonEvents).not.toHaveBeenCalled();
 
-    await waitFor(() => expect(fetchVolumes).toHaveBeenCalledTimes(1));
-  });
-
-  // use-volumes.md — also re-reads on a `container` daemon event, since a container's own mounts
-  // changing which volumes it mounts affects the volume list's mountedBy
-  it('refreshes when a container daemon event arrives', async () => {
-    fetchVolumes.mockResolvedValue([]);
-    const { result } = renderHook(() => useVolumes());
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    fetchVolumes.mockClear();
-
-    act(() => daemonListener?.(daemonEvent('container')));
-
-    await waitFor(() => expect(fetchVolumes).toHaveBeenCalledTimes(1));
-  });
-
-  // use-volumes.md — only `volume`/`container`-typed events matter here
-  it('does not refresh for a daemon event of an unrelated type', async () => {
-    fetchVolumes.mockResolvedValue([]);
-    const { result } = renderHook(() => useVolumes());
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    fetchVolumes.mockClear();
-
-    act(() => daemonListener?.(daemonEvent('image')));
-
+    act(() => {
+      for (const type of ['volume', 'container', 'image', 'network']) daemonListener?.(daemonEvent(type));
+    });
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(fetchVolumes).not.toHaveBeenCalled();
   });

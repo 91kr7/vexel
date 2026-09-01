@@ -3,9 +3,11 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { useContainers } from '../../src/data/use-containers';
 import type { ContainerSummary } from '../../src/data/containers-client';
 
-// Stands in for the browser's EventSource: the daemon event stream is the
-// hook's only push channel, so the tests drive it by emitting on the instance
-// the hook opened.
+// Stands in for the browser's EventSource. The subject of this file is that the
+// hook reads for no daemon event whatever
+// (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1),
+// so the stream is driven for real and the hook is watched for a read; its poll,
+// its shape and its other triggers are covered in list-hooks-unchanged.test.tsx.
 class FakeEventSource {
   static instances: FakeEventSource[] = [];
   onmessage: ((message: { data: string }) => void) | null = null;
@@ -32,8 +34,9 @@ class FakeEventSource {
 }
 
 // The event-stream module opens a single EventSource and keeps it for the
-// process's lifetime, so every test drives that one instance.
-function daemonStream(): FakeEventSource {
+// process's lifetime; with no subscriber left in a list hook, nothing here opens
+// one at all, which is the first thing asserted.
+function daemonStream(): FakeEventSource | undefined {
   return FakeEventSource.instances[0];
 }
 
@@ -57,41 +60,36 @@ afterEach(() => {
 });
 
 describe('useContainers', () => {
-  // use-containers.md — re-reads whenever a container-typed daemon event arrives (REQ-19)
-  it('re-reads the list when a container lifecycle event arrives', async () => {
+  // use-containers.md — "Reads for no other reason of its own: a daemon event triggers nothing here"
+  // (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1, REQ-13)
+  it('opens no daemon event stream of its own', async () => {
     renderHook(() => useContainers());
     await waitFor(() => expect(fetchList).toHaveBeenCalledTimes(1));
 
-    act(() => daemonStream().emitDaemonEvent('container', 'start'));
-
-    await waitFor(() => expect(fetchList).toHaveBeenCalledTimes(2));
+    expect(FakeEventSource.instances).toHaveLength(0);
   });
 
-  // use-containers.md — does not re-read for resize / exec lifecycle / top actions,
-  // which an open exec or attach session (REQ-34, REQ-35) fires without changing the list
-  it.each(['resize', 'exec_create', 'exec_start', 'exec_die', 'exec_detach', 'top'])(
-    'does not re-read the list for a "%s" container action',
-    async (action) => {
-      renderHook(() => useContainers());
-      await waitFor(() => expect(fetchList).toHaveBeenCalledTimes(1));
-
-      act(() => {
-        for (let i = 0; i < 20; i++) daemonStream().emitDaemonEvent('container', action);
-      });
-
-      await Promise.resolve();
-      expect(fetchList).toHaveBeenCalledTimes(1);
-    },
-  );
-
-  // use-containers.md — a burst of session-driven actions must not starve the UI with refetches
-  it('stays at a single read while an open session fires a burst of resize actions', async () => {
+  // The same claim from the other side: even with a stream open, an event of any type and any
+  // action leaves the listing where it was.
+  it.each([
+    ['container', 'start'],
+    ['container', 'die'],
+    ['container', 'destroy'],
+    ['container', 'resize'],
+    ['image', 'pull'],
+    ['volume', 'create'],
+    ['network', 'create'],
+  ])('reads nothing again for a "%s" / "%s" daemon event', async (type, action) => {
     renderHook(() => useContainers());
     await waitFor(() => expect(fetchList).toHaveBeenCalledTimes(1));
 
+    // Opened by this test, since the hook opens none: an event that reaches
+    // nobody is what the requirement asks for.
+    const stream = daemonStream() ?? new FakeEventSource('/api/events');
     act(() => {
-      for (let i = 0; i < 200; i++) daemonStream().emitDaemonEvent('container', 'resize');
+      for (let i = 0; i < 20; i++) stream.emitDaemonEvent(type, action);
     });
+    await Promise.resolve();
 
     expect(fetchList).toHaveBeenCalledTimes(1);
   });

@@ -26,21 +26,52 @@ const engine = installEngineMock();
 // counts is beside the point and would spawn a CLI in a unit pass, so those
 // three services answer with nothing; the counts keep coming from the real held
 // listing, which is what this file measures.
+const { registerRefreshKind } = await import("../../src/refresh-cache/refresh-cache.js");
+const { getEngineClient } = await import("../../src/connectivity/connection-status-service.js");
+
+// The volume sizes are a view of the one held /system/df reading the disk-usage
+// service owns, so the stand-in carries that kind: it is read here for real,
+// off the mocked daemon, and the sizes are joined in from it.
+const diskUsageCache = registerRefreshKind({
+  key: "disk-usage",
+  periodMs: 300000,
+  read: async () => JSON.parse((await getEngineClient().request("/system/df")).body) as { Volumes?: { Name?: string; UsageData?: { Size?: number } }[] },
+});
 mock.module(new URL("../../src/system/disk-usage-service.ts", import.meta.url).href, {
   namedExports: {
     getDiskUsageTotals: async (): Promise<DiskUsageTotals> => ({ categories: [], totalBytes: 0 }),
     DISK_USAGE_TOTAL_CATEGORY_IDS: ["images", "containers", "volumes", "build-cache"],
+    diskUsageCache,
+    heldDiskUsage: (onFirstRead?: () => void) => {
+      const held = diskUsageCache.peek();
+      void diskUsageCache.read().then(
+        () => {
+          if (!held) onFirstRead?.();
+        },
+        () => {},
+      );
+      return held?.value;
+    },
   },
 });
+mock.module(new URL("../../src/images/images-service.ts", import.meta.url).href, {
+  namedExports: { imageListCache: registerRefreshKind({ key: "images", periodMs: 60000, read: async () => [] }) },
+});
 mock.module(new URL("../../src/compose/compose-discovery-service.ts", import.meta.url).href, {
-  namedExports: { listComposeProjects: async () => [] },
+  namedExports: {
+    listComposeProjects: async () => [],
+    composeProjectsCache: registerRefreshKind({ key: "compose-projects", periodMs: 30000, read: async () => [] }),
+  },
 });
 mock.module(new URL("../../src/builders/builders-service.ts", import.meta.url).href, {
-  namedExports: { listBuilders: async () => [] },
+  namedExports: {
+    listBuilders: async () => [],
+    builderListCache: registerRefreshKind({ key: "builders", periodMs: 30000, read: async () => [] }),
+  },
 });
 
 const { containerListCache } = await import("../../src/containers/containers-service.js");
-const { volumeListCache, volumeSizeCache, getVolumeInspect } = await import("../../src/volumes/volumes-service.js");
+const { volumeListCache, getVolumeInspect } = await import("../../src/volumes/volumes-service.js");
 const { networkListCache } = await import("../../src/networks/networks-service.js");
 const { resetRefreshCache, EVENT_GROUPING_WINDOW_MS } = await import("../../src/refresh-cache/refresh-cache.js");
 const { eventStreamService } = await import("../../src/events/event-stream-service.js");
@@ -181,7 +212,7 @@ beforeEach(() => {
  * not folded into a read that has just happened.
  */
 async function holdTheListingTheDetailDerivesFrom(): Promise<void> {
-  await volumeSizeCache.read();
+  await diskUsageCache.read();
   await volumeListCache.read();
   await networkListCache.read();
   await containerListCache.read();

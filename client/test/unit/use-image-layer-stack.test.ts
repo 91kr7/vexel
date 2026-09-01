@@ -3,9 +3,11 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { act } from 'react';
 import type { DaemonEvent } from '../../src/data/event-stream';
 
-// useImageLayerStack re-reads when `id` changes and on every `image` daemon event
-// (use-image-layer-stack.md): the fetch and the event bus are mocked so the hook's
-// own re-read triggers are the only thing under test.
+// useImageLayerStack re-reads when `id` changes, on demand, and for no daemon
+// event at all (use-image-layer-stack.md,
+// plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1):
+// the fetch is mocked, and the event subscription is watched so that reaching it
+// at all fails.
 const fetchImageLayerStack = vi.fn();
 let daemonListener: ((event: DaemonEvent) => void) | undefined;
 const subscribeToDaemonEvents = vi.fn((listener: (event: DaemonEvent) => void) => {
@@ -62,27 +64,19 @@ describe('useImageLayerStack', () => {
     await waitFor(() => expect(fetchImageLayerStack).toHaveBeenCalledWith('image-2'));
   });
 
-  // use-image-layer-stack.md — re-reads whenever an image-typed daemon event arrives
-  it('refreshes the current id when an image daemon event arrives', async () => {
+  // use-image-layer-stack.md — "a daemon event triggers nothing here"
+  // (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1, REQ-13)
+  it('subscribes to no daemon event, and reads for none delivered', async () => {
     fetchImageLayerStack.mockResolvedValue(stackOf('image-1'));
     const { result } = renderHook(() => useImageLayerStack('image-1'));
     await waitFor(() => expect(result.current.loaded).toBe(true));
     fetchImageLayerStack.mockClear();
 
-    act(() => daemonListener?.(daemonEvent('image')));
+    expect(subscribeToDaemonEvents).not.toHaveBeenCalled();
 
-    await waitFor(() => expect(fetchImageLayerStack).toHaveBeenCalledWith('image-1'));
-  });
-
-  // use-image-layer-stack.md — only image-typed events trigger a re-read
-  it('does not refresh for a daemon event of an unrelated type', async () => {
-    fetchImageLayerStack.mockResolvedValue(stackOf('image-1'));
-    const { result } = renderHook(() => useImageLayerStack('image-1'));
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    fetchImageLayerStack.mockClear();
-
-    act(() => daemonListener?.(daemonEvent('volume')));
-
+    act(() => {
+      for (const type of ['image', 'container', 'volume', 'network']) daemonListener?.(daemonEvent(type));
+    });
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(fetchImageLayerStack).not.toHaveBeenCalled();
   });

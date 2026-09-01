@@ -35,9 +35,12 @@ mock.module(new URL("../../src/connectivity/connection-status-service.ts", impor
   },
 });
 
-const { listVolumes, getVolumeInspect, createVolume, removeVolume, pruneVolumes, volumeSizeCache } = await import(
+const { listVolumes, getVolumeInspect, createVolume, removeVolume, pruneVolumes } = await import(
   "../../src/volumes/volumes-service.js"
 );
+// The sizes are a view of the one held /system/df reading, which lives in the
+// disk-usage service (system/specs/disk-usage-service.md).
+const { diskUsageCache } = await import("../../src/system/disk-usage-service.js");
 const { resetRefreshCache } = await import("../../src/refresh-cache/refresh-cache.js");
 
 beforeEach(() => {
@@ -80,7 +83,7 @@ test("listVolumes joins in a held size, and lists a volume without one until a s
     "the listing waited for a size instead of listing the volume without one",
   );
 
-  await volumeSizeCache.read();
+  await diskUsageCache.read();
   const afterTheSizesArrived = await listVolumes();
 
   assert.equal(afterTheSizesArrived[0]!.sizeBytes, 4096);

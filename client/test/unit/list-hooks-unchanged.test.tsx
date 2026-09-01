@@ -1,8 +1,14 @@
 /**
- * The client's list hooks are where this plan did **not** go
+ * The client's list hooks are where the refresh-cache plan did **not** go
  * (plan-docker_management_app-refresh_cache/REQ-21): the work moved onto the
- * server's refresh cache, and each hook keeps the public shape its screens use,
- * its own interval and its own daemon-event subscriptions.
+ * server's refresh cache, and each hook keeps the public shape its screens use
+ * and its own interval.
+ *
+ * The event-subscription half of that claim was withdrawn by
+ * plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-6
+ * and REQ-13: the poll is now the whole of the automatic trigger, and no list
+ * hook listens to the daemon event stream at all. That is what the last case
+ * below asserts, in place of the event types each hook used to re-read on.
  *
  * One file over all eight, because the claim is about the set: finishing the
  * plan by quietly moving the work into the client would show up here as one row
@@ -94,10 +100,6 @@ interface ListHookCase {
   shape: string[];
   /** The interval the spec states, in ms; `undefined` where it says only "a bounded poll". */
   statedPollMs?: number;
-  /** Daemon event types the spec has the hook re-read on. */
-  eventTypes: string[];
-  /** An event type the hook must ignore, with an action that is not one of the excluded ones. */
-  ignoredEventType: string;
   /** Whether the spec writes the signature as `refresh: () => void`. */
   refreshDeclaredVoid: boolean;
 }
@@ -113,8 +115,6 @@ const LIST_HOOKS: ListHookCase[] = [
     render: () => renderHook(() => useContainers() as unknown as Record<string, unknown>),
     shape: ['containers', 'loaded', 'error', 'refresh'],
     statedPollMs: 3000,
-    eventTypes: ['container'],
-    ignoredEventType: 'image',
     refreshDeclaredVoid: true,
   },
   {
@@ -123,8 +123,6 @@ const LIST_HOOKS: ListHookCase[] = [
     render: () => renderHook(() => useImages() as unknown as Record<string, unknown>),
     shape: ['images', 'loaded', 'error', 'refresh'],
     statedPollMs: 3000,
-    eventTypes: ['image'],
-    ignoredEventType: 'volume',
     refreshDeclaredVoid: true,
   },
   {
@@ -133,8 +131,6 @@ const LIST_HOOKS: ListHookCase[] = [
     render: () => renderHook(() => useVolumes() as unknown as Record<string, unknown>),
     shape: ['volumes', 'loaded', 'error', 'refresh'],
     statedPollMs: 3000,
-    eventTypes: ['volume', 'container'],
-    ignoredEventType: 'image',
     refreshDeclaredVoid: true,
   },
   {
@@ -143,8 +139,6 @@ const LIST_HOOKS: ListHookCase[] = [
     render: () => renderHook(() => useNetworks() as unknown as Record<string, unknown>),
     shape: ['networks', 'loaded', 'error', 'refresh'],
     statedPollMs: 3000,
-    eventTypes: ['network', 'container'],
-    ignoredEventType: 'image',
     refreshDeclaredVoid: true,
   },
   {
@@ -152,8 +146,6 @@ const LIST_HOOKS: ListHookCase[] = [
     read: reads.compose,
     render: () => renderHook(() => useComposeProjects() as unknown as Record<string, unknown>),
     shape: ['projects', 'loaded', 'error', 'refresh'],
-    eventTypes: ['container'],
-    ignoredEventType: 'image',
     refreshDeclaredVoid: false,
   },
   {
@@ -161,8 +153,6 @@ const LIST_HOOKS: ListHookCase[] = [
     read: reads.contexts,
     render: () => renderHook(() => useContexts() as unknown as Record<string, unknown>),
     shape: ['contexts', 'active', 'loaded', 'error', 'refresh', 'create', 'remove', 'use'],
-    eventTypes: [],
-    ignoredEventType: 'container',
     refreshDeclaredVoid: false,
   },
   {
@@ -170,8 +160,6 @@ const LIST_HOOKS: ListHookCase[] = [
     read: reads.builders,
     render: () => renderHook(() => useBuilders() as unknown as Record<string, unknown>),
     shape: ['builders', 'loaded', 'error', 'refresh', 'create', 'remove', 'use'],
-    eventTypes: [],
-    ignoredEventType: 'container',
     refreshDeclaredVoid: false,
   },
   {
@@ -179,8 +167,6 @@ const LIST_HOOKS: ListHookCase[] = [
     read: reads.buildCache,
     render: () => renderHook(() => useBuildCache() as unknown as Record<string, unknown>),
     shape: ['records', 'loaded', 'error', 'refresh', 'prune'],
-    eventTypes: [],
-    ignoredEventType: 'container',
     refreshDeclaredVoid: false,
   },
 ];
@@ -275,57 +261,41 @@ describe('the client list hooks this plan left alone (REQ-21)', () => {
         unmount();
       });
 
-      it('re-reads on the daemon events it subscribes to, and on no others', async () => {
+      // plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1, REQ-13 — the
+      // hook subscribes to nothing on the daemon event stream, so no event of any type reaches it
+      // and none can make it read.
+      it('subscribes to no daemon event, and reads for none', async () => {
         const { unmount } = listHook.render();
         await settle();
 
-        if (listHook.eventTypes.length === 0) {
-          expect(
-            daemonListeners.length,
-            `${listHook.name} subscribes to daemon events its spec does not give it`,
-          ).toBe(0);
-        }
+        expect(
+          daemonListeners.length,
+          `${listHook.name} subscribed to the daemon event stream`,
+        ).toBe(0);
 
-        for (const type of listHook.eventTypes) {
-          listHook.read.mockClear();
+        listHook.read.mockClear();
+        for (const type of ['container', 'image', 'volume', 'network', 'plugin', 'daemon']) {
           await act(async () => {
             for (const listener of daemonListeners) listener(daemonEvent(type));
           });
-          await settle();
-          expect(listHook.read, `${listHook.name} ignored a \`${type}\` event`).toHaveBeenCalledTimes(1);
         }
-
-        listHook.read.mockClear();
-        await act(async () => {
-          for (const listener of daemonListeners) listener(daemonEvent(listHook.ignoredEventType));
-        });
         await settle();
-        expect(
-          listHook.read,
-          `${listHook.name} re-read for a \`${listHook.ignoredEventType}\` event it does not subscribe to`,
-        ).not.toHaveBeenCalled();
+        expect(listHook.read, `${listHook.name} read again because of a daemon event`).not.toHaveBeenCalled();
 
         unmount();
       });
     });
   }
 
-  // use-containers.md — a `resize` or an exec-lifecycle action changes nothing the list shows, and
-  // re-reading on them would starve the UI.
-  it('useContainers still ignores the resize and exec-lifecycle actions of its own event type', async () => {
-    const { unmount } = renderHook(() => useContainers());
-    await settle();
-    reads.containers.mockClear();
-
-    for (const action of ['resize', 'exec_create', 'exec_start', 'exec_die', 'exec_detach', 'top']) {
-      await act(async () => {
-        for (const listener of daemonListeners) listener({ ...daemonEvent('container'), action });
-      });
-    }
+  // plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-13 — the claim is
+  // about the set: not one of these eight hooks reached the subscription at all.
+  it('leaves the daemon-event subscription uncalled with every one of them mounted', async () => {
+    const mounted = LIST_HOOKS.map((listHook) => listHook.render());
     await settle();
 
-    expect(reads.containers).not.toHaveBeenCalled();
-    unmount();
+    expect(subscribeToDaemonEvents).not.toHaveBeenCalled();
+
+    for (const rendered of mounted) rendered.unmount();
   });
 
   // use-contexts.md — "The poll is deliberately slower than a daemon-object one".

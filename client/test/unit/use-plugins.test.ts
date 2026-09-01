@@ -118,23 +118,20 @@ describe('usePlugins (plugins/specs/use-plugins.md)', () => {
     expect(result.current.daemon.items).toEqual([]);
   });
 
-  // use-plugins.md — "re-read on ... every plugin daemon event"; the poll is deliberately slow
-  // because every change this hook drives emits one.
-  it('re-reads on a plugin daemon event, and on nothing else', async () => {
+  // use-plugins.md — "a daemon event triggers nothing here"
+  // (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1, REQ-13); the poll
+  // and the re-read after each change this hook drives are what keep the panels current.
+  it('subscribes to no daemon event, and reads for none delivered', async () => {
     const { result } = renderHook(() => usePlugins());
     await waitFor(() => expect(result.current.loaded).toBe(true));
     fetchPlugins.mockClear();
 
-    await act(async () => {
-      daemonListener?.(daemonEvent('container'));
-      daemonListener?.(daemonEvent('volume'));
-    });
-    expect(fetchPlugins).not.toHaveBeenCalled();
+    expect(daemonListener).toBeUndefined();
 
     await act(async () => {
-      daemonListener?.(daemonEvent('plugin'));
+      for (const type of ['plugin', 'container', 'volume', 'image']) daemonListener?.(daemonEvent(type));
     });
-    await waitFor(() => expect(fetchPlugins).toHaveBeenCalledTimes(1));
+    expect(fetchPlugins).not.toHaveBeenCalled();
   });
 
   // use-plugins.md — "Another context means another daemon: the reading is dropped and re-read on

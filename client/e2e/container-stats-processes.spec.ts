@@ -237,8 +237,11 @@ test.describe('Container stats and processes (REQ-32, REQ-33)', () => {
     }
   });
 
-  // plan-docker_management_app/REQ-33 — the listing is refreshed on demand, and only then
-  test('the process listing changes only when Refresh is used', async ({ page }) => {
+  // plan-docker_management_app/REQ-33 — the listing is refreshed on demand, and that control still
+  // works exactly as it did now that the tab also follows the container on its own
+  // (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-34). What the clock
+  // does on its own is checked in `container-detail-clock.spec.ts`; here the subject is the control.
+  test('the Refresh control re-reads the listing on demand', async ({ page }) => {
     const name = `vexel-e2e-processes-refresh-${Date.now()}`;
     const marker = '424242';
     try {
@@ -247,10 +250,6 @@ test.describe('Container stats and processes (REQ-32, REQ-33)', () => {
       await expect(detail.getByText(/while true/)).toBeVisible({ timeout: 20_000 });
 
       await execFileAsync('docker', ['exec', '-d', name, 'sleep', marker]);
-      // The listing is not polled: the new process stays invisible until asked for.
-      await page.waitForTimeout(4000);
-      await expect(detail.getByText(new RegExp(`sleep ${marker}`))).toHaveCount(0);
-
       await detail.getByRole('button', { name: 'Refresh' }).click();
 
       await expect(detail.getByText(new RegExp(`sleep ${marker}`))).toBeVisible({ timeout: 20_000 });

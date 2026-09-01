@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { volumesRouter } from "../../src/volumes/volumes-routes.js";
-import { volumeSizeCache, type VolumeInspect, type VolumeSummary } from "../../src/volumes/volumes-service.js";
+import { type VolumeInspect, type VolumeSummary } from "../../src/volumes/volumes-service.js";
+import { diskUsageCache } from "../../src/system/disk-usage-service.js";
 import { containerListCache } from "../../src/containers/containers-service.js";
 import { resetRefreshCache } from "../../src/refresh-cache/refresh-cache.js";
 import { eventStreamService } from "../../src/events/event-stream-service.js";
@@ -59,11 +60,12 @@ test("GET /api/volumes/:name/inspect asked on the announcement no longer names t
     await ensureImage(TINY_IMAGE);
     resetRefreshCache();
 
-    // The per-volume sizes are read on their own and the **first** ones to
+    // The held /system/df reading the sizes come from is read on its own and
+    // the **first** sizes to
     // arrive say the volume list has changed, which would read it again at a
     // moment nothing here controls. A server "running for a while" holds them
     // already, so they are held before the fixtures exist.
-    await volumeSizeCache.read();
+    await diskUsageCache.read();
 
     // Warm: the server holds a volume list and, under it, the container listing
     // the detail derives from — neither of which knows the fixtures below.

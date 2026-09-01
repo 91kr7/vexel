@@ -452,15 +452,16 @@ test.describe('Session terminal sizing (REQ-34, REQ-35)', () => {
   /** How long the open session is watched for. A wall-clock window, on no clock but the runner's. */
   const OBSERVATION_MS = 6_000;
   /**
-   * What the daemon's own events may add on top of the polls. An attach session's
-   * terminal settles into one or two `container resize` events, and each reaches
-   * the list; measured on the trace of the run that reported this bound, the
-   * event-driven reads arrived in one burst of three, 65–195 ms apart, against
-   * ten polls spaced at exactly the scaled interval.
+   * What anything but the poll may add. Zero since
+   * plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1: the burst of
+   * event-driven reads this bound used to allow for — an attach session's terminal settling into
+   * one or two `container resize` events, each reaching the list — cannot happen at all now that no
+   * list hook subscribes to the daemon event stream. Nothing else in this window operates the
+   * application, so the poll is the whole of the traffic.
    */
-  const EVENT_READS_ALLOWED = 5;
+  const READS_BESIDES_THE_POLL_ALLOWED = 0;
 
-  // plan-docker_management_app/REQ-19 — the list re-reads on daemon events; an open attach session must not turn that into a refetch storm
+  // plan-docker_management_app/REQ-19 — the list re-reads on its poll; an open attach session must not turn that into a refetch storm
   test('an open attach session does not flood the container list with refetches', async ({ page }) => {
     const name = `vexel-e2e-attach-calls-${Date.now()}`;
     const listReads: string[] = [];
@@ -486,19 +487,19 @@ test.describe('Session terminal sizing (REQ-34, REQ-35)', () => {
       // A window of W holds at most floor(W / poll) + 1 polls: one may land the
       // instant it opens and one the instant it closes.
       const polls = Math.floor(OBSERVATION_MS / pollMs) + 1;
-      const bound = polls + EVENT_READS_ALLOWED;
+      const bound = polls + READS_BESIDES_THE_POLL_ALLOWED;
 
       listReads.length = 0;
       await page.waitForTimeout(OBSERVATION_MS);
 
-      // The list re-reads on its poll (use-containers.md) plus the odd real
-      // event: that many reads over the window, never hundreds. A refetch loop
-      // is not bounded by any cadence, so it passes this figure inside the first
+      // The list re-reads on its poll (use-containers.md) and on nothing else
+      // here: that many reads over the window, never hundreds. A refetch loop is
+      // not bounded by any cadence, so it passes this figure inside the first
       // fraction of a second of the window.
       expect(
         listReads.length,
         `expected at most ${bound} container-list reads over ${OBSERVATION_MS}ms — ${polls} polls at ${pollMs}ms ` +
-          `plus ${EVENT_READS_ALLOWED} event-driven reads — and got ${listReads.length}`,
+          `plus ${READS_BESIDES_THE_POLL_ALLOWED} of any other kind — and got ${listReads.length}`,
       ).toBeLessThanOrEqual(bound);
     } finally {
       await removeContainerQuietly(name);
