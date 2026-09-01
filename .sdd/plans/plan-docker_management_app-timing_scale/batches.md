@@ -9,7 +9,7 @@ status: validated
 
 | Batch | Feature | REQ closed | Depends | Status | Human acceptance |
 |-------|---------|------------|---------|--------|------------------|
-| [batch-timing-scale](batches/batch-timing-scale.md) | Timing scale — one factor governs every cadence of the product (foundation batch) | REQ-1 … REQ-21 (all) | — | implemented | The product keeps its own rhythm when nothing is set |
+| [batch-timing-scale](batches/batch-timing-scale.md) | Timing scale — one factor governs every cadence of the product (foundation batch) | REQ-1 … REQ-21 (all) | — | certified | The product keeps its own rhythm when nothing is set |
 
 One batch, and it is declared a **foundation batch**. The plan's four requirement groups are one
 capability seen at the two processes that hold cadences, plus the guard rails around it. Splitting
