@@ -48,6 +48,7 @@ import { measureFieldList, reportFieldList, widestShare, type FieldListGeometry 
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { containerCard, containerDetail, openContainerDetail } from './support/container-cards.js';
+import { waitForTheListToCatchUp } from './support/caught-up.js';
 
 const CASE_NAME = 'container-detail-config-reading';
 
@@ -619,6 +620,12 @@ test('Config: the card and the tab state the same publications for a container t
     await page.getByPlaceholder('Search name, image or state…').fill(name);
     const card = containerCard(page, name);
     await expect(card, 'the fixture container never appeared in the list').toBeVisible({ timeout: 20_000 });
+    // A container publishes its ports when it **starts**, and the card is drawn from a snapshot the
+    // server holds: the card exists, is counted and states `none` while that snapshot is the one read
+    // between this fixture's `docker run` create and its start (`support/caught-up.ts`). The state is
+    // waited on rather than the chips, and the two come off the daemon in the same read: a card
+    // saying `running` is a card drawn after the start that published the port.
+    await waitForTheListToCatchUp(page, name);
 
     const chips = await card.locator('.ui-metric-strip__row .ui-chip').allInnerTexts();
     console.log(`[REQ-60] the daemon published ${EXPOSED_PORT}/tcp on host port ${hostPort}; the card reads ${JSON.stringify(chips)}`);

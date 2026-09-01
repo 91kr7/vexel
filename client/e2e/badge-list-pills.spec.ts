@@ -3,6 +3,7 @@ import { openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { F4_VIEWPORTS, describeRect, round } from './support/truncating-rows.js';
+import { waitUntilTheScreenStatesWhatTheDaemonStates } from './support/caught-up.js';
 
 /**
  * **No badge is ever painted over the badge next to it**
@@ -83,6 +84,43 @@ async function measurePills(row: Locator): Promise<PillGeometry[]> {
   });
 }
 
+/**
+ * Waits until the cell names every container the daemon says mounts this volume.
+ *
+ * The four fixtures are created one `docker create` at a time, and the list is served from a snapshot
+ * the server holds: the row is drawn — and its first pill with it — as soon as the first of them is
+ * read (`support/caught-up.ts`). Measuring there measures a column under a third of the pressure the
+ * check exists to create, which is the state a run of the full suite caught: 1 mount, then 3, then 4.
+ *
+ * What the cell **states** is not what it draws: each pill it fits carries its name in its own
+ * tooltip, and the names it could not fit are in the overflow indicator's. Every assertion below is
+ * still about the boxes of what is drawn.
+ */
+async function waitForTheCellToNameEveryMount(row: Locator, volumeName: string): Promise<void> {
+  await waitUntilTheScreenStatesWhatTheDaemonStates({
+    what: `the containers mounting ${volumeName}`,
+    daemon: async () => {
+      const { stdout } = await execFileAsync('docker', ['ps', '--all', '--filter', `volume=${volumeName}`, '--format', '{{.Names}}']);
+      return stdout
+        .trim()
+        .split('\n')
+        .filter((line) => line !== '');
+    },
+    screen: async () =>
+      row
+        .locator('.ui-table-badge-list-cell')
+        .first()
+        .evaluate((cell) =>
+          Array.from(cell.querySelectorAll('.ui-table-badge-list-cell__item')).flatMap((item) =>
+            (item.getAttribute('title') ?? '')
+              .split(', ')
+              .map((name) => name.trim())
+              .filter((name) => name !== ''),
+          ),
+        ),
+  });
+}
+
 function overlapWidth(left: PillGeometry, right: PillGeometry): number {
   const horizontal = Math.min(left.badge.right, right.badge.right) - Math.max(left.badge.left, right.badge.left);
   const vertical = Math.min(left.badge.bottom, right.badge.bottom) - Math.max(left.badge.top, right.badge.top);
@@ -113,8 +151,10 @@ test('a pill is bounded by its own wrapper and never painted over its neighbour,
 
       const row = volumeRow(page, volumeName).first();
       await expect(row).toBeVisible({ timeout: 20_000 });
-      // The names arrive with the list's own re-read; the cell is measured once it holds them.
+      // The names arrive with the list's own re-read; the cell is measured once it holds them **all**,
+      // the first of them being drawn while three are still missing.
       await expect(row.locator('.ui-table-badge-list-cell__item').first()).toBeVisible({ timeout: 20_000 });
+      await waitForTheCellToNameEveryMount(row, volumeName);
 
       const pills = await measurePills(row);
       console.log(

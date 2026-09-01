@@ -4,7 +4,7 @@ import { expectCompletedThenSelfDismissed } from './support/progress-completion.
 import { expectRegionPinnedAcrossViewportHeights } from './support/pinned-region.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
-import { TINY_IMAGE, TINY_IMAGE_FILE, ensureImage } from '../../server/test/support/base-images.js';
+import { REGISTRY_IMAGE, TINY_IMAGE, TINY_IMAGE_FILE, ensureImage } from '../../server/test/support/base-images.js';
 
 async function createStandaloneImage(tag: string, containerName: string): Promise<void> {
   // Ensured at the point of use, not once for the run: the exclusive project
@@ -113,47 +113,65 @@ test('opens the layer explorer from the row menu with no panel open, and shows t
 
 // plan-docker_management_app/REQ-51 — the operator is warned of the expected time and temporary
 // disk cost before analysis starts, and cancelling stops it.
+//
+// **The subject is `registry:2`, and that is the repair.** This check used to analyze a one-file
+// image committed for it, and the state it exists to observe — a run in flight, cancelled — does not
+// last on such an image: the trace of the 2026-09-01 run holds the whole stream, opened and ended,
+// in **35ms**, against the ~43ms the press itself took to be delivered. The dialog had already
+// swapped its `Cancel` for the `Close` that acknowledges a finished run, the press landed on the
+// control standing at those coordinates, and the changesets it dismissed stayed on screen —
+// correctly, and with nothing cancelled. A wait cannot repair that: what the check needs is not to
+// arrive later but to have something still running when it arrives.
+//
+// So it cancels the analysis of the multi-layer, registry-pulled image the suite already requires,
+// whose export and per-layer indexing take seconds rather than tens of milliseconds. Nothing is
+// weakened: every assertion below is the one this check has always made, and one is added — that the
+// run really is in flight when the press lands, read off the product's own statement of it.
 test('warns about cost before analyzing, and cancelling closes the progress dialog without starting over', async ({ page }) => {
-  const containerName = `vexel-e2e-layers-cost-src-${Date.now()}`;
-  const tag = `vexel-e2e-layers-cost-${Date.now()}:v1`;
-  try {
-    await createStandaloneImage(tag, containerName);
-    await page.reload();
-    await searchField(page).fill(tag);
-    const row = imageRow(page, tag);
-    await expect(row).toBeVisible({ timeout: 10_000 });
-    await chooseRowAction(page, row, 'Explore layers…');
+  // Ensured at the point of use, not once for the run: the exclusive project prunes the host.
+  await ensureImage(REGISTRY_IMAGE);
+  await page.reload();
+  await searchField(page).fill(REGISTRY_IMAGE);
+  const row = imageRow(page, REGISTRY_IMAGE).first();
+  await expect(row).toBeVisible({ timeout: 10_000 });
+  await chooseRowAction(page, row, 'Explore layers…');
 
-    const modal = layerExplorerModal(page, `Layer stack — ${tag}`);
-    await waitForLayerStack(page, modal);
-    await selectRow(modal.locator('.ui-data-table__row').first());
-    await modal.getByRole('button', { name: 'Analyze changesets…' }).click();
+  const modal = layerExplorerModal(page, `Layer stack — ${REGISTRY_IMAGE}`);
+  await waitForLayerStack(page, modal);
+  await selectRow(modal.locator('.ui-data-table__row').first());
+  await modal.getByRole('button', { name: 'Analyze changesets…' }).click();
 
-    const confirmDialogHeading = page.getByRole('heading', { name: `Confirm: ${tag}` });
-    await expect(confirmDialogHeading).toBeVisible();
-    // The dialogs are nested inside the layer-explorer Modal's own DOM (its children), not
-    // siblings, so a heading's direct parent — not a `.ui-modal` filter — is the right scope.
-    const confirmDialog = confirmDialogHeading.locator('xpath=..');
-    await expect(confirmDialog).toContainText('temporary disk');
-    await confirmDialog.getByRole('button', { name: 'Cancel' }).click();
-    await expect(confirmDialogHeading).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: 'Analyzing layer changesets' })).toHaveCount(0);
+  const confirmDialogHeading = page.getByRole('heading', { name: `Confirm: ${REGISTRY_IMAGE}` });
+  await expect(confirmDialogHeading).toBeVisible();
+  // The dialogs are nested inside the layer-explorer Modal's own DOM (its children), not
+  // siblings, so a heading's direct parent — not a `.ui-modal` filter — is the right scope.
+  const confirmDialog = confirmDialogHeading.locator('xpath=..');
+  await expect(confirmDialog).toContainText('temporary disk');
+  await confirmDialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(confirmDialogHeading).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Analyzing layer changesets' })).toHaveCount(0);
 
-    await modal.getByRole('button', { name: 'Analyze changesets…' }).click();
-    await confirmDialog.getByRole('button', { name: 'Analyze', exact: true }).click();
-    const progressHeading = page.getByRole('heading', { name: 'Analyzing layer changesets' });
-    await expect(progressHeading).toBeVisible();
-    const progressDialog = progressHeading.locator('xpath=..');
-    await progressDialog.getByRole('button', { name: 'Cancel' }).click();
+  await modal.getByRole('button', { name: 'Analyze changesets…' }).click();
+  await confirmDialog.getByRole('button', { name: 'Analyze', exact: true }).click();
+  const progressHeading = page.getByRole('heading', { name: 'Analyzing layer changesets' });
+  await expect(progressHeading).toBeVisible();
+  const progressDialog = progressHeading.locator('xpath=..');
 
-    // layer-explorer.md — Cancel discards: the dialog closes with no result, and the "not analyzed
-    // yet" prompt is shown again (a deliberate, expected end, not a failure).
-    await expect(progressHeading).toHaveCount(0);
-    await expect(modal.getByText('Changesets not analyzed yet')).toBeVisible();
-    await expect(modal.getByRole('button', { name: 'Analyze changesets…' })).toBeVisible();
-  } finally {
-    await removeStandaloneImage(tag, containerName);
-  }
+  // The run is still going when the press lands, stated by the product rather than assumed by the
+  // check: the dialog offers `Cancel` while the analysis is active and `Close` once it has ended
+  // (`images/specs/layer-explorer.md`), so the control being there is the in-flight state itself.
+  const cancelControl = progressDialog.getByRole('button', { name: 'Cancel' });
+  await expect(cancelControl, `the analysis of ${REGISTRY_IMAGE} ended before its cancel control could be found: this check has no run left to cancel`).toBeVisible();
+  await cancelControl.click();
+
+  // layer-explorer.md — Cancel discards: the dialog closes with no result, and the "not analyzed
+  // yet" prompt is shown again (a deliberate, expected end, not a failure).
+  await expect(progressHeading).toHaveCount(0);
+  await expect(
+    modal.getByText('Changesets not analyzed yet'),
+    'the explorer kept a changeset after the run was cancelled — or the run finished between the control being found and the press being delivered, in which case what closed the dialog was the `Close` that acknowledges a completed run',
+  ).toBeVisible();
+  await expect(modal.getByRole('button', { name: 'Analyze changesets…' })).toBeVisible();
 });
 
 // plan-docker_management_app/REQ-49 — selecting a layer, once analysed, shows the paths that layer
