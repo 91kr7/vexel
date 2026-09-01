@@ -1,6 +1,6 @@
-import { expect, test, type Page } from '../support/test.js';
-import { openApp, ownershipArgs } from '../support/fixtures.js';
-import { execFileAsync } from '../../../server/test/support/docker-cli.js';
+import { expect, test, type Page } from './support/test.js';
+import { openApp, ownershipArgs } from './support/fixtures.js';
+import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 const RUN_ID = `${process.pid}-${Date.now()}`;
 

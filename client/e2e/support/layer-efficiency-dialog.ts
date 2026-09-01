@@ -71,7 +71,7 @@ const DOCKERFILE = [
 
 /** Builds the fixture image, labelled for ownership, fetching nothing. */
 export async function buildEfficiencyFixtureImage(tag: string, caseName: string): Promise<void> {
-  // Ensured at the point of use, not once for the run: the exclusive project prunes the host.
+  // Ensured at the point of use, not once for the run: a prune spec in this suite prunes the host.
   await ensureImage(ALPINE_IMAGE);
   const contextDir = await mkdtemp(join(tmpdir(), 'vexel-e2e-efficiency-'));
   try {

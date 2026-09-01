@@ -19,7 +19,7 @@
  * - {@link ALPINE_IMAGE} is **mirrored into the run's own registry** the first
  *   time it is ensured — taken from the daemon's local copy when it has one, so
  *   usually no network at all — and restored from there whenever it goes
- *   missing again (the exclusive pass prunes the host mid-run). Hub is asked
+ *   missing again (a prune spec in this pass prunes the host mid-run). Hub is asked
  *   once per run at most, and only on a daemon that does not hold it.
  * - {@link REGISTRY_IMAGE} is **the one irreducible exception**: it is the image
  *   that run's registry is itself run from, so it cannot come out of it. It has
@@ -131,7 +131,7 @@ const PULLABLE_CONTENT = "vexel pullable fixture\n";
  * Work in flight in this process, so two fixtures asking for the same thing at
  * the same moment wait on one attempt instead of racing two. Deliberately not a
  * cache of past results: another process in the same run may remove an image
- * (the exclusive pass prunes the host), so presence has to be re-checked every
+ * (a prune spec in this pass prunes the host), so presence has to be re-checked every
  * time rather than remembered.
  */
 const inFlight = new Map<string, Promise<unknown>>();

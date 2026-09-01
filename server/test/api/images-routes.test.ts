@@ -148,7 +148,7 @@ test("GET /api/images/:id/inspect returns the image's full inspect data", async 
   const { url, close } = await startApp(app);
   const containerName = `vexel-test-inspect-src-${Date.now()}`;
   const tag = `vexel-test-inspect-${Date.now()}:v1`;
-  // Ensured at the point of use, not once for the file: the exclusive pass
+  // Ensured at the point of use, not once for the file: a prune spec in this pass
   // prunes the host, so an image present when this file was loaded may be gone
   // by the time the fixture is created. Locally built, so re-establishing it
   // costs a second and no network.

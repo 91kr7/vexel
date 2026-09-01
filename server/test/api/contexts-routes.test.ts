@@ -17,7 +17,7 @@ const RUN_ID = `${process.pid}-${Date.now()}`;
 // pass or fail. No test here ever *selects* a context: `docker context use`
 // rewrites machine-wide state the whole host sees at once, which no label can
 // scope while the API files run in parallel, so the coverage of
-// `POST /api/contexts/:name/use` lives in test/exclusive/contexts-use-routes.test.ts.
+// `POST /api/contexts/:name/use` lives in test/api/contexts-use-routes.test.ts.
 function fixtureName(caseName: string): string {
   return `vexel-test-ctx-${caseName}-${RUN_ID}`;
 }

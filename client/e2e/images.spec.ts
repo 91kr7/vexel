@@ -31,7 +31,7 @@ async function createStandaloneImage(tag: string, containerName: string): Promis
 /**
  * Creates (but never starts) a container from the suite's own single-file image.
  *
- * Ensured at the point of use, not once for the run: the exclusive project
+ * Ensured at the point of use, not once for the run: a prune spec in this suite
  * prunes the host, so an image present at global setup may be gone by now.
  * Locally built, so putting it back costs a second and no network.
  */

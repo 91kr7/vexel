@@ -177,7 +177,7 @@ let composeDir: string | undefined;
 let registryFixture: RegistryFixtureServer;
 
 test.beforeAll(async () => {
-  // Ensured at the point of use rather than once for the run: the exclusive project prunes the host.
+  // Ensured at the point of use rather than once for the run: a prune spec in this suite prunes the host.
   await ensureImage(ALPINE_IMAGE);
   await buildEfficiencyFixtureImage(efficiencyImage, CASE_NAME);
 

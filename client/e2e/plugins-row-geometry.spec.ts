@@ -17,8 +17,8 @@
  * length, and REQ-48 about two inventories that are empty — with and without a
  * stated reason. The daemon this suite runs against exposes **no** managed
  * plugin, and installing one to obtain a row would be a host mutation
- * (`docker plugin ls` is a host-wide list no label can scope, which is why the
- * one spec that installs lives in `e2e/exclusive/`). Answering `GET /api/plugins`
+ * (`docker plugin ls` is a host-wide list no label can scope, which is why only
+ * one spec installs one, `plugins-lifecycle.spec.ts`). Answering `GET /api/plugins`
  * in the page gives every row state at once, at every viewport, and touches
  * nothing on the machine: no container, no image, no plugin, no context.
  *

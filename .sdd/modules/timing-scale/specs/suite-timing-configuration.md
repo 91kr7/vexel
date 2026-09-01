@@ -14,7 +14,7 @@ other variables that already configure the process a pass starts.
 - the Playwright suite's web server (`client/playwright.config.ts`, `webServer.env`) → started with
   `VEXEL_TIMING_SCALE` at `0.2`, beside `PORT`, `VEXEL_DATA_DIR` and `VEXEL_DOCKER_LOG`
   - the browser gets the same `0.2` from the endpoint, so both processes of a run share one clock
-- the daemon-backed server passes (`server/package.json`, `test:api` and `test:exclusive`) → run with
+- the daemon-backed server pass (`server/package.json`, `test:api`) → run with
   `VEXEL_TIMING_SCALE=0.2` inline, beside `VEXEL_DOCKER_LOG` and `VEXEL_DATA_DIR`
 - the server unit pass (`test:unit`) → **the factor is left unset**, so it runs at `1`
 

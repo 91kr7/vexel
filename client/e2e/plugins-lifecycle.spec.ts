@@ -1,6 +1,6 @@
-import { expect, test, type Locator, type Page } from '../support/test.js';
-import { openApp } from '../support/fixtures.js';
-import { pluginIsInstalled, removePluginQuietly, startPluginFixture, type PluginFixture } from '../../../server/test/support/plugin-fixture.js';
+import { expect, test, type Locator, type Page } from './support/test.js';
+import { openApp } from './support/fixtures.js';
+import { pluginIsInstalled, removePluginQuietly, startPluginFixture, type PluginFixture } from '../../server/test/support/plugin-fixture.js';
 
 // The one place a plugin is actually installed through the interface
 // (REQ-111).

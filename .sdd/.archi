@@ -153,8 +153,10 @@ Run from the repository root (npm workspaces):
   - `npm run test:unit -w server` — pure unit tests, no daemon involved
   - `npm run test:api -w server` — REST-level tests against the real daemon, files in parallel;
     every fixture it creates carries the `vexel.test.run` ownership label
-  - `npm run test:exclusive -w server` — the prune tests, alone and serial: the daemon's prune acts
-    on every stopped container / dangling image on the host, so no labelling can scope them
+  - `npm run test:destructive` (repository root) — only the tests that act on the whole host, named
+    one by one in `scripts/destructive-tests.mjs`. They are not a pass of their own: they run inside
+    `test:api` and the e2e suite like every other file, and this command exists so they can be run
+    alone, and so the suite can be run without them touching the operator's machine
   - `npm run test:sweep -w server` — removes the containers, volumes, networks and images left
     behind by a killed run; scoped to the ownership label, so it never touches an object the
     operator created. Runs automatically before the two daemon-backed passes.
@@ -215,8 +217,9 @@ Run from the repository root (npm workspaces):
   tests that pass under the npm scripts.
 - Whole suite: `npm run test` from the repository root chains server then client. The e2e suite runs with a **single worker on purpose** — every spec drives the
   same daemon, so concurrency turns contention into spurious timeouts at no wall-clock gain; see the
-  rationale in `client/playwright.config.ts`. Destructive specs live in `client/e2e/exclusive/` and
-  run in their own project, after the rest.
+  rationale in `client/playwright.config.ts`. Destructive specs run in that same single project,
+  beside every other file: each spec re-establishes the base images it needs at the point of use, so
+  a prune landing mid-run costs a local restore and nothing else.
 - The e2e run isolates itself from the machine it runs on, in two ways set up by
   `client/e2e/support/global-setup.ts` and `playwright.config.ts`: the server under test is pointed
   at a throwaway `VEXEL_DATA_DIR` (emptied and recreated before each run, so the operator's own

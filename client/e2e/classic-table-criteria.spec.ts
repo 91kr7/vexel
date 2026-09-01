@@ -98,7 +98,7 @@ let volumeMountpoints: string[] = [];
 let registryFixture: RegistryFixtureServer;
 
 test.beforeAll(async () => {
-  // Ensured at the point of use, not once for the run: the exclusive project prunes the host.
+  // Ensured at the point of use, not once for the run: a prune spec in this suite prunes the host.
   await ensureImage(ALPINE_IMAGE);
   for (const name of volumeNames) {
     await execFileAsync('docker', ['volume', 'create', ...ownershipArgs(name), name]);

@@ -9,7 +9,7 @@ const RUN_ID = `${process.pid}-${Date.now()}`;
 // carries, a GET on the Engine API. The destructive path is only ever taken as far as the
 // confirmation, which is then cancelled — the command it names never runs (and names a container
 // that does not exist, so a mistake here could still destroy nothing). Executing a destructive
-// entry belongs to `exclusive/raw-console-destructive.spec.ts`, against a fixture it creates.
+// entry belongs to `raw-console-destructive.spec.ts`, against a fixture it creates.
 
 /** A command line unique to one test, so an assertion never reads another test's entry. */
 function marker(caseName: string): string {

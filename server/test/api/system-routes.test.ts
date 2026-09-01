@@ -10,7 +10,7 @@ import { execFileAsync } from "../support/docker-cli.js";
 // lives here: the shape and canonical order of the breakdown, the reading being
 // read-only, and the requests the prune endpoint refuses outright. The prunes
 // themselves act on the whole host and cannot be scoped, so they live in
-// test/exclusive/ (system-prune-routes.test.ts).
+// test/api/system-prune-routes.test.ts.
 //
 // No assertion is made on host totals or on a category being empty: the
 // operator's own containers, images, volumes and networks are on this daemon

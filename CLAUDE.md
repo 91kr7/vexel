@@ -232,8 +232,18 @@ objects behind, and reading state somebody else created.
 - **Every spec must pass on its own.** Running one file is what development actually looks like. A
   fixed order is legitimate for sharing expensive setup — `client/e2e/support/global-setup.ts`
   prepares the base images once — but never for passing state from one test to the next.
-- Destructive-by-nature tests (`prune` acts on the whole host) cannot be scoped, so they live apart:
-  `server/test/exclusive/` and `client/e2e/exclusive/`, scheduled after everything else.
+- Destructive-by-nature tests (`prune` acts on the whole host) cannot be scoped, and they used to be
+  kept apart for it — `server/test/exclusive/` and `client/e2e/exclusive/`, scheduled after
+  everything else. **They now run beside every other file**, in `server/test/api/` and `client/e2e/`.
+  What ended the split is that its cost was real and its benefit had lapsed: the Playwright project
+  declared the parallel one as a dependency, so a red anywhere in the suite skipped every destructive
+  spec silently — which is exactly what happened, eight specs unrun behind one unrelated failure.
+  The benefit had lapsed because **no file trusts what the one before it left**: each ensures the
+  base images it needs at the point of use (`server/test/support/base-images.ts`), so a prune landing
+  mid-pass costs a local restore from the run's own registry and nothing else, and both passes are
+  serial, so a prune can never reach a fixture still in use. The one thing genuinely lost is being
+  able to run the suite without pruning the host, and `npm run test:destructive` is what gives it
+  back — it names the destructive files, and a new one is added to that list.
 
 ### No test reaches Docker Hub
 
@@ -253,7 +263,7 @@ arranges for itself:
   machine, under a fixed name, carrying the ownership labels — and seeds it with every image the
   tests pull (`docker tag` + `docker push` from the daemon's own copy, no network at all), builds
   the single-layer image and publishes the copy of it the "missing locally" tests fetch.
-- Both are chained, in that order, by `test:api` and `test:exclusive`, and
+- Both are chained, in that order, by `test:api`, and
   `client/e2e/support/global-setup.ts` runs **those same two commands** rather than a second
   implementation of them. By the time the first test file loads, everything is in place.
 - One definition behind them, `server/test/support/base-images.ts`, serving both test trees.
@@ -268,8 +278,8 @@ Where each image comes from:
 
 - **`alpine:3.20`** — a container that simply stays up; it declares no `VOLUME`, so it cannot orphan
   one. Mirrored into the run's registry at the preliminary step, from the daemon's own copy when it
-  has one (`docker tag` + `docker push`, no network at all). Whenever it goes missing mid-run — the
-  exclusive passes prune the host — it is restored from there.
+  has one (`docker tag` + `docker push`, no network at all). Whenever it goes missing mid-run — a
+  prune spec prunes the host — it is restored from there.
 - **`vexel-test-tiny:1`** — the single-layer image a fixture is made from whenever all it needs is
   something a container can instantly be created out of. **Built** by the suite, `FROM scratch`, with
   one file of known content and a `CMD` (without one, `docker create` refuses it). Nothing is fetched

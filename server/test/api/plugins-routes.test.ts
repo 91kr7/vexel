@@ -14,8 +14,8 @@ import { resetRefreshCache } from "../../src/refresh-cache/refresh-cache.js";
 // REQ-111).
 //
 // Nothing in this file installs a plugin. `docker plugin ls` is the operator's
-// own list, and the one successful install lives in the exclusive pass, where
-// it is alone and can be undone; here the install endpoint is only ever driven
+// own list, and the one successful install lives in
+// `plugins-lifecycle-routes.test.ts`, where it can be undone; here the install endpoint is only ever driven
 // to its refusals — which is exactly where REQ-99's promise lives: the
 // privileges are read first, and a grant that is not the set the plugin asks
 // for installs nothing.

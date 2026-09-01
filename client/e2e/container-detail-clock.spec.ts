@@ -133,9 +133,12 @@ test('the header and the Inspect payload agree after the container is paused fro
     await createRunningContainer(name);
     const detail = await openInspect(page, name);
 
-    const atFirst = await headerAndPayloadInOnePass(detail);
-    expect(atFirst.header.toLowerCase(), 'the header does not say the fixture is running to begin with').toContain('running');
-    expect(atFirst.payload.Status, 'the State section does not say the fixture is running to begin with').toBe('running');
+    await expect
+      .poll(async () => headerAndPayloadInOnePass(detail), {
+        timeout: FOLLOWS_THE_CONTAINER_MS,
+        message: 'the dialog never showed the fixture as running to begin with, header and State section together',
+      })
+      .toMatchObject({ header: /running/i, payload: { Status: 'running' } });
 
     // Paused behind the application's back, and nothing on screen is touched
     // afterwards: the clock is the only trigger either half has left.
@@ -281,12 +284,21 @@ test('a container that is not running is asked for its processes not once', asyn
     await createRunningContainer(name);
     await execFileAsync('docker', ['stop', '-t', '0', name]);
 
+    await openApp(page, 'containers');
+    await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible({ timeout: 20_000 });
+    await page.getByPlaceholder('Search name, image or state…').fill(name);
+    await expect(
+      containerCard(page, name),
+      'the list never showed the fixture as stopped, so the interface still judged it running',
+    ).toContainText('EXITED', { timeout: 20_000 });
+
     const asked: string[] = [];
     page.on('request', (request) => {
       if (new URL(request.url()).pathname.endsWith('/processes')) asked.push(request.url());
     });
 
-    const detail = await openDetail(page, name);
+    await openContainerDetail(page, name);
+    const detail = containerDetail(page);
     await openTab(page, detail, 'Processes');
     await expect(detail.getByText(/No process is running in this container/i)).toBeVisible({ timeout: 20_000 });
 

@@ -260,7 +260,7 @@ test('offers no build-launch affordance and no cache export/import affordance', 
 // plan-docker_management_app/REQ-91 — the build cache is listed record by record with its type,
 // size and usage state
 test('lists a build-cache record with its type, size and usage state', async ({ page }) => {
-  // Same shape as `exclusive/build-cache-prune.spec.ts`, and the same reason: a
+  // Same shape as `build-cache-prune.spec.ts`, and the same reason: a
   // real `buildx` build inside the body, then waits allowed 15s each, against a
   // default budget of 30s. That spec ran out of it; this one has never been
   // measured with any margin to spare either.

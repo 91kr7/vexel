@@ -12,7 +12,7 @@ What the human has taught, one entry per row. Consult the entries whose `scope` 
 | development-goes-through-sdd-dev | guideline | any | Implement through the `sdd-dev` command, never by calling `sdd-developer` / `sdd-tester` by hand | `entries/development-goes-through-sdd-dev.md` |
 | full-suite-commands | how-to | test | A full pass is run with `npm run test:e2e -w client -- --quiet` and `npm run test`, in exactly that form | `entries/full-suite-commands.md` |
 | one-playwright-process-at-a-time | how-to | test | Never two Playwright processes at once, and a full pass is for discovering and for verifying, not for iterating | `entries/one-playwright-process-at-a-time.md` |
-| exclusive-project-needs-no-deps | how-to | test | `--project=exclusive` without `--no-deps` drags the whole suite behind it | `entries/exclusive-project-needs-no-deps.md` |
+| destructive-tests-run-beside-the-rest | guideline | test | The host-wide tests live with every other file; `npm run test:destructive` runs them alone | `entries/destructive-tests-run-beside-the-rest.md` |
 | save-the-traces-before-the-next-run | how-to | test | Traces are copied out of the repository before each run, because the next run empties `test-results/` | `entries/save-the-traces-before-the-next-run.md` |
 | read-playwright-traces-without-a-browser | how-to | test | A trace is read from the files in its zip, never with `show-trace`, and every failure's trace is read | `entries/read-playwright-traces-without-a-browser.md` |
 | an-intermittent-failure-is-reproduced-first | how-to | test | A failure that comes and goes is pinned with `--repeat-each` before a cause is written for it | `entries/an-intermittent-failure-is-reproduced-first.md` |

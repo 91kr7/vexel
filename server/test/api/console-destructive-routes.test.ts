@@ -9,9 +9,8 @@ import { execFileAsync } from "../support/docker-cli.js";
 // The one place a destructive console entry is actually executed. The console
 // runs whatever the operator types with the server's own privileges, so the
 // only command allowed to run here is one scoped to a container this file
-// created and removes — never a prune, never an unscoped removal. It lives in
-// the exclusive pass because it is the destructive half of the console's
-// contract (REQ-112) and is scheduled apart from everything else.
+// created and removes — never a prune, never an unscoped removal. It is kept to itself
+// because it is the destructive half of the console's contract (REQ-112).
 process.env.VEXEL_DATA_DIR = mkdtempSync(join(tmpdir(), "vexel-console-destructive-"));
 
 const { consoleRouter } = await import("../../src/console/console-routes.js");

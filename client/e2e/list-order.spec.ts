@@ -43,8 +43,8 @@ import { refreshThroughTheControl } from './support/refresh-control.js';
  * the same comparison and is separated by the same exact one.
  *
  * Nothing here activates a context or a builder: switching either changes the
- * daemon the whole run talks to, which is why the suite keeps those in
- * `e2e/exclusive/`. This spec is not exclusive and must not need to be.
+ * daemon the whole run talks to, which is why only the specs that own that
+ * change do it. This spec is not one of them and must not need to be.
  */
 
 const RUN_ID = `${process.pid}-${Date.now()}`;

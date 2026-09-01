@@ -1,13 +1,13 @@
-import { expect, test, type Page } from '../support/test.js';
-import { openApp, ownershipArgs } from '../support/fixtures.js';
-import { execFileAsync } from '../../../server/test/support/docker-cli.js';
+import { expect, test, type Page } from './support/test.js';
+import { openApp, ownershipArgs } from './support/fixtures.js';
+import { execFileAsync } from '../../server/test/support/docker-cli.js';
 
 const RUN_ID = `${process.pid}-${Date.now()}`;
 
 // The only spec that lets the raw console actually execute a destructive command. It is scoped as
 // tightly as such a thing can be: the command names a container this spec created, labelled as its
 // own, and the container is removed in a `finally` whether the run passed or not. Nothing global —
-// no prune, no unscoped removal — is ever typed here. It lives in the exclusive project because
+// no prune, no unscoped removal — is ever typed here. It is kept to itself because
 // what it exercises is the destructive half of the console's contract (REQ-112).
 test.describe.configure({ mode: 'serial' });
 

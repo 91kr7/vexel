@@ -1,11 +1,11 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { expect, test, type Page } from '../support/test.js';
-import { openApp } from '../support/fixtures.js';
-import { refreshThroughTheControl } from '../support/refresh-control.js';
-import { execFileAsync } from '../../../server/test/support/docker-cli.js';
-import { ALPINE_IMAGE, localBuilderDriverArgs, mirroredImage } from '../../../server/test/support/base-images.js';
+import { expect, test, type Page } from './support/test.js';
+import { openApp } from './support/fixtures.js';
+import { refreshThroughTheControl } from './support/refresh-control.js';
+import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { ALPINE_IMAGE, localBuilderDriverArgs, mirroredImage } from '../../server/test/support/base-images.js';
 
 const RUN_ID = `${process.pid}-${Date.now()}`;
 

@@ -62,7 +62,7 @@ export async function createSleepingContainer(
   extraArgs: string[] = [],
 ): Promise<{ id: string; name: string }> {
   const name = fixtureName(caseName);
-  // Checked here rather than once per file: the exclusive pass prunes the host
+  // Checked here rather than once per file: a prune spec in this pass prunes the host
   // mid-run, so an image present when the file was loaded may be gone by the
   // time this fixture is created.
   await ensureImage(BASE_IMAGE);

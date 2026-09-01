@@ -125,7 +125,7 @@ function serviceBlock(name: string, command: string): string {
 let composeDir: string | undefined;
 
 test.beforeAll(async () => {
-  // Ensured at the point of use rather than once for the run: the exclusive project prunes the host.
+  // Ensured at the point of use rather than once for the run: a prune spec in this suite prunes the host.
   await ensureImage(ALPINE_IMAGE);
   composeDir = await mkdtemp(join(tmpdir(), 'vexel-e2e-nested-'));
 

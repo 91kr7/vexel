@@ -11,7 +11,7 @@ const RUN_ID = `${process.pid}-${Date.now()}`;
 // needed and no test switches the machine-wide active builder: the two cases
 // that must switch it (`POST /api/builders/:name/use`, and the cache inventory
 // which can only be attributed to a builder that is active) run alone, in
-// test/exclusive/builders-active-routes.test.ts.
+// test/api/builders-active-routes.test.ts.
 
 function fixtureName(caseName: string): string {
   return `vexel-test-builder-${caseName}-${RUN_ID}`;

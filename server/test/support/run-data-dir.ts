@@ -36,7 +36,7 @@ import { tmpdir } from "node:os";
 
 /**
  * Where the daemon-backed passes keep the application's data, and never the
- * operator's own `~/.vexel`. The same path the `test:api`, `test:exclusive` and
+ * operator's own `~/.vexel`. The same path the `test:api` and
  * `test:reset-data-dir` scripts name.
  */
 export const RUN_DATA_DIR = join(tmpdir(), "vexel-server-test-data");

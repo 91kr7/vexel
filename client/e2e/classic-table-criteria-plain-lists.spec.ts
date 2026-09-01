@@ -91,7 +91,7 @@ const referenceContainer = `vexel-e2e-plain-ref-${RUN_ID}`;
 const referenceImage = `vexel-e2e-plain-ref-${RUN_ID}:1`;
 
 test.beforeAll(async () => {
-  // Ensured at the point of use, not once for the run: the exclusive project prunes the host.
+  // Ensured at the point of use, not once for the run: a prune spec in this suite prunes the host.
   await ensureImage(ALPINE_IMAGE);
   await execFileAsync('docker', [
     'run',

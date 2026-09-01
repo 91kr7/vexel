@@ -175,7 +175,7 @@ async function measureInspectBands(page: Page): Promise<PayloadBandGeometry> {
 }
 
 async function createFixtureContainer(name: string): Promise<void> {
-  // Ensured at the point of use, not once for the run: the exclusive project prunes the host, so an
+  // Ensured at the point of use, not once for the run: a prune spec in this suite prunes the host, so an
   // image present at global setup may be gone by now. Locally built, so putting it back costs a
   // second and no network (REQ-44).
   await ensureImage(TINY_IMAGE);

@@ -12,8 +12,8 @@ import { resetRefreshCache } from "../../src/refresh-cache/refresh-cache.js";
 // The one place a plugin is actually installed (REQ-111).
 //
 // `docker plugin ls` is a single, host-wide list that no label can scope, so
-// installing into it cannot be done alongside anything else: this file lives in
-// the exclusive pass, installs one plugin of its own making, and removes it in
+// installing into it cannot be done alongside anything else: this file is the
+// only one that does it. It installs one plugin of its own making, and removes it in
 // a `finally` that runs on failure too, leaving the list exactly as it found
 // it. The plugin comes from a throwaway registry started here, so nothing is
 // pulled from the internet and what it asks for is written in the fixture.

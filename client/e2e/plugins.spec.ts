@@ -7,7 +7,7 @@ import { pluginIsInstalled, removePluginQuietly, startPluginFixture, type Plugin
 // plan-ui-coherence-optimisation/REQ-46, REQ-47).
 //
 // Nothing here installs a plugin. `docker plugin ls` is a host-wide list no
-// label can scope, so the install itself lives in `e2e/exclusive/plugins.spec.ts`;
+// label can scope, so the install itself lives in `e2e/plugins-lifecycle.spec.ts`;
 // what this file drives is everything that leaves the daemon's plugins exactly
 // as it found them — the two inventories, and the sharpest half of REQ-99: the
 // privileges are read and shown before anything is installed, and refusing the

@@ -52,23 +52,18 @@ export default defineConfig({
     baseURL: E2E_ORIGIN,
     trace: 'retain-on-failure',
   },
+  // One project over the whole suite, destructive specs included. They used to
+  // be scheduled apart, after a project they declared as a dependency — which
+  // meant a red anywhere in the suite skipped them entirely, and that is what
+  // ended the arrangement. What made the split unnecessary is that no spec
+  // trusts what the one before it left: each ensures the base images it needs at
+  // the point of use (`server/test/support/base-images.ts`), so a prune landing
+  // mid-suite costs a local restore from the run's own registry and nothing
+  // else. The run is serial, so a prune can never reach a fixture still in use.
   projects: [
-    // The parallel body of the suite. Every fixture it creates is labelled and
-    // scoped to its own spec, so specs cannot disturb one another.
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
-      testIgnore: /exclusive\//,
-    },
-    // Specs whose action is global by nature (the daemon's prune removes every
-    // stopped container / dangling image on the host). They cannot be scoped, so
-    // they are scheduled apart: after the parallel project, serially within it.
-    {
-      name: 'exclusive',
-      use: { ...devices['Desktop Chrome'] },
-      testMatch: /exclusive\/.*\.spec\.ts/,
-      fullyParallel: false,
-      dependencies: ['chromium'],
     },
   ],
   webServer: {

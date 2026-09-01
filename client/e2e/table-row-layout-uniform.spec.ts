@@ -221,7 +221,7 @@ const volumeName = `vexel-e2e-tracks-${RUN_ID}`;
 const networkName = `vexel-e2e-tracks-${RUN_ID}`;
 
 test.beforeAll(async () => {
-  // Ensured at the point of use, not once for the run: the exclusive project prunes the host.
+  // Ensured at the point of use, not once for the run: a prune spec in this suite prunes the host.
   await ensureImage(ALPINE_IMAGE);
   await execFileAsync('docker', ['run', '-d', '--name', containerName, ...ownershipArgs(containerName), '--entrypoint', 'sleep', ALPINE_IMAGE, '600']);
   await execFileAsync('docker', ['tag', ALPINE_IMAGE, imageTag]);

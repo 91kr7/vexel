@@ -542,8 +542,8 @@ test('volumes & networks: neither inline inspect offers a copy, on a band or abo
 /**
  * A daemon plugin the machine need not have.
  *
- * `docker plugin ls` is host-wide and installing one is destructive enough to
- * live in the exclusive project, so the inventory and the inspect payload behind
+ * `docker plugin ls` is host-wide and installing one is destructive enough that only
+ * one spec does it, so the inventory and the inspect payload behind
  * this screen are served from **the application's own API**, stubbed here. What
  * is under examination is the client's rendering of a plugin's property band and
  * raw payload — nothing about the daemon — so the stub removes the only
