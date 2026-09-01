@@ -10,10 +10,130 @@ status: validated
 | Batch | Feature | REQ closed | Depends | Status | Human acceptance |
 |-------|---------|------------|---------|--------|------------------|
 | `batch-client-event-trigger-removal` | The client's Docker-event refresh trigger is removed | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-9, REQ-10, REQ-11, REQ-12, REQ-13, REQ-14, REQ-15 | — | implemented | An open detail stops following the daemon on its own |
+| `batch-dashboard-overview-clock` | The Dashboard's overview figures move on a clock | REQ-16, REQ-17, REQ-18, REQ-19, REQ-20, REQ-21, REQ-22, REQ-23, REQ-24 | `batch-client-event-trigger-removal` | todo | The Dashboard follows the host with nobody touching it |
 
-Execution order: one batch, nothing before it.
+Execution order: the removal first, then the clock. The second batch rebuilds one of the seven
+triggers the first one took away, so it reads a codebase the first has already left behind.
+
+> **The plan was extended on 2026-09-01**, after the human saw the first batch implemented, which is
+> why the frontmatter reads `draft` again. The first row is untouched and still says what that batch
+> did.
+
+## The scope of REQ-12
+
+REQ-12 says the server is unchanged. The clock the human asked for is cheap or expensive depending
+on whether the overview endpoint may read what the server already holds, and that is server work.
+Both cannot be read as statements about the whole plan, so one of them has to be scoped. **REQ-12 is
+read as scoped to the first batch.** The figures behind that, and what the other reading would have
+cost, are below.
+
+**What one overview request costs today.** `GET /api/system/overview` calls `getSystemOverview()`,
+which reads from the daemon on every request. Four readings, of which three bypass a value the
+server already holds:
+
+| Reading | Channel | What the server already holds for it |
+|---------|---------|--------------------------------------|
+| `/system/df` — the whole host's disk accounting | Engine API | nothing for the totals; `volumeSizeCache` reads the same call for volume sizes alone, on a 300 000 ms period |
+| build-cache inventory | `docker buildx du` | `buildCacheListCache`, 30 000 ms |
+| compose projects | `docker compose ls` | `composeProjectsCache`, 30 000 ms |
+| builder inventory | `docker buildx ls` | `builderListCache`, 30 000 ms |
+
+The container counts are the one free part: they already come from the held listing. So a tick costs
+one `/system/df` plus three CLI process spawns, and it costs that **once per open window**.
+
+`/system/df` is named by this cycle's spec, and by the refresh-cache analysis before it, as the
+single most expensive call the application makes. The server allows itself twelve of them an hour,
+and `volumes-service.ts:141-146` says in as many words why. `use-system-overview.ts` carries the
+matching sentence on the client side: it does not poll because "a dashboard left open all day must
+not keep the daemon busy computing it".
+
+**Reading A, the one taken — REQ-12 is scoped to the first batch; the second batch may touch the
+server.** The
+overview is served from the values the server holds; a tick becomes an in-memory read and an HTTP
+round trip, and the daemon-facing rate stops depending on how many windows are open. The client
+period is then chosen for what the operator sees rather than for what it costs, and can sit with the
+list clocks at 3 000 ms — the same clock as the container panel directly beneath the tiles, so the
+two halves of one screen stop disagreeing. The sizes still move at whatever period is set for the
+disk-usage reading, which becomes an explicit decision instead of a side effect.
+
+Its cost: real server work — the disk-usage totals registered as a kind of their own, `overview-service`
+reading held values, their component specs, index rows and server checks — and a departure to record,
+because REQ-12 as written does not admit it.
+
+**Reading B, refused — the second batch stays inside the client and pays.** No server file is touched, and
+the tick keeps the four readings above. The shortest period defensible without a measurement on a
+large host is 60 000 ms: sixty `/system/df` an hour per open window, against the twelve an hour the
+server allows itself for the same call. At 30 000 ms it is a hundred and twenty an hour — ten times
+the server's own rate for the call both comments call too expensive to repeat. What the operator
+gets for it: a container started elsewhere appears in the activity panel after three seconds and in
+the tile above it up to a minute later. What the suite gets: at the pass factor of 0.2 every check of
+this clock waits twelve seconds, against 600 ms under Reading A.
+
+**Why A.** REQ-12 sits in Feature 5, "Nothing else moves", which is a guard
+on a demolition; it was closed by the first batch, whose INT-10 states in its own words that no file
+under `server/` was changed. Read as a statement about the whole plan it forbids the rebuild the
+human has just asked for, and the analysis puts that rebuild outside its own scope rather than
+outlawing it. Under Reading A, REQ-12 stands unedited as the record of what the first batch did, and
+REQ-22 and REQ-23 bound what the second one may change.
+
+## The period of the Dashboard's clock
+
+**3 000 ms.** Three reasons, in order of weight:
+
+- It is the number the screen already runs on. The container activity panel under the tiles is fed
+  by the containers listing, which polls at 3 000 ms, and the tile above it counts the same
+  containers. Any slower number puts two clocks on one screen and shows the operator the same fact
+  twice, at two different times.
+- It is not a new figure. `use-containers`, `use-images`, `use-volumes`, `use-networks` and
+  `use-compose-projects` all declare `cadence(3000)`; this adds a sixth caller of a number the
+  product has already chosen, rather than a seventh cadence to reason about.
+- Under Reading A it costs an in-memory read and an HTTP round trip, so the period is answerable to
+  what the operator sees and to nothing else. What actually bounds each figure's freshness is the
+  server's own period for the value behind it — the container counts follow the held listing, which
+  is marked due by container events and so moves as fast as the lists do; the sizes follow the
+  disk-usage reading, whose period the second batch sets deliberately.
+
+Under Reading B this number would have been 60 000 ms, for the cost stated above and against both
+comments that say the call is too expensive to repeat.
 
 ## Assumptions and decisions
+
+### The second batch — the Dashboard's clock
+
+- **One held reading of `/system/df`, replacing the volume-size kind — not a second one beside it.**
+  The human's decision of 2026-09-01 is that no rate is added for that call which does not exist
+  today. Registering a disk-usage kind and leaving `volumeSizeCache` standing would put two readers
+  of the same payload on the same 300 000 ms rhythm, which is the very thing
+  `volumes-service.ts:141-146` refuses. So the existing reading is widened to hold the whole payload
+  and the volume sizes become one view of it, at the same period, marked due by the same events and
+  the same operations. The volume listing's behaviour does not change.
+- **The reclaimable-space breakdown stays a direct read.** `getDiskUsage()`, behind System & prune,
+  keeps calling the daemon when the screen asks it to — as it does today, so no rate is added there
+  either, and REQ-23 holds for that screen. This also keeps a decision the earlier cycle took on
+  purpose: `plan-docker_management_app-refresh_cache/batch-volume-sizes-separated/INT-4` states that
+  the breakdown "does not change and does not become a held value".
+- **Counts and sizes come from different places, and may describe different moments.** The human's
+  decision: the counts follow the listings the server already holds — images and volumes are marked
+  due by daemon events, so those tiles move as fast as their own screens — while the sizes follow the
+  held disk-usage reading and may be up to five minutes old. One tile can therefore show a count that
+  has moved beside a size that has not. It is the price of adding no `/system/df` rate, it is
+  visible, and the operator's refresh control closes the gap on demand. The overview's contract says
+  today that no two figures in one payload describe different moments; INT-7 replaces that sentence
+  rather than leaving it to be discovered.
+- **No disagreement is introduced on screen.** The Dashboard's disk-usage breakdown renders sizes
+  only, never the item counts held beside them, so the counts inside the breakdown and the counts on
+  the tiles are never shown against each other.
+- **No endpoint is added and no payload changes shape.** The overview service and the held values are
+  in one process; the client keeps calling `GET /api/system/overview` and receives what it receives
+  today. The pattern is already in the codebase — `volumes-service.ts:168`, `heldVolumeSizes()`.
+- **The first read still waits.** With nothing held yet the overview waits for the disk-usage
+  reading, so a freshly started server paints the Dashboard with real figures rather than zeros. Only
+  the reads after it answer from what is held (INT-5).
+- **The clock does not stop when the browser tab is hidden.** No list hook pauses today, and REQ-17
+  says the Dashboard's clock behaves like theirs. A visibility rule for the whole product is a
+  decision of its own and is not taken here.
+
+### The first batch — the removal
 
 - **One batch, not several.** The spec names a half-done demolition as worse than either end of it:
   some screens with two triggers and some with one is a state nobody designed. REQ-13 is also only
@@ -52,8 +172,17 @@ here so the next reader is not confused by two live statements of the opposite b
 
 ## Departures from the spec
 
-Both are human decisions of 2026-09-01, taken during validation. **The spec was corrected on the
-same day** and now reads as REQ-9 and REQ-13 do; this section is the account of why.
+All three are human decisions of 2026-09-01, taken during validation. **The spec was corrected on the
+same day** and now reads as REQ-9, REQ-13 and the second batch do; this section is the account of
+why.
+
+- **The spec put the server out of scope entirely, and said the mechanism replacing the event trigger
+  "is a later step, with its own analysis".** The second batch is that step, folded into this cycle:
+  the human, having seen the first batch implemented, asked for the Dashboard's clock here and chose
+  extending this plan over opening a new analysis. The spec now carries the clock in its scope,
+  together with the server work that "asks the daemon for nothing already held" implies, and its
+  later-step line now covers only the six views this addition does not reach. The server work stays
+  bounded by REQ-23 and reaches exactly the reading behind the overview.
 
 - **The spec's requirement "An action the operator performs through the application still shows its
   result immediately"** is narrowed by REQ-9 to where the application already re-reads after its own
@@ -70,8 +199,12 @@ same day** and now reads as REQ-9 and REQ-13 do; this section is the account of 
 
 ## Coverage check
 
-Every REQ is served by at least one INT, and every INT serves at least one REQ. No enabling
-intervention. Every REQ closes in this batch; none is spread over several.
+Every REQ is served by at least one INT, and every INT serves at least one REQ, in both batches. No
+enabling intervention in either. No REQ is spread over two batches: REQ-1 to REQ-15 close in
+`batch-client-event-trigger-removal`, REQ-16 to REQ-24 in `batch-dashboard-overview-clock`. The ids
+below are local to their own batch file.
+
+### `batch-client-event-trigger-removal`
 
 | REQ | Served by |
 |-----|-----------|
@@ -104,3 +237,41 @@ intervention. Every REQ closes in this batch; none is spread over several.
 | INT-9 | REQ-14, REQ-15 |
 | INT-10 | REQ-5, REQ-11, REQ-12, REQ-14, REQ-15 |
 | INT-11 | REQ-1, REQ-2, REQ-3 |
+
+### `batch-dashboard-overview-clock`
+
+| REQ | Served by |
+|-----|-----------|
+| REQ-16 | INT-6, INT-8, INT-12 |
+| REQ-17 | INT-6, INT-8, INT-9 |
+| REQ-18 | INT-6, INT-8, INT-9, INT-12 |
+| REQ-19 | INT-6, INT-8 |
+| REQ-20 | INT-6, INT-14 |
+| REQ-21 | INT-13 |
+| REQ-22 | INT-1, INT-2, INT-3, INT-4, INT-5, INT-7, INT-10 |
+| REQ-23 | INT-2, INT-3, INT-4, INT-7, INT-11, INT-14 |
+| REQ-24 | INT-9, INT-10, INT-11, INT-12, INT-13, INT-14 |
+
+| INT | Serves |
+|-----|--------|
+| INT-1 | REQ-22 |
+| INT-2 | REQ-22, REQ-23 |
+| INT-3 | REQ-22, REQ-23 |
+| INT-4 | REQ-22, REQ-23 |
+| INT-5 | REQ-22 |
+| INT-6 | REQ-16, REQ-17, REQ-18, REQ-19, REQ-20 |
+| INT-7 | REQ-22, REQ-23 |
+| INT-8 | REQ-16, REQ-17, REQ-18, REQ-19 |
+| INT-9 | REQ-17, REQ-18, REQ-24 |
+| INT-10 | REQ-22, REQ-24 |
+| INT-11 | REQ-23, REQ-24 |
+| INT-12 | REQ-16, REQ-18, REQ-24 |
+| INT-13 | REQ-21, REQ-24 |
+| INT-14 | REQ-20, REQ-23, REQ-24 |
+
+**Two remarks on this coverage, both deliberate.** REQ-17 — the clock stops when the Dashboard is
+not on screen — has no scenario of its own: nothing the operator can see distinguishes a stopped
+clock from a running one, so it is checked where it is observable at all, in INT-9, and rides along
+in the first scenario. And REQ-21 — no other view gains a trigger — is served by a single check
+(INT-13), because it is a statement about what is *absent*: the six hooks it names are not touched by
+any intervention of this batch, and a check is the only way to keep them that way.

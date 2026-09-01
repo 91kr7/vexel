@@ -130,12 +130,20 @@ In:
   written, plus any client-side facility that exists solely to serve that trigger.
 - The checks that cover the removed behaviour.
 
+Also in, **added on 2026-09-01** on the human's decision, after the removal was implemented and its
+one visible loss was seen: **the Dashboard's overview figures get a clock**. They were the only view
+whose loss was worth closing at once — with no trigger left they stand still above a container panel
+that keeps moving. The clock is a poll in the browser, and a tick must ask the daemon for nothing the
+server already holds, which makes the server's assembly of those figures part of this request too.
+
 Out:
 
-- The server, entirely: the event stream it publishes, the values it holds, its schedule and its own
-  reaction to events.
 - The Dashboard's event feed and everything the operator sees of it.
 - The clock, the manual refresh control and the context switch: kept as they are, not redesigned.
-- The mechanism that will replace the event trigger. It is a later step, with its own analysis.
+- The rest of the server: the event stream it publishes, the values it holds, its schedule and its
+  own reaction to events. Only what the Dashboard's figures are assembled from is touched, and no
+  endpoint is added, removed or changed in shape.
+- The mechanism that will replace the event trigger for the six views the addition above does not
+  cover. It is a later step, with its own analysis.
 - The live streams that are not list data — logs, stats, console and terminal sessions, transfer and
   build progress — which follow their own subscriptions and are not a refresh of a listing.
