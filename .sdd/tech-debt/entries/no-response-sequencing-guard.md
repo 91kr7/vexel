@@ -25,5 +25,11 @@ burst seven re-reads start inside one second — see [[polled-hooks-do-not-coale
 it, which reads as a flicker or a stale row rather than as a bug, and so would not be reported.
 
 **Direction** → a per-request sequence number, or an `AbortController` cancelling the previous
-in-flight read. Under [[no-server-side-sampling-or-dedup]] the defect disappears on its own: one
-sampler is a single writer producing a monotonic sequence of snapshots.
+in-flight read.
+
+**Re-examined on 2026-09-01.** This entry expected server-side sampling to close it on its own —
+one writer, one monotonic sequence of snapshots. the refresh cache (`plan-docker_management_app-refresh_cache`) shipped that, and it does not
+close this: the server being a single writer says nothing about the order two of its answers reach
+the browser, and the overwrite happens there. What it does do is make consecutive answers identical
+most of the time, since the held value now changes far less often than the client asks for it, so
+the window in which the race has any effect is much narrower.

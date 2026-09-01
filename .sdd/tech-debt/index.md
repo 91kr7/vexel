@@ -24,20 +24,15 @@ means writing the analysis and the plan for it in the normal way — see
 
 | Debt | Area | Sev | What | File |
 |------|------|-----|------|------|
-| no-server-side-sampling-or-dedup | server | high | No list route samples, caches or merges: N clients cost N times | `entries/no-server-side-sampling-or-dedup.md` |
-| volumes-list-polls-system-df | server | high | The volumes list pulls Docker's heaviest endpoint every 3 s, against a decision already taken elsewhere | `entries/volumes-list-polls-system-df.md` |
-| images-list-inspects-every-image | server | high | The images list costs `1 + one inspect per image`, every 3 s, for an immutable value | `entries/images-list-inspects-every-image.md` |
-| compose-list-spawns-subprocesses | server | high | The Compose list spawns `compose ls` every 3 s, plus one `compose ps` per project | `entries/compose-list-spawns-subprocesses.md` |
-| polled-hooks-do-not-coalesce-events | client | high | The twelve polled views re-read once per event; the grouping exists only in the two that poll least | `entries/polled-hooks-do-not-coalesce-events.md` |
+| images-list-inspects-every-image | server | medium | The images list costs `1 + one inspect per image` for an immutable value; since the refresh cache that pass runs every 60 s, not every 3 s | `entries/images-list-inspects-every-image.md` |
+| polled-hooks-do-not-coalesce-events | client | low | The polled views still re-read once per event; since the refresh cache, those re-reads are served from a held value and cost the daemon nothing | `entries/polled-hooks-do-not-coalesce-events.md` |
 | detail-views-reread-on-unrelated-events | both | high | Detail views re-read on events about other objects; a volume detail pulls `/system/df` per container event | `entries/detail-views-reread-on-unrelated-events.md` |
 | new-socket-per-engine-call | server | high | A fresh socket per Engine call: negligible locally, an `ssh` process per request on a remote context | `entries/new-socket-per-engine-call.md` |
-| cli-version-detection-uncached | server | medium | Three programs launched every 5 s to read versions that cannot change while the app runs | `entries/cli-version-detection-uncached.md` |
+| cli-version-detection-uncached | server | low | Three programs launched to read versions that cannot change while the app runs; since the refresh cache, every 30 s rather than every 5 s | `entries/cli-version-detection-uncached.md` |
 | no-response-sequencing-guard | client | medium | No sequence number: an older response landing last overwrites a newer one | `entries/no-response-sequencing-guard.md` |
-| contexts-list-spawns-subprocesses | server | low | Two processes every 15 s for an inventory that changes when the operator changes it | `entries/contexts-list-spawns-subprocesses.md` |
 | object-type-invalidation-registry-unused | client | low | The by-object-type invalidation registry is exported and called from nowhere | `entries/object-type-invalidation-registry-unused.md` |
 | stale-thirteen-screen-count-in-checks | client | low | Thirteen checks still say "thirteen screens", two of them in failure messages, on a rail that has twelve | `entries/stale-thirteen-screen-count-in-checks.md` |
 | change-coverage-millisecond-window | server | low | A read starting in the same millisecond as a change counts as covering it, on REQ-13's path | `entries/change-coverage-millisecond-window.md` |
-| layer-explorer-cancel-races-the-analysis | client | low | A check presses Cancel on an analysis that has already finished, and passes on speed rather than on contract | `entries/layer-explorer-cancel-races-the-analysis.md` |
 | open-app-retries-for-a-whole-test-budget | client | medium | `openApp` retries for 30 s, the whole default budget of the 562 tests that call it, so its own failure message can never be printed | `entries/open-app-retries-for-a-whole-test-budget.md` |
 | builder-writes-mark-one-inventory-of-the-two-they-change | server | medium | Removing a builder, and pruning the cache, each mark one of the two inventories they change, so a screen reports figures the operator's own action has invalidated | `entries/builder-writes-mark-one-inventory-of-the-two-they-change.md` |
 | stats-gate-waits-no-longer-scale-with-the-sampling-interval | client | medium | A budget said to sit below one sampling interval sits above four on the suite's clock, so the check passes without proving promptness | `entries/stats-gate-waits-no-longer-scale-with-the-sampling-interval.md` |
@@ -50,12 +45,18 @@ count no longer matches a position in the table, entries having been removed as 
 
 ## Provenance of this first batch
 
-All twelve come from one study of the refresh and polling machinery,
+They come from one study of the refresh and polling machinery,
 `.sdd/analysis/studies/refresh-and-polling.html`, read against the code on 27 August 2026 at `main`
 / `57cc50c`. Intervals and constants were read at the source; timings were measured on the
 development machine, three runs per command, median, on a daemon holding 3 images and no Compose
 project. The event burst was measured on the real lifecycle of a probe container, removed with
 `rm -fv` afterwards. Hourly counts are arithmetic over the intervals, not observed traffic.
+
+**Most of that study is closed.** The refresh cache (`plan-docker_management_app-refresh_cache`)
+holds a value per kind at a period of its own, so the client's poll no longer sets the rate at
+which the daemon is questioned and N windows no longer cost N times. Four of its rows went with
+it, and two more of the survivors say at their own declaration what it reduced and what it left
+standing. The figures in the entries that remain were measured before it, and each says so.
 
 Two things were deliberately left out. **Swarm** — its removal is already planned
 (`plan-docker_management_app-swarm_removal`), so its polling is moot. **The detail views' pull

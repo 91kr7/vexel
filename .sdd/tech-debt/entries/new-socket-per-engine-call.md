@@ -30,5 +30,5 @@ development machine, and it degrades by two orders of magnitude on exactly the c
 nobody is watching the logs.
 
 **Direction** → a keep-alive agent per endpoint, held for the endpoint's lifetime and replaced on
-context switch. Independent of [[no-server-side-sampling-or-dedup]], which changes how often this is
+context switch. Independent of the refresh cache (`plan-docker_management_app-refresh_cache`), which changed how often this is
 paid but not what it costs.

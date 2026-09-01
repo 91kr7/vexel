@@ -1,7 +1,7 @@
 ---
 id: cli-version-detection-uncached
 area: server
-severity: medium
+severity: low
 cost: at-rest
 date: 2026-08-27
 source: study .sdd/analysis/studies/refresh-and-polling.html
@@ -26,3 +26,8 @@ This is not a sampling-cadence question: it is a value that should be read once.
 **Direction** → read once per process. The daemon-reachability half is separate and does need a live
 signal — but the event stream is already one: while it is connected, the daemon answers. That would
 remove most of what this poll exists for.
+
+**Reduced on 2026-09-01, not closed.** the refresh cache (`plan-docker_management_app-refresh_cache`) holds the connection status as a kind of
+its own at a 30-second period, so the three programs are launched twice a minute rather than
+twelve times: about 360 processes an hour where the evidence above counted 2,160. The direction
+this entry asks for — read once per process — has not shipped; severity drops from medium to low.

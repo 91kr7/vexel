@@ -1,7 +1,7 @@
 ---
 id: images-list-inspects-every-image
 area: server
-severity: high
+severity: medium
 cost: at-rest
 date: 2026-08-27
 source: study .sdd/analysis/studies/refresh-and-polling.html
@@ -26,4 +26,9 @@ clearest case in the codebase of paying repeatedly for something immutable.
 
 **Direction** → remember the resolved platform per image id. Nothing needs to invalidate it, which
 is what makes this the cheapest large saving available. Sampling reduces how often it is paid but
-not what it costs per pass, so this stands on its own — see [[no-server-side-sampling-or-dedup]].
+not what it costs per pass, so this stands on its own.
+
+**Reduced on 2026-09-01, not closed.** the refresh cache (`plan-docker_management_app-refresh_cache`) registers this listing at a 60-second
+period, so the `1 + M` pass is paid twenty times less often than the evidence above counted, and
+once for every client rather than once each. What it costs per pass is unchanged, which is the
+part this entry is about; severity drops from high to medium.

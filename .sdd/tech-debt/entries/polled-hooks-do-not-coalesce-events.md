@@ -1,7 +1,7 @@
 ---
 id: polled-hooks-do-not-coalesce-events
 area: client
-severity: high
+severity: low
 cost: under-load
 date: 2026-08-27
 source: study .sdd/analysis/studies/refresh-and-polling.html
@@ -30,5 +30,11 @@ a single re-read"*, *"a burst of events — a compose up, a prune — is coalesc
 re-read"*. The polled views have nothing, presumably because a 3-second poll made one extra re-read
 look irrelevant — which is precisely the case where it is not.
 
-**Direction** → reuse the existing 750 ms coalescing, or fold it into
-[[no-server-side-sampling-or-dedup]], where a burst becomes one dirty flag and one pass.
+**Direction** → reuse the existing 750 ms coalescing in the polled hooks.
+
+**Reduced on 2026-09-01, not closed.** This entry offered two directions and the second one shipped:
+the refresh cache holds a value per kind and groups the events that dirty it, so a burst now costs
+the daemon one pass however many re-reads the views ask for. What the measurement above counted is
+therefore no longer paid, and the severity drops from high to low. What remains is what the title
+says — the views still issue one request per event, now answered from a held value. The umbrella
+entry this used to point at was removed when the refresh cache closed it.
