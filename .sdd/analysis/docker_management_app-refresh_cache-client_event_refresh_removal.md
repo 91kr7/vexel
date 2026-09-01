@@ -70,13 +70,13 @@ guessed beside a second mechanism nobody can switch off.
 - Every other trigger the interface has today survives untouched: the clock on the lists that carry
   one, with the same periods; the manual refresh control, reloading everything it reloads today; the
   context switch, re-reading everything it re-reads today.
-- An action the operator performs through the application still shows its result immediately,
-  without the operator asking for anything and without waiting for a clock.
+- Where the application already re-reads after its own action, it still does, and the result is
+  still shown immediately. No re-read is added anywhere to make up for the trigger that goes: this
+  step removes and adds nothing.
 - The views that today have the event as their only automatic trigger — the Dashboard's overview
   figures, the disk-usage view of System & prune, and the details of a container, an image, an
-  image's layers, a network and a volume — refresh when opened, when the operator asks, on a context
-  switch, and after an action taken in the application. Between those moments they show what they
-  last read.
+  image's layers, a network and a volume — refresh when opened, when the operator asks and on a
+  context switch. Between those moments they show what they last read.
 - Nothing in the interface tells the operator that its data comes from events, and nothing tells
   them it no longer does: this step adds no indicator, no control and no setting.
 - The client keeps no unused refresh facility standing after this step. What is not called is
@@ -84,8 +84,9 @@ guessed beside a second mechanism nobody can switch off.
 
 ### Non-functional
 
-- The application makes strictly fewer requests than before this step, for every use of it, and more
-  in none.
+- The Dashboard's event feed is the only subscriber to the daemon event stream left in the client,
+  and no other place in the client subscribes to it for any purpose. Nothing is measured and no
+  request is counted: this is read off the code.
 - The checks that cover the product are adjusted to the behaviour decided here, never weakened to
   keep passing: a check that waited for a view to follow an event now waits for the trigger that
   remains, or is removed with its behaviour.
@@ -100,6 +101,10 @@ guessed beside a second mechanism nobody can switch off.
   2026-09-01: only the wiring from an event to a re-read is removed.
 - **The interface stays connected to the daemon's event stream** — the feed needs it — so this step
   changes what the browser does with an event, not what it receives.
+- **Two requirements above were corrected on 2026-09-01**, during the validation of the plan and on
+  the human's decision: the one on an action's result, which read "immediately, always" and would
+  have required adding a re-read to the seven views; and the one on the number of requests, which
+  asked for a measurement nobody was going to take.
 - The clock periods are not revisited here. They were set by the timing-scale work and any change to
   them belongs to the step that decides the new mechanism.
 
