@@ -8,13 +8,15 @@ status: validated
 # Requirements — the client stops refreshing on Docker events
 
 This plan removes one thing: the wiring that makes a view in the browser read again because a Docker
-event arrived. Everything else stays as it is. The last two features state what must not move.
+event arrived. Everything else stays as it is. Features 5 and 6 state what must not move.
 
-> **The plan was extended twice on 2026-09-01**, each time after the human saw the previous batch
-> implemented, and each time by appending a feature: Feature 7, the Dashboard's overview figures on a
-> clock, and Feature 8, the container detail following the container it shows. Features 1 to 6 are
-> closed by the first batch, 7 by the second, 8 by the third. Nothing already validated is edited:
-> those ids are stable and say what their own batch did.
+> **The plan was extended three times on 2026-09-01**, each time after the human saw the previous
+> batches implemented, and each time by appending features: Feature 7, the Dashboard's overview
+> figures on a clock; Feature 8, the container detail following the container it shows; and Features
+> 9, 10 and 11, three independent reductions of what the interface reads and redraws. Features 1 to 6
+> are closed by the first batch, 7 by the second, 8 by the third, 9 by the fourth, 10 by the fifth and
+> 11 by the sixth. Nothing already validated is edited: those ids are stable and say what their own
+> batch did.
 
 ## Feature 1 — No view reads again because of a Docker event
 
@@ -133,3 +135,71 @@ of the sections the payload opens on, so this is the first thing in view.
 > **REQ-37 supersedes nothing.** REQ-21 says no other view gains a trigger *in that step*, and this is
 > another step. What this step does invalidate is the check that closed REQ-21, and REQ-37's last
 > sentence says what becomes of it: it keeps testing something true rather than being deleted.
+
+## Feature 9 — The volume and network listings are read only on their own screen
+
+Added 2026-09-01, on the human's decision after seeing the third batch implemented. The shell mounts
+`useVolumes()` and `useNetworks()` for every screen, and both poll every three seconds wherever the
+operator is. The only consumers are the Volumes & networks screen and the Networks panel inside it;
+no count in the rail and no figure on the Dashboard is fed by either.
+
+| ID | Requirement |
+|----|-------------|
+| REQ-40 | The volume listing and the network listing are read only while the Volumes & networks screen is on screen. On every other screen the interface asks for neither. |
+| REQ-41 | With nobody on that screen the server stops reading them from the daemon too: after the expiry window each reading stops and what was held is dropped. Until the screen is opened again neither is read at all, whatever happens on the host. |
+| REQ-42 | Opening the screen reads both. After an absence longer than that window the first painting waits for a real reading of the daemon instead of being served from what the server held — once per visit, and accepted. |
+| REQ-43 | While the screen is open every trigger it has today keeps working: the poll on both listings at the periods they have, the context switch, the reload signal, and the re-read after each of the screen's own actions. The manual refresh control behaves as it does for every held value — reading again what the server holds, skipping what it does not. |
+| REQ-44 | Nothing outside that screen loses data: no count, badge, tile or figure elsewhere in the interface was fed by either listing, and none of them changes. |
+| REQ-45 | The operator sees the same screen: the same two lists, the same columns, the same details, the same actions and the same layout, in the same places. Nothing is added to say where the data now comes from. |
+| REQ-46 | The checks that cover the two panels drive them through the screen that mounts them, and none is weakened: no assertion softened, none dropped, no budget lengthened. |
+
+## Feature 10 — A reading equal to the one in hand replaces nothing
+
+Added 2026-09-01, on the human's decision. The polled list hooks store every reading they receive.
+The array is newly parsed each time, so its identity always changes and the table redraws twenty
+times a minute even when the answer is byte-for-byte the one already on screen.
+
+| ID | Requirement |
+|----|-------------|
+| REQ-47 | A reading that comes back equal to the one already in hand does not replace it, and nothing downstream is redrawn. This holds for the six polled list hooks: containers, images, volumes, networks, compose projects and plugins. |
+| REQ-48 | A reading that differs does replace it, and what the operator sees follows within the same period as today. No reading is delayed, skipped or coalesced. |
+| REQ-49 | Each tick serialises one reading: the one that has just arrived. What is already in hand is never serialised a second time — its serialisation is kept beside it by the tick that stored it. |
+| REQ-50 | The container's inspect data and its process listing are brought to that same form. What they already contract keeps holding: a tick that finds nothing changed changes nothing on screen (REQ-29), and a tick that finds something changed replaces the values where they stand (REQ-30). |
+| REQ-51 | Nothing else about these hooks moves: the first read, the failure reporting, the loaded flag, the poll periods, the context switch, the reload signal and every re-read after an action behave exactly as today. |
+| REQ-52 | No guard on the order of answers is added here. Two answers arriving out of order behave exactly as they do today, and the debt that records this stays in the register with its evidence. |
+| REQ-53 | The rule is covered by checks that drive it — an equal reading redrawing nothing, a different one arriving — and no check is weakened to accommodate it. |
+
+## Feature 11 — The plugins and the registries are held by the server
+
+Added 2026-09-01, on the human's decision. These are the last two listings the interface polls that
+the server holds nothing for: every request reaches the local Docker installation and the daemon,
+once per open window. Their hooks are already mounted by their own screen alone, so the client half
+of "read it only while it is being looked at" is in place and this closes the server half.
+
+| ID | Requirement |
+|----|-------------|
+| REQ-54 | The plugins reading and the registries inventory are held by the server and served from what it holds. However many windows are open, the local Docker installation and the daemon are read once per period, not once per request. |
+| REQ-55 | Each is read only while it is being asked for: with nobody on the Plugins screen and nobody on the Registries screen, neither is read at all. A whole expiry window without a request stops the reading and drops what was held, so the next request reads fresh. |
+| REQ-56 | The plugins reading stays one round: the CLI inventory and the daemon inventory are read together and held together, so the two panels never show two different moments of the same installation. Each side keeps carrying its own stated unavailability. |
+| REQ-57 | An action taken through the application is reflected at once: after installing, enabling, disabling or removing a plugin, and after a log in or a log out, the listing the screen reads back describes the change and never a state read before it. |
+| REQ-58 | Each period is one figure, declared in one place, beside the kind it belongs to. It is a bare figure like every other kind's period, not a scaled cadence: on the server only the grouping window, the demand expiry and the stats sampler move with the pass factor. |
+| REQ-59 | The delay this puts under a change made outside the application is bounded and stated: a `docker login`, a `docker logout` or a `docker plugin` command run from a terminal is noticed within the period plus the screen's own poll. |
+| REQ-60 | Both endpoints answer with the body they answer with today and carry the read-time headers every held value carries. No endpoint is added, removed or changed in shape, and neither screen changes. |
+| REQ-61 | Both behave like every other held value in the three cases the cache already decides: the operator's manual reload reads them again when they are held and skips them when they are not; a read that fails leaves the last value standing and is reported as staleness rather than as a failure; a context switch drops both. |
+| REQ-62 | The two held values are covered by checks that drive them, and no check is weakened to accommodate them. |
+
+> **REQ-52 is a statement about an absence, on purpose.** The missing response-sequencing guard is a
+> separate piece of work, already scoped elsewhere and not asked for here. The comparison Feature 10
+> adds touches the same line of code, so without REQ-52 the debt could be closed by accident and lose
+> its entry.
+>
+> **REQ-59 is a cost, written as a requirement so it is decided rather than discovered.** The
+> registries inventory is not only a daemon call: it reads the local Docker configuration and the
+> credential store, which is how a `docker login` typed in a terminal reaches the screen at all.
+>
+> **REQ-58's second half was corrected on 2026-09-01, hours after it was written and before any batch
+> closed it.** It first said the period was "a cadence of the product", copied across from REQ-18 and
+> REQ-33 without checking that the server does what the client does. It does not: every polled hook in
+> the browser calls `cadence()`, while all ten registered kinds declare `periodMs` as a bare figure,
+> and only three server figures are scaled at all. This is the current plan being finished on a true
+> premise, not a past one being rewritten — no batch had been built on the sentence it replaces.

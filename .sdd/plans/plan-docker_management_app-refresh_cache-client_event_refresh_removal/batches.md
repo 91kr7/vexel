@@ -12,15 +12,27 @@ status: validated
 | `batch-client-event-trigger-removal` | The client's Docker-event refresh trigger is removed | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-9, REQ-10, REQ-11, REQ-12, REQ-13, REQ-14, REQ-15 | — | implemented | An open detail stops following the daemon on its own |
 | `batch-dashboard-overview-clock` | The Dashboard's overview figures move on a clock | REQ-16, REQ-17, REQ-18, REQ-19, REQ-20, REQ-21, REQ-22, REQ-23, REQ-24 | `batch-client-event-trigger-removal` | implemented | The Dashboard follows the host with nobody touching it |
 | `batch-container-detail-clock` | The container detail follows the container it shows | REQ-25, REQ-26, REQ-27, REQ-28, REQ-29, REQ-30, REQ-31, REQ-32, REQ-33, REQ-34, REQ-35, REQ-36, REQ-37, REQ-38, REQ-39 | `batch-dashboard-overview-clock` | implemented | The dialog stops contradicting itself |
+| `batch-volumes-networks-screen-scoped` | The volume and network listings are read only on their own screen | REQ-40, REQ-41, REQ-42, REQ-43, REQ-44, REQ-45, REQ-46 | `batch-container-detail-clock` | todo | The server stops asking Docker too |
+| `batch-equal-reading-kept` | A reading equal to the one in hand replaces nothing | REQ-47, REQ-48, REQ-49, REQ-50, REQ-51, REQ-52, REQ-53 | `batch-volumes-networks-screen-scoped` | todo | A list that has not changed stops being redrawn |
+| `batch-plugins-registries-held` | The plugins and the registries are held by the server | REQ-54, REQ-55, REQ-56, REQ-57, REQ-58, REQ-59, REQ-60, REQ-61, REQ-62 | `batch-equal-reading-kept` | todo | One reading of the installation, however many windows |
 
-Execution order: the removal, then the Dashboard's clock, then the container detail's. Each rebuild
-takes back one of the seven triggers the demolition removed, and each reads a codebase the previous
-one has left behind. The third depends on the second for one file — the check that closed REQ-21,
-which it narrows — and that file must exist before it can be narrowed.
+Execution order: the removal, then the Dashboard's clock, then the container detail's, then the three
+reductions in the human's own order — the two listings moving down onto their screen, the equal
+reading, the two held values. Each rebuild takes back one of the seven triggers the demolition
+removed, and each batch reads a codebase the previous one has left behind. The third depends on the
+second for one file — the check that closed REQ-21, which it narrows — and that file must exist before
+it can be narrowed.
 
-> **The plan was extended twice on 2026-09-01**, each time after the human saw the previous batch
-> implemented, which is why the frontmatter reads `draft` again. Every row but the last is untouched
-> and still says what its own batch did.
+**The last three are independent of each other in what they do, and sequenced anyway**, for two
+reasons stated so nobody reads the chain as a real dependency. The fourth and the fifth are the only
+pair touching the same files — the fourth at the call sites of `use-volumes` and `use-networks`, the
+fifth inside them — and one order removes the overlap entirely. The sixth goes last because its
+answers are what the fifth's comparison then finds identical: a held listing returns the same bytes
+for a whole period, which is the case the keeper exists for.
+
+> **The plan was extended three times on 2026-09-01**, each time after the human saw the previous
+> batches implemented, which is why the frontmatter reads `draft` again. Every row but the last three
+> is untouched and still says what its own batch did.
 
 ## The scope of REQ-12
 
@@ -100,6 +112,92 @@ Under Reading B this number would have been 60 000 ms, for the cost stated above
 comments that say the call is too expensive to repeat.
 
 ## Assumptions and decisions
+
+### The sixth batch — the plugins and the registries held
+
+- **30 000 ms for both, and not a period each.** It is the figure seven of the ten registered kinds
+  already run on, and it makes what the two readings cost independent of the number of open windows,
+  which is the whole of what the human asked for. Two figures introduced together need a reason
+  stronger than one hook's comment, so registries takes the same number as plugins; the daemon events
+  of the next decision repay part of the loss where it can be repaid at all.
+- **The freshness this gives up, stated the way the second batch stated its own.** That batch records
+  that the Dashboard's sizes may be up to five minutes old — "the price of adding no `/system/df`
+  rate, it is visible, and the operator's refresh control closes the gap on demand". This is the same
+  trade at one twelfth the scale: a `docker login` typed in a terminal is noticed within about three
+  quarters of a minute (the period plus the screen's own 15 s poll) instead of within fifteen seconds,
+  on a screen the operator has to be watching at that moment, with the refresh control closing it. It
+  is REQ-59, so it is decided rather than discovered.
+- **`eventTypes: ["plugin"]` on the plugins round, nothing on the registries inventory.** Five of the
+  ten kinds declare events and this is the same thing they do; the server republishes the daemon's
+  stream unfiltered, so the type is available. What it does not cover is worth naming: the round is
+  CLI plus daemon, and a plugin dropped into `~/.docker/cli-plugins` announces nothing, as a
+  `docker login` writing a file announces nothing. REQ-59 bounds both.
+- **The round is held whole, which is why it becomes a component of its own.** The endpoint's contract
+  is that the two panels never show two different moments of the same installation, and it holds that
+  today by assembling both sides in one `Promise.all`. Two kinds, one per side, would break it on the
+  first period where only one of them read. The ten kinds registered today are all registered in a
+  service, never in a routes file, so the round moves out of the route and into one.
+- **`getRegistry()` stays a direct read.** It is what a log in and a log out answer with, and it is
+  the one place where the answer must describe the operation that just ran. The held listing is marked
+  changed beside it, so the client's follow-up read of the list is covered by the read that notice
+  already caused. Serving the login response from a held value is the defect this avoids, not an
+  optimisation it declines.
+- **The period is a bare figure, not a scaled cadence.** All ten registered kinds declare `periodMs`
+  as a literal; on the server only the stats sampler, the grouping window and the demand expiry pass
+  through `cadence()`. Scaling these two alone would make them the only two of twelve moving with the
+  pass factor, and it buys nothing: `registerRefreshKind` already takes per-kind timings so a check
+  can register a kind with its own. **REQ-58 said otherwise until the house style was checked** — its
+  cadence clause had been read across from REQ-18 and REQ-33, which are client cadences, where every
+  polled hook does call `cadence()`. The requirement was corrected on the same day, before any batch
+  closed it; this is a decision of this plan, not a departure from it.
+- **The demand expiry needs no change.** It is 60 s and both screens poll at 15 s, so neither expires
+  while somebody is on its screen — the ratio the cache's own rules already state.
+
+### The fifth batch — the equal reading
+
+- **The rule gets one place to live, and that is a new component.** Eight hooks each hand-writing a
+  stateful comparison — a serialisation kept across ticks, not a constant — is where eight copies
+  diverge, and the two that exist already diverge from the form the human asked for. This is not the
+  `POLL_INTERVAL_MS` case the third batch decided the other way: that is one number per hook, this is
+  one behaviour shared by eight.
+- **The six the human named, and no more.** Five other polled readings stay as they are: registries,
+  contexts, builders, build cache and the Dashboard's overview figures. **Registries is the one worth
+  naming**, because the sixth batch makes its answer byte-identical for a whole period, which is
+  precisely the case the keeper pays for. It stays out on the human's decision, for two reasons: A, B
+  and 6 were written in one message, so the registries held value was in view when the six were named;
+  and what B buys is a table that stops redrawing, which the row count on the Images screen makes
+  visible and a short list on a rarely-visited screen does not. If it is wanted later it is one hook.
+- **The two container-detail hooks are in the perimeter for the correction, not for new behaviour.**
+  REQ-29 and REQ-30 of the third batch are what must still hold there afterwards, and their checks
+  are what proves it.
+- **This batch does not close `no-response-sequencing-guard`.** It edits the same lines, so REQ-52
+  says the debt stays open with its evidence: a plan does not close a debt it was not asked for, and
+  an accident is not a decision.
+
+### The fourth batch — the two listings on their own screen
+
+- **The composition keeps the shape it has.** `networksPanel={<NetworksPanel />}` creates the element
+  on every render of the shell and mounts it only while the `volumes-networks` branch is drawn, so the
+  hook inside it runs on that screen and nowhere else. Nothing about the shell's structure moves.
+- **The screen reads the volumes and the panel reads the networks**, which is asymmetric and
+  deliberate: it is where the props go today. The shell hands `VolumesNetworksScreen` its volumes and
+  hands `NetworksPanel` its networks, so each consumer takes over exactly what it was being given.
+  `NetworksPanel` already calls `useContainers()` for its attach dialog, so this is the shape it is in.
+- **The saving is on the server, not in the browser.** `markDue()` returns at once when a kind's
+  refresher is stopped (`refresh-cache.ts:241`), so once the demand expires nothing reads volumes or
+  networks: not the period, not a `volume` or `container` event, not the container listing the two
+  kinds declare themselves derived from. Forty requests a minute per window stop, and the daemon reads
+  behind them stop with them.
+- **The cost is one wait per visit, and nothing is added to explain it.** After more than a minute
+  away, the first painting waits for a real reading of the daemon. The screen already has a
+  not-yet-loaded state and that is what shows: this plan has refused an indicator three times (REQ-10,
+  REQ-20, REQ-35) and a fourth refusal is the consistent answer.
+- **The manual refresh control needs no change, and behaves differently — both by the contract it
+  already has.** `reloadHeldValues()` reads again every kind holding a value and skips a kind holding
+  none, so a refresh pressed while nobody has been on that screen skips both. The screen reads fresh
+  when it is opened, which is the same guarantee by another route.
+- **No server file is edited.** The demand gate is the refresh cache's own behaviour, already
+  contracted and already covered; this batch stops asking and lets it run.
 
 ### The third batch — the container detail's clock
 
@@ -206,23 +304,48 @@ here so the next reader is not confused by two live statements of the opposite b
 - `plan-docker_management_app-refresh_cache/REQ-21`, its "event subscriptions" clause only. The rest
   of REQ-21 — the public shape of the list hooks and their intervals — stands, and REQ-6 restates it.
 
-**Inside this plan, three requirements are records of their own batch and not of the plan's end
+**Inside this plan, six requirements are records of their own batch and not of the plan's end
 state.** They are not edited, for the same reason, and this is the map:
 
 - **REQ-2** — the seven quiet views reading only when opened, asked or on a context switch. Still
   true of five of them. The Dashboard's overview left that list in the second batch (REQ-16), and the
   container detail in the third (REQ-26), the process listing beside it (REQ-27).
+- **REQ-6** — every list that polls keeps polling, with the same periods. Still true of every period:
+  the fourth batch changes **where** two of those clocks are mounted, not how fast they run, and the
+  fifth changes what a tick does with an answer it has already got, not whether the tick happens.
+- **REQ-7** — the manual refresh control reloading everything it reloads today. Narrowed by the
+  fourth batch, by the cache's own contract rather than by a decision: `reloadHeldValues()` skips a
+  kind holding no value, so a refresh pressed with nobody having opened Volumes & networks reloads two
+  fewer. REQ-43 records the new reading; the screen still reads fresh when it is opened.
 - **REQ-12** — the server unchanged. The record of the first batch; the second was allowed the server
-  work REQ-22 needs, bounded by REQ-23. See "The scope of REQ-12".
+  work REQ-22 needs, bounded by REQ-23, and the sixth the work REQ-54 needs, bounded by REQ-60. See
+  "The scope of REQ-12".
 - **REQ-21** — no other view gaining a trigger. Its own words scope it to the second batch, so the
   third contradicts nothing; what the third batch does change is the check that closed it, which
   REQ-37 narrows rather than deletes.
+- **REQ-38** — the server unchanged, again, as the record of the third batch. The sixth touches the
+  server in two areas neither of the two the third named: the inspect data and the process listing
+  stay pull-based exactly as REQ-38 says.
 
 ## Departures from the spec
 
-All four are decisions of 2026-09-01, taken during validation. **The spec was corrected on the same
-day** and now reads as REQ-9, REQ-13, the second batch and the third do; this section is the account
-of why.
+All six are decisions of 2026-09-01, taken during validation. **The spec was corrected on the same
+day** and now reads as REQ-9, REQ-13 and the five batches after the first do; this section is the
+account of why.
+
+- **The spec's scope said "the client only", and its "Out" said the rest of the server was untouched
+  — the event stream it publishes, the values it holds, its schedule.** The sixth batch adds two
+  values to the ones it holds and puts one of them on the daemon's `plugin` events. The human, having
+  seen the first three batches implemented, asked for this here and chose extending this plan over
+  opening a new analysis, for the third time in one day. The spec's scope now names the three
+  reductions and the server work the third of them needs, bounded by REQ-60: no endpoint added,
+  removed or changed in shape, and neither screen changed.
+
+- **The later-step line is left exactly as the third batch narrowed it.** It names five views — the
+  disk-usage view of System & prune and the details of an image, an image's layers, a network and a
+  volume — and none of the three reductions reaches any of them. The spec now says so in as many
+  words, because a reader arriving at a third addition will otherwise expect the list to have moved
+  again. REQ-37's check keeps guarding those five.
 
 - **The spec put the server out of scope entirely, and said the mechanism replacing the event trigger
   "is a later step, with its own analysis".** The second batch is that step, folded into this cycle:
@@ -255,10 +378,12 @@ of why.
 
 ## Coverage check
 
-Every REQ is served by at least one INT, and every INT serves at least one REQ, in all three batches.
+Every REQ is served by at least one INT, and every INT serves at least one REQ, in all six batches.
 No enabling intervention in any of them. No REQ is spread over two batches: REQ-1 to REQ-15 close in
 `batch-client-event-trigger-removal`, REQ-16 to REQ-24 in `batch-dashboard-overview-clock`, REQ-25 to
-REQ-39 in `batch-container-detail-clock`. The INT ids below are local to their own batch file.
+REQ-39 in `batch-container-detail-clock`, REQ-40 to REQ-46 in
+`batch-volumes-networks-screen-scoped`, REQ-47 to REQ-53 in `batch-equal-reading-kept`, REQ-54 to
+REQ-62 in `batch-plugins-registries-held`. The INT ids below are local to their own batch file.
 
 ### `batch-client-event-trigger-removal`
 
@@ -362,6 +487,96 @@ REQ-39 in `batch-container-detail-clock`. The INT ids below are local to their o
 | INT-13 | REQ-29, REQ-30, REQ-31, REQ-39 |
 | INT-14 | REQ-27, REQ-39 |
 | INT-15 | REQ-34, REQ-36, REQ-38, REQ-39 |
+
+### `batch-volumes-networks-screen-scoped`
+
+| REQ | Served by |
+|-----|-----------|
+| REQ-40 | INT-1, INT-2, INT-3, INT-4, INT-5, INT-6, INT-8 |
+| REQ-41 | INT-3, INT-6 |
+| REQ-42 | INT-1, INT-2, INT-5, INT-8 |
+| REQ-43 | INT-1, INT-2, INT-5, INT-9 |
+| REQ-44 | INT-3, INT-4, INT-9 |
+| REQ-45 | INT-1, INT-2, INT-5, INT-7 |
+| REQ-46 | INT-7, INT-8, INT-9 |
+
+| INT | Serves |
+|-----|--------|
+| INT-1 | REQ-40, REQ-42, REQ-43, REQ-45 |
+| INT-2 | REQ-40, REQ-42, REQ-43, REQ-45 |
+| INT-3 | REQ-40, REQ-41, REQ-44 |
+| INT-4 | REQ-40, REQ-44 |
+| INT-5 | REQ-40, REQ-42, REQ-43, REQ-45 |
+| INT-6 | REQ-40, REQ-41 |
+| INT-7 | REQ-45, REQ-46 |
+| INT-8 | REQ-40, REQ-42, REQ-46 |
+| INT-9 | REQ-43, REQ-44, REQ-46 |
+
+### `batch-equal-reading-kept`
+
+| REQ | Served by |
+|-----|-----------|
+| REQ-47 | INT-1, INT-2, INT-5, INT-7 |
+| REQ-48 | INT-2, INT-5, INT-7 |
+| REQ-49 | INT-1, INT-3, INT-4, INT-8 |
+| REQ-50 | INT-3, INT-6, INT-9 |
+| REQ-51 | INT-2, INT-10 |
+| REQ-52 | INT-10 |
+| REQ-53 | INT-7, INT-8, INT-9, INT-10 |
+
+| INT | Serves |
+|-----|--------|
+| INT-1 | REQ-47, REQ-49 |
+| INT-2 | REQ-47, REQ-48, REQ-51 |
+| INT-3 | REQ-49, REQ-50 |
+| INT-4 | REQ-49 |
+| INT-5 | REQ-47, REQ-48 |
+| INT-6 | REQ-50 |
+| INT-7 | REQ-47, REQ-48, REQ-53 |
+| INT-8 | REQ-49, REQ-53 |
+| INT-9 | REQ-50, REQ-53 |
+| INT-10 | REQ-51, REQ-52, REQ-53 |
+
+### `batch-plugins-registries-held`
+
+| REQ | Served by |
+|-----|-----------|
+| REQ-54 | INT-1, INT-2, INT-4, INT-5, INT-6, INT-8, INT-10 |
+| REQ-55 | INT-1, INT-4, INT-6, INT-8, INT-12 |
+| REQ-56 | INT-1, INT-6, INT-7, INT-10 |
+| REQ-57 | INT-3, INT-4, INT-7, INT-8, INT-11, INT-13 |
+| REQ-58 | INT-1, INT-4, INT-6, INT-8 |
+| REQ-59 | INT-6, INT-8, INT-9 |
+| REQ-60 | INT-2, INT-5, INT-7, INT-8, INT-12, INT-13 |
+| REQ-61 | INT-1, INT-2, INT-4, INT-5, INT-13 |
+| REQ-62 | INT-10, INT-11, INT-12, INT-13 |
+
+| INT | Serves |
+|-----|--------|
+| INT-1 | REQ-54, REQ-55, REQ-56, REQ-58, REQ-61 |
+| INT-2 | REQ-54, REQ-60, REQ-61 |
+| INT-3 | REQ-57 |
+| INT-4 | REQ-54, REQ-55, REQ-57, REQ-58, REQ-61 |
+| INT-5 | REQ-54, REQ-60, REQ-61 |
+| INT-6 | REQ-54, REQ-55, REQ-56, REQ-58, REQ-59 |
+| INT-7 | REQ-56, REQ-57, REQ-60 |
+| INT-8 | REQ-54, REQ-55, REQ-57, REQ-58, REQ-59, REQ-60 |
+| INT-9 | REQ-59 |
+| INT-10 | REQ-54, REQ-56, REQ-62 |
+| INT-11 | REQ-57, REQ-62 |
+| INT-12 | REQ-55, REQ-60, REQ-62 |
+| INT-13 | REQ-57, REQ-60, REQ-61, REQ-62 |
+
+**Three thin spots in the last three batches, all the same kind of claim as the earlier ones.**
+REQ-41 — the server stops reading when nobody is on that screen — is served by the intervention that
+stops asking and the two specs that record it, because the demand gate doing the rest is the refresh
+cache's own contracted, already-covered behaviour and this batch edits no file under `server/`.
+REQ-52 — no ordering guard added — is served by the census alone, exactly as REQ-12 and REQ-38 were:
+what proves an absence is the file-by-file pass, plus the debt entry still standing. REQ-59 — the
+delay an outside change now takes — is served by the three specs that state it and by no check,
+because what it asserts is a bound the two periods already fix; a check that waited out three
+quarters of a minute to confirm arithmetic would be the slowest in the suite and would prove nothing
+the period does not.
 
 **Two thin spots in the third batch, both deliberate.** REQ-37 — no other view gains a clock — is
 served by one intervention, because it is again a statement about an absence: the five hooks it names

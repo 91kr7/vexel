@@ -34,6 +34,12 @@ Remove from the client every re-read caused by a Docker event. This is the demol
 rework of how the interface obtains its data; what replaces it is decided in a later step and is
 not this analysis's subject.
 
+**That last sentence is no longer the whole truth**, and Scope is where the truth is kept. On the same
+day, having seen the demolition running, the human added three times to this request rather than
+opening a new analysis: two clocks that take back the losses worth closing at once, and three
+reductions of what the interface reads and redraws. Two of those additions touch the server. Read
+Scope before assuming this request stops at the browser.
+
 ## Business goal
 
 The event trigger is the half of the client's refresh that costs the most to keep correct and, since
@@ -106,7 +112,18 @@ guessed beside a second mechanism nobody can switch off.
   have required adding a re-read to the seven views; and the one on the number of requests, which
   asked for a measurement nobody was going to take.
 - The clock periods are not revisited here. They were set by the timing-scale work and any change to
-  them belongs to the step that decides the new mechanism.
+  them belongs to the step that decides the new mechanism. The third addition adds two periods on the
+  server and changes none in the browser.
+- **A slower notice of a change made outside the application is accepted**, for the plugins and the
+  registries only, and it is the third addition's whole cost. A `docker login`, a `docker logout` or a
+  `docker plugin` command typed in a terminal reaches the screen within the server's period plus the
+  screen's own poll instead of within the poll alone — about three quarters of a minute rather than
+  fifteen seconds, on a screen the operator has to be watching at that moment, with the refresh
+  control closing it on demand. Decided by the human on 2026-09-01, on the same terms as the
+  Dashboard's sizes.
+- **The first reduction is paid for once per visit**: opening Volumes & networks after more than a
+  minute away waits for a real reading of the daemon instead of being served from what the server
+  held. Nothing is added to the screen to explain it — the loading state it already has is what shows.
 
 ## Risks
 
@@ -144,15 +161,36 @@ not. A view that disagrees with itself is worse than one that is merely old, so 
 now rather than left to the later step. Both clocks are in the browser, they run only while the tab
 showing their data is on screen, and they ask the server for nothing it does not already answer.
 
+**A third addition, the same day**, on seeing the three clocks running: **three reductions of what
+the interface reads and of what it redraws**, independent of each other and of everything above.
+
+- The volume and the network listings stop being mounted for every screen and are read only on the
+  Volumes & networks screen. With nobody there the server's own reading of them stops too, so neither
+  the period nor a daemon event reaches the daemon for them at all.
+- A list reading that comes back equal to the one already in hand is kept instead of replacing it, so
+  a table is not redrawn twenty times a minute over an answer that has not changed. It is the rule the
+  container's detail already carries, in a corrected form — one serialisation per tick instead of two
+  — carried back to it.
+- The plugins reading and the registries inventory, the last two listings the interface polls that the
+  server holds nothing for, become held values like the other ten. This is server work, and the only
+  server work of the three.
+
+None of them removes a trigger or adds one: what changes is where a reading is asked for, and what is
+done with an answer that says nothing new. The third buys a slower notice of a change made outside
+the application, which is stated below.
+
 Out:
 
 - The Dashboard's event feed and everything the operator sees of it.
 - The clock, the manual refresh control and the context switch: kept as they are, not redesigned.
-- The rest of the server: the event stream it publishes, the values it holds, its schedule and its
-  own reaction to events. Only what the Dashboard's figures are assembled from is touched, and no
-  endpoint is added, removed or changed in shape.
+- The rest of the server: the event stream it publishes, its schedule and its own reaction to events.
+  Two of the things it holds are touched — what the Dashboard's figures are assembled from, and the
+  two readings the third addition puts under the cache — and no endpoint is added, removed or changed
+  in shape.
 - The mechanism that will replace the event trigger for the five views the additions above do not
   cover — the disk-usage view of System & prune, and the details of an image, an image's layers, a
-  network and a volume. It is a later step, with its own analysis.
+  network and a volume. It is a later step, with its own analysis. **The third addition does not
+  shorten this list**: it is about the cost of readings that already happen, not about a view left
+  without a trigger.
 - The live streams that are not list data — logs, stats, console and terminal sessions, transfer and
   build progress — which follow their own subscriptions and are not a refresh of a listing.
