@@ -30,6 +30,7 @@ import { reclaimOrphans } from "./persistence/analysis-cache-store.js";
 import { persistenceRouter } from "./persistence/persistence-routes.js";
 import { refreshRouter } from "./refresh-cache/refresh-routes.js";
 import { systemRouter } from "./system/system-routes.js";
+import { timingScaleRouter } from "./timing/timing-routes.js";
 import { volumesRouter } from "./volumes/volumes-routes.js";
 
 const app = express();
@@ -58,6 +59,7 @@ app.use("/api/events", eventsRouter);
 app.use("/api/persistence", persistenceRouter);
 app.use("/api/host-paths", hostPathsRouter);
 app.use("/api/refresh", refreshRouter);
+app.use("/api/timing-scale", timingScaleRouter);
 
 // Mount order below is load-bearing. An address under /api that no router above
 // claimed fails here as the API's own JSON error, so a mistyped or removed call
@@ -73,7 +75,8 @@ app.use("/api", (_req, res) => {
 // (plan-docker_management_app-single_process_serving/REQ-1).
 mountClientApp(app);
 
-/** How long the startup waits for the active context before it opens the port anyway. */
+// Tolerance, not a cadence: how slow resolving the active context may be. Shortened on a loaded
+// machine, the port opens on the platform-default socket and the product serves the wrong daemon.
 const ENDPOINT_RESOLUTION_TIMEOUT_MS = 5000;
 
 /**

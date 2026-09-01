@@ -9,11 +9,12 @@ import {
   type ContextSummary,
   type CreateContextInput,
 } from './contexts-client';
+import { cadence } from '../timing/timing-scale';
 
 // Contexts live in the local Docker configuration and change only when
 // somebody edits it, so this poll is deliberately slower than a daemon-object
 // one: it exists to notice a `docker context` command run from a terminal.
-const POLL_INTERVAL_MS = 15000;
+const POLL_INTERVAL_MS = cadence(15000);
 
 /**
  * Every mounted instance of the hook — the Contexts screen's and the shell's —

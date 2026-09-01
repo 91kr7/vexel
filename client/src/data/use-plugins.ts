@@ -18,12 +18,13 @@ import {
   type PluginPrivilege,
   type PluginsReading,
 } from './plugins-client';
+import { cadence } from '../timing/timing-scale';
 
 // Installing, enabling, disabling and removing all emit a `plugin` daemon
 // event, so the poll only has to notice a `docker plugin` command run from a
 // terminal and a CLI plugin dropped into the installation — neither of which
 // announces itself. Hence a slow interval.
-const POLL_INTERVAL_MS = 15000;
+const POLL_INTERVAL_MS = cadence(15000);
 
 function emptyListing<T>(): PluginListing<T> {
   return { items: [] };

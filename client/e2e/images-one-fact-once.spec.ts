@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
+import { waitUntilTheScreenStatesWhatTheDaemonStates } from './support/caught-up.js';
 
 /**
  * **Images: one fact, one place; two sizes, two names.** The operator's own path
@@ -89,6 +90,39 @@ async function panelSections(page: Page): Promise<{ title: string; summary: stri
   );
 }
 
+/**
+ * Every tag the daemon currently gives the image behind `firstTag`, narrowed to this test's own
+ * stem: the operator's tags on the same image are none of its business.
+ */
+async function tagsTheDaemonStates(firstTag: string, stem: string): Promise<string[]> {
+  const { stdout } = await execFileAsync('docker', ['image', 'inspect', firstTag, '--format', '{{json .RepoTags}}']);
+  return (JSON.parse(stdout.trim()) as string[]).filter((tag) => tag.includes(stem));
+}
+
+/**
+ * Waits until the row's reference column names every tag the daemon gives the image.
+ *
+ * `docker tag` lands after the commit that created the image, and the list is served from a snapshot
+ * the server holds: the row appears as soon as the commit is read, one tag old (`support/caught-up.ts`).
+ * The wait is on the tags being **named**; how many times each is printed is what the check below
+ * measures, and a row printing one of them twice satisfies this wait and still fails that assertion.
+ */
+async function waitForTheRowToNameEveryTag(row: Locator, firstTag: string, stem: string): Promise<void> {
+  // The daemon's answer of this attempt, which the screen's side of the same attempt is read against.
+  let stated: string[] = [];
+  await waitUntilTheScreenStatesWhatTheDaemonStates({
+    what: `the tags of ${firstTag}`,
+    daemon: async () => {
+      stated = await tagsTheDaemonStates(firstTag, stem);
+      return stated;
+    },
+    screen: async () => {
+      const reference = await cellText(row, 'REPOSITORY:TAG');
+      return stated.filter((tag) => reference.includes(tag));
+    },
+  });
+}
+
 async function removeTagQuietly(tag: string): Promise<void> {
   await execFileAsync('docker', ['rmi', '-f', tag]).catch(() => undefined);
 }
@@ -126,6 +160,9 @@ test('a row prints its reference once, and a multi-tagged image still shows ever
     await searchField(page).fill(stem);
     const row = imageRow(page, firstTag);
     await expect(row).toBeVisible({ timeout: 15_000 });
+    // The row is drawn as soon as the commit is read, and the second tag arrives with the next read
+    // of the daemon: the whole row is read once, so it is read once the row is as new as the image.
+    await waitForTheRowToNameEveryTag(row, firstTag, stem);
 
     const text = (await row.evaluate((element) => element.textContent ?? '')).trim();
     console.log(`[REQ-57] the row of a two-tag image reads: ${text}`);

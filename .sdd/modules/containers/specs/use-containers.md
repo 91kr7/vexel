@@ -20,7 +20,8 @@ managing polling or event subscriptions itself.
 
 ## Rules and invariants
 
-- Re-reads on a 3-second poll and whenever a `container`-typed daemon event arrives (REQ-19), so the
+- Re-reads on a 3-second poll — the declared figure, multiplied by the page's timing scale — and
+  whenever a `container`-typed daemon event arrives (REQ-19), so the
   list reflects a lifecycle change without the operator refreshing.
 - Does not re-read for a `resize`, `exec_create`, `exec_start`, `exec_die`, `exec_detach` or `top`
   action: these fire on every terminal resize or exec lifecycle step of an open exec/attach session

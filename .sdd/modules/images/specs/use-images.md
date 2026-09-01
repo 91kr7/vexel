@@ -19,7 +19,8 @@ managing polling or event subscriptions itself.
 
 ## Rules and invariants
 
-- Re-reads on a 3-second poll and whenever an `image`-typed daemon event arrives (REQ-37, REQ-38,
+- Re-reads on a 3-second poll — the declared figure, multiplied by the page's timing scale — and
+  whenever an `image`-typed daemon event arrives (REQ-37, REQ-38,
   REQ-39), so the list reflects a pull/push/tag/untag/remove/prune without the operator refreshing.
 - Unlike `useContainers`, no action is excluded from triggering a refresh: a pull/push's per-layer
   progress arrives over its own transfer stream, not through daemon events, so there is no

@@ -32,6 +32,9 @@ import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images
 import { boxOf, readOnceSettled } from './support/settled.js';
 import { clickAt } from './support/pointer.js';
 import { closeContainerDetail, containerCard, containerCards, containerDetail, detailControl, detailIdentity } from './support/container-cards.js';
+// The wait promoted to `support/caught-up.ts` when three more files needed it; its documentation
+// went with it, and this file's budget below still counts it at its own declaration.
+import { waitForTheListToCatchUp } from './support/caught-up.js';
 
 const DESKTOP = { width: 1440, height: 1000 };
 const TWO_TRACKS = { width: 1100, height: 1000 };
@@ -469,70 +472,6 @@ async function openNarrowedTo(page: Page, stem: string, expected: number, viewpo
   // box read while it does is a box read of another layout.
   await expect(page.locator('.ui-error-banner'), 'the screen is showing an error banner').toHaveCount(0, { timeout: 20_000 });
   await waitForTheListToCatchUp(page, stem);
-}
-
-/**
- * **The list saying what the daemon says about these fixtures** — and the count above cannot stand
- * in for it.
- *
- * The list is served from a snapshot the server holds, and a `container` event starts the read that
- * fills it (`EVENT_GROUPING_WINDOW_MS`, `server/src/refresh-cache/refresh-cache.ts`). The first
- * event of a window is read at once and every event of the 750ms after it is deferred to the
- * window's end — so the read a `create` event starts is aimed at the instant between `docker run`'s
- * create and its start, and whatever it finds there is then served for a whole window. A container
- * publishes its ports when it starts, so what the screen holds is a card that exists, is counted,
- * and states none of what the fixture arranged.
- *
- * A run was lost to exactly that: the grid check's fourth card drew `none` where its four
- * publications belong, off a snapshot read 36ms before the test opened the app and served for the
- * 640ms the whole test body took. Neither wait above sees it — the count is satisfied by that
- * snapshot, and `measureList` settles on geometry, which is identical either way, the PORTS row
- * being the same height with `none` as with its chips (the check two tests above certifies that).
- *
- * So the daemon is asked what state each fixture is in and the screen is waited on until it says
- * the same. The daemon's answer is read again on every attempt rather than stated here: this is a
- * wait for the two to agree, not an assertion about either, and every check below still names what
- * its own test created. **The product is not being worked around**: holding the snapshot is a
- * decision it states (`plan-docker_management_app-refresh_cache/REQ-60`), and it catches up within
- * one window.
- */
-async function waitForTheListToCatchUp(page: Page, stem: string): Promise<void> {
-  await expect
-    .poll(
-      async () => {
-        const { stdout } = await execFileAsync('docker', ['ps', '--all', '--filter', `name=${stem}`, '--format', '{{.Names}} {{.State}}']);
-        const daemon = stdout
-          .trim()
-          .split('\n')
-          .filter((line) => line !== '')
-          // Two listings of one set, compared to each other: the order either of them came in says nothing.
-          .sort();
-        const screen = (
-          await containerCards(page).evaluateAll((cards) =>
-            cards.map((card) => {
-              const name = (card.querySelector('.ui-section-header__title')?.textContent ?? '').trim();
-              const state = (card.querySelector('.ui-badge')?.textContent ?? '').trim().toLowerCase();
-              return `${name} ${state}`;
-            }),
-          )
-        ).sort();
-        return { agreed: JSON.stringify(daemon) === JSON.stringify(screen), daemon, screen };
-      },
-      {
-        // 8s = the window that defers the read the last event marked due (0.75s,
-        // `EVENT_GROUPING_WINDOW_MS`) + the list poll that carries it to the screen (3s,
-        // `POLL_INTERVAL_MS`, `client/src/data/use-containers.ts`) + 4.25s slack, which is more than
-        // a second window and poll cost. Running out means the screen and the daemon disagree about
-        // a fixture for longer than the product says it takes to agree: a corrected count, or a
-        // defect.
-        timeout: 8_000,
-        message:
-          'the list never came to state what the daemon states about this file’s own fixtures: it is a snapshot ' +
-          'older than they are, and a check reading it measures a card the fixture has already moved on from ' +
-          '(`EVENT_GROUPING_WINDOW_MS`, server/src/refresh-cache/refresh-cache.ts).',
-      },
-    )
-    .toMatchObject({ agreed: true });
 }
 
 /**

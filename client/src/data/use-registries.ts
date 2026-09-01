@@ -8,11 +8,12 @@ import {
   type RegistryLoginInput,
   type RegistrySummary,
 } from './registries-client';
+import { cadence } from '../timing/timing-scale';
 
 // The inventory lives in the local Docker configuration and in the credential
 // store; it changes only when somebody edits them, so the poll is a slow one —
 // it exists to notice a `docker login` run from a terminal.
-const POLL_INTERVAL_MS = 15000;
+const POLL_INTERVAL_MS = cadence(15000);
 
 export interface UseRegistriesResult {
   registries: RegistrySummary[];

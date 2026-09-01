@@ -1,0 +1,2069 @@
+
+> docker-client@0.1.0 test:e2e:per-file
+> for f in $(ls client/e2e/*.spec.ts client/e2e/exclusive/*.spec.ts); do t=${f#client/}; case $t in e2e/exclusive/*) p='--project=exclusive --no-deps';; *) p='--project=chromium';; esac; echo ''; echo "=== $t"; s=$(date +%s); echo "start $(date '+%Y-%m-%d %H:%M:%S')"; npm run test:e2e -w client -- --quiet "$t" $p; r=$?; e=$(date +%s); echo "end   $(date '+%Y-%m-%d %H:%M:%S')  took $((e-s))s  exit $r"; done
+
+
+=== e2e/about-notice.spec.ts
+start 2026-08-31 20:48:01
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/about-notice.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55003
+
+Running 6 tests using 1 worker
+······
+  6 passed (9.7s)
+end   2026-08-31 20:48:11  took 10s  exit 0
+
+=== e2e/about-one-treatment.spec.ts
+start 2026-08-31 20:48:11
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/about-one-treatment.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55004
+
+Running 3 tests using 1 worker
+···
+  3 passed (10.2s)
+end   2026-08-31 20:48:22  took 11s  exit 0
+
+=== e2e/badge-list-pills.spec.ts
+start 2026-08-31 20:48:22
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/badge-list-pills.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55005
+
+Running 1 test using 1 worker
+·
+  1 passed (9.0s)
+end   2026-08-31 20:48:31  took 9s  exit 0
+
+=== e2e/builders-row-geometry.spec.ts
+start 2026-08-31 20:48:31
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/builders-row-geometry.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55006
+
+Running 22 tests using 1 worker
+······················
+  22 passed (16.0s)
+end   2026-08-31 20:48:48  took 17s  exit 0
+
+=== e2e/builders.spec.ts
+start 2026-08-31 20:48:48
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/builders.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55007
+
+Running 7 tests using 1 worker
+·······
+  7 passed (18.4s)
+end   2026-08-31 20:49:07  took 19s  exit 0
+
+=== e2e/classic-table-criteria-layer-efficiency.spec.ts
+start 2026-08-31 20:49:07
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/classic-table-criteria-layer-efficiency.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55008
+
+Running 10 tests using 1 worker
+··········
+  10 passed (1.0m)
+end   2026-08-31 20:50:09  took 62s  exit 0
+
+=== e2e/classic-table-criteria-nested-lists.spec.ts
+start 2026-08-31 20:50:09
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/classic-table-criteria-nested-lists.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55009
+
+Running 10 tests using 1 worker
+··········
+  10 passed (26.1s)
+end   2026-08-31 20:50:35  took 26s  exit 0
+
+=== e2e/classic-table-criteria-plain-lists.spec.ts
+start 2026-08-31 20:50:35
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/classic-table-criteria-plain-lists.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55010
+
+Running 8 tests using 1 worker
+········
+  8 passed (32.7s)
+end   2026-08-31 20:51:08  took 33s  exit 0
+
+=== e2e/classic-table-criteria.spec.ts
+start 2026-08-31 20:51:08
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/classic-table-criteria.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55011
+
+Running 8 tests using 1 worker
+········
+  8 passed (27.2s)
+end   2026-08-31 20:51:36  took 28s  exit 0
+
+=== e2e/classic-table-sweep.spec.ts
+start 2026-08-31 20:51:36
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/classic-table-sweep.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55012
+
+Running 4 tests using 1 worker
+····
+  4 passed (1.9m)
+end   2026-08-31 20:53:33  took 117s  exit 0
+
+=== e2e/closing-invariants.spec.ts
+start 2026-08-31 20:53:33
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/closing-invariants.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55013
+
+Running 4 tests using 1 worker
+····
+  4 passed (57.9s)
+end   2026-08-31 20:54:32  took 59s  exit 0
+
+=== e2e/compose-row-geometry.spec.ts
+start 2026-08-31 20:54:32
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/compose-row-geometry.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55014
+
+Running 28 tests using 1 worker
+····························
+  28 passed (21.8s)
+end   2026-08-31 20:54:54  took 22s  exit 0
+
+=== e2e/compose.spec.ts
+start 2026-08-31 20:54:54
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/compose.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55015
+
+Running 6 tests using 1 worker
+······
+  6 passed (36.5s)
+end   2026-08-31 20:55:31  took 37s  exit 0
+
+=== e2e/connectivity.spec.ts
+start 2026-08-31 20:55:31
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/connectivity.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55016
+
+Running 3 tests using 1 worker
+···
+  3 passed (9.0s)
+end   2026-08-31 20:55:40  took 9s  exit 0
+
+=== e2e/container-create-privileged.spec.ts
+start 2026-08-31 20:55:41
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/container-create-privileged.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55017
+
+Running 4 tests using 1 worker
+····
+  4 passed (15.5s)
+end   2026-08-31 20:55:56  took 16s  exit 0
+
+=== e2e/container-create-run.spec.ts
+start 2026-08-31 20:55:56
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/container-create-run.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55018
+
+Running 9 tests using 1 worker
+·········
+  9 passed (17.3s)
+end   2026-08-31 20:56:14  took 18s  exit 0
+
+=== e2e/container-detail-config-editing.spec.ts
+start 2026-08-31 20:56:14
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/container-detail-config-editing.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55019
+
+Running 3 tests using 1 worker
+···
+  3 passed (16.4s)
+end   2026-08-31 20:56:31  took 17s  exit 0
+
+=== e2e/container-detail-config-reading.spec.ts
+start 2026-08-31 20:56:31
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/container-detail-config-reading.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55020
+
+Running 12 tests using 1 worker
+············
+  12 passed (48.5s)
+end   2026-08-31 20:57:20  took 49s  exit 0
+
+=== e2e/container-detail-density.spec.ts
+start 2026-08-31 20:57:20
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/container-detail-density.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55023
+
+Running 8 tests using 1 worker
+········
+  8 passed (45.1s)
+end   2026-08-31 20:58:06  took 46s  exit 0
+
+=== e2e/container-detail-identity.spec.ts
+start 2026-08-31 20:58:06
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/container-detail-identity.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55024
+
+Running 8 tests using 1 worker
+········
+  8 passed (42.6s)
+end   2026-08-31 20:58:49  took 43s  exit 0
+
+=== e2e/container-detail-property-columns.spec.ts
+start 2026-08-31 20:58:49
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/container-detail-property-columns.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55025
+
+Running 5 tests using 1 worker
+·····
+  5 passed (27.4s)
+end   2026-08-31 20:59:17  took 28s  exit 0
+
+=== e2e/container-detail-switch-surface.spec.ts
+start 2026-08-31 20:59:17
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/container-detail-switch-surface.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55026
+
+Running 1 test using 1 worker
+·
+  1 passed (12.0s)
+end   2026-08-31 20:59:29  took 12s  exit 0
+
+=== e2e/container-exec-attach.spec.ts
+start 2026-08-31 20:59:29
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/container-exec-attach.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55027
+
+Running 11 tests using 1 worker
+···········
+  11 passed (1.3m)
+end   2026-08-31 21:00:45  took 76s  exit 0
+
+=== e2e/container-inspect-payload.spec.ts
+start 2026-08-31 21:00:45
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/container-inspect-payload.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55028
+
+Running 9 tests using 1 worker
+·········
+  9 passed (44.1s)
+end   2026-08-31 21:01:30  took 45s  exit 0
+
+=== e2e/container-inspect-surface.spec.ts
+start 2026-08-31 21:01:30
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/container-inspect-surface.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55033
+
+Running 4 tests using 1 worker
+····
+  4 passed (23.2s)
+end   2026-08-31 21:01:54  took 24s  exit 0
+
+=== e2e/container-logs.spec.ts
+start 2026-08-31 21:01:54
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/container-logs.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55050
+
+Running 11 tests using 1 worker
+···········
+  11 passed (51.5s)
+end   2026-08-31 21:02:46  took 52s  exit 0
+
+=== e2e/container-stats-processes.spec.ts
+start 2026-08-31 21:02:46
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/container-stats-processes.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55051
+
+Running 7 tests using 1 worker
+·······
+  7 passed (51.6s)
+end   2026-08-31 21:03:38  took 52s  exit 0
+
+=== e2e/containers-card-geometry.spec.ts
+start 2026-08-31 21:03:38
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/containers-card-geometry.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55052
+
+Running 12 tests using 1 worker
+············
+  12 passed (1.4m)
+end   2026-08-31 21:05:05  took 87s  exit 0
+
+=== e2e/containers-stats-gate.spec.ts
+start 2026-08-31 21:05:05
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/containers-stats-gate.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55066
+
+Running 8 tests using 1 worker
+········
+  8 passed (3.4m)
+end   2026-08-31 21:08:32  took 207s  exit 0
+
+=== e2e/containers.spec.ts
+start 2026-08-31 21:08:32
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/containers.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55067
+
+Running 40 tests using 1 worker
+········································
+  40 passed (3.2m)
+end   2026-08-31 21:11:44  took 192s  exit 0
+
+=== e2e/contexts-row-geometry.spec.ts
+start 2026-08-31 21:11:44
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/contexts-row-geometry.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55069
+
+Running 16 tests using 1 worker
+················
+  16 passed (19.4s)
+end   2026-08-31 21:12:04  took 20s  exit 0
+
+=== e2e/contexts.spec.ts
+start 2026-08-31 21:12:04
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/contexts.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55070
+
+Running 6 tests using 1 worker
+F·····
+
+  1) [chromium] › e2e/contexts.spec.ts:130:1 › lists a context with its name, kind, endpoint and description, and marks the active one 
+
+    Error: the refresh control never entered its working state, so the press started no reload
+
+    the refresh control never entered its working state, so the press started no reload
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+    Call Log:
+    - Test timeout of 30000ms exceeded
+
+       at support/refresh-control.ts:65
+
+      63 |       timeout: RELOAD_BUDGET_MS,
+      64 |     })
+    > 65 |     .toBe(true);
+         |      ^
+      66 |   await expect(control, 'the refresh control never left its working state').not.toHaveAttribute('aria-busy', 'true', {
+      67 |     timeout: RELOAD_BUDGET_MS,
+      68 |   });
+        at refreshThroughTheControl (/Users/christianmariani/Desktop/DockerClient/client/e2e/support/refresh-control.ts:65:6)
+        at /Users/christianmariani/Desktop/DockerClient/client/e2e/contexts.spec.ts:137:5
+
+    Error Context: test-results/contexts-lists-a-context-w-d9b86-on-and-marks-the-active-one-chromium/error-context.md
+
+    Error Context: test-results/contexts-lists-a-context-w-d9b86-on-and-marks-the-active-one-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/contexts-lists-a-context-w-d9b86-on-and-marks-the-active-one-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/contexts-lists-a-context-w-d9b86-on-and-marks-the-active-one-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chromium] › e2e/contexts.spec.ts:130:1 › lists a context with its name, kind, endpoint and description, and marks the active one 
+  5 passed (40.6s)
+end   2026-08-31 21:12:45  took 41s  exit 1
+
+=== e2e/copy-affordance-absence.spec.ts
+start 2026-08-31 21:12:45
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/copy-affordance-absence.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55071
+
+Running 10 tests using 1 worker
+··········
+  10 passed (33.1s)
+end   2026-08-31 21:13:18  took 33s  exit 0
+
+=== e2e/copy-affordance-geometry.spec.ts
+start 2026-08-31 21:13:18
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/copy-affordance-geometry.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55072
+
+Running 7 tests using 1 worker
+·······
+  7 passed (14.3s)
+end   2026-08-31 21:13:33  took 15s  exit 0
+
+=== e2e/coverage-matrix.spec.ts
+start 2026-08-31 21:13:33
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/coverage-matrix.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55073
+
+Running 7 tests using 1 worker
+·······
+  7 passed (12.4s)
+end   2026-08-31 21:13:46  took 13s  exit 0
+
+=== e2e/dashboard.spec.ts
+start 2026-08-31 21:13:46
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/dashboard.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55074
+
+Running 18 tests using 1 worker
+··················
+  18 passed (27.3s)
+end   2026-08-31 21:14:14  took 28s  exit 0
+
+=== e2e/data-table-header-column-alignment.spec.ts
+start 2026-08-31 21:14:14
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/data-table-header-column-alignment.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55075
+
+Running 4 tests using 1 worker
+····
+  4 passed (11.3s)
+end   2026-08-31 21:14:26  took 12s  exit 0
+
+=== e2e/detail-reread-scoped.spec.ts
+start 2026-08-31 21:14:26
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/detail-reread-scoped.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55076
+
+Running 2 tests using 1 worker
+··
+  2 passed (29.2s)
+end   2026-08-31 21:14:56  took 30s  exit 0
+
+=== e2e/dialog-one-form.spec.ts
+start 2026-08-31 21:14:56
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/dialog-one-form.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55077
+
+Running 7 tests using 1 worker
+·······
+  7 passed (13.6s)
+end   2026-08-31 21:15:10  took 14s  exit 0
+
+=== e2e/dialog-sizing.spec.ts
+start 2026-08-31 21:15:10
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/dialog-sizing.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55078
+
+Running 14 tests using 1 worker
+··············
+  14 passed (23.6s)
+end   2026-08-31 21:15:34  took 24s  exit 0
+
+=== e2e/event-feed-identity.spec.ts
+start 2026-08-31 21:15:34
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/event-feed-identity.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55079
+
+Running 2 tests using 1 worker
+··
+  2 passed (9.5s)
+end   2026-08-31 21:15:44  took 10s  exit 0
+
+=== e2e/exclusive/build-cache-prune.spec.ts
+start 2026-08-31 21:15:44
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/exclusive/build-cache-prune.spec.ts --project=exclusive --no-deps
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55080
+
+Running 1 test using 1 worker
+·
+  1 passed (13.1s)
+end   2026-08-31 21:15:57  took 13s  exit 0
+
+=== e2e/exclusive/plugins.spec.ts
+start 2026-08-31 21:15:57
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/exclusive/plugins.spec.ts --project=exclusive --no-deps
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55081
+
+Running 1 test using 1 worker
+·
+  1 passed (19.3s)
+end   2026-08-31 21:16:17  took 20s  exit 0
+
+=== e2e/exclusive/prune.spec.ts
+start 2026-08-31 21:16:17
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/exclusive/prune.spec.ts --project=exclusive --no-deps
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55082
+
+Running 2 tests using 1 worker
+··
+  2 passed (16.6s)
+end   2026-08-31 21:16:34  took 17s  exit 0
+
+=== e2e/exclusive/raw-console-destructive.spec.ts
+start 2026-08-31 21:16:34
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/exclusive/raw-console-destructive.spec.ts --project=exclusive --no-deps
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55083
+
+Running 1 test using 1 worker
+·
+  1 passed (8.9s)
+end   2026-08-31 21:16:44  took 10s  exit 0
+
+=== e2e/exclusive/system-prune.spec.ts
+start 2026-08-31 21:16:44
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/exclusive/system-prune.spec.ts --project=exclusive --no-deps
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55084
+
+Running 2 tests using 1 worker
+··
+  2 passed (9.4s)
+end   2026-08-31 21:16:54  took 10s  exit 0
+
+=== e2e/exclusive/volumes-prune.spec.ts
+start 2026-08-31 21:16:54
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/exclusive/volumes-prune.spec.ts --project=exclusive --no-deps
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55085
+
+Running 1 test using 1 worker
+·
+  1 passed (8.4s)
+end   2026-08-31 21:17:02  took 8s  exit 0
+
+=== e2e/filesystem-browser-layout.spec.ts
+start 2026-08-31 21:17:02
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/filesystem-browser-layout.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55086
+
+Running 5 tests using 1 worker
+·····
+  5 passed (24.4s)
+end   2026-08-31 21:17:27  took 25s  exit 0
+
+=== e2e/filesystem-browser-operations.spec.ts
+start 2026-08-31 21:17:27
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/filesystem-browser-operations.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55087
+
+Running 4 tests using 1 worker
+····
+  4 passed (20.2s)
+end   2026-08-31 21:17:48  took 21s  exit 0
+
+=== e2e/filesystem-browser.spec.ts
+start 2026-08-31 21:17:48
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/filesystem-browser.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55088
+
+Running 3 tests using 1 worker
+···
+  3 passed (31.7s)
+end   2026-08-31 21:18:20  took 32s  exit 0
+
+=== e2e/header-controls-truthful.spec.ts
+start 2026-08-31 21:18:20
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/header-controls-truthful.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55089
+
+Running 8 tests using 1 worker
+········
+  8 passed (34.3s)
+end   2026-08-31 21:18:55  took 35s  exit 0
+
+=== e2e/image-detail-property-columns.spec.ts
+start 2026-08-31 21:18:55
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/image-detail-property-columns.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55090
+
+Running 9 tests using 1 worker
+·········
+  9 passed (14.2s)
+end   2026-08-31 21:19:10  took 15s  exit 0
+
+=== e2e/image-diff.spec.ts
+start 2026-08-31 21:19:10
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/image-diff.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55091
+
+Running 4 tests using 1 worker
+····
+  4 passed (15.7s)
+end   2026-08-31 21:19:26  took 16s  exit 0
+
+=== e2e/image-push-failure.spec.ts
+start 2026-08-31 21:19:26
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/image-push-failure.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55092
+
+Running 1 test using 1 worker
+·
+  1 passed (46.3s)
+end   2026-08-31 21:20:13  took 47s  exit 0
+
+=== e2e/image-transport.spec.ts
+start 2026-08-31 21:20:13
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/image-transport.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55093
+
+Running 4 tests using 1 worker
+····
+  4 passed (27.8s)
+end   2026-08-31 21:20:41  took 28s  exit 0
+
+=== e2e/images-one-fact-once.spec.ts
+start 2026-08-31 21:20:41
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/images-one-fact-once.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55094
+
+Running 4 tests using 1 worker
+····
+  4 passed (17.1s)
+end   2026-08-31 21:20:59  took 18s  exit 0
+
+=== e2e/images.spec.ts
+start 2026-08-31 21:20:59
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/images.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55095
+
+Running 34 tests using 1 worker
+··································
+  34 passed (2.7m)
+end   2026-08-31 21:23:39  took 160s  exit 0
+
+=== e2e/layer-build-cache.spec.ts
+start 2026-08-31 21:23:39
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/layer-build-cache.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55096
+
+Running 3 tests using 1 worker
+···
+  3 passed (14.4s)
+end   2026-08-31 21:23:54  took 15s  exit 0
+
+=== e2e/layer-efficiency-signals.spec.ts
+start 2026-08-31 21:23:54
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/layer-efficiency-signals.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55097
+
+Running 2 tests using 1 worker
+··
+  2 passed (16.8s)
+end   2026-08-31 21:24:11  took 17s  exit 0
+
+=== e2e/layer-explorer.spec.ts
+start 2026-08-31 21:24:11
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/layer-explorer.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55098
+
+Running 3 tests using 1 worker
+···
+  3 passed (20.0s)
+end   2026-08-31 21:24:32  took 21s  exit 0
+
+=== e2e/list-order.spec.ts
+start 2026-08-31 21:24:32
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/list-order.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55099
+
+Running 8 tests using 1 worker
+········
+  8 passed (38.4s)
+end   2026-08-31 21:25:11  took 39s  exit 0
+
+=== e2e/list-row-columns.spec.ts
+start 2026-08-31 21:25:11
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/list-row-columns.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55100
+
+Running 7 tests using 1 worker
+·······
+  7 passed (30.0s)
+end   2026-08-31 21:25:41  took 30s  exit 0
+
+=== e2e/local-persistence.spec.ts
+start 2026-08-31 21:25:41
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/local-persistence.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55101
+
+Running 3 tests using 1 worker
+···
+  3 passed (9.5s)
+end   2026-08-31 21:25:51  took 10s  exit 0
+
+=== e2e/manual-refresh.spec.ts
+start 2026-08-31 21:25:51
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/manual-refresh.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55102
+
+Running 6 tests using 1 worker
+······
+  6 passed (17.4s)
+end   2026-08-31 21:26:09  took 18s  exit 0
+
+=== e2e/menu-follows-its-control.spec.ts
+start 2026-08-31 21:26:09
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/menu-follows-its-control.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55103
+
+Running 3 tests using 1 worker
+···
+  3 passed (11.5s)
+end   2026-08-31 21:26:21  took 12s  exit 0
+
+=== e2e/nav-rail-reachable.spec.ts
+start 2026-08-31 21:26:21
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/nav-rail-reachable.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55104
+
+Running 8 tests using 1 worker
+········
+  8 passed (31.8s)
+end   2026-08-31 21:26:54  took 33s  exit 0
+
+=== e2e/networks.spec.ts
+start 2026-08-31 21:26:54
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/networks.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55105
+
+Running 6 tests using 1 worker
+······
+  6 passed (26.6s)
+end   2026-08-31 21:27:21  took 27s  exit 0
+
+=== e2e/nothing-else-moves.spec.ts
+start 2026-08-31 21:27:21
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/nothing-else-moves.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55106
+
+Running 6 tests using 1 worker
+······
+  6 passed (35.5s)
+end   2026-08-31 21:27:57  took 36s  exit 0
+
+=== e2e/plugins-row-geometry.spec.ts
+start 2026-08-31 21:27:57
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/plugins-row-geometry.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55107
+
+Running 16 tests using 1 worker
+················
+  16 passed (12.8s)
+end   2026-08-31 21:28:10  took 13s  exit 0
+
+=== e2e/plugins.spec.ts
+start 2026-08-31 21:28:10
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/plugins.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55108
+
+Running 5 tests using 1 worker
+·····
+  5 passed (13.3s)
+end   2026-08-31 21:28:24  took 14s  exit 0
+
+=== e2e/property-columns-derived-count.spec.ts
+start 2026-08-31 21:28:24
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/property-columns-derived-count.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55109
+
+Running 1 test using 1 worker
+·
+  1 passed (8.5s)
+end   2026-08-31 21:28:33  took 9s  exit 0
+
+=== e2e/property-columns-label-floor.spec.ts
+start 2026-08-31 21:28:33
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/property-columns-label-floor.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55110
+
+Running 2 tests using 1 worker
+··
+  2 passed (9.3s)
+end   2026-08-31 21:28:43  took 10s  exit 0
+
+=== e2e/property-columns-ordinary-widths.spec.ts
+start 2026-08-31 21:28:43
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/property-columns-ordinary-widths.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55111
+
+Running 1 test using 1 worker
+·
+  1 passed (8.6s)
+end   2026-08-31 21:28:52  took 9s  exit 0
+
+=== e2e/property-columns-rule.spec.ts
+start 2026-08-31 21:28:52
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/property-columns-rule.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55112
+
+Running 7 tests using 1 worker
+·······
+  7 passed (18.0s)
+end   2026-08-31 21:29:10  took 18s  exit 0
+
+=== e2e/property-columns-sweep.spec.ts
+start 2026-08-31 21:29:10
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/property-columns-sweep.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55113
+
+Running 7 tests using 1 worker
+·······
+  7 passed (24.3s)
+end   2026-08-31 21:29:35  took 25s  exit 0
+
+=== e2e/raw-console-payload.spec.ts
+start 2026-08-31 21:29:35
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/raw-console-payload.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55114
+
+Running 4 tests using 1 worker
+····
+  4 passed (11.6s)
+end   2026-08-31 21:29:47  took 12s  exit 0
+
+=== e2e/raw-console-swarm.spec.ts
+start 2026-08-31 21:29:47
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/raw-console-swarm.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55115
+
+Running 5 tests using 1 worker
+·····
+  5 passed (10.1s)
+end   2026-08-31 21:29:58  took 11s  exit 0
+
+=== e2e/raw-console.spec.ts
+start 2026-08-31 21:29:58
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/raw-console.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55116
+
+Running 14 tests using 1 worker
+··············
+  14 passed (12.8s)
+end   2026-08-31 21:30:11  took 13s  exit 0
+
+=== e2e/refresh-cache-immediacy.spec.ts
+start 2026-08-31 21:30:11
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/refresh-cache-immediacy.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55117
+
+Running 4 tests using 1 worker
+····
+  4 passed (20.2s)
+end   2026-08-31 21:30:32  took 21s  exit 0
+
+=== e2e/registries-row-geometry.spec.ts
+start 2026-08-31 21:30:32
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/registries-row-geometry.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55118
+
+Running 10 tests using 1 worker
+··········
+  10 passed (12.3s)
+end   2026-08-31 21:30:45  took 13s  exit 0
+
+=== e2e/registries.spec.ts
+start 2026-08-31 21:30:45
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/registries.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55119
+
+Running 8 tests using 1 worker
+········
+  8 passed (12.6s)
+end   2026-08-31 21:30:58  took 13s  exit 0
+
+=== e2e/search-band-axis-checks.spec.ts
+start 2026-08-31 21:30:58
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/search-band-axis-checks.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55120
+
+Running 3 tests using 1 worker
+···
+  3 passed (8.8s)
+end   2026-08-31 21:31:07  took 9s  exit 0
+
+=== e2e/shell.spec.ts
+start 2026-08-31 21:31:07
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/shell.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55121
+
+Running 5 tests using 1 worker
+·····
+  5 passed (10.1s)
+end   2026-08-31 21:31:18  took 11s  exit 0
+
+=== e2e/single-process-serving.spec.ts
+start 2026-08-31 21:31:18
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/single-process-serving.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55122
+
+Running 4 tests using 1 worker
+····
+  4 passed (8.8s)
+end   2026-08-31 21:31:27  took 9s  exit 0
+
+=== e2e/swarm-withdrawn.spec.ts
+start 2026-08-31 21:31:27
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/swarm-withdrawn.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55123
+
+Running 5 tests using 1 worker
+·····
+  5 passed (11.1s)
+end   2026-08-31 21:31:39  took 12s  exit 0
+
+=== e2e/system-prune-preserved.spec.ts
+start 2026-08-31 21:31:39
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/system-prune-preserved.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55124
+
+Running 4 tests using 1 worker
+····
+  4 passed (11.9s)
+end   2026-08-31 21:31:51  took 12s  exit 0
+
+=== e2e/system-prune.spec.ts
+start 2026-08-31 21:31:51
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/system-prune.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55125
+
+Running 6 tests using 1 worker
+······
+  6 passed (11.1s)
+end   2026-08-31 21:32:03  took 12s  exit 0
+
+=== e2e/table-row-layout-uniform.spec.ts
+start 2026-08-31 21:32:03
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/table-row-layout-uniform.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55126
+
+Running 5 tests using 1 worker
+·····
+  5 passed (38.9s)
+end   2026-08-31 21:32:42  took 39s  exit 0
+
+=== e2e/toast-feedback.spec.ts
+start 2026-08-31 21:32:42
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/toast-feedback.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55127
+
+Running 5 tests using 1 worker
+·····
+  5 passed (36.2s)
+end   2026-08-31 21:33:19  took 37s  exit 0
+
+=== e2e/truncation-contract.spec.ts
+start 2026-08-31 21:33:19
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/truncation-contract.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55128
+
+Running 9 tests using 1 worker
+·········
+  9 passed (1.0m)
+end   2026-08-31 21:34:19  took 60s  exit 0
+
+=== e2e/volumes-networks-reveal.spec.ts
+start 2026-08-31 21:34:19
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/volumes-networks-reveal.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55129
+
+Running 10 tests using 1 worker
+··········
+  10 passed (35.7s)
+end   2026-08-31 21:34:56  took 37s  exit 0
+
+=== e2e/volumes.spec.ts
+start 2026-08-31 21:34:56
+
+> client@0.0.0 test:e2e
+> playwright test --quiet e2e/volumes.spec.ts --project=chromium
+
+
+> server@0.0.0 test:images
+> tsx test/support/ensure-base-images.ts
+
+base images ready: alpine:3.20, registry:2, vexel-test-tiny:1
+
+> server@0.0.0 test:registry
+> tsx test/support/prepare-registry.ts
+
+test registry ready on localhost:55130
+
+Running 4 tests using 1 worker
+····
+  4 passed (19.1s)
+end   2026-08-31 21:35:15  took 19s  exit 0

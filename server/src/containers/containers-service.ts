@@ -6,6 +6,7 @@ import { getEngineClient } from "../connectivity/connection-status-service.js";
 import { INTERNAL_CONTAINER_LABEL } from "../image-analysis/filesystem-extraction-service.js";
 import { byNameThenIdentity } from "../list-order/list-order.js";
 import { registerRefreshKind, type HeldValue, type ReadOptions } from "../refresh-cache/refresh-cache.js";
+import { cadence } from "../timing/timing-scale.js";
 
 export type ContainerState = "created" | "running" | "paused" | "restarting" | "removing" | "exited" | "dead";
 
@@ -176,7 +177,7 @@ interface SampledUsage {
   sampledAt: number;
 }
 
-export const STATS_SAMPLE_INTERVAL_MS = 10000;
+export const STATS_SAMPLE_INTERVAL_MS = cadence(10000);
 // The one place the staleness bound is stated: three intervals, the smallest
 // multiple that survives one missed pass (plan-docker_management_app-containers_card_view/REQ-52).
 const STATS_STALE_AFTER_MS = STATS_SAMPLE_INTERVAL_MS * 3;

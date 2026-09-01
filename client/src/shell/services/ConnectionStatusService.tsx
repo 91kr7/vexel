@@ -2,8 +2,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { subscribeToActiveContextChange } from '../../data/active-context';
 import { subscribeToReload } from '../../data/reload-signal';
 import { fetchConnectionStatus, type ConnectionStatus } from '../../data/connectivity-client';
+import { cadence } from '../../timing/timing-scale';
 
-const POLL_INTERVAL_MS = 5000;
+const POLL_INTERVAL_MS = cadence(5000);
 
 interface ConnectionStatusContextValue extends ConnectionStatus {
   loading: boolean;

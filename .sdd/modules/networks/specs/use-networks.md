@@ -13,7 +13,8 @@ event arrives.
 
 - `useNetworks(): { networks: NetworkSummary[], loaded: boolean, error?: string, refresh: () => void
   }`
-  - Reads on mount, on a 3-second poll, and on every `network` or `container` daemon event (a
+  - Reads on mount, on a 3-second poll (the declared figure, multiplied by the page's timing
+    scale), and on every `network` or `container` daemon event (a
     container's own attachments changing which networks list it) (REQ-72).
   - `refresh()` re-reads on demand; `loaded` becomes `true` once the first read settles (success or
     failure); `error` carries the last failure's message.

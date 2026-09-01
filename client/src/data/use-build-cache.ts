@@ -2,8 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToActiveContextChange } from './active-context';
 import { subscribeToReload } from './reload-signal';
 import { fetchBuildCache, pruneBuildCache, type BuildCachePruneResult, type BuildCacheRecord } from './builders-client';
+import { cadence } from '../timing/timing-scale';
 
-const POLL_INTERVAL_MS = 5000;
+const POLL_INTERVAL_MS = cadence(5000);
 
 export interface UseBuildCacheResult {
   records: BuildCacheRecord[];

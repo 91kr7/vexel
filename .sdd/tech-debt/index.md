@@ -40,6 +40,7 @@ means writing the analysis and the plan for it in the normal way — see
 | layer-explorer-cancel-races-the-analysis | client | low | A check presses Cancel on an analysis that has already finished, and passes on speed rather than on contract | `entries/layer-explorer-cancel-races-the-analysis.md` |
 | open-app-retries-for-a-whole-test-budget | client | medium | `openApp` retries for 30 s, the whole default budget of the 562 tests that call it, so its own failure message can never be printed | `entries/open-app-retries-for-a-whole-test-budget.md` |
 | builder-writes-mark-one-inventory-of-the-two-they-change | server | medium | Removing a builder, and pruning the cache, each mark one of the two inventories they change, so a screen reports figures the operator's own action has invalidated | `entries/builder-writes-mark-one-inventory-of-the-two-they-change.md` |
+| stats-gate-waits-no-longer-scale-with-the-sampling-interval | client | medium | A budget said to sit below one sampling interval sits above four on the suite's clock, so the check passes without proving promptness | `entries/stats-gate-waits-no-longer-scale-with-the-sampling-interval.md` |
 
 ## Provenance of the rows added after that study
 

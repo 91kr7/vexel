@@ -12,7 +12,8 @@ event arrives.
 ## Contract
 
 - `useVolumes(): { volumes: VolumeSummary[], loaded: boolean, error?: string, refresh: () => void }`
-  - Reads on mount, on a 3-second poll, and on every `volume` or `container` daemon event (a
+  - Reads on mount, on a 3-second poll (the declared figure, multiplied by the page's timing
+    scale), and on every `volume` or `container` daemon event (a
     container's own mounts changing which volumes it mounts affects the volume list's `mountedBy`)
     (REQ-70).
   - `refresh()` re-reads on demand; `loaded` becomes `true` once the first read settles (success or
