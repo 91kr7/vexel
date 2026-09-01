@@ -10,10 +10,11 @@ status: validated
 This plan removes one thing: the wiring that makes a view in the browser read again because a Docker
 event arrived. Everything else stays as it is. The last two features state what must not move.
 
-> **Features 1 to 6 are closed by the first batch. Feature 7 was added on 2026-09-01**, after the
-> human saw that batch implemented, and validated the same day. It gives the Dashboard's overview
-> figures a clock, and it is the second batch. Nothing above it is edited: those ids are stable and
-> say what the first batch did.
+> **The plan was extended twice on 2026-09-01**, each time after the human saw the previous batch
+> implemented, and each time by appending a feature: Feature 7, the Dashboard's overview figures on a
+> clock, and Feature 8, the container detail following the container it shows. Features 1 to 6 are
+> closed by the first batch, 7 by the second, 8 by the third. Nothing already validated is edited:
+> those ids are stable and say what their own batch did.
 
 ## Feature 1 — No view reads again because of a Docker event
 
@@ -88,7 +89,47 @@ still above a container panel that keeps moving on its own poll.
 | REQ-23 | Nothing else of the server moves: no endpoint is added or removed, the interface receives the same payload it receives today, and no other screen's data changes. |
 | REQ-24 | The clock is covered by a check that drives it: the figures follow the host with the operator doing nothing, and the declared period is the one that runs. REQ-15 binds this check like every other. |
 
+> **REQ-21 is about this step and no other**, as its own wording says. The third batch gives a clock
+> to the container detail, and does not contradict it: REQ-21 records what the second batch did.
+>
 > **REQ-22 is server work, and REQ-12 above says the server is unchanged.** REQ-12 is therefore read
 > as scoped to the first batch — the record of what that batch did — and the second batch is allowed
 > the server work REQ-22 needs, bounded by REQ-23. The reading, the figures behind it and the
 > alternative it refuses are in `batches.md` under "The scope of REQ-12".
+
+## Feature 8 — The container detail follows the container it shows
+
+Added 2026-09-01, on the human's decision after seeing the second batch implemented and running the
+application. With a container's detail open on the Inspect tab they paused the container from
+outside: the dialog's header read PAUSED while the payload below it read `Status: running`,
+`Paused: false` — two contradictory statements on one screen at one moment. The header is fresh
+because it comes from the container summary the screen polls; the payload was frozen because the
+first batch took its trigger away and the second gave a clock to the Dashboard alone. `State` is one
+of the sections the payload opens on, so this is the first thing in view.
+
+| ID | Requirement |
+|----|-------------|
+| REQ-25 | With a container's detail open, the dialog does not contradict itself: what its header says about the container and what its payload says do not describe two different moments for longer than one period. |
+| REQ-26 | The container's inspect data reads again on its own, at a fixed period, while a tab that shows it is open — the Inspect tab and the Config tab. |
+| REQ-27 | The container's process listing reads again on its own, at the same period, while the Processes tab is open and the container is running. A container that is not running is not asked for its processes at all. |
+| REQ-28 | Each clock runs only while the tab that shows its data is on screen, and that data is read the moment the operator opens that tab. On the other tabs neither reading is taken. |
+| REQ-29 | A tick that finds nothing changed changes nothing on screen: what the operator has opened, typed, selected or scrolled to stays exactly as it was. |
+| REQ-30 | A tick that finds something changed replaces the values where they stand: the sections the operator opened stay open, the find keeps filtering, the position in a long payload or a long process list is kept, and nothing is closed, collapsed or reset. |
+| REQ-31 | An edit in progress on the Config tab is never disturbed by a tick: the form is not rebuilt and no value the operator has typed is replaced. |
+| REQ-32 | A tick that fails leaves on screen what was last read and does not change how a failure is told to the operator. A container that has ceased to exist is still reported the way it is today. |
+| REQ-33 | The period is one figure, declared in one place, and is a cadence of the product: an automated pass runs it at the factor it runs every other cadence at. |
+| REQ-34 | Every trigger these two views have today keeps working: the read when the detail is opened on a container, the manual refresh control in the top bar, the Processes tab's own refresh, the reload signal, and the re-read after a configuration update. |
+| REQ-35 | Nothing on the detail says its data is on a clock: no indicator, no "last updated", no control and no setting. The Processes tab keeps the refresh control it already offers. |
+| REQ-36 | Logs, Stats, Exec and Attach are untouched: they keep the live streams and the sessions they have. |
+| REQ-37 | No other view gains a clock: the disk-usage view of System & prune and the image, image-layer, network and volume details stay as they are. The check that guards this keeps guarding the views that still hold none, and names the two that no longer do. |
+| REQ-38 | The server is unchanged: the inspect data and the process listing stay pull-based — read when they are asked for, nothing held for them on the server, no endpoint added. |
+| REQ-39 | The clocks are covered by checks that drive them, and no check is weakened to accommodate them. |
+
+> **REQ-29 and REQ-30 are the price of this clock, and they are why it is not simply an interval.**
+> The Inspect tab draws several hundred fields, with sections the operator opens, a find that filters
+> them and a raw payload they select text out of. A view redrawn every period whether or not anything
+> changed takes all of that away from them, and takes it away silently.
+>
+> **REQ-37 supersedes nothing.** REQ-21 says no other view gains a trigger *in that step*, and this is
+> another step. What this step does invalidate is the check that closed REQ-21, and REQ-37's last
+> sentence says what becomes of it: it keeps testing something true rather than being deleted.

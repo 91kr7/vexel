@@ -11,13 +11,16 @@ status: validated
 |-------|---------|------------|---------|--------|------------------|
 | `batch-client-event-trigger-removal` | The client's Docker-event refresh trigger is removed | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-9, REQ-10, REQ-11, REQ-12, REQ-13, REQ-14, REQ-15 | — | implemented | An open detail stops following the daemon on its own |
 | `batch-dashboard-overview-clock` | The Dashboard's overview figures move on a clock | REQ-16, REQ-17, REQ-18, REQ-19, REQ-20, REQ-21, REQ-22, REQ-23, REQ-24 | `batch-client-event-trigger-removal` | implemented | The Dashboard follows the host with nobody touching it |
+| `batch-container-detail-clock` | The container detail follows the container it shows | REQ-25, REQ-26, REQ-27, REQ-28, REQ-29, REQ-30, REQ-31, REQ-32, REQ-33, REQ-34, REQ-35, REQ-36, REQ-37, REQ-38, REQ-39 | `batch-dashboard-overview-clock` | todo | The dialog stops contradicting itself |
 
-Execution order: the removal first, then the clock. The second batch rebuilds one of the seven
-triggers the first one took away, so it reads a codebase the first has already left behind.
+Execution order: the removal, then the Dashboard's clock, then the container detail's. Each rebuild
+takes back one of the seven triggers the demolition removed, and each reads a codebase the previous
+one has left behind. The third depends on the second for one file — the check that closed REQ-21,
+which it narrows — and that file must exist before it can be narrowed.
 
-> **The plan was extended on 2026-09-01**, after the human saw the first batch implemented, which is
-> why the frontmatter reads `draft` again. The first row is untouched and still says what that batch
-> did.
+> **The plan was extended twice on 2026-09-01**, each time after the human saw the previous batch
+> implemented, which is why the frontmatter reads `draft` again. Every row but the last is untouched
+> and still says what its own batch did.
 
 ## The scope of REQ-12
 
@@ -98,6 +101,39 @@ comments that say the call is too expensive to repeat.
 
 ## Assumptions and decisions
 
+### The third batch — the container detail's clock
+
+- **The same 3 000 ms, and deliberately not a number of its own.** The defect the human saw is two
+  clocks disagreeing: the header is drawn from the container summary the Containers screen polls at
+  3 000 ms, the payload was frozen. A slower period for the payload leaves the dialog contradicting
+  itself for the difference, which is the defect one layer down. The process listing takes the same
+  figure for the same reason — two clocks inside one dialog is what this batch exists to end.
+- **"One figure, declared in one place" (REQ-33) means the timing scale, not a new shared constant.**
+  Every polled hook in this product declares its own `POLL_INTERVAL_MS = cadence(3000)` locally, and
+  these two follow that convention. What is in one place is the factor every cadence passes through.
+- **Both clocks are scoped to the tab that shows their data**, and that data is read the moment the
+  tab is opened. Unscoped, an operator watching logs for ten minutes pays 400 requests for readings
+  nobody is looking at. The accepted price is a parameter on both hooks and the change of shape in
+  their two specs.
+- **A container that is not running is never asked for its processes.** The daemon refuses `top` for
+  a stopped container, so an unscoped clock would report a refusal every three seconds. A refusal
+  blinking on a tab is a defect being introduced, not a state being reported.
+- **A tick that finds nothing changed replaces nothing.** The Inspect tab is several hundred fields
+  with sections the operator opens, a find that filters them and a raw payload they select text out
+  of. The open sections and the find term are held by the explorer itself and survive a replacement
+  (`client/src/ui/data/PayloadExplorer.tsx`), but the payload's flattening is memoized on its
+  identity, so a replacement redraws the whole tree and takes an in-progress selection with it.
+- **The edit form was checked and needs no protection it does not have.** `buildFormState` is called
+  only from `startEdit`, and the footer's "what a save would cost" is a constant sentence, not a diff
+  against the payload. REQ-31 pins that behaviour so a tick cannot acquire the power to disturb it.
+- **This batch does not close `no-response-sequencing-guard`.** A three-second clock on a read that
+  can take longer makes an older answer landing last reachable here, as it already is on every polled
+  list. The debt stays in the register with its evidence; a plan does not schedule a debt it was not
+  asked for.
+- **The server is not touched.** The inspect data and the process listing stay pull-based — the
+  human's standing decision, recorded in `detail-views-reread-on-unrelated-events`. One Engine call
+  per period per open tab, and only one detail can be open at a time.
+
 ### The second batch — the Dashboard's clock
 
 - **One held reading of `/system/df`, replacing the volume-size kind — not a second one beside it.**
@@ -170,11 +206,23 @@ here so the next reader is not confused by two live statements of the opposite b
 - `plan-docker_management_app-refresh_cache/REQ-21`, its "event subscriptions" clause only. The rest
   of REQ-21 — the public shape of the list hooks and their intervals — stands, and REQ-6 restates it.
 
+**Inside this plan, three requirements are records of their own batch and not of the plan's end
+state.** They are not edited, for the same reason, and this is the map:
+
+- **REQ-2** — the seven quiet views reading only when opened, asked or on a context switch. Still
+  true of five of them. The Dashboard's overview left that list in the second batch (REQ-16), and the
+  container detail in the third (REQ-26), the process listing beside it (REQ-27).
+- **REQ-12** — the server unchanged. The record of the first batch; the second was allowed the server
+  work REQ-22 needs, bounded by REQ-23. See "The scope of REQ-12".
+- **REQ-21** — no other view gaining a trigger. Its own words scope it to the second batch, so the
+  third contradicts nothing; what the third batch does change is the check that closed it, which
+  REQ-37 narrows rather than deletes.
+
 ## Departures from the spec
 
-All three are human decisions of 2026-09-01, taken during validation. **The spec was corrected on the
-same day** and now reads as REQ-9, REQ-13 and the second batch do; this section is the account of
-why.
+All four are decisions of 2026-09-01, taken during validation. **The spec was corrected on the same
+day** and now reads as REQ-9, REQ-13, the second batch and the third do; this section is the account
+of why.
 
 - **The spec put the server out of scope entirely, and said the mechanism replacing the event trigger
   "is a later step, with its own analysis".** The second batch is that step, folded into this cycle:
@@ -183,6 +231,14 @@ why.
   together with the server work that "asks the daemon for nothing already held" implies, and its
   later-step line now covers only the six views this addition does not reach. The server work stays
   bounded by REQ-23 and reaches exactly the reading behind the overview.
+
+- **That later-step line was narrowed a second time, the same day, for the third batch.** It now
+  names the five views that are actually left: the disk-usage view of System & prune and the details
+  of an image, an image's layers, a network and a volume. The container's inspect data and its
+  process listing came out of it because the human ran the application and found the dialog
+  contradicting itself — the reason they gave, and the reason the spec now carries, is that **a view
+  that disagrees with itself is worse than one that is merely old**. That is a defect the operator
+  can see, not a freshness preference. REQ-37 keeps a check standing over the five that remain.
 
 - **The spec's requirement "An action the operator performs through the application still shows its
   result immediately"** is narrowed by REQ-9 to where the application already re-reads after its own
@@ -199,10 +255,10 @@ why.
 
 ## Coverage check
 
-Every REQ is served by at least one INT, and every INT serves at least one REQ, in both batches. No
-enabling intervention in either. No REQ is spread over two batches: REQ-1 to REQ-15 close in
-`batch-client-event-trigger-removal`, REQ-16 to REQ-24 in `batch-dashboard-overview-clock`. The ids
-below are local to their own batch file.
+Every REQ is served by at least one INT, and every INT serves at least one REQ, in all three batches.
+No enabling intervention in any of them. No REQ is spread over two batches: REQ-1 to REQ-15 close in
+`batch-client-event-trigger-removal`, REQ-16 to REQ-24 in `batch-dashboard-overview-clock`, REQ-25 to
+REQ-39 in `batch-container-detail-clock`. The INT ids below are local to their own batch file.
 
 ### `batch-client-event-trigger-removal`
 
@@ -269,9 +325,53 @@ below are local to their own batch file.
 | INT-13 | REQ-21, REQ-24 |
 | INT-14 | REQ-20, REQ-23, REQ-24 |
 
-**Two remarks on this coverage, both deliberate.** REQ-17 — the clock stops when the Dashboard is
-not on screen — has no scenario of its own: nothing the operator can see distinguishes a stopped
-clock from a running one, so it is checked where it is observable at all, in INT-9, and rides along
-in the first scenario. And REQ-21 — no other view gains a trigger — is served by a single check
-(INT-13), because it is a statement about what is *absent*: the six hooks it names are not touched by
-any intervention of this batch, and a check is the only way to keep them that way.
+### `batch-container-detail-clock`
+
+| REQ | Served by |
+|-----|-----------|
+| REQ-25 | INT-1, INT-12 |
+| REQ-26 | INT-1, INT-5, INT-6, INT-8 |
+| REQ-27 | INT-2, INT-5, INT-6, INT-9, INT-14 |
+| REQ-28 | INT-1, INT-2, INT-5, INT-6, INT-8, INT-9, INT-11 |
+| REQ-29 | INT-3, INT-6, INT-8, INT-9, INT-13 |
+| REQ-30 | INT-5, INT-7, INT-13 |
+| REQ-31 | INT-5, INT-7, INT-13 |
+| REQ-32 | INT-4, INT-6, INT-8 |
+| REQ-33 | INT-1, INT-2, INT-8, INT-9 |
+| REQ-34 | INT-1, INT-2, INT-6, INT-15 |
+| REQ-35 | INT-5, INT-7, INT-11 |
+| REQ-36 | INT-5, INT-7, INT-15 |
+| REQ-37 | INT-10 |
+| REQ-38 | INT-15 |
+| REQ-39 | INT-8, INT-9, INT-10, INT-11, INT-12, INT-13, INT-14, INT-15 |
+
+| INT | Serves |
+|-----|--------|
+| INT-1 | REQ-25, REQ-26, REQ-28, REQ-33, REQ-34 |
+| INT-2 | REQ-27, REQ-28, REQ-33, REQ-34 |
+| INT-3 | REQ-29 |
+| INT-4 | REQ-32 |
+| INT-5 | REQ-26, REQ-27, REQ-28, REQ-30, REQ-31, REQ-35, REQ-36 |
+| INT-6 | REQ-26, REQ-27, REQ-28, REQ-29, REQ-32, REQ-34 |
+| INT-7 | REQ-30, REQ-31, REQ-35, REQ-36 |
+| INT-8 | REQ-26, REQ-28, REQ-29, REQ-32, REQ-33, REQ-39 |
+| INT-9 | REQ-27, REQ-28, REQ-29, REQ-33, REQ-39 |
+| INT-10 | REQ-37, REQ-39 |
+| INT-11 | REQ-28, REQ-35, REQ-39 |
+| INT-12 | REQ-25, REQ-39 |
+| INT-13 | REQ-29, REQ-30, REQ-31, REQ-39 |
+| INT-14 | REQ-27, REQ-39 |
+| INT-15 | REQ-34, REQ-36, REQ-38, REQ-39 |
+
+**Two thin spots in the third batch, both deliberate.** REQ-37 — no other view gains a clock — is
+served by one intervention, because it is again a statement about an absence: the five hooks it names
+are touched by no intervention of this batch, and narrowing the check is the only way to keep them
+that way. REQ-38 — the server unchanged — is served by the census alone, exactly as REQ-12 was in the
+first batch: nothing under `server/` is edited by any intervention here, and the census is what
+proves it.
+
+**And two in the second, for the same reasons.** REQ-17 — the clock stops when the Dashboard is not
+on screen — has no scenario of its own: nothing the operator can see distinguishes a stopped clock
+from a running one, so it is checked where it is observable at all, in that batch's INT-9, and rides
+along in its first scenario. REQ-21 is served by a single check, its INT-13, being the same kind of
+statement about an absence — and it is that check the third batch narrows.

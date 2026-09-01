@@ -136,6 +136,14 @@ whose loss was worth closing at once — with no trigger left they stand still a
 that keeps moving. The clock is a poll in the browser, and a tick must ask the daemon for nothing the
 server already holds, which makes the server's assembly of those figures part of this request too.
 
+**A second addition, later the same day**, on seeing the removal running: **the container's detail
+gets a clock too**, and the Processes tab beside it. The operator paused a container from outside
+while its detail was open, and the dialog contradicted itself — the header said paused, the payload
+below it still said running, because the header is drawn from a list that polls and the payload was
+not. A view that disagrees with itself is worse than one that is merely old, so this one is closed
+now rather than left to the later step. Both clocks are in the browser, they run only while the tab
+showing their data is on screen, and they ask the server for nothing it does not already answer.
+
 Out:
 
 - The Dashboard's event feed and everything the operator sees of it.
@@ -143,7 +151,8 @@ Out:
 - The rest of the server: the event stream it publishes, the values it holds, its schedule and its
   own reaction to events. Only what the Dashboard's figures are assembled from is touched, and no
   endpoint is added, removed or changed in shape.
-- The mechanism that will replace the event trigger for the six views the addition above does not
-  cover. It is a later step, with its own analysis.
+- The mechanism that will replace the event trigger for the five views the additions above do not
+  cover — the disk-usage view of System & prune, and the details of an image, an image's layers, a
+  network and a volume. It is a later step, with its own analysis.
 - The live streams that are not list data — logs, stats, console and terminal sessions, transfer and
   build progress — which follow their own subscriptions and are not a refresh of a listing.
