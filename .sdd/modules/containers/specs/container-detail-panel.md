@@ -284,6 +284,28 @@ Actions:
   and it is Config after it, so no stream and no session starts, or stops starting, when the detail
   opens. Everything else the requirement fixed stands, and any observable difference in data,
   operations, confirmations or live behaviour is still a defect.
+- **The inspect data follows the container while a tab showing it is open**
+  (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-26,
+  …-client_event_refresh_removal/REQ-28): the panel tells `useContainerDetail` whether the active tab
+  is Config or Inspect, and on any other tab the reading is not taken at all. Switching to either of
+  the two reads at once, so the tab opens on what is true now instead of on what was true when the
+  detail was opened, and the dialog's header and its payload never describe two different moments
+  (…-client_event_refresh_removal/REQ-25). The Processes tab is scoped by its own view's mount
+  (`container-processes-view.md`); Logs, Stats, Exec and Attach are untouched and keep the streams
+  and the sessions they have (…-client_event_refresh_removal/REQ-36).
+- **A tick disturbs nothing on the tab it refreshes**
+  (…-client_event_refresh_removal/REQ-29, …-client_event_refresh_removal/REQ-30): a reading equal to
+  the one held replaces nothing at all, and a reading that differs replaces the values where they
+  stand. No tab content is remounted by a re-read, the Inspect tab's open sections and its find are
+  the payload explorer's own state and survive a new payload, and nothing is closed, collapsed or
+  reset.
+- **An edit in progress is never rebuilt under the operator**
+  (…-client_event_refresh_removal/REQ-31): the form is seeded once, from the data of the moment
+  "Edit configuration" is pressed, and no later read replaces a value typed into it. Only switching
+  `container` discards it.
+- **Nothing on the detail says its data is on a clock**
+  (…-client_event_refresh_removal/REQ-35): no indicator, no "last updated", no control and no
+  setting; the Processes tab keeps the refresh control it already offers.
 
 ## Dependencies
 
@@ -379,3 +401,11 @@ Actions:
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor-inspect_full_payload/REQ-27
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor-inspect_full_payload/REQ-29
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor-inspect_full_payload/REQ-35
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-25
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-26
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-28
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-29
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-30
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-31
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-35
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-36

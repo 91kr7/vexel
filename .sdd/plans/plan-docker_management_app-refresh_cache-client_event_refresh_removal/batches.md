@@ -11,7 +11,7 @@ status: validated
 |-------|---------|------------|---------|--------|------------------|
 | `batch-client-event-trigger-removal` | The client's Docker-event refresh trigger is removed | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-9, REQ-10, REQ-11, REQ-12, REQ-13, REQ-14, REQ-15 | — | implemented | An open detail stops following the daemon on its own |
 | `batch-dashboard-overview-clock` | The Dashboard's overview figures move on a clock | REQ-16, REQ-17, REQ-18, REQ-19, REQ-20, REQ-21, REQ-22, REQ-23, REQ-24 | `batch-client-event-trigger-removal` | implemented | The Dashboard follows the host with nobody touching it |
-| `batch-container-detail-clock` | The container detail follows the container it shows | REQ-25, REQ-26, REQ-27, REQ-28, REQ-29, REQ-30, REQ-31, REQ-32, REQ-33, REQ-34, REQ-35, REQ-36, REQ-37, REQ-38, REQ-39 | `batch-dashboard-overview-clock` | todo | The dialog stops contradicting itself |
+| `batch-container-detail-clock` | The container detail follows the container it shows | REQ-25, REQ-26, REQ-27, REQ-28, REQ-29, REQ-30, REQ-31, REQ-32, REQ-33, REQ-34, REQ-35, REQ-36, REQ-37, REQ-38, REQ-39 | `batch-dashboard-overview-clock` | implemented | The dialog stops contradicting itself |
 
 Execution order: the removal, then the Dashboard's clock, then the container detail's. Each rebuild
 takes back one of the seven triggers the demolition removed, and each reads a codebase the previous

@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToReload } from './reload-signal';
 import { fetchContainerInspect, type ContainerInspect } from './containers-client';
+import { cadence } from '../timing/timing-scale';
+
+const POLL_INTERVAL_MS = cadence(3000);
+
+export interface UseContainerDetailOptions {
+  /** Whether a tab showing the inspect data is the one on screen. */
+  shown?: boolean;
+}
 
 export interface UseContainerDetailResult {
   inspect?: ContainerInspect;
@@ -10,10 +18,12 @@ export interface UseContainerDetailResult {
 }
 
 /**
- * Reads a single container's inspect data, re-reading when `id` changes (REQ-24, REQ-25). Returns
+ * Reads a single container's inspect data, on the same 3 s clock as the container summary the
+ * detail's header is built from, so the two never describe different moments
+ * (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-25, REQ-26). Returns
  * an empty result when `id` is undefined (no container selected).
  */
-export function useContainerDetail(id: string | undefined): UseContainerDetailResult {
+export function useContainerDetail(id: string | undefined, { shown = true }: UseContainerDetailOptions = {}): UseContainerDetailResult {
   const [inspect, setInspect] = useState<ContainerInspect | undefined>(undefined);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
@@ -26,7 +36,10 @@ export function useContainerDetail(id: string | undefined): UseContainerDetailRe
     return fetchContainerInspect(id)
       .then((result) => {
         if (cancelledRef.current) return;
-        setInspect(result);
+        // Keeping the reading that has not changed is what leaves the sections the operator
+        // opened, the find and the selection alone
+        // (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-29).
+        setInspect((current) => (current && JSON.stringify(current) === JSON.stringify(result) ? current : result));
         setError(undefined);
       })
       .catch((cause: Error) => {
@@ -48,11 +61,20 @@ export function useContainerDetail(id: string | undefined): UseContainerDetailRe
     setInspect(undefined);
     setLoaded(false);
     setError(undefined);
-    if (id) refresh();
     return () => {
       cancelledRef.current = true;
     };
-  }, [id, refresh]);
+  }, [id]);
+
+  // The clock and the read that opens it, both scoped to the tab showing the data: a tab nobody is
+  // looking at costs the daemon nothing
+  // (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-28).
+  useEffect(() => {
+    if (!id || !shown) return;
+    refresh();
+    const interval = window.setInterval(refresh, POLL_INTERVAL_MS);
+    return () => window.clearInterval(interval);
+  }, [id, shown, refresh]);
 
   useEffect(() => subscribeToReload(readOnce), [readOnce]);
 
