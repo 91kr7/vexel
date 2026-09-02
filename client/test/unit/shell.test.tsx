@@ -10,18 +10,10 @@ import { CrossNavigationProvider } from '../../src/shell/services/CrossNavigatio
 import { DaemonEventStreamProvider } from '../../src/shell/services/EventStreamService';
 import { ErrorReportingProvider, useErrorReporter } from '../../src/shell/services/ErrorReportingService';
 import { ProgressProvider, useProgress } from '../../src/shell/services/ProgressService';
+// The shell holds the live channel, which the client opens through an
+// EventSource jsdom does not provide.
+import { FakeEventSource, channelOpens } from '../support/live-channel';
 
-class FakeEventSource {
-  onmessage: ((event: { data: string }) => void) | null = null;
-  url: string;
-
-  /** Every real EventSource has one, and a screen that holds a connection closes it on unmount. */
-  close() {}
-
-  constructor(url: string) {
-    this.url = url;
-  }
-}
 
 const reachableStatus = {
   daemon: { reachable: true },
@@ -130,6 +122,9 @@ async function renderShell() {
       </ProgressProvider>
     </ErrorReportingProvider>,
   );
+  // The server accepts the channel: without it the shell reports the daemon
+  // unreachable, which is the state of REQ-11 and not the one under test here.
+  act(() => channelOpens());
 
   // Connectivity status resolves asynchronously (REQ-9); wait for it so the
   // header status pill has settled before tests written for batch 1's

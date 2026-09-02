@@ -9,23 +9,25 @@
  * claim is about which reading was serialised and not only about how many times.
  * The container's inspect payload is here by name: its earlier form serialised
  * both readings on every tick, tens of kilobytes of them every three seconds.
+ * The container list is here too, and no longer as a tick: it arrives on the live
+ * channel now (…-multiplexed_sse/REQ-8), and the claim holds unchanged on the
+ * store that keeps it.
  */
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { act } from 'react';
 import { useKeptReading } from '../../src/data/use-kept-reading';
+import { FakeEventSource, liveChannel } from '../support/live-channel';
 
-const fetchContainers = vi.fn();
 const fetchContainerInspect = vi.fn();
 
 vi.mock('../../src/data/containers-client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../src/data/containers-client')>()),
-  fetchContainers: () => fetchContainers(),
   fetchContainerInspect: (id: string) => fetchContainerInspect(id),
 }));
 
-const { useContainers } = await import('../../src/data/use-containers');
 const { useContainerDetail } = await import('../../src/data/use-container-detail');
+const { usePushedValue } = await import('../../src/data/pushed-values');
 
 /** The period both hooks' specs state, unscaled: the timing scale is 1 in a unit run. */
 const DECLARED_PERIOD_MS = 3_000;
@@ -44,7 +46,8 @@ async function advance(ms: number): Promise<void> {
 }
 
 beforeEach(() => {
-  fetchContainers.mockReset();
+  FakeEventSource.instances = [];
+  vi.stubGlobal('EventSource', FakeEventSource);
   fetchContainerInspect.mockReset();
   vi.useFakeTimers();
   stringify = vi.spyOn(JSON, 'stringify');
@@ -53,6 +56,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe('the keeper serialises what arrived, and only that (REQ-49)', () => {
@@ -76,23 +80,26 @@ describe('the keeper serialises what arrived, and only that (REQ-49)', () => {
   });
 });
 
-describe('a tick of a polled hook serialises one reading (REQ-49)', () => {
-  // …/REQ-49 — the container list: the tick pays for the answer it received, and for nothing held.
-  it('serialises the list that arrived and never the list already held', async () => {
-    const held = [{ id: 'c1', name: 'database', state: 'running' }];
-    const arrived = [{ id: 'c1', name: 'database', state: 'running' }];
-    fetchContainers.mockResolvedValueOnce(held).mockResolvedValue(arrived);
-    const { result, unmount } = renderHook(() => useContainers());
-    await advance(0);
-    expect(result.current.containers).toBe(held);
+describe('a delivery on the live channel serialises one value (REQ-49)', () => {
+  // …/REQ-49 — the container list no longer ticks: it is pushed, and the store pays for
+  // what the channel delivered and for nothing it holds
+  // (…-multiplexed_sse/REQ-8, REQ-12).
+  it('serialises the list that was delivered and never the list already held', async () => {
+    const list = [{ id: 'c1', name: 'database', state: 'running' }];
+    // Built before the spy is cleared: a message is a string on the wire, and
+    // serialising it here is the server's cost, not the store's.
+    const message = JSON.stringify({ name: 'containers', value: list });
+    const { result, unmount } = renderHook(() => usePushedValue<unknown>('containers'));
+    act(() => liveChannel().emit('value', message));
+    const held = result.current;
+    expect(held).toEqual(list);
 
     stringify.mockClear();
-    await advance(DECLARED_PERIOD_MS);
+    act(() => liveChannel().emit('value', message));
 
-    expect(fetchContainers).toHaveBeenCalledTimes(2);
-    expect(serialisations(arrived), 'the arrived list was not serialised exactly once').toBe(1);
+    expect(result.current, 'an unchanged delivery replaced the list in hand').toBe(held);
     expect(serialisations(held), 'the list already held was serialised again').toBe(0);
-    expect(stringify.mock.calls.length, 'the tick serialised something beyond the list that arrived').toBe(1);
+    expect(stringify.mock.calls.length, 'the delivery serialised something beyond the value that arrived').toBe(1);
     unmount();
   });
 

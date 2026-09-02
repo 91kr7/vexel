@@ -4,7 +4,14 @@
  * (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-47,
  * REQ-48).
  *
- * One file over the six polled list hooks, because the claim is about the set:
+ * `useContainers` left this set on
+ * plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-8:
+ * it stores nothing through the keeper any more, because it takes no reading —
+ * the same claim for the list it shows is in `use-containers.test.tsx`, over the
+ * channel that delivers it. The table below is held against the keeper's callers
+ * by the last case of this file, so a hook rejoining the set cannot be forgotten.
+ *
+ * One file over the five polled list hooks left, because the claim is about the set:
  * a hook left storing its reading outright would show up here as one row of the
  * table, whichever row it was — and `useComposeProjects`, which has no check
  * file of its own, is covered by being in it.
@@ -20,7 +27,6 @@ import { act, memo } from 'react';
 import { render, renderHook, type RenderHookResult } from '@testing-library/react';
 
 const reads = {
-  containers: vi.fn(),
   images: vi.fn(),
   volumes: vi.fn(),
   networks: vi.fn(),
@@ -28,10 +34,6 @@ const reads = {
   plugins: vi.fn(),
 };
 
-vi.mock('../../src/data/containers-client', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../src/data/containers-client')>()),
-  fetchContainers: () => reads.containers(),
-}));
 vi.mock('../../src/data/images-client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../src/data/images-client')>()),
   fetchImages: () => reads.images(),
@@ -53,7 +55,6 @@ vi.mock('../../src/data/plugins-client', async (importOriginal) => ({
   fetchPlugins: () => reads.plugins(),
 }));
 
-const { useContainers } = await import('../../src/data/use-containers');
 const { useImages } = await import('../../src/data/use-images');
 const { useVolumes } = await import('../../src/data/use-volumes');
 const { useNetworks } = await import('../../src/data/use-networks');
@@ -79,16 +80,6 @@ interface ListHookCase {
 }
 
 const LIST_HOOKS: ListHookCase[] = [
-  {
-    name: 'useContainers',
-    source: 'use-containers.ts',
-    read: reads.containers,
-    render: () => renderHook(() => useContainers() as unknown as HookResult),
-    readings: ['containers'],
-    reading: () => [{ id: 'c1', name: 'database', state: 'running' }],
-    changed: (nth) => [{ id: 'c1', name: 'database', state: 'running' }, { id: `c-changed-${nth}`, name: 'web', state: 'exited' }],
-    statedPollMs: 3000,
-  },
   {
     name: 'useImages',
     source: 'use-images.ts',

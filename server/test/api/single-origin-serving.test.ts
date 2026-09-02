@@ -218,12 +218,13 @@ describe("one process serving the interface and the API at one origin", () => {
     }
   });
 
-  // REQ-6 — the daemon event stream is established as promptly as before, with the
+  // REQ-6 — the live channel, which carries the daemon events since
+  // …-multiplexed_sse/REQ-1, is established as promptly as before, with the
   // client serving now in the middleware chain.
-  test("the event stream still streams through the process serving the interface", async () => {
+  test("the live channel still streams through the process serving the interface", async () => {
     const abort = new AbortController();
     try {
-      const response = await fetch(`${server.origin}/api/events/stream`, { signal: abort.signal });
+      const response = await fetch(`${server.origin}/api/live`, { signal: abort.signal });
       assert.equal(response.status, 200);
       assert.match(response.headers.get("content-type") ?? "", /text\/event-stream/);
       assert.notEqual(response.headers.get("content-length"), "0");

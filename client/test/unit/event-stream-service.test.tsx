@@ -1,32 +1,16 @@
 import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { FakeEventSource, liveChannel } from '../support/live-channel';
 
-// The event-stream data client (client/src/data/event-stream.ts) keeps a
-// single module-level EventSource; a fresh module registry per test keeps
-// that singleton (and this fake) from leaking across tests.
-class FakeEventSource {
-  onmessage: ((event: { data: string }) => void) | null = null;
-  url: string;
-  constructor(url: string) {
-    this.url = url;
-  }
-}
-
-let currentSource: FakeEventSource | undefined;
-
+// The feed reads the daemon events off the live channel
+// (client/src/data/live-channel.ts), which keeps a single module-level
+// EventSource; a fresh module registry per test keeps that singleton (and this
+// fake) from leaking across tests.
 beforeEach(() => {
   vi.resetModules();
-  currentSource = undefined;
-  vi.stubGlobal(
-    'EventSource',
-    class extends FakeEventSource {
-      constructor(url: string) {
-        super(url);
-        currentSource = this;
-      }
-    },
-  );
+  FakeEventSource.instances = [];
+  vi.stubGlobal('EventSource', FakeEventSource);
 });
 
 afterEach(() => {
@@ -71,19 +55,15 @@ describe('DaemonEventStreamProvider / useDaemonEventStream', () => {
       </DaemonEventStreamProvider>,
     );
 
-    await waitFor(() => expect(currentSource).toBeDefined());
+    await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
 
     act(() => {
-      currentSource!.onmessage?.({
-        data: JSON.stringify({ id: '1', timestamp: new Date().toISOString(), type: 'container', action: 'start' }),
-      });
+      liveChannel().emit('daemon-event', JSON.stringify({ id: '1', timestamp: new Date().toISOString(), type: 'container', action: 'start' }));
     });
     await waitFor(() => expect(screen.getByTestId('events').textContent).toContain('container/start'));
 
     act(() => {
-      currentSource!.onmessage?.({
-        data: JSON.stringify({ id: '2', timestamp: new Date().toISOString(), type: 'network', action: 'create' }),
-      });
+      liveChannel().emit('daemon-event', JSON.stringify({ id: '2', timestamp: new Date().toISOString(), type: 'network', action: 'create' }));
     });
 
     await waitFor(() => {
@@ -114,13 +94,13 @@ describe('DaemonEventStreamProvider / useDaemonEventStream', () => {
         <Consumer />
       </DaemonEventStreamProvider>,
     );
-    await waitFor(() => expect(currentSource).toBeDefined());
+    await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
 
     const stopped = { id: '1786229808123000000-local-container-stop-c1', timestamp: '2026-08-09T10:16:48.123Z', type: 'container', action: 'stop', actor: 'c-1' };
     const started = { ...stopped, id: '1786229808876000000-local-container-start-c1', timestamp: '2026-08-09T10:16:48.876Z', action: 'start' };
     act(() => {
-      currentSource!.onmessage?.({ data: JSON.stringify(stopped) });
-      currentSource!.onmessage?.({ data: JSON.stringify(started) });
+      liveChannel().emit('daemon-event', JSON.stringify(stopped));
+      liveChannel().emit('daemon-event', JSON.stringify(started));
     });
 
     await waitFor(() => {
@@ -155,17 +135,17 @@ describe('DaemonEventStreamProvider / useDaemonEventStream', () => {
         <Consumer />
       </DaemonEventStreamProvider>,
     );
-    await waitFor(() => expect(currentSource).toBeDefined());
+    await waitFor(() => expect(FakeEventSource.instances).toHaveLength(1));
 
     const event = { id: '1786229808123000000-local-container-start-c1', timestamp: '2026-08-09T10:16:48.123Z', type: 'container', action: 'start', actor: 'c-1' };
     act(() => {
-      currentSource!.onmessage?.({ data: JSON.stringify(event) });
+      liveChannel().emit('daemon-event', JSON.stringify(event));
     });
     await waitFor(() => expect(screen.getByTestId('events').querySelectorAll('li')).toHaveLength(1));
     const rendersAfterFirstDelivery = renderCount;
 
     act(() => {
-      currentSource!.onmessage?.({ data: JSON.stringify(event) });
+      liveChannel().emit('daemon-event', JSON.stringify(event));
     });
 
     expect(screen.getByTestId('events').querySelectorAll('li')).toHaveLength(1);

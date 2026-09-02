@@ -1,7 +1,21 @@
 import { act } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
-import { ConnectionStatusProvider, useConnectionStatus } from '../../src/shell/services/ConnectionStatusService';
+import { FakeEventSource, channelOpens, dropChannel, liveChannel } from '../support/live-channel';
+
+// The service reports a live channel that is not delivering as an unreachable
+// daemon (REQ-11), so every case here says which of the two it is about. The
+// channel client behind it is a module singleton: a fresh module registry per
+// test keeps one test's connection out of the next.
+let ConnectionStatusProvider: typeof import('../../src/shell/services/ConnectionStatusService').ConnectionStatusProvider;
+let useConnectionStatus: typeof import('../../src/shell/services/ConnectionStatusService').useConnectionStatus;
+
+beforeEach(async () => {
+  FakeEventSource.instances = [];
+  vi.stubGlobal('EventSource', FakeEventSource);
+  vi.resetModules();
+  ({ ConnectionStatusProvider, useConnectionStatus } = await import('../../src/shell/services/ConnectionStatusService'));
+});
 
 afterEach(() => {
   cleanup();
@@ -69,6 +83,7 @@ describe('ConnectionStatusProvider / useConnectionStatus', () => {
         <FullHarness />
       </ConnectionStatusProvider>,
     );
+    act(() => channelOpens());
 
     await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('"apiVersion":"1.43"'));
     const rendered = JSON.parse(screen.getByTestId('status').textContent ?? '{}');
@@ -103,5 +118,90 @@ describe('ConnectionStatusProvider / useConnectionStatus', () => {
     });
 
     await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2));
+  });
+
+  // …-multiplexed_sse/REQ-11, REQ-35 — a channel that is not delivering is told through this
+  // same state and this same wording; no element and no wording of its own is added for it.
+  it('reports the daemon unreachable with a cause while the channel is not delivering', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          daemon: { reachable: true },
+          apiVersion: '1.43',
+          cli: { docker: { available: true }, compose: { available: true }, buildx: { available: true } },
+          unavailableCapabilities: [],
+        }),
+    }));
+
+    render(
+      <ConnectionStatusProvider>
+        <StatusHarness />
+      </ConnectionStatusProvider>,
+    );
+    act(() => channelOpens());
+    await waitFor(() => expect(screen.getByTestId('reachable')).toHaveTextContent('true'));
+
+    act(() => dropChannel());
+
+    await waitFor(() => expect(screen.getByTestId('reachable')).toHaveTextContent('false'));
+    expect(screen.getByTestId('cause').textContent).not.toBe('');
+  });
+
+  // …-multiplexed_sse/REQ-11 — the state is cleared as soon as the channel delivers again.
+  it('reports the daemon reachable again once the channel delivers', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          daemon: { reachable: true },
+          apiVersion: '1.43',
+          cli: { docker: { available: true }, compose: { available: true }, buildx: { available: true } },
+          unavailableCapabilities: [],
+        }),
+    }));
+
+    render(
+      <ConnectionStatusProvider>
+        <StatusHarness />
+      </ConnectionStatusProvider>,
+    );
+    act(() => channelOpens());
+    act(() => dropChannel());
+    await waitFor(() => expect(screen.getByTestId('reachable')).toHaveTextContent('false'));
+
+    act(() => channelOpens());
+
+    await waitFor(() => expect(screen.getByTestId('reachable')).toHaveTextContent('true'));
+  });
+
+  // connection-status-service.md — "retry() ... asks for the live channel again when it is not delivering".
+  it('asks for the channel again when retried while it is not delivering', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          daemon: { reachable: true },
+          cli: { docker: { available: true }, compose: { available: true }, buildx: { available: true } },
+          unavailableCapabilities: [],
+        }),
+    }));
+
+    render(
+      <ConnectionStatusProvider>
+        <StatusHarness />
+      </ConnectionStatusProvider>,
+    );
+    act(() => channelOpens());
+    act(() => dropChannel());
+    const dropped = liveChannel();
+    const opened = FakeEventSource.instances.length;
+
+    await act(async () => {
+      screen.getByRole('button', { name: 'Retry' }).click();
+    });
+
+    expect(dropped.closed).toBe(true);
+    expect(FakeEventSource.instances).toHaveLength(opened + 1);
   });
 });

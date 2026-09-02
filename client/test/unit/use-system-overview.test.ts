@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { act } from 'react';
-import type { DaemonEvent } from '../../src/data/event-stream';
+import type { DaemonEvent } from '../../src/data/live-channel';
 import type { SystemOverview } from '../../src/data/system-client';
 
 // useSystemOverview holds the host overview behind the dashboard's tiles and
@@ -18,7 +18,7 @@ let contextListener: (() => void) | undefined;
 vi.mock('../../src/data/system-client', () => ({
   fetchSystemOverview: () => fetchSystemOverview(),
 }));
-vi.mock('../../src/data/event-stream', () => ({
+vi.mock('../../src/data/live-channel', () => ({
   subscribeToDaemonEvents: (listener: (event: DaemonEvent) => void) => {
     daemonListener = listener;
     return () => {

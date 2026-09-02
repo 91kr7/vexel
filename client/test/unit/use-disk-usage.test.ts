@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { act } from 'react';
-import type { DaemonEvent } from '../../src/data/event-stream';
+import type { DaemonEvent } from '../../src/data/live-channel';
 import type { DiskUsageBreakdown, PruneRunResult } from '../../src/data/system-client';
 
 // useDiskUsage holds the reclaimable-space breakdown and drives the prunes over
@@ -19,7 +19,7 @@ vi.mock('../../src/data/system-client', () => ({
   fetchDiskUsage: () => fetchDiskUsage(),
   pruneScope: (scope: string[]) => pruneScope(scope),
 }));
-vi.mock('../../src/data/event-stream', () => ({
+vi.mock('../../src/data/live-channel', () => ({
   subscribeToDaemonEvents: (listener: (event: DaemonEvent) => void) => {
     daemonListener = listener;
     return () => {

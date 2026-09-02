@@ -8,7 +8,14 @@ import { ConnectionStatusProvider, useConnectionStatus } from '../../src/shell/s
 // builder and build-cache lists, the connection status and the daemon
 // information. Each re-reads from the server, which by then answers for the new
 // daemon" (REQ-93). Every data client is mocked; the broadcast is the real one.
-const fetchContainers = vi.fn(async () => []);
+//
+// The container list left this table on
+// plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-8:
+// it reads nothing on the broadcast because it reads nothing at all. What
+// replaces the guarantee for it is the channel's own discard — the server drops
+// what it holds, says so, and sends the new context's values — covered in
+// `pushed-value-store.test.tsx` and, on the server, in
+// `held-value-publisher.test.ts`.
 const fetchImages = vi.fn(async () => []);
 const fetchVolumes = vi.fn(async () => []);
 const fetchNetworks = vi.fn(async () => []);
@@ -16,7 +23,6 @@ const fetchComposeProjects = vi.fn(async () => []);
 const fetchBuilders = vi.fn(async () => []);
 const fetchBuildCache = vi.fn(async () => []);
 
-vi.mock('../../src/data/containers-client', () => ({ fetchContainers: () => fetchContainers() }));
 vi.mock('../../src/data/images-client', () => ({ fetchImages: () => fetchImages() }));
 vi.mock('../../src/data/volumes-client', () => ({ fetchVolumes: () => fetchVolumes() }));
 vi.mock('../../src/data/networks-client', () => ({ fetchNetworks: () => fetchNetworks() }));
@@ -30,7 +36,6 @@ vi.mock('../../src/data/builders-client', () => ({
   pruneBuildCache: vi.fn(),
 }));
 const { notifyActiveContextChanged } = await import('../../src/data/active-context');
-const { useContainers } = await import('../../src/data/use-containers');
 const { useImages } = await import('../../src/data/use-images');
 const { useVolumes } = await import('../../src/data/use-volumes');
 const { useNetworks } = await import('../../src/data/use-networks');
@@ -39,7 +44,6 @@ const { useBuilders } = await import('../../src/data/use-builders');
 const { useBuildCache } = await import('../../src/data/use-build-cache');
 
 const cachedViews: Array<[string, () => unknown, ReturnType<typeof vi.fn>]> = [
-  ['useContainers', useContainers, fetchContainers],
   ['useImages', useImages, fetchImages],
   ['useVolumes', useVolumes, fetchVolumes],
   ['useNetworks', useNetworks, fetchNetworks],

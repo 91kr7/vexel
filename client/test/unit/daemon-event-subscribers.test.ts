@@ -6,7 +6,12 @@ import { join, relative } from 'node:path';
  * One subscriber to the daemon event stream is left in the client, and it is the
  * Dashboard's event feed
  * (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-3,
- * REQ-13, and events/specs/event-stream-client.md).
+ * REQ-13, and live-channel/specs/live-channel-client.md).
+ *
+ * The module that declares the subscription changed on
+ * plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-1:
+ * the events travel on the one live channel now, so it is the channel client
+ * that declares it. The claim is unchanged — one subscriber, and it is the feed.
  *
  * The requirement was written to be read off the code rather than measured in
  * requests, so that is how it is checked: the client tree is scanned for anyone
@@ -22,7 +27,7 @@ const SELF = join('test', 'unit', 'daemon-event-subscribers.test.ts');
 
 /** The one module allowed to subscribe, plus the module that declares the subscription. */
 const EVENT_FEED_SERVICE = join('src', 'shell', 'services', 'EventStreamService.tsx');
-const EVENT_STREAM_MODULE = join('src', 'data', 'event-stream.ts');
+const EVENT_STREAM_MODULE = join('src', 'data', 'live-channel.ts');
 
 interface SourceFile {
   path: string;

@@ -10,7 +10,12 @@
  * hook listens to the daemon event stream at all. That is what the last case
  * below asserts, in place of the event types each hook used to re-read on.
  *
- * One file over all eight, because the claim is about the set: finishing the
+ * `useContainers` left this set on
+ * plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-8:
+ * it holds no clock and makes no request, and what it does instead is covered by
+ * `use-containers.test.tsx`. The seven below still poll.
+ *
+ * One file over all seven, because the claim is about the set: finishing the
  * plan by quietly moving the work into the client would show up here as one row
  * of the table changing, whichever row it was.
  *
@@ -23,10 +28,9 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, type RenderHookResult } from '@testing-library/react';
 import { act } from 'react';
-import type { DaemonEvent } from '../../src/data/event-stream';
+import type { DaemonEvent } from '../../src/data/live-channel';
 
 const reads = {
-  containers: vi.fn(),
   images: vi.fn(),
   volumes: vi.fn(),
   networks: vi.fn(),
@@ -48,10 +52,6 @@ const subscribeToDaemonEvents = vi.fn((listener: (event: DaemonEvent) => void) =
 // The real modules are spread and only the read is replaced: a hook that imports
 // more than its own listing (a create, a removal, a switch) still gets the real
 // exports, and nothing here can make a hook look narrower than it is.
-vi.mock('../../src/data/containers-client', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../src/data/containers-client')>()),
-  fetchContainers: () => reads.containers(),
-}));
 vi.mock('../../src/data/images-client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../src/data/images-client')>()),
   fetchImages: () => reads.images(),
@@ -77,12 +77,11 @@ vi.mock('../../src/data/builders-client', async (importOriginal) => ({
   fetchBuilders: () => reads.builders(),
   fetchBuildCache: () => reads.buildCache(),
 }));
-vi.mock('../../src/data/event-stream', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../../src/data/event-stream')>()),
+vi.mock('../../src/data/live-channel', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/data/live-channel')>()),
   subscribeToDaemonEvents: (listener: (event: DaemonEvent) => void) => subscribeToDaemonEvents(listener),
 }));
 
-const { useContainers } = await import('../../src/data/use-containers');
 const { useImages } = await import('../../src/data/use-images');
 const { useVolumes } = await import('../../src/data/use-volumes');
 const { useNetworks } = await import('../../src/data/use-networks');
@@ -109,14 +108,6 @@ interface ListHookCase {
  * what its own spec promises.
  */
 const LIST_HOOKS: ListHookCase[] = [
-  {
-    name: 'useContainers',
-    read: reads.containers,
-    render: () => renderHook(() => useContainers() as unknown as Record<string, unknown>),
-    shape: ['containers', 'loaded', 'error', 'refresh'],
-    statedPollMs: 3000,
-    refreshDeclaredVoid: true,
-  },
   {
     name: 'useImages',
     read: reads.images,

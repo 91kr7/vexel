@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { act } from 'react';
-import type { DaemonEvent } from '../../src/data/event-stream';
+import type { DaemonEvent } from '../../src/data/live-channel';
 
 // useVolumeInspect reads when `name` changes, on demand and on the reload
 // signal, and for no daemon event at all (use-volume-inspect.md,
@@ -21,9 +21,9 @@ vi.mock('../../src/data/volumes-client', () => ({
   fetchVolumeInspect: (...args: unknown[]) => fetchVolumeInspect(...args),
 }));
 // Only the subscription is stood in for: the attribution rule that decides
-// which events reach the hook is the real one (event-stream-client.md).
-vi.mock('../../src/data/event-stream', async (importActual) => ({
-  ...(await importActual<typeof import('../../src/data/event-stream')>()),
+// which events reach the hook is the real one (live-channel/specs/live-channel-client.md).
+vi.mock('../../src/data/live-channel', async (importActual) => ({
+  ...(await importActual<typeof import('../../src/data/live-channel')>()),
   subscribeToDaemonEvents: (listener: (event: DaemonEvent) => void) => subscribeToDaemonEvents(listener),
 }));
 

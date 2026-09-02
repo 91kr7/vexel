@@ -2,35 +2,15 @@ import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { FakeEventSource, channelOpens, liveChannel } from '../support/live-channel';
 
-// Both the connectivity data client (fetch) and the event-stream data client
-// (a module-level EventSource singleton) need a fresh module registry per
-// test so mocks from one test never leak into the next.
-class FakeEventSource {
-  onmessage: ((event: { data: string }) => void) | null = null;
-  url: string;
-
-  /** Every real EventSource has one, and a screen that holds a connection closes it on unmount. */
-  close() {}
-  constructor(url: string) {
-    this.url = url;
-  }
-}
-
-let currentEventSource: FakeEventSource | undefined;
-
+// Both the connectivity data client (fetch) and the live channel client (a
+// module-level EventSource singleton) need a fresh module registry per test so
+// mocks from one test never leak into the next.
 beforeEach(() => {
   vi.resetModules();
-  currentEventSource = undefined;
-  vi.stubGlobal(
-    'EventSource',
-    class extends FakeEventSource {
-      constructor(url: string) {
-        super(url);
-        currentEventSource = this;
-      }
-    },
-  );
+  FakeEventSource.instances = [];
+  vi.stubGlobal('EventSource', FakeEventSource);
 });
 
 afterEach(() => {
@@ -148,6 +128,10 @@ async function renderShellWith(status: unknown) {
       </ProgressProvider>
     </ErrorReportingProvider>,
   );
+  // The server accepts the channel. A channel that is not delivering is reported
+  // as an unreachable daemon (REQ-11), which would stand in for every status
+  // this helper is handed.
+  act(() => channelOpens());
 
   return { fetchMock };
 }
@@ -206,12 +190,13 @@ describe('Shell — daemon connectivity (app-shell/specs/shell.md)', () => {
   // plan-docker_management_app/REQ-11, plan-docker_management_app/REQ-12 — a live event updates the event stream panel without a manual refresh
   it('shows a live daemon event in the "Daemon event stream" panel as it arrives', async () => {
     await renderShellWith(reachableStatus);
-    await waitFor(() => expect(currentEventSource).toBeDefined());
+    await waitFor(() => expect(FakeEventSource.instances.length).toBeGreaterThan(0));
 
     act(() => {
-      currentEventSource!.onmessage?.({
-        data: JSON.stringify({ id: 'evt-1', timestamp: new Date().toISOString(), type: 'network', action: 'create', actor: 'test-net' }),
-      });
+      liveChannel().emit(
+        'daemon-event',
+        JSON.stringify({ id: 'evt-1', timestamp: new Date().toISOString(), type: 'network', action: 'create', actor: 'test-net' }),
+      );
     });
 
     await waitFor(() => expect(screen.getByText('test-net')).toBeInTheDocument());

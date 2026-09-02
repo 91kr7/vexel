@@ -1,6 +1,6 @@
 import { after, test } from "node:test";
 import assert from "node:assert/strict";
-import { eventsRouter } from "../../src/events/events-routes.js";
+import { liveChannelRouter } from "../../src/live-channel/live-channel-routes.js";
 import { eventStreamService, type DaemonEvent } from "../../src/events/event-stream-service.js";
 import { buildApp, createSleepingContainer, removeContainerQuietly, startApp } from "../support/fixtures.js";
 import { ALPINE_IMAGE, ensureImages } from "../support/base-images.js";
@@ -39,9 +39,11 @@ async function pump(reader: ReadableStreamDefaultReader<Uint8Array>, frames: Fra
     while (separator !== -1) {
       const chunk = buffer.slice(0, separator);
       buffer = buffer.slice(separator + 2);
-      const idLine = chunk.split("\n").find((line) => line.startsWith("id: "));
-      const dataLine = chunk.split("\n").find((line) => line.startsWith("data: "));
-      if (dataLine) {
+      const lines = chunk.split("\n");
+      const idLine = lines.find((line) => line.startsWith("id: "));
+      const dataLine = lines.find((line) => line.startsWith("data: "));
+      // The channel carries the held values too; only a daemon event has an identity.
+      if (dataLine && lines.includes("event: daemon-event")) {
         frames.push({
           id: idLine?.slice("id: ".length) ?? "",
           event: JSON.parse(dataLine.slice("data: ".length)) as DaemonEvent,
@@ -66,7 +68,7 @@ function second(event: DaemonEvent): string {
 // container inside one second are two events, each with its own action and identity, and the identity
 // is minted once so every delivery of an event names it the same way
 test("publishes two events of one container in one second as two distinct, stable identities", async () => {
-  const app = buildApp("/api/events", eventsRouter);
+  const app = buildApp("/api/live", liveChannelRouter);
   const running = await startApp(app);
   const created: string[] = [];
   const frames: Frame[] = [];
@@ -76,7 +78,7 @@ test("publishes two events of one container in one second as two distinct, stabl
     eventStreamService.start();
     await delay(500); // let the connect loop attach to the daemon's own /events stream
 
-    const response = await fetch(`${running.url}/api/events/stream`);
+    const response = await fetch(`${running.url}/api/live`);
     assert.equal(response.status, 200);
     assert.match(response.headers.get("content-type") ?? "", /text\/event-stream/);
     reader = response.body!.getReader();
@@ -118,7 +120,7 @@ test("publishes two events of one container in one second as two distinct, stabl
     // them instead of holding one event twice.
     const liveIds = framesFor(fixture).map((frame) => frame.id);
     const catchUpFrames: Frame[] = [];
-    const catchUp = await fetch(`${running.url}/api/events/stream`);
+    const catchUp = await fetch(`${running.url}/api/live`);
     const catchUpReader = catchUp.body!.getReader();
     try {
       await Promise.race([pump(catchUpReader, catchUpFrames).catch(() => undefined), delay(1_500)]);

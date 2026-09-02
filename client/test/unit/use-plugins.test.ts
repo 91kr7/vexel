@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { act } from 'react';
-import type { DaemonEvent } from '../../src/data/event-stream';
+import type { DaemonEvent } from '../../src/data/live-channel';
 import type { CliPlugin, DaemonPlugin, PluginsReading } from '../../src/data/plugins-client';
 
 // usePlugins reads both inventories as one round and drives the management of
@@ -29,7 +29,7 @@ vi.mock('../../src/data/plugins-client', () => ({
   disablePlugin: (name: string) => disablePlugin(name),
   removePlugin: (name: string) => removePlugin(name),
 }));
-vi.mock('../../src/data/event-stream', () => ({
+vi.mock('../../src/data/live-channel', () => ({
   subscribeToDaemonEvents: (listener: (event: DaemonEvent) => void) => {
     daemonListener = listener;
     return () => {

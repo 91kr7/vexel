@@ -65,9 +65,8 @@ function renderPanel(onContainerReplaced = vi.fn()) {
   return { onContainerReplaced, view };
 }
 
-// The panel's read hook subscribes to daemon events via a module-level
-// EventSource (client/src/data/event-stream.ts), and the Logs tab subscribes to
-// the log stream the same way; neither is available in jsdom.
+// The Logs tab subscribes to the log stream through a module-level EventSource,
+// which jsdom does not provide.
 class FakeEventSource {
   static instances: FakeEventSource[] = [];
   onmessage: ((event: { data: string }) => void) | null = null;

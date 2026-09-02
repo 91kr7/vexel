@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { act } from 'react';
-import type { DaemonEvent } from '../../src/data/event-stream';
+import type { DaemonEvent } from '../../src/data/live-channel';
 
 // useVolumes re-reads on a bounded poll and on nothing the daemon pushes
 // (use-volumes.md,
@@ -20,7 +20,7 @@ const subscribeToDaemonEvents = vi.fn((listener: (event: DaemonEvent) => void) =
 vi.mock('../../src/data/volumes-client', () => ({
   fetchVolumes: (...args: unknown[]) => fetchVolumes(...args),
 }));
-vi.mock('../../src/data/event-stream', () => ({
+vi.mock('../../src/data/live-channel', () => ({
   subscribeToDaemonEvents: (listener: (event: DaemonEvent) => void) => subscribeToDaemonEvents(listener),
 }));
 

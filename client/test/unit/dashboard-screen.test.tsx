@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ContainerSummary, ContainerState } from '../../src/data/containers-client';
-import type { DaemonEvent } from '../../src/data/event-stream';
+import type { DaemonEvent } from '../../src/data/live-channel';
 import type { SystemOverview } from '../../src/data/system-client';
 
 // The Dashboard composes the operator's reading of the host out of two live

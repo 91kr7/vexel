@@ -1,3 +1,4 @@
+import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -7,6 +8,9 @@ import { CrossNavigationProvider } from '../../src/shell/services/CrossNavigatio
 import { DaemonEventStreamProvider } from '../../src/shell/services/EventStreamService';
 import { ErrorReportingProvider } from '../../src/shell/services/ErrorReportingService';
 import { ProgressProvider } from '../../src/shell/services/ProgressService';
+// The shell holds the live channel, which the client opens through an
+// EventSource jsdom does not provide.
+import { FakeEventSource, channelOpens } from '../support/live-channel';
 
 // app-shell/specs/shell.md — "The rail's footer names the context every screen
 // currently follows, as `name (kind)` ... It follows a switch made on the
@@ -14,18 +18,6 @@ import { ProgressProvider } from '../../src/shell/services/ProgressService';
 // the real user path: the Contexts screen's own "use" action, with the server
 // answering as it does. No timer is advanced: what is under test is the switch
 // making the shell follow, not the inventory poll eventually noticing.
-
-class FakeEventSource {
-  onmessage: ((event: { data: string }) => void) | null = null;
-  url: string;
-
-  /** Every real EventSource has one, and a screen that holds a connection closes it on unmount. */
-  close() {}
-
-  constructor(url: string) {
-    this.url = url;
-  }
-}
 
 const reachableStatus = {
   daemon: { reachable: true },
@@ -171,6 +163,9 @@ async function renderShellOnContexts() {
       </ProgressProvider>
     </ErrorReportingProvider>,
   );
+  // The server accepts the channel: without it the shell reports the daemon
+  // unreachable, which is the state of REQ-11 and not the one under test here.
+  act(() => channelOpens());
   await waitFor(() => expect(screen.getByText('Live · daemon events')).toBeInTheDocument());
   await userEvent.click(screen.getByRole('button', { name: /Contexts/ }));
   await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: 'Docker contexts' })).toBeInTheDocument());
