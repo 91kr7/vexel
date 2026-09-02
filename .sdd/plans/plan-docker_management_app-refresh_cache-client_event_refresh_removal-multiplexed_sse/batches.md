@@ -20,7 +20,7 @@ browser to the server. The two Docker channels keep their meaning.
 |-------|---------|------------|---------|--------|------------------|
 | `batch-containers-arrive-by-push` | The live channel exists, carries every value the server holds, and the container listing arrives on it | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-9, REQ-10, REQ-11, REQ-12, REQ-13, REQ-14, REQ-15, REQ-16, REQ-26, REQ-32, REQ-35, REQ-40 | — | certified | The container list follows the host with no clock in the browser |
 | `batch-every-listing-arrives-by-push` | Every other listing the server holds arrives on the live channel | REQ-21, REQ-22, REQ-23, REQ-24, REQ-25, REQ-27, REQ-28, REQ-29, REQ-30, REQ-31, REQ-33, REQ-34 | `batch-containers-arrive-by-push` | certified | Every screen follows the host with nothing to press |
-| `batch-connection-status-arrives-by-push` | The connection status arrives on the live channel, and the browser holds no clock at all | REQ-17, REQ-18, REQ-19, REQ-20, REQ-36, REQ-37, REQ-38, REQ-39 | `batch-every-listing-arrives-by-push` | todo | The daemon coming back is noticed with no clock in the browser |
+| `batch-connection-status-arrives-by-push` | The connection status arrives on the live channel, and the browser holds no clock at all | REQ-17, REQ-18, REQ-19, REQ-20, REQ-36, REQ-37, REQ-38, REQ-39 | `batch-every-listing-arrives-by-push` | in progress | The daemon coming back is noticed with no clock in the browser |
 
 ## Assumptions and decisions
 
