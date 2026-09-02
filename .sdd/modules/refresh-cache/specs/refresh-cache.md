@@ -133,7 +133,7 @@ are **refreshers**, one per kind.
 - **Every period this cache runs on is a declared figure the process's timing scale multiplies** —
   the two defaults below, and each kind's own `periodMs`. At the operator's factor of `1` they are
   exactly the figures declared; at any other factor every cadence of the process moves together, so
-  the ratios they are chosen for — the expiry longer than the slowest client poll, the coverage wait
+  the ratios they are chosen for — the expiry longer than the slowest read the client still makes, the coverage wait
   counted in grouping windows, a kind refreshed faster than the check watching it waits — hold
   without a second decision. A `demandExpiryMs` or `groupingWindowMs` passed explicitly is the
   exception and is taken as written: it exists so a check can pin its own timings.
@@ -146,8 +146,9 @@ are **refreshers**, one per kind.
   with no `read()` and no hold live, the refresher stops **and the held value is dropped**, so the
   next `read()` reads fresh rather than serving a value of unknown age. While no kind is demanded the
   cache calls nothing at all.
-  - 60 s is longer than the longest interval a client polls at (15 s), so a slowly polled kind never
-    expires between two of its own requests.
+  - 60 s is longer than any interval the client still reads on, so a kind read on demand never
+    expires between two of its own requests. A live channel that is open holds every kind anyway, so
+    the expiry decides only what happens once the last window has gone.
 - **Event grouping** — at most one read is *started* per `groupingWindowMs` (default **750 ms**) per
   kind, however many events arrive. A burst produces one read at once and, only if further events
   landed after that read had begun, one more when the window ends — never one read per event. The

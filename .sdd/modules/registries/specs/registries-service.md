@@ -47,7 +47,8 @@ logging in and out, both delegated to the host's Docker credential store (REQ-85
     all while nobody is asking.
   - the daemon publishes no event for the Docker configuration or the credential store, which is
     where most of this reading lives: a `docker login` or a `docker logout` typed in a terminal is
-    noticed within the period plus the screen's own poll, and at once on the operator's refresh
+    noticed within the period, the screen being given the value the moment it is stored, and at once
+    on the operator's refresh
     (`plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-59`).
 - `getRegistry(host): Promise<RegistrySummary>`
   - The inventory entry for `host`; a host the installation is not configured for resolves to an

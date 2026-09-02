@@ -36,8 +36,8 @@ installation is read once per period however many windows are open.
   moments of the same installation on the screen at once.
 - **What an event does not reach.** A `plugin` event covers what the daemon does with its managed
   plugins, and nothing else: a plugin dropped into the installation's CLI plugin directory announces
-  nothing at all. Such a change is noticed within the period plus the screen's own poll — about
-  three quarters of a minute — and at once on the operator's refresh
+  nothing at all. Such a change is noticed within the period — about half a
+  minute, the screen being given the value the moment it is stored — and at once on the operator's refresh
   (`plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-59`).
 - Nothing is read while nobody is asking: registering the kind calls neither channel, and a whole
   expiry window with no request stops the reading and drops what was held, so the next request reads

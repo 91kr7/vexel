@@ -7,7 +7,7 @@ import { cadence } from "../timing/timing-scale.js";
 
 /** At most one read is started per kind per window, however many events arrive. */
 export const EVENT_GROUPING_WINDOW_MS = cadence(750);
-/** Longer than the longest interval a client polls at (15 s), so a slow kind never expires between two of its own requests. */
+/** Longer than any interval the client still reads on, so a kind read on demand never expires between two of its own requests. */
 export const DEMAND_EXPIRY_MS = cadence(60000);
 /** How many times a caller whose read was disowned by a discard reads again before giving up. */
 const DISOWNED_READ_ATTEMPTS = 3;

@@ -275,7 +275,7 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   daemon's own order is **not stable across reads**: three consecutive reads of the same unchanged
   container return the same mappings rotated. That is invisible to a consumer showing all of them
   and decisive for one showing a **subset** — the containers card draws the first two mappings and
-  then a `+n`, so an unstable order hands it a *different subset* each poll and two chips swap
+  then a `+n`, so an unstable order hands it a *different subset* each read and two chips swap
   identity while the container has not changed (found 2026-08-25 on the running product, measured
   over three consecutive reads). Sorting by private port, then public port, then protocol makes the
   key **total**: no two mappings of one container can tie, so the sequence is identical read to

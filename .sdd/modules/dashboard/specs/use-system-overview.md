@@ -29,12 +29,13 @@ from.
   (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1,
   plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-2,
   plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-19).
-- **The clock runs only while the hook is mounted**, exactly as a list screen's does: leaving the
-  dashboard stops it (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-17).
-- **It polls at the same period as the container list under the tiles** — 3 000 ms — so the two
-  halves of one screen never show the same fact at two different times. It is affordable because the
-  server assembles the overview from the values it already holds: a tick is an in-memory read and one
-  HTTP round trip, and no daemon-facing rate depends on how many windows are open
+- **The clock runs only while the hook is mounted**: leaving the dashboard stops it
+  (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-17).
+- **It keeps a clock of its own — 3 000 ms** — where the container list under the tiles takes what
+  the live channel delivers, so the two halves of one screen are never far apart on the same fact. It
+  is affordable because the server assembles the overview from the values it already holds: a tick is
+  an in-memory read and one HTTP round trip, and no daemon-facing rate depends on how many windows
+  are open
   (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-16,
   plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-18,
   plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-22). This replaces the

@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import { IconButton, useToast } from '../ui';
-import { awaitReloadEnd } from '../data/live-channel';
+import { awaitReloadEnd, isChannelDelivering, reconnectLiveChannel } from '../data/live-channel';
 import { requestServerReload } from '../data/refresh-client';
 import { requestReload } from '../data/reload-signal';
 
@@ -22,6 +22,8 @@ export function RefreshControl() {
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
+    // Nothing polls behind the channel, so a press on one that is down asks for it again (REQ-18).
+    if (!isChannelDelivering()) reconnectLiveChannel();
     // Parked before the request: the channel can carry the reading's end before
     // the endpoint answers, and a wait raised afterwards would miss it.
     const delivered = awaitReloadEnd();

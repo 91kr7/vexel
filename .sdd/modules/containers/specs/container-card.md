@@ -110,11 +110,11 @@ Actions:
   the module's one shared reading (`container-status.md`), which every state the product can display
   has an entry in — `created`, `restarting`, `removing` and `dead` included, not only the three the
   mock drew. The metric fills take that same tone. No card ever shows two states at once.
-- **Which two ports are drawn is stable across polls**, because the order is: the list summary
+- **Which two ports are drawn is stable across deliveries**, because the order is: the list summary
   imposes a total order on a container's mappings (`containers-service.md`), the daemon's own order
   not being stable across reads. A card showing a subset of an unstably ordered set shows a
-  *different* subset each poll, which reads as two chips swapping identity under a container that
-  has not changed.
+  *different* subset each time the listing arrives, which reads as two chips swapping identity under
+  a container that has not changed.
 - **A chip is a publication**, and only a publication: the card lists what the container publishes on
   the host, which is what its Config tab lists, so the two readings answer the same question on the
   same container (`containers-service.md`,
