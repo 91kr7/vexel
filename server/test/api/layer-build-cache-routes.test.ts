@@ -65,19 +65,6 @@ before(async () => {
   }
   await cacheRecordIdsCarryingMarker();
 });
-
-after(async () => {
-  await removeImageQuietly(BUILT_TAG);
-  // The build cache is host-wide and survives the image: every record this run
-  // was ever seen to own is removed by its own id, so nothing of the operator's
-  // is touched — and a record that has since stopped being listed is removed
-  // all the same, from the id remembered when it was.
-  for (const id of await cacheRecordIdsCarryingMarker()) ownedCacheRecordIds.add(id);
-  for (const id of ownedCacheRecordIds) {
-    await execFileAsync("docker", ["buildx", "prune", "--force", "--all", "--filter", `id=${id}`]).catch(() => undefined);
-  }
-});
-
 // plan-docker_management_app/REQ-68 — from a layer of an image, the build step
 // and the build-cache entry responsible for it can be reached: for a locally
 // built image the association exists, so the layer that this run's RUN step

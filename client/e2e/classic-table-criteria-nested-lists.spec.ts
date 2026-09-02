@@ -36,7 +36,7 @@
  * **What each screen's reading costs, stated rather than hidden.** Compose runs
  * against **real projects on the daemon** — two of them, one of two services and
  * one of one, `pull_policy: never` so nothing is fetched, every container
- * labelled and removed with `docker rm -fv` in an `afterAll` (REQ-32); that is
+ * labelled and removed by the daemon reset that opens every file (REQ-32); that is
  * what makes "counted against the daemon's own reading" mean the daemon. No
  * assertion anywhere is about a total, about a count of the machine's own
  * objects, or about a list being empty.
@@ -70,6 +70,9 @@ import {
   type ListGeometry,
   type Viewport,
 } from './support/classic-table.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 const DESKTOP: Viewport = VIEWPORTS[0];
 const PHONE: Viewport = VIEWPORTS[2];
@@ -156,33 +159,8 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  // Removed by their own compose project label, so teardown never depends on the
-  // fixture's file still being on disk. `-fv` and not `-f`: without it an image's
-  // anonymous volumes outlive the container that carried them.
-  for (const project of [MULTI_PROJECT, SOLO_PROJECT]) {
-    const containers = await execFileAsync('docker', [
-      'ps',
-      '-aq',
-      '--filter',
-      `label=com.docker.compose.project=${project}`,
-    ]).catch(() => ({ stdout: '' }));
-    const ids = containers.stdout.split('\n').filter((id) => id.length > 0);
-    if (ids.length > 0) await execFileAsync('docker', ['rm', '-fv', ...ids]).catch(() => undefined);
-    const networks = await execFileAsync('docker', [
-      'network',
-      'ls',
-      '-q',
-      '--filter',
-      `label=com.docker.compose.project=${project}`,
-    ]).catch(() => ({ stdout: '' }));
-    const networkIds = networks.stdout.split('\n').filter((id) => id.length > 0);
-    if (networkIds.length > 0) await execFileAsync('docker', ['network', 'rm', ...networkIds]).catch(() => undefined);
-  }
-  await execFileAsync('docker', ['rm', '-fv', referenceContainer]).catch(() => undefined);
-  await execFileAsync('docker', ['rmi', '-f', referenceImage]).catch(() => undefined);
   if (composeDir) await rm(composeDir, { recursive: true, force: true }).catch(() => undefined);
 });
-
 /** How many services the **daemon** reports for a project, read in the same run as the rows. */
 async function servicesTheDaemonReports(page: Page, project: string): Promise<string[]> {
   const response = await page.request.get('/api/compose/projects');

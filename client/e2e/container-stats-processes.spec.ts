@@ -3,6 +3,9 @@ import { openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { closeContainerDetail, containerDetail, openContainerDetail } from './support/container-cards.js';
 import { expectRegionAnswersToViewportHeight } from './support/pinned-region.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 interface TrackedStream {
   url: string;

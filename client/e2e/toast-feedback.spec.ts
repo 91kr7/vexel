@@ -5,6 +5,9 @@ import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
 import { boxesOf, type Rect } from './support/settled.js';
 import { clickAt } from './support/pointer.js';
 import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 // Unqualified REQ ids below belong to plan-docker_management_app-toast_feedback/requirements.md.
 

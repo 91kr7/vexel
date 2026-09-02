@@ -1,6 +1,9 @@
 import { expect, test, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 // Pruning exercises the daemon's own prune (`filters={"all":["true"]}`,
 // volumes-service.md), which acts on every unused volume on the host, named

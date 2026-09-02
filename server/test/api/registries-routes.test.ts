@@ -229,8 +229,6 @@ after(async () => {
   // Belt and braces: a spec killed between logging in and its own `finally`
   // would otherwise leave a credential of ours in the host's credential store.
   await logoutQuietly(authenticatedRegistry.host);
-  await execFileAsync("docker", ["rm", "-fv", anonymousRegistry.containerId]).catch(() => undefined);
-  await execFileAsync("docker", ["rm", "-fv", authenticatedRegistry.containerId]).catch(() => undefined);
   if (originalDockerConfig === undefined) delete process.env.DOCKER_CONFIG;
   else process.env.DOCKER_CONFIG = originalDockerConfig;
   await rm(configDir, { recursive: true, force: true });

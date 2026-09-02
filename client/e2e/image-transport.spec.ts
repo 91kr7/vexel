@@ -8,6 +8,9 @@ import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
 import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { chooseCardAction, containerCard, containerDetail } from './support/container-cards.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 // Every test in this file drives a real save/load or export/import round
 // trip against the daemon, so it runs one at a time.

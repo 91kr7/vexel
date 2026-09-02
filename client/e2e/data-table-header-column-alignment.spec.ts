@@ -50,6 +50,9 @@ import { expect, test, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
 import { movePointerOverTheRow, readOnceSettled } from './support/settled.js';
 import { measureList, round, tableWithColumn } from './support/classic-table.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 const DESKTOP = { width: 1440, height: 1000 };
 

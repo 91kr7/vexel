@@ -46,7 +46,7 @@
  * base, so nothing is fetched from Docker Hub — with the run's own data
  * directory, emptied before every test, so no analysis result is inherited from
  * another. The reference lists' own fixtures are two labelled containers and one
- * labelled tag, removed in an `afterAll`, containers with `docker rm -fv`.
+ * labelled tag; the daemon reset that opens every file is what removes them.
  * Nothing is asserted about a total, a count of the machine's objects, or a list
  * being empty.
  *
@@ -69,7 +69,6 @@ import {
   clickAt,
   openTheAnalysedDialog,
   openTheDialog,
-  removeEfficiencyFixtureImage,
 } from './support/layer-efficiency-dialog.js';
 import { boxOf } from './support/settled.js';
 import {
@@ -87,6 +86,9 @@ import {
   type ListGeometry,
   type Viewport,
 } from './support/classic-table.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 const DESKTOP: Viewport = VIEWPORTS[0];
 const LAPTOP: Viewport = VIEWPORTS[1];
@@ -132,15 +134,6 @@ test.beforeAll(async () => {
     ]);
   }
   await execFileAsync('docker', ['tag', ALPINE_IMAGE, referenceImage]);
-});
-
-test.afterAll(async () => {
-  // `-fv` and not `-f`: without it an image's anonymous volumes outlive the container.
-  for (const name of referenceContainers) {
-    await execFileAsync('docker', ['rm', '-fv', name]).catch(() => undefined);
-  }
-  await execFileAsync('docker', ['rmi', '-f', referenceImage]).catch(() => undefined);
-  await removeEfficiencyFixtureImage(FIXTURE_IMAGE);
 });
 
 /**

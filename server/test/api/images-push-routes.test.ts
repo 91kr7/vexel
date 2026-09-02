@@ -94,11 +94,6 @@ before(async () => {
     await new Promise((resolve) => setTimeout(resolve, 300));
   }
 });
-
-after(async () => {
-  await execFileAsync("docker", ["rm", "-fv", registryContainerId]).catch(() => undefined);
-});
-
 // plan-docker_management_app/REQ-38, REQ-39 — pushing an image to a registry shows per-layer progress until completion.
 // Docker only pushes a reference the image is already locally tagged as, so the source is tagged
 // directly as the destination registry reference (mirrors the images-screen.md flow: pushing one of

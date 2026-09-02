@@ -61,14 +61,7 @@ async function createTlsContextQuietly(name: string): Promise<string> {
  * Removes any context this file left behind, whatever the run. A context carries
  * no label, so its name prefix is the only handle there is — and an aborted run
  * never reaches a test's own `finally`, which is exactly when a leftover appears.
- */
-after(async () => {
-  const { stdout } = await execFileAsync("docker", ["context", "ls", "--format", "{{.Name}}"]).catch(() => ({ stdout: "" }));
-  const leftovers = stdout.split("\n").filter((name) => name.startsWith("vexel-test-ctx-"));
-  for (const name of leftovers) await removeContextQuietly(name);
-});
-
-// plan-docker_management_app/REQ-92 — Docker contexts are listed with name, endpoint and which one
+ */// plan-docker_management_app/REQ-92 — Docker contexts are listed with name, endpoint and which one
 // is active
 test("GET /api/contexts lists a created context with its name, description, endpoint and kind, not active", async () => {
   const name = fixtureName("list");

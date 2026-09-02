@@ -12,10 +12,10 @@
  * measured" is only true while both are looking at the same rows.
  *
  * **Nothing here reaches Docker Hub** (CLAUDE.md, "No test reaches Docker
- * Hub"): the image is built `FROM` the suite's own mirrored base, which the
- * preliminary step of every run puts on the daemon, and it carries the ownership
- * labels so a killed run's leftovers are still sweepable. The caller removes it
- * in an `afterAll`.
+ * Hub"): the image is built `FROM` the suite's own mirrored base, which the reset
+ * that opens every file puts back on the daemon, and it carries the ownership
+ * labels so a killed run's leftovers are still sweepable. That same reset is what
+ * removes it, before the next file runs.
  *
  * **Every interaction is a real pointer at the visible control's own
  * coordinates**, never `element.click()` and never a dispatched event: a
@@ -80,10 +80,6 @@ export async function buildEfficiencyFixtureImage(tag: string, caseName: string)
   } finally {
     await rm(contextDir, { recursive: true, force: true }).catch(() => undefined);
   }
-}
-
-export async function removeEfficiencyFixtureImage(tag: string): Promise<void> {
-  await execFileAsync('docker', ['rmi', '-f', tag]).catch(() => undefined);
 }
 
 /** Re-exported where its callers have always found it; it lives apart so this module can be imported by the one it uses. */

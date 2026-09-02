@@ -6,6 +6,9 @@ import { openApp, ownershipArgs } from './support/fixtures.js';
 import { expectCompletedThenSelfDismissed } from './support/progress-completion.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 // Every test drives the same extracted-filesystem fixture image; running
 // serially avoids racing the single-image extraction cache.
@@ -15,10 +18,6 @@ async function buildImage(tag: string, dockerfile: string): Promise<void> {
   const contextDir = await mkdtemp(join(tmpdir(), 'vexel-e2e-fsops-'));
   await writeFile(join(contextDir, 'Dockerfile'), dockerfile);
   await execFileAsync('docker', ['build', ...ownershipArgs(tag), '-t', tag, contextDir]);
-}
-
-async function removeImageQuietly(tag: string): Promise<void> {
-  await execFileAsync('docker', ['rmi', '-f', tag]).catch(() => undefined);
 }
 
 function imageRow(page: Page, text: string) {
@@ -97,10 +96,6 @@ test.beforeAll(async () => {
       '',
     ].join('\n'),
   );
-});
-
-test.afterAll(async () => {
-  await removeImageQuietly(TAG);
 });
 
 test.beforeEach(async ({ page }) => {

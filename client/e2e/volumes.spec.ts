@@ -1,6 +1,9 @@
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 async function createNamedVolume(name: string): Promise<void> {
   await execFileAsync('docker', ['volume', 'create', ...ownershipArgs(name), name]);

@@ -59,19 +59,6 @@ before(async () => {
   const { stdout } = await execFileAsync("docker", ["inspect", BUILT_TAG, "--format", "{{.Id}}"]);
   builtImageId = stdout.trim();
 });
-
-after(async () => {
-  await removeImageQuietly(BUILT_TAG);
-  // The build cache is host-wide and survives the image: every record this run
-  // was ever seen to own is removed by its own id, so nothing of the operator's
-  // is touched — and a record that has since stopped being listed is removed
-  // all the same, from the id remembered when it was.
-  for (const raw of await ownCacheRecords()) ownedCacheRecordIds.add(raw.ID);
-  for (const id of ownedCacheRecordIds) {
-    await execFileAsync("docker", ["buildx", "prune", "--force", "--all", "--filter", `id=${id}`]).catch(() => undefined);
-  }
-});
-
 // plan-docker_management_app/REQ-69 — from a build-cache entry, the images and
 // layers it is associated with can be reached.
 test("GET /api/builders/cache/:id/usage names the image and layer the record relates to", async () => {

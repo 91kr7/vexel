@@ -6,6 +6,9 @@ import { openApp } from './support/fixtures.js';
 import { clickAtItsCentre } from './support/settled.js';
 import { refreshThroughTheControl } from './support/refresh-control.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 const RUN_ID = `${process.pid}-${Date.now()}`;
 
@@ -110,12 +113,6 @@ function screenContent(page: Page) {
  * a leftover appears. The e2e suite runs single-worker, so no other run can own
  * a name under this prefix.
  */
-test.afterAll(async () => {
-  const { stdout } = await execFileAsync('docker', ['context', 'ls', '--format', '{{.Name}}']).catch(() => ({ stdout: '' }));
-  const leftovers = stdout.split('\n').filter((name) => name.startsWith('vexel-e2e-ctx-'));
-  for (const name of leftovers) await removeContextQuietly(name);
-});
-
 // The last active screen survives by design (REQ-115), so the screen this suite
 // needs is pinned rather than inherited from whichever spec ran before.
 test.beforeEach(async ({ page }) => {

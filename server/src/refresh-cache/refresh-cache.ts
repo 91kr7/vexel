@@ -46,6 +46,7 @@ export interface ReloadReport {
 export interface RefreshKindOptions<T> {
   key: string;
   read: () => Promise<T>;
+  /** The declared period. Put on this process's clock by `cadence` like every other server cadence. */
   periodMs: number;
   /** Daemon event types that mark this kind due; none by default. */
   eventTypes?: readonly string[];
@@ -156,7 +157,9 @@ class Kind<T> implements RefreshKind<T>, RegisteredKind {
   constructor(options: RefreshKindOptions<T>) {
     this.key = options.key;
     this.readValue = options.read;
-    this.periodMs = options.periodMs;
+    // Scaled here and not at each declaration, so a kind cannot be declared off
+    // the clock the rest of the process runs on.
+    this.periodMs = cadence(options.periodMs);
     this.differs = options.differs;
     this.demandExpiryMs = options.demandExpiryMs ?? DEMAND_EXPIRY_MS;
     this.groupingWindowMs = options.groupingWindowMs ?? EVENT_GROUPING_WINDOW_MS;

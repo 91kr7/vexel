@@ -44,6 +44,9 @@ import {
   pressUntilItTakes,
   type PressEffect,
 } from './support/delivered-press.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 interface Viewport {
   width: number;

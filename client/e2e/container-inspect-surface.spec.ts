@@ -17,6 +17,9 @@ import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images
 import { boxOf, clickAtItsCentre } from './support/settled.js';
 import { clickAndExpectSurfaceUnmoved } from './support/surface-stability.js';
 import { closeContainerDetail, containerCard, containerDetail, openContainerDetail } from './support/container-cards.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 const PHONE_VIEWPORT = { width: 375, height: 812 };
 

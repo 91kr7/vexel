@@ -62,13 +62,8 @@ before(async () => {
 });
 
 after(async () => {
-  if (fixture) {
-    await removePluginQuietly(fixture.installedName);
-    await removePluginQuietly(fixture.alias);
-  }
   await fixture?.stop();
 });
-
 // plan-docker_management_app/REQ-111 — a daemon plugin "can be installed from a reference (reviewing
 // and granting the privileges it requests), ... inspected and removed, each state change being
 // reflected in the list"; plugins-endpoints.md — "201 -> the installed plugin", "204 -> removed";

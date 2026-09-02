@@ -34,6 +34,9 @@ import {
   detailIdentity,
   openContainerDetail,
 } from './support/container-cards.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 async function createSleepingContainer(name: string, extraArgs: string[] = []): Promise<void> {
   await execFileAsync('docker', ['run', '-d', '--name', name, ...ownershipArgs(name), ...extraArgs, '--entrypoint', 'sleep', 'alpine:3.20', '300']);

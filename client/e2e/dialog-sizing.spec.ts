@@ -4,6 +4,9 @@ import { chooseImageRowAnalysis } from './support/images-screen.js';
 import { containerCard, dismissContainerDetailByScrim, openContainerDetail } from './support/container-cards.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /**
  * The library's dialog surface, measured in a real browser: the glass card of a

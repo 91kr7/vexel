@@ -4,6 +4,9 @@ import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
 import { ensurePullableImage } from '../../server/test/support/base-images.js';
 import { containerCard, containerDetail } from './support/container-cards.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 // The tests that need an image to be missing locally share one reference — the
 // run's own pullable fixture — and each of them removes it, so this file runs

@@ -7,6 +7,9 @@ import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { containerCards, containerDetail, detailName, openContainerDetail } from './support/container-cards.js';
 import { refreshThroughTheControl } from './support/refresh-control.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /**
  * The order every list service now decides survives to the screen
@@ -365,13 +368,6 @@ test.describe('Volumes and networks', () => {
 test.describe('Contexts', () => {
   // A Docker context carries no label, so a name prefix is the only handle there is — and a spec
   // killed by its own timeout never reaches its `finally`, which is exactly when a leftover appears.
-  test.afterAll(async () => {
-    const { stdout } = await execFileAsync('docker', ['context', 'ls', '--format', '{{.Name}}']).catch(() => ({ stdout: '' }));
-    for (const name of stdout.split('\n').filter((entry) => entry.startsWith('vexel-e2e-order-contexts-'))) {
-      await execFileAsync('docker', ['context', 'rm', '-f', name]).catch(() => undefined);
-    }
-  });
-
   test.beforeEach(async ({ page }) => {
     await openApp(page, 'contexts');
     await expect(screenContent(page).getByRole('heading', { level: 2, name: 'Docker contexts' })).toBeVisible();

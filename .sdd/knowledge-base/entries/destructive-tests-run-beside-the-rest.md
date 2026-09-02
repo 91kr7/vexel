@@ -10,7 +10,7 @@ source: chat, after the destructive specs were skipped behind an unrelated red
 
 **Rule** → There is no separate directory and no separate Playwright project for the tests that act
 on the whole host. They live in `server/test/api/` and `client/e2e/` with everything else, and
-`npm run test:destructive` is what runs them alone.
+nothing separates them any more: every test file of both trees empties the host before it runs.
 
 **Why** → The human asked for the split to be ended and was right on the facts. Two halves:
 
@@ -25,11 +25,9 @@ on the whole host. They live in `server/test/api/` and `client/e2e/` with everyt
   serial (`workers: 1`, `--test-concurrency=1`), so a prune can never reach a fixture still in use.
 
 **How to apply** →
-- *test* → a new destructive file goes in the ordinary directory, and its name goes on the list in
-  `scripts/destructive-tests.mjs`. The script fails when a file on that list is not on disk, so a
-  rename cannot quietly shrink what the command covers.
-- *test* → to run only the destructive ones: `npm run test:destructive`, or `-- server` / `-- client`
-  for one tree. A full pass keeps the form of [[full-suite-commands]].
+- *test* → a new destructive file goes in the ordinary directory, and there is no list to add it to:
+  every file resets the daemon before it runs, so a prune is no longer a property that sets a file
+  apart. A full pass keeps the form of [[full-suite-commands]].
 - *any* → the general lesson, which is why this is a guideline and not a how-to: before defending an
   arrangement on the ground that something downstream would break, check whether the codebase already
   repairs it. Here it did, in a file whose own comment said so.

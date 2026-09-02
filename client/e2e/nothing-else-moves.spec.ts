@@ -32,6 +32,9 @@ import { boxOf, centreOf, type Rect } from './support/settled.js';
 import { clickAt } from './support/pointer.js';
 import { containerDetail, openContainerDetail, closeContainerDetail } from './support/container-cards.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /** One live server-sent stream the page opened, and what became of it. */
 interface TrackedStream {

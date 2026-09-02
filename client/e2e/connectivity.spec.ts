@@ -1,6 +1,9 @@
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 // These assertions read the cards the shell keeps for itself. Batch 30
 // replaced the placeholder that used to sit under them with the coverage matrix,

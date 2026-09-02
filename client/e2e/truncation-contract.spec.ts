@@ -53,6 +53,9 @@ import {
   type Rect,
   type TruncatingRowGeometry,
 } from './support/truncating-rows.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 interface Viewport {
   width: number;
@@ -350,13 +353,6 @@ async function removeContextQuietly(name: string): Promise<void> {
  * reaches its `finally`, which is exactly when a leftover appears. The suite runs
  * single-worker, so nothing else can own a name under this prefix.
  */
-test.afterAll(async () => {
-  const { stdout } = await execFileAsync('docker', ['context', 'ls', '--format', '{{.Name}}']).catch(() => ({ stdout: '' }));
-  for (const leftover of stdout.split('\n').filter((entry) => entry.startsWith('vexel-e2e-trunc-ctx-'))) {
-    await removeContextQuietly(leftover);
-  }
-});
-
 // REQ-18, REQ-19 — the first of the three sites the analysis named, with a
 // 64-character volume name, so its mount path is the arbitrary-length case
 // rather than whatever this daemon happens to hold.

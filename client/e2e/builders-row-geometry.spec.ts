@@ -33,6 +33,9 @@ import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
 import { boxOf, boxesOf, centreOf, clickAtItsCentre, movePointerOverTheRow, readOnceSettled, twoFrames } from './support/settled.js';
 import { pressUntilItTakes } from './support/delivered-press.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 interface Viewport {
   width: number;

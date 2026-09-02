@@ -29,7 +29,10 @@
  */
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { navEntry, openApp } from './support/fixtures.js';
-import { boxOf } from './support/settled.js';
+import { boxOf, twoFrames } from './support/settled.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /** A rectangle in viewport coordinates, as the browser reports it. */
 interface Box {
@@ -349,15 +352,20 @@ test('the entry region states where its content is cut, and states nothing when 
         };
       });
 
+    // The mask is written by a `scroll` listener, and a scroll event is dispatched
+    // asynchronously — reading straight after the assignment reads the fold the
+    // region had before it moved (REQ-1).
     await region.evaluate((element) => {
       element.scrollTop = 0;
     });
+    await twoFrames(page);
     const atTop = await readState();
     const overflowing = atTop.scrollHeight > atTop.clientHeight + 1;
 
     await region.evaluate((element) => {
       element.scrollTop = element.scrollHeight;
     });
+    await twoFrames(page);
     const atBottom = await readState();
 
     reported.push(`${at}: scrollHeight ${atTop.scrollHeight} / clientHeight ${atTop.clientHeight} — ${overflowing ? 'cut' : 'everything fits'}; mask at top "${atTop.mask}", at bottom "${atBottom.mask}"`);

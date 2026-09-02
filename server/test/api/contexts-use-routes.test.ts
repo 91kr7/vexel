@@ -103,12 +103,8 @@ after(async () => {
     const current = await currentContextName().catch(() => "");
     if (current.startsWith(FIXTURE_PREFIX)) await useContextQuietly(operatorActiveContext);
   }
-  const { stdout } = await execFileAsync("docker", ["context", "ls", "--format", "{{.Name}}"]).catch(() => ({ stdout: "" }));
-  const leftovers = stdout.split("\n").filter((name) => name.startsWith(FIXTURE_PREFIX));
-  for (const name of leftovers) await removeContextQuietly(name);
   setActiveEndpoint(undefined);
 });
-
 // plan-docker_management_app/REQ-93 — selecting another context re-points every screen of the
 // application at the newly selected daemon: at this level, the access layer every area reads its
 // target from now names that context's endpoint, and the daemon of the active context answers.

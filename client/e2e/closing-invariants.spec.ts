@@ -26,6 +26,9 @@
  */
 import { expect, test, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /** The three viewports the plan is written against. */
 const VIEWPORTS = [

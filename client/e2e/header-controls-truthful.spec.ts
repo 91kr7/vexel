@@ -41,6 +41,9 @@ import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { navEntry, openApp } from './support/fixtures.js';
 import { boxOf, centreOf, clickAtItsCentre } from './support/settled.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /** A rectangle in viewport coordinates, as the browser reports it. */
 interface Box {

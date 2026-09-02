@@ -30,6 +30,9 @@ import { expect, test, type Locator, type Page } from './support/test.js';
 import { navEntry, openApp, ownershipArgs } from './support/fixtures.js';
 import { boxOf, boxesOf, clickAtItsCentre, twoFrames, type Rect } from './support/settled.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 const RUN_ID = `${process.pid}-${Date.now()}`;
 
@@ -55,11 +58,6 @@ async function removeVolumeQuietly(name: string): Promise<void> {
  * Removes any context this file left behind, whatever the run: a spec killed by
  * its own timeout never reaches its `finally`, and a context carries no label.
  */
-test.afterAll(async () => {
-  const { stdout } = await execFileAsync('docker', ['context', 'ls', '--format', '{{.Name}}']).catch(() => ({ stdout: '' }));
-  for (const name of stdout.split('\n').filter((one) => one.startsWith('vexel-e2e-refresh-'))) await removeContextQuietly(name);
-});
-
 /** The top bar's refresh control — the header's own, on whichever screen is active. */
 function refreshControl(page: Page): Locator {
   return page.locator('.ui-page-header').getByRole('button', { name: 'Refresh', exact: true });

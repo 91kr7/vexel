@@ -32,6 +32,9 @@ import { openApp, ownershipArgs } from './support/fixtures.js';
 import { clickAndExpectSurfaceUnmoved } from './support/surface-stability.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /** The viewport REQ-78 states its claim at. */
 const MEASURED_AT = { width: 1280, height: 800 };

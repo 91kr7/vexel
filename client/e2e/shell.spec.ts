@@ -1,6 +1,9 @@
 import { expect, test, type Page } from './support/test.js';
 import { activeContextLabel, navEntry, openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /**
  * Opens the shell on a stated screen: the shell restores the persisted screen on

@@ -8,6 +8,9 @@ import { expectCompletedThenSelfDismissed } from './support/progress-completion.
 import { expectRegionPinnedAcrossViewportHeights } from './support/pinned-region.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 // Every test compares the very same fixture pair; running serially avoids
 // racing the single-pair comparison cache and keeps the two (~seconds-long)
@@ -18,10 +21,6 @@ async function buildImage(tag: string, dockerfile: string): Promise<void> {
   const contextDir = await mkdtemp(join(tmpdir(), 'vexel-e2e-diff-'));
   await writeFile(join(contextDir, 'Dockerfile'), dockerfile);
   await execFileAsync('docker', ['build', ...ownershipArgs(tag), '-t', tag, contextDir]);
-}
-
-async function removeImageQuietly(tag: string): Promise<void> {
-  await execFileAsync('docker', ['rmi', '-f', tag]).catch(() => undefined);
 }
 
 function imageRow(page: Page, text: string) {
@@ -104,12 +103,6 @@ test.beforeAll(async () => {
     TAG_C,
     ['FROM registry:2 AS builder', "RUN mkdir -p /out && printf 'only-in-c' > /out/only-c.txt", 'FROM scratch', 'COPY --from=builder /out/ /', ''].join('\n'),
   );
-});
-
-test.afterAll(async () => {
-  await removeImageQuietly(TAG_A);
-  await removeImageQuietly(TAG_B);
-  await removeImageQuietly(TAG_C);
 });
 
 test.beforeEach(async ({ page }) => {

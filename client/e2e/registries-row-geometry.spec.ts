@@ -42,6 +42,9 @@ import {
   type FixtureRegistry,
   type RegistryFixtureServer,
 } from './support/registry-fixture-server.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 interface Viewport {
   width: number;

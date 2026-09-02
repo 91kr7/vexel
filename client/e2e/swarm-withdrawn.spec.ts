@@ -1,6 +1,9 @@
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { navEntry, openApp } from './support/fixtures.js';
 import { clickAtItsCentre } from './support/settled.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /**
  * **The swarm area has left the product, and nothing dead is left where it was.**

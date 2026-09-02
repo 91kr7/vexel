@@ -29,6 +29,9 @@ import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { clickAt } from './support/pointer.js';
 import { closeContainerDetail, containerCard, containerCards, containerDetail, openContainerDetail } from './support/container-cards.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /** The staleness bound is three intervals; past it a figure reaches no consumer. */
 const STALENESS_BOUND_MS = 30_000;

@@ -3,6 +3,9 @@ import { openApp, ownershipArgs } from './support/fixtures.js';
 import { expectBandGrowsWithinItsRow, expectBandIsTheHeightOfItsControl, measureSearchBand } from './support/search-band-axis.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { containerDetail, openContainerDetail } from './support/container-cards.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 // A tiny, already-cached image whose entrypoint is overridden to `sh`: the
 // container prints one line on each stream, then keeps ticking so the tail is

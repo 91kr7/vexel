@@ -8,6 +8,9 @@ import { COLUMN_GAP_PX, expectNothingClippedOrOverlapped, measureSection, report
 import { expectCompletedThenSelfDismissed } from './support/progress-completion.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /**
  * **The blast radius, made fail-able.** REQ ids belong to

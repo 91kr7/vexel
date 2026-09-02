@@ -5,6 +5,9 @@ import { expectRegionPinnedAcrossViewportHeights } from './support/pinned-region
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
 import { REGISTRY_IMAGE, TINY_IMAGE, TINY_IMAGE_FILE, ensureImage } from '../../server/test/support/base-images.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 async function createStandaloneImage(tag: string, containerName: string): Promise<void> {
   // Ensured at the point of use, not once for the run: a prune spec in this suite

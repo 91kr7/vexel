@@ -1,15 +1,17 @@
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
 import { pluginIsInstalled, removePluginQuietly, startPluginFixture, type PluginFixture } from '../../server/test/support/plugin-fixture.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 // The one place a plugin is actually installed through the interface
 // (REQ-111).
 //
-// `docker plugin ls` is a single, host-wide list that no label can scope, so
-// this spec lives apart and runs after everything else: it installs one plugin
-// of its own making, walks it through the state changes the screen offers, and
-// removes it — in an `afterAll` that runs on failure too, leaving the list
-// exactly as it was found.
+// `docker plugin ls` is a single, host-wide list that no label can scope. This
+// spec installs one plugin of its own making and walks it through the state
+// changes the screen offers; the daemon reset that opens every file removes it,
+// on a failure as surely as on a pass, leaving the list as it was found.
 //
 // The plugin comes from a throwaway registry started here, so nothing is pulled
 // from the internet. It is never enabled successfully on purpose: its
@@ -96,11 +98,8 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await removePluginQuietly(fixture.alias);
-  await removePluginQuietly(fixture.installedName);
   await fixture.stop();
 });
-
 test.beforeEach(async ({ page }) => {
   await openApp(page, 'plugins');
   await expect(screenContent(page).getByRole('heading', { level: 2, name: 'Daemon plugins' })).toBeVisible({ timeout: 20_000 });

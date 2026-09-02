@@ -50,6 +50,9 @@ import {
   metaInkSqueezed,
   round,
 } from './support/truncating-rows.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 const RUN_ID = `${process.pid}-${Date.now()}`;
 

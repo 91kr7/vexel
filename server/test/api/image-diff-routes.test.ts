@@ -88,10 +88,6 @@ async function buildImage(tag: string, dockerfile: string): Promise<void> {
   await execFileAsync("docker", ["build", ...ownershipArgs(tag), "-t", tag, contextDir]);
 }
 
-async function removeImageQuietly(tag: string): Promise<void> {
-  await execFileAsync("docker", ["rmi", "-f", tag]).catch(() => undefined);
-}
-
 async function runDiffStream(url: string, imageIdA: string, imageIdB: string): Promise<SseEvent[]> {
   const query = new URLSearchParams({ a: imageIdA, b: imageIdB });
   const response = await fetch(`${url}/api/images/diff/stream?${query.toString()}`);
@@ -166,12 +162,6 @@ before(async () => {
     await close();
   }
 });
-
-after(async () => {
-  await removeImageQuietly(TAG_A);
-  await removeImageQuietly(TAG_B);
-});
-
 // plan-docker_management_app/REQ-63 — a path present on only one side is added (in B, not A) or
 // removed (in A, not B); a byte-identical path present on both sides is excluded entirely.
 test("GET /api/images/diff/stream reports a path only in B as added, a path only in A as removed, and drops an identical path", async () => {

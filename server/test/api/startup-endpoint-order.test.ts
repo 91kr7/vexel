@@ -207,13 +207,8 @@ async function killByMarker(marker: string): Promise<void> {
 }
 
 after(async () => {
-  const { stdout } = await execFileAsync("docker", ["context", "ls", "--format", "{{.Name}}"]).catch(() => ({ stdout: "" }));
-  for (const name of stdout.split("\n").filter((entry) => entry.startsWith("vexel-test-ctx-startup-"))) {
-    await removeContextQuietly(name);
-  }
   for (const dir of temporaryDirs) await rm(dir, { recursive: true, force: true });
 });
-
 // REQ-24, REQ-27 — a fresh process whose active context is not the platform
 // default answers the very first list request it ever receives, rather than
 // reporting that the value could not be read.

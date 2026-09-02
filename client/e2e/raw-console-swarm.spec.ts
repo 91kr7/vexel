@@ -2,6 +2,9 @@ import { execFile } from 'node:child_process';
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
 import { clickAtItsCentre } from './support/settled.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /**
  * **The escape hatch is intact: swarm left the screens, not the console.**

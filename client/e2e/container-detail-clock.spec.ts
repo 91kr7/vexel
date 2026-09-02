@@ -27,6 +27,9 @@ import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { clickAtItsCentre } from './support/settled.js';
 import { containerCard, containerDetail, openContainerDetail } from './support/container-cards.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /** The period both hooks declare, unscaled (`use-container-detail.md`, `use-container-processes.md`). */
 const DECLARED_PERIOD_MS = 3_000;

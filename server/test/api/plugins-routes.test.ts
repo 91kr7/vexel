@@ -63,12 +63,8 @@ before(async () => {
 });
 
 after(async () => {
-  // Belt and braces: no test here installs, but a run killed mid-way must still
-  // leave `docker plugin ls` exactly as it was found.
-  if (fixture) await removePluginQuietly(fixture.installedName);
   await fixture?.stop();
 });
-
 // plan-docker_management_app/REQ-98, plan-docker_management_app/REQ-99;
 // plugins-endpoints.md — "200 -> { cli: PluginListing<CliPlugin>, daemon: PluginListing<DaemonPlugin> }"
 // and "The two inventories are read as one round, and each carries its own unavailability".

@@ -58,10 +58,6 @@ async function dockerInspect(format: string, reference: string): Promise<string>
   return stdout.trim();
 }
 
-async function removeImageQuietly(tag: string): Promise<void> {
-  await execFileAsync("docker", ["rmi", "-f", tag]).catch(() => undefined);
-}
-
 /**
  * Minimal USTAR reader — only what is needed to check the shape of an archive
  * this test produced, never to trust anything the code under test claims about
@@ -137,11 +133,6 @@ before(async () => {
   const { stdout } = await execFileAsync("docker", ["run", "--rm", "--entrypoint", "cat", FIXTURE_TAG, "/etc/passwd"]);
   containerOwnPasswdContent = stdout;
 });
-
-after(async () => {
-  await removeImageQuietly(FIXTURE_TAG);
-});
-
 async function withApp<T>(run: (app: RunningApp) => Promise<T>): Promise<T> {
   const app = await startApp(buildApp("/api/images", imageAnalysisRouter));
   try {
