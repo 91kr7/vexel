@@ -19,7 +19,7 @@ browser to the server. The two Docker channels keep their meaning.
 | Batch | Feature | REQ closed | Depends | Status | Human acceptance |
 |-------|---------|------------|---------|--------|------------------|
 | `batch-containers-arrive-by-push` | The live channel exists, carries every value the server holds, and the container listing arrives on it | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-9, REQ-10, REQ-11, REQ-12, REQ-13, REQ-14, REQ-15, REQ-16, REQ-26, REQ-32, REQ-35, REQ-40 | — | certified | The container list follows the host with no clock in the browser |
-| `batch-every-listing-arrives-by-push` | Every other listing the server holds arrives on the live channel | REQ-21, REQ-22, REQ-23, REQ-24, REQ-25, REQ-27, REQ-28, REQ-29, REQ-30, REQ-31, REQ-33, REQ-34 | `batch-containers-arrive-by-push` | todo | Every screen follows the host with nothing to press |
+| `batch-every-listing-arrives-by-push` | Every other listing the server holds arrives on the live channel | REQ-21, REQ-22, REQ-23, REQ-24, REQ-25, REQ-27, REQ-28, REQ-29, REQ-30, REQ-31, REQ-33, REQ-34 | `batch-containers-arrive-by-push` | in progress | Every screen follows the host with nothing to press |
 | `batch-connection-status-arrives-by-push` | The connection status arrives on the live channel, and the browser holds no clock at all | REQ-17, REQ-18, REQ-19, REQ-20, REQ-36, REQ-37, REQ-38, REQ-39 | `batch-every-listing-arrives-by-push` | todo | The daemon coming back is noticed with no clock in the browser |
 
 ## Assumptions and decisions
@@ -51,6 +51,21 @@ browser to the server. The two Docker channels keep their meaning.
   arriving first says nothing about the screen.
 - **Nothing is done about the browser's own retry policy.** The channel reconnects the way the daemon
   event stream reconnects today.
+
+- **A host with a running container is never quiet, and that is kept.** Measured on the wire after
+  the first batch: one `sleep` container and nothing happening on the host produced 7 pushes of the
+  container listing in 30 seconds, differing only in the daemon's humanized uptime (`Up 4 seconds` →
+  `Up 8 seconds`). The value is left alone. That string is on screen — `ContainerCard` shows it, and
+  the identity header reads the health out of it — so suppressing the push would freeze a figure the
+  operator watches, against REQ-33. It is also not a regression: the 3 s poll replaced the same value
+  just as often. The first batch's acceptance line "a quiet host sends nothing again" therefore holds
+  for a host with no running container, and the rule is checked on a volume listing, which carries no
+  such field. Decided 2026-09-02.
+- **The manual refresh control must not park on a channel that is not delivering.** It awaits the
+  end-of-reload message; with the channel down that message never comes and the control would stay
+  busy forever. When the channel is not delivering, the control ends instead of waiting, and the
+  interface shows the disconnected state it already has (REQ-11, REQ-18). Work for the batch where
+  REQ-23 and REQ-34 close. Decided 2026-09-02.
 
 ## Departures
 
