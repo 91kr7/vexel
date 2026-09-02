@@ -9,15 +9,17 @@ import { cleanDaemonBeforeAll } from './support/lifecycle.js';
 cleanDaemonBeforeAll();
 
 // The tests that need an image to be missing locally share one reference — the
-// run's own pullable fixture — and each of them removes it, so this file runs
-// serially rather than in Playwright's default fully-parallel mode.
+// run's own pullable fixture — and each of them removes it. The tests of a file
+// already run one at a time here (`workers: 1`, `fullyParallel: false`); serial
+// mode is what skips the rest after a failure, when that reference is in a state
+// nobody established, and what makes a retry rebuild it from the first test.
 test.describe.configure({ mode: 'serial' });
 
 /**
  * The reference the tests below make the product fetch: published in the run's
- * own registry by the global setup, held nowhere on the daemon. A real pull,
- * over a network that cannot give way — the public registry it used to cross
- * failed often enough to lose this file to `EOF` errors.
+ * own registry by the `beforeAll` under this, held nowhere on the daemon. A real
+ * pull, over a network that cannot give way — the public registry it used to
+ * cross failed often enough to lose this file to `EOF` errors.
  */
 let pullableReference = '';
 

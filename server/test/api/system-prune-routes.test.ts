@@ -8,10 +8,10 @@ import { execFileAsync } from "../support/docker-cli.js";
 
 // The scoped prune reaches every stopped container / unused volume / unused
 // network on the host, whoever created them: no labelling can scope the
-// daemon's own prunes. The file therefore lives apart and runs alone, like the
-// per-area prune tests beside it. Acceptance is established on the fixtures
-// this file creates — they are gone, or they survived a scope that excluded
-// them — never on host totals.
+// daemon's own prunes. It costs the file after this one nothing — the pass runs
+// one file at a time and every file empties the daemon before it runs.
+// Acceptance is established on the fixtures this file creates — they are gone,
+// or they survived a scope that excluded them — never on host totals.
 
 /** A container in the `created` state: one of the states a prune of stopped containers acts on. */
 async function createStoppedContainer(caseName: string): Promise<string> {

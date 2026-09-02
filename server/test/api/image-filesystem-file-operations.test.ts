@@ -150,7 +150,7 @@ async function withApp<T>(run: (app: RunningApp) => Promise<T>): Promise<T> {
  * kind, the archive no longer being in the analysis cache, the entry not being
  * locatable in it — and every one of them carries its own sentence in the body.
  * The status on its own cannot tell them apart, which is exactly what a failure
- * seen once in a parallel pass needs to say. The body is read only on failure,
+ * seen once needs to say. The body is read only on failure,
  * so a passing test leaves the response untouched for the caller to parse.
  */
 async function assertStatus(response: Response, expected: number): Promise<void> {

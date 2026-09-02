@@ -12,9 +12,11 @@ import { cleanDaemonBeforeAll } from './support/lifecycle.js';
 
 cleanDaemonBeforeAll();
 
-// Every test in this file exercises the daemon's real pull/tag/push/remove
-// operations one at a time (a shared registry-facing resource), so they run
-// serially rather than in Playwright's default fully-parallel mode.
+// The tests of a file already run one at a time here (`workers: 1`,
+// `fullyParallel: false`). What serial mode adds is what this file needs: its
+// tests share one tag, each of them removing it, so a failure part-way through
+// leaves that tag in a state nobody established — the tests after it are skipped
+// rather than left to prove nothing, and a retry rebuilds it from the first.
 test.describe.configure({ mode: 'serial' });
 
 async function tagFromPostgres(tag: string): Promise<void> {
@@ -35,7 +37,7 @@ async function createStandaloneImage(tag: string, containerName: string): Promis
  * Creates (but never starts) a container from the suite's own single-file image.
  *
  * Ensured at the point of use, not once for the run: a prune spec in this suite
- * prunes the host, so an image present at global setup may be gone by now.
+ * prunes the host, so an image ensured earlier may be gone by now.
  * Locally built, so putting it back costs a second and no network.
  */
 async function createFromTinyImage(containerName: string): Promise<void> {

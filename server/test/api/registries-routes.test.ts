@@ -150,13 +150,11 @@ async function writeDockerConfig(config: unknown): Promise<void> {
  * `undefined` when none does; `undefined` too when there is no such directory.
  *
  * Every file is searched on its own, as bytes. Concatenating the whole tree into
- * one string was the trap: the data directory this is pointed at is the suite's
- * shared analysis cache, deliberately kept between runs (`.archi`) and written
- * to by the other files of the parallel pass, so it grows without bound — past
- * V8's maximum string length it stopped answering the question at all and threw
+ * one string was the trap: the directory this is pointed at holds the analysis
+ * cache, whose entries are as large as the artefacts they keep — past V8's
+ * maximum string length it stopped answering the question at all and threw
  * `RangeError: Invalid string length` instead. What this test owns is the
- * question "is the secret in there", never the size of what somebody else put
- * there.
+ * question "is the secret in there", never the size of what is in there.
  */
 async function fileCarryingSecret(directory: string, secret: string): Promise<string | undefined> {
   const entries = await readdir(directory).catch(() => []);

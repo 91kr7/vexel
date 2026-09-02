@@ -526,7 +526,7 @@ test("bringing a compose project up and down shows in the very next projects req
 });
 
 // plan-docker_management_app-refresh_cache/REQ-13 — contexts: create and remove. Selecting one is
-// machine-wide state, so it stays out of the parallel API pass (see contexts-routes.test.ts).
+// machine-wide state, so no test here selects one (see contexts-routes.test.ts).
 test("creating and removing a context through the application shows in the very next list request", async () => {
   const name = fixtureName("context").toLowerCase();
   const { url, close } = await startApp(buildFullApp());
@@ -556,7 +556,7 @@ test("creating and removing a context through the application shows in the very 
 });
 
 // plan-docker_management_app-refresh_cache/REQ-13 — builders: create and remove. Selecting one is
-// machine-wide state, so it stays out of the parallel API pass (see builders-routes.test.ts).
+// machine-wide state, so no test here selects one (see builders-routes.test.ts).
 test("creating and removing a builder through the application shows in the very next list request", async () => {
   const name = fixtureName("builder").toLowerCase();
   const { url, close } = await startApp(buildFullApp());

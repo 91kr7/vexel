@@ -74,8 +74,8 @@ async function readSseUntilDone(response: Response, timeoutMs = 60_000): Promise
 
 // A disposable, unauthenticated local registry: lets these tests exercise a real registry round
 // trip without depending on any external/authenticated registry. Kept in its own file (rather than
-// alongside images-routes.test.ts) so its setup/teardown never runs concurrently with unrelated
-// pull/tag/remove/prune tests against the same daemon.
+// alongside images-routes.test.ts) so that this container is started and stopped only for the tests
+// that need a registry, and not around every pull/tag/remove test of the images area.
 const TEST_REGISTRY_PORT = 5081;
 let registryContainerId = "";
 

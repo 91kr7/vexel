@@ -9,8 +9,9 @@ const RUN_ID = `${process.pid}-${Date.now()}`;
 
 // The prunes of the System & prune screen act on every stopped container,
 // unused volume and unused network of the host — the operator's own included:
-// the daemon's prunes take no filter that could scope them. The file therefore
-// lives apart and runs alone, like the per-area prune specs beside it.
+// the daemon's prunes take no filter that could scope them. That costs the next
+// spec file nothing: the suite runs on one worker and every file empties the
+// daemon before it runs.
 //
 // Acceptance is established on the fixtures this spec creates: they are gone
 // after a run that named their category, and they survive one that did not.

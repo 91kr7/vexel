@@ -10,7 +10,7 @@ const RUN_ID = `${process.pid}-${Date.now()}`;
 // Nothing here builds an image or reads the build cache, so no base image is
 // needed and no test switches the machine-wide active builder: the two cases
 // that must switch it (`POST /api/builders/:name/use`, and the cache inventory
-// which can only be attributed to a builder that is active) run alone, in
+// which can only be attributed to a builder that is active) are kept in
 // test/api/builders-active-routes.test.ts.
 
 function fixtureName(caseName: string): string {

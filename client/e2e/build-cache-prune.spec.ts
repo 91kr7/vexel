@@ -14,8 +14,9 @@ const RUN_ID = `${process.pid}-${Date.now()}`;
 
 // Pruning the build cache (build-cache-service.md) reclaims whichever builder
 // is currently active, host-wide and unscopable — exactly like the volume/
-// container/image prune specs in this same folder. It lives apart and runs
-// alone. See batch-test-isolation.md, INT-4.
+// container/image prune specs in this same folder. It costs the next spec file
+// nothing: the suite runs on one worker and every file empties the daemon
+// before it runs.
 //
 // What it reclaims depends on which builder is active, so the spec makes a
 // builder of its own the active one and only prunes once it has established,

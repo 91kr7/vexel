@@ -16,9 +16,10 @@ await ensureImages([TINY_IMAGE]);
 
 // The two prune endpoints exercise the daemon's own prune semantics, which act
 // on every stopped container / every dangling image on the host — not only on
-// the fixtures set up here. No labelling can scope them, so they live apart and
-// run alone: concurrently with the rest of the suite they would delete other
-// tests' fixtures mid-assertion. See batch-test-isolation.md, INT-4.
+// the fixtures set up here. No labelling can scope them, and nothing has to:
+// the pass runs one file at a time and every file empties the daemon before it
+// runs, so what this one prunes costs the next a restore and nothing else.
+// Acceptance is established on the fixtures created here, never on host totals.
 
 async function fetchContainers(url: string): Promise<ContainerSummary[]> {
   const response = await fetch(`${url}/api/containers`);

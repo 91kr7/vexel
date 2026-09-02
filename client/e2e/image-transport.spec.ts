@@ -20,7 +20,7 @@ test.describe.configure({ mode: 'serial' });
  * Creates (but never starts) a container from the suite's own single-file image.
  *
  * Ensured at the point of use, not once for the run: a prune spec in this suite
- * prunes the host, so an image present at global setup may be gone by now.
+ * prunes the host, so an image ensured earlier may be gone by now.
  * Locally built, so putting it back costs a second and no network.
  */
 async function createFromTinyImage(containerName: string): Promise<void> {

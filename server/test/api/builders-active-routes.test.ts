@@ -23,12 +23,11 @@ const RUN_ID = `${process.pid}-${Date.now()}`;
 // the operator's own Docker configuration: machine-wide state, visible to every
 // process at once and scopable by no label. While it holds, `buildx du`,
 // `buildx prune` and any `buildx build` without an explicit `--builder` answer
-// for another builder than the one their caller means — which is precisely what
-// made the parallel API pass flake. The two tests that need the active builder
-// switched therefore live apart and run alone, like the prune tests in this
-// same folder (CLAUDE.md, "Destructive-by-nature tests ... cannot be scoped, so
-// they live apart"). The operator's own active builder is read at run time and
-// restored whether the test passes or fails.
+// for another builder than the one their caller means — which is what made the
+// API pass flake back when it ran its files at once. The two tests that need
+// the active builder switched are kept in this file for that reason, and the
+// operator's own active builder is read at run time and restored whether the
+// test passes or fails.
 
 function fixtureName(caseName: string): string {
   return `vexel-test-builder-${caseName}-${RUN_ID}`;

@@ -13,7 +13,7 @@ cleanDaemonBeforeAll();
 
 async function createStandaloneImage(tag: string, containerName: string): Promise<void> {
   // Ensured at the point of use, not once for the run: a prune spec in this suite
-  // prunes the host, so an image present at global setup may be gone by now.
+  // prunes the host, so an image ensured earlier may be gone by now.
   // Locally built, so putting it back costs a second and no network.
   await ensureImage(TINY_IMAGE);
   await execFileAsync('docker', ['create', '--name', containerName, ...ownershipArgs(containerName), TINY_IMAGE]);

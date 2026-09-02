@@ -105,11 +105,11 @@ async function dockerInspect(format: string, reference: string): Promise<string>
  * this file just had extracted, always.
  *
  * The extraction label is host-wide, and it is not this file's alone: other
- * files of the parallel API pass carry it legitimately, both through the
- * application (`image-filesystem-file-operations.test.ts` extracts a fixture
- * image of its own, and its intermediate container lives for as long as that
- * export takes) and by hand (`containers-routes.test.ts` labels a container to
- * check the inventory hides it). Reading every container that carries the label
+ * files carry it legitimately, both through the application
+ * (`image-filesystem-file-operations.test.ts` extracts a fixture image of its
+ * own, and its intermediate container lives for as long as that export takes)
+ * and by hand (`containers-routes.test.ts` labels a container to check the
+ * inventory hides it). Reading every container that carries the label
  * is reading somebody else's fixture — it is what made this file fail for a
  * container it had never created (CLAUDE.md: "Assert on the fixtures you
  * created ... never on totals").
@@ -732,8 +732,8 @@ test("GET /:id/filesystem/kept answers 'nothing kept' for an image never extract
   const app = buildApp();
   const { url, close } = await startApp(app);
   try {
-    // Scoped to this file's own fixture image, never to a host-wide total: the API pass runs files
-    // in parallel and another file's containers legitimately come and go meanwhile.
+    // Scoped to this file's own fixture image, never to a host-wide total: the label these
+    // containers carry is host-wide and other files carry it legitimately.
     const digestBefore = await dockerInspect("{{.Id}}", SCRATCH_TAG);
     const tagsBefore = await dockerInspect("{{json .RepoTags}}", SCRATCH_TAG);
     const containersBefore = await listInternalContainerIds(scratchImageId);

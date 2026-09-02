@@ -8,8 +8,9 @@ import { execFileAsync } from "../support/docker-cli.js";
 // Network prune exercises the daemon's own prune semantics (`POST
 // /networks/prune`, networks-service.md), which act on every network not
 // currently used by a container on the host — not only the fixture set up
-// here. No labelling can scope it, so it lives apart and runs alone,
-// mirroring the containers/images/volumes prune tests in this same folder.
+// here. No labelling can scope it, and it costs the file after this one
+// nothing: the pass runs one file at a time and every file empties the daemon
+// before it runs. Acceptance is established on the fixture created here.
 
 async function createUnusedNetwork(name: string): Promise<void> {
   await execFileAsync("docker", ["network", "create", ...ownershipArgs(name), name]);

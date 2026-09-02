@@ -33,12 +33,12 @@
  * anything else the suite creates, so a killed run is swept by
  * `npm run test:sweep`; putting any of it back costs local seconds.
  *
- * Two entry points use it: the `test:images` npm script, which prepares
- * everything before a whole server pass so a single process does the work, and
- * the test files themselves, which ensure what they need before their first test
- * — that is what keeps `node --test test/api/<one-file>.test.ts` working on a
- * pruned daemon. The end-to-end suite has no preparation step of its own at all:
- * every spec file re-establishes this through `lifecycle.ts`.
+ * Two entry points use it: the `test:images` npm script, which no pass runs — a
+ * command an operator types to put the fetching ahead of a run on a cold machine
+ * — and the test files themselves, which ensure what they need before their
+ * first test, and that is what keeps `node --test test/api/<one-file>.test.ts`
+ * working on a pruned daemon. Neither suite has a preparation step of its own:
+ * every file re-establishes this through `lifecycle.ts` before it runs.
  */
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";

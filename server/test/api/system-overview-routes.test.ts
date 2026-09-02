@@ -18,10 +18,9 @@ import { execFileAsync } from "../support/docker-cli.js";
 // The dashboard's overview endpoint, against the real daemon
 // (system-endpoints.md, overview-service.md).
 //
-// The daemon is the operator's own and other API files run in parallel, so no
-// assertion is made on a host total or on a section being empty: only the
-// fixtures this file creates are required to be accounted for, and only as a
-// lower bound.
+// The daemon is the operator's own, so no assertion is made on a host total or
+// on a section being empty: only the fixtures this file creates are required to
+// be accounted for, and only as a lower bound.
 
 const CANONICAL_TOTAL_ORDER = ["images", "containers", "volumes", "build-cache"];
 

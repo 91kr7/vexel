@@ -8,8 +8,9 @@ import { execFileAsync } from "../support/docker-cli.js";
 // Volume prune exercises the daemon's own prune semantics (`filters={"all":
 // ["true"]}`, volumes-service.md), which act on every unused volume on the
 // host, named or anonymous — not only the fixture set up here. No labelling
-// can scope it, so it lives apart and runs alone, mirroring the containers/
-// images prune tests in this same folder. See batch-test-isolation.md, INT-4.
+// can scope it, and it costs the file after this one nothing: the pass runs one
+// file at a time and every file empties the daemon before it runs. Acceptance
+// is established on the fixture created here, never on host totals.
 
 async function createNamedVolume(name: string): Promise<void> {
   await execFileAsync("docker", ["volume", "create", ...ownershipArgs(name), name]);

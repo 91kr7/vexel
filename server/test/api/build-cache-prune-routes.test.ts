@@ -20,7 +20,8 @@ const RUN_ID = `${process.pid}-${Date.now()}`;
 // `docker buildx prune` (build-cache-service.md) reclaims whichever builder is
 // currently active, host-wide and unscopable by any filter this app exposes —
 // exactly like the container/image/volume/network prune tests in this same
-// folder. It lives apart and runs alone. See batch-test-isolation.md, INT-4.
+// folder. It costs the file after this one nothing: the pass runs one file at a
+// time and every file empties the daemon before it runs.
 //
 // It carries one extra hazard the other prune tests do not: what gets reclaimed
 // depends on which builder is active. The test therefore creates a builder of

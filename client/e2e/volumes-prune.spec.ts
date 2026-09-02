@@ -8,8 +8,9 @@ cleanDaemonBeforeAll();
 // Pruning exercises the daemon's own prune (`filters={"all":["true"]}`,
 // volumes-service.md), which acts on every unused volume on the host, named
 // or anonymous — not only the fixture set up here. No labelling can scope it,
-// so it lives apart and runs alone, mirroring the containers/images prune
-// specs in this same folder. See batch-test-isolation.md, INT-4 and INT-6.
+// and it costs the next spec file nothing: the suite runs on one worker and
+// every file empties the daemon before it runs. Acceptance is established on
+// the fixture created here, never on host totals.
 test.describe.configure({ mode: 'serial' });
 
 async function createNamedVolume(name: string): Promise<void> {

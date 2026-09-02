@@ -216,7 +216,7 @@ test('shows a daemon 404 as the entry\'s status rather than as a failure', async
 
 // plan-docker_management_app/REQ-112 — a console entry recognised as destructive goes through the
 // application's explicit confirmation, naming the command that is about to be executed. The
-// confirmation is cancelled: nothing destructive is ever run from this project.
+// confirmation is cancelled: nothing destructive is ever run from this file.
 test('asks for confirmation naming the exact command before a destructive entry, and cancelling runs nothing', async ({ page }) => {
   const command = `docker rm -f ${marker('never-run')}`;
   await submit(page, command);

@@ -13,9 +13,8 @@ import { execFileAsync } from "../support/docker-cli.js";
 // test/api/system-prune-routes.test.ts.
 //
 // No assertion is made on host totals or on a category being empty: the
-// operator's own containers, images, volumes and networks are on this daemon
-// and other API files run in parallel. Only the fixtures this file creates are
-// asserted upon.
+// operator's own containers, images, volumes and networks are on this daemon.
+// Only the fixtures this file creates are asserted upon.
 
 const CANONICAL_ORDER = ["stopped-containers", "dangling-images", "unused-volumes", "unused-networks", "build-cache"];
 
@@ -49,12 +48,13 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  *
  * The reading is built on `/system/df`, and the daemon answers a call that
  * arrives while another one is being computed with that other call's result —
- * a snapshot that can predate the fixture. On an idle host the computation is
- * too short for that to be observable; during the parallel API pass it is not
- * (measured: 2 readings out of 40 missed a container created before the request
- * was issued). The delay belongs to the daemon's accounting, not to REQ-95, so
- * it is waited out rather than asserted upon — while a non-200 is never
- * retried and still fails immediately, carrying the body the endpoint sent.
+ * a snapshot that can predate the fixture. Measured at 2 readings out of 40 back
+ * when the API pass ran its files at once; the pass runs one file at a time now,
+ * and the re-read stays because the overlap needs no second file — a daemon busy
+ * with a reading of its own is enough. The delay belongs to the daemon's
+ * accounting, not to REQ-95, so it is waited out rather than asserted upon —
+ * while a non-200 is never retried and still fails immediately, carrying the
+ * body the endpoint sent.
  */
 async function breakdownAccountingFor(url: string, name: string): Promise<DiskUsageBreakdown> {
   let body: DiskUsageBreakdown | undefined;
