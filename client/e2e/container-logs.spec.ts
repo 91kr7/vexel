@@ -221,9 +221,8 @@ test.beforeEach(async ({ page }) => {
 
 // These tests keep a container's detail panel open across several UI steps.
 // DataTable virtualisation does not reserve extra space for an expanded row
-// (ui-library/specs/data-table.md), so another worker's containers appearing
-// mid-interaction can push the row out of the mounted window and reset the
-// panel; serial mode keeps that window stable.
+// (ui-library/specs/data-table.md), so serial mode keeps the mounted window
+// stable across them.
 test.describe('Container logs (REQ-30, REQ-31)', () => {
   test.describe.configure({ mode: 'serial' });
 

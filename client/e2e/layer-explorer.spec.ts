@@ -104,7 +104,7 @@ test('opens the layer explorer from the row menu with no panel open, and shows t
   const rows = modal.locator('.ui-data-table__row');
   await expect(rows.first()).toBeVisible({ timeout: 10_000 });
   expect(await rows.count()).toBeGreaterThan(1);
-  // images-analysis/specs/layer-metadata-service.md — the local daemon reports no compressed size
+  // image-analysis/specs/layer-metadata-service.md — the local daemon reports no compressed size
   await expect(modal.getByText('unavailable').first()).toBeVisible();
 
   // plan-docker_management_app-filesystem_browser_layout/REQ-20 — this dialog is deliberately out of
