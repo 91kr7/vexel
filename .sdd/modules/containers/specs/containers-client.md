@@ -13,7 +13,6 @@ knows their URLs.
 
 - `ContainerSummary`, `ContainerPort`, `ContainerState` — mirror the server shapes (see
   `containers-service.md`).
-- `fetchContainers(): Promise<ContainerSummary[]>` — `GET /api/containers`.
 - `startContainer(id)`, `stopContainer(id)`, `restartContainer(id)`, `pauseContainer(id)`,
   `unpauseContainer(id)`, `killContainer(id)`, `removeContainer(id)`: `Promise<void>`.
 - `renameContainer(id, name): Promise<void>`.

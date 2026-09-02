@@ -66,19 +66,17 @@ Actions:
   has always resolved two controls whenever the list is empty, and passed only because this daemon
   happens to hold one. Green by luck. The single account, with the deferred ellipsis question, is in
   `ui-library/specs/empty-state.md` (DEF-2).
-- **The network listing is read here, so it is read only while this panel is drawn**
-  (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-40). The shell mounted
-  `useNetworks()` for every screen and handed the result down; the hook now lives in the panel that
-  shows it, and the panel is drawn only inside the Volumes & networks screen. On every other screen
-  nobody asks for the listing — neither the browser nor, once the server's demand expires, the
-  daemon (REQ-41).
-- **The first painting after an absence waits, once per visit** (REQ-42). With the demand expired the
-  server holds nothing to serve, so the opening read is a real reading of the daemon. Nothing is
-  added to say so: the "Loading networks…" state the list already has is what shows (REQ-45).
-- While the panel is drawn every trigger is the one it had (REQ-43): the poll, the context switch,
-  the reload signal, and the re-read after each of its own actions. The header's refresh control
-  reaches this listing only while the screen is open — the behaviour of every held value, reading
-  again what the server holds and skipping what it does not.
+- **The network listing is read here**, through `useNetworks()`, rather than mounted by the shell for
+  every screen and handed down
+  (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-40). **What that no
+  longer decides is whether the server reads networks**: the open live channel holds the demand of
+  every value the server keeps, so networks are read on the server's own period whenever a window is
+  open — the stated departure from REQ-41 — and the panel asks for nothing at all.
+- **The first painting no longer waits** (was REQ-42): the listing has been delivered on the channel
+  before the panel is drawn, so the "Loading networks…" state the list already has is what shows only
+  until the very first delivery of a fresh window (REQ-45).
+- The panel drives no trigger of its own (REQ-43): a change on the host, a context switch, the manual
+  refresh control and the panel's own actions all reach this listing as pushes on the channel.
 - "Prune" is disabled when there is no network to prune.
 - Every control on this screen is a control: attaching a container is an action of the row's cluster
   rather than bare text beside the chips, and the page-level actions sit in the toolbar under the
@@ -128,6 +126,7 @@ Actions:
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-39
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-40
-- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-42
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-43
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-45
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-17
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-33

@@ -181,8 +181,8 @@ Navigation:
 - A menu's entries are bound to the image its row was rendered for, so the list re-reading or
   re-sorting under an open menu can never point an entry at another image; the menu belongs to the
   row's identity (the image id) and goes with it if that image leaves the list.
-- The list keeps re-reading on its poll and on `image` daemon events at its usual rate while a menu
-  is open: nothing is paused, throttled or debounced for the menu's benefit.
+- The list keeps arriving on the live channel at its usual rate while a menu is open: nothing is
+  paused, throttled or debounced for the menu's benefit.
 - The row's action area is the row's only action-bearing area: no other action-bearing control or
   glyph appears anywhere on the row, and opening the menu never also selects the row.
 - This screen contributes no markup and no styling of its own for the action area: it is one

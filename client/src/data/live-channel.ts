@@ -43,11 +43,7 @@ function ensureChannel(): void {
     valueListeners.forEach((listener) => listener(pushed));
   });
   opened.addEventListener('discarded', () => discardListeners.forEach((listener) => listener()));
-  opened.addEventListener('reloaded', () => {
-    const settling = [...reloadEndWaiters];
-    reloadEndWaiters.clear();
-    settling.forEach((settle) => settle());
-  });
+  opened.addEventListener('reloaded', settleReloadEndWaiters);
   channel = opened;
 }
 
@@ -58,7 +54,16 @@ function dataOf(message: Event): string {
 function setDelivering(next: boolean): void {
   if (delivering === next) return;
   delivering = next;
+  // A channel that stopped delivering carries no end-of-reload message: a waiter parked on one
+  // would never end, and the interface already says the channel is down (REQ-11, REQ-18).
+  if (!next) settleReloadEndWaiters();
   deliveryListeners.forEach((listener) => listener(next));
+}
+
+function settleReloadEndWaiters(): void {
+  const settling = [...reloadEndWaiters];
+  reloadEndWaiters.clear();
+  settling.forEach((settle) => settle());
 }
 
 function subscribe<T>(listeners: Set<T>, listener: T): () => void {
@@ -87,6 +92,7 @@ export function subscribeToChannelDiscard(listener: () => void): () => void {
 /** Parked before the reload is asked for, never after: the message can arrive before the endpoint answers (REQ-23). */
 export function awaitReloadEnd(): Promise<void> {
   ensureChannel();
+  if (!delivering) return Promise.resolve();
   return new Promise<void>((resolve) => {
     reloadEndWaiters.add(resolve);
   });

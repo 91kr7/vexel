@@ -40,18 +40,18 @@ Shows:
   both cards wholly visible, and the stack runs to y=966 — already past the fold at 1280×800, and
   further with every row either list gains. **Reaching networks is a scroll, deliberately.** A
   reader who wants the pair back is asking for the ~250px panel back with it.
-- **The volume listing is read here, so it is read only while this screen is drawn**
-  (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-40). The shell mounted
-  `useVolumes()` for every screen and handed the result down; the hook now lives on the screen that
-  shows it. On every other screen nobody asks for the listing — neither the browser nor, once the
-  server's demand expires, the daemon (REQ-41).
-- **The first painting after an absence waits, once per visit** (REQ-42). With the demand expired the
-  server holds nothing to serve, so the opening read is a real reading of the daemon. Nothing is
-  added to say so: the not-yet-loaded state the Volumes panel already has is what shows (REQ-45).
-- While the screen is open every trigger is the one it had (REQ-43): the poll, the context switch,
-  the reload signal, and the re-read after each of the panel's own actions. The header's refresh
-  control reaches this listing only while the screen is open — the behaviour of every held value,
-  reading again what the server holds and skipping what it does not.
+- **The volume listing is read here**, through `useVolumes()`, rather than mounted by the shell for
+  every screen and handed down
+  (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-40). **What that no
+  longer decides is whether the server reads volumes**: the open live channel holds the demand of
+  every value the server keeps, so volumes are read on the server's own period whenever a window is
+  open — the stated departure from REQ-41 — and the screen asks for nothing at all.
+- **The first painting no longer waits** (was REQ-42): the listing has been delivered on the channel
+  before the screen is drawn, so the not-yet-loaded state the Volumes panel already has shows only
+  until the very first delivery of a fresh window (REQ-45).
+- The screen drives no trigger of its own (REQ-43): a change on the host, a context switch, the
+  manual refresh control and the panel's own actions all reach this listing as pushes on the
+  channel.
 - The screen owns no selection and no detail state: each panel reveals its own detail inside its own
   list, under the row it belongs to, and at most one panel is open across the two — enforced by the
   detail-panel primitive, not by this screen.
@@ -71,6 +71,7 @@ Shows:
 - plan-ui-coherence-optimisation/REQ-32
 - plan-ui-coherence-optimisation/REQ-35
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-40
-- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-42
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-43
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-45
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-17
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-33

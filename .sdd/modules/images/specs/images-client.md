@@ -13,7 +13,6 @@ knows their URLs.
 
 - `ImageSummary`, `ImageHistoryEntry`, `ImageInspect`, `PruneResult` — mirror the server shapes (see
   `images-service.md`, `image-transfer-service.md`).
-- `fetchImages(): Promise<ImageSummary[]>` — `GET /api/images`.
 - `fetchImageInspect(id): Promise<ImageInspect>` — `GET /api/images/:id/inspect`.
 - `imagePullStreamUrl(reference, platform?): string` — `/api/images/pull/stream?reference=...
   [&platform=...]`.

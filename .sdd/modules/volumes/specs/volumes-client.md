@@ -10,7 +10,6 @@ type: frontend data client
 
 ## Contract
 
-- `fetchVolumes(): Promise<VolumeSummary[]>` — `GET /api/volumes`.
 - `fetchVolumeInspect(name): Promise<VolumeInspect>` — `GET /api/volumes/:name/inspect`.
 - `createVolume(input): Promise<VolumeSummary>` — `POST /api/volumes`.
 - `removeVolume(name): Promise<void>` — `DELETE /api/volumes/:name`.

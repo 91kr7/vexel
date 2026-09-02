@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { subscribeToActiveContextChange } from './active-context';
-import { subscribeToReload } from './reload-signal';
-import { fetchComposeProjects, type ComposeProjectSummary } from './compose-client';
-import { useKeptReading } from './use-kept-reading';
-import { cadence } from '../timing/timing-scale';
+import { useCallback, useSyncExternalStore } from 'react';
+import type { ComposeProjectSummary } from './compose-client';
+import { usePushedValue } from './pushed-values';
+import { isChannelDelivering, reconnectLiveChannel, subscribeToChannelDelivery } from './live-channel';
 
-const POLL_INTERVAL_MS = cadence(3000);
+/** The name the server gives the compose project listing on the channel. */
+const COMPOSE_PROJECTS = 'compose-projects';
+
+/** One reference for every render before the first delivery, so nothing re-renders on it. */
+const NONE: ComposeProjectSummary[] = [];
 
 export interface UseComposeProjectsResult {
   projects: ComposeProjectSummary[];
@@ -14,54 +16,20 @@ export interface UseComposeProjectsResult {
   refresh: () => void;
 }
 
-/** Reads the compose project list, re-reading on a bounded poll (REQ-75). */
+/** Reads the compose project listing from the live channel: no clock, no request of its own (REQ-17, REQ-33, REQ-39). */
 export function useComposeProjects(): UseComposeProjectsResult {
-  const [projects, keepProjects] = useKeptReading<ComposeProjectSummary[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState<string | undefined>(undefined);
-  const cancelledRef = useRef(false);
+  const projects = usePushedValue<ComposeProjectSummary[]>(COMPOSE_PROJECTS);
+  const delivering = useSyncExternalStore(subscribeToChannelDelivery, isChannelDelivering);
 
-  // `readOnce` returns its promise so the reload signal can wait for it; `refresh` returns
-  // nothing, the shape the screens use (plan-docker_management_app-refresh_cache/REQ-21).
-  const readOnce = useCallback(() => {
-    return fetchComposeProjects()
-      .then((list) => {
-        if (cancelledRef.current) return;
-        keepProjects(list);
-        setError(undefined);
-      })
-      .catch((cause: Error) => {
-        if (cancelledRef.current) return;
-        setError(cause.message);
-      })
-      .finally(() => {
-        if (cancelledRef.current) return;
-        setLoaded(true);
-      });
-  }, [keepProjects]);
-
+  // What failed is the channel, so what a retry does is ask for it again (REQ-18).
   const refresh = useCallback(() => {
-    void readOnce();
-  }, [readOnce]);
+    if (!isChannelDelivering()) reconnectLiveChannel();
+  }, []);
 
-  useEffect(() => {
-    cancelledRef.current = false;
-    refresh();
-    return () => {
-      cancelledRef.current = true;
-    };
-  }, [refresh]);
-
-  // Another context means another daemon: what is held here belongs to
-  // the one left behind and is re-read at once (REQ-93).
-  useEffect(() => subscribeToActiveContextChange(refresh), [refresh]);
-
-  useEffect(() => subscribeToReload(readOnce), [readOnce]);
-
-  useEffect(() => {
-    const interval = window.setInterval(refresh, POLL_INTERVAL_MS);
-    return () => window.clearInterval(interval);
-  }, [refresh]);
-
-  return { projects, loaded, error, refresh };
+  return {
+    projects: projects ?? NONE,
+    loaded: projects !== undefined,
+    error: delivering ? undefined : 'Could not reach the application server.',
+    refresh,
+  };
 }

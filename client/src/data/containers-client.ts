@@ -123,12 +123,6 @@ async function requireOk(response: Response): Promise<void> {
   if (!response.ok) throw new Error(await extractErrorMessage(response));
 }
 
-export async function fetchContainers(): Promise<ContainerSummary[]> {
-  const response = await fetch('/api/containers');
-  await requireOk(response);
-  return (await response.json()) as ContainerSummary[];
-}
-
 async function postLifecycle(id: string, action: string): Promise<void> {
   const response = await fetch(`/api/containers/${encodeURIComponent(id)}/${action}`, { method: 'POST' });
   await requireOk(response);

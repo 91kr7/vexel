@@ -10,7 +10,8 @@ type: frontend data client
 
 ## Contract
 
-- `fetchPlugins(): Promise<{ cli: PluginListing<CliPlugin>, daemon: PluginListing<DaemonPlugin> }>`
+- `PluginsReading`: `{ cli: PluginListing<CliPlugin>, daemon: PluginListing<DaemonPlugin> }` — the
+  shape of the round, which the live channel delivers; this client no longer reads it.
 - `fetchPluginPrivileges(remote): Promise<PluginPrivilege[]>` — what the reference asks for;
   installs nothing.
 - `fetchPluginInspect(name): Promise<PluginInspect>`

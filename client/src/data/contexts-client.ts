@@ -60,12 +60,6 @@ async function requireOk(response: Response): Promise<void> {
   if (!response.ok) throw new Error(await extractErrorMessage(response));
 }
 
-export async function fetchContexts(): Promise<ContextSummary[]> {
-  const response = await fetch('/api/contexts');
-  await requireOk(response);
-  return (await response.json()) as ContextSummary[];
-}
-
 export async function createContext(input: CreateContextInput): Promise<ContextSummary> {
   const response = await fetch('/api/contexts', {
     method: 'POST',

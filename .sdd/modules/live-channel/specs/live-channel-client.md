@@ -22,7 +22,9 @@ routes each message by what it names, and says whether it is delivering.
   message channel is open.
 - `awaitReloadEnd() → Promise<void>` — resolves on the next end-of-reload message. The values that
   reload changed are written before it on the same channel, so resolving means they have been
-  delivered.
+  delivered. On a channel that is **not** delivering it resolves at once, and a wait already parked
+  resolves the moment the channel stops delivering: no message will come, and the interface already
+  says the channel is down.
 - `reconnectLiveChannel() → void` — closes the channel and opens it again; what an operator told the
   channel is not delivering asks for.
 
@@ -33,6 +35,8 @@ routes each message by what it names, and says whether it is delivering.
 - It reconnects on its own when the channel drops, and reports that it is not delivering meanwhile.
 - `awaitReloadEnd()` must be parked **before** the reload is asked for: the message can arrive before
   the endpoint answers, and a wait raised afterwards would miss it.
+- **No wait outlives the channel it waits on**: a caller parked on a channel that goes down would
+  stay parked for as long as it stayed down (…-multiplexed_sse/REQ-11, /REQ-18).
 - It knows no Docker vocabulary and holds no value: what arrives is routed, not kept.
 
 ## Requirements served
@@ -41,4 +45,5 @@ routes each message by what it names, and says whether it is delivering.
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-3
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-9
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-10
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-23
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-26

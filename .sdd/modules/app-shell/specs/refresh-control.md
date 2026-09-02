@@ -35,6 +35,10 @@ Actions:
 - It navigates nowhere, closes nothing and resets no scroll position or selection: the reload
   replaces data only.
 - A failed reload leaves the screens showing the values they had — no view is blanked by a failure.
+- **It never parks on a channel that is not delivering.** The end-of-reload message travels on the
+  channel, so with the channel down it would never come and the control would stay busy for as long
+  as the channel stayed down. The wait ends instead, and what the operator is told about the
+  connection is the disconnected state the interface already has (…-multiplexed_sse/REQ-11, /REQ-18).
 - **The endpoint answering is not the screen being current.** The values a screen reads from the
   channel travel on a different connection from the answer, so the wait for the channel's
   end-of-reload message is parked **before** the request is made — a wait raised after the answer

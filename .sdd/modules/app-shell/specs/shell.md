@@ -36,7 +36,7 @@ Shows:
   (REQ-37–REQ-41), `ComposeScreen` for the `compose` screen (REQ-75–REQ-78) — fed the live project
   list from `useComposeProjects()` —, `VolumesNetworksScreen` for the `volumes-networks` screen
   (REQ-70, REQ-71) — self-sufficient, the screen reading the volume listing and the `NetworksPanel`
-  it is composed with reading the network listing, so neither runs on another screen
+  it is composed with reading the network listing, neither of them mounted here
   (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-40, REQ-44) —,
   `RegistriesScreen` for the
   `registries` screen (REQ-85, REQ-86, REQ-87) — self-sufficient, reading its own registry inventory

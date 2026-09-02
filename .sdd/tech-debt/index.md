@@ -24,10 +24,9 @@ means writing the analysis and the plan for it in the normal way — see
 
 | Debt | Area | Sev | What | File |
 |------|------|-----|------|------|
-| polled-hooks-do-not-coalesce-events | client | low | The polled views still re-read once per event; since the refresh cache, those re-reads are served from a held value and cost the daemon nothing | `entries/polled-hooks-do-not-coalesce-events.md` |
 | detail-views-reread-on-unrelated-events | both | high | Detail views re-read on events about other objects; a volume detail pulls `/system/df` per container event | `entries/detail-views-reread-on-unrelated-events.md` |
 | cli-version-detection-uncached | server | low | Three programs launched to read versions that cannot change while the app runs; since the refresh cache, every 30 s rather than every 5 s | `entries/cli-version-detection-uncached.md` |
-| no-response-sequencing-guard | client | medium | No sequence number: an older response landing last overwrites a newer one | `entries/no-response-sequencing-guard.md` |
+| no-response-sequencing-guard | client | medium | No sequence number: an older response landing last overwrites a newer one; no listing is exposed to it any more, only the views that read on demand or on a clock of their own | `entries/no-response-sequencing-guard.md` |
 | object-type-invalidation-registry-unused | client | low | The by-object-type invalidation registry is exported and called from nowhere | `entries/object-type-invalidation-registry-unused.md` |
 | stale-thirteen-screen-count-in-checks | client | low | Thirteen checks still say "thirteen screens", two of them in failure messages, on a rail that has twelve | `entries/stale-thirteen-screen-count-in-checks.md` |
 | change-coverage-millisecond-window | server | low | A read starting in the same millisecond as a change counts as covering it, on REQ-13's path | `entries/change-coverage-millisecond-window.md` |
@@ -54,8 +53,10 @@ project. The event burst was measured on the real lifecycle of a probe container
 holds a value per kind at a period of its own, so the client's poll no longer sets the rate at
 which the daemon is questioned and N windows no longer cost N times. Five of its rows went with
 it, and a sixth with the same plan's read-once memo, which is a different batch and a different
-mechanism. Two more of the survivors say at their own declaration what it reduced and what it left
-standing. The figures in the entries that remain were measured before it, and each says so.
+mechanism. A seventh went with the live channel, which left the polled views with no poll to
+group events into. One survivor, `no-response-sequencing-guard`, says at its own declaration what
+each of those reduced. The figures in the entries that remain were measured before all of it, and
+each says so.
 
 Two things were deliberately left out. **Swarm** — its removal is already planned
 (`plan-docker_management_app-swarm_removal`), so its polling is moot. **The detail views' pull

@@ -11,12 +11,11 @@ endpoints.
 
 ## Contract
 
-- `fetchBuilders(): Promise<BuilderSummary[]>`
 - `createBuilder(input: CreateBuilderInput): Promise<BuilderSummary>`
 - `removeBuilder(name): Promise<void>`
 - `activateBuilder(name): Promise<BuilderSummary>` — sets `name` as the active builder.
-- `fetchBuildCache(): Promise<BuildCacheRecord[]>`
-  - `BuildCacheRecord`: `{ id, type, sizeBytes, usageState, description? }`.
+- `BuildCacheRecord`: `{ id, type, sizeBytes, usageState, description? }` — the shape of a record,
+  which the live channel delivers; this client no longer reads the inventory.
 - `fetchBuildCacheUsage(recordId, signal?): Promise<BuildCacheUsage>` —
   `GET /api/builders/cache/{recordId}/usage` (REQ-69); aborting `signal` abandons the read, so a
   caller can supersede it.
