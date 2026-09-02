@@ -16,6 +16,7 @@ status: validated
 | `batch-equal-reading-kept` | A reading equal to the one in hand replaces nothing | REQ-47, REQ-48, REQ-49, REQ-50, REQ-51, REQ-52, REQ-53 | `batch-volumes-networks-screen-scoped` | certified | A list that has not changed stops being redrawn |
 | `batch-plugins-registries-held` | The plugins and the registries are held by the server | REQ-54, REQ-55, REQ-56, REQ-57, REQ-58, REQ-59, REQ-60, REQ-61, REQ-62 | `batch-equal-reading-kept` | certified | One reading of the installation, however many windows |
 | `batch-clean-daemon-recorded` | The artifacts describe the daemon reset every test file runs | REQ-63, REQ-64, REQ-65, REQ-66, REQ-67, REQ-68, REQ-69, REQ-70, REQ-71, REQ-72, REQ-73, REQ-74, REQ-75 | — | certified | The artifacts name only what exists |
+| `batch-artifacts-follow-the-registry` | The artifacts describe what the run's registry actually holds | REQ-76, REQ-77, REQ-78 | `batch-clean-daemon-recorded` | implemented | No comment names something that was removed |
 
 Execution order: the removal, then the Dashboard's clock, then the container detail's, then the three
 reductions in the human's own order — the two listings moving down onto their screen, the equal

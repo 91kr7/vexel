@@ -244,3 +244,15 @@ Added 2026-09-02, after the fact, for the same reason as Feature 12.
 > stayed thirty seconds stale, and a check waiting twenty seconds for a record the daemon announces
 > lost the race. REQ-58 stands as the record of what its own batch built; REQ-74 is what the product
 > does now.
+
+## Feature 14 — The artifacts describe what the run's registry actually holds
+
+Added 2026-09-02, on the human's decision, from three divergences the closing pass of
+`batch-clean-daemon-recorded` surfaced. All three are text against code, and the code is what
+happened: nothing here changes behaviour.
+
+| ID | Requirement |
+|----|-------------|
+| REQ-76 | The single-layer image the fixtures are made from is built locally and is not published to the run's registry. Nothing pulls it, so nothing has to. The artifacts say that, and stop claiming that every image a test uses comes out of the registry. |
+| REQ-77 | The rule that no test reaches Docker Hub describes the **restore**: a base image that goes missing mid-run comes back from the run's own registry, never from the network. The step that **seeds** that registry is the exception, it now runs inside every reset rather than ahead of a pass, and on a machine that holds none of the base images it does reach Docker Hub once. The artifacts state that, so the rule stops promising more than it keeps. |
+| REQ-78 | No comment in the source names a file, a command or an arrangement that was removed. Three are stale: the manifest note on the registry step still names a global setup, a daemon-backed test file still says its pass runs files in parallel, and the passage on what the reset does not empty still opens on a count taken before contexts left it. |

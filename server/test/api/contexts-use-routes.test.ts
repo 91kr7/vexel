@@ -11,17 +11,17 @@ const FIXTURE_PREFIX = "vexel-test-ctx-use-";
 
 // `POST /api/contexts/:name/use` runs `docker context use`, which rewrites the
 // operator's own Docker configuration: the active context is machine-wide state
-// every other process sees at once — the docker CLI, buildx (whose current
-// builder is keyed on the context name) and any concurrently running test file.
-// It cannot be scoped by a label or an environment variable, so it lives apart
-// and runs alone, like the prune tests in this same folder (CLAUDE.md,
-// "Destructive-by-nature tests ... cannot be scoped, so they live apart").
+// every other process sees at once — the docker CLI, and buildx, whose current
+// builder is keyed on the context name. No label and no environment variable
+// scopes it, so the switch is kept to this one file, which is also the only
+// thing that can undo it: the per-file reset removes contexts but never selects
+// one (CLAUDE.md, "removing a context is the reset's job, choosing one is not").
 //
-// Even alone, the switch is made as invisible as it can be: the fixture context
-// points at the very daemon that was already active, and the operator's own
-// active context is read at run time and restored whether the test passes or
-// fails — here in the test's `finally`, and again in the `after` below for the
-// run that never reaches it.
+// The switch is made as invisible as it can be: the fixture context points at
+// the very daemon that was already active, and the operator's own active
+// context is read at run time and restored whether the test passes or fails —
+// here in the test's `finally`, and again in the `after` below for the run that
+// never reaches it.
 
 function fixtureName(caseName: string): string {
   return `${FIXTURE_PREFIX}${caseName}-${RUN_ID}`;

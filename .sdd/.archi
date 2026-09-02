@@ -207,18 +207,23 @@ Run from the repository root (npm workspaces):
   in place when a file's first test runs is in place for **that** file rather than for whichever one
   happened to run first. A step ahead of a pass could only have described a state no file was
   entitled to assume by the second one.
-  - `npm run test:images -w server` — puts on the daemon what has to be on the daemon. The only step
-    of a run allowed to reach Docker Hub, and only for what is genuinely not there yet.
-  - `npm run test:registry -w server` — the reason no test ever reaches Docker Hub: it brings up the
-    run's own throwaway `registry:2` and seeds it with every image the tests pull. A registry exposed
-    on the internet occasionally does not answer, and this suite has lost whole specs to exactly
-    that. `alpine:3.20` and `moby/buildkit:buildx-stable-1` are seeded from the daemon's own copy (a
-    tag and a push, no network at all); `vexel-test-tiny:1`, the single-layer image, is built `FROM
-    scratch` and fetched from nowhere, and a copy of it is published for the tests that contract "a
-    reference missing locally is fetched first"; `registry:2` is the one irreducible exception, since
-    it is what the registry itself is run from, so it comes from Hub if the daemon does not hold it.
-    The container is named once per machine and carries the ownership label, so `test:sweep` removes
-    it — and with it anything the daemon pulled out of it — after a killed run.
+  - `npm run test:images -w server` — puts on the daemon what has to be on the daemon, reaching
+    Docker Hub only for what is genuinely not there yet.
+  - `npm run test:registry -w server` — the reason no **restore** in the middle of a run reaches
+    Docker Hub: it brings up the run's own throwaway `registry:2` and seeds it with every image the
+    tests pull. The seeding is the one step that does reach Hub, and every reset opens on it, so on
+    a machine holding none of the base images the run's first reset fetches them once. A registry
+    exposed on the internet occasionally does not answer, and this suite has lost whole specs to
+    exactly that. `alpine:3.20` and `moby/buildkit:buildx-stable-1` are seeded from the daemon's own
+    copy (a tag and a push, no network at all); `vexel-test-tiny:1`, the single-layer image, is
+    built `FROM scratch`, fetched from nowhere and published nowhere, since nothing pulls it; the
+    tests that contract "a reference missing locally is fetched first" are served by a separate
+    single-layer image, built and published for them, whose one file deliberately holds different
+    content, so that pulling it transfers a layer the daemon does not already hold; `registry:2` is
+    the one irreducible exception, since it is what the registry itself is run from, so it comes
+    from Hub if the daemon does not hold it. The container is named once per machine and carries the
+    ownership label, so `test:sweep` removes it — and with it anything the daemon pulled out of it —
+    after a killed run.
   - Every step is idempotent end to end: an already-prepared registry is the normal case, so a single
     file run directly gets the same arrangement rather than a second one. One definition,
     `server/test/support/base-images.ts`, serves both test trees.

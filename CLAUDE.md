@@ -302,11 +302,10 @@ named volumes included — a volume holding data nobody can rebuild is removed l
 the single place in this repository where that is allowed, it is a decision about a development
 machine, and **no fixture may ever do it on its own**: the rules above still bind every test.
 
-One thing is **not** emptied, and it is not an oversight. Docker **contexts** are emptied with the
-rest, bar the two Docker will not part with: the one in use, since removing it would take away how
-this machine reaches its daemon, and `default`, which cannot be removed at all. And **swarm** is not
-touched at all: it left the product on 2026-08-27, and no check of this project ever initialises
-one.
+**Swarm** is the one thing not emptied, and that is not an oversight: it left the product on
+2026-08-27, and no check of this project ever initialises one. Docker **contexts** go with the rest,
+bar the two Docker will not part with: the one in use, since removing it would take away how this
+machine reaches its daemon, and `default`, which cannot be removed at all.
 
 The last step of the reset puts the base images back, **and it puts them back by pulling them out of
 the run's own registry** — which is the point of having one. A spec writes `alpine:3.20`, a Docker
@@ -314,11 +313,11 @@ Hub name, and the daemon runs no registry mirror, so nothing would send that ref
 on its own; `ensureImage` is what does, pulling `localhost:<port>/alpine:3.20` and re-tagging it
 under the name the spec wrote. The re-tag is not cosmetic: specs assert on that string.
 
-So the daemon, after a reset, holds exactly what the registry put there and nothing else. **Every
-image a test uses comes from that registry, always** — `vexel-test-tiny:1` included, which is built
-`FROM scratch` the first time and published there like the rest, so every later file pulls it too.
-`registry:2` is the one image that cannot come from the registry, because the registry is started
-from it.
+So the daemon, after a reset, holds what the registry put back plus the one image the suite builds,
+and nothing else. **Every image a test fetches comes from that registry** — bar two.
+`vexel-test-tiny:1` is fetched from nowhere at all: it is built `FROM scratch` by each file that
+needs it and published nowhere, so nothing pulls it and nothing has to. `registry:2` cannot come from
+the registry, because the registry is started from it.
 
 What it costs: a prune and a restore per file, on a daemon that is almost empty by the second file.
 What it buys back: a file that fails now fails for its own reason.
@@ -339,15 +338,22 @@ not hypothetical here: `filesystem-browser`, `layer-build-cache`, `images` and `
 have each been lost to `production.cloudfront.docker.com … EOF` while pulling a base image, and each
 of them passed on its own minutes later.
 
-So the network work is a **preliminary step with a command of its own**, never something a test
-arranges for itself:
+The half of the rule that holds without exception is the **restore**: a base image that goes missing
+in the middle of a run — a prune spec prunes the host — comes back from the run's own registry and
+never from the network.
 
-- `npm run test:images -w server` puts on the daemon what has to be there. The only step of a run
-  allowed to reach Docker Hub, and only for what is genuinely not there yet.
+**Seeding** that registry is the other half, and it is the one step that can reach Docker Hub: on a
+machine holding none of the base images it fetches them, once, in order to mirror them. It is no
+longer something only an operator triggers — every reset opens on it, so on a cold machine the run's
+very first reset goes to the network and no later one does. The two commands below stay, for paying
+that once ahead of a run instead of inside it:
+
+- `npm run test:images -w server` puts on the daemon what has to be there, reaching Docker Hub only
+  for what is genuinely not there yet.
 - `npm run test:registry -w server` brings up the run's own `registry:2` — one container per
   machine, under a fixed name, carrying the ownership labels — and seeds it with every image the
-  tests pull (`docker tag` + `docker push` from the daemon's own copy, no network at all), builds
-  the single-layer image and publishes the copy of it the "missing locally" tests fetch.
+  tests pull (`docker tag` + `docker push` from the daemon's own copy once the image is there), then
+  builds and publishes the separate single-layer image the "missing locally" tests fetch.
 - **Neither pass runs them any more**, and they are kept as commands an operator types. Both passes
   reset the daemon before every file (above), and that reset reaches these same functions directly,
   so by the time a file's first test runs everything is in place for **that file** rather than for
@@ -364,14 +370,14 @@ arranges for itself:
 Where each image comes from:
 
 - **`alpine:3.20`** — a container that simply stays up; it declares no `VOLUME`, so it cannot orphan
-  one. Mirrored into the run's registry at the preliminary step, from the daemon's own copy when it
-  has one (`docker tag` + `docker push`, no network at all). Whenever it goes missing mid-run — a
+  one. Mirrored into the run's registry when it is seeded, from the daemon's own copy when it has
+  one (`docker tag` + `docker push`, no network at all). Whenever it goes missing mid-run — a
   prune spec prunes the host — it is restored from there.
 - **`vexel-test-tiny:1`** — the single-layer image a fixture is made from whenever all it needs is
   something a container can instantly be created out of. **Built** by the suite, `FROM scratch`, with
   one file of known content and a `CMD` (without one, `docker create` refuses it). Nothing is fetched
-  at all. It replaced `hello-world`, which had to be pulled and, after a system prune, often failed
-  to be.
+  at all, and nothing is published either: no file pulls it. It replaced `hello-world`, which had to
+  be pulled and, after a system prune, often failed to be.
 - **`registry:2`** — the multi-layer, registry-pulled image the layer analyses need, and **the one
   irreducible exception**: it is the image the run's own registry is started from, so it cannot come
   out of it. It must be on the daemon, pulled from Docker Hub if it is not.
