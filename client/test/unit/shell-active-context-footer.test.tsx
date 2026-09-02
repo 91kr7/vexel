@@ -10,14 +10,20 @@ import { ErrorReportingProvider } from '../../src/shell/services/ErrorReportingS
 import { ProgressProvider } from '../../src/shell/services/ProgressService';
 // The shell holds the live channel, which the client opens through an
 // EventSource jsdom does not provide.
-import { FakeEventSource, channelOpens } from '../support/live-channel';
+import { FakeEventSource, channelOpens, deliverDiscard, deliverValue } from '../support/live-channel';
 
 // app-shell/specs/shell.md — "The rail's footer names the context every screen
 // currently follows, as `name (kind)` ... It follows a switch made on the
 // Contexts screen without the shell being remounted (REQ-93)". Driven through
 // the real user path: the Contexts screen's own "use" action, with the server
-// answering as it does. No timer is advanced: what is under test is the switch
-// making the shell follow, not the inventory poll eventually noticing.
+// answering as it does.
+//
+// The inventory arrives on the live channel
+// (…-multiplexed_sse/REQ-24, /REQ-39), so this file delivers it there and never
+// answers `GET /api/contexts`: after the switch the server discards what it
+// holds, says so, and sends the inventory again. Both the screen and the footer
+// read that one delivery — "every mounted instance reads the same delivery"
+// (contexts/specs/use-contexts.md) — which is the claim under test.
 
 const reachableStatus = {
   daemon: { reachable: true },
@@ -95,7 +101,7 @@ beforeEach(() => {
         });
       }
       if (url.startsWith('/api/contexts')) {
-        return Promise.resolve({ ok: true, json: () => Promise.resolve(contextsFor(activeContextName)) });
+        throw new Error(`the interface asked for the context inventory instead of reading the channel: ${url}`);
       }
       if (url.startsWith('/api/containers') || url.startsWith('/api/images')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
@@ -166,9 +172,16 @@ async function renderShellOnContexts() {
   // The server accepts the channel: without it the shell reports the daemon
   // unreachable, which is the state of REQ-11 and not the one under test here.
   act(() => channelOpens());
+  act(() => deliverValue('contexts', contextsFor(activeContextName)));
   await waitFor(() => expect(screen.getByText('Live · daemon events')).toBeInTheDocument());
   await userEvent.click(screen.getByRole('button', { name: /Contexts/ }));
   await waitFor(() => expect(screen.getByRole('heading', { level: 2, name: 'Docker contexts' })).toBeInTheDocument());
+}
+
+/** What the server does once it has taken a switch: it drops what it held and sends it again. */
+function serverPushesTheNewContext(): void {
+  act(() => deliverDiscard());
+  act(() => deliverValue('contexts', contextsFor(activeContextName)));
 }
 
 describe('the shell footer follows the active context (app-shell/specs/shell.md)', () => {
@@ -185,8 +198,9 @@ describe('the shell footer follows the active context (app-shell/specs/shell.md)
 
     await userEvent.click(switchControl('second'));
 
-    // The screen itself has taken the switch: it confirms it and its list marks the new context.
+    // The screen itself has taken the switch: it confirms it, and the inventory arrives again.
     await waitFor(() => expect(screen.getByText('Active context switched')).toBeInTheDocument());
+    serverPushesTheNewContext();
     await waitFor(() => expect(screenRow('second')).toHaveTextContent('active'));
 
     await waitFor(() => expect(rail().getByText('second (ssh)')).toBeInTheDocument());
@@ -198,6 +212,8 @@ describe('the shell footer follows the active context (app-shell/specs/shell.md)
     await waitFor(() => expect(rail().getByText('first (local)')).toBeInTheDocument());
 
     await userEvent.click(switchControl('second'));
+    await waitFor(() => expect(screen.getByText('Active context switched')).toBeInTheDocument());
+    serverPushesTheNewContext();
 
     await waitFor(() => expect(rail().queryByText('first (local)')).not.toBeInTheDocument());
   });

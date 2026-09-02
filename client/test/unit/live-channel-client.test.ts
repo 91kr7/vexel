@@ -154,11 +154,14 @@ describe('the live channel client', () => {
 
   // REQ-23 — the wait the refresh control parks before it asks for the reload.
   it('resolves the reload wait on the next end-of-reload message', async () => {
+    channelClient.subscribeToChannelDelivery(() => {});
+    liveChannel().emit('open');
     let ended = false;
     const waiting = channelClient.awaitReloadEnd().then(() => {
       ended = true;
     });
 
+    await Promise.resolve();
     expect(ended).toBe(false);
     liveChannel().emit('reloaded');
     await waiting;
@@ -167,6 +170,8 @@ describe('the live channel client', () => {
   });
 
   it('resolves every wait parked before an end-of-reload message, and none raised after it', async () => {
+    channelClient.subscribeToChannelDelivery(() => {});
+    liveChannel().emit('open');
     const first = channelClient.awaitReloadEnd();
     const second = channelClient.awaitReloadEnd();
     liveChannel().emit('reloaded');
@@ -179,6 +184,37 @@ describe('the live channel client', () => {
     await Promise.resolve();
 
     expect(laterEnded).toBe(false);
+  });
+
+  // "On a channel that is not delivering it resolves at once" — no message will come, and the
+  // interface already says the channel is down (…-multiplexed_sse/REQ-11, /REQ-18, /REQ-23).
+  it('resolves the reload wait at once while the channel is not delivering', async () => {
+    let ended = false;
+    void channelClient.awaitReloadEnd().then(() => {
+      ended = true;
+    });
+
+    await Promise.resolve();
+
+    expect(ended, 'a wait parked on a channel that is not delivering stayed parked').toBe(true);
+  });
+
+  // "a wait already parked resolves the moment the channel stops delivering": the caller was
+  // waiting when the connection dropped, and nothing will end it otherwise.
+  it('resolves a wait already parked the moment the channel stops delivering', async () => {
+    channelClient.subscribeToChannelDelivery(() => {});
+    liveChannel().emit('open');
+    let ended = false;
+    void channelClient.awaitReloadEnd().then(() => {
+      ended = true;
+    });
+    await Promise.resolve();
+    expect(ended).toBe(false);
+
+    liveChannel().emit('error');
+    await Promise.resolve();
+
+    expect(ended, 'the wait outlived the channel it was waiting on').toBe(true);
   });
 
   // The client holds nothing: what arrives is routed, not kept.

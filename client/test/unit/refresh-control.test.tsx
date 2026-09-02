@@ -3,7 +3,7 @@ import { act } from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ServerReloadReport } from '../../src/data/refresh-client';
-import { FakeEventSource, deliverReloadEnd } from '../support/live-channel';
+import { FakeEventSource, channelOpens, deliverReloadEnd, dropChannel } from '../support/live-channel';
 
 /**
  * The refresh control's states — INT-17 of `batch-manual-refresh`
@@ -46,6 +46,7 @@ vi.mock('../../src/data/refresh-client', () => ({
 
 const { RefreshControl } = await import('../../src/shell/RefreshControl');
 const { subscribeToReload } = await import('../../src/data/reload-signal');
+const { subscribeToChannelDelivery } = await import('../../src/data/live-channel');
 const { ToastProvider } = await import('../../src/ui');
 
 function report(overrides: Partial<ServerReloadReport> = {}): ServerReloadReport {
@@ -114,6 +115,10 @@ beforeEach(() => {
   serverCalls = 0;
   serverReload = async () => report();
   vi.stubGlobal('EventSource', FakeEventSource);
+  // The channel is delivering unless a test says otherwise: with it down the control ends the
+  // wait instead of parking on it, which is the last case of this file and not the others.
+  subscriptions.push(subscribeToChannelDelivery(() => {}));
+  act(() => channelOpens());
 });
 
 afterEach(() => {
@@ -125,6 +130,11 @@ afterEach(() => {
 /** The server's end-of-reload message: the values it produced have been delivered. */
 function endReloadOnChannel(): void {
   act(() => deliverReloadEnd());
+}
+
+/** The channel stops delivering, which is what the browser reports when the connection drops. */
+function channelStopsDelivering(): void {
+  act(() => dropChannel());
 }
 
 describe('RefreshControl (app-shell/specs/refresh-control.md)', () => {
@@ -303,5 +313,44 @@ describe('RefreshControl (app-shell/specs/refresh-control.md)', () => {
     await waitFor(() => expect(successToasts()).toHaveLength(1));
     expect(serverCalls, 'the second press asked the server for nothing').toBe(2);
     expect(control).toBeEnabled();
+  });
+
+  // …-multiplexed_sse/REQ-11, REQ-18, REQ-23 — "It never parks on a channel that is not
+  // delivering": the end-of-reload message travels on the channel, so with the channel down it
+  // would never come and the control would stay busy for as long as the channel stayed down.
+  it('ends the press on a channel that is not delivering, instead of staying busy for it', async () => {
+    channelStopsDelivering();
+    const view = mountedViewRead();
+    const server = deferred<ServerReloadReport>();
+    serverReload = () => server.promise;
+    const control = renderControl();
+
+    await userEvent.click(control);
+    server.resolve(report());
+    await waitFor(() => expect(view.calls()).toBe(1));
+    view.end();
+
+    // Nothing will say the reload has ended: the connection carrying that message is down.
+    await waitFor(() => expect(control).not.toHaveAttribute('aria-busy'));
+    expect(toastTitles()).toEqual(['Refreshed']);
+    expect(control).toBeEnabled();
+  });
+
+  // The wait was already parked when the connection went: it ends with it rather than outliving it.
+  it('ends a press already running when the channel stops delivering', async () => {
+    const view = mountedViewRead();
+    const server = deferred<ServerReloadReport>();
+    serverReload = () => server.promise;
+    const control = renderControl();
+
+    await userEvent.click(control);
+    server.resolve(report());
+    await waitFor(() => expect(view.calls()).toBe(1));
+    view.end();
+    expect(control, 'the control left the working state before anything ended it').toHaveAttribute('aria-busy', 'true');
+
+    channelStopsDelivering();
+
+    await waitFor(() => expect(control).not.toHaveAttribute('aria-busy'));
   });
 });

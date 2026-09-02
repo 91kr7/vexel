@@ -1,176 +1,103 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
-import type { DaemonEvent } from '../../src/data/live-channel';
-import type { CliPlugin, DaemonPlugin, PluginsReading } from '../../src/data/plugins-client';
+import { cleanup, renderHook } from '@testing-library/react';
+import { channelOpens, deliverValue } from '../support/live-channel';
+import { arrangeLiveChannel, type ChannelHarness } from '../support/pushed-listing';
 
-// usePlugins reads both inventories as one round and drives the management of
-// the daemon ones (plugins/specs/use-plugins.md). The data client, the daemon
-// event bus and the active-context broadcast are mocked, so the hook's own
-// decisions are the only things under test: what it stores, what it refuses to
-// store, what makes it re-read, and what it never caches.
-const fetchPlugins = vi.fn();
-const fetchPluginPrivileges = vi.fn();
-const fetchPluginInspect = vi.fn();
-const installPlugin = vi.fn();
-const enablePlugin = vi.fn();
-const disablePlugin = vi.fn();
-const removePlugin = vi.fn();
+/**
+ * What `usePlugins` does beyond reading the round off the channel
+ * (`plugins/specs/use-plugins.md`): a delivery that is not two listings, the
+ * management of the daemon plugins, the privileges read for a decision and the
+ * inspection read on demand. The round itself is covered for the whole set in
+ * `listings-arrive-by-push.test.tsx`.
+ */
 
-let daemonListener: ((event: DaemonEvent) => void) | undefined;
-let contextListener: (() => void) | undefined;
+let harness: ChannelHarness;
+let usePlugins: typeof import('../../src/data/use-plugins').usePlugins;
 
-vi.mock('../../src/data/plugins-client', () => ({
-  fetchPlugins: () => fetchPlugins(),
-  fetchPluginPrivileges: (remote: string) => fetchPluginPrivileges(remote),
-  fetchPluginInspect: (name: string) => fetchPluginInspect(name),
-  installPlugin: (input: unknown) => installPlugin(input),
-  enablePlugin: (name: string) => enablePlugin(name),
-  disablePlugin: (name: string) => disablePlugin(name),
-  removePlugin: (name: string) => removePlugin(name),
-}));
-vi.mock('../../src/data/live-channel', () => ({
-  subscribeToDaemonEvents: (listener: (event: DaemonEvent) => void) => {
-    daemonListener = listener;
-    return () => {
-      daemonListener = undefined;
-    };
-  },
-}));
-vi.mock('../../src/data/active-context', () => ({
-  subscribeToActiveContextChange: (listener: () => void) => {
-    contextListener = listener;
-    return () => {
-      contextListener = undefined;
-    };
-  },
-}));
-
-const { usePlugins } = await import('../../src/data/use-plugins');
-
-function cliPlugin(name: string): CliPlugin {
-  return { name, command: `docker ${name}`, availability: 'enabled' };
+function daemonPlugin(name: string, enabled = false) {
+  return { id: `id-${name}`, name, enabled, interfaceTypes: [], type: 'volume driver' };
 }
 
-function daemonPlugin(name: string, enabled = false): DaemonPlugin {
-  return { id: `id-${name}`, name, enabled, interfaceTypes: ['docker.volumedriver/1.0'], type: 'volume driver' };
-}
+const ROUND = {
+  cli: { items: [{ name: 'compose', command: 'docker compose', availability: 'enabled' }] },
+  daemon: { items: [daemonPlugin('vieux/sshfs:latest')] },
+};
 
-function reading(cli: CliPlugin[], daemon: DaemonPlugin[]): PluginsReading {
-  return { cli: { items: cli }, daemon: { items: daemon } };
-}
-
-function daemonEvent(type: string): DaemonEvent {
-  return { id: '1', timestamp: new Date().toISOString(), type, action: 'install' };
-}
-
-beforeEach(() => {
-  for (const spy of [fetchPlugins, fetchPluginPrivileges, fetchPluginInspect, installPlugin, enablePlugin, disablePlugin, removePlugin]) {
-    spy.mockReset();
-  }
-  daemonListener = undefined;
-  contextListener = undefined;
-  fetchPlugins.mockResolvedValue(reading([], []));
+beforeEach(async () => {
+  harness = arrangeLiveChannel();
+  vi.resetModules();
+  ({ usePlugins } = await import('../../src/data/use-plugins'));
 });
 
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
+/** The hook with the channel delivering, and one round already delivered. */
+function mounted() {
+  const rendered = renderHook(() => usePlugins());
+  act(() => channelOpens());
+  act(() => deliverValue('plugins', ROUND));
+  return rendered;
+}
+
 describe('usePlugins (plugins/specs/use-plugins.md)', () => {
-  // use-plugins.md — "cli, daemon — read as one round, so the two panels never show two different
-  // moments of the same installation"
-  it('reads both inventories as one round on mount and marks itself loaded', async () => {
-    fetchPlugins.mockResolvedValue(reading([cliPlugin('compose')], [daemonPlugin('vieux/sshfs:latest')]));
+  // "cli, daemon — the two halves of the one round the channel last delivered"
+  it('shows both halves of the round the channel delivered', () => {
+    const { result } = mounted();
 
-    const { result } = renderHook(() => usePlugins());
-
-    expect(result.current.cli.items).toEqual([]);
-    expect(result.current.daemon.items).toEqual([]);
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    expect(fetchPlugins).toHaveBeenCalledTimes(1);
-    expect(result.current.cli.items.map((plugin) => plugin.name)).toEqual(['compose']);
-    expect(result.current.daemon.items.map((plugin) => plugin.name)).toEqual(['vieux/sshfs:latest']);
-    expect(result.current.error).toBeUndefined();
+    expect(result.current.cli.items).toHaveLength(1);
+    expect(result.current.daemon.items).toHaveLength(1);
+    expect(result.current.loaded).toBe(true);
   });
 
-  // use-plugins.md — "An answer that is not two listings is treated exactly like a failed read —
-  // reported through error, never stored — so no panel is ever handed something without an items
-  // array. One malformed side fails the whole round rather than half-updating the screen."
-  it('reports a malformed side as a failed read and stores neither side', async () => {
-    fetchPlugins.mockResolvedValue({ cli: { items: [cliPlugin('compose')] }, daemon: { items: 'not a list' } } as unknown as PluginsReading);
-
+  // "A delivery that is not two listings is treated exactly like a failed read — reported through
+  // error, never shown ... One malformed side fails the whole round rather than half-updating the
+  // screen."
+  it('reports a malformed side as a failed read and shows neither side', () => {
     const { result } = renderHook(() => usePlugins());
+    act(() => channelOpens());
 
-    await waitFor(() => expect(result.current.loaded).toBe(true));
+    act(() => deliverValue('plugins', { cli: { items: [{ name: 'compose', command: 'docker compose', availability: 'enabled' }] }, daemon: {} }));
+
+    expect(result.current.error).toBeTruthy();
+    expect(result.current.cli.items).toEqual([]);
+    expect(result.current.daemon.items).toEqual([]);
+  });
+
+  it('leaves both panels with an items array when the delivery is not a round at all', () => {
+    const { result } = renderHook(() => usePlugins());
+    act(() => channelOpens());
+
+    act(() => deliverValue('plugins', [{ name: 'compose' }]));
+
     expect(result.current.error).toBeTruthy();
     expect(Array.isArray(result.current.cli.items)).toBe(true);
     expect(Array.isArray(result.current.daemon.items)).toBe(true);
-    expect(result.current.cli.items).toEqual([]);
-    expect(result.current.daemon.items).toEqual([]);
   });
 
-  // use-plugins.md — a failed read is reported through `error`
-  it('reports a failed read without leaving a panel without its items array', async () => {
-    fetchPlugins.mockRejectedValue(new Error('the daemon is unreachable'));
-
+  it('recovers from a malformed delivery once a round is delivered', () => {
     const { result } = renderHook(() => usePlugins());
+    act(() => channelOpens());
+    act(() => deliverValue('plugins', { cli: {}, daemon: {} }));
 
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    expect(result.current.error).toBe('the daemon is unreachable');
-    expect(result.current.cli.items).toEqual([]);
-    expect(result.current.daemon.items).toEqual([]);
+    act(() => deliverValue('plugins', ROUND));
+
+    expect(result.current.error).toBeUndefined();
+    expect(result.current.daemon.items).toHaveLength(1);
   });
 
-  // use-plugins.md — "a daemon event triggers nothing here"
-  // (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1, REQ-13); the poll
-  // and the re-read after each change this hook drives are what keep the panels current.
-  it('subscribes to no daemon event, and reads for none delivered', async () => {
-    const { result } = renderHook(() => usePlugins());
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    fetchPlugins.mockClear();
-
-    expect(daemonListener).toBeUndefined();
-
-    await act(async () => {
-      for (const type of ['plugin', 'container', 'volume', 'image']) daemonListener?.(daemonEvent(type));
-    });
-    expect(fetchPlugins).not.toHaveBeenCalled();
-  });
-
-  // use-plugins.md — "Another context means another daemon: the reading is dropped and re-read on
-  // the active-context broadcast (REQ-93)."
-  it('re-reads on the active-context broadcast', async () => {
-    const { result } = renderHook(() => usePlugins());
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    fetchPlugins.mockClear();
-
-    await act(async () => {
-      contextListener?.();
-    });
-
-    await waitFor(() => expect(fetchPlugins).toHaveBeenCalledTimes(1));
-  });
-
-  // use-plugins.md — "refresh()"
-  it('re-reads on demand', async () => {
-    const { result } = renderHook(() => usePlugins());
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    fetchPlugins.mockClear();
-
-    await act(async () => {
-      result.current.refresh();
-    });
-
-    await waitFor(() => expect(fetchPlugins).toHaveBeenCalledTimes(1));
-  });
-
-  // use-plugins.md — "readPrivileges(remote) — what the reference asks for; installs nothing and
-  // stores nothing"; "The privileges a reference asks for are never cached: they are the subject of
-  // a decision taken now, and a stale copy could be granted against a plugin that has since changed
-  // what it asks for." (REQ-99)
+  // "readPrivileges(remote) — what the reference asks for; installs nothing and stores nothing";
+  // "The privileges a reference asks for are never cached" (REQ-99).
   it('reads the privileges afresh every time, storing nothing and installing nothing', async () => {
     const first = [{ name: 'network', values: ['host'] }];
     const second = [{ name: 'network', values: ['host'] }, { name: 'mount', values: ['/'] }];
-    fetchPluginPrivileges.mockResolvedValueOnce(first).mockResolvedValueOnce(second);
-    const { result } = renderHook(() => usePlugins());
-    await waitFor(() => expect(result.current.loaded).toBe(true));
+    const url = '/api/plugins/privileges?remote=vieux%2Fsshfs%3Alatest';
+    harness.answers(url, first);
+    harness.answers(url, second);
+    const { result } = mounted();
 
     let read: unknown;
     await act(async () => {
@@ -184,44 +111,54 @@ describe('usePlugins (plugins/specs/use-plugins.md)', () => {
 
     // The second reading is a second question to the server, not a replay of the first.
     expect(read).toEqual(second);
-    expect(fetchPluginPrivileges).toHaveBeenCalledTimes(2);
-    expect(installPlugin).not.toHaveBeenCalled();
-    expect(result.current.daemon.items).toEqual([]);
+    expect(harness.requests.filter((request) => request.url === url)).toHaveLength(2);
+    expect(harness.requests.some((request) => request.url === '/api/plugins/install')).toBe(false);
   });
 
-  // use-plugins.md — "install(input), enable(name), disable(name), remove(name) — each re-reads the
-  // inventories on success"
-  it('re-reads the inventories after every successful state change', async () => {
-    installPlugin.mockResolvedValue(daemonPlugin('vieux/sshfs:latest'));
-    enablePlugin.mockResolvedValue(daemonPlugin('vieux/sshfs:latest', true));
-    disablePlugin.mockResolvedValue(daemonPlugin('vieux/sshfs:latest'));
-    removePlugin.mockResolvedValue(undefined);
-    const { result } = renderHook(() => usePlugins());
-    await waitFor(() => expect(result.current.loaded).toBe(true));
+  // REQ-25 — an action re-reads nothing: the result reaches the panels as the push it caused.
+  it('installs, enables, disables and removes without re-reading the round', async () => {
+    harness.answers('/api/plugins/install', daemonPlugin('vieux/sshfs:latest'), { method: 'POST' });
+    harness.answers('/api/plugins/enable', daemonPlugin('vieux/sshfs:latest', true), { method: 'POST' });
+    harness.answers('/api/plugins/disable', daemonPlugin('vieux/sshfs:latest'), { method: 'POST' });
+    harness.answers('/api/plugins?name=vieux%2Fsshfs%3Alatest', {}, { method: 'DELETE' });
+    const { result } = mounted();
 
-    for (const change of [
-      () => result.current.install({ remote: 'vieux/sshfs:latest', grantedPrivileges: [] }),
-      () => result.current.enable('vieux/sshfs:latest'),
-      () => result.current.disable('vieux/sshfs:latest'),
-      () => result.current.remove('vieux/sshfs:latest'),
-    ]) {
-      fetchPlugins.mockClear();
-      await act(async () => {
-        await change();
-      });
-      await waitFor(() => expect(fetchPlugins).toHaveBeenCalledTimes(1));
-    }
+    await act(async () => {
+      await result.current.install({ remote: 'vieux/sshfs:latest', grantedPrivileges: [] });
+      await result.current.enable('vieux/sshfs:latest');
+      await result.current.disable('vieux/sshfs:latest');
+      await result.current.remove('vieux/sshfs:latest');
+    });
+
+    expect(harness.requests.map((request) => request.url)).toEqual([
+      '/api/plugins/install',
+      '/api/plugins/enable',
+      '/api/plugins/disable',
+      '/api/plugins?name=vieux%2Fsshfs%3Alatest',
+    ]);
   });
 
-  // use-plugins.md — "failures propagate to the caller (never swallowed) so the screen can report them"
+  it('shows what an action changed when the channel delivers the new round', async () => {
+    harness.answers('/api/plugins/enable', daemonPlugin('vieux/sshfs:latest', true), { method: 'POST' });
+    const { result } = mounted();
+    await act(async () => {
+      await result.current.enable('vieux/sshfs:latest');
+    });
+    expect(result.current.daemon.items[0]!.enabled).toBe(false);
+
+    act(() => deliverValue('plugins', { ...ROUND, daemon: { items: [daemonPlugin('vieux/sshfs:latest', true)] } }));
+
+    expect(result.current.daemon.items[0]!.enabled).toBe(true);
+  });
+
+  // "failures propagate to the caller (never swallowed) so the screen can report them"
   it('lets every failure through to the caller', async () => {
-    installPlugin.mockRejectedValue(new Error('nothing has been installed'));
-    enablePlugin.mockRejectedValue(new Error('the plugin refused to come up'));
-    disablePlugin.mockRejectedValue(new Error('the plugin is in use'));
-    removePlugin.mockRejectedValue(new Error('the plugin is enabled'));
-    fetchPluginInspect.mockRejectedValue(new Error('no such plugin'));
-    const { result } = renderHook(() => usePlugins());
-    await waitFor(() => expect(result.current.loaded).toBe(true));
+    harness.answers('/api/plugins/install', { error: 'nothing has been installed' }, { method: 'POST', ok: false, status: 500 });
+    harness.answers('/api/plugins/enable', { error: 'the plugin refused to come up' }, { method: 'POST', ok: false, status: 500 });
+    harness.answers('/api/plugins/disable', { error: 'the plugin is in use' }, { method: 'POST', ok: false, status: 409 });
+    harness.answers('/api/plugins?name=x', { error: 'the plugin is enabled' }, { method: 'DELETE', ok: false, status: 409 });
+    harness.answers('/api/plugins/inspect?name=x', { error: 'no such plugin' }, { ok: false, status: 404 });
+    const { result } = mounted();
 
     await expect(result.current.install({ remote: 'x', grantedPrivileges: [] })).rejects.toThrow('nothing has been installed');
     await expect(result.current.enable('x')).rejects.toThrow('the plugin refused to come up');
@@ -230,18 +167,19 @@ describe('usePlugins (plugins/specs/use-plugins.md)', () => {
     await expect(result.current.inspect('x')).rejects.toThrow('no such plugin');
   });
 
-  // use-plugins.md — "inspect(name) — read on demand, not held"
+  // "inspect(name) — read on demand, not held"
   it('reads an inspection on demand without holding it', async () => {
     const inspection = { ...daemonPlugin('vieux/sshfs:latest'), mounts: [], devices: [], capabilities: [], env: [], raw: {} };
-    fetchPluginInspect.mockResolvedValue(inspection);
-    const { result } = renderHook(() => usePlugins());
-    await waitFor(() => expect(result.current.loaded).toBe(true));
+    const url = '/api/plugins/inspect?name=vieux%2Fsshfs%3Alatest';
+    harness.answers(url, inspection);
+    harness.answers(url, inspection);
+    const { result } = mounted();
 
     await act(async () => {
       await expect(result.current.inspect('vieux/sshfs:latest')).resolves.toEqual(inspection);
       await expect(result.current.inspect('vieux/sshfs:latest')).resolves.toEqual(inspection);
     });
 
-    expect(fetchPluginInspect).toHaveBeenCalledTimes(2);
+    expect(harness.requests.filter((request) => request.url === url)).toHaveLength(2);
   });
 });

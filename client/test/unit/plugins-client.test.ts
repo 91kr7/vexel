@@ -4,7 +4,6 @@ import {
   enablePlugin,
   fetchPluginInspect,
   fetchPluginPrivileges,
-  fetchPlugins,
   installPlugin,
   removePlugin,
 } from '../../src/data/plugins-client';
@@ -40,15 +39,6 @@ afterEach(() => {
 });
 
 describe('plugins client (plugins/specs/plugins-client.md)', () => {
-  // plugins-client.md — "fetchPlugins(): Promise<{ cli, daemon }>"
-  it('reads both inventories in one call', async () => {
-    const reading = { cli: { items: [] }, daemon: { items: [] } };
-    fetchMock.mockResolvedValue(answer(reading));
-
-    await expect(fetchPlugins()).resolves.toEqual(reading);
-    expect(callAt(0).url).toBe('/api/plugins');
-  });
-
   // plugins-client.md — "The reference and the plugin name are URL-encoded into the query, so a name
   // with a slash or a tag is never mistaken for another route."
   it('encodes the reference and the name into the query rather than into the path', async () => {
@@ -110,6 +100,6 @@ describe('plugins client (plugins/specs/plugins-client.md)', () => {
   it('rejects with the status when the failure carries no message', async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 502, json: () => Promise.reject(new Error('no body')) });
 
-    await expect(fetchPlugins()).rejects.toThrow('Request failed with HTTP 502');
+    await expect(fetchPluginInspect(NAME)).rejects.toThrow('Request failed with HTTP 502');
   });
 });

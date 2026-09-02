@@ -128,9 +128,11 @@ test('lists a context with its name, kind, endpoint and description, and marks t
   const name = fixtureName('list');
   await createContextQuietly(name, 'ssh://operator@build-host', ['--description', 'an e2e fixture']);
   try {
-    // The context is host-level configuration Docker publishes no event for, so the
-    // press is what puts it on screen: the product's own control, not a wait
-    // (plan-docker_management_app-refresh_cache-manual_refresh/REQ-16).
+    // The context is host-level configuration Docker publishes no event for, so the press is the
+    // shortest way to it: the product's own control, not a wait
+    // (plan-docker_management_app-refresh_cache-manual_refresh/REQ-16). What the press produces
+    // reaches the screen on the channel like any other change (…-multiplexed_sse/REQ-23), and the
+    // arrival with nothing pressed at all is `every-listing-arrives-by-push.spec.ts`.
     await refreshThroughTheControl(page);
     const row = contextRow(page, name);
     await expect(row).toBeVisible({ timeout: 20_000 });
@@ -160,9 +162,11 @@ test('shows an externally created TCP+TLS context like any other, its TLS in a c
   const name = fixtureName('tls');
   const certDir = await createTlsContextQuietly(name);
   try {
-    // The context is host-level configuration Docker publishes no event for, so the
-    // press is what puts it on screen: the product's own control, not a wait
-    // (plan-docker_management_app-refresh_cache-manual_refresh/REQ-16).
+    // The context is host-level configuration Docker publishes no event for, so the press is the
+    // shortest way to it: the product's own control, not a wait
+    // (plan-docker_management_app-refresh_cache-manual_refresh/REQ-16). What the press produces
+    // reaches the screen on the channel like any other change (…-multiplexed_sse/REQ-23), and the
+    // arrival with nothing pressed at all is `every-listing-arrives-by-push.spec.ts`.
     await refreshThroughTheControl(page);
     const row = contextRow(page, name);
     await expect(row).toBeVisible({ timeout: 20_000 });
@@ -250,9 +254,11 @@ test('removing a context asks for confirmation naming it, then drops it from the
   const name = fixtureName('remove');
   await createContextQuietly(name, 'ssh://operator@build-host');
   try {
-    // The context is host-level configuration Docker publishes no event for, so the
-    // press is what puts it on screen: the product's own control, not a wait
-    // (plan-docker_management_app-refresh_cache-manual_refresh/REQ-16).
+    // The context is host-level configuration Docker publishes no event for, so the press is the
+    // shortest way to it: the product's own control, not a wait
+    // (plan-docker_management_app-refresh_cache-manual_refresh/REQ-16). What the press produces
+    // reaches the screen on the channel like any other change (…-multiplexed_sse/REQ-23), and the
+    // arrival with nothing pressed at all is `every-listing-arrives-by-push.spec.ts`.
     await refreshThroughTheControl(page);
     const row = contextRow(page, name);
     await expect(row).toBeVisible({ timeout: 20_000 });
@@ -299,23 +305,22 @@ test('switching the active context marks the row, confirms with a toast and rena
   // The kind the row and the footer name it by, derived from the endpoint URL as the contract does.
   const kind = endpoint.startsWith('ssh://') ? 'ssh' : /^(tcp|http|https):\/\//.test(endpoint) ? 'tcp' : 'local';
   await createContextQuietly(name, endpoint);
-  // When each read of the inventory was **issued**: the announcement's own effect is a read that
-  // starts after the switch, so the two are told apart by time. The window asserted below is the
-  // footer's own budget, an order of magnitude inside the 15s poll (use-contexts.ts), so a read
-  // landing in it is the announcement and not the poll.
-  const inventoryReads: number[] = [];
+  // Every read of the inventory from the list endpoint, of which there must be none: the inventory
+  // arrives on the live channel and no screen reads it
+  // (…-multiplexed_sse/REQ-24, /REQ-39).
+  const inventoryReads: string[] = [];
   page.on('request', (request) => {
-    if (request.method() === 'GET' && new URL(request.url()).pathname === '/api/contexts') inventoryReads.push(Date.now());
+    if (request.method() === 'GET' && new URL(request.url()).pathname === '/api/contexts') inventoryReads.push(request.url());
   });
   try {
-    // The context is host-level configuration Docker publishes no event for, so the
-    // press is what puts it on screen: the product's own control, not a wait
-    // (plan-docker_management_app-refresh_cache-manual_refresh/REQ-16).
+    // The context is host-level configuration Docker publishes no event for, so the press is the
+    // shortest way to it: the product's own control, not a wait
+    // (plan-docker_management_app-refresh_cache-manual_refresh/REQ-16). What the press produces
+    // reaches the screen on the channel like any other change (…-multiplexed_sse/REQ-23), and the
+    // arrival with nothing pressed at all is `every-listing-arrives-by-push.spec.ts`.
     await refreshThroughTheControl(page);
     const row = contextRow(page, name);
     await expect(row).toBeVisible({ timeout: 20_000 });
-
-    const switchedAt = Date.now();
 
     // A **real pointer at the control's own coordinates** (CLAUDE.md): this is
     // the most consequential click in the product — it re-points the whole
@@ -336,17 +341,12 @@ test('switching the active context marks the row, confirms with a toast and rena
     // The previously active context is no longer the one in use: it is offered the switch again.
     await expect(switchControl(contextRow(page, originalActive))).toBeVisible();
 
-    // The announcement the switch carries is unchanged by the migration (batch 9's constraint:
-    // "nothing in this migration may change when that broadcast fires or what it carries"). What
-    // it does is stated in use-contexts.md — "whoever announces a switch, every instance re-reads"
-    // — so the observable is a fresh read of the inventory *after* the POST answered, not a
-    // same-tick reading of state the click had not yet produced.
-    await expect
-      .poll(() => inventoryReads.filter((at) => at > switchedAt).length, {
-        message: 'the switch announced nothing: no view re-read the inventory after it',
-        timeout: footerBudget,
-      })
-      .toBeGreaterThan(0);
+    // What the switch produces is no longer a read: the server discards the values it holds, says
+    // so on the channel and sends the new context's inventory, which is what the row's marker and
+    // the footer above are showing. So the observable of the same claim is the opposite one — the
+    // interface asked the list endpoint for nothing, at any point of the switch
+    // (…-multiplexed_sse/REQ-24, /REQ-39).
+    expect(inventoryReads, 'a view re-read the context inventory from the list endpoint').toEqual([]);
 
     // Switching back through the application restores the operator's own context.
     // The switch is daemon-bound — some six CLI spawns, seconds of them under

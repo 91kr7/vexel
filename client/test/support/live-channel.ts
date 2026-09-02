@@ -43,9 +43,16 @@ export class FakeEventSource {
   }
 }
 
-/** The channel the client currently holds: the last one it opened. */
+/** Where the client opens the live channel; other streams of the page open elsewhere. */
+const CHANNEL_URL = '/api/live';
+
+/**
+ * The channel the client currently holds: the last one opened on the channel's
+ * own URL. A page under test opens other server-sent streams of its own, so the
+ * last `EventSource` built is not always this one.
+ */
 export function liveChannel(): FakeEventSource {
-  const opened = FakeEventSource.instances.at(-1);
+  const opened = [...FakeEventSource.instances].reverse().find((instance) => instance.url === CHANNEL_URL);
   if (!opened) throw new Error('no live channel was opened');
   return opened;
 }
