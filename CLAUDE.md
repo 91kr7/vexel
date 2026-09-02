@@ -302,10 +302,11 @@ named volumes included — a volume holding data nobody can rebuild is removed l
 the single place in this repository where that is allowed, it is a decision about a development
 machine, and **no fixture may ever do it on its own**: the rules above still bind every test.
 
-Two things are **not** emptied, and neither is an oversight. Docker **contexts** are client
-configuration rather than daemon state — removing the operator's would take away how they reach a
-remote daemon, which is not what emptying Docker means. And **swarm** is not touched at all: it left
-the product on 2026-08-27, and no check of this project ever initialises one.
+One thing is **not** emptied, and it is not an oversight. Docker **contexts** are emptied with the
+rest, bar the two Docker will not part with: the one in use, since removing it would take away how
+this machine reaches its daemon, and `default`, which cannot be removed at all. And **swarm** is not
+touched at all: it left the product on 2026-08-27, and no check of this project ever initialises
+one.
 
 The last step of the reset puts the base images back, **and it puts them back by pulling them out of
 the run's own registry** — which is the point of having one. A spec writes `alpine:3.20`, a Docker
@@ -323,10 +324,11 @@ What it costs: a prune and a restore per file, on a daemon that is almost empty 
 What it buys back: a file that fails now fails for its own reason.
 
 **A new spec file is not exempt**, and forgetting the line is not a matter of memory:
-`client/scripts/check-clean-daemon-conformance.mjs` — run by `npm run lint` and `npm run test` in
-the client workspace — fails on a spec file that does not call it, and on one that registers a
-`test` hook ahead of it, since hooks run in registration order and a hook registered first would
-build its fixtures on a daemon the reset then prunes. There is no exception marker.
+`scripts/check-clean-daemon-conformance.mjs` — run by the repository-root `npm run lint` and
+`npm run test`, as `lint:clean-daemon` — fails on a spec file that does not call it, and on one
+that registers a `test` hook ahead of it, since hooks run in registration order and a hook
+registered first would build its fixtures on a daemon the reset then prunes. There is no exception
+marker.
 
 ### No test reaches Docker Hub
 

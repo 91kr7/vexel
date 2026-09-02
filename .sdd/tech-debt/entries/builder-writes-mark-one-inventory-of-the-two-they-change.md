@@ -27,7 +27,7 @@ write paths mark only one of them:
 `plan-docker_management_app-refresh_cache`, batch `exclusive-checks-reload`, which closed the
 identical hole for `useBuilder` (REQ-65): selecting a builder changed whose records the build-cache
 inventory held and marked only the builder inventory. These two are the same shape, in the same
-module, and neither is reached by any check — `client/e2e/exclusive/build-cache-prune.spec.ts`
+module, and neither is reached by any check — `client/e2e/build-cache-prune.spec.ts`
 removes its builder in the `finally`, after every assertion, and no spec asserts a builder row's
 size after a prune.
 

@@ -19,6 +19,9 @@ are **refreshers**, one per kind.
 - `registerRefreshKind({ key, read, periodMs, eventTypes?, derivedFrom?, differs?, demandExpiryMs?, groupingWindowMs? }) → RefreshKind`
   - `key` names the kind; registering the same key twice is a programming error and throws
   - `read` is the function that produces the value; the cache never interprets it
+  - `periodMs` is the period the caller wants **at the operator's factor of `1`**: the cache puts it
+    on this process's clock, like every other server cadence. At a factor of `0.2` a declared 30 s
+    kind refreshes every 6 s. A kind cannot be declared off the clock the rest of the process runs on
   - `eventTypes` are the daemon event types that mark this kind due; none by default
   - `derivedFrom` is the **key** of the kind this one is derived from: when that kind stores a value
     **its own `differs` calls different** from the one it held, this kind is marked due, exactly as a
@@ -102,10 +105,13 @@ are **refreshers**, one per kind.
 
 ## Rules and invariants
 
-- **Both defaults are declared figures the process's timing scale multiplies.** At the operator's
-  factor of `1` they are exactly the values above; at any other factor every cadence of the process
-  moves together, so the ratios these two are chosen for — the expiry longer than the slowest client
-  poll, the coverage wait counted in grouping windows — hold without a second decision.
+- **Every period this cache runs on is a declared figure the process's timing scale multiplies** —
+  the two defaults below, and each kind's own `periodMs`. At the operator's factor of `1` they are
+  exactly the figures declared; at any other factor every cadence of the process moves together, so
+  the ratios they are chosen for — the expiry longer than the slowest client poll, the coverage wait
+  counted in grouping windows, a kind refreshed faster than the check watching it waits — hold
+  without a second decision. A `demandExpiryMs` or `groupingWindowMs` passed explicitly is the
+  exception and is taken as written: it exists so a check can pin its own timings.
 - **One refresher per kind, never one for all of them.** Each has its own timer and its own read, so
   a read that blocks delays its own kind and no other.
 - A refresher runs on a chained timer, never a repeating one: a read taking longer than the period
@@ -207,3 +213,5 @@ are **refreshers**, one per kind.
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-8
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-9
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-10
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-74
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-75

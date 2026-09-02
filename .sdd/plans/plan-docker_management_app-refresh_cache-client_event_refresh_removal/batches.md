@@ -9,12 +9,13 @@ status: validated
 
 | Batch | Feature | REQ closed | Depends | Status | Human acceptance |
 |-------|---------|------------|---------|--------|------------------|
-| `batch-client-event-trigger-removal` | The client's Docker-event refresh trigger is removed | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-9, REQ-10, REQ-11, REQ-12, REQ-13, REQ-14, REQ-15 | — | implemented | An open detail stops following the daemon on its own |
-| `batch-dashboard-overview-clock` | The Dashboard's overview figures move on a clock | REQ-16, REQ-17, REQ-18, REQ-19, REQ-20, REQ-21, REQ-22, REQ-23, REQ-24 | `batch-client-event-trigger-removal` | implemented | The Dashboard follows the host with nobody touching it |
-| `batch-container-detail-clock` | The container detail follows the container it shows | REQ-25, REQ-26, REQ-27, REQ-28, REQ-29, REQ-30, REQ-31, REQ-32, REQ-33, REQ-34, REQ-35, REQ-36, REQ-37, REQ-38, REQ-39 | `batch-dashboard-overview-clock` | implemented | The dialog stops contradicting itself |
-| `batch-volumes-networks-screen-scoped` | The volume and network listings are read only on their own screen | REQ-40, REQ-41, REQ-42, REQ-43, REQ-44, REQ-45, REQ-46 | `batch-container-detail-clock` | implemented | The server stops asking Docker too |
-| `batch-equal-reading-kept` | A reading equal to the one in hand replaces nothing | REQ-47, REQ-48, REQ-49, REQ-50, REQ-51, REQ-52, REQ-53 | `batch-volumes-networks-screen-scoped` | implemented | A list that has not changed stops being redrawn |
-| `batch-plugins-registries-held` | The plugins and the registries are held by the server | REQ-54, REQ-55, REQ-56, REQ-57, REQ-58, REQ-59, REQ-60, REQ-61, REQ-62 | `batch-equal-reading-kept` | implemented | One reading of the installation, however many windows |
+| `batch-client-event-trigger-removal` | The client's Docker-event refresh trigger is removed | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-9, REQ-10, REQ-11, REQ-12, REQ-13, REQ-14, REQ-15 | — | certified | An open detail stops following the daemon on its own |
+| `batch-dashboard-overview-clock` | The Dashboard's overview figures move on a clock | REQ-16, REQ-17, REQ-18, REQ-19, REQ-20, REQ-21, REQ-22, REQ-23, REQ-24 | `batch-client-event-trigger-removal` | certified | The Dashboard follows the host with nobody touching it |
+| `batch-container-detail-clock` | The container detail follows the container it shows | REQ-25, REQ-26, REQ-27, REQ-28, REQ-29, REQ-30, REQ-31, REQ-32, REQ-33, REQ-34, REQ-35, REQ-36, REQ-37, REQ-38, REQ-39 | `batch-dashboard-overview-clock` | certified | The dialog stops contradicting itself |
+| `batch-volumes-networks-screen-scoped` | The volume and network listings are read only on their own screen | REQ-40, REQ-41, REQ-42, REQ-43, REQ-44, REQ-45, REQ-46 | `batch-container-detail-clock` | certified | The server stops asking Docker too |
+| `batch-equal-reading-kept` | A reading equal to the one in hand replaces nothing | REQ-47, REQ-48, REQ-49, REQ-50, REQ-51, REQ-52, REQ-53 | `batch-volumes-networks-screen-scoped` | certified | A list that has not changed stops being redrawn |
+| `batch-plugins-registries-held` | The plugins and the registries are held by the server | REQ-54, REQ-55, REQ-56, REQ-57, REQ-58, REQ-59, REQ-60, REQ-61, REQ-62 | `batch-equal-reading-kept` | certified | One reading of the installation, however many windows |
+| `batch-clean-daemon-recorded` | The artifacts describe the daemon reset every test file runs | REQ-63, REQ-64, REQ-65, REQ-66, REQ-67, REQ-68, REQ-69, REQ-70, REQ-71, REQ-72, REQ-73, REQ-74, REQ-75 | — | implemented | The artifacts name only what exists |
 
 Execution order: the removal, then the Dashboard's clock, then the container detail's, then the three
 reductions in the human's own order — the two listings moving down onto their screen, the equal
@@ -33,6 +34,11 @@ for a whole period, which is the case the keeper exists for.
 > **The plan was extended three times on 2026-09-01**, each time after the human saw the previous
 > batches implemented, which is why the frontmatter reads `draft` again. Every row but the last three
 > is untouched and still says what its own batch did.
+>
+> **A fourth extension, on 2026-09-02**, appends `batch-clean-daemon-recorded`. Its code was
+> written outside the workflow while the six batches above were being made green; the batch is
+> the documentation half that was skipped, and it depends on nothing because it changes no
+> source file.
 
 ## The scope of REQ-12
 

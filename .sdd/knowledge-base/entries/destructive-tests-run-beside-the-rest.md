@@ -21,7 +21,7 @@ nothing separates them any more: every test file of both trees empties the host 
   from a mid-run prune, and that was wrong. **Every file re-establishes what it needs at the point of
   use**: `server/test/support/base-images.ts` restores a missing base image from the run's own
   registry, no network, and its own header says it exists for exactly this — "restored from there
-  whenever it goes missing again (the exclusive pass prunes the host mid-run)". Both passes are
+  whenever it goes missing again (a prune spec in this pass prunes the host mid-run)". Both passes are
   serial (`workers: 1`, `--test-concurrency=1`), so a prune can never reach a fixture still in use.
 
 **How to apply** →

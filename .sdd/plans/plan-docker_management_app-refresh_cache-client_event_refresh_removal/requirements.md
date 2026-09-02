@@ -17,6 +17,10 @@ event arrived. Everything else stays as it is. Features 5 and 6 state what must 
 > are closed by the first batch, 7 by the second, 8 by the third, 9 by the fourth, 10 by the fifth and
 > 11 by the sixth. Nothing already validated is edited: those ids are stable and say what their own
 > batch did.
+>
+> **Extended a fourth time on 2026-09-02**: Features 12 and 13 record work carried out outside
+> the batches, while the six above were being made green. REQ-74 reverses the second half of
+> REQ-58 and does not edit it; the note under Feature 13 says why.
 
 ## Feature 1 — No view reads again because of a Docker event
 
@@ -203,3 +207,40 @@ of "read it only while it is being looked at" is in place and this closes the se
 > the browser calls `cadence()`, while all ten registered kinds declare `periodMs` as a bare figure,
 > and only three server figures are scaled at all. This is the current plan being finished on a true
 > premise, not a past one being rewritten — no batch had been built on the sentence it replaces.
+
+## Feature 12 — Every daemon-backed test file starts from a daemon it emptied itself
+
+Added 2026-09-02, after the fact. The work was carried out on 2026-09-01 and 2026-09-02, outside the
+batches of this plan, to get the checks of the six batches above green; it is appended here as a
+further feature rather than edited into any of them. The requirements below state what the product's
+checks now do, and the batch that closes them carries that into the artifacts.
+
+| ID | Requirement |
+|----|-------------|
+| REQ-63 | Every test file of both daemon-backed trees — the end-to-end specs and the server api tests — empties Docker before it runs. Containers, images, volumes, networks, build cache, build records, plugins, every builder that is not the daemon's own, and every context that is neither `default` nor the current one are removed. |
+| REQ-64 | The reset empties the machine it runs on and is not scoped to the suite's own objects: the operator's containers, images, volumes, networks, builders and plugins go with the suite's, named volumes included. It is the one place in the repository allowed to do that, and no fixture may do it on its own. |
+| REQ-65 | Three things survive every reset, each because it is in use: the run's own registry container, the volume holding what has been pushed into it, and the `registry:2` image the registry runs from. `registry:2` is the one image that cannot be restored from the registry, because the registry is started from it. |
+| REQ-66 | The base images are put back at the end of every reset, and they are pulled out of the run's own registry, never from Docker Hub. A spec writes a Docker Hub name and gets the mirrored copy re-tagged under that name, because specs assert on that string. |
+| REQ-67 | The two trees are wired differently because they run differently. One Playwright worker serves every spec, so each spec registers the reset as its own first `beforeAll`. `node --test` gives every server file a process of its own, so the reset is a preload, at that module's top level and not in a hook: a root hook starts ahead of the file's module scope without blocking it, and the files that ensure their images at module scope would be pruned mid-preparation. |
+| REQ-68 | The unit trees reset nothing and must not: they mock the Docker call and never reach a daemon. |
+| REQ-69 | A file does not clean up after itself at the end. What an `afterAll` may still hold is only what the reset cannot reach, because none of it is Docker: a fixture server running inside the test process, a temporary directory, an environment variable, a patched prototype, and the operator's active context, which a test that switched it switches back. |
+| REQ-70 | No preparation step runs ahead of a pass. The two commands that put the base images and the run's registry in place stay as commands an operator types, idempotent end to end, so one file run on its own gets the same arrangement rather than a second one. |
+| REQ-71 | The host-wide tests are no longer kept apart in any form: no separate directory, no separate command, no separate Playwright project. Every file prunes the host now, so the distinction no longer names anything. |
+| REQ-72 | Forgetting the reset is not left to memory. A build-time guard, run by the lint and by the test command at the repository root, fails on an end-to-end spec that does not register the reset, on one that registers any other hook ahead of it, and on a server api command that stops preloading it. There is no exception marker. |
+| REQ-73 | The artifacts describe this arrangement and no other: the architecture file, the module indexes and specs it touches, the knowledge base and the technical-debt register name the commands, the files and the paths that exist, and none that were removed. |
+
+## Feature 13 — A kind's period runs on the process's clock
+
+Added 2026-09-02, after the fact, for the same reason as Feature 12.
+
+| ID | Requirement |
+|----|-------------|
+| REQ-74 | A refresh kind's declared period is put on this process's clock, like every other server cadence. A caller declares the figure it wants at the operator's factor and the cache scales it; a kind cannot be declared off the clock the rest of the process runs on. |
+| REQ-75 | The component spec of the cache states that, so a caller reading the contract knows what the figure it passes becomes. |
+
+> **REQ-74 reverses the second half of REQ-58, and does not edit it.** REQ-58 said a kind's period was
+> a bare figure and not a scaled cadence, and that was true of the product when it was written. It
+> stopped being true on 2026-09-02: under a suite running five times faster the build-cache listing
+> stayed thirty seconds stale, and a check waiting twenty seconds for a record the daemon announces
+> lost the race. REQ-58 stands as the record of what its own batch built; REQ-74 is what the product
+> does now.
