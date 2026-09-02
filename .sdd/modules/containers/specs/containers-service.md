@@ -49,6 +49,11 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   with the internal filesystem-extraction containers removed and nothing else applied — not the
   projection the endpoint answers with. One read therefore serves every consumer of the listing:
   the container endpoint, the volume list, the network list and the host overview.
+  - It **announces the projection, not what it holds**: what travels on the live channel for the name
+    `containers` is the same ordered `ContainerSummary[]` the listing endpoint answers with, sampled
+    figures merged in, so a screen reading the channel and a caller reading the endpoint are given
+    the same list
+    (plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-2).
   - It **declares what counts as a different listing** for whoever derives from it, and that
     declaration is the contract between this listing and the lists built on it: per container, its
     `Id`, its **name**, its **volume mounts** and its **network attachments**, compared in an order

@@ -1,7 +1,17 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react';
 import { subscribeToActiveContextChange } from '../../data/active-context';
 import { subscribeToReload } from '../../data/reload-signal';
 import { fetchConnectionStatus, type ConnectionStatus } from '../../data/connectivity-client';
+import { isChannelDelivering, reconnectLiveChannel, subscribeToChannelDelivery } from '../../data/live-channel';
 import { cadence } from '../../timing/timing-scale';
 
 const POLL_INTERVAL_MS = cadence(5000);
@@ -47,7 +57,10 @@ export function ConnectionStatusProvider({ children }: { children?: ReactNode })
       .finally(() => setLoading(false));
   }, []);
 
+  const delivering = useSyncExternalStore(subscribeToChannelDelivery, isChannelDelivering);
+
   const refresh = useCallback(() => {
+    if (!isChannelDelivering()) reconnectLiveChannel();
     void readOnce();
   }, [readOnce]);
 
@@ -63,7 +76,17 @@ export function ConnectionStatusProvider({ children }: { children?: ReactNode })
 
   useEffect(() => subscribeToReload(readOnce), [readOnce]);
 
-  const value = useMemo(() => ({ ...status, loading, retry: refresh }), [status, loading, refresh]);
+  // A channel that is not delivering is told through the indication this service already
+  // exposes — no element and no wording of its own (REQ-11, REQ-35).
+  const value = useMemo(
+    () => ({
+      ...status,
+      daemon: delivering ? status.daemon : { reachable: false, cause: 'Could not reach the application server.' },
+      loading,
+      retry: refresh,
+    }),
+    [status, delivering, loading, refresh],
+  );
 
   return <ConnectionStatusContext.Provider value={value}>{children}</ConnectionStatusContext.Provider>;
 }

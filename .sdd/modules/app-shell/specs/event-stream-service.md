@@ -21,8 +21,9 @@ type: frontend service
 
 ## Rules and invariants
 
-- Subscribes once, on mount, to the shared live event subscription (data-access); a new event
-  updates `events` without a manual refresh (REQ-11).
+- Subscribes once, on mount, to the daemon events of the **live channel** — the browser's one
+  connection — and not to a stream of its own; a new event updates `events` without a manual refresh
+  (REQ-11, …-multiplexed_sse/REQ-1, /REQ-26).
 - **No two held events share an identity**: an event whose `id` is already held is dropped, and
   `events` is left untouched. The stream can deliver one event twice — the browser reopens a dropped
   connection and the server replays its catch-up backlog — and a list that held it twice would
@@ -36,9 +37,10 @@ type: frontend service
 
 ## Dependencies
 
-- data-access: `subscribeToDaemonEvents`
+- live-channel: Live channel client (`subscribeToDaemonEvents`)
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-11
 - plan-docker_management_app/REQ-12
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-26

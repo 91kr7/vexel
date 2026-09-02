@@ -19,7 +19,7 @@ from.
     replaces the overview.
   - `refresh()` — re-reads the overview.
 - The clock: one interval of **3 000 ms**, declared through the client's timing scale as
-  `cadence(3000)` — the same figure the list hooks poll at — started when the hook mounts and
+  `cadence(3000)` — started when the hook mounts and
   cleared when it unmounts.
 
 ## Rules and invariants

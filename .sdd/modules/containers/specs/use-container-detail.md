@@ -23,7 +23,7 @@ caller managing the fetching itself.
   - `refresh()` re-reads the current `id`'s inspect data immediately; a no-op when `id` is
     `undefined`.
 - The clock: one interval of **3 000 ms**, declared through the client's timing scale as
-  `cadence(3000)` — the period the container listing behind the detail's header polls at — running
+  `cadence(3000)` — the figure the detail's own readings share — running
   only while `shown`, and cleared when it stops being true or when the caller unmounts.
 
 ## Rules and invariants

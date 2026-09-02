@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { subscribeToDaemonEvents, type DaemonEvent } from '../../data/event-stream';
+import { subscribeToDaemonEvents, type DaemonEvent } from '../../data/live-channel';
 
 const MAX_EVENTS = 50;
 

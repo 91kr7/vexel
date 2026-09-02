@@ -16,7 +16,7 @@ are **refreshers**, one per kind.
 
 ## Contract
 
-- `registerRefreshKind({ key, read, periodMs, eventTypes?, derivedFrom?, differs?, demandExpiryMs?, groupingWindowMs? }) → RefreshKind`
+- `registerRefreshKind({ key, read, periodMs, eventTypes?, derivedFrom?, differs?, announce?, demandExpiryMs?, groupingWindowMs? }) → RefreshKind`
   - `key` names the kind; registering the same key twice is a programming error and throws
   - `read` is the function that produces the value; the cache never interprets it
   - `periodMs` is the period the caller wants **at the operator's factor of `1`**: the cache puts it
@@ -31,6 +31,9 @@ are **refreshers**, one per kind.
   - `differs(previous, next) → boolean` states whether a value just read differs from the one it
     replaces, **as far as whoever derives from this kind is concerned**. It is the source kind's own
     declaration, never the cache's: the cache holds values and does not read them
+  - `announce(value) → unknown` is what a subscriber is told this kind stored, when that is not the
+    value held itself: a kind holding the daemon's own response announces the projection its
+    consumers read. Undeclared, what is announced is what is held
   - `demandExpiryMs` and `groupingWindowMs` default to the values under "Rules and invariants" and
     exist so a check can register a kind with its own timings
   - no daemon call is made by registering: nothing is read until the kind is first asked for
@@ -67,6 +70,19 @@ are **refreshers**, one per kind.
 
 - `RefreshKind.peek() → held value or undefined` — what is held right now, without asking for it and
   without renewing demand. For checks and for a caller that must not start a refresher.
+
+- `RefreshKind.hold() → release()` — keeps this kind read **without reading it**: for a caller that
+  wants the values announced rather than returned
+  - starts the refresher if it was not running, and reads once when the kind holds nothing
+  - the kind's demand never expires while one hold is live, however long nobody calls `read()`
+  - `release()` gives the hold up; releasing twice releases once. When the last hold is given up the
+    kind expires exactly as it does with no caller at all
+  - after a discard, a kind with a live hold reads again at once instead of waiting for its period:
+    a holder is told what is stored, and a discard leaves it nothing to be told about
+
+- `holdEveryKind() → release()` — one hold on every registered kind, released together. However many
+  callers want the values kept current, the number of them changes nothing about how often Docker is
+  read.
 - `RefreshKind.isRefreshing() → boolean` — whether a refresher is running for this kind.
 - `RefreshKind.dispose()` — stops the refresher, drops the held value and unregisters the kind.
 
@@ -76,8 +92,17 @@ are **refreshers**, one per kind.
   - the refreshers keep running: the interface is still asking, and what it is asking about is now
     the other daemon
 
+- `onValueStored(listener) → unsubscribe` — told `{ key, value, readAt }` for **every value a kind
+  stores**, right after it is stored. `value` is the kind's own `announce` projection when it
+  declared one, else the value held. The announcement starts no read, and a listener that throws is
+  not the read's failure.
+- `onHeldValuesDiscarded(listener) → unsubscribe` — told once whenever `discardHeldValues()` has run.
+- `onReloadEnded(listener) → unsubscribe` — told when `reloadHeldValues()` has ended, after every
+  value that reload stored has been announced. What says a value that produced no announcement was
+  not changed by it.
+
 - `resetRefreshCache()` — puts every kind back to the state it had when it was registered: nothing
-  held, no refresher running, no demand. The seam a check uses between two cases, so neither
+  held, no refresher running, no demand and no hold. The seam a check uses between two cases, so neither
   inherits what the other read.
 
 - `reloadHeldValues() → { reloaded: string[], skipped: string[], failed: { key, error }[] }` — the
@@ -117,9 +142,10 @@ are **refreshers**, one per kind.
 - A refresher runs on a chained timer, never a repeating one: a read taking longer than the period
   is never overlapped by the next tick, and no backlog of ticks accumulates.
 - **Demand gate** — a kind is refreshed only while it is being asked for. `read()` renews the
-  demand; when a whole `demandExpiryMs` (default **60 s**) passes with no `read()`, the refresher
-  stops **and the held value is dropped**, so the next `read()` reads fresh rather than serving a
-  value of unknown age. While no kind is demanded the cache calls nothing at all.
+  demand and `hold()` suspends its expiry; when a whole `demandExpiryMs` (default **60 s**) passes
+  with no `read()` and no hold live, the refresher stops **and the held value is dropped**, so the
+  next `read()` reads fresh rather than serving a value of unknown age. While no kind is demanded the
+  cache calls nothing at all.
   - 60 s is longer than the longest interval a client polls at (15 s), so a slowly polled kind never
     expires between two of its own requests.
 - **Event grouping** — at most one read is *started* per `groupingWindowMs` (default **750 ms**) per
@@ -215,3 +241,8 @@ are **refreshers**, one per kind.
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-10
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-74
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-75
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-4
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-7
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-13
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-14
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-15

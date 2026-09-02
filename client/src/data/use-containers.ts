@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { subscribeToActiveContextChange } from './active-context';
-import { subscribeToReload } from './reload-signal';
-import { fetchContainers, type ContainerSummary } from './containers-client';
-import { useKeptReading } from './use-kept-reading';
-import { cadence } from '../timing/timing-scale';
+import { useCallback, useSyncExternalStore } from 'react';
+import type { ContainerSummary } from './containers-client';
+import { usePushedValue } from './pushed-values';
+import { isChannelDelivering, reconnectLiveChannel, subscribeToChannelDelivery } from './live-channel';
 
-const POLL_INTERVAL_MS = cadence(3000);
+/** The name the server gives the container listing on the channel. */
+const CONTAINERS = 'containers';
+
+/** One reference for every render before the first delivery, so nothing re-renders on it. */
+const NONE: ContainerSummary[] = [];
 
 export interface UseContainersResult {
   containers: ContainerSummary[];
@@ -14,54 +16,20 @@ export interface UseContainersResult {
   refresh: () => void;
 }
 
-/** Reads the container list, re-reading on a bounded poll (REQ-19, REQ-20, REQ-21, REQ-22). */
+/** Reads the container listing from the live channel: no clock, no request of its own (REQ-8, REQ-17, REQ-39). */
 export function useContainers(): UseContainersResult {
-  const [containers, keepContainers] = useKeptReading<ContainerSummary[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState<string | undefined>(undefined);
-  const cancelledRef = useRef(false);
+  const containers = usePushedValue<ContainerSummary[]>(CONTAINERS);
+  const delivering = useSyncExternalStore(subscribeToChannelDelivery, isChannelDelivering);
 
-  // `readOnce` returns its promise so the reload signal can wait for it; `refresh` returns
-  // nothing, the shape the screens use (plan-docker_management_app-refresh_cache/REQ-21).
-  const readOnce = useCallback(() => {
-    return fetchContainers()
-      .then((list) => {
-        if (cancelledRef.current) return;
-        keepContainers(list);
-        setError(undefined);
-      })
-      .catch((cause: Error) => {
-        if (cancelledRef.current) return;
-        setError(cause.message);
-      })
-      .finally(() => {
-        if (cancelledRef.current) return;
-        setLoaded(true);
-      });
-  }, [keepContainers]);
-
+  // What failed is the channel, so what a retry does is ask for it again (REQ-18).
   const refresh = useCallback(() => {
-    void readOnce();
-  }, [readOnce]);
+    if (!isChannelDelivering()) reconnectLiveChannel();
+  }, []);
 
-  useEffect(() => {
-    cancelledRef.current = false;
-    refresh();
-    return () => {
-      cancelledRef.current = true;
-    };
-  }, [refresh]);
-
-  // Another context means another daemon: what is held here belongs to
-  // the one left behind and is re-read at once (REQ-93).
-  useEffect(() => subscribeToActiveContextChange(refresh), [refresh]);
-
-  useEffect(() => subscribeToReload(readOnce), [readOnce]);
-
-  useEffect(() => {
-    const interval = window.setInterval(refresh, POLL_INTERVAL_MS);
-    return () => window.clearInterval(interval);
-  }, [refresh]);
-
-  return { containers, loaded, error, refresh };
+  return {
+    containers: containers ?? NONE,
+    loaded: containers !== undefined,
+    error: delivering ? undefined : 'Could not reach the application server.',
+    refresh,
+  };
 }

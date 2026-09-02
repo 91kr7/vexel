@@ -13,7 +13,7 @@ type: configuration
 - `GET /health` → `{ status: "ok" }` (unchanged from the scaffold).
 - Parses JSON request bodies (`express.json()`) for every route.
 - Mounts `connectivityRouter` at `/api/connectivity`, `contextsRouter` at `/api/contexts`,
-  `eventsRouter` at `/api/events`,
+  `liveChannelRouter` at `/api/live`,
   `persistenceRouter` at `/api/persistence`, `hostPathsRouter` at `/api/host-paths`,
   `refreshRouter` at `/api/refresh`,
   `volumesRouter` at `/api/volumes`, `networksRouter` at `/api/networks`, `registriesRouter` at
@@ -87,7 +87,8 @@ type: configuration
 - containers: handleContainerSessionUpgrade, containersRouter
 - connectivity: connectivityRouter
 - contexts: contextsRouter, publishActiveEndpoint
-- events: eventsRouter, eventStreamService
+- events: eventStreamService
+- live-channel: liveChannelRouter
 - local-persistence: persistenceRouter, hostPathsRouter, reclaimOrphans
 - images: imagesRouter
 - image-analysis: imageAnalysisRouter, sweepAbandonedExtractionContainers

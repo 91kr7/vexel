@@ -211,6 +211,10 @@ export const containerListCache = registerRefreshKind({
   eventTypes: ["container", "network"],
   read: readDaemonContainerList,
   differs: (previous, next) => derivedShape(previous) !== derivedShape(next),
+  // What travels on the live channel is what the listing endpoint answers with,
+  // not the daemon's own response: the projection is where the ordering and the
+  // sampler's current figures are merged in.
+  announce: toSummaryList,
 });
 
 // Projected and ordered at read time, which is what merges the sampler's
