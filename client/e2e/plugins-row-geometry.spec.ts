@@ -30,6 +30,7 @@
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
 import { clickAtItsCentre, readOnceSettled } from './support/settled.js';
+import { overridePushedValues } from './support/pushed-values.js';
 import { cleanDaemonBeforeAll } from './support/lifecycle.js';
 
 cleanDaemonBeforeAll();
@@ -154,17 +155,16 @@ interface Reading {
 const FULL_READING: Reading = { cli: { items: CLI_FIXTURE }, daemon: { items: DAEMON_FIXTURE } };
 
 /**
- * Answers the plugin inventory in the page, leaving the daemon untouched.
+ * Puts the plugin inventory on the screen, leaving the daemon untouched.
  *
- * Only `GET` is answered: everything else on the same path — the removal, above
- * all — is handed on rather than intercepted, so a stub can never be mistaken
- * for a mutation that did not happen.
+ * Nothing on the plugins path is answered but the inspection: every mutation — the removal, above
+ * all — reaches the product's own endpoint, so a fixture can never be mistaken for a mutation that
+ * did not happen.
  */
 async function stubReading(page: Page, reading: Reading): Promise<void> {
-  await page.route('**/api/plugins', async (route) => {
-    if (route.request().method() !== 'GET') return route.fallback();
-    await route.fulfill({ json: reading });
-  });
+  // The inventory is a value the server holds, and the channel is the client's only source for one
+  // (…-multiplexed_sse/REQ-39): it is delivered there rather than answered at its endpoint.
+  await overridePushedValues(page, { plugins: reading });
   await page.route('**/api/plugins/inspect*', async (route) => {
     const name = new URL(route.request().url()).searchParams.get('name') ?? '';
     await route.fulfill({ json: { ...INSPECT_FIXTURE, name, id: name } });

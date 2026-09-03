@@ -39,11 +39,11 @@ const STALENESS_BOUND_MS = 30_000;
 const PAST_STALENESS_MS = 36_000;
 /**
  * What "promptly" is allowed to cost: the immediate sample the gate takes on opening, plus the
- * list poll that carries it to the screen. Below one sampling interval on purpose — a figure that
- * only appeared after ten seconds would mean no prompt sample was taken.
+ * listing the server pushes to carry it to the screen. Below one sampling interval on purpose — a
+ * figure that only appeared after ten seconds would mean no prompt sample was taken.
  */
 const PROMPT_MS = 8_000;
-/** One sampling interval and one list poll: what a figure may cost when the gate was already open. */
+/** One sampling interval and the push carrying it: what a figure may cost when the gate was already open. */
 const ONE_INTERVAL_MS = 16_000;
 
 interface SubscriptionLog {
@@ -373,9 +373,11 @@ test('repeated section changes and a reload leave exactly one subscription held'
   }
 });
 
-// REQ-55 — the list poll keeps its delivered cadence: a container started outside the product still
-// appears without a manual refresh, within the window it appeared in before this change.
-test('a container started outside the product still appears within the list poll window', async ({ page }) => {
+// REQ-55 — the listing keeps reaching the screen on its own: a container started outside the
+// product still appears without a manual refresh, within the window it appeared in before this
+// change. It arrives on the live channel now, in the same budget the poll used to be given
+// (…-multiplexed_sse/REQ-36).
+test('a container started outside the product still appears without a manual refresh', async ({ page }) => {
   const stem = fixtureName('poll');
   const first = `${stem}-a`;
   const second = `${stem}-b`;
@@ -389,7 +391,7 @@ test('a container started outside the product still appears within the list poll
 
     await createWorkingContainer(second);
 
-    await expect(containerCard(page, second), 'the new container did not appear within the poll window').toBeVisible({
+    await expect(containerCard(page, second), 'the new container did not reach the screen on its own').toBeVisible({
       timeout: PROMPT_MS,
     });
   } finally {

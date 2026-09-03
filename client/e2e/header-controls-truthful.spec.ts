@@ -321,69 +321,65 @@ for (const screen of SCREENS) {
  * The state in which the header does offer a control: the daemon unreachable,
  * where the status pill grows a `Retry` of its own.
  *
- * **Simulated at the boundary, never on the machine.** The client's own
- * connectivity endpoint is intercepted in the browser, so the application sees
- * an unreachable daemon while the operator's daemon — the one their work runs on
- * — is neither stopped, paused nor touched in any way (`CLAUDE.md`). Nothing
- * else is intercepted: the pill, the badge and the retry are the product's own.
+ * **Simulated at the boundary, never on the machine.** The live channel — the
+ * one connection the window opens, and the only source the status has since it
+ * stopped being polled for
+ * (…-multiplexed_sse/REQ-17, REQ-19, REQ-39) — is refused in the browser, so the
+ * application reports a daemon it cannot reach while the operator's daemon — the
+ * one their work runs on — is neither stopped, paused nor touched in any way
+ * (`CLAUDE.md`). Nothing else is intercepted: the pill, the badge and the retry
+ * are the product's own. What this used to intercept was the connectivity
+ * endpoint the browser polled; nothing in the interface reads it any more, so
+ * intercepting it would leave the daemon reachable and this case with no control
+ * to exercise.
  *
  * The observation that made this possible was first met as a flaw in this very
  * check: the pill "carries a Retry of its own" before the daemon has been probed,
  * "and it is gone a moment later".
  */
 interface UnreachableDaemonBoundary {
-  /** Puts the boundary back into its unreachable state, for the next control. */
+  /** Puts the boundary back into its refusing state, for the next control. */
   reset: () => void;
-  /** The next probe — the one the click is about to cause — is answered as reachable. */
+  /** The channel the click is about to ask for is let through. */
   arm: () => void;
-  /** When each probe arrived, so a probe caused by the click can be told from the five-second poll. */
-  probes: () => number[];
+  /** When each attempt arrived, so the one a click caused can be told from the browser's own retry. */
+  attempts: () => number[];
 }
 
 async function serveUnreachableDaemon(page: Page): Promise<UnreachableDaemonBoundary> {
-  const cli = {
-    docker: { available: true, version: '0.0.0-intercepted' },
-    compose: { available: true, version: '0.0.0-intercepted' },
-    buildx: { available: true, version: '0.0.0-intercepted' },
-  };
-  let mode: 'unreachable' | 'armed' | 'reachable' = 'unreachable';
-  const probes: number[] = [];
+  let refusing = true;
+  const attempts: number[] = [];
 
-  await page.route('**/api/connectivity/status', async (route) => {
-    probes.push(Date.now());
-    const answerReachable = mode !== 'unreachable';
-    if (mode === 'armed') mode = 'reachable';
-    await route.fulfill({
-      json: answerReachable
-        ? { daemon: { reachable: true }, apiVersion: '0.0-intercepted', cli, unavailableCapabilities: [] }
-        : { daemon: { reachable: false, cause: 'this check answers the connectivity endpoint itself; the daemon was not touched' }, cli, unavailableCapabilities: [] },
-    });
+  await page.route('**/api/live', async (route) => {
+    attempts.push(Date.now());
+    if (refusing) await route.abort();
+    else await route.continue();
   });
 
   return {
     reset: () => {
-      mode = 'unreachable';
+      refusing = true;
     },
     arm: () => {
-      mode = 'armed';
+      refusing = false;
     },
-    probes: () => [...probes],
+    attempts: () => [...attempts],
   };
 }
 
 /**
- * Waits for a poll to land, so the click that follows happens at the far end of
- * the polling cadence.
+ * Waits for an attempt to land, so the click that follows happens at the far end
+ * of the browser's own reconnection cadence.
  *
- * The application re-probes connectivity every five seconds by itself, and a
- * poll arriving on its own would answer the click's question for it. Clicking
- * just after one leaves the next scheduled poll about five seconds away, so a
- * probe observed within a second of the click is the click's.
+ * A dropped `EventSource` is reopened by the browser every three seconds, and an
+ * attempt arriving on its own would answer the click's question for it. Clicking
+ * just after one leaves the next about three seconds away, so an attempt
+ * observed within a second of the click is the click's.
  */
-async function anchorOnAPoll(boundary: UnreachableDaemonBoundary): Promise<void> {
-  const before = boundary.probes().length;
+async function anchorOnAnAttempt(boundary: UnreachableDaemonBoundary): Promise<void> {
+  const before = boundary.attempts().length;
   await expect
-    .poll(() => boundary.probes().length, { timeout: 20_000, message: 'the application stopped probing its connectivity endpoint, so the poll cadence could not be anchored' })
+    .poll(() => boundary.attempts().length, { timeout: 20_000, message: 'the browser stopped asking for the channel at all, so its cadence could not be anchored' })
     .toBeGreaterThan(before);
 }
 
@@ -413,18 +409,18 @@ test('the control the header offers while the daemon is unreachable answers a re
     await openApp(page, 'dashboard');
     await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible({ timeout: 20_000 });
     await settledState(page, `${where}, control ${index}`);
-    await anchorOnAPoll(boundary);
+    await anchorOnAnAttempt(boundary);
 
     const activation = await activateHeaderControl(page, index, count, where, api, boundary.arm);
-    const probes = boundary.probes();
-    const answeredProbe = probes.find((at) => at >= activation.clickedAt);
-    const lastBefore = probes.filter((at) => at < activation.clickedAt).pop();
-    const delay = answeredProbe === undefined ? undefined : answeredProbe - activation.clickedAt;
-    // The attribution, reported rather than assumed: the poll runs every 5000ms
-    // and one landed shortly before the click, so a probe arriving inside the
-    // observation window is the click's and not the poll's.
+    const attempts = boundary.attempts();
+    const answeredAttempt = attempts.find((at) => at >= activation.clickedAt);
+    const lastBefore = attempts.filter((at) => at < activation.clickedAt).pop();
+    const delay = answeredAttempt === undefined ? undefined : answeredAttempt - activation.clickedAt;
+    // The attribution, reported rather than assumed: the browser reopens the
+    // channel every 3000ms and one attempt landed shortly before the click, so an
+    // attempt arriving inside the observation window is the click's.
     measured.push(
-      `${where} "${activation.name}" ${describeBox(activation.box)} → hit ${activation.found}; before: ${describeState(activation.before)}; after: ${describeState(activation.after)}; api calls: ${activation.requests.length}; last poll ${lastBefore === undefined ? 'none' : `${activation.clickedAt - lastBefore}ms before the click`}, re-probe ${delay === undefined ? 'never arrived' : `${delay}ms after it`} (poll cadence 5000ms)`,
+      `${where} "${activation.name}" ${describeBox(activation.box)} → hit ${activation.found}; before: ${describeState(activation.before)}; after: ${describeState(activation.after)}; api calls: ${activation.requests.length}; last attempt ${lastBefore === undefined ? 'none' : `${activation.clickedAt - lastBefore}ms before the click`}, next ${delay === undefined ? 'never arrived' : `${delay}ms after it`} (browser retry 3000ms)`,
     );
     if (!answered(activation)) {
       inert.push(`"${activation.name}" at ${describeBox(activation.box)} — clicked at its own centre, the application did nothing at all: ${describeState(activation.after)}, and no call to its own API`);

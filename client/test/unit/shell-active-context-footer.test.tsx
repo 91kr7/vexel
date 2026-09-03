@@ -169,9 +169,11 @@ async function renderShellOnContexts() {
       </ProgressProvider>
     </ErrorReportingProvider>,
   );
-  // The server accepts the channel: without it the shell reports the daemon
-  // unreachable, which is the state of REQ-11 and not the one under test here.
+  // The server accepts the channel and pushes on it: without either the shell
+  // reports the daemon unreachable, which is the state of REQ-11 and not the one
+  // under test here.
   act(() => channelOpens());
+  act(() => deliverValue('connection-status', reachableStatus));
   act(() => deliverValue('contexts', contextsFor(activeContextName)));
   await waitFor(() => expect(screen.getByText('Live · daemon events')).toBeInTheDocument());
   await userEvent.click(screen.getByRole('button', { name: /Contexts/ }));
@@ -181,6 +183,8 @@ async function renderShellOnContexts() {
 /** What the server does once it has taken a switch: it drops what it held and sends it again. */
 function serverPushesTheNewContext(): void {
   act(() => deliverDiscard());
+  // Every held kind is refilled at once, the status of the daemon now in use included.
+  act(() => deliverValue('connection-status', reachableStatus));
   act(() => deliverValue('contexts', contextsFor(activeContextName)));
 }
 

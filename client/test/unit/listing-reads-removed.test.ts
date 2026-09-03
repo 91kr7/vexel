@@ -39,3 +39,20 @@ describe('the listing reads the channel replaced are gone from the client (REQ-2
     });
   }
 });
+
+/**
+ * The connection status is the last of them: its client held the only caller of
+ * `GET /api/connectivity/status` in the browser, and the status now arrives on
+ * the channel (REQ-19, REQ-39). REQ-21 has the module go rather than stay
+ * exported, and the endpoint itself is untouched (REQ-31).
+ */
+describe('the connectivity read the channel replaced is gone from the client (REQ-21)', () => {
+  // Built at run time and not written as a literal: a specifier Vite can see is
+  // resolved while the file is transformed, and a missing one fails the whole
+  // file instead of this assertion.
+  const removed = ['..', '..', 'src', 'data', 'connectivity-client'].join('/');
+
+  it('connectivity-client is not there to be imported', async () => {
+    await expect(import(/* @vite-ignore */ removed)).rejects.toThrow();
+  });
+});

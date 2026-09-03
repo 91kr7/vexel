@@ -50,6 +50,7 @@ import { expect, test, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
 import { movePointerOverTheRow, readOnceSettled } from './support/settled.js';
 import { measureList, round, tableWithColumn } from './support/classic-table.js';
+import { overridePushedValues } from './support/pushed-values.js';
 import { cleanDaemonBeforeAll } from './support/lifecycle.js';
 
 cleanDaemonBeforeAll();
@@ -77,12 +78,11 @@ const DAEMON_PLUGINS = [
   { id: 'vexel-e2e-align-plugin', name: 'loki:latest', enabled: true, interfaceTypes: ['docker.logdriver/1.0'], type: 'log driver' },
 ];
 
-/** The inventory, answered in the page: no mutation is passed on, and the daemon is not read. */
+/** The inventory, delivered in the page: no mutation is passed on, and the daemon is not read. */
 async function stubPlugins(page: Page): Promise<void> {
-  await page.route('**/api/plugins', async (route) => {
-    if (route.request().method() !== 'GET') return route.abort();
-    await route.fulfill({ json: { cli: { items: CLI_PLUGINS }, daemon: { items: DAEMON_PLUGINS } } });
-  });
+  // The inventory is a value the server holds: it is delivered on the channel, which is the
+  // client's only source for one (…-multiplexed_sse/REQ-39). No mutation is passed on either way.
+  await overridePushedValues(page, { plugins: { cli: { items: CLI_PLUGINS }, daemon: { items: DAEMON_PLUGINS } } });
 }
 
 /**

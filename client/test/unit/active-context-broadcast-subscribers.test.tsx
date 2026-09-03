@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { act } from 'react';
-import { FakeEventSource, channelOpens } from '../support/live-channel';
+import { FakeEventSource, channelOpens, deliverDiscard, deliverValue } from '../support/live-channel';
 
 /**
  * Who re-reads when another daemon becomes the active one
@@ -126,13 +126,13 @@ describe('the views that read on demand re-read on the active-context broadcast 
     });
   }
 
-  // The connection status is a subscriber too: after a switch it describes the daemon now in use,
-  // not the one left behind.
-  it('the connection status describes the daemon now in use after a switch', async () => {
+  // The connection status is **not** a subscriber any more: after a switch the server discards what
+  // it holds, says so on the channel and probes the new context's daemon itself, so the status that
+  // arrives is that daemon's and the browser asks for nothing
+  // (`app-shell/specs/connection-status-service.md`; …-multiplexed_sse/REQ-24, /REQ-39).
+  it('the connection status describes the daemon now in use after a switch, having asked for nothing', async () => {
     const { notifyActiveContextChanged } = await import('../../src/data/active-context');
     const { ConnectionStatusProvider, useConnectionStatus } = await import('../../src/shell/services/ConnectionStatusService');
-    const probe = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ ...status, engineVersion: '24.0.0' }) });
-    vi.stubGlobal('fetch', probe);
     function StatusHarness() {
       const current = useConnectionStatus();
       return <span data-testid="engine-version">{current.engineVersion ?? ''}</span>;
@@ -143,12 +143,19 @@ describe('the views that read on demand re-read on the active-context broadcast 
         <StatusHarness />
       </ConnectionStatusProvider>,
     );
+    act(() => channelOpens());
+    act(() => deliverValue('connection-status', { ...status, engineVersion: '24.0.0' }));
     await waitFor(() => expect(screen.getByTestId('engine-version')).toHaveTextContent('24.0.0'));
+    const askedBefore = requests.length;
 
-    probe.mockResolvedValue({ ok: true, json: () => Promise.resolve({ ...status, engineVersion: '25.0.3' }) });
     act(() => notifyActiveContextChanged());
+    // What the server does with the switch: it drops what it held, says so, and sends the new
+    // daemon's status of its own accord.
+    act(() => deliverDiscard());
+    act(() => deliverValue('connection-status', { ...status, engineVersion: '25.0.3' }));
 
     await waitFor(() => expect(screen.getByTestId('engine-version')).toHaveTextContent('25.0.3'));
+    expect(requests.slice(askedBefore), 'the status was asked for on the broadcast').toEqual([]);
   });
 });
 

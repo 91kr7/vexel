@@ -7,6 +7,7 @@ import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
 import { ALPINE_IMAGE, TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { containerCard, containerDetail, openContainerDetail, openRawPayload, rawPayloadSection } from './support/container-cards.js';
+import { overridePushedValues } from './support/pushed-values.js';
 import { cleanDaemonBeforeAll } from './support/lifecycle.js';
 
 cleanDaemonBeforeAll();
@@ -563,9 +564,9 @@ async function stubOneDaemonPlugin(page: Page): Promise<void> {
     type: 'volume driver',
     description: 'a stubbed plugin, so this screen has a row to inspect',
   };
-  await page.route('**/api/plugins', async (route) => {
-    await route.fulfill({ json: { cli: { items: [] }, daemon: { items: [plugin] } } });
-  });
+  // The inventory is a value the server holds: it is delivered on the channel, which is the
+  // client's only source for one (…-multiplexed_sse/REQ-39).
+  await overridePushedValues(page, { plugins: { cli: { items: [] }, daemon: { items: [plugin] } } });
   await page.route('**/api/plugins/inspect*', async (route) => {
     await route.fulfill({
       json: { ...plugin, documentation: 'none', mounts: [], devices: [], capabilities: [], env: [], raw: { Id: plugin.id, Name: plugin.name } },

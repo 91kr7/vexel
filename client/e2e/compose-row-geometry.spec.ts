@@ -44,6 +44,7 @@ import {
   pressUntilItTakes,
   type PressEffect,
 } from './support/delivered-press.js';
+import { deliverPushedValue, overridePushedValues } from './support/pushed-values.js';
 import { cleanDaemonBeforeAll } from './support/lifecycle.js';
 
 cleanDaemonBeforeAll();
@@ -131,40 +132,30 @@ interface StubOptions {
   /** The projects every read answers with, until the control named by `then` is clicked. */
   projects: ProjectFixture[];
   /**
-   * What the read **the operator's own click causes** answers, so that "it really re-reads" is a
-   * difference and not a repetition — with `thenAfterClicking` naming the control that causes it.
+   * What the screen is sent once **the product asks the server to read again**, so that "it really
+   * re-reads" is a difference and not a repetition.
+   *
+   * The listing arrives on the live channel and is asked of no endpoint
+   * (…-multiplexed_sse/REQ-39), so the one thing a screen can do to obtain a new one is ask the
+   * server to read again (`POST /api/refresh`) and be sent the result on the channel
+   * (…-multiplexed_sse/REQ-23). That request is therefore what this fixture waits for: a control
+   * that does nothing at all leaves the empty reading standing, which is the failure the assertion
+   * is written to report. **The assertion itself is untouched**
+   * (`plan-ui-coherence-optimisation/REQ-51`): what changed is where the new reading comes from,
+   * never what the spec claims.
+   *
+   * Its predecessor answered the *first* read empty and every later one with `then`, and was
+   * repaired on 2026-08-16 (`.../classic-table` batch 4 `INT-7`) because the screen obtained a
+   * second reading on its own, seconds before the click: the empty state was replaced by rows while
+   * the pointer was still being aimed at it. Tying the change to what the click makes the product do
+   * keeps that fixed.
    */
   then?: ProjectFixture[];
-  /**
-   * The control whose click switches the answer over to `then`, by the words it carries.
-   *
-   * **Why the switch is tied to a click and not to a read count** (repaired 2026-08-16,
-   * `.../classic-table` batch 4 `INT-7`; the failure it removes is **not** this plan's — it is
-   * reproduced alone and in worktrees at `c434700` and at `d17e1df`, the build this plan starts
-   * from). This stub used to answer the *first* read empty and every later one with `then`. But the
-   * screen re-reads the list on a **3s poll of its own** (`use-compose-projects.ts`) as well as on
-   * every `container` daemon event, so the second read arrived on its own, seconds before the click
-   * — the empty state was replaced by rows while the pointer was still being aimed at it, and
-   * `locator.scrollIntoViewIfNeeded` timed out on an element that had left the page. A race between
-   * the fixture and the product's own re-read, in the fixture.
-   *
-   * Recording the click is what makes the click's own read the one that differs: the listener below
-   * is installed in the **capture** phase on the document, so it runs before the handler that issues
-   * the read, and the route handler therefore cannot be asked about a click that has not happened
-   * yet. Every read before it answers the empty reading, so the empty state stands still however
-   * long the pointer takes, and the 0 → N difference the assertion is about is caused by nothing
-   * else. **The assertion itself is untouched** (`plan-ui-coherence-optimisation/REQ-51`): what was
-   * repaired is when the fixture changes its answer, never what the spec claims.
-   */
-  thenAfterClicking?: string;
 }
 
-/** Where the page records that the control naming the re-read has actually been clicked. */
-const CLICK_RECORD = '__vexelComposeReReadClicked';
-
 interface Stub {
-  /** How many times the project list was read. */
-  reads: () => number;
+  /** How many times the product asked the server to read every value again. */
+  reloadsAsked: () => number;
   /** How many times an aggregated log stream was opened, and for which project. */
   streams: () => string[];
   /** What the page asked to be written back to disk, if anything. */
@@ -179,49 +170,27 @@ interface Stub {
  * silently ran against the operator's own daemon.
  */
 async function stubCompose(page: Page, options: StubOptions): Promise<Stub> {
-  let reads = 0;
+  let reloadsAsked = 0;
   const streams: string[] = [];
   const writes: { project: string; path: string; content: string }[] = [];
 
-  // A `then` reading with no control to hang it on would answer the first reading for ever and the
-  // difference the caller is measuring would never happen — a fixture that has quietly stopped
-  // arranging anything. Refused here rather than discovered in an assertion.
-  if (options.then !== undefined && (options.thenAfterClicking ?? '') === '') {
-    throw new Error('a `then` reading needs `thenAfterClicking`: the control whose click causes the re-read');
-  }
+  // The listing is a value the server holds, so it is delivered on the channel the client reads it
+  // from and asked of no endpoint (…-multiplexed_sse/REQ-39).
+  await overridePushedValues(page, { 'compose-projects': options.projects });
 
+  // What a screen does to obtain a new reading: it asks the server to read again, and the result
+  // reaches it on the channel. Answered here — the daemon is asked for nothing — and the `then`
+  // reading is delivered with it, which is the reading the product's own request caused. Installed
+  // only for the case that measures it, so no other one has its refresh intercepted.
   if (options.then !== undefined) {
-    await page.addInitScript(
-      ([record, label]: [string, string]) => {
-        (window as unknown as Record<string, unknown>)[record] = false;
-        document.addEventListener(
-          'click',
-          (event) => {
-            const control = (event.target as HTMLElement | null)?.closest('button');
-            if (control && (control.textContent ?? '').trim() === label) {
-              (window as unknown as Record<string, unknown>)[record] = true;
-            }
-          },
-          true,
-        );
-      },
-      [CLICK_RECORD, options.thenAfterClicking ?? ''] as [string, string],
-    );
+    const then = options.then;
+    await page.route('**/api/refresh', async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      reloadsAsked += 1;
+      await deliverPushedValue(page, 'compose-projects', then);
+      await route.fulfill({ json: { ok: true, reloaded: ['compose-projects'], skipped: [], failed: [] } });
+    });
   }
-
-  await page.route('**/api/compose/projects', async (route) => {
-    if (route.request().method() !== 'GET') return route.fallback();
-    reads += 1;
-    // Asked of the page rather than counted here: the read that differs is the
-    // one the click caused, and the poll issues reads of its own in between (see
-    // `StubOptions.thenAfterClicking`).
-    const reRead =
-      options.then !== undefined &&
-      (await page
-        .evaluate((record: string) => (window as unknown as Record<string, unknown>)[record] === true, CLICK_RECORD)
-        .catch(() => false));
-    await route.fulfill({ json: reRead && options.then ? options.then : options.projects });
-  });
 
   await page.route('**/api/compose/projects/*/files', async (route) => {
     const name = decodeURIComponent(new URL(route.request().url()).pathname.split('/').at(-2)!);
@@ -278,7 +247,7 @@ async function stubCompose(page: Page, options: StubOptions): Promise<Stub> {
   }
   await page.route('**/api/compose/projects/*/services/*/scale', (route) => route.abort());
 
-  return { reads: () => reads, streams: () => [...streams], writes: () => [...writes] };
+  return { reloadsAsked: () => reloadsAsked, streams: () => [...streams], writes: () => [...writes] };
 }
 
 function content(page: Page): Locator {
@@ -1393,28 +1362,26 @@ test.describe('F11 — no compose project at all (REQ-51)', () => {
   }
 
   // compose-screen.md — "'Check again' (empty state) → re-reads the project list". Measured as a
-  // difference across the click, not as a request count: a control that re-issues the read and
+  // difference across the click, not as a request count: a control that asks for the reading and
   // discards the answer would satisfy the second and not the first.
   //
-  // The claim is exactly as it was written; what changed on 2026-08-16 is the fixture's timing
-  // (`.../classic-table` batch 4, `INT-7`). The stub answers the empty reading to every read until
-  // this control is actually clicked, because the screen re-reads on a 3s poll of its own and the
-  // empty state used to be replaced by rows before the pointer reached it — `scrollIntoViewIfNeeded`
-  // timing out on an element that had left the page. **That failure predates this plan**: reproduced
-  // alone and in worktrees at `c434700` and at `d17e1df`, the build the plan starts from. The
-  // difference the assertion is about is now caused by the click and by nothing else.
+  // The claim is exactly as it was written. What a re-read is has changed under it: the listing
+  // arrives on the channel (…-multiplexed_sse/REQ-39), so the one way this control can obtain one
+  // is to ask the server to read again and be sent the result (…-multiplexed_sse/REQ-23), which is
+  // what the fixture answers. A control that does nothing at all leaves the empty state standing,
+  // and that is what this case then reports.
   test('Check again really re-reads the list', async ({ page }) => {
     test.setTimeout(120_000);
-    const stub = await openScreen(page, VIEWPORTS[0], { projects: [], then: PROJECTS, thenAfterClicking: 'Check again' });
+    const stub = await openScreen(page, VIEWPORTS[0], { projects: [], then: PROJECTS });
 
-    const readsBefore = stub.reads();
+    const askedBefore = stub.reloadsAsked();
     expect(await projectRows(page).count(), 'the empty reading drew a row').toBe(0);
 
     await clickAtItsOwnCentre(page, content(page).locator('.ui-empty-state').getByRole('button', { name: 'Check again' }));
     await expect(projectRows(page)).toHaveCount(PROJECTS.length, { timeout: 20_000 });
-    console.log(`[REQ-51] Check again: ${readsBefore} read(s) before, ${stub.reads()} after — 0 → ${await projectRows(page).count()} project(s)`);
+    console.log(`[REQ-51] Check again: ${askedBefore} reload(s) asked before, ${stub.reloadsAsked()} after — 0 → ${await projectRows(page).count()} project(s)`);
 
-    expect(stub.reads(), 'Check again issued no new read of the project list').toBeGreaterThan(readsBefore);
+    expect(stub.reloadsAsked(), 'Check again asked for no new reading of the project list').toBeGreaterThan(askedBefore);
     expect(await content(page).locator('.ui-empty-state').count(), 'the empty state survived a reading that found projects').toBe(0);
   });
 });

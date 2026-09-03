@@ -3,7 +3,7 @@ import { act } from 'react';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ServerReloadReport } from '../../src/data/refresh-client';
-import { FakeEventSource, channelOpens, deliverReloadEnd, dropChannel } from '../support/live-channel';
+import { FakeEventSource, channelOpens, deliverReloadEnd, dropChannel, liveChannel } from '../support/live-channel';
 
 /**
  * The refresh control's states — INT-17 of `batch-manual-refresh`
@@ -135,6 +135,11 @@ function endReloadOnChannel(): void {
 /** The channel stops delivering, which is what the browser reports when the connection drops. */
 function channelStopsDelivering(): void {
   act(() => dropChannel());
+}
+
+/** How many live channels have been opened; the page opens streams of its own elsewhere. */
+function liveChannels(): number {
+  return FakeEventSource.instances.filter((instance) => instance.url === '/api/live').length;
 }
 
 describe('RefreshControl (app-shell/specs/refresh-control.md)', () => {
@@ -334,6 +339,40 @@ describe('RefreshControl (app-shell/specs/refresh-control.md)', () => {
     await waitFor(() => expect(control).not.toHaveAttribute('aria-busy'));
     expect(toastTitles()).toEqual(['Refreshed']);
     expect(control).toBeEnabled();
+  });
+
+  // …-multiplexed_sse/REQ-18 — "Press while the channel is not delivering → the channel is asked
+  // for again first" (refresh-control.md): it is the one thing the operator can do about a
+  // connection that is down, and it is what this control does about it.
+  it('asks for the channel again when pressed while it is not delivering', async () => {
+    channelStopsDelivering();
+    const dropped = liveChannel();
+    const openedBefore = liveChannels();
+    const control = renderControl();
+
+    await userEvent.click(control);
+
+    expect(dropped.closed, 'the channel that was not delivering was left standing').toBe(true);
+    expect(liveChannels(), 'the press did not ask for the channel again').toBe(openedBefore + 1);
+    await waitFor(() => expect(control).not.toHaveAttribute('aria-busy'));
+  });
+
+  // The other half of REQ-18 — "No poll is kept behind the channel": a press on a channel that is
+  // delivering asks the server to read again and waits for it, and disturbs the channel not at all.
+  it('leaves a delivering channel alone when pressed', async () => {
+    const view = mountedViewRead();
+    const delivering = liveChannel();
+    const openedBefore = liveChannels();
+    const control = renderControl();
+
+    await userEvent.click(control);
+    await waitFor(() => expect(view.calls()).toBe(1));
+    view.end();
+    endReloadOnChannel();
+    await waitFor(() => expect(control).not.toHaveAttribute('aria-busy'));
+
+    expect(delivering.closed, 'a delivering channel was closed by a press').toBe(false);
+    expect(liveChannels(), 'a press on a delivering channel opened a second one').toBe(openedBefore);
   });
 
   // The wait was already parked when the connection went: it ends with it rather than outliving it.

@@ -1,7 +1,9 @@
 /**
- * **The inventories a screen is filled from, answered in the browser** — the
+ * **The inventories a screen is filled from, arranged in the browser** — the
  * builders and their build cache, the contexts, both plugin inventories, and the
- * repositories a registry is browsed for.
+ * repositories a registry is browsed for. The four the server holds are delivered
+ * on the live channel, which is where the client reads them from; the
+ * repositories, which it does not hold, are still answered at their endpoint.
  *
  * Written by batch 2 of
  * `plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table`
@@ -26,6 +28,7 @@
  * depends on one having.
  */
 import type { Page, Route } from '@playwright/test';
+import { overridePushedValues } from './pushed-values.js';
 
 /**
  * Three builders and three cache records, differing in every value whose
@@ -171,8 +174,18 @@ export async function stubTheInventories(page: Page): Promise<void> {
     await route.fulfill({ json });
   };
 
-  await page.route('**/api/builders', (route) => readOnly(route, BUILDERS));
-  await page.route('**/api/builders/cache', (route) => readOnly(route, CACHE_RECORDS));
+  // The four inventories are values the server holds, and the live channel is the client's only
+  // source for one of them
+  // (plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-39),
+  // so they are delivered there instead of being answered at their endpoints — which is what a stub
+  // on an endpoint used to be, and nothing else about it changes (`support/pushed-values.ts`).
+  await overridePushedValues(page, {
+    builders: BUILDERS,
+    'build-cache': CACHE_RECORDS,
+    contexts: CONTEXTS,
+    plugins: { cli: { items: CLI_PLUGINS }, daemon: { items: DAEMON_PLUGINS } },
+  });
+
   await page.route('**/api/builders/cache/*/usage', (route) =>
     readOnly(route, {
       record: CACHE_RECORDS[0],
@@ -183,10 +196,8 @@ export async function stubTheInventories(page: Page): Promise<void> {
   );
   await page.route('**/api/builders/**', (route) => (route.request().method() === 'GET' ? route.fallback() : route.abort()));
 
-  await page.route('**/api/contexts', (route) => readOnly(route, CONTEXTS));
   await page.route('**/api/contexts/*/use', (route) => route.abort());
 
-  await page.route('**/api/plugins', (route) => readOnly(route, { cli: { items: CLI_PLUGINS }, daemon: { items: DAEMON_PLUGINS } }));
   await page.route('**/api/plugins/inspect*', (route) =>
     readOnly(route, {
       ...DAEMON_PLUGINS[0],
