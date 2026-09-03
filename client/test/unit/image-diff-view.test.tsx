@@ -3,6 +3,11 @@ import { act, cleanup, render, screen, waitFor, within } from '@testing-library/
 import userEvent from '@testing-library/user-event';
 import { ImageDiffView } from '../../src/images/ImageDiffView';
 import type { ImageSummary } from '../../src/data/images-client';
+import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+
+// What a screen owes on a failure is the report itself; what becomes of it is the reporting
+// service's own contract (app-shell/specs/error-reporting-service.md).
+vi.mock('../../src/shell/services/ErrorReportingService', () => import('../support/error-reporting-mock'));
 
 // Stands in for the browser's EventSource: the diff comparison stream's only
 // channel (REQ-63, REQ-64), so the tests drive it by emitting events on the
@@ -62,6 +67,7 @@ const DIFF_RESULT = { imageIdA: IMAGE_A.id, imageIdB: IMAGE_B.id, entries: [], a
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
+  forgetReportedFailures();
   fetchMock = vi.fn().mockImplementation((url: string) => {
     const href = String(url);
     if (href.includes('/diff/entries') && !href.includes('path=')) {
@@ -252,6 +258,14 @@ describe('ImageDiffView — diff tree and detail pane (plan-docker_management_ap
     await confirmComparison();
 
     act(() => latestSource().emit('error', { message: 'comparison failed' }));
+    // image-diff-view.md — the failure is reported as a toast carrying the daemon's own message,
+    // the dialog states none and offers no retry of its own
+    // (plan-docker_management_app-inline_error_panels/REQ-5, /REQ-7)
+    await waitFor(() => expect(reportedText()).toMatch(/comparison failed/));
+    // Scoped to the progress dialog: the screen's own body panels are another batch's subject.
+    const progressDialog = document.querySelector('.ui-transfer-progress-dialog__caption')!.closest<HTMLElement>('.ui-modal')!;
+    expect(progressDialog.querySelector('.ui-error-banner'), 'the dialog stated the cause itself').toBeNull();
+    expect(within(progressDialog).queryByRole('button', { name: 'Retry' }), 'the dialog offered a retry of its own').not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument());
     await userEvent.click(screen.getByRole('button', { name: 'Close' }));
 

@@ -26,8 +26,9 @@ as the screen needs them: the map is local data and always there, only the basel
   non-string version, an unknown `comparison`) is treated as a failed read: it is reported through
   `error` and never stored, so the screen can never state a baseline the server did not declare.
 - A failed read leaves the last successfully read baseline in place rather than blanking it: the
-  declared half does not change between reads, and an error banner beside a known baseline says
-  more than an empty panel.
+  declared half does not change between reads, and a baseline that was read says more than a
+  placeholder. The failure itself is told by a toast
+  (plan-docker_management_app-inline_error_panels/REQ-5).
 - A daemon that cannot be reached is **not** a failed read: the server answers with the declared
   baseline and the reason the daemon half is missing, and that answer is stored like any other.
 - The baseline is re-read on every active-context switch: the daemon half belongs to a daemon, not

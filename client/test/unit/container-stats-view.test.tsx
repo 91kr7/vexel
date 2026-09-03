@@ -1,9 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { ContainerStatsView } from '../../src/containers/ContainerStatsView';
 import type { ContainerState, ContainerSummary } from '../../src/data/containers-client';
 import type { ContainerStatsSample } from '../../src/data/container-stats-client';
+import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+import { errorPanels, failedReadPlaceholders } from '../support/failed-read';
+
+// What a view owes on a failure is the report itself; what becomes of it is the reporting
+// service's own contract (app-shell/specs/error-reporting-service.md).
+vi.mock('../../src/shell/services/ErrorReportingService', () => import('../support/error-reporting-mock'));
 
 function containerIn(state: ContainerState): ContainerSummary {
   return {
@@ -154,6 +159,7 @@ function treatmentOf(element: Element, stop: Element): string {
 }
 
 beforeEach(() => {
+  forgetReportedFailures();
   FakeEventSource.instances = [];
   vi.stubGlobal('EventSource', FakeEventSource);
 });
@@ -467,19 +473,19 @@ describe('ContainerStatsView (REQ-32)', () => {
     expect(FakeEventSource.instances).toHaveLength(1);
   });
 
-  // container-stats-view.md — a stream failure is shown verbatim with a retry that reopens the stream
-  it('shows the stream failure verbatim and reopens the stream on retry', async () => {
-    const user = userEvent.setup();
+  // container-stats-view.md — a failed stream is reported as one toast, and the shared placeholder
+  // stands in the tiles' place with no cause and no control
+  // (…-inline_error_panels/REQ-1, /REQ-3, /REQ-4, /REQ-5)
+  it('reports a stream failure and stands the shared placeholder in the tiles’ place', async () => {
     render(<ContainerStatsView container={running} />);
 
     act(() => latest().emit('error', JSON.stringify({ message: 'No such container: container-1' })));
 
-    expect(await screen.findByText('No such container: container-1')).toBeInTheDocument();
-    const opened = FakeEventSource.instances.length;
-
-    await user.click(screen.getByRole('button', { name: 'Retry' }));
-
-    await waitFor(() => expect(FakeEventSource.instances.length).toBe(opened + 1));
+    await waitFor(() => expect(reportedText(), 'the stream failure was not reported').toMatch('No such container: container-1'));
+    expect(screen.queryByText('No such container: container-1'), 'the view named the cause').not.toBeInTheDocument();
+    expect(errorPanels(), 'the view drew a failure panel').toHaveLength(0);
+    expect(failedReadPlaceholders(), 'nothing stands in the tiles’ place').toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Retry' }), 'the view offered a retry of its own').not.toBeInTheDocument();
   });
 
   // container-stats-view.md — leaving the view closes the subscription, which is what stops the daemon-side stream

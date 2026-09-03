@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
-import { EmptyState, ErrorBanner, Grid, MetricReadingPair, MetricTile, Meter, Sparkline, Stack, type MetricTone } from '../ui';
+import { EmptyState, Grid, MetricReadingPair, MetricTile, Meter, Sparkline, Stack, type MetricTone } from '../ui';
 import { useContainerStats } from '../data/use-container-stats';
+import { useFailureReport } from '../shell/services/use-failure-report';
+import { FailedReadEmptyState } from '../shell/FailedReadEmptyState';
 import type { ContainerSummary } from '../data/containers-client';
 
 export interface ContainerStatsViewProps {
@@ -48,7 +50,9 @@ function loadTone(percent: number): MetricTone {
  */
 export function ContainerStatsView({ container }: ContainerStatsViewProps) {
   const streamable = STREAMING_STATES.has(container.state);
-  const { latest, samples, error, restart } = useContainerStats(container.id, { enabled: streamable });
+  const { latest, samples, error } = useContainerStats(container.id, { enabled: streamable });
+
+  useFailureReport('Could not stream the container statistics', error);
 
   const cpuHistory = useMemo(() => samples.map((sample) => sample.cpuPercent), [samples]);
   const memoryHistory = useMemo(() => samples.map((sample) => sample.memoryUsageBytes), [samples]);
@@ -62,9 +66,12 @@ export function ContainerStatsView({ container }: ContainerStatsViewProps) {
 
   return (
     <Stack gap="var(--space-4)">
-      {error ? <ErrorBanner title="Could not stream the container statistics" detail={error} onRetry={restart} /> : null}
       {!latest ? (
-        <EmptyState title="Waiting for the first sample…"  description={null} action={null} />
+        error ? (
+          <FailedReadEmptyState />
+        ) : (
+          <EmptyState title="Waiting for the first sample…" description={null} action={null} />
+        )
       ) : (
         <Stack gap="var(--space-4)">
           <Grid arrangement="even-row">

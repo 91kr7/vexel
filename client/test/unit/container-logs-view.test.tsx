@@ -3,6 +3,12 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ContainerLogsView } from '../../src/containers/ContainerLogsView';
 import type { ContainerSummary } from '../../src/data/containers-client';
+import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+import { errorPanels } from '../support/failed-read';
+
+// What a view owes on a failure is the report itself; what becomes of it is the reporting
+// service's own contract (app-shell/specs/error-reporting-service.md).
+vi.mock('../../src/shell/services/ErrorReportingService', () => import('../support/error-reporting-mock'));
 
 const container: ContainerSummary = {
   id: 'container-1',
@@ -57,6 +63,7 @@ function emit(lines: Array<{ text: string; stream?: 'stdout' | 'stderr'; timesta
 }
 
 beforeEach(() => {
+  forgetReportedFailures();
   FakeEventSource.instances = [];
   vi.stubGlobal('EventSource', FakeEventSource);
 });
@@ -327,19 +334,17 @@ describe('ContainerLogsView (REQ-30, REQ-31)', () => {
     ).toEqual(expect.arrayContaining([...levelMark, ...streamMark]));
   });
 
-  // container-logs-view.md — a stream failure is shown verbatim with a retry that reopens the stream
-  it('shows the stream failure verbatim and reopens the stream on retry', async () => {
-    const user = userEvent.setup();
+  // container-logs-view.md — a failed stream "is reported as one toast", and the view draws no
+  // failure of its own (…-inline_error_panels/REQ-1, /REQ-5)
+  it('reports a stream failure and draws none of it', async () => {
     render(<ContainerLogsView container={container} />);
 
     act(() => latest().emit('error', JSON.stringify({ message: 'No such container: container-1' })));
 
-    expect(await screen.findByText('No such container: container-1')).toBeInTheDocument();
-    const openedStreams = FakeEventSource.instances.length;
-
-    await user.click(screen.getByRole('button', { name: 'Retry' }));
-
-    await waitFor(() => expect(FakeEventSource.instances.length).toBe(openedStreams + 1));
+    await waitFor(() => expect(reportedText(), 'the stream failure was not reported').toMatch('No such container: container-1'));
+    expect(screen.queryByText('No such container: container-1'), 'the view stated the failure itself').not.toBeInTheDocument();
+    expect(errorPanels(), 'the view drew a failure panel').toHaveLength(0);
+    expect(screen.queryByRole('button', { name: 'Retry' }), 'the view offered a retry of its own').not.toBeInTheDocument();
   });
 
   // container-logs-view.md — the end of the stream is indicated when lines had been received

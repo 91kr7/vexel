@@ -3,6 +3,13 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import type { DiskUsageBreakdown, DiskUsageCategory, DiskUsageCategoryId, PruneRunResult } from '../../src/data/system-client';
 import type { DaemonInfo } from '../../src/data/contexts-client';
+import { ReportingServices } from '../support/reporting-services';
+import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+import { errorPanels, failedReadPlaceholders } from '../support/failed-read';
+
+// What a screen owes on a failure is the report itself; what becomes of it is the reporting
+// service's own contract (app-shell/specs/error-reporting-service.md).
+vi.mock('../../src/shell/services/ErrorReportingService', () => import('../support/error-reporting-mock'));
 
 // The screen composes what the operator reads out of the server's facts and
 // decides what can be pruned (system-screen.md): the breakdown hook and the
@@ -24,9 +31,7 @@ vi.mock('../../src/data/use-daemon-info', () => ({
 
 const { SystemScreen } = await import('../../src/system/SystemScreen');
 const { ConfirmationProvider } = await import('../../src/shell/services/ConfirmationService');
-const { ErrorReportingProvider, useErrorReporter } = await import('../../src/shell/services/ErrorReportingService');
 const { ProgressProvider } = await import('../../src/shell/services/ProgressService');
-const { ToastProvider } = await import('../../src/ui');
 
 function category(id: DiskUsageCategoryId, overrides: Partial<DiskUsageCategory> = {}): DiskUsageCategory {
   return { id, sizeBytes: 0, itemCount: 0, items: [], ...overrides };
@@ -88,30 +93,15 @@ function propertyBands(): { label: string; value: string }[] {
   }));
 }
 
-/** Test harness: makes the errors the screen reports to the application observable, apart from the screen's own content. */
-function ReportedErrors() {
-  const { errors } = useErrorReporter();
-  return (
-    <section aria-label="reported errors">
-      {errors.map((error) => (
-        <p key={error.id}>{`${error.title}${error.detail ? `: ${error.detail}` : ''}`}</p>
-      ))}
-    </section>
-  );
-}
-
 function renderScreen() {
   render(
-    <ErrorReportingProvider>
+    <ReportingServices>
       <ProgressProvider>
         <ConfirmationProvider>
-          <ToastProvider>
-            <SystemScreen />
-            <ReportedErrors />
-          </ToastProvider>
+          <SystemScreen />
         </ConfirmationProvider>
       </ProgressProvider>
-    </ErrorReportingProvider>,
+    </ReportingServices>,
   );
 }
 
@@ -128,6 +118,7 @@ function dialog(): HTMLElement {
 }
 
 beforeEach(() => {
+  forgetReportedFailures();
   prune.mockReset();
   refresh.mockReset();
   daemonRefresh.mockReset();
@@ -220,17 +211,20 @@ describe('SystemScreen — the breakdown it shows (plan-docker_management_app/RE
     expect(screen.getByRole('button', { name: 'System prune…' })).toBeDisabled();
   });
 
-  // system-screen.md — "When the reading fails: the failure with a retry; the rest of the screen
-  // stays usable."
-  it('reports a failed reading with a retry', async () => {
-    const user = userEvent.setup();
+  // system-screen.md — a failed disk-usage reading is reported as one toast, and the shared
+  // "could not be loaded" placeholder stands in the card's place, with no cause and no control
+  // (…-inline_error_panels/REQ-1, /REQ-3, /REQ-4, /REQ-5).
+  it('reports a failed reading and stands the shared placeholder in its place', () => {
     diskUsageState = { loaded: true, error: 'daemon unreachable' };
     renderScreen();
 
-    expect(screen.getByText('daemon unreachable')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /retry/i }));
-
-    expect(refresh).toHaveBeenCalled();
+    expect(reportedText(), 'the failed reading was not reported').toMatch(/daemon unreachable/);
+    expect(screen.queryByText('daemon unreachable'), 'the screen named the cause').not.toBeInTheDocument();
+    expect(errorPanels(), 'the screen drew a failure panel').toHaveLength(0);
+    expect(failedReadPlaceholders().length, 'nothing stands in the reading’s place').toBeGreaterThan(0);
+    for (const placeholder of failedReadPlaceholders()) {
+      expect(placeholder.querySelector('button'), 'the placeholder carried a control').toBeNull();
+    }
   });
 
   // system-screen.md — "A standing warning under the rows: destructive actions are always confirmed
@@ -308,8 +302,8 @@ describe('SystemScreen — pruning one category (REQ-96, REQ-97)', () => {
     await user.click(within(row('Stopped containers')).getByRole('button', { name: 'Prune' }));
     await user.click(within(dialog()).getByRole('button', { name: 'Prune' }));
 
-    const reported = await within(screen.getByRole('region', { name: 'reported errors' })).findByText(/buildx is not installed/);
-    expect(reported.textContent).toMatch(/build cache/i);
+    await waitFor(() => expect(reportedText()).toMatch(/buildx is not installed/));
+    expect(reportedText()).toMatch(/build cache/i);
     const summary = document.querySelector<HTMLElement>('.ui-result-summary')!;
     expect(summary.textContent).toMatch(/128/);
     expect(summary.textContent).toMatch(/Build cache/);

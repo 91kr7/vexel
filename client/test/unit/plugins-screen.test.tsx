@@ -4,9 +4,14 @@ import userEvent from '@testing-library/user-event';
 import type { CliPlugin, DaemonPlugin, PluginInspect, PluginListing, PluginPrivilege } from '../../src/data/plugins-client';
 import type { UsePluginsResult } from '../../src/data/use-plugins';
 import { ConfirmationProvider } from '../../src/shell/services/ConfirmationService';
-import { ErrorReportingProvider, useErrorReporter } from '../../src/shell/services/ErrorReportingService';
 import { ProgressProvider } from '../../src/shell/services/ProgressService';
-import { ToastProvider } from '../../src/ui';
+import { ReportingServices } from '../support/reporting-services';
+import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+import { errorPanels, failedReadPlaceholders } from '../support/failed-read';
+
+// What a screen owes on a failure is the report itself; what becomes of it is the reporting
+// service's own contract (app-shell/specs/error-reporting-service.md).
+vi.mock('../../src/shell/services/ErrorReportingService', () => import('../support/error-reporting-mock'));
 
 /**
  * The Plugins screen (`plugins/specs/plugins-screen.md`;
@@ -80,30 +85,15 @@ function inspection(overrides: Partial<PluginInspect> = {}): PluginInspect {
   };
 }
 
-/** Surfaces what the screen reported through the shared error service, so the assertion can read it. */
-function ReportedErrors() {
-  const { errors } = useErrorReporter();
-  return (
-    <>
-      {errors.map((error) => (
-        <p key={error.id}>{`${error.title}${error.detail ? `: ${error.detail}` : ''}`}</p>
-      ))}
-    </>
-  );
-}
-
 function renderScreen() {
   render(
-    <ErrorReportingProvider>
+    <ReportingServices>
       <ProgressProvider>
         <ConfirmationProvider>
-          <ToastProvider>
-            <PluginsScreen />
-            <ReportedErrors />
-          </ToastProvider>
+          <PluginsScreen />
         </ConfirmationProvider>
       </ProgressProvider>
-    </ErrorReportingProvider>,
+    </ReportingServices>,
   );
 }
 
@@ -182,6 +172,7 @@ function emptyStateOf(title: string): HTMLElement | null {
 }
 
 beforeEach(() => {
+  forgetReportedFailures();
   for (const spy of Object.values(hook)) spy.mockReset();
   hook.readPrivileges.mockResolvedValue(ASKED_FOR);
   hook.install.mockResolvedValue(daemonPlugin({ enabled: true }));
@@ -394,18 +385,19 @@ describe('PluginsScreen — the two inventories on the object list (REQ-46)', ()
     }
   });
 
-  // plugins-screen.md — "A failed reading shows the failure with a retry, without hiding the lists."
-  it('shows a failed reading with a retry, keeping both lists', async () => {
+  // plugins-screen.md — the inventory's failure is the live channel not delivering: nothing is
+  // reported and nothing is drawn, and the list left with nothing shows the shared placeholder
+  // (…-inline_error_panels/REQ-1, /REQ-2, /REQ-3, /REQ-13).
+  it('says nothing of a failed reading, and stands the shared placeholder where a list has nothing', () => {
     reading.error = 'the daemon is unreachable';
     reading.cli = { items: [cliPlugin()] };
     renderScreen();
 
-    expect(screen.getByText('the daemon is unreachable')).toBeInTheDocument();
-    expect(list('CLI plugins')).not.toBeNull();
-    expect(panel('Daemon plugins')).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    expect(hook.refresh).toHaveBeenCalled();
+    expect(screen.queryByText('the daemon is unreachable'), 'the screen named the cause').not.toBeInTheDocument();
+    expect(errorPanels(), 'the screen drew a failure panel').toHaveLength(0);
+    expect(reportedText(), 'the lost connection was reported').toBe('');
+    expect(list('CLI plugins'), 'the list that has rows was hidden').not.toBeNull();
+    expect(failedReadPlaceholders(panel('Daemon plugins')), 'the empty list shows no placeholder').toHaveLength(1);
   });
 });
 
@@ -576,7 +568,7 @@ describe('PluginsScreen — installing (REQ-99)', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Grant and install' })).toBeInTheDocument());
     await user.click(screen.getByRole('button', { name: 'Grant and install' }));
 
-    expect(await screen.findByText(/Nothing has been installed\./)).toBeInTheDocument();
+    await waitFor(() => expect(reportedText()).toMatch(/Nothing has been installed\./));
     expect(await screen.findByRole('textbox', { name: 'Plugin reference' })).toHaveValue('vieux/sshfs:latest');
   });
 
@@ -599,7 +591,7 @@ describe('PluginsScreen — installing (REQ-99)', () => {
 
     await user.click(screen.getByRole('button', { name: 'Grant and install' }));
 
-    expect(await screen.findByText(/manifest for someone\/no-such-plugin:v1 not found/)).toBeInTheDocument();
+    await waitFor(() => expect(reportedText()).toMatch(/manifest for someone\/no-such-plugin:v1 not found/));
     expect(hook.install).toHaveBeenCalledWith(expect.objectContaining({ grantedPrivileges: [] }));
   });
 
@@ -612,7 +604,7 @@ describe('PluginsScreen — installing (REQ-99)', () => {
 
     await submitInstallForm(user, 'vieux/sshfs:latest');
 
-    expect(await screen.findByText(/manifest for vieux\/sshfs:latest not found/)).toBeInTheDocument();
+    await waitFor(() => expect(reportedText()).toMatch(/manifest for vieux\/sshfs:latest not found/));
     expect(hook.install).not.toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: 'Grant and install' })).not.toBeInTheDocument();
   });
@@ -672,7 +664,7 @@ describe('PluginsScreen — the row controls (REQ-111)', () => {
 
     await user.click(within(daemonRow('vieux/sshfs:latest')).getByRole('checkbox', { name: 'Enable vieux/sshfs:latest' }));
 
-    expect(await screen.findByText(/failed to create shim task/)).toBeInTheDocument();
+    await waitFor(() => expect(reportedText()).toMatch(/failed to create shim task/));
     expect(within(daemonRow('vieux/sshfs:latest')).getByRole('checkbox')).not.toBeChecked();
     expect(textOf(cellOf('Daemon plugins', daemonRow('vieux/sshfs:latest'), /^STATE$/i))).toBe('disabled');
   });
@@ -722,14 +714,18 @@ describe('PluginsScreen — the row controls (REQ-111)', () => {
   });
 
   // plugins-screen.md — a failed inspection is reported, and no list is hidden by it
-  it('reports a failed inspection without hiding the list', async () => {
+  // plugins-screen.md — "the inspect refusal is a toast too": the panel that used to state it
+  // beside the list is gone (…-inline_error_panels/REQ-1, /REQ-5).
+  it('reports a refused inspection as a failure, drawing none of it beside the list', async () => {
     hook.inspect.mockRejectedValue(new Error('plugin not found'));
     const user = userEvent.setup();
     renderScreen();
 
     await user.click(within(daemonRow('vieux/sshfs:latest')).getByRole('button', { name: 'Inspect' }));
 
-    expect(await screen.findByText(/plugin not found/)).toBeInTheDocument();
+    await waitFor(() => expect(reportedText(), 'the refused inspection was not reported').toMatch(/plugin not found/));
+    expect(screen.queryByText(/plugin not found/), 'the screen stated the refusal itself').not.toBeInTheDocument();
+    expect(errorPanels(), 'the screen drew a failure panel').toHaveLength(0);
     expect(daemonRow('vieux/sshfs:latest')).toBeInTheDocument();
   });
 
@@ -778,7 +774,7 @@ describe('PluginsScreen — the row controls (REQ-111)', () => {
     const modal = dialog.closest('.ui-modal') as HTMLElement;
     await user.click(within(modal).getByRole('button', { name: 'Remove' }));
 
-    expect(await screen.findByText(/plugin vieux\/sshfs:latest is enabled/)).toBeInTheDocument();
+    await waitFor(() => expect(reportedText()).toMatch(/plugin vieux\/sshfs:latest is enabled/));
   });
 
   // plugins-screen.md — "The CLI list is read-only — those plugins are files the operator installs

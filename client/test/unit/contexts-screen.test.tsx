@@ -3,6 +3,7 @@ import { cleanup, render, screen, waitFor, within } from '@testing-library/react
 import userEvent from '@testing-library/user-event';
 import type { ContextSummary } from '../../src/data/contexts-client';
 import type { UseContextsResult } from '../../src/data/use-contexts';
+import { ReportingServices } from '../support/reporting-services';
 
 /**
  * F9 — the contexts screen
@@ -34,9 +35,7 @@ vi.mock('../../src/data/use-contexts', () => ({
 
 const { ContextsScreen } = await import('../../src/contexts/ContextsScreen');
 const { ConfirmationProvider } = await import('../../src/shell/services/ConfirmationService');
-const { ErrorReportingProvider } = await import('../../src/shell/services/ErrorReportingService');
 const { ProgressProvider } = await import('../../src/shell/services/ProgressService');
-const { ToastProvider } = await import('../../src/ui');
 
 /** The eight properties REQ-45 moves off this screen, by the labels the delivered block used. */
 const DAEMON_PROPERTIES = [
@@ -63,15 +62,13 @@ function context(overrides: Partial<ContextSummary> = {}): ContextSummary {
 
 function renderScreen() {
   render(
-    <ErrorReportingProvider>
+    <ReportingServices>
       <ProgressProvider>
         <ConfirmationProvider>
-          <ToastProvider>
-            <ContextsScreen />
-          </ToastProvider>
+          <ContextsScreen />
         </ConfirmationProvider>
       </ProgressProvider>
-    </ErrorReportingProvider>,
+    </ReportingServices>,
   );
 }
 

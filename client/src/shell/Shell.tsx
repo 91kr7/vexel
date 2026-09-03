@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Badge,
   Card,
-  ErrorBanner,
   FooterStatus,
   Frame,
   NavBrand,
@@ -15,10 +14,10 @@ import {
   Stack,
   StatusPill,
   StorageUsageRow,
-  ToastProvider,
   type StatusTone,
 } from '../ui';
 import { clearAnalysisCache, fetchAnalysisCacheUsage } from '../data/preferences-client';
+import { reloadWhenChannelReturns } from '../data/reload-signal';
 import { usePreferences } from '../data/use-preferences';
 import { useContainers } from '../data/use-containers';
 import { useImages } from '../data/use-images';
@@ -44,7 +43,6 @@ import { PlaceholderScreen } from './screens/PlaceholderScreen';
 import { ConfirmationProvider } from './services/ConfirmationService';
 import { useConnectionStatus } from './services/ConnectionStatusService';
 import { useCrossNavigation } from './services/CrossNavigationService';
-import { useErrorReporter } from './services/ErrorReportingService';
 import { useProgress } from './services/ProgressService';
 
 function connectionTone(reachable: boolean, unavailableCapabilities: string[]): StatusTone {
@@ -69,21 +67,12 @@ function formatBytes(bytes: number): string {
 }
 
 /**
- * "Vexel — Docker Control" shell: rail, header, footer stay in place while
- * the content area is replaced by the active screen (REQ-1, REQ-2).
- *
- * Owns the toast and confirmation services itself (screen-local concerns);
- * error-reporting, progress and connection status are supplied by the caller
- * (App), so other code can observe them independently of the shell chrome.
- *
- * It subscribes to no daemon event stream: the stream is the Dashboard's, and
- * the card that repeated it here is gone (plan-ui-coherence-optimisation/REQ-71).
- * `DaemonEventStreamProvider` stays mounted in `App` for the Dashboard and the
- * invalidation registry — one consumer stopped, nothing else moved.
+ * "Vexel — Docker Control" shell: rail, header and footer stay in place while the content area is
+ * replaced by the active screen (REQ-1, REQ-2). It draws no failure of its own and subscribes to no
+ * event stream (…-inline_error_panels/REQ-2, plan-ui-coherence-optimisation/REQ-71).
  */
 export function Shell() {
   const [activeId, setActiveId] = useState(defaultScreenId);
-  const { errors, dismissError } = useErrorReporter();
   const { pending } = useProgress();
   const connection = useConnectionStatus();
   const { preferences, loaded: preferencesLoaded, updatePreferences } = usePreferences();
@@ -93,10 +82,8 @@ export function Shell() {
   const compose = useComposeProjects();
   const contexts = useContexts();
   const [cacheUsage, setCacheUsage] = useState<number | undefined>(undefined);
-  // Set as soon as the restore has had its chance — either because it ran, or
-  // because the operator picked a screen first. Guards both against a second
-  // restore and against a slow preferences read yanking the operator off the
-  // screen they have already chosen (REQ-2, REQ-115).
+  // Guards a second restore, and a slow preferences read yanking the operator off the screen they
+  // have already chosen (REQ-2, REQ-115).
   const screenSettledRef = useRef(false);
 
   // Restore the last active screen once preferences have loaded (REQ-115).
@@ -107,6 +94,9 @@ export function Shell() {
       setActiveId(preferences.lastScreenId);
     }
   }, [preferencesLoaded, preferences.lastScreenId]);
+
+  // A connection that comes back reads every mounted view again (plan-docker_management_app-inline_error_panels/REQ-12).
+  useEffect(() => reloadWhenChannelReturns(), []);
 
   const refreshCacheUsage = useCallback(() => {
     fetchAnalysisCacheUsage()
@@ -127,9 +117,7 @@ export function Shell() {
     [updatePreferences],
   );
 
-  // A cross-reference followed from another screen brings its own screen into
-  // view (REQ-68, REQ-69); the destination screen then reveals the object and
-  // acknowledges the request itself.
+  // A cross-reference followed from another screen brings its own screen into view (REQ-68, REQ-69).
   useEffect(() => {
     if (!crossNavigationRequest) return;
     selectScreen(crossNavigationRequest.screenId);
@@ -146,161 +134,139 @@ export function Shell() {
   const activeContextLabel = contexts.active ? `${contexts.active.name} (${contexts.active.kind})` : '—';
 
   const statusTone: StatusTone = pending.length > 0 ? 'warning' : connectionTone(connection.daemon.reachable, connection.unavailableCapabilities);
+  // The report names which side is gone (plan-docker_management_app-inline_error_panels/REQ-9).
   const statusLabel = pending.length > 0
     ? `${pending.length} pending`
-    : connection.daemon.reachable
-      ? 'Live · daemon events'
-      : 'Daemon unreachable';
+    : connection.unreachable === 'server'
+      ? 'Server unreachable'
+      : connection.unreachable === 'daemon'
+        ? 'Docker daemon unreachable'
+        : 'Live · daemon events';
 
   return (
-    <ToastProvider>
-      <ConfirmationProvider>
-        <Frame
-          rail={
-            <NavRail
-              brand={<NavBrand name="Vexel" tagline="Docker control" />}
-              footer={<FooterStatus label="Active context" value={activeContextLabel} />}
-            >
-              {navGroupOrder.map((group) => (
-                <NavGroup key={group} label={group}>
-                  {screens
-                    .filter((screen) => screen.group === group)
-                    .map((screen) => (
-                      <NavItem
-                        key={screen.id}
-                        glyph={screen.glyph}
-                        label={screen.label}
-                        active={screen.id === activeScreen.id}
-                        count={
-                          screen.id === 'containers'
-                            ? containers.containers.length
-                            : screen.id === 'images-layers'
-                              ? images.images.length
-                              : screen.id === 'compose'
-                                ? compose.projects.length
-                                : screen.id === 'contexts'
-                                  ? contexts.contexts.length
-                                  : undefined
-                        }
-                        onSelect={() => selectScreen(screen.id)}
-                      />
-                    ))}
-                </NavGroup>
-              ))}
-            </NavRail>
-          }
-          header={
-            <PageHeader
-              title={activeScreen.title}
-              description={activeScreen.description}
-              actions={
-                <Row align="center" gap="var(--space-2)" wrap>
-                  {/* First in the group, so the pill and the version badge keep
-                      the coordinates they had (REQ-15). */}
-                  <RefreshControl />
-                  <StatusPill
-                    tone={statusTone}
-                    action={!connection.daemon.reachable ? { label: 'Retry', onClick: connection.retry } : undefined}
-                  >
-                    {statusLabel}
-                  </StatusPill>
-                  {connection.apiVersion ? <Badge>{`Engine API v${connection.apiVersion}`}</Badge> : null}
-                </Row>
-              }
-            />
-          }
-        >
-          <Stack gap="var(--space-5)">
-            {errors.map((error) => (
-              <ErrorBanner key={error.id} title={error.title} detail={error.detail} onDismiss={() => dismissError(error.id)} />
+    <ConfirmationProvider>
+      <Frame
+        rail={
+          <NavRail
+            brand={<NavBrand name="Vexel" tagline="Docker control" />}
+            footer={<FooterStatus label="Active context" value={activeContextLabel} />}
+          >
+            {navGroupOrder.map((group) => (
+              <NavGroup key={group} label={group}>
+                {screens
+                  .filter((screen) => screen.group === group)
+                  .map((screen) => (
+                    <NavItem
+                      key={screen.id}
+                      glyph={screen.glyph}
+                      label={screen.label}
+                      active={screen.id === activeScreen.id}
+                      count={
+                        screen.id === 'containers'
+                          ? containers.containers.length
+                          : screen.id === 'images-layers'
+                            ? images.images.length
+                            : screen.id === 'compose'
+                              ? compose.projects.length
+                              : screen.id === 'contexts'
+                                ? contexts.contexts.length
+                                : undefined
+                      }
+                      onSelect={() => selectScreen(screen.id)}
+                    />
+                  ))}
+              </NavGroup>
             ))}
-            {!connection.daemon.reachable ? (
-              <ErrorBanner
-                title="Daemon unreachable"
-                detail={connection.daemon.cause ?? 'The application could not reach the Docker daemon of the active context.'}
-                onRetry={connection.retry}
-              />
-            ) : null}
-            {activeScreen.id === 'dashboard' ? (
-              <DashboardScreen
-                containers={containers.containers}
-                containersLoaded={containers.loaded}
-                containersError={containers.error}
-                onRefreshContainers={containers.refresh}
-              />
-            ) : activeScreen.id === 'containers' ? (
-              <ContainersScreen
-                containers={containers.containers}
-                loaded={containers.loaded}
-                error={containers.error}
-                onRefresh={containers.refresh}
-                images={images.images}
-                imagesLoaded={images.loaded}
-              />
-            ) : activeScreen.id === 'images-layers' ? (
-              <ImagesScreen images={images.images} loaded={images.loaded} error={images.error} onRefresh={images.refresh} />
-            ) : activeScreen.id === 'compose' ? (
-              <ComposeScreen projects={compose.projects} loaded={compose.loaded} error={compose.error} onRefresh={compose.refresh} />
-            ) : activeScreen.id === 'volumes-networks' ? (
-              <VolumesNetworksScreen networksPanel={<NetworksPanel />} />
-            ) : activeScreen.id === 'registries' ? (
-              <RegistriesScreen />
-            ) : activeScreen.id === 'builders-cache' ? (
-              <BuildersScreen />
-            ) : activeScreen.id === 'contexts' ? (
-              <ContextsScreen />
-            ) : activeScreen.id === 'plugins' ? (
-              <PluginsScreen />
-            ) : activeScreen.id === 'system-prune' ? (
-              <SystemScreen />
-            ) : activeScreen.id === 'raw-console' ? (
-              <RawConsoleScreen />
-            ) : activeScreen.id === 'coverage-matrix' ? (
-              // The shell's own cards keep the home they have always had: the
-              // last entry of the navigation. CLI availability (REQ-110) and
-              // the analysis cache's size and clear action (REQ-113) have no
-              // other surface in the application. The daemon event stream had
-              // one — the Dashboard's, which it repeated verbatim — and it is
-              // stated there alone (plan-ui-coherence-optimisation/REQ-71).
-              // Every section here is titled by the one section-header
-              // treatment (plan-ui-coherence-optimisation/REQ-70).
-              <>
-                <AboutNotice />
-                <Card>
-                  <SectionHeader
-                    title="CLI availability"
-                    description={
-                      connection.unavailableCapabilities.length > 0
-                        ? connection.unavailableCapabilities.join(' ')
-                        : 'docker, compose and buildx are all available.'
-                    }
-                  />
-                  <Row gap="var(--space-3)" wrap>
-                    <Badge tone={connection.cli.docker.available ? 'success' : 'danger'}>{cliBadgeLabel('docker', connection.cli.docker)}</Badge>
-                    <Badge tone={connection.cli.compose.available ? 'success' : 'danger'}>{cliBadgeLabel('compose', connection.cli.compose)}</Badge>
-                    <Badge tone={connection.cli.buildx.available ? 'success' : 'danger'}>{cliBadgeLabel('buildx', connection.cli.buildx)}</Badge>
-                  </Row>
-                </Card>
-                <Card>
-                  <SectionHeader title="Local storage" />
-                  <StorageUsageRow
-                    label="Analysis cache"
-                    description="Cached image extraction and layer-analysis results"
-                    sizeLabel={cacheUsage === undefined ? '—' : formatBytes(cacheUsage)}
-                    action={{ label: 'Clear', onClick: handleClearCache, disabled: !cacheUsage }}
-                  />
-                </Card>
-                <CoverageMatrixScreen />
-              </>
-            ) : (
-              // No screen of the navigation data is left without its own
-              // content; this is the fallback for an id that names none of
-              // them.
-              <PlaceholderScreen screenLabel={activeScreen.label} />
-            )}
-          </Stack>
-        </Frame>
-      </ConfirmationProvider>
-    </ToastProvider>
+          </NavRail>
+        }
+        header={
+          <PageHeader
+            title={activeScreen.title}
+            description={activeScreen.description}
+            actions={
+              <Row align="center" gap="var(--space-2)" wrap>
+                {/* First in the group, so the pill and the version badge keep
+                    the coordinates they had (REQ-15). */}
+                <RefreshControl />
+                <StatusPill
+                  tone={statusTone}
+                  action={!connection.daemon.reachable ? { label: 'Retry', onClick: connection.retry } : undefined}
+                >
+                  {statusLabel}
+                </StatusPill>
+                {connection.apiVersion ? <Badge>{`Engine API v${connection.apiVersion}`}</Badge> : null}
+              </Row>
+            }
+          />
+        }
+      >
+        <Stack gap="var(--space-5)">
+          {activeScreen.id === 'dashboard' ? (
+            <DashboardScreen containers={containers.containers} containersLoaded={containers.loaded} containersError={containers.error} />
+          ) : activeScreen.id === 'containers' ? (
+            <ContainersScreen
+              containers={containers.containers}
+              loaded={containers.loaded}
+              error={containers.error}
+              onRefresh={containers.refresh}
+              images={images.images}
+              imagesLoaded={images.loaded}
+            />
+          ) : activeScreen.id === 'images-layers' ? (
+            <ImagesScreen images={images.images} loaded={images.loaded} error={images.error} onRefresh={images.refresh} />
+          ) : activeScreen.id === 'compose' ? (
+            <ComposeScreen projects={compose.projects} loaded={compose.loaded} error={compose.error} onRefresh={compose.refresh} />
+          ) : activeScreen.id === 'volumes-networks' ? (
+            <VolumesNetworksScreen networksPanel={<NetworksPanel />} />
+          ) : activeScreen.id === 'registries' ? (
+            <RegistriesScreen />
+          ) : activeScreen.id === 'builders-cache' ? (
+            <BuildersScreen />
+          ) : activeScreen.id === 'contexts' ? (
+            <ContextsScreen />
+          ) : activeScreen.id === 'plugins' ? (
+            <PluginsScreen />
+          ) : activeScreen.id === 'system-prune' ? (
+            <SystemScreen />
+          ) : activeScreen.id === 'raw-console' ? (
+            <RawConsoleScreen />
+          ) : activeScreen.id === 'coverage-matrix' ? (
+            // CLI availability (REQ-110) and the analysis cache (REQ-113) have no other surface in
+            // the application, and keep this one (plan-ui-coherence-optimisation/REQ-70, /REQ-71).
+            <>
+              <AboutNotice />
+              <Card>
+                <SectionHeader
+                  title="CLI availability"
+                  description={
+                    connection.unavailableCapabilities.length > 0
+                      ? connection.unavailableCapabilities.join(' ')
+                      : 'docker, compose and buildx are all available.'
+                  }
+                />
+                <Row gap="var(--space-3)" wrap>
+                  <Badge tone={connection.cli.docker.available ? 'success' : 'danger'}>{cliBadgeLabel('docker', connection.cli.docker)}</Badge>
+                  <Badge tone={connection.cli.compose.available ? 'success' : 'danger'}>{cliBadgeLabel('compose', connection.cli.compose)}</Badge>
+                  <Badge tone={connection.cli.buildx.available ? 'success' : 'danger'}>{cliBadgeLabel('buildx', connection.cli.buildx)}</Badge>
+                </Row>
+              </Card>
+              <Card>
+                <SectionHeader title="Local storage" />
+                <StorageUsageRow
+                  label="Analysis cache"
+                  description="Cached image extraction and layer-analysis results"
+                  sizeLabel={cacheUsage === undefined ? '—' : formatBytes(cacheUsage)}
+                  action={{ label: 'Clear', onClick: handleClearCache, disabled: !cacheUsage }}
+                />
+              </Card>
+              <CoverageMatrixScreen />
+            </>
+          ) : (
+            // The fallback for an active id naming no screen at all.
+            <PlaceholderScreen screenLabel={activeScreen.label} />
+          )}
+        </Stack>
+      </Frame>
+    </ConfirmationProvider>
   );
 }

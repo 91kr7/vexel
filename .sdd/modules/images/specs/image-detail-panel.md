@@ -48,8 +48,8 @@ Description:
   else, exactly as the container panel's header does. That is the intended end state, not an
   unfinished region.
 Shows:
-- An `EmptyState` while loading or when no inspect data is available; an `ErrorBanner` with retry on
-  failure.
+- An `EmptyState` while loading or when no inspect data is available, and the shared "could not be
+  loaded" placeholder when the inspect read failed.
 Actions (dismissal):
 - `Escape` closes the panel, from wherever the focus sits inside its own contents, and the point of
   interaction is left on the images list region rather than on the removed subtree or on the
@@ -71,12 +71,17 @@ Actions (dismissal):
 - Nothing appears in the four buttons' place: no link, no chevron, no tab and no keyboard hint.
 - **The file states no column count, no track template, no width, no `style` and no CSS import**, and
   no section's default open/closed state changes with the arrangement.
+- **No failure panel** (plan-docker_management_app-inline_error_panels/REQ-1): a failed inspect read
+  is reported as one toast through `useFailureReport`, and where it leaves nothing to show the
+  shared "could not be loaded" placeholder stands in its place — no cause named, no control
+  (…/REQ-3). The retry is the header's; none is offered here (…/REQ-4).
 
 ## Dependencies
 
 - ui-library: DetailPanel, DefinitionList, CollapsibleSection, CodeViewer, SectionHeader,
-  EmptyState, ErrorBanner, Stack
+  EmptyState, Stack
 - useImageInspect
+- app-shell: useFailureReport, FailedReadEmptyState
 
 ## Requirements served
 
@@ -102,3 +107,6 @@ Actions (dismissal):
 - plan-ui-coherence-optimisation/REQ-59
 - plan-ui-coherence-optimisation/REQ-60
 - plan-ui-coherence-optimisation/REQ-61
+- plan-docker_management_app-inline_error_panels/REQ-1
+- plan-docker_management_app-inline_error_panels/REQ-3
+- plan-docker_management_app-inline_error_panels/REQ-4

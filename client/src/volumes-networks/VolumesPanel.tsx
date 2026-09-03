@@ -9,7 +9,6 @@ import {
   DataTable,
   DetailPanel,
   EmptyState,
-  ErrorBanner,
   FormDialog,
   FormField,
   KeyValueEditor,
@@ -27,6 +26,8 @@ import { createVolume, pruneVolumes, removeVolume, type VolumeSummary } from '..
 import { useVolumeInspect } from '../data/use-volume-inspect';
 import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
+import { useFailureReport } from '../shell/services/use-failure-report';
+import { FailedReadEmptyState } from '../shell/FailedReadEmptyState';
 import { useProgress } from '../shell/services/ProgressService';
 
 export interface VolumesPanelProps {
@@ -71,7 +72,9 @@ function pairsToRecord(pairs: KeyValuePair[]): Record<string, string> {
  * applies to it.
  */
 function VolumeDetail({ volume, onClose }: { volume: VolumeSummary; onClose: () => void }) {
-  const { inspect, loaded, error, refresh } = useVolumeInspect(volume.name);
+  const { inspect, loaded, error } = useVolumeInspect(volume.name);
+
+  useFailureReport('Could not load volume details', error);
 
   return (
     // The row that opened the panel closes it, so it presents no close control
@@ -98,9 +101,10 @@ function VolumeDetail({ volume, onClose }: { volume: VolumeSummary; onClose: () 
       propertiesContentClass="long-single-line"
     >
       <Stack gap="var(--space-4)">
-        {error ? <ErrorBanner title="Could not load volume details" detail={error} onRetry={refresh} /> : null}
         {!inspect ? (
-          loaded ? (
+          error ? (
+            <FailedReadEmptyState />
+          ) : loaded ? (
             <EmptyState
               title="No inspect data available"
               description="The daemon returned no details for this volume."
@@ -255,7 +259,6 @@ export function VolumesPanel({ volumes, loaded, error, onRefresh }: VolumesPanel
         primaryAction={{ label: 'Create volume…', onClick: openCreate }}
         destructiveAction={{ label: 'Prune', onClick: handlePrune, disabled: volumes.length === 0 }}
       />
-      {error ? <ErrorBanner title="Could not load volumes" detail={error} onRetry={onRefresh} /> : null}
       <Card padding="none">
         <DataTable
           columns={columns}
@@ -266,7 +269,9 @@ export function VolumesPanel({ volumes, loaded, error, onRefresh }: VolumesPanel
           expandedRowKey={selectedName}
           renderExpanded={(volume) => <VolumeDetail volume={volume} onClose={() => setSelectedName(undefined)} />}
           emptyState={
-            loaded ? (
+            error ? (
+              <FailedReadEmptyState />
+            ) : loaded ? (
               <EmptyState
                 title="No volumes"
                 description="A volume keeps data alive independently of the containers that mount it."

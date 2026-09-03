@@ -48,7 +48,6 @@ Shows:
   prefixed, trimmed or rewritten, and the search goes on finding and marking its matches over the
   colouring.
 - the search matches highlighted, with the current match emphasized and brought into view.
-- a failure banner carrying the stream error message verbatim, with a retry, when the stream fails.
 - a muted "Stream ended." indication when the daemon closed the output while lines had been
   received; when no line was ever received, the empty state says so instead.
 
@@ -66,7 +65,6 @@ Actions:
   the buffer off this surface: the region is virtualised, so a hand-selection captures the rendered
   window and never the buffer (`plan-docker_management_app-remove_copy_controls`/REQ-20, which
   records that as an accepted cost).
-- retry on the failure banner → reopens the stream.
 
 ## Rules and invariants
 
@@ -88,14 +86,18 @@ Actions:
   this view.
 - Every control is where the operator can reach it: each is hit-testable at the centre of its own
   visible box, and none of them is behind another (`plan-ui-coherence-optimisation/REQ-62`).
+- **No failure panel** (plan-docker_management_app-inline_error_panels/REQ-1): a failed log stream
+  is reported as one toast through `useFailureReport`, and where it leaves nothing to show the
+  shared "could not be loaded" placeholder stands in its place — no cause named, no control
+  (…/REQ-3). The retry is the header's; none is offered here (…/REQ-4).
 
 ## Dependencies
 
 - useContainerLogs
 - Log level reading (`log-level.md`)
 - ui-library: LogStream (its `toolbar` slot in the composer form, and its `fill` mode), ControlGroup,
-  SegmentedControl, TailSizeSelector, TimeRangeField, StreamSearchField, Toggle, Stack, MetaCell,
-  ErrorBanner
+  SegmentedControl, TailSizeSelector, TimeRangeField, StreamSearchField, Toggle, Stack, MetaCell
+- app-shell: useFailureReport
 
 ## Requirements served
 
@@ -108,3 +110,6 @@ Actions:
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-29
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-30
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-31
+- plan-docker_management_app-inline_error_panels/REQ-1
+- plan-docker_management_app-inline_error_panels/REQ-3
+- plan-docker_management_app-inline_error_panels/REQ-4

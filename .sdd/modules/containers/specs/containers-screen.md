@@ -54,7 +54,8 @@ Shows:
   then — set apart as a group and in the destructive tone — `Kill` (hint `SIGKILL`) and `Remove`
   (hint `rm`). There is no `Duplicate config`. `Kill` is enabled for `running`, `paused` and
   `restarting` and disabled elsewhere with its reason; the other three are enabled in every state.
-- An empty/loading state in the list's place when there are no matching containers.
+- An empty/loading state in the list's place when there are no matching containers, and the
+  shared "could not be loaded" placeholder when the listing itself could not be read.
 Actions:
 - Any non-destructive lifecycle action (start, stop, pause, unpause, restart) runs immediately
   through `useProgress().run` and re-reads the list on completion.
@@ -198,17 +199,23 @@ Actions:
   column-typography parity with the Images table stopped applying to a screen with no table, and
   what it does still share with it is its **material** — the same surface, hover and selected
   tokens, taken by reference through `Surface` (see `surface.md`).
+- **No failure panel, and the lost connection is not told here**
+  (plan-docker_management_app-inline_error_panels/REQ-1, …/REQ-2, …/REQ-13): the listing's failure
+  state is raised only while the live channel is not delivering, so it raises no toast either. With
+  nothing to list, the shared "could not be loaded" placeholder stands in the list's place — one
+  wording for every cause, no cause named and no control (…/REQ-3). The retry is the header's; none
+  is offered here (…/REQ-4).
 
 ## Dependencies
 
-- ui-library: ScreenToolbar, SearchField, FilterChips, TextField, Button, IconButton, ErrorBanner,
+- ui-library: ScreenToolbar, SearchField, FilterChips, TextField, Button, IconButton,
   EmptyState (in the list's place, and in the dialog's when its container has gone), Row, Stack, Grid
   (as the list's dismissal focus target) and GridSpan, Modal (at `size="large"`, with its fluid
   width, its stable height, its composed title, its close control and its focus return),
   triggerDownload, useToast
 - Containers client, Container transfer client, Images client (`ImageSummary`), useStatsSubscription
 - ContainerCard, ContainerIdentityHeader, ContainerDetailPanel, ContainerCreateForm
-- app-shell: ConfirmationService, ProgressService, ErrorReportingService
+- app-shell: ConfirmationService, ProgressService, ErrorReportingService, FailedReadEmptyState
 
 ## Requirements served
 
@@ -285,3 +292,8 @@ Actions:
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-7
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-8
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-9
+- plan-docker_management_app-inline_error_panels/REQ-1
+- plan-docker_management_app-inline_error_panels/REQ-2
+- plan-docker_management_app-inline_error_panels/REQ-3
+- plan-docker_management_app-inline_error_panels/REQ-4
+- plan-docker_management_app-inline_error_panels/REQ-13

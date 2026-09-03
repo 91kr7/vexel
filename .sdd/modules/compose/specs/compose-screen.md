@@ -93,6 +93,17 @@ Actions:
   and `DetailPanel`'s across the interface.
 - Nothing on this screen is laid out beside anything else: the panel is the content column's width
   (1012 / 852 / 229px measured), and so are the editor and the log stream inside it.
+- **No failure panel, and the lost connection is not told here**
+  (plan-docker_management_app-inline_error_panels/REQ-1, …/REQ-2, …/REQ-13): the listing's failure
+  state is raised only while the live channel is not delivering, so it raises no toast either. With
+  nothing to list, the shared "could not be loaded" placeholder stands in the list's place — one
+  wording for every cause, no cause named and no control (…/REQ-3). The retry is the header's; none
+  is offered here (…/REQ-4).
+- **No failure panel** (plan-docker_management_app-inline_error_panels/REQ-1): a failed compose-file
+  read, and a failed aggregated log stream, are each reported as one toast through
+  `useFailureReport`, and where either leaves nothing to show the shared "could not be loaded"
+  placeholder stands in the panel's place — no cause named, no control (…/REQ-3). The retry is the
+  header's; none is offered here (…/REQ-4).
 
 ## Decisions recorded
 
@@ -147,10 +158,11 @@ Actions:
 
 - ui-library: DataTable (the projects list, and the `nested` service list inside every project row),
   DetailPanel, ActionButtonGroup, TwoLineCell, MetaCell, BadgeListCell, CodeEditor, Stepper,
-  LogStream, Tabs, Badge, Button, ErrorBanner, EmptyState, Card (unpadded, holding the list alone),
+  LogStream, Tabs, Badge, Button, EmptyState, Card (unpadded, holding the list alone),
   SectionHeader, Stack, Row
 - compose: useComposeFile, useComposeLifecycle, useComposeLogs
-- app-shell: ConfirmationService, ErrorReportingService, Toast
+- app-shell: ConfirmationService, ErrorReportingService, Toast, useFailureReport,
+  FailedReadEmptyState
 
 ## Requirements served
 
@@ -165,3 +177,8 @@ Actions:
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-19
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-39
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40
+- plan-docker_management_app-inline_error_panels/REQ-1
+- plan-docker_management_app-inline_error_panels/REQ-2
+- plan-docker_management_app-inline_error_panels/REQ-3
+- plan-docker_management_app-inline_error_panels/REQ-4
+- plan-docker_management_app-inline_error_panels/REQ-13

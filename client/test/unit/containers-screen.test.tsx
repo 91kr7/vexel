@@ -4,9 +4,14 @@ import userEvent from '@testing-library/user-event';
 import { ContainersScreen } from '../../src/containers/ContainersScreen';
 import type { ContainerSummary } from '../../src/data/containers-client';
 import { ConfirmationProvider } from '../../src/shell/services/ConfirmationService';
-import { ErrorReportingProvider, useErrorReporter } from '../../src/shell/services/ErrorReportingService';
 import { ProgressProvider } from '../../src/shell/services/ProgressService';
-import { ToastProvider } from '../../src/ui';
+import { ReportingServices } from '../support/reporting-services';
+import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+import { errorPanels, failedReadPlaceholders } from '../support/failed-read';
+
+// What a screen owes on a failure is the report itself; what becomes of it is the reporting
+// service's own contract (app-shell/specs/error-reporting-service.md).
+vi.mock('../../src/shell/services/ErrorReportingService', () => import('../support/error-reporting-mock'));
 
 function makeContainer(overrides: Partial<ContainerSummary> = {}): ContainerSummary {
   return {
@@ -42,29 +47,15 @@ function inspectFor(id: string) {
   };
 }
 
-function ReportedErrors() {
-  const { errors } = useErrorReporter();
-  return (
-    <>
-      {errors.map((error) => (
-        <p key={error.id}>{`${error.title}${error.detail ? `: ${error.detail}` : ''}`}</p>
-      ))}
-    </>
-  );
-}
-
 function screenTree(containers: ContainerSummary[], onRefresh: () => void) {
   return (
-    <ErrorReportingProvider>
+    <ReportingServices>
       <ProgressProvider>
         <ConfirmationProvider>
-          <ToastProvider>
-            <ContainersScreen containers={containers} loaded onRefresh={onRefresh} />
-            <ReportedErrors />
-          </ToastProvider>
+          <ContainersScreen containers={containers} loaded onRefresh={onRefresh} />
         </ConfirmationProvider>
       </ProgressProvider>
-    </ErrorReportingProvider>
+    </ReportingServices>
   );
 }
 
@@ -80,6 +71,7 @@ function renderScreen(containers: ContainerSummary[], onRefresh = vi.fn()) {
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
+  forgetReportedFailures();
   fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 204, json: () => Promise.resolve({}) });
   vi.stubGlobal('fetch', fetchMock);
 });
@@ -479,7 +471,7 @@ describe('ContainersScreen — running lifecycle actions (REQ-20, REQ-21, REQ-22
 
     await user.click(screen.getByRole('button', { name: 'Stop' }));
 
-    expect(await screen.findByText(/container is not running/)).toBeInTheDocument();
+    await waitFor(() => expect(reportedText()).toMatch(/container is not running/));
     expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument();
   });
 
@@ -492,7 +484,7 @@ describe('ContainersScreen — running lifecycle actions (REQ-20, REQ-21, REQ-22
     await user.click(entries[2]);
     await user.click(screen.getByRole('button', { name: 'kill' }));
 
-    expect(await screen.findByText(/cannot kill container/)).toBeInTheDocument();
+    await waitFor(() => expect(reportedText()).toMatch(/cannot kill container/));
   });
 });
 
@@ -1599,5 +1591,42 @@ describe('ContainersScreen — the list is a stack of cards (REQ-1)', () => {
 
     const names = cards().map((card) => card.querySelector('.ui-section-header__title')?.textContent ?? '');
     expect(names).toEqual(['zulu', 'alpha']);
+  });
+});
+
+// containers-screen.md — the listing's failure state is raised only while the live channel is not
+// delivering: nothing is reported, nothing is drawn, and the shared "could not be loaded"
+// placeholder stands in the list's place
+// (…-inline_error_panels/REQ-1, /REQ-2, /REQ-3, /REQ-4, /REQ-13)
+describe('ContainersScreen — the listing that could not be read', () => {
+  it('stands the shared placeholder in the list’s place, naming no cause and offering no control', () => {
+    render(
+      <ReportingServices>
+        <ProgressProvider>
+          <ConfirmationProvider>
+            <ContainersScreen containers={[]} loaded error="the live channel is not delivering" onRefresh={vi.fn()} />
+          </ConfirmationProvider>
+        </ProgressProvider>
+      </ReportingServices>,
+    );
+
+    expect(failedReadPlaceholders(), 'nothing stands in the list’s place').toHaveLength(1);
+    expect(screen.queryByText('the live channel is not delivering'), 'the screen named the cause').not.toBeInTheDocument();
+    expect(errorPanels(), 'the screen drew a failure panel').toHaveLength(0);
+    expect(failedReadPlaceholders()[0].querySelector('button'), 'the placeholder carried a control').toBeNull();
+  });
+
+  it('raises no report for a listing the live channel is not delivering', () => {
+    render(
+      <ReportingServices>
+        <ProgressProvider>
+          <ConfirmationProvider>
+            <ContainersScreen containers={[]} loaded error="the live channel is not delivering" onRefresh={vi.fn()} />
+          </ConfirmationProvider>
+        </ProgressProvider>
+      </ReportingServices>,
+    );
+
+    expect(reportedText(), 'the lost connection was reported').toBe('');
   });
 });

@@ -1,10 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { LayerEfficiencyView } from '../../src/images/LayerEfficiencyView';
 import { DataTable } from '../../src/ui';
 import type { ImageSummary } from '../../src/data/images-client';
 import type { LayerSignals } from '../../src/data/image-signals-client';
+import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+
+// What a screen owes on a failure is the report itself; what becomes of it is the reporting
+// service's own contract (app-shell/specs/error-reporting-service.md).
+vi.mock('../../src/shell/services/ErrorReportingService', () => import('../support/error-reporting-mock'));
 
 // Stands in for the browser's EventSource: the signals-analysis stream's only channel (REQ-65,
 // REQ-66, REQ-67, sharing the changeset job's progress shape, REQ-51), so the tests drive it by
@@ -101,6 +106,7 @@ function makeSignals(overrides: Partial<LayerSignals> = {}): LayerSignals {
 }
 
 beforeEach(() => {
+  forgetReportedFailures();
   FakeEventSource.instances = [];
   vi.stubGlobal('EventSource', FakeEventSource);
 });
@@ -154,6 +160,24 @@ describe('LayerEfficiencyView — heuristic disclaimer and pre-analysis state (p
 
     expect(screen.queryByRole('heading', { name: `Confirm: ${image.tags[0]}` })).not.toBeInTheDocument();
     expect(FakeEventSource.instances).toHaveLength(0);
+  });
+
+  // layer-efficiency-view.md — a failed analysis is reported as a toast carrying the daemon's own
+  // message; the dialog states none and offers no retry of its own
+  // (plan-docker_management_app-inline_error_panels/REQ-5, /REQ-7)
+  it('reports a failed analysis and states nothing about it in the dialog', async () => {
+    render(<LayerEfficiencyView image={makeImage()} open onClose={vi.fn()} onNavigateToLayer={vi.fn()} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Analyze layer efficiency…' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Analyze' }));
+
+    act(() => latestSource().emit('error', { message: 'the export stream ended early' }));
+
+    await waitFor(() => expect(reportedText()).toMatch(/the export stream ended early/));
+    // Scoped to the progress dialog: the screen's own body panels are another batch's subject.
+    const progressDialog = document.querySelector('.ui-transfer-progress-dialog__caption')!.closest<HTMLElement>('.ui-modal')!;
+    expect(progressDialog.querySelector('.ui-error-banner'), 'the dialog stated the cause itself').toBeNull();
+    expect(within(progressDialog).queryByRole('button', { name: 'Retry' }), 'the dialog offered a retry of its own').not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
   });
 
   // layer-efficiency-view.md — the analysis dialog is one of the four opted into the shared

@@ -25,7 +25,7 @@ Shows:
   daemon of the active context (REQ-94's reading, reused), in the product's property grid: label →
   value bands whose column count follows the card's own width. While it is being read: a
   placeholder; when the daemon answered but stated none of them: that, with a way to read it again;
-  when it fails: the failure with a retry.
+  when it fails: the shared "could not be loaded" placeholder.
 - Reclaim disk space: the total reclaimable size in the header, then one row per category —
   "Stopped containers", "Dangling images", "Unused volumes", "Unused networks", "Build cache" —
   each with a line saying what it holds, its size, and a red "Prune" action:
@@ -89,14 +89,20 @@ Actions:
 - The standing warning is one style used twice in the product — here and on Raw console — and is
   not restyled, absorbed into a header or replaced by an empty result
   (plan-ui-coherence-optimisation/REQ-74).
+- **No failure panel** (plan-docker_management_app-inline_error_panels/REQ-1): a failed daemon
+  reading, and a failed disk-usage reading, are each reported as one toast through
+  `useFailureReport`, and where either leaves nothing to show the shared "could not be loaded"
+  placeholder stands in that card's place — no cause named, no control (…/REQ-3). The retry is the
+  header's; none is offered here (…/REQ-4).
 
 ## Dependencies
 
 - ui-library: Grid, Card, SectionHeader, ScreenToolbar, Stack, Button, StorageUsageRow,
-  ResultSummary, Callout, DefinitionList, EmptyState, ErrorBanner, useToast
+  ResultSummary, Callout, DefinitionList, EmptyState, useToast
 - system: useDiskUsage, System client
 - contexts: useDaemonInfo
-- app-shell: ConfirmationService (`confirm`, `confirmScope`), ErrorReportingService, ProgressService
+- app-shell: ConfirmationService (`confirm`, `confirmScope`), ErrorReportingService, ProgressService,
+  useFailureReport, FailedReadEmptyState
 
 ## Requirements served
 
@@ -106,3 +112,6 @@ Actions:
 - plan-ui-coherence-optimisation/REQ-73
 - plan-ui-coherence-optimisation/REQ-74
 - plan-ui-coherence-optimisation/REQ-75
+- plan-docker_management_app-inline_error_panels/REQ-1
+- plan-docker_management_app-inline_error_panels/REQ-3
+- plan-docker_management_app-inline_error_panels/REQ-4

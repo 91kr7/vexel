@@ -4,7 +4,6 @@ import {
   Button,
   DataTable,
   EmptyState,
-  ErrorBanner,
   LOAD_ATTENTION_PERCENT,
   MetaCell,
   Row,
@@ -12,6 +11,8 @@ import {
   type DataTableColumn,
 } from '../ui';
 import { useContainerProcesses } from '../data/use-container-processes';
+import { useFailureReport } from '../shell/services/use-failure-report';
+import { FailedReadEmptyState } from '../shell/FailedReadEmptyState';
 import type { ContainerProcess } from '../data/container-stats-client';
 import type { ContainerSummary } from '../data/containers-client';
 
@@ -33,6 +34,8 @@ function formatPercent(value: number | undefined): string {
  */
 export function ContainerProcessesView({ container }: ContainerProcessesViewProps) {
   const { processes, loaded, loading, error, refresh } = useContainerProcesses(container.id, { running: RUNNING_STATES.has(container.state) });
+
+  useFailureReport('Could not list the container processes', error);
 
   const columns = useMemo<DataTableColumn<ContainerProcess>[]>(
     () => [
@@ -81,19 +84,22 @@ export function ContainerProcessesView({ container }: ContainerProcessesViewProp
             {loading ? 'Refreshing…' : 'Refresh'}
           </Button>
         </Row>,
-        error ? <ErrorBanner key="error" title="Could not list the container processes" detail={error} onRetry={refresh} /> : null,
       ]}
       fill={
-        error ? null : (
-          <DataTable
-            columns={columns}
-            rows={processes}
-            rowKey={(process) => String(process.pid)}
-            rowHeight={40}
-            fill
-            emptyState={<EmptyState title={loaded ? 'No process is running in this container' : 'Reading the process list…'} description={null} action={null} />}
-          />
-        )
+        <DataTable
+          columns={columns}
+          rows={processes}
+          rowKey={(process) => String(process.pid)}
+          rowHeight={40}
+          fill
+          emptyState={
+            error ? (
+              <FailedReadEmptyState />
+            ) : (
+              <EmptyState title={loaded ? 'No process is running in this container' : 'Reading the process list…'} description={null} action={null} />
+            )
+          }
+        />
       }
     />
   );

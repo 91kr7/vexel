@@ -13,12 +13,12 @@ tile and every row leading to the screen that owns what it names.
 ## Contract
 
 ```markdown
-<DashboardScreen containers containersLoaded containersError? onRefreshContainers />
+<DashboardScreen containers containersLoaded containersError? />
 ```
 
 - `containers` — the live container list, passed in by the shell rather than read a second time
-  here; `containersLoaded`, `containersError` and `onRefreshContainers` are that list's own state
-  and retry.
+  here; `containersLoaded` and `containersError` are that list's own state, and the screen reads
+  them only to choose what the activity list shows when it has no row.
 
 Description:
 
@@ -61,8 +61,9 @@ Shows:
     (`plan-ui-coherence-optimisation/REQ-68`).
 - **Daemon event stream** — the most recent daemon events, newest first, timestamped in local time;
   with none yet, "No daemon events yet.".
-- a failed overview reading, and a failed container reading, each show their own error banner with
-  the message verbatim and a retry.
+- the shared "could not be loaded" placeholder in the activity list's place when the container
+  listing could not be read, and in the disk-usage breakdown's place when the overview could not be
+  read.
 
 Actions:
 
@@ -115,15 +116,20 @@ Navigation:
 - The daemon event stream is presented **here and nowhere else** in the application
   (`plan-ui-coherence-optimisation/REQ-71`): this screen is the stream's one home, and the shell
   provides the subscription it reads.
+- **No failure panel** (plan-docker_management_app-inline_error_panels/REQ-1): a failed overview
+  reading is reported as one toast through `useFailureReport`; a failed container listing is the
+  live channel not delivering and raises nothing at all (…/REQ-2, …/REQ-13). Where either leaves a
+  panel with nothing to show, the shared "could not be loaded" placeholder stands in its place — no
+  cause named, no control (…/REQ-3). The retry is the header's; none is offered here (…/REQ-4).
 
 ## Dependencies
 
 - ui-library: DashboardLayout, MetricTile, UsageBreakdown, DataTable, StatusDotCell, MetaCell, Card,
-  SectionHeader, EventStream, EmptyState, ErrorBanner, Stack
+  SectionHeader, EventStream, EmptyState, Stack
 - dashboard: useSystemOverview
 - containers: useContainers (through the shell), useStatsSubscription
 - app-shell: DaemonEventStreamProvider (`useDaemonEventStream`), CrossNavigationProvider
-  (`useCrossNavigation`)
+  (`useCrossNavigation`), useFailureReport, FailedReadEmptyState
 
 ## Requirements served
 
@@ -141,3 +147,8 @@ Navigation:
 - plan-docker_management_app-containers_card_view/REQ-52
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-16
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-20
+- plan-docker_management_app-inline_error_panels/REQ-1
+- plan-docker_management_app-inline_error_panels/REQ-2
+- plan-docker_management_app-inline_error_panels/REQ-3
+- plan-docker_management_app-inline_error_panels/REQ-4
+- plan-docker_management_app-inline_error_panels/REQ-13

@@ -35,6 +35,13 @@ produced.
 - The history is read **once per mount**, not once per effect setup: in development the application
   mounts under React's StrictMode, whose setup runs twice, and the screen opening is what a read
   answers to.
+- **It is read again on the reload signal**, so the header's manual refresh and a connection that
+  comes back both refill the transcript with the operator staying on the screen
+  (plan-docker_management_app-inline_error_panels/REQ-12,
+  plan-docker_management_app-refresh_cache-manual_refresh/REQ-11). That is safe because of the two
+  merge rules below and for no other reason: a re-read adds what is missing and can neither drop an
+  entry nor repeat one. The read the signal waits on is the internal one, never the hook's own
+  surface (plan-docker_management_app-refresh_cache/REQ-21).
 - **Nothing this session produced is ever dropped by a load landing late.** The history read merges
   *under* the entries already present — restored ones first, this session's after — instead of
   replacing them, so a command run before the read settles keeps the entry its output is going
@@ -42,6 +49,11 @@ produced.
 - **The merge is idempotent.** It leaves out every entry already in the transcript — one restored by
   an earlier merge, or one this session appended to the history file — so merging a second time
   cannot show the same entry twice, nor collide two entries on one id.
+- **A re-read puts nothing out of order.** The restored half is rebuilt in the order the history
+  file gives, this session's entries keeping their place after it, so an entry written to the file
+  since the last read appears in its own chronological place and not at the top. An entry that has
+  rolled out of the file — it holds the last 200 — stays in the transcript ahead of the entries the
+  file still names, being older than all of them.
 - Output arrives as chunks, not lines: a chunk that does not end in a newline leaves the last line
   open, and the next chunk of the same stream continues it rather than starting another line. A
   trailing carriage return is dropped.
@@ -58,6 +70,7 @@ produced.
 ## Dependencies
 
 - raw-console: Console client
+- app-shell: Reload signal
 
 ## Requirements served
 
@@ -65,3 +78,4 @@ produced.
 - plan-docker_management_app/REQ-101
 - plan-docker_management_app/REQ-102
 - plan-docker_management_app/REQ-114
+- plan-docker_management_app-inline_error_panels/REQ-12

@@ -7,7 +7,6 @@ import {
   ConfirmDialog,
   DataTable,
   EmptyState,
-  ErrorBanner,
   Grid,
   MetaCell,
   MetricTile,
@@ -22,6 +21,7 @@ import {
 import type { ImageSummary } from '../data/images-client';
 import { imageSignalsStreamUrl, type DuplicateContentGroup, type LayerSignals, type SecretFinding, type WastedFile } from '../data/image-signals-client';
 import { useImageSignalsStream } from '../data/use-image-signals';
+import { useFailureReport } from '../shell/services/use-failure-report';
 
 export interface LayerEfficiencyViewProps {
   image: ImageSummary;
@@ -131,6 +131,8 @@ export function LayerEfficiencyView({ image, open, onClose, onNavigateToLayer, o
 
   const signals = useImageSignalsStream(analysisUrl);
 
+  useFailureReport('Could not analyze layer efficiency', signals.error);
+
   useEffect(() => {
     if (signals.result) onFindingsChange?.(countFindingsByLayer(signals.result));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -160,8 +162,6 @@ export function LayerEfficiencyView({ image, open, onClose, onNavigateToLayer, o
           layer history — path and size patterns, never file content read as a secret. Review a
           flagged path before treating it as an actual leak.
         </Callout>
-
-        {signals.error ? <ErrorBanner title="Could not analyze the image's layer efficiency" detail={signals.error} onRetry={() => setWarningOpen(true)} /> : null}
 
         {!signals.result ? (
           <EmptyState
@@ -291,7 +291,6 @@ export function LayerEfficiencyView({ image, open, onClose, onNavigateToLayer, o
         currentBytes={signals.progress?.phase === 'analyzing' ? signals.progress.completedLayers : 0}
         totalBytes={signals.progress?.phase === 'analyzing' ? signals.progress.totalLayers : undefined}
         status={signals.error ? 'error' : signals.done ? 'done' : 'active'}
-        errorMessage={signals.error}
         formatCaption={(current, total) =>
           !signals.progress || signals.progress.phase === 'exporting'
             ? 'Exporting the image…'

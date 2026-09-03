@@ -2,6 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { ImageDetailPanel } from '../../src/images/ImageDetailPanel';
 import type { ImageInspect, ImageSummary } from '../../src/data/images-client';
+import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+import { errorPanels, failedReadPlaceholders } from '../support/failed-read';
+
+// What a panel owes on a failure is the report itself; what becomes of it is the reporting
+// service's own contract (app-shell/specs/error-reporting-service.md).
+vi.mock('../../src/shell/services/ErrorReportingService', () => import('../support/error-reporting-mock'));
 
 /**
  * **The image panel says each thing once, and names what it says.** Contract:
@@ -81,6 +87,7 @@ function sections(): { title: string; summary: string }[] {
 }
 
 beforeEach(() => {
+  forgetReportedFailures();
   // The panel's read hook subscribes to daemon events through a module-level EventSource, which
   // jsdom does not provide.
   vi.stubGlobal(
@@ -165,5 +172,21 @@ describe('ImageDetailPanel — an empty section is absent (plan-ui-coherence-opt
       { title: 'Labels', summary: '1' },
       { title: 'History', summary: '1 layers' },
     ]);
+  });
+});
+
+// image-detail-panel.md — a failed inspect read is reported as one toast, and the shared "could not
+// be loaded" placeholder stands in its place (…-inline_error_panels/REQ-1, /REQ-3, /REQ-4, /REQ-5)
+describe('ImageDetailPanel — the inspect read that failed', () => {
+  it('reports the failure and stands the shared placeholder in the data’s place', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 404, json: async () => ({ error: 'No such image: alpine:3.20' }) })));
+
+    render(<ImageDetailPanel image={image} onClose={() => {}} />);
+
+    await waitFor(() => expect(reportedText(), 'the failed inspect read was not reported').toMatch('No such image: alpine:3.20'));
+    expect(screen.queryByText(/No such image/), 'the panel named the cause').not.toBeInTheDocument();
+    expect(errorPanels(), 'the panel drew a failure panel').toHaveLength(0);
+    expect(failedReadPlaceholders(), 'nothing stands in the data’s place').toHaveLength(1);
+    expect(failedReadPlaceholders()[0].querySelector('button'), 'the placeholder carried a control').toBeNull();
   });
 });

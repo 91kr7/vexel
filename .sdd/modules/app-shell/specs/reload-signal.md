@@ -20,10 +20,20 @@ screen in front of the operator is already showing the reloaded data".
   - a read that rejects does not reject the signal and does not abandon the other reads: the view
     that failed keeps what it had and reports its own failure the way it always does
   - with nothing subscribed it settles immediately
+- `reloadWhenChannelReturns() → unsubscribe` — raises one reload each time the live channel starts
+  delivering again after it had stopped. Calling the returned function stops watching.
+  - the channel's **first** open raises nothing: that is a start-up, and every mounted view has
+    just read
+  - one reload per return, whatever raised it — a channel the browser reopened on its own or the
+    header's `Retry`
 
 ## Rules and invariants
 
 - It carries no data and no Docker vocabulary: it says only that everything is to be read again.
+- **A connection that comes back is a reason to read again**, and it is the only one this module
+  raises on its own: the values the live channel feeds come back pushed, the readings taken by
+  request come back this way, so the screen the operator is on fills with them navigating nowhere
+  (plan-docker_management_app-inline_error_panels/REQ-12).
 - It says nothing about the server. Asking the server to reload what it holds is the caller's step,
   before raising this signal.
 - Subscribing does not read: a view is read only when the signal is raised.
@@ -32,8 +42,13 @@ screen in front of the operator is already showing the reloaded data".
   (plan-docker_management_app-refresh_cache/REQ-21): subscribing it would give the signal
   nothing to wait on, and making it return a promise instead breaks the screens that call it.
 
+## Dependencies
+
+- live-channel: Live channel client (whether it is delivering)
+
 ## Requirements served
 
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-3
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-11
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-12
+- plan-docker_management_app-inline_error_panels/REQ-12

@@ -4,9 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { ContainerDetailPanel } from '../../src/containers/ContainerDetailPanel';
 import type { ContainerInspect, ContainerSummary } from '../../src/data/containers-client';
 import { ConfirmationProvider } from '../../src/shell/services/ConfirmationService';
-import { ErrorReportingProvider } from '../../src/shell/services/ErrorReportingService';
 import { ProgressProvider } from '../../src/shell/services/ProgressService';
-import { ToastProvider } from '../../src/ui';
+import { ReportingServices } from '../support/reporting-services';
 
 const container: ContainerSummary = {
   id: 'container-1',
@@ -77,15 +76,13 @@ let fetchMock: ReturnType<typeof vi.fn>;
 function renderPanel() {
   const onContainerReplaced = vi.fn();
   const view = render(
-    <ErrorReportingProvider>
+    <ReportingServices>
       <ProgressProvider>
         <ConfirmationProvider>
-          <ToastProvider>
-            <ContainerDetailPanel container={container} onContainerReplaced={onContainerReplaced} />
-          </ToastProvider>
+          <ContainerDetailPanel container={container} onContainerReplaced={onContainerReplaced} />
         </ConfirmationProvider>
       </ProgressProvider>
-    </ErrorReportingProvider>,
+    </ReportingServices>,
   );
   return view;
 }

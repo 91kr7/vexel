@@ -5,7 +5,6 @@ import {
   Card,
   DataTable,
   EmptyState,
-  ErrorBanner,
   FilePicker,
   FormDialog,
   IdentifierCell,
@@ -48,6 +47,8 @@ import { LayerExplorer } from './LayerExplorer';
 import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useCrossNavigation } from '../shell/services/CrossNavigationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
+import { useFailureReport } from '../shell/services/use-failure-report';
+import { FailedReadEmptyState } from '../shell/FailedReadEmptyState';
 import { useProgress } from '../shell/services/ProgressService';
 
 const NO_TAGS_TO_UNTAG_REASON = 'This image has no tags to untag.';
@@ -210,6 +211,11 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
   const pushTransfer = useImageTransferStream(pushStreamUrl);
   const loadUpload = useFileUpload<ImageSaveLoadResult>();
   const importUpload = useFileUpload<ContainerImportResult>();
+
+  useFailureReport('Could not pull the image', pullTransfer.error);
+  useFailureReport('Could not push the image', pushTransfer.error);
+  useFailureReport('Could not load the tarball', loadUpload.error);
+  useFailureReport('Could not import the filesystem tarball', importUpload.error);
 
   const closePullDialog = useCallback(() => {
     setPullOpen(false);
@@ -586,7 +592,6 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
         destructiveAction={{ label: 'Prune dangling', onClick: handlePruneDangling, disabled: !hasDangling }}
         filters={<SearchField value={search} onChange={setSearch} placeholder="Search reference or digest…" />}
       />
-      {error ? <ErrorBanner title="Could not load images" detail={error} onRetry={onRefresh} /> : null}
       <BulkActionBar
         count={selectedIds.length}
         actions={[
@@ -617,7 +622,13 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
           onRowSelect={toggleSelection}
           expandedRowKey={selectedId}
           renderExpanded={(image) => <ImageDetailPanel image={image} onClose={() => setSelectedId(undefined)} />}
-          emptyState={<EmptyState title={loaded ? 'No images match' : 'Loading images…'} description={loaded ? 'Try a different search.' : null}  action={null} />}
+          emptyState={
+            error && images.length === 0 ? (
+              <FailedReadEmptyState />
+            ) : (
+              <EmptyState title={loaded ? 'No images match' : 'Loading images…'} description={loaded ? 'Try a different search.' : null} action={null} />
+            )
+          }
           selection={{
             selectedKeys: selectedIds,
             onToggle: toggleSelectImage,
@@ -647,7 +658,6 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
               <StepProgressList steps={pullSteps} />
             )
           ) : null}
-          {pullTransfer.error ? <ErrorBanner title="Pull failed" detail={pullTransfer.error} /> : null}
         </Stack>
       </FormDialog>
 
@@ -709,7 +719,6 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
               <StepProgressList steps={pushSteps} />
             )
           ) : null}
-          {pushTransfer.error ? <ErrorBanner title="Push failed" detail={pushTransfer.error} /> : null}
         </Stack>
       </FormDialog>
 
@@ -732,7 +741,6 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
         currentBytes={loadUpload.currentBytes}
         totalBytes={loadUpload.totalBytes}
         status={loadUpload.status === 'error' ? 'error' : loadUpload.status === 'done' ? 'done' : 'active'}
-        errorMessage={loadUpload.error}
         onCancel={() => loadUpload.cancel()}
         onClose={closeLoadTransfer}
       >
@@ -770,7 +778,6 @@ export function ImagesScreen({ images, loaded, error, onRefresh }: ImagesScreenP
         currentBytes={importUpload.currentBytes}
         totalBytes={importUpload.totalBytes}
         status={importUpload.status === 'error' ? 'error' : importUpload.status === 'done' ? 'done' : 'active'}
-        errorMessage={importUpload.error}
         onCancel={() => importUpload.cancel()}
         onClose={closeImportTransfer}
       >

@@ -1,7 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import {
   ControlGroup,
-  ErrorBanner,
   LogStream,
   MetaCell,
   SegmentedControl,
@@ -14,6 +13,7 @@ import {
   type TailSize,
 } from '../ui';
 import { useContainerLogs } from '../data/use-container-logs';
+import { useFailureReport } from '../shell/services/use-failure-report';
 import { readLogLevel } from './log-level';
 import type { ContainerLogLine } from '../data/container-logs-client';
 import type { ContainerSummary } from '../data/containers-client';
@@ -47,7 +47,7 @@ export function ContainerLogsView({ container }: ContainerLogsViewProps) {
   const [search, setSearch] = useState('');
   const [matchCursor, setMatchCursor] = useState(0);
 
-  const { lines, ended, error, restart } = useContainerLogs(container.id, {
+  const { lines, ended, error } = useContainerLogs(container.id, {
     stdout: streams.includes('stdout'),
     stderr: streams.includes('stderr'),
     follow: true,
@@ -56,6 +56,8 @@ export function ContainerLogsView({ container }: ContainerLogsViewProps) {
     since,
     until,
   });
+
+  useFailureReport('Could not stream the container logs', error);
 
   // One reading per line, kept against the line itself: the buffer holds up to
   // 5000 lines and is re-mapped on every flush, so re-reading the whole of it
@@ -91,7 +93,6 @@ export function ContainerLogsView({ container }: ContainerLogsViewProps) {
 
   return (
     <Stack gap="var(--space-3)">
-      {error ? <ErrorBanner title="Could not stream the container logs" detail={error} onRetry={restart} /> : null}
       {ended && lines.length > 0 ? <MetaCell>Stream ended.</MetaCell> : null}
       {/* The log region's bound is the region it is placed in — the dialog's stable height,
           less the bands above it — instead of a stated maximum. What is streamed, buffered,

@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Button,
   EmptyState,
-  ErrorBanner,
   FilterChips,
   IconButton,
   Modal,
@@ -42,6 +41,7 @@ import { useStatsSubscription } from '../data/use-stats-subscription';
 import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
 import { useProgress } from '../shell/services/ProgressService';
+import { FailedReadEmptyState } from '../shell/FailedReadEmptyState';
 
 export interface ContainersScreenProps {
   containers: ContainerSummary[];
@@ -362,17 +362,20 @@ export function ContainersScreen({ containers, loaded, error, onRefresh, images 
           </>
         }
       />
-      {error ? <ErrorBanner title="Could not load containers" detail={error} onRetry={onRefresh} /> : null}
       {/* Three cards to a row; the detail stands over the grid as a dialog, so nothing
           opens beneath a card (containers-screen.md). */}
       <Grid arrangement="cards" dismissalFocusTarget>
         {filtered.length === 0 ? (
           <GridSpan>
-            <EmptyState
-              title={loaded ? 'No containers match' : 'Loading containers…'}
-              description={loaded ? 'Try a different search or filter.' : null}
-              action={null}
-            />
+            {error && containers.length === 0 ? (
+              <FailedReadEmptyState />
+            ) : (
+              <EmptyState
+                title={loaded ? 'No containers match' : 'Loading containers…'}
+                description={loaded ? 'Try a different search or filter.' : null}
+                action={null}
+              />
+            )}
           </GridSpan>
         ) : null}
         {filtered.map((container) => (

@@ -45,7 +45,8 @@ Shows:
   why none can be named: a record holding build input rather than a layer, a record with no recorded
   step, or no local image carrying that step (REQ-69).
 - While that relation is still being read: a "Looking for the images this record relates to…"
-  placeholder; a failed read: an `ErrorBanner` with retry, leaving the rest of the screen usable.
+  placeholder; a failed read: the shared "could not be loaded" placeholder, leaving the rest of the
+  screen usable.
 - An empty list states why it is empty: no builders (with the action that creates one) or no
   build-cache records (with no action, nothing on this screen filling the cache); each says so
   separately from the "still reading" state it used to share an element with.
@@ -100,15 +101,26 @@ Does not:
   track as a length or a flex factor (the contract admits nothing else).
 - **A state is never a control and a control never reads as a state**: status, cache size and the
   active marker are cells, and the only clickable things in a row are the cluster's buttons.
+- **No failure panel, and the lost connection is not told here**
+  (plan-docker_management_app-inline_error_panels/REQ-1, …/REQ-2, …/REQ-13): each listing's failure
+  state is raised only while the live channel is not delivering, so it raises no toast either. With
+  nothing to list, the shared "could not be loaded" placeholder stands in that list's place — one
+  wording for every cause, no cause named and no control (…/REQ-3). The retry is the header's; none
+  is offered here (…/REQ-4).
+- **No failure panel** (plan-docker_management_app-inline_error_panels/REQ-1): a failed
+  related-images read is reported as one toast through `useFailureReport`, and where it leaves
+  nothing to show the shared "could not be loaded" placeholder stands in the relation's place — no
+  cause named, no control (…/REQ-3). The retry is the header's; none is offered here (…/REQ-4).
 
 ## Dependencies
 
 - ui-library: Card (unpadded, holding the list alone), SectionHeader, ScreenToolbar, DataTable,
   DetailPanel, TwoLineCell, MetaCell, IdentifierCell, StatusDotCell, StatusPill, ActionButtonGroup,
-  CrossReferenceList, EmptyState, ErrorBanner, FormDialog, FormField, TextField, Combobox,
+  CrossReferenceList, EmptyState, FormDialog, FormField, TextField, Combobox,
   ChipInput, Button, Stack, useToast
 - builders: useBuilders, useBuildCache, useBuildCacheUsage
-- app-shell: useConfirmation, useProgress, useErrorReporter, useCrossNavigation
+- app-shell: useConfirmation, useProgress, useErrorReporter, useCrossNavigation, useFailureReport,
+  FailedReadEmptyState
 
 ## Requirements served
 
@@ -122,3 +134,8 @@ Does not:
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-16
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-39
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40
+- plan-docker_management_app-inline_error_panels/REQ-1
+- plan-docker_management_app-inline_error_panels/REQ-2
+- plan-docker_management_app-inline_error_panels/REQ-3
+- plan-docker_management_app-inline_error_panels/REQ-4
+- plan-docker_management_app-inline_error_panels/REQ-13

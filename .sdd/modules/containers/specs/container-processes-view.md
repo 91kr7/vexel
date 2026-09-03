@@ -30,13 +30,13 @@ Shows:
 - "Reading the process list…" until the first read completes, then "No process is running in this
   container" when the listing came back empty — and that same statement, without any read at all,
   while the container is not running.
-- a failure banner carrying the error message verbatim, with a retry, instead of the table.
+- the shared "could not be loaded" placeholder in the table's place when the listing could not be
+  read.
 
 Actions:
 
 - "Refresh" → re-reads the listing; it is disabled and labelled "Refreshing…" while a read is in
   flight.
-- retry on the failure banner → re-reads the listing.
 
 ## Rules and invariants
 
@@ -72,12 +72,17 @@ Actions:
   the value is recorded in `table-cells.md`. The `–` shown where the daemon reports no reading is
   never toned: there is no reading to distinguish.
 - Neither the height rule nor the tone changes what is read: the same endpoint, the same payload.
+- **No failure panel** (plan-docker_management_app-inline_error_panels/REQ-1): a failed process
+  listing is reported as one toast through `useFailureReport`, and where it leaves nothing to show
+  the shared "could not be loaded" placeholder stands in the table's place — no cause named, no
+  control (…/REQ-3). The retry is the header's; none is offered here (…/REQ-4).
 
 ## Dependencies
 
 - useContainerProcesses
 - ui-library: BandStack, DataTable, MetaCell (and `LOAD_ATTENTION_PERCENT`), Button, Row, Spacer,
-  ErrorBanner, EmptyState
+  EmptyState
+- app-shell: useFailureReport, FailedReadEmptyState
 
 ## Requirements served
 
@@ -90,3 +95,6 @@ Actions:
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-30
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-34
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-35
+- plan-docker_management_app-inline_error_panels/REQ-1
+- plan-docker_management_app-inline_error_panels/REQ-3
+- plan-docker_management_app-inline_error_panels/REQ-4

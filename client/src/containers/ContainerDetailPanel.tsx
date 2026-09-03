@@ -9,7 +9,6 @@ import {
   CollapsibleSection,
   DefinitionList,
   EmptyState,
-  ErrorBanner,
   FieldList,
   FormFooter,
   Grid,
@@ -47,6 +46,8 @@ import { readContainerInspectValue } from './container-inspect-reading';
 import { useContainerDetail } from '../data/use-container-detail';
 import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
+import { useFailureReport } from '../shell/services/use-failure-report';
+import { FailedReadEmptyState } from '../shell/FailedReadEmptyState';
 import { useProgress } from '../shell/services/ProgressService';
 
 type ContainerDetailTab = 'logs' | 'stats' | 'config' | 'processes' | 'inspect' | 'exec' | 'attach';
@@ -205,6 +206,8 @@ export function ContainerDetailPanel({ container, onContainerReplaced }: Contain
   const { push } = useToast();
   const { run } = useProgress();
   const { reportError } = useErrorReporter();
+
+  useFailureReport('Could not load container details', error);
 
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -617,9 +620,12 @@ export function ContainerDetailPanel({ container, onContainerReplaced }: Contain
       // scrollbar (REQ-53). The inset is the library's own, named; nothing is stated here.
       <ScrollArea inset>
         <Stack gap="var(--space-4)">
-          {error ? <ErrorBanner title="Could not load container details" detail={error} onRetry={refresh} /> : null}
           {!inspect ? (
-            <EmptyState title={loaded ? 'No inspect data available' : 'Loading container details…'}  description={null} action={null} />
+            error ? (
+              <FailedReadEmptyState />
+            ) : (
+              <EmptyState title={loaded ? 'No inspect data available' : 'Loading container details…'} description={null} action={null} />
+            )
           ) : activeTab === 'config' ? (
             renderConfigView(inspect)
           ) : (

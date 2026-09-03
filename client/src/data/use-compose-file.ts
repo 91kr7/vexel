@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { subscribeToReload } from './reload-signal';
 import {
   fetchComposeFiles,
   validateComposeFile,
@@ -37,16 +38,11 @@ export function useComposeFile(projectName: string | undefined): UseComposeFileR
   const [validating, setValidating] = useState(false);
   const cancelledRef = useRef(false);
 
-  useEffect(() => {
-    cancelledRef.current = false;
-    setLoaded(false);
-    setError(undefined);
-    setFiles([]);
-    setEdits({});
-    setValidation(undefined);
-    if (!projectName) return;
-
-    fetchComposeFiles(projectName)
+  // Reads the files on disk and nothing else: it replaces the baseline, never an unsaved edit,
+  // which wins over it below. Returns its promise for the reload signal to wait on.
+  const readFiles = useCallback(() => {
+    if (!projectName) return Promise.resolve();
+    return fetchComposeFiles(projectName)
       .then((result) => {
         if (cancelledRef.current) return;
         if (result.ok) setFiles(result.files);
@@ -60,11 +56,24 @@ export function useComposeFile(projectName: string | undefined): UseComposeFileR
         if (cancelledRef.current) return;
         setLoaded(true);
       });
+  }, [projectName]);
 
+  useEffect(() => {
+    cancelledRef.current = false;
+    setLoaded(false);
+    setError(undefined);
+    setFiles([]);
+    setEdits({});
+    setValidation(undefined);
+    void readFiles();
     return () => {
       cancelledRef.current = true;
     };
-  }, [projectName]);
+  }, [readFiles]);
+
+  // The reload signal, and with it a returning connection, reads the files again
+  // (plan-docker_management_app-inline_error_panels/REQ-12).
+  useEffect(() => subscribeToReload(readFiles), [readFiles]);
 
   const edit = useCallback((path: string, content: string) => {
     setEdits((current) => ({ ...current, [path]: content }));
@@ -112,6 +121,8 @@ export function useComposeFile(projectName: string | undefined): UseComposeFileR
     }
   }, [projectName]);
 
+  // The unsaved edit wins over the file on disk, so no re-read can overwrite what the operator
+  // typed and has not saved (REQ-77).
   const effectiveFiles = files.map((file) => ({ path: file.path, content: edits[file.path] ?? file.content }));
 
   return {

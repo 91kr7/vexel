@@ -24,6 +24,7 @@ import { imageDiffStreamUrl, type ImageDiffEntry, type ImageDiffNature } from '.
 import { useImageDiffStream } from '../data/use-image-diff-stream';
 import { useImageDiffTree } from '../data/use-image-diff-tree';
 import { useImageFilesystemEntryContent } from '../data/use-image-filesystem-entry';
+import { useFailureReport } from '../shell/services/use-failure-report';
 
 export interface ImageDiffViewProps {
   images: ImageSummary[];
@@ -112,6 +113,8 @@ export function ImageDiffView({ images, initialImageAId, initialImageBId, open, 
   const [statusFilter, setStatusFilter] = useState<DiffStatusFilter>('all');
 
   const diff = useImageDiffStream(diffUrl);
+
+  useFailureReport('Could not compare the filesystems', diff.error);
   const tree = useImageDiffTree(diff.result ? diff.result.imageIdA : undefined, diff.result ? diff.result.imageIdB : undefined);
 
   useEffect(() => {
@@ -313,7 +316,6 @@ export function ImageDiffView({ images, initialImageAId, initialImageBId, open, 
         description={imageA && imageB ? `${imageLabel(imageA)} vs ${imageLabel(imageB)}` : undefined}
         currentBytes={0}
         status={diff.error ? 'error' : diff.done ? 'done' : 'active'}
-        errorMessage={diff.error}
         formatCaption={() =>
           !diff.progress
             ? 'Starting…'

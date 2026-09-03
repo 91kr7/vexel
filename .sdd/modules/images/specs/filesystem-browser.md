@@ -69,10 +69,12 @@ Actions:
   returning the operator to the images list — never to a surface offering to start it again. Close,
   once succeeded, only dismisses the dialog and the browsed tree stays; Close, once failed, closes
   the surface.
-- A failed extraction states its cause in the dialog, is never auto-dismissed, and offers its
-  **retry inside the failure report** (`TransferProgressDialog`'s `onRetry`): pressing it re-raises
-  the cost warning rather than starting an extraction directly, so the cost is announced before
-  every extraction that actually starts.
+- A failed extraction is reported as a toast carrying the daemon's own message, once per failure;
+  the dialog states none and keeps the progress where the extraction stopped
+  (plan-docker_management_app-inline_error_panels/REQ-5, /REQ-7). It is never auto-dismissed, and it
+  keeps its **retry as a dialog action, beside `Close`** (`TransferProgressDialog`'s `onRetry`):
+  pressing it re-raises the cost warning rather than starting an extraction directly, so the cost is
+  announced before every extraction that actually starts.
 - Once the extraction succeeds the dialog states `Completed` — the shared surface's own wording, not
   this screen's — and **dismisses itself** a second later, revealing the extracted tree: this view
   asks the surface for that (`autoCloseOnDone`), its result being rendered behind the dialog rather
@@ -132,15 +134,20 @@ Actions:
   hard-coded outside the library, and a smaller constant would have been the same defect at another
   number. Nothing here scrolls the dialog: the body holds exactly one scroll region, the tree's, plus
   the detail pane's own when a preview is long.
+- **No failure panel** (plan-docker_management_app-inline_error_panels/REQ-1): a failed entry read
+  is reported as one toast through `useFailureReport`, and where it leaves nothing to show the
+  shared "could not be loaded" placeholder stands in the detail pane's place — no cause named, no
+  control (…/REQ-3). The retry is the header's; none is offered here (…/REQ-4).
 
 ## Dependencies
 
 - ui-library: Modal, BandStack, SplitPane, TreeView, DefinitionList, EmptyState, ConfirmDialog,
-  TransferProgressDialog, StatusPill, FieldMessage, ErrorBanner, Button, Row, Stack, Spinner,
+  TransferProgressDialog, StatusPill, FieldMessage, Button, Row, Stack, Spinner,
   StreamSearchField, SegmentedControl, TextViewer, HexDumpViewer, triggerDownload, useToast
 - useImageFilesystemKeptResult, useImageFilesystemExtraction, useImageFilesystemTree,
   useImageFilesystemEntryMetadata, useImageFilesystemEntryContent, useImageFilesystemSearch, Image
   filesystem client
+- app-shell: useFailureReport, FailedReadEmptyState
 
 ## Requirements served
 
@@ -199,3 +206,8 @@ Actions:
 - plan-docker_management_app-filesystem_browser_layout/REQ-23
 - plan-docker_management_app-filesystem_browser_layout/REQ-24
 - plan-docker_management_app-filesystem_browser_layout/REQ-26
+- plan-docker_management_app-inline_error_panels/REQ-5
+- plan-docker_management_app-inline_error_panels/REQ-7
+- plan-docker_management_app-inline_error_panels/REQ-1
+- plan-docker_management_app-inline_error_panels/REQ-3
+- plan-docker_management_app-inline_error_panels/REQ-4

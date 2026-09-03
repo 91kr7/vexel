@@ -4,9 +4,14 @@ import userEvent from '@testing-library/user-event';
 import { ContainerDetailPanel } from '../../src/containers/ContainerDetailPanel';
 import type { ContainerInspect, ContainerSummary } from '../../src/data/containers-client';
 import { ConfirmationProvider } from '../../src/shell/services/ConfirmationService';
-import { ErrorReportingProvider, useErrorReporter } from '../../src/shell/services/ErrorReportingService';
 import { ProgressProvider } from '../../src/shell/services/ProgressService';
-import { DetailPanel, ToastProvider } from '../../src/ui';
+import { DetailPanel } from '../../src/ui';
+import { ReportingServices } from '../support/reporting-services';
+import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+
+// What a screen owes on a failure is the report itself; what becomes of it is the reporting
+// service's own contract (app-shell/specs/error-reporting-service.md).
+vi.mock('../../src/shell/services/ErrorReportingService', () => import('../support/error-reporting-mock'));
 
 const container: ContainerSummary = {
   id: 'container-1',
@@ -38,29 +43,15 @@ function baseInspect(): ContainerInspect {
   };
 }
 
-function ReportedErrors() {
-  const { errors } = useErrorReporter();
-  return (
-    <>
-      {errors.map((error) => (
-        <p key={error.id}>{`${error.title}${error.detail ? `: ${error.detail}` : ''}`}</p>
-      ))}
-    </>
-  );
-}
-
 function renderPanel(onContainerReplaced = vi.fn()) {
   const view = render(
-    <ErrorReportingProvider>
+    <ReportingServices>
       <ProgressProvider>
         <ConfirmationProvider>
-          <ToastProvider>
-            <ContainerDetailPanel container={container} onContainerReplaced={onContainerReplaced} />
-            <ReportedErrors />
-          </ToastProvider>
+          <ContainerDetailPanel container={container} onContainerReplaced={onContainerReplaced} />
         </ConfirmationProvider>
       </ProgressProvider>
-    </ErrorReportingProvider>,
+    </ReportingServices>,
   );
   return { onContainerReplaced, view };
 }
@@ -103,6 +94,7 @@ let fetchMock: ReturnType<typeof vi.fn>;
 let configResponse: { ok: boolean; status: number; body: unknown };
 
 beforeEach(() => {
+  forgetReportedFailures();
   FakeEventSource.instances = [];
   vi.stubGlobal('EventSource', FakeEventSource);
   configResponse = { ok: true, status: 200, body: { path: 'in-place', container } };
@@ -209,7 +201,7 @@ describe('ContainerDetailPanel — Config tab (REQ-24, REQ-25)', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: 'Restart policy' }), 'always');
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
 
-    expect(await screen.findByText(/container is not running/)).toBeInTheDocument();
+    await waitFor(() => expect(reportedText()).toMatch(/container is not running/));
     expect(screen.getByRole('combobox', { name: 'Restart policy' })).toHaveValue('always');
   });
 
@@ -867,15 +859,13 @@ describe('ContainerDetailPanel — Exec/Attach tabs (REQ-34, REQ-35, REQ-36)', (
   // container-detail-panel.md — the Exec and Attach tabs are only offered for a running container
   it('offers no Exec/Attach tabs for a container that is not running', async () => {
     render(
-      <ErrorReportingProvider>
+      <ReportingServices>
         <ProgressProvider>
           <ConfirmationProvider>
-            <ToastProvider>
-              <ContainerDetailPanel container={{ ...container, state: 'exited' }} onContainerReplaced={vi.fn()} />
-            </ToastProvider>
+            <ContainerDetailPanel container={{ ...container, state: 'exited' }} onContainerReplaced={vi.fn()} />
           </ConfirmationProvider>
         </ProgressProvider>
-      </ErrorReportingProvider>,
+      </ReportingServices>,
     );
 
     await screen.findByRole('button', { name: 'Edit configuration' });
@@ -892,15 +882,13 @@ describe('ContainerDetailPanel — Exec/Attach tabs (REQ-34, REQ-35, REQ-36)', (
   it('reaches the Exec launch form and the Attach action through their tabs', async () => {
     const user = userEvent.setup();
     render(
-      <ErrorReportingProvider>
+      <ReportingServices>
         <ProgressProvider>
           <ConfirmationProvider>
-            <ToastProvider>
-              <ContainerDetailPanel container={container} onContainerReplaced={vi.fn()} />
-            </ToastProvider>
+            <ContainerDetailPanel container={container} onContainerReplaced={vi.fn()} />
           </ConfirmationProvider>
         </ProgressProvider>
-      </ErrorReportingProvider>,
+      </ReportingServices>,
     );
 
     await user.click(await screen.findByRole('tab', { name: 'Exec' }));
@@ -916,15 +904,13 @@ describe('ContainerDetailPanel — Exec/Attach tabs (REQ-34, REQ-35, REQ-36)', (
   it('closes the active exec session when leaving the Exec tab', async () => {
     const user = userEvent.setup();
     render(
-      <ErrorReportingProvider>
+      <ReportingServices>
         <ProgressProvider>
           <ConfirmationProvider>
-            <ToastProvider>
-              <ContainerDetailPanel container={container} onContainerReplaced={vi.fn()} />
-            </ToastProvider>
+            <ContainerDetailPanel container={container} onContainerReplaced={vi.fn()} />
           </ConfirmationProvider>
         </ProgressProvider>
-      </ErrorReportingProvider>,
+      </ReportingServices>,
     );
 
     await user.click(await screen.findByRole('tab', { name: 'Exec' }));
@@ -1002,18 +988,16 @@ describe('ContainerDetailPanel — a body, not a surface (REQ-4, REQ-11, REQ-23)
     const user = userEvent.setup();
     const claimed = vi.fn();
     render(
-      <ErrorReportingProvider>
+      <ReportingServices>
         <ProgressProvider>
           <ConfirmationProvider>
-            <ToastProvider>
-              <DetailPanel dismissal="opening-gesture" onClose={claimed}>
-                a dismissible surface on the screen
-              </DetailPanel>
-              <ContainerDetailPanel container={container} onContainerReplaced={vi.fn()} />
-            </ToastProvider>
+            <DetailPanel dismissal="opening-gesture" onClose={claimed}>
+              a dismissible surface on the screen
+            </DetailPanel>
+            <ContainerDetailPanel container={container} onContainerReplaced={vi.fn()} />
           </ConfirmationProvider>
         </ProgressProvider>
-      </ErrorReportingProvider>,
+      </ReportingServices>,
     );
     expect(await screen.findByRole('tab', { name: 'Config' })).toBeInTheDocument();
 

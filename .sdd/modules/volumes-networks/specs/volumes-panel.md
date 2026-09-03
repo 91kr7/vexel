@@ -79,14 +79,25 @@ Actions:
   header and in each row.
 - In the create dialog the driver-options rows and the label rows carry distinct accessible names,
   so no two of its fields are announced alike.
+- **No failure panel, and the lost connection is not told here**
+  (plan-docker_management_app-inline_error_panels/REQ-1, …/REQ-2, …/REQ-13): the listing's failure
+  state is raised only while the live channel is not delivering, so it raises no toast either. With
+  nothing to list, the shared "could not be loaded" placeholder stands in the list's place — one
+  wording for every cause, no cause named and no control (…/REQ-3). The retry is the header's; none
+  is offered here (…/REQ-4).
+- **No failure panel** (plan-docker_management_app-inline_error_panels/REQ-1): a failed volume
+  inspect read is reported as one toast through `useFailureReport`, and where it leaves nothing to
+  show the shared "could not be loaded" placeholder stands in the detail's place — no cause named,
+  no control (…/REQ-3). The retry is the header's; none is offered here (…/REQ-4).
 
 ## Dependencies
 
 - ui-library: Card (unpadded, holding the list alone), SectionHeader, ScreenToolbar, DataTable, TwoLineCell, MetaCell,
-  BadgeListCell, ActionButtonGroup, DetailPanel, CodeViewer, ErrorBanner, EmptyState, Button,
+  BadgeListCell, ActionButtonGroup, DetailPanel, CodeViewer, EmptyState, Button,
   FormDialog, FormField, TextField, Combobox, KeyValueEditor, Stack, useToast
 - Volumes client, useVolumeInspect
-- app-shell: ConfirmationService, ProgressService, ErrorReportingService
+- app-shell: ConfirmationService, ProgressService, ErrorReportingService, useFailureReport,
+  FailedReadEmptyState
 
 ## Requirements served
 
@@ -100,3 +111,8 @@ Actions:
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-14
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-39
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40
+- plan-docker_management_app-inline_error_panels/REQ-1
+- plan-docker_management_app-inline_error_panels/REQ-2
+- plan-docker_management_app-inline_error_panels/REQ-3
+- plan-docker_management_app-inline_error_panels/REQ-4
+- plan-docker_management_app-inline_error_panels/REQ-13

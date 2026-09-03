@@ -8,6 +8,11 @@ import { ToastProvider } from '../../src/ui';
 import { FilesystemBrowser } from '../../src/images/FilesystemBrowser';
 import type { ImageSummary } from '../../src/data/images-client';
 import type { FilesystemEntry, FilesystemExtractionResult } from '../../src/data/image-filesystem-client';
+import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+
+// What a screen owes on a failure is the report itself; what becomes of it is the reporting
+// service's own contract (app-shell/specs/error-reporting-service.md).
+vi.mock('../../src/shell/services/ErrorReportingService', () => import('../support/error-reporting-mock'));
 
 // Stands in for the browser's EventSource: the filesystem extraction stream's
 // only channel (REQ-52, REQ-55, REQ-113), so the tests drive it by emitting
@@ -78,6 +83,7 @@ let deferKept: { promise: Promise<void>; resolve: () => void } | undefined;
 let entriesFail: string | undefined;
 
 beforeEach(() => {
+  forgetReportedFailures();
   keptAnswer = { kept: false };
   deferKept = undefined;
   entriesFail = undefined;
@@ -325,16 +331,18 @@ describe('FilesystemBrowser — confirming, declining, cancelling and failing (R
     expect(screen.queryByText('Filesystem not extracted yet')).not.toBeInTheDocument();
   });
 
-  // REQ-9 — a failed extraction states its cause and waits: it is not auto-dismissed (bug-1's rule,
-  // unchanged), it names what went wrong, and the retry is offered inside the failure report.
-  it('reports a failed extraction with its cause, does not dismiss itself, and offers the retry inside the report', async () => {
+  // REQ-9 — a failed extraction is reported to the application, waits rather than dismissing itself
+  // (bug-1's rule, unchanged), and offers the retry among the dialog's own actions
+  // (plan-docker_management_app-inline_error_panels/REQ-5, /REQ-7).
+  it('reports a failed extraction, does not dismiss itself, and offers the retry beside Close', async () => {
     const onClose = vi.fn();
     render(<FilesystemBrowser image={makeImage()} open onClose={onClose} />, { wrapper: withToast });
     await userEvent.click(await screen.findByRole('button', { name: 'Extract' }));
 
     act(() => latestSource().emit('error', { message: 'no command specified' }));
 
-    await waitFor(() => expect(screen.getByText('no command specified')).toBeInTheDocument());
+    await waitFor(() => expect(reportedText()).toMatch(/no command specified/));
+    expect(document.querySelector('.ui-error-banner'), 'the dialog stated the cause itself').toBeNull();
     // Well past the second a completed dialog would have taken to leave: a failure waits.
     await new Promise((resolve) => setTimeout(resolve, 1500));
     expect(screen.getByRole('heading', { name: 'Extracting the filesystem' })).toBeInTheDocument();

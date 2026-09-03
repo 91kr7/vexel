@@ -27,8 +27,8 @@ Shows:
   nothing there for one it reads; the row stays listed either way, and Docker's own message is in the
   row's detail.
 - "Loading contexts…" before the first read has settled; "No Docker contexts" with its explanation
-  and a "Create the first context" action when the installation has none; an error banner with retry
-  when the inventory cannot be read.
+  and a "Create the first context" action when the installation has none; the shared "could not be
+  loaded" placeholder when the inventory could not be read.
 - A selected row's detail: name, kind, **the endpoint in full**, TLS, description, whether it is in
   use, and Docker's message where there is one.
 
@@ -82,6 +82,12 @@ Does not:
 - Switching the active context announces itself exactly as before this screen was migrated: the same
   call, the same broadcast, the same toast. Nothing about when it fires or what it carries is this
   screen's to change.
+- **No failure panel, and the lost connection is not told here**
+  (plan-docker_management_app-inline_error_panels/REQ-1, …/REQ-2, …/REQ-13): the listing's failure
+  state is raised only while the live channel is not delivering, so it raises no toast either. With
+  nothing to list, the shared "could not be loaded" placeholder stands in the list's place — one
+  wording for every cause, no cause named and no control (…/REQ-3). The retry is the header's; none
+  is offered here (…/REQ-4).
 
 ## Decisions recorded
 
@@ -116,9 +122,9 @@ Does not:
 
 - ui-library: Card (unpadded, holding the list alone), SectionHeader, ScreenToolbar, DataTable,
   TwoLineCell, MetaCell, BadgeListCell, StatusPill, ActionButtonGroup, DetailPanel, FormDialog,
-  FormField, EndpointField, TextField, Button, Stack, EmptyState, ErrorBanner, useToast
+  FormField, EndpointField, TextField, Button, Stack, EmptyState, useToast
 - contexts: useContexts
-- app-shell: useConfirmation, useProgress, useErrorReporter
+- app-shell: useConfirmation, useProgress, useErrorReporter, FailedReadEmptyState
 
 ## Requirements served
 
@@ -132,3 +138,8 @@ Does not:
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-17
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-39
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40
+- plan-docker_management_app-inline_error_panels/REQ-1
+- plan-docker_management_app-inline_error_panels/REQ-2
+- plan-docker_management_app-inline_error_panels/REQ-3
+- plan-docker_management_app-inline_error_panels/REQ-4
+- plan-docker_management_app-inline_error_panels/REQ-13

@@ -76,8 +76,10 @@ Actions:
 - "Pull image…" opens a `FormDialog` for a reference and an optional platform; submitting opens the
   pull progress stream and shows its steps via `StepProgressList`. Once the stream ends
   successfully, the dialog closes itself and re-reads the list, with no action required from the
-  operator; if it ends in error, the dialog stays open showing the failure so the operator can read
-  it, and closing it (Cancel) still re-reads the list.
+  operator; if it ends in error, the failure is reported as a toast
+  (plan-docker_management_app-inline_error_panels/REQ-5) and the dialog stays open — stating no
+  failure of its own — so the reference can be corrected and submitted again; closing it (Cancel)
+  still re-reads the list.
 - `Run…` opens the containers' `ContainerCreateForm` pre-filled with that image's
   reference (its short id when it is dangling), so the image can be run without leaving the screen
   (REQ-29); creating or cancelling closes the form and leaves the images list as it was.
@@ -89,7 +91,7 @@ Actions:
 - `Push…` opens a `FormDialog` to pick which tag to push (a `Select` when the image
   has more than one tag); submitting opens the push progress stream and shows its steps until it
   ends. As with pull, a successful end closes the dialog and re-reads the list on its own; a failed
-  end leaves the dialog open with the error shown.
+  end reports a toast and leaves the dialog open, stating no failure of its own.
 - `Save`, and the `BulkActionBar`'s "Save to tarball…" action for every selected
   image, immediately trigger a browser download of the tarball named after the reference (or
   `"<count>-images.tar"` for several) via `triggerDownload`, and report a "Download started" toast
@@ -132,8 +134,9 @@ Actions (the image's four analysis views):
   explorer — for that image alone, and only once the view has been analysed at least once.
 - "Load tarball…" opens a `FormDialog` with a `FilePicker` for a local tarball (REQ-42); submitting
   closes that dialog and opens a `TransferProgressDialog` driven by `useFileUpload`, showing upload
-  byte progress with a genuine cancel while it runs, the references loaded once it ends (Close
-  re-reads the list), or the failure.
+  byte progress with a genuine cancel while it runs, and the references loaded once it ends (Close
+  re-reads the list). A failure is reported as a toast; the dialog states none and keeps the
+  progress where the upload stopped.
 - **This dialog and the import one below state `Completed` like every other, and then wait**: they
   are the two the screen deliberately does **not** opt into the shared surface's self-dismissal
   (`autoCloseOnDone` is not passed), because the dialog's own body is the only place the references
@@ -143,13 +146,16 @@ Actions (the image's four analysis views):
 - "Import filesystem…" opens a `FormDialog` with a `FilePicker` for a local filesystem tarball and an
   optional target reference (REQ-43); submitting opens the same kind of `TransferProgressDialog`
   (a second, independent `useFileUpload`) over the containers' filesystem-import upload, showing the
-  resulting reference (or the daemon's own image id when none was given) once it ends, or the
-  failure.
+  resulting reference (or the daemon's own image id when none was given) once it ends. A failure is
+  reported as a toast, as for the load above.
 - `Remove` goes through `useConfirmation().confirm()` first; cancelling performs
   nothing. The menu is a step in front of that confirmation, never a substitute for it.
   "Prune dangling" also confirms first and reports the removed count and reclaimed space
   via `useToast()` on success. Any failure reports the daemon's own message via
-  `useErrorReporter()`.
+  `useErrorReporter()`, and the four failures the screen holds as state — the pull, the push, the
+  tarball load and the filesystem import — are reported once per occurrence through
+  `useFailureReport()`. No transfer failure is drawn in the screen
+  (plan-docker_management_app-inline_error_panels/REQ-5, /REQ-7).
 - The search field matches any tag, the digest or the id (case-insensitive substring) (REQ-41).
 
 Actions (selection and dismissal):
@@ -209,17 +215,24 @@ Navigation:
   (and `BulkActionBar`) because it alone has a bulk action that needs a selection (`Save to
   tarball…`); Containers has no equivalent per-row bulk action (see `containers-screen.md`), so it
   carries none. That difference is intentional and does not violate REQ-3.
+- **No failure panel, and the lost connection is not told here**
+  (plan-docker_management_app-inline_error_panels/REQ-1, …/REQ-2, …/REQ-13): the listing's failure
+  state is raised only while the live channel is not delivering, so it raises no toast either. With
+  nothing to list, the shared "could not be loaded" placeholder stands in the list's place — one
+  wording for every cause, no cause named and no control (…/REQ-3). The retry is the header's; none
+  is offered here (…/REQ-4).
 
 ## Dependencies
 
 - ui-library: ScreenToolbar, SearchField, DataTable, BulkActionBar, StatusDotCell, TwoLineCell,
   MetaCell, IdentifierCell, BadgeListCell, ActionButtonGroup, Menu, FormDialog, StepProgressList,
-  TransferProgressDialog, FilePicker, triggerDownload, TextField, Select, Card, ErrorBanner,
+  TransferProgressDialog, FilePicker, triggerDownload, TextField, Select, Card,
   EmptyState, Stack, useToast
 - Images client, useImageTransferStream, useFileUpload
 - ImageDetailPanel, LayerExplorer, LayerEfficiencyView, FilesystemBrowser, ImageDiffView
 - containers: ContainerCreateForm, Container transfer client
-- app-shell: ConfirmationService, ProgressService, ErrorReportingService, CrossNavigationService
+- app-shell: ConfirmationService, ProgressService, ErrorReportingService, useFailureReport,
+  FailedReadEmptyState, CrossNavigationService
 
 ## Requirements served
 
@@ -299,3 +312,10 @@ Navigation:
 - plan-ui-coherence-optimisation/REQ-57
 - plan-ui-coherence-optimisation/REQ-58
 - plan-ui-coherence-optimisation/REQ-59
+- plan-docker_management_app-inline_error_panels/REQ-5
+- plan-docker_management_app-inline_error_panels/REQ-7
+- plan-docker_management_app-inline_error_panels/REQ-1
+- plan-docker_management_app-inline_error_panels/REQ-2
+- plan-docker_management_app-inline_error_panels/REQ-3
+- plan-docker_management_app-inline_error_panels/REQ-4
+- plan-docker_management_app-inline_error_panels/REQ-13

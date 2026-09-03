@@ -8,16 +8,22 @@ type: frontend service
 
 **Purpose** → gives every screen the same live daemon-connectivity picture app-wide: reachability
 with cause, negotiated Engine API version, and local CLI/plugin availability with the capabilities
-that are unavailable when a tool is missing (REQ-9, REQ-10, REQ-13, REQ-110). What it shows is what
+that are unavailable when a tool is missing (REQ-9, REQ-10, REQ-13, REQ-110), and — when something
+is unreachable — which of the two sides it is (…-inline_error_panels/REQ-9). What it shows is what
 the live channel delivered.
 
 ## Contract
 
 - `<ConnectionStatusProvider children>` — must wrap any part of the tree that calls
   `useConnectionStatus()`.
-- `useConnectionStatus(): ConnectionStatus & { loading, retry() }`
+- `useConnectionStatus(): ConnectionStatus & { loading, unreachable?, retry() }`
   - `daemon: { reachable, cause? }` — `cause` is the daemon's own error message, verbatim, when
     `reachable` is `false`.
+  - `unreachable?: 'server' | 'daemon'` — which side cannot be reached, set exactly while
+    `daemon.reachable` is `false`: `'server'` when the live channel is not delivering, `'daemon'`
+    when it is delivering and the status it delivered says the daemon cannot be reached
+    (…-inline_error_panels/REQ-9). Before anything has been delivered it reads `'daemon'`: the
+    channel is up, and what the daemon is doing is not yet known.
   - `apiVersion?`, `engineVersion?` — set only when `reachable` is `true`.
   - `cli: { docker, compose, buildx }`, each `{ available, version? }`.
   - `unavailableCapabilities: string[]` — human-readable statements of what is unavailable and why,
@@ -38,10 +44,14 @@ the live channel delivered.
 - Before anything has been delivered — the first window after a server start, and the moment after a
   discard — the daemon reads as not reachable **with no cause**: nothing is claimed to have failed
   that has not.
-- **A live channel that is not delivering is reported the same way**: `daemon.reachable: false` with
-  a cause, through this same state and this same wording. It is the one indication the operator gets
-  for a connection that is down, and no element and no wording of its own is added for the channel
-  (…-multiplexed_sse/REQ-11, /REQ-35).
+- **A live channel that is not delivering is reported through this same state**: `daemon.reachable:
+  false` with a cause, and it is the one indication the operator gets for a connection that is down —
+  no element of its own is added for the channel (…-multiplexed_sse/REQ-11).
+- **The two are named apart, and that supersedes …-multiplexed_sse/REQ-35's "no wording of its
+  own".** One flag reported two situations, and the header said `Daemon unreachable` for a daemon
+  that was running behind a server that had stopped answering. `unreachable` distinguishes them so
+  the header can name the side that is gone (…-inline_error_panels/REQ-9); the wordings themselves
+  belong to the header (`specs/shell.md`), not here.
 - Nothing is re-probed from here on a context switch: the server discards what it holds, says so on
   the channel, and probes the new context's daemon at once, so the status that arrives is that
   daemon's (REQ-93, …-multiplexed_sse/REQ-24).
@@ -71,3 +81,4 @@ the live channel delivered.
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-20
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-35
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-39
+- plan-docker_management_app-inline_error_panels/REQ-9

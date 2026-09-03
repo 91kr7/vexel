@@ -3,6 +3,12 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { BaselineReport } from '../../src/data/system-client';
 import type { CoverageArea, CoverageCounts } from '../../src/coverage/coverage-map';
+import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+import { errorPanels, FAILED_READ_WORDING } from '../support/failed-read';
+
+// What a screen owes on a failure is the report itself; what becomes of it is the reporting
+// service's own contract (app-shell/specs/error-reporting-service.md).
+vi.mock('../../src/shell/services/ErrorReportingService', () => import('../support/error-reporting-mock'));
 
 // The coverage matrix — the coverage half of the About screen — states what the
 // product covers of Docker and against
@@ -105,6 +111,7 @@ const firstOfState = (state: CoverageArea['state']): CoverageArea => {
 };
 
 beforeEach(() => {
+  forgetReportedFailures();
   refresh.mockReset();
 });
 
@@ -307,28 +314,28 @@ describe('CoverageMatrixScreen — the baseline (coverage/specs/coverage-matrix-
     expect(matrixRows()).toHaveLength(coverageAreas.length);
   });
 
-  // coverage-matrix-screen.md — "if that read failed, that it could not be read, and a failure
-  // banner carries the message with a retry"
-  it('states the failure with its message and a retry when the read failed', async () => {
-    const user = userEvent.setup();
+  // coverage-matrix-screen.md — with no baseline read, "the strip carries the shared 'could not be
+  // loaded' wording and nothing else", the failure itself going to a toast
+  // (…-inline_error_panels/REQ-1, /REQ-3, /REQ-4, /REQ-5)
+  it('carries the shared wording on the strip, and reports the failure, when the read failed', () => {
     renderScreen({ baseline: undefined, loaded: true, error: 'Request failed with HTTP 500' });
 
-    expect(baselineStrip().textContent).toMatch(/could not be read/i);
-    const banner = document.querySelector('.ui-error-banner');
-    expect(banner?.textContent).toContain('Request failed with HTTP 500');
+    expect(baselineStrip().textContent).toContain(FAILED_READ_WORDING);
+    expect(reportedText(), 'the failed baseline read was not reported').toMatch('Request failed with HTTP 500');
+    expect(baselineStrip().textContent, 'the strip named the cause').not.toContain('Request failed with HTTP 500');
+    expect(errorPanels(), 'the screen drew a failure panel').toHaveLength(0);
+    // The coverage map is local data and is never affected by the read that failed.
     expect(matrixRows()).toHaveLength(coverageAreas.length);
-
-    await user.click(within(banner as HTMLElement).getByRole('button', { name: /retry/i }));
-    expect(refresh).toHaveBeenCalled();
   });
 
-  // coverage-matrix-screen.md — "a failed read keeps the last good baseline on screen beside the
-  // error banner" (use-coverage.md: "A failed read leaves the last successfully read baseline in
-  // place rather than blanking it")
-  it('keeps the last known baseline beside the failure banner', () => {
+  // use-coverage.md — "a failed read leaves the last successfully read baseline in place rather
+  // than blanking it", and the failure is told by a toast (…-inline_error_panels/REQ-5)
+  it('keeps the last known baseline, stating the failure nowhere on the screen', () => {
     renderScreen({ baseline: report(), error: 'daemon unreachable' });
 
-    expect(document.querySelector('.ui-error-banner')?.textContent).toContain('daemon unreachable');
+    expect(reportedText(), 'the failed read was not reported').toMatch('daemon unreachable');
+    expect(document.body.textContent, 'the screen stated the failure itself').not.toContain('daemon unreachable');
+    expect(errorPanels(), 'the screen drew a failure panel').toHaveLength(0);
     expect(valueMatching(/declared.*engine api/i)).toContain('1.43');
     expect(valueMatching(/daemon version/i)).toContain('24.0.7');
   });

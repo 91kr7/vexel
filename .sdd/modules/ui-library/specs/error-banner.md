@@ -22,6 +22,12 @@ without breaking the surrounding screen.
 ## Rules and invariants
 
 - Rendering an ErrorBanner never replaces or hides the rest of the screen's content (REQ-7).
+- **It has exactly one call site left in the product**: the daemon's refusal of a container creation
+  the operator submitted, beside the form that submitted it
+  (`containers/specs/container-create-form.md`). No screen reports a failure in its body any more
+  (plan-docker_management_app-inline_error_panels/REQ-1) — a failed read is a toast, and where it
+  leaves a surface with nothing, `FailedReadEmptyState` stands in the data's place. A second call
+  site is a decision about the product, not a use of this component.
 
 ## Dependencies
 
@@ -31,3 +37,4 @@ without breaking the surrounding screen.
 
 - plan-docker_management_app/REQ-7
 - plan-docker_management_app/REQ-10
+- plan-docker_management_app-inline_error_panels/REQ-1

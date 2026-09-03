@@ -19,6 +19,7 @@ const client = {
 vi.mock('../../src/data/console-client', () => client);
 
 const { useConsole } = await import('../../src/data/use-console');
+const { requestReload } = await import('../../src/data/reload-signal');
 
 /** A CLI run the test drives: it captures the chunk sink and ends when the test says so. */
 function pendingCliRun() {
@@ -600,5 +601,81 @@ describe('useConsole — recall and classification', () => {
     await run.end({ exitCode: null, cancelled: true });
 
     expect(client.appendConsoleHistory).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * use-console.md — the history "is read again on the reload signal, so the header's manual refresh
+ * and a connection that comes back both refill the transcript with the operator staying on the
+ * screen" (plan-docker_management_app-inline_error_panels/REQ-12).
+ */
+describe('useConsole — the history read again on the reload signal (…-inline_error_panels/REQ-12)', () => {
+  // The order is the contract's own: "entries ... oldest first — the persisted history first, then
+  // what this session ran" (use-console.md).
+  it('reads the history again and adds what was written meanwhile, oldest first', async () => {
+    client.fetchConsoleHistory.mockResolvedValue({ entries: [historyEntry({ id: 'h1', command: 'docker version' })] });
+    const { result } = await renderConsole();
+    expect(result.current.entries.map((entry) => entry.command)).toEqual(['docker version']);
+
+    client.fetchConsoleHistory.mockResolvedValue({
+      entries: [historyEntry({ id: 'h1', command: 'docker version' }), historyEntry({ id: 'h2', command: 'docker info' })],
+    });
+    await act(async () => {
+      await requestReload();
+    });
+
+    expect(client.fetchConsoleHistory).toHaveBeenCalledTimes(2);
+    expect(result.current.entries.map((entry) => entry.command)).toEqual(['docker version', 'docker info']);
+  });
+
+  // "a re-read adds what is missing and can neither drop an entry nor repeat one"
+  it('repeats no entry and drops none of this session\'s across the re-read', async () => {
+    client.fetchConsoleHistory.mockResolvedValue({ entries: [historyEntry({ id: 'h1', command: 'docker version' })] });
+    client.callEngineApi.mockResolvedValue({ method: 'GET', path: '/v1.43/info', status: 200, body: 'ok' });
+    const { result } = await renderConsole();
+    await act(async () => {
+      await result.current.run('api', 'GET /info');
+    });
+
+    await act(async () => {
+      await requestReload();
+    });
+
+    expect(result.current.entries.map((entry) => entry.command)).toEqual(['docker version', 'GET /info']);
+    expect(new Set(result.current.entries.map((entry) => entry.id)).size).toBe(result.current.entries.length);
+  });
+
+  // use-console.md — "An entry that has rolled out of the file — it holds the last 200 — stays in
+  // the transcript ahead of the entries the file still names, being older than all of them."
+  it('keeps an entry the capped history no longer names, ahead of the ones it still does', async () => {
+    client.fetchConsoleHistory.mockResolvedValue({
+      entries: [historyEntry({ id: 'h1', command: 'docker version' }), historyEntry({ id: 'h2', command: 'docker info' })],
+    });
+    const { result } = await renderConsole();
+    expect(result.current.entries.map((entry) => entry.command)).toEqual(['docker version', 'docker info']);
+
+    // The file has since rolled its oldest entry off the front and gained a newer one.
+    client.fetchConsoleHistory.mockResolvedValue({
+      entries: [historyEntry({ id: 'h2', command: 'docker info' }), historyEntry({ id: 'h3', command: 'docker ps' })],
+    });
+    await act(async () => {
+      await requestReload();
+    });
+
+    expect(result.current.entries.map((entry) => entry.command)).toEqual(['docker version', 'docker info', 'docker ps']);
+    expect(new Set(result.current.entries.map((entry) => entry.id)).size).toBe(3);
+  });
+
+  // The subscription belongs to the mounted screen: a console the operator has left reads nothing.
+  it('reads nothing once the screen is gone', async () => {
+    client.fetchConsoleHistory.mockResolvedValue({ entries: [] });
+    const view = await renderConsole();
+    view.unmount();
+
+    await act(async () => {
+      await requestReload();
+    });
+
+    expect(client.fetchConsoleHistory).toHaveBeenCalledTimes(1);
   });
 });

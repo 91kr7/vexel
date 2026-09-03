@@ -3,16 +3,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Shell } from '../../src/shell/Shell';
-import { ConnectionStatusProvider } from '../../src/shell/services/ConnectionStatusService';
 // The Shell switches to the screen a cross-navigation request names
 // (app-shell/specs/shell.md), so it only stands inside a provider.
 import { CrossNavigationProvider } from '../../src/shell/services/CrossNavigationService';
 import { DaemonEventStreamProvider } from '../../src/shell/services/EventStreamService';
-import { ErrorReportingProvider, useErrorReporter } from '../../src/shell/services/ErrorReportingService';
 import { ProgressProvider, useProgress } from '../../src/shell/services/ProgressService';
 // The shell holds the live channel, which the client opens through an
 // EventSource jsdom does not provide.
 import { FakeEventSource, channelOpens, deliverValue } from '../support/live-channel';
+import { useErrorReporter } from '../../src/shell/services/ErrorReportingService';
+import { ReportingServices } from '../support/reporting-services';
 
 
 const reachableStatus = {
@@ -109,18 +109,16 @@ async function renderShell() {
   }
 
   render(
-    <ErrorReportingProvider>
+    <ReportingServices>
       <ProgressProvider>
-        <ConnectionStatusProvider>
-          <DaemonEventStreamProvider>
-            <CrossNavigationProvider>
-              <Driver />
-              <Shell />
-            </CrossNavigationProvider>
-          </DaemonEventStreamProvider>
-        </ConnectionStatusProvider>
+        <DaemonEventStreamProvider>
+          <CrossNavigationProvider>
+            <Driver />
+            <Shell />
+          </CrossNavigationProvider>
+        </DaemonEventStreamProvider>
       </ProgressProvider>
-    </ErrorReportingProvider>,
+    </ReportingServices>,
   );
   // The server accepts the channel and pushes the status on it: without either
   // the shell reports the daemon unreachable, which is the state of REQ-11 and
@@ -164,19 +162,26 @@ describe('Shell', () => {
     expect(activeEntries[0]).toHaveAccessibleName(expect.stringContaining('Containers'));
   });
 
-  // app-shell/specs/error-reporting-service.md — the shell renders errors alongside the screen, not instead of it (REQ-7)
-  it('shows a reported error next to the active screen without hiding it', async () => {
+  // app-shell/specs/shell.md — the Shell draws no failure in the content area: a report is a toast,
+  // and the screen underneath keeps its content
+  // (plan-docker_management_app-inline_error_panels/REQ-1, /REQ-5)
+  it('reports a failure as a toast and draws nothing about it in the content area', async () => {
     const api = await renderShell();
 
     act(() => {
       api.reportError('Failed to remove container', 'Error: cannot remove a running container');
     });
 
-    expect(screen.getByText('Failed to remove container')).toBeInTheDocument();
-    expect(screen.getByText('Error: cannot remove a running container')).toBeInTheDocument();
+    const toasts = document.querySelector<HTMLElement>('.ui-toast-viewport')!;
+    expect(toasts.textContent).toContain('Failed to remove container');
+    expect(toasts.textContent).toContain('Error: cannot remove a running container');
+
+    const content = document.querySelector<HTMLElement>('.ui-frame__content')!;
+    expect(content.textContent, 'the failure was drawn in the page body').not.toContain('Failed to remove container');
+    expect(content.textContent, 'the failure was drawn in the page body').not.toContain('cannot remove a running container');
     expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument();
-    // The landing screen's own content is still on display beside the banner: the
-    // Dashboard is a real screen since batch 25 (app-shell/specs/shell.md, REQ-14).
+    // The landing screen's own content is untouched by the report: the Dashboard is
+    // a real screen since batch 25 (app-shell/specs/shell.md, REQ-14).
     expect(screen.getByRole('heading', { level: 2, name: 'Container activity' })).toBeInTheDocument();
   });
 

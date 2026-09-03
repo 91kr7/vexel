@@ -460,11 +460,13 @@ describe('REQ-34 — this plan moved no blur and did not touch the background', 
 describe('the containers exception is recorded, dated and bounded (REQ-62)', () => {
   /** The record as certified, the last revision before the 2026-08-25 amendment. */
   const BEFORE_THE_AMENDMENT = 'c434700';
-  const RETIREMENT_PLAN = '.sdd/plans/plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table';
+  const RETIREMENT_PLAN = '.sdd/archived/plans/plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table';
   const PLAN_REQUIREMENTS = `${RETIREMENT_PLAN}/requirements.md`;
+  /** The same file at the certified revision, which predates the move into `.sdd/archived/`. */
+  const PLAN_REQUIREMENTS_THEN = PLAN_REQUIREMENTS.replace('.sdd/archived/', '.sdd/');
 
   it.each([
-    '.sdd/analysis/ui-coherence-optimisation-comfortable_variant_retired-classic_table.md',
+    '.sdd/archived/analysis/ui-coherence-optimisation-comfortable_variant_retired-classic_table.md',
     PLAN_REQUIREMENTS,
     `${RETIREMENT_PLAN}/batches.md`,
     `${RETIREMENT_PLAN}/closing-state.md`,
@@ -487,7 +489,7 @@ describe('the containers exception is recorded, dated and bounded (REQ-62)', () 
   it('annotates the certified requirements of the retirement instead of renumbering or deleting them', () => {
     const ids = (text: string): string[] => [...text.matchAll(/^\| (REQ-\d+) \|/gm)].map((match) => match[1]!);
 
-    const before = ids(git('show', `${BEFORE_THE_AMENDMENT}:${PLAN_REQUIREMENTS}`));
+    const before = ids(git('show', `${BEFORE_THE_AMENDMENT}:${PLAN_REQUIREMENTS_THEN}`));
     // The premise: a revision that holds no requirement table at all would make the comparison below
     // an equality between two empty lists.
     expect(before.length, `${BEFORE_THE_AMENDMENT} states no requirement, so this comparison reads the wrong file`).toBeGreaterThan(10);
@@ -504,7 +506,7 @@ describe('the containers exception is recorded, dated and bounded (REQ-62)', () 
   // own violations point a reader at.
   it('records the exception as one screen with every other list unchanged', () => {
     const record = readFileSync(
-      join(repositoryRoot, '.sdd/analysis/ui-coherence-optimisation-comfortable_variant_retired-classic_table.md'),
+      join(repositoryRoot, '.sdd/archived/analysis/ui-coherence-optimisation-comfortable_variant_retired-classic_table.md'),
       'utf8',
     );
     const amendment = record.slice(record.indexOf('2026-08-25'));

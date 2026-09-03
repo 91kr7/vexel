@@ -22,12 +22,29 @@ disk, and validates on demand.
     result lands in `validation`.
   - `dirtyPaths: string[]` — paths with an edit not yet saved.
   - A change of `projectName` discards every unsaved edit and re-reads that project's files.
+  - The files are also re-read on the reload signal — the header's manual refresh, and a connection
+    that comes back — with the operator staying where they are
+    (plan-docker_management_app-inline_error_panels/REQ-12).
+
+## Rules and invariants
+
+- **An unsaved edit is never overwritten, and never silently replaced.** A re-read replaces only the
+  content read from disk; `files` keeps showing the operator's own buffer for every dirty path,
+  `dirtyPaths` still names them and `save` still writes what they typed. Losing an edit to a
+  reconnection is not an acceptable outcome, and neither is an overwrite the operator cannot see
+  (REQ-77).
+- A path with no unsaved edit does show the file as it now is on disk: that is what re-reading is
+  for.
+- The only thing that discards an edit is the operator's own step — saving it, or leaving the
+  project (a change of `projectName`).
 
 ## Dependencies
 
 - compose: Compose client
+- app-shell: Reload signal
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-77
 - plan-docker_management_app/REQ-116
+- plan-docker_management_app-inline_error_panels/REQ-12

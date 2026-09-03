@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ContainerSummary } from '../../src/data/containers-client';
+import { ReportingServices } from '../support/reporting-services';
 
 // The gate is expressed in consumers of the figures, not in one named screen:
 // the containers list and the dashboard are both consumers, and each holds the
@@ -23,9 +24,7 @@ const { ContainersScreen } = await import('../../src/containers/ContainersScreen
 const { DashboardScreen } = await import('../../src/dashboard/DashboardScreen');
 const { CrossNavigationProvider } = await import('../../src/shell/services/CrossNavigationService');
 const { ConfirmationProvider } = await import('../../src/shell/services/ConfirmationService');
-const { ErrorReportingProvider } = await import('../../src/shell/services/ErrorReportingService');
 const { ProgressProvider } = await import('../../src/shell/services/ProgressService');
-const { ToastProvider } = await import('../../src/ui');
 
 const SUBSCRIPTION_PATH = '/api/containers/stats/subscription';
 
@@ -68,23 +67,23 @@ function container(): ContainerSummary {
 
 function renderContainersScreen() {
   return render(
-    <ErrorReportingProvider>
+    <ReportingServices>
       <ProgressProvider>
         <ConfirmationProvider>
-          <ToastProvider>
-            <ContainersScreen containers={[container()]} loaded onRefresh={vi.fn()} />
-          </ToastProvider>
+          <ContainersScreen containers={[container()]} loaded onRefresh={vi.fn()} />
         </ConfirmationProvider>
       </ProgressProvider>
-    </ErrorReportingProvider>,
+    </ReportingServices>,
   );
 }
 
 function renderDashboardScreen() {
   return render(
-    <CrossNavigationProvider>
-      <DashboardScreen containers={[container()]} containersLoaded onRefreshContainers={vi.fn()} />
-    </CrossNavigationProvider>,
+    <ReportingServices>
+      <CrossNavigationProvider>
+        <DashboardScreen containers={[container()]} containersLoaded />
+      </CrossNavigationProvider>
+    </ReportingServices>,
   );
 }
 

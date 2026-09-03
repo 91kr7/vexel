@@ -150,7 +150,7 @@ test('tells the operator the connection is down, and is current again once it re
 
     // The indication the interface already has for a connection that is down, and
     // no element of its own for the channel (REQ-11, REQ-35).
-    await expect(page.getByText('Daemon unreachable').first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('Server unreachable').first()).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole('button', { name: 'Retry' }).first()).toBeVisible();
 
     // Started while the connection is down: it must be on screen once it returns,
@@ -159,7 +159,7 @@ test('tells the operator the connection is down, and is current again once it re
     await page.unroute('**/api/live');
 
     await expect(containerCard(page, name)).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByText('Daemon unreachable')).toHaveCount(0);
+    await expect(page.getByText('Server unreachable')).toHaveCount(0);
   } finally {
     await removeContainerQuietly(name);
   }

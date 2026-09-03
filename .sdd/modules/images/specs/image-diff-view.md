@@ -48,6 +48,9 @@ Actions:
   cancel-vs-close distinction as the filesystem browser's extraction dialog: Cancel discards the
   run and returns to the picker; Close, once succeeded, only dismisses the dialog and the diff tree
   stays; Close, once failed, clears the run so comparison can be retried.
+- A failed comparison is reported as a toast carrying the daemon's own message, once per failure;
+  the dialog states none and keeps the progress where the comparison stopped, and it offers no
+  retry of its own (plan-docker_management_app-inline_error_panels/REQ-5, /REQ-7).
 - Once the comparison succeeds the dialog states `Completed` — the shared surface's own wording —
   and **dismisses itself** a second later, revealing the diff tree: this view asks the surface for
   that (`autoCloseOnDone`), its result being rendered behind the dialog rather than in it. No
@@ -82,6 +85,7 @@ Actions:
   TransferProgressDialog, Button
 - useImageDiffStream, useImageDiffTree, Image diff client
 - useImageFilesystemEntryContent (paired content reads, one call per side)
+- app-shell: useFailureReport
 
 ## Requirements served
 
@@ -95,3 +99,5 @@ Actions:
 - plan-docker_management_app-progress_completion_autoclose/REQ-12
 - plan-docker_management_app-progress_completion_autoclose/REQ-15
 - plan-docker_management_app-progress_completion_autoclose/REQ-16
+- plan-docker_management_app-inline_error_panels/REQ-5
+- plan-docker_management_app-inline_error_panels/REQ-7

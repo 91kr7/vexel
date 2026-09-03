@@ -5,6 +5,7 @@ import type { BuildCacheRecord, BuildCacheUsage, BuilderSummary } from '../../sr
 import type { UseBuildCacheResult } from '../../src/data/use-build-cache';
 import type { UseBuildCacheUsageResult } from '../../src/data/use-build-cache-usage';
 import type { UseBuildersResult } from '../../src/data/use-builders';
+import { ReportingServices } from '../support/reporting-services';
 
 /**
  * F8 — the builders and build-cache screen
@@ -63,9 +64,7 @@ vi.mock('../../src/shell/services/CrossNavigationService', async () => {
 
 const { BuildersScreen } = await import('../../src/builders/BuildersScreen');
 const { ConfirmationProvider } = await import('../../src/shell/services/ConfirmationService');
-const { ErrorReportingProvider } = await import('../../src/shell/services/ErrorReportingService');
 const { ProgressProvider } = await import('../../src/shell/services/ProgressService');
-const { ToastProvider } = await import('../../src/ui');
 
 function builder(overrides: Partial<BuilderSummary> = {}): BuilderSummary {
   return {
@@ -86,15 +85,13 @@ function record(overrides: Partial<BuildCacheRecord> = {}): BuildCacheRecord {
 
 function renderScreen() {
   render(
-    <ErrorReportingProvider>
+    <ReportingServices>
       <ProgressProvider>
         <ConfirmationProvider>
-          <ToastProvider>
-            <BuildersScreen />
-          </ToastProvider>
+          <BuildersScreen />
         </ConfirmationProvider>
       </ProgressProvider>
-    </ErrorReportingProvider>,
+    </ReportingServices>,
   );
 }
 

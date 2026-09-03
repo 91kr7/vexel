@@ -60,6 +60,7 @@ function StatusHarness() {
       <span data-testid="reachable">{String(status.daemon.reachable)}</span>
       <span data-testid="cause">{status.daemon.cause ?? ''}</span>
       <span data-testid="loading">{String(status.loading)}</span>
+      <span data-testid="unreachable">{status.unreachable ?? 'none'}</span>
       <pre data-testid="status">{JSON.stringify(status)}</pre>
       <button onClick={() => status.retry()}>Retry</button>
     </div>
@@ -223,5 +224,72 @@ describe('ConnectionStatusProvider / useConnectionStatus', () => {
     expect(delivering.closed, 'a delivering channel was closed by a retry').toBe(false);
     expect(FakeEventSource.instances).toHaveLength(opened);
     expect(harness.requests, 'a retry on a delivering channel asked the server for the status').toEqual([]);
+  });
+});
+
+/**
+ * Which of the two sides cannot be reached (…-inline_error_panels/REQ-9). The same
+ * `daemon.reachable: false` used to stand for both, and the header named the daemon for a daemon
+ * that was running behind a server that had stopped answering.
+ */
+describe('useConnectionStatus — which side is unreachable (…-inline_error_panels/REQ-9)', () => {
+  // connection-status-service.md — "'daemon' when it is delivering and the status it delivered says
+  // the daemon cannot be reached"
+  it('names the daemon while the channel delivers a status the daemon is not reachable in', async () => {
+    renderStatus();
+    act(() => channelOpens());
+
+    act(() => deliverValue(CONNECTION_STATUS, unreachableStatus));
+
+    await waitFor(() => expect(screen.getByTestId('reachable')).toHaveTextContent('false'));
+    expect(screen.getByTestId('unreachable')).toHaveTextContent('daemon');
+  });
+
+  // connection-status-service.md — "'server' when the live channel is not delivering"
+  it('names the server while the channel is not delivering', async () => {
+    renderStatus();
+    act(() => channelOpens());
+    act(() => deliverValue(CONNECTION_STATUS, reachableStatus));
+    await waitFor(() => expect(screen.getByTestId('unreachable')).toHaveTextContent('none'));
+
+    act(() => dropChannel());
+
+    await waitFor(() => expect(screen.getByTestId('unreachable')).toHaveTextContent('server'));
+  });
+
+  // connection-status-service.md — "set exactly while daemon.reachable is false"
+  it('names nothing while the daemon is reachable', async () => {
+    renderStatus();
+    act(() => channelOpens());
+
+    act(() => deliverValue(CONNECTION_STATUS, reachableStatus));
+
+    await waitFor(() => expect(screen.getByTestId('reachable')).toHaveTextContent('true'));
+    expect(screen.getByTestId('unreachable')).toHaveTextContent('none');
+  });
+
+  // connection-status-service.md — "Before anything has been delivered it reads 'daemon': the
+  // channel is up, and what the daemon is doing is not yet known."
+  it('names the daemon before anything has been delivered', () => {
+    renderStatus();
+
+    act(() => channelOpens());
+
+    expect(screen.getByTestId('loading')).toHaveTextContent('true');
+    expect(screen.getByTestId('unreachable')).toHaveTextContent('daemon');
+  });
+
+  // The transition an operator sees when the server comes back: the side named is dropped as soon
+  // as the channel delivers a reachable daemon again.
+  it('names nothing again once the channel delivers a reachable daemon after being down', async () => {
+    renderStatus();
+    act(() => channelOpens());
+    act(() => deliverValue(CONNECTION_STATUS, reachableStatus));
+    act(() => dropChannel());
+    await waitFor(() => expect(screen.getByTestId('unreachable')).toHaveTextContent('server'));
+
+    act(() => channelOpens());
+
+    await waitFor(() => expect(screen.getByTestId('unreachable')).toHaveTextContent('none'));
   });
 });

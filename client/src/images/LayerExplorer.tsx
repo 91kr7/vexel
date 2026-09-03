@@ -7,7 +7,6 @@ import {
   DataTable,
   DefinitionList,
   EmptyState,
-  ErrorBanner,
   IdentifierCell,
   MetaCell,
   Modal,
@@ -24,6 +23,8 @@ import { useImageBuildCacheTrace } from '../data/use-image-build-cache-trace';
 import { useImageChangesetStream } from '../data/use-image-changesets';
 import { useImageLayerStack } from '../data/use-image-layers';
 import { useCrossNavigation } from '../shell/services/CrossNavigationService';
+import { useFailureReport } from '../shell/services/use-failure-report';
+import { FailedReadEmptyState } from '../shell/FailedReadEmptyState';
 
 export interface LayerExplorerProps {
   image: ImageSummary;
@@ -76,7 +77,7 @@ function truncateId(id: string): string {
  * paths.
  */
 export function LayerExplorer({ image, open, onClose, initialSelectedLayerIndex, autoAnalyze, layersWithFindings }: LayerExplorerProps) {
-  const { stack, loaded, error, refresh } = useImageLayerStack(open ? image.id : undefined);
+  const { stack, loaded, error } = useImageLayerStack(open ? image.id : undefined);
   const trace = useImageBuildCacheTrace(open ? image.id : undefined);
   const { navigateTo } = useCrossNavigation();
   const [selectedIndex, setSelectedIndex] = useState<number | undefined>(undefined);
@@ -89,6 +90,10 @@ export function LayerExplorer({ image, open, onClose, initialSelectedLayerIndex,
   const [analysisUrl, setAnalysisUrl] = useState<string | undefined>(undefined);
   const [progressDialogOpen, setProgressDialogOpen] = useState(false);
   const changesets = useImageChangesetStream(analysisUrl);
+
+  useFailureReport('Could not load the layer stack', error);
+  useFailureReport('Could not load the build-cache association', trace.error);
+  useFailureReport('Could not analyze layer changesets', changesets.error);
 
   useEffect(() => {
     if (!open) return;
@@ -217,7 +222,6 @@ export function LayerExplorer({ image, open, onClose, initialSelectedLayerIndex,
   return (
     <Modal open={open} title={`Layer stack — ${image.tags[0] ?? image.shortId}`} onClose={onClose} size="large">
       <Stack gap="var(--space-4)">
-        {error ? <ErrorBanner title="Could not load the layer stack" detail={error} onRetry={refresh} /> : null}
         <DataTable
           columns={layerColumns}
           rows={layers}
@@ -225,12 +229,17 @@ export function LayerExplorer({ image, open, onClose, initialSelectedLayerIndex,
           selectedRowKey={selectedIndex !== undefined ? String(selectedIndex) : undefined}
           onRowSelect={(layer) => setSelectedIndex(layer.index)}
           expandedRowKey={selectedIndex !== undefined ? String(selectedIndex) : undefined}
-          emptyState={<EmptyState title={loaded ? 'No layer data available' : 'Loading layer stack…'}  description={null} action={null} />}
+          emptyState={
+            error ? (
+              <FailedReadEmptyState />
+            ) : (
+              <EmptyState title={loaded ? 'No layer data available' : 'Loading layer stack…'} description={null} action={null} />
+            )
+          }
           renderExpanded={() => (
             <Stack gap="var(--space-4)">
               <Stack gap="var(--space-2)">
                 <SectionHeader variant="eyebrow" title="Build step & build cache" />
-                {trace.error ? <ErrorBanner title="Could not load the build-cache association" detail={trace.error} onRetry={trace.refresh} /> : null}
                 <DefinitionList
                   items={[{ label: 'Build step', value: selectedLink?.command ?? selectedLink?.instruction ?? '–' }]}
                 />
@@ -277,7 +286,6 @@ export function LayerExplorer({ image, open, onClose, initialSelectedLayerIndex,
         currentBytes={changesets.progress?.phase === 'analyzing' ? changesets.progress.completedLayers : 0}
         totalBytes={changesets.progress?.phase === 'analyzing' ? changesets.progress.totalLayers : undefined}
         status={changesets.error ? 'error' : changesets.done ? 'done' : 'active'}
-        errorMessage={changesets.error}
         formatCaption={(current, total) =>
           !changesets.progress || changesets.progress.phase === 'exporting'
             ? 'Exporting the image…'

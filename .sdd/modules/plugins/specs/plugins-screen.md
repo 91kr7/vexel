@@ -64,8 +64,8 @@ Actions:
 - "Remove" → asks for a destructive confirmation naming the plugin and stating that its data goes
   with it and that an enabled plugin must be disabled first; once confirmed the plugin disappears
   from the list, and its open inspection closes with it.
-- Every failure — install, enable, disable, remove — is reported with the daemon's own message, and
-  leaves the list showing what is actually true.
+- Every failure — install, enable, disable, remove, inspect — is reported with the daemon's own
+  message, and leaves the list showing what is actually true.
 
 ## Rules and invariants
 
@@ -104,6 +104,15 @@ Actions:
   drawn as a statement, what changes is drawn as a control.
 - At most one inspection is open, in this list and in the interface, the detail panel holding that
   guarantee.
+- **No failure panel, and the lost connection is not told here**
+  (plan-docker_management_app-inline_error_panels/REQ-1, …/REQ-2, …/REQ-13): the inventory's failure
+  state is raised only while the live channel is not delivering, so it raises no toast either. With
+  nothing to list, the shared "could not be loaded" placeholder stands in each list's place — one
+  wording for every cause, no cause named and no control (…/REQ-3). The retry is the header's; none
+  is offered here (…/REQ-4).
+- **The inspect refusal is a toast too** (plan-docker_management_app-inline_error_panels/REQ-1,
+  /REQ-5): the panel that used to state it beside the list is gone, and the row's own "Inspect" is
+  what asks again.
 
 ## Decisions recorded
 
@@ -145,10 +154,10 @@ Actions:
 
 - ui-library: Card (unpadded, holding the list alone), SectionHeader, ScreenToolbar, DataTable with
   TwoLineCell, MetaCell and BadgeListCell, DetailPanel, CodeViewer, Button, Toggle,
-  ActionButtonGroup, FormDialog, FormField, TextField, ErrorBanner, EmptyState, Stack, useToast
+  ActionButtonGroup, FormDialog, FormField, TextField, EmptyState, Stack, useToast
 - plugins: usePlugins
 - app-shell: ConfirmationService (`confirm`, `confirmPrivileges`), ErrorReportingService,
-  ProgressService
+  ProgressService, FailedReadEmptyState
 
 ## Requirements served
 
@@ -161,3 +170,8 @@ Actions:
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-18
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-39
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40
+- plan-docker_management_app-inline_error_panels/REQ-1
+- plan-docker_management_app-inline_error_panels/REQ-2
+- plan-docker_management_app-inline_error_panels/REQ-3
+- plan-docker_management_app-inline_error_panels/REQ-4
+- plan-docker_management_app-inline_error_panels/REQ-13

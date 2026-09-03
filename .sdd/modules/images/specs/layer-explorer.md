@@ -42,7 +42,7 @@ Shows:
   sentence stating why the association does not exist (REQ-68). A registry-pulled image therefore
   shows an explanation, never an empty panel.
 - While the association is still being read: a "Reading the build-cache association…" line; a failed
-  read: an `ErrorBanner` with retry, leaving the rest of the explorer usable.
+  read draws nothing here and leaves the rest of the explorer usable.
 - Before analysis: an `EmptyState` inviting the operator to analyze changesets, with a button that
   opens the cost-warning confirmation.
 - After analysis: the selected layer's added/modified/deleted paths in a table (status marker, full
@@ -65,6 +65,9 @@ Actions:
     what it produced. Only Cancel or starting a new analysis replaces it.
   - Close, once the analysis failed, dismisses the dialog and clears it (there is nothing to keep),
     so "Analyze changesets…" is offered again.
+  - A failed analysis is reported as a toast carrying the daemon's own message, once per failure;
+    the dialog states none and keeps the progress where the analysis stopped, and it offers no retry
+    of its own (plan-docker_management_app-inline_error_panels/REQ-5, /REQ-7).
   - Once the analysis succeeds the dialog states `Completed` — the shared surface's own wording —
     and **dismisses itself** a second later, which is that same acknowledgement made without the
     operator having to give it: this view asks the surface for it (`autoCloseOnDone`), its result
@@ -88,14 +91,19 @@ Actions:
 - The analysis stream/result and the progress dialog's visibility are independent: dismissing the
   dialog after a successful run never re-fetches or discards the result, so browsing it costs nothing
   further and a later re-open of the same image still serves it from the cache.
+- **No failure panel** (plan-docker_management_app-inline_error_panels/REQ-1): a failed layer-stack
+  read, and a failed build-cache association read, are each reported as one toast through
+  `useFailureReport`; with no layer to list the shared "could not be loaded" placeholder stands in
+  the layer table's place — no cause named, no control (…/REQ-3). The retry is the header's; none is
+  offered here (…/REQ-4).
 
 ## Dependencies
 
 - ui-library: Modal, DataTable, ProportionBarCell, Badge, MetaCell, IdentifierCell, CrossReference,
-  DefinitionList, SectionHeader, ConfirmDialog, TransferProgressDialog, EmptyState, ErrorBanner,
+  DefinitionList, SectionHeader, ConfirmDialog, TransferProgressDialog, EmptyState,
   Button, Row, Stack
 - useImageLayerStack, useImageChangesetStream, useImageBuildCacheTrace, Image layers client
-- app-shell: useCrossNavigation
+- app-shell: useCrossNavigation, useFailureReport, FailedReadEmptyState
 
 ## Requirements served
 
@@ -111,3 +119,8 @@ Actions:
 - plan-docker_management_app-progress_completion_autoclose/REQ-12
 - plan-docker_management_app-progress_completion_autoclose/REQ-15
 - plan-docker_management_app-progress_completion_autoclose/REQ-16
+- plan-docker_management_app-inline_error_panels/REQ-5
+- plan-docker_management_app-inline_error_panels/REQ-7
+- plan-docker_management_app-inline_error_panels/REQ-1
+- plan-docker_management_app-inline_error_panels/REQ-3
+- plan-docker_management_app-inline_error_panels/REQ-4

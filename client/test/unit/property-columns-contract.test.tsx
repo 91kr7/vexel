@@ -5,6 +5,10 @@ import { join } from 'node:path';
 import { ContentColumns, DefinitionList, type DefinitionListProps } from '../../src/ui';
 import { ImageDetailPanel } from '../../src/images/ImageDetailPanel';
 
+// The panel reports a failed read through the reporting service; the service's own contract is
+// checked in `error-reporting-service.test.tsx`.
+vi.mock('../../src/shell/services/ErrorReportingService', () => import('../support/error-reporting-mock'));
+
 /**
  * **Contract and state only — and that is a decision, stated here on the spot.**
  * REQ ids belong to `plan-docker_management_app-detail_property_columns` (REQ-43).

@@ -1,9 +1,7 @@
-// The application-wide "read it all again" broadcast, beside the
-// active-context one. A view subscribes with its own read; one call raises the
-// signal and ends only when every subscribed read has ended, which is what
-// makes "the reload finished" mean "the screen has the data"
-// (plan-docker_management_app-refresh_cache-manual_refresh/REQ-11, REQ-12).
-// It carries no data and knows no Docker vocabulary.
+// The application-wide "read it all again" broadcast: one call ends only when every subscribed read
+// has ended (plan-docker_management_app-refresh_cache-manual_refresh/REQ-11, REQ-12).
+import { isChannelDelivering, subscribeToChannelDelivery } from './live-channel';
+
 type ReloadListener = () => void | Promise<unknown>;
 
 const listeners = new Set<ReloadListener>();
@@ -17,10 +15,8 @@ export function subscribeToReload(listener: ReloadListener): () => void {
 }
 
 /**
- * Runs every subscribed read at once and settles when all of them have. A read
- * that fails is not allowed to abandon the others, and does not fail the
- * signal: the view keeps what it had and reports its own failure the way it
- * always does.
+ * Runs every subscribed read at once and settles when all of them have; a read that fails abandons
+ * neither the others nor the signal, and reports itself the way it always does.
  */
 export async function requestReload(): Promise<void> {
   await Promise.all(
@@ -32,4 +28,19 @@ export async function requestReload(): Promise<void> {
       }
     }),
   );
+}
+
+/**
+ * Raises one reload each time the live channel starts delivering again; the first open is a
+ * start-up and raises none (plan-docker_management_app-inline_error_panels/REQ-12).
+ */
+export function reloadWhenChannelReturns(): () => void {
+  let delivering = isChannelDelivering();
+  let hasDelivered = delivering;
+  return subscribeToChannelDelivery((next) => {
+    const returned = next && !delivering && hasDelivered;
+    delivering = next;
+    hasDelivered ||= next;
+    if (returned) void requestReload();
+  });
 }

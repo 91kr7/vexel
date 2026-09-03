@@ -102,15 +102,26 @@ Actions:
 - In the create dialog the option rows and the label rows carry distinct accessible names, so no two
   of its fields are announced alike.
 - Attach and detach are not routed through the confirmation service: neither is destructive to data.
+- **No failure panel, and the lost connection is not told here**
+  (plan-docker_management_app-inline_error_panels/REQ-1, …/REQ-2, …/REQ-13): the listing's failure
+  state is raised only while the live channel is not delivering, so it raises no toast either. With
+  nothing to list, the shared "could not be loaded" placeholder stands in the list's place — one
+  wording for every cause, no cause named and no control (…/REQ-3). The retry is the header's; none
+  is offered here (…/REQ-4).
+- **No failure panel** (plan-docker_management_app-inline_error_panels/REQ-1): a failed network
+  inspect read is reported as one toast through `useFailureReport`, and where it leaves nothing to
+  show the shared "could not be loaded" placeholder stands in the detail's place — no cause named,
+  no control (…/REQ-3). The retry is the header's; none is offered here (…/REQ-4).
 
 ## Dependencies
 
 - ui-library: Card (unpadded, holding the list alone), SectionHeader, ScreenToolbar, DataTable (row content), TwoLineCell, MetaCell,
-  ChipGroup, ActionButtonGroup, DetailPanel, CodeViewer, ErrorBanner, EmptyState, Button,
+  ChipGroup, ActionButtonGroup, DetailPanel, CodeViewer, EmptyState, Button,
   FormDialog, FormField, TextField, Combobox, KeyValueEditor, Stack, useToast
 - Networks client, useNetworks, useNetworkInspect
 - containers module: useContainers
-- app-shell: ConfirmationService, ProgressService, ErrorReportingService
+- app-shell: ConfirmationService, ProgressService, ErrorReportingService, useFailureReport,
+  FailedReadEmptyState
 
 ## Requirements served
 
@@ -130,3 +141,8 @@ Actions:
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-45
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-17
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-33
+- plan-docker_management_app-inline_error_panels/REQ-1
+- plan-docker_management_app-inline_error_panels/REQ-2
+- plan-docker_management_app-inline_error_panels/REQ-3
+- plan-docker_management_app-inline_error_panels/REQ-4
+- plan-docker_management_app-inline_error_panels/REQ-13

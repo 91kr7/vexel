@@ -248,7 +248,7 @@ test('leaves the refresh control at rest when the channel is not delivering', as
   await expect(page.getByRole('heading', { level: 1, name: 'Volumes & networks' })).toBeVisible();
 
   // The state the interface already has for a connection that is down — no new element for it.
-  await expect(page.getByText('Daemon unreachable').first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('Server unreachable').first()).toBeVisible({ timeout: 30_000 });
 
   await refreshThroughTheControl(page);
 

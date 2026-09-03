@@ -6,9 +6,13 @@ import userEvent from '@testing-library/user-event';
 import type { NetworkSummary } from '../../src/data/networks-client';
 import type { UseNetworksResult } from '../../src/data/use-networks';
 import { ConfirmationProvider } from '../../src/shell/services/ConfirmationService';
-import { ErrorReportingProvider, useErrorReporter } from '../../src/shell/services/ErrorReportingService';
 import { ProgressProvider } from '../../src/shell/services/ProgressService';
-import { ToastProvider } from '../../src/ui';
+import { ReportingServices } from '../support/reporting-services';
+import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+
+// What a screen owes on a failure is the report itself; what becomes of it is the reporting
+// service's own contract (app-shell/specs/error-reporting-service.md).
+vi.mock('../../src/shell/services/ErrorReportingService', () => import('../support/error-reporting-mock'));
 
 // The panel reads the network listing itself since
 // plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-40, so `renderPanel`
@@ -39,30 +43,16 @@ function inspectPayload(network: NetworkSummary) {
   return { ...network, raw: { Name: network.name, Driver: network.driver } };
 }
 
-function ReportedErrors() {
-  const { errors } = useErrorReporter();
-  return (
-    <>
-      {errors.map((error) => (
-        <p key={error.id}>{`${error.title}${error.detail ? `: ${error.detail}` : ''}`}</p>
-      ))}
-    </>
-  );
-}
-
 function renderPanel(networks: NetworkSummary[], onRefresh = vi.fn()) {
   networksReading = { networks, loaded: true, refresh: onRefresh };
   render(
-    <ErrorReportingProvider>
+    <ReportingServices>
       <ProgressProvider>
         <ConfirmationProvider>
-          <ToastProvider>
-            <NetworksPanel />
-            <ReportedErrors />
-          </ToastProvider>
+          <NetworksPanel />
         </ConfirmationProvider>
       </ProgressProvider>
-    </ErrorReportingProvider>,
+    </ReportingServices>,
   );
   return { onRefresh };
 }
@@ -119,6 +109,7 @@ let fetchMock: ReturnType<typeof vi.fn>;
 let inspectedNetwork: NetworkSummary;
 
 beforeEach(() => {
+  forgetReportedFailures();
   inspectedNetwork = makeNetwork();
   fetchMock = vi.fn().mockImplementation((url: string) => {
     if (String(url).includes('/inspect')) {
@@ -524,7 +515,7 @@ describe('NetworksPanel — create (plan-docker_management_app/REQ-73)', () => {
     await user.type(within(dialog).getByRole('textbox', { name: 'Network name' }), 'app-net');
     await user.click(within(dialog).getByRole('button', { name: 'Create' }));
 
-    expect(await screen.findByText(/network name already in use/)).toBeInTheDocument();
+    await waitFor(() => expect(reportedText()).toMatch(/network name already in use/));
   });
 });
 

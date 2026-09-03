@@ -8,6 +8,12 @@ import type { LayerBuildCacheLink, LayerMetadata } from '../../src/data/image-la
 // (images/specs/layer-explorer.md), so the explorer only stands inside a
 // cross-navigation provider.
 import { CrossNavigationProvider, useCrossNavigation, type CrossNavigationRequest } from '../../src/shell/services/CrossNavigationService';
+import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+import { errorPanels } from '../support/failed-read';
+
+// What a screen owes on a failure is the report itself; what becomes of it is the reporting
+// service's own contract (app-shell/specs/error-reporting-service.md).
+vi.mock('../../src/shell/services/ErrorReportingService', () => import('../support/error-reporting-mock'));
 
 // Stands in for the browser's EventSource: the changeset analysis stream's
 // only channel (REQ-49, REQ-51), so the tests drive it by emitting events on
@@ -107,6 +113,7 @@ function NavigationProbe() {
 }
 
 beforeEach(() => {
+  forgetReportedFailures();
   layers = [makeLayer()];
   cacheLinks = [makeCacheLink()];
   cacheTraceFailure = undefined;
@@ -336,6 +343,14 @@ describe('LayerExplorer — changeset view (plan-docker_management_app/REQ-49)',
     await userEvent.click(screen.getByRole('button', { name: 'Analyze' }));
 
     act(() => latestSource().emit('error', { message: 'export failed' }));
+    // layer-explorer.md — the failure is reported as a toast carrying the daemon's own message,
+    // the dialog states none and offers no retry of its own
+    // (plan-docker_management_app-inline_error_panels/REQ-5, /REQ-7)
+    await waitFor(() => expect(reportedText()).toMatch(/export failed/));
+    // Scoped to the progress dialog: the screen's own body panels are another batch's subject.
+    const progressDialog = document.querySelector('.ui-transfer-progress-dialog__caption')!.closest<HTMLElement>('.ui-modal')!;
+    expect(progressDialog.querySelector('.ui-error-banner'), 'the dialog stated the cause itself').toBeNull();
+    expect(within(progressDialog).queryByRole('button', { name: 'Retry' }), 'the dialog offered a retry of its own').not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument());
     await userEvent.click(screen.getByRole('button', { name: 'Close' }));
 
@@ -434,13 +449,16 @@ describe('LayerExplorer — build step & build cache (plan-docker_management_app
     expect(lastNavigationRequest).toBeUndefined();
   });
 
-  // layer-explorer.md — "a failed read: an ErrorBanner with retry, leaving the rest of the explorer
-  // usable."
-  it('reports a failed association read with a retry, leaving the layer stack usable', async () => {
+  // layer-explorer.md — a failed association read "draws nothing here and leaves the rest of the
+  // explorer usable", the failure itself going to a toast
+  // (…-inline_error_panels/REQ-1, /REQ-5)
+  it('reports a failed association read, drawing none of it and leaving the layer stack usable', async () => {
     cacheTraceFailure = 'buildx du: failed to connect to the builder';
     await renderExplorer();
 
-    await waitFor(() => expect(screen.getByText(/failed to connect to the builder/)).toBeInTheDocument());
+    await waitFor(() => expect(reportedText(), 'the failed association read was not reported').toMatch(/failed to connect to the builder/));
+    expect(screen.queryByText(/failed to connect to the builder/), 'the explorer stated the failure itself').not.toBeInTheDocument();
+    expect(errorPanels(), 'the explorer drew a failure panel').toHaveLength(0);
     expect(outerLayerRows()).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Analyze changesets…' })).toBeInTheDocument();
   });

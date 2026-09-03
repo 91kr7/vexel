@@ -3,7 +3,6 @@ import {
   Card,
   ChipGroup,
   ConsoleSurface,
-  ErrorBanner,
   SectionHeader,
   SegmentedControl,
   Stack,
@@ -16,6 +15,7 @@ import { useConsole, type ConsoleRunEntry } from '../data/use-console';
 import { useContexts } from '../data/use-contexts';
 import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
+import { useFailureReport } from '../shell/services/use-failure-report';
 
 const CHANNEL_OPTIONS = [
   { id: 'cli', label: 'docker CLI' },
@@ -111,6 +111,8 @@ export function RawConsoleScreen() {
   const { confirm } = useConfirmation();
   const { reportError } = useErrorReporter();
 
+  useFailureReport('Could not read the console history', error);
+
   const execute = useCallback(
     async (entryChannel: ConsoleChannel, command: string) => {
       const typed = command.trim();
@@ -164,7 +166,6 @@ export function RawConsoleScreen() {
 
   return (
     <Stack gap="var(--space-5)">
-      {error ? <ErrorBanner title="Console history" detail={error} /> : null}
       <Card>
         <Stack gap="var(--space-4)">
           <SectionHeader
