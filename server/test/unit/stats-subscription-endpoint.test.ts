@@ -1,23 +1,25 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import express, { type Express } from "express";
-import net from "node:net";
+import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import { WebSocket } from "ws";
 import { installEngineMock } from "../support/engine-mock.js";
 
-// The subscription that gates the sampler, driven over HTTP end to end, and the
-// count of stats requests reaching the daemon measured in each state of the gate
-// (containers/specs/container-stats-subscription-endpoint.md,
-// plan-docker_management_app-containers_card_view/REQ-39, REQ-41, REQ-44, REQ-46,
-// REQ-47, REQ-50, REQ-54, REQ-57, REQ-58).
+// The connection that gates the sampler, driven over the wire end to end, and
+// the count of stats requests reaching the daemon measured in each state of the
+// gate (containers/specs/container-stats-subscription-endpoint.md,
+// plan-docker_management_app-containers_card_view-stats_gate_websocket/REQ-1,
+// REQ-2, REQ-3, REQ-5, REQ-7, REQ-8, REQ-9, REQ-10, REQ-17, REQ-21).
 //
 // The Engine API is mocked, and that is the point of this file rather than a
-// concession: the requirement is stated as traffic reaching the daemon, and the
-// engine mock is the only place that traffic can be *counted*. A real daemon
-// answers the same calls and says nothing about how many of them were made.
+// concession: the gate is stated as traffic reaching the daemon, and the engine
+// mock is the only place that traffic can be *counted*. A real daemon answers
+// the same calls and says nothing about how many of them were made.
 const engine = installEngineMock();
 
 const { containersRouter } = await import("../../src/containers/containers-routes.js");
+const { handleStatsSubscriptionUpgrade } = await import("../../src/containers/container-stats-subscription-routes.js");
 const { statsDemandCount, statsSamplingActive } = await import("../../src/containers/stats-demand-registry.js");
 const { stopStatsSampling, STATS_SAMPLE_INTERVAL_MS } = await import("../../src/containers/containers-service.js");
 
@@ -25,6 +27,8 @@ const SUBSCRIPTION_PATH = "/api/containers/stats/subscription";
 const CONTAINER_ID = "feedface0000";
 /** One interval plus enough margin for the tick to have fired and been recorded. */
 const ONE_INTERVAL_WINDOW_MS = STATS_SAMPLE_INTERVAL_MS + 1_500;
+/** The bound the spec states: a ping every 10s, and 5s more for the pong. */
+const LIVENESS_BOUND_MS = 15_000;
 
 function runningContainer(id = CONTAINER_ID): unknown {
   return { Id: id, Names: ["/subscribed"], Image: "alpine:3.20", State: "running", Status: "Up 5 minutes", Ports: [] };
@@ -51,14 +55,31 @@ function buildApp(): Express {
   return app;
 }
 
-function startApp(app: Express): Promise<{ url: string; port: number; close: () => Promise<void> }> {
+interface RunningApp {
+  url: string;
+  wsUrl: string;
+  server: Server;
+  close: () => Promise<void>;
+}
+
+/** The dispatcher of `server/src/index.ts`: the gate is offered the upgrade, and an unclaimed one is destroyed. */
+function startApp(app: Express): Promise<RunningApp> {
+  const server = createServer(app);
+  server.on("upgrade", (request, socket, head) => {
+    if (!handleStatsSubscriptionUpgrade(request, socket, head)) socket.destroy();
+  });
   return new Promise((resolve) => {
-    const server = app.listen(0, () => {
+    server.listen(0, () => {
       const { port } = server.address() as AddressInfo;
       resolve({
         url: `http://127.0.0.1:${port}`,
-        port,
-        close: () => new Promise((closeResolve) => server.close(() => closeResolve())),
+        wsUrl: `ws://127.0.0.1:${port}`,
+        server,
+        close: () =>
+          new Promise((closeResolve) => {
+            server.closeAllConnections();
+            server.close(() => closeResolve());
+          }),
       });
     });
   });
@@ -76,33 +97,25 @@ async function until(condition: () => boolean, timeoutMs = 3_000): Promise<void>
   assert.fail(`the condition was still false after ${timeoutMs}ms`);
 }
 
-interface HeldSubscription {
-  /** The chunks the server has written to this connection so far. */
-  writes: string[];
-  response: Response;
-  abort: () => void;
+interface HeldGate {
+  socket: WebSocket;
+  /** Application data that reached this end: the spec allows none. */
+  messages: string[];
+  /** Protocol pings received, which is how the server proves the connection live. */
+  pings: number;
+  close: () => void;
 }
 
-/** Opens the subscription and keeps reading it, the way a browser's EventSource does. */
-async function holdSubscription(url: string): Promise<HeldSubscription> {
-  const controller = new AbortController();
-  const response = await fetch(`${url}${SUBSCRIPTION_PATH}`, { signal: controller.signal });
-  const writes: string[] = [];
-  const reader = response.body?.getReader();
-  void (async () => {
-    const decoder = new TextDecoder();
-    try {
-      for (;;) {
-        const chunk = await reader?.read();
-        if (!chunk || chunk.done) return;
-        writes.push(decoder.decode(chunk.value));
-      }
-    } catch {
-      // the abort below is how this loop ends
-    }
-  })();
-  await until(() => writes.length > 0);
-  return { writes, response, abort: () => controller.abort() };
+/** Opens the gate and holds it, the way the browser's WebSocket does. */
+function holdGate(app: RunningApp, options: { autoPong?: boolean } = {}): Promise<HeldGate> {
+  return new Promise((resolve, reject) => {
+    const socket = new WebSocket(`${app.wsUrl}${SUBSCRIPTION_PATH}`, { autoPong: options.autoPong ?? true });
+    const held: HeldGate = { socket, messages: [], pings: 0, close: () => socket.close() };
+    socket.on("message", (data: Buffer) => held.messages.push(data.toString("utf8")));
+    socket.on("ping", () => (held.pings += 1));
+    socket.once("open", () => resolve(held));
+    socket.once("error", reject);
+  });
 }
 
 beforeEach(() => {
@@ -116,41 +129,75 @@ afterEach(async () => {
   await until(() => statsDemandCount() === 0, 3_000).catch(() => undefined);
 });
 
-// container-stats-subscription-endpoint.md — "a connection held open, 200,
-// Content-Type: text/event-stream, Cache-Control: no-cache ... the client is written to at once, so
-// the response is observably open before anything else happens" (REQ-46)
-test("the subscription answers as an event stream and is observably open at once", async () => {
+// container-stats-subscription-endpoint.md — the gate is a connection held open on the upgrade hook
+// that serves the interactive sessions, so no HTTP request stays open while it is held (REQ-1, REQ-8)
+test("the gate's address is claimed as a WebSocket upgrade and the connection is held open", async () => {
   const app = await startApp(buildApp());
   try {
-    const held = await holdSubscription(app.url);
+    const held = await holdGate(app);
     try {
-      assert.equal(held.response.status, 200);
-      assert.match(held.response.headers.get("content-type") ?? "", /text\/event-stream/);
-      assert.equal(held.response.headers.get("cache-control"), "no-cache");
-      assert.ok(held.writes.length > 0, "the connection was written to on open");
+      assert.equal(held.socket.readyState, WebSocket.OPEN);
     } finally {
-      held.abort();
+      held.close();
     }
   } finally {
     await app.close();
   }
 });
 
-// container-stats-subscription-endpoint.md — "on open: one consumer is registered ... on close: the
-// consumer is released, once" (REQ-41, REQ-46, REQ-51)
+// container-stats-subscription-endpoint.md — "An upgrade request for any other address is not
+// claimed, so nothing else on the server becomes reachable through it" (REQ-5)
+test("an upgrade to any other address is refused and registers no demand", async () => {
+  const app = await startApp(buildApp());
+  try {
+    const refused = new Promise<Error>((resolve, reject) => {
+      const socket = new WebSocket(`${app.wsUrl}/api/containers/stats/subscription-elsewhere`);
+      socket.once("error", resolve);
+      socket.once("open", () => {
+        socket.close();
+        reject(new Error("the upgrade to another address was accepted"));
+      });
+    });
+
+    await refused;
+    assert.equal(statsDemandCount(), 0);
+    assert.equal(statsSamplingActive(), false);
+  } finally {
+    await app.close();
+  }
+});
+
+// REQ-7 — the SSE endpoint that held the gate is gone: an ordinary GET on the address is an API
+// error, and holds no gate. Two gates must not stand side by side.
+test("the address answers no plain GET any more, and such a request holds no gate", async () => {
+  const app = await startApp(buildApp());
+  try {
+    const response = await fetch(`${app.url}${SUBSCRIPTION_PATH}`);
+    await response.text();
+
+    assert.equal(response.status, 404);
+    assert.equal(statsDemandCount(), 0);
+    assert.equal(statsSamplingActive(), false);
+  } finally {
+    await app.close();
+  }
+});
+
+// container-stats-subscription-endpoint.md — the handshake registers one consumer and a closed gate
+// is sampled at once; the close releases it (REQ-3, REQ-17)
 test("holding the connection registers one consumer and samples at once; closing it releases and stops", async () => {
   const app = await startApp(buildApp());
   try {
     assert.equal(statsDemandCount(), 0);
     assert.equal(statsRequests(), 0, "nothing is asked of the daemon before a consumer exists");
 
-    const held = await holdSubscription(app.url);
+    const held = await holdGate(app);
     try {
-      assert.equal(statsDemandCount(), 1);
+      await until(() => statsDemandCount() === 1);
       assert.equal(statsSamplingActive(), true);
       await until(() => statsRequests() === 1);
     } finally {
-      held.abort();
+      held.close();
     }
 
     await until(() => statsDemandCount() === 0);
@@ -160,46 +207,40 @@ test("holding the connection registers one consumer and samples at once; closing
   }
 });
 
-// container-stats-subscription-endpoint.md — "on close: the consumer is released ... whether the
-// client closed the connection, the browser was killed, the process was force-quit or the network
-// was pulled" (REQ-54)
-test("a connection destroyed without a close is released as surely as one that closed", async () => {
+// container-stats-subscription-endpoint.md — the consumer is released whether the client closed the
+// connection, the browser was killed or the network was pulled (REQ-3)
+test("a connection cut without a close frame is released as surely as one that closed", async () => {
   const app = await startApp(buildApp());
-  const socket = net.connect(app.port, "127.0.0.1");
   try {
-    await new Promise<void>((resolve) => socket.once("connect", () => resolve()));
-    socket.write(`GET ${SUBSCRIPTION_PATH} HTTP/1.1\r\nHost: 127.0.0.1\r\nAccept: text/event-stream\r\n\r\n`);
-    await new Promise<void>((resolve) => socket.once("data", () => resolve()));
+    const held = await holdGate(app);
+    await until(() => statsDemandCount() === 1);
 
-    assert.equal(statsDemandCount(), 1);
-
-    // No FIN, no close frame, nothing announced: the socket simply goes.
-    socket.destroy();
+    // No close frame, no announcement: the socket simply goes, as a killed browser's does.
+    held.socket.terminate();
 
     await until(() => statsDemandCount() === 0);
     assert.equal(statsSamplingActive(), false);
   } finally {
-    socket.destroy();
     await app.close();
   }
 });
 
 // container-stats-subscription-endpoint.md / stats-demand-registry.md — one of two subscribers going
-// away does not stop the sampling the other is reading (REQ-47)
+// away does not stop the sampling the other is reading
 test("two subscribers are two consumers: one leaving leaves the sampling running for the other", async () => {
   const app = await startApp(buildApp());
   try {
-    const first = await holdSubscription(app.url);
-    const second = await holdSubscription(app.url);
+    const first = await holdGate(app);
+    const second = await holdGate(app);
     try {
-      assert.equal(statsDemandCount(), 2);
+      await until(() => statsDemandCount() === 2);
 
-      first.abort();
+      first.close();
       await until(() => statsDemandCount() === 1);
       assert.equal(statsSamplingActive(), true);
     } finally {
-      first.abort();
-      second.abort();
+      first.close();
+      second.close();
     }
 
     await until(() => statsDemandCount() === 0);
@@ -209,27 +250,89 @@ test("two subscribers are two consumers: one leaving leaves the sampling running
   }
 });
 
-// The measurement the whole change is stated as: the count of stats requests reaching the daemon
-// over a fixed window with a consumer held. Ten seconds gives two passes in this window; the
-// delivered three-second cadence would have given four more (REQ-39, REQ-57). The same window
-// carries the periodic write that makes a vanished end fail (REQ-50).
-test("with one consumer the daemon is asked once per interval, and the connection is written to periodically", async () => {
+// REQ-2, REQ-9 — no frame carries application data, measured over a window covering a sampling pass:
+// that is when a server writing figures or a liveness line by hand would write.
+test("with one consumer the daemon is asked once per interval, and nothing is written to the connection", async () => {
   const app = await startApp(buildApp());
   try {
-    const held = await holdSubscription(app.url);
+    const held = await holdGate(app);
     try {
-      const writesOnOpen = held.writes.length;
       await until(() => statsRequests() === 1);
 
       await delay(ONE_INTERVAL_WINDOW_MS);
 
       assert.equal(statsRequests(), 2, "one immediate pass plus one at the interval, and nothing between");
-      assert.ok(
-        held.writes.length > writesOnOpen,
-        "the server wrote to the held connection again within one interval, which is how a vanished end is discovered",
-      );
+      assert.deepEqual(held.messages, [], "the server wrote application data to a connection that carries none");
     } finally {
-      held.abort();
+      held.close();
+    }
+  } finally {
+    await app.close();
+  }
+});
+
+// REQ-9, REQ-10 — a ping every 10s and 5s more for the pong: an end that vanished without closing
+// never answers, and must not hold the sampler open.
+test("a connection that stops answering the ping is closed and its unit released within the bound", async () => {
+  const app = await startApp(buildApp());
+  try {
+    const held = await holdGate(app, { autoPong: false });
+    await until(() => statsDemandCount() === 1);
+
+    await until(() => held.pings > 0, LIVENESS_BOUND_MS);
+    await until(() => statsDemandCount() === 0, LIVENESS_BOUND_MS);
+
+    assert.equal(held.socket.readyState !== WebSocket.OPEN, true, "the silent connection was left open");
+    assert.equal(statsSamplingActive(), false);
+  } finally {
+    await app.close();
+  }
+});
+
+// REQ-21, REQ-17 — the drop and the return: the unit the dropped connection released is replaced by
+// the reconnection's own, and the gate reopening samples at once rather than at the next interval.
+test("the unit a dropped connection released is replaced by the reconnection's, which samples at once", async () => {
+  const app = await startApp(buildApp());
+  try {
+    const dropped = await holdGate(app);
+    await until(() => statsDemandCount() === 1);
+    await until(() => statsRequests() === 1);
+
+    dropped.socket.terminate();
+    await until(() => statsDemandCount() === 0);
+    assert.equal(statsSamplingActive(), false);
+    const passesBeforeReturn = statsRequests();
+
+    const reconnected = await holdGate(app);
+    try {
+      await until(() => statsDemandCount() === 1);
+      assert.equal(statsSamplingActive(), true);
+      // Promptly: well inside one sampling interval, which is the whole of "sampling resumes".
+      await until(() => statsRequests() === passesBeforeReturn + 1, 3_000);
+    } finally {
+      reconnected.close();
+    }
+
+    await until(() => statsDemandCount() === 0);
+  } finally {
+    await app.close();
+  }
+});
+
+// "The gate neither leaks, drifts nor wedges ... nothing accumulates per cycle": an upward drift is
+// invisible from the interface and holds the daemon open for ever.
+test("repeated connect and disconnect cycles return the count to zero and cost exactly one pass each", async () => {
+  const app = await startApp(buildApp());
+  try {
+    for (let cycle = 1; cycle <= 4; cycle += 1) {
+      const held = await holdGate(app);
+      await until(() => statsDemandCount() === 1);
+      await until(() => statsRequests() === cycle, 3_000);
+      held.close();
+
+      await until(() => statsDemandCount() === 0);
+      assert.equal(statsSamplingActive(), false, `cycle ${cycle} left the daemon quiet`);
+      assert.equal(statsRequests(), cycle, `cycle ${cycle} cost exactly one pass`);
     }
   } finally {
     await app.close();
@@ -237,7 +340,6 @@ test("with one consumer the daemon is asked once per interval, and the connectio
 });
 
 // "With no consumer, the number of stats requests reaching the daemon over any window is zero"
-// (REQ-41, REQ-44, REQ-57, REQ-58)
 test("with no consumer connected the daemon is asked for nothing at all over a full interval", async () => {
   const app = await startApp(buildApp());
   try {
@@ -252,30 +354,9 @@ test("with no consumer connected the daemon is asked for nothing at all over a f
   }
 });
 
-// "The gate neither leaks, drifts nor wedges ... nothing accumulates per cycle" — an upward drift is
-// invisible from the interface and reinstates the defect this change exists to remove (REQ-54)
-test("repeated subscribe and disconnect cycles return the count to zero and cost exactly one pass each", async () => {
-  const app = await startApp(buildApp());
-  try {
-    for (let cycle = 1; cycle <= 4; cycle += 1) {
-      const held = await holdSubscription(app.url);
-      await until(() => statsDemandCount() === 1);
-      await until(() => statsRequests() === cycle, 3_000);
-      held.abort();
-
-      await until(() => statsDemandCount() === 0);
-      assert.equal(statsSamplingActive(), false, `cycle ${cycle} left the daemon quiet`);
-      assert.equal(statsRequests(), cycle, `cycle ${cycle} cost exactly one pass`);
-    }
-  } finally {
-    await app.close();
-  }
-});
-
-// container-stats-subscription-endpoint.md — "Nothing about GET /api/containers changes: ... a
-// client that never opens this connection still gets the list — with no sampled figures, since
-// nobody is being sampled for" (REQ-55, REQ-58)
-test("the container list still answers with no subscription held, carrying no sampled figures", async () => {
+// container-stats-subscription-endpoint.md — a client that never opens this connection still gets
+// the list, with no sampled figures since nobody is being sampled for
+test("the container list still answers with no connection held, carrying no sampled figures", async () => {
   const neverSampled = "0123456789ab";
   engine.on("GET", "/containers/json", () => [runningContainer(neverSampled)]);
   const app = await startApp(buildApp());

@@ -15,7 +15,7 @@ rewritten once either way.
 
 | Batch | Feature | REQ closed | Depends | Status | Human acceptance |
 |-------|---------|------------|---------|--------|------------------|
-| `batch-stats-gate-on-a-websocket` | The gate on per-container stats sampling is held by a WebSocket, proved live by ping/pong, and re-established by the client when it drops | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-9, REQ-10, REQ-11, REQ-12, REQ-13, REQ-14, REQ-15, REQ-16, REQ-17, REQ-18, REQ-19, REQ-20, REQ-21 | — | implemented | Measured figures keep arriving on the Containers screen |
+| `batch-stats-gate-on-a-websocket` | The gate on per-container stats sampling is held by a WebSocket, proved live by ping/pong, and re-established by the client when it drops | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-6, REQ-7, REQ-8, REQ-9, REQ-10, REQ-11, REQ-12, REQ-13, REQ-14, REQ-15, REQ-16, REQ-17, REQ-18, REQ-19, REQ-20, REQ-21 | — | certified | Measured figures keep arriving on the Containers screen |
 
 ## Assumptions and decisions
 

@@ -27,21 +27,22 @@ const { ErrorReportingProvider } = await import('../../src/shell/services/ErrorR
 const { ProgressProvider } = await import('../../src/shell/services/ProgressService');
 const { ToastProvider } = await import('../../src/ui');
 
-const SUBSCRIPTION_URL = '/api/containers/stats/subscription';
+const SUBSCRIPTION_PATH = '/api/containers/stats/subscription';
 
-class FakeEventSource {
-  static instances: FakeEventSource[] = [];
+/** Stands in for the browser's WebSocket, which is what the gate is held on. */
+class FakeWebSocket {
+  static instances: FakeWebSocket[] = [];
   url: string;
   closed = false;
-  onmessage: ((message: { data: string }) => void) | null = null;
 
   constructor(url: string) {
     this.url = url;
-    FakeEventSource.instances.push(this);
+    FakeWebSocket.instances.push(this);
   }
 
   addEventListener() {}
   removeEventListener() {}
+  send() {}
 
   close() {
     this.closed = true;
@@ -49,8 +50,8 @@ class FakeEventSource {
 }
 
 /** The subscriptions still held — what the server counts as live consumers. */
-function heldSubscriptions(): FakeEventSource[] {
-  return FakeEventSource.instances.filter((instance) => instance.url === SUBSCRIPTION_URL && !instance.closed);
+function heldSubscriptions(): FakeWebSocket[] {
+  return FakeWebSocket.instances.filter((instance) => instance.url.endsWith(SUBSCRIPTION_PATH) && !instance.closed);
 }
 
 function container(): ContainerSummary {
@@ -88,8 +89,8 @@ function renderDashboardScreen() {
 }
 
 beforeEach(() => {
-  FakeEventSource.instances = [];
-  vi.stubGlobal('EventSource', FakeEventSource);
+  FakeWebSocket.instances = [];
+  vi.stubGlobal('WebSocket', FakeWebSocket);
   Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
 });
 
