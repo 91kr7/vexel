@@ -49,6 +49,11 @@ produced.
 - **The merge is idempotent.** It leaves out every entry already in the transcript — one restored by
   an earlier merge, or one this session appended to the history file — so merging a second time
   cannot show the same entry twice, nor collide two entries on one id.
+- **A re-read puts nothing out of order.** The restored half is rebuilt in the order the history
+  file gives, this session's entries keeping their place after it, so an entry written to the file
+  since the last read appears in its own chronological place and not at the top. An entry that has
+  rolled out of the file — it holds the last 200 — stays in the transcript ahead of the entries the
+  file still names, being older than all of them.
 - Output arrives as chunks, not lines: a chunk that does not end in a newline leaves the last line
   open, and the next chunk of the same stream continues it rather than starting another line. A
   trailing carriage return is dropped.

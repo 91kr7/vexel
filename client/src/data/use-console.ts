@@ -139,14 +139,18 @@ export function useConsole(): UseConsoleResult {
         // Validated before anything is stored: a malformed answer fails the read instead of
         // reaching the transcript.
         const history = requireHistory(reading);
-        // Merged under what this session produced, leaving out what the transcript already holds:
-        // no read can drop an entry or show one twice.
+        // The restored half is rebuilt in the history's own order, this session's entries keeping
+        // their place after it; nothing already shown is dropped or repeated.
         setEntries((current) => {
-          const present = new Set(current.map((entry) => entry.id));
+          const session = current.filter((entry) => !entry.restored);
+          const shownElsewhere = new Set([...session.map((entry) => entry.id), ...appendedIdsRef.current]);
+          const shownRestored = new Map(current.filter((entry) => entry.restored).map((entry) => [entry.id, entry]));
           const restored = history
-            .filter((entry) => !present.has(entry.id) && !appendedIdsRef.current.has(entry.id))
-            .map(restoredEntry);
-          return [...restored, ...current];
+            .filter((entry) => !shownElsewhere.has(entry.id))
+            .map((entry) => shownRestored.get(entry.id) ?? restoredEntry(entry));
+          const restoredIds = new Set(restored.map((entry) => entry.id));
+          const rolledOff = current.filter((entry) => entry.restored && !restoredIds.has(entry.id));
+          return [...rolledOff, ...restored, ...session];
         });
         setError(undefined);
       })
