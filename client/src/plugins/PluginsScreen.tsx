@@ -8,7 +8,6 @@ import {
   DataTable,
   DetailPanel,
   EmptyState,
-  ErrorBanner,
   FormDialog,
   FormField,
   MetaCell,
@@ -27,6 +26,7 @@ import { usePlugins } from '../data/use-plugins';
 import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
 import { useProgress } from '../shell/services/ProgressService';
+import { FailedReadEmptyState } from '../shell/FailedReadEmptyState';
 
 const AVAILABILITY_TONES: Record<CliPluginAvailability, BadgeTone> = {
   enabled: 'success',
@@ -95,7 +95,6 @@ export function PluginsScreen() {
   const [installing, setInstalling] = useState(false);
   const [switchingName, setSwitchingName] = useState<string | undefined>(undefined);
   const [inspected, setInspected] = useState<PluginInspect | undefined>(undefined);
-  const [inspectError, setInspectError] = useState<string | undefined>(undefined);
 
   function openInstall() {
     setRemote('');
@@ -164,15 +163,13 @@ export function PluginsScreen() {
   async function handleInspect(plugin: DaemonPlugin) {
     if (inspected?.name === plugin.name) {
       setInspected(undefined);
-      setInspectError(undefined);
       return;
     }
-    setInspectError(undefined);
     try {
       setInspected(await plugins.inspect(plugin.name));
     } catch (cause) {
       setInspected(undefined);
-      setInspectError(`${plugin.name}: ${(cause as Error).message}`);
+      reportError(`Could not inspect ${plugin.name}`, (cause as Error).message);
     }
   }
 
@@ -316,7 +313,6 @@ export function PluginsScreen() {
           is that card, so the screen has none. */}
       <Stack gap="var(--space-4)">
         <SectionHeader title="CLI plugins" description="Sub-commands the local Docker installation ships" />
-        {plugins.error ? <ErrorBanner title="Could not read the plugins" detail={plugins.error} onRetry={plugins.refresh} /> : null}
         <Card padding="none">
           <DataTable
             columns={cliColumns}
@@ -332,7 +328,9 @@ export function PluginsScreen() {
             // less burial, not the daemon list above the fold at every viewport.
             maxHeight="60vh"
             emptyState={
-              plugins.loaded ? (
+              plugins.error && plugins.cli.items.length === 0 ? (
+                <FailedReadEmptyState />
+              ) : plugins.loaded ? (
                 <EmptyState
                   title="No CLI plugins"
                   description={plugins.cli.unavailableReason ?? NO_CLI_PLUGINS}
@@ -353,7 +351,6 @@ export function PluginsScreen() {
         {/* The screen's page-level action, in the toolbar under the section
             header rather than in the header itself. */}
         <ScreenToolbar primaryAction={{ label: 'Install plugin', onClick: openInstall }} />
-        {inspectError ? <ErrorBanner title="Could not inspect the plugin" detail={inspectError} /> : null}
         <Card padding="none">
           <DataTable
             columns={daemonColumns}
@@ -376,7 +373,9 @@ export function PluginsScreen() {
               ) : null
             }
             emptyState={
-              plugins.loaded ? (
+              plugins.error && plugins.daemon.items.length === 0 ? (
+                <FailedReadEmptyState />
+              ) : plugins.loaded ? (
                 <EmptyState
                   title="No daemon plugins"
                   description={plugins.daemon.unavailableReason ?? NO_DAEMON_PLUGINS}

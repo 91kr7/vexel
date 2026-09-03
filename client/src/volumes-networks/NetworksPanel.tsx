@@ -9,7 +9,6 @@ import {
   DataTable,
   DetailPanel,
   EmptyState,
-  ErrorBanner,
   FormDialog,
   FormField,
   KeyValueEditor,
@@ -30,6 +29,8 @@ import { useContainers } from '../data/use-containers';
 import { useNetworks } from '../data/use-networks';
 import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
+import { useFailureReport } from '../shell/services/use-failure-report';
+import { FailedReadEmptyState } from '../shell/FailedReadEmptyState';
 import { useProgress } from '../shell/services/ProgressService';
 
 const DRIVER_SUGGESTIONS = [
@@ -54,7 +55,9 @@ function subnetLine(network: NetworkSummary): string {
 
 /** The inspect surface for a selected network, revealed in the row's expansion. */
 function NetworkDetail({ network, onClose }: { network: NetworkSummary; onClose: () => void }) {
-  const { inspect, loaded, error, refresh } = useNetworkInspect(network.id);
+  const { inspect, loaded, error } = useNetworkInspect(network.id);
+
+  useFailureReport('Could not load network details', error);
 
   return (
     // Rendered whatever the inspect call has returned so far: the panel is what
@@ -78,9 +81,10 @@ function NetworkDetail({ network, onClose }: { network: NetworkSummary; onClose:
       propertiesContentClass="long-single-line"
     >
       <Stack gap="var(--space-4)">
-        {error ? <ErrorBanner title="Could not load network details" detail={error} onRetry={refresh} /> : null}
         {!inspect ? (
-          loaded ? (
+          error ? (
+            <FailedReadEmptyState />
+          ) : loaded ? (
             <EmptyState
               title="No inspect data available"
               description="The daemon returned no details for this network."
@@ -271,7 +275,6 @@ export function NetworksPanel() {
         primaryAction={{ label: 'Create network…', onClick: openCreate }}
         destructiveAction={{ label: 'Prune', onClick: handlePrune, disabled: networks.length === 0 }}
       />
-      {error ? <ErrorBanner title="Could not load networks" detail={error} onRetry={refresh} /> : null}
       <Card padding="none">
         <DataTable
           columns={columns}
@@ -293,7 +296,9 @@ export function NetworksPanel() {
           expandedRowKey={selectedId}
           renderExpanded={(network) => <NetworkDetail network={network} onClose={() => setSelectedId(undefined)} />}
           emptyState={
-            loaded ? (
+            error ? (
+              <FailedReadEmptyState />
+            ) : loaded ? (
               <EmptyState
                 title="No networks"
                 description="A user-defined network lets the containers on it reach each other by name."

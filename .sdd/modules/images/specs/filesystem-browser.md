@@ -134,16 +134,20 @@ Actions:
   hard-coded outside the library, and a smaller constant would have been the same defect at another
   number. Nothing here scrolls the dialog: the body holds exactly one scroll region, the tree's, plus
   the detail pane's own when a preview is long.
+- **No failure panel** (plan-docker_management_app-inline_error_panels/REQ-1): a failed entry read
+  is reported as one toast through `useFailureReport`, and where it leaves nothing to show the
+  shared "could not be loaded" placeholder stands in the detail pane's place — no cause named, no
+  control (…/REQ-3). The retry is the header's; none is offered here (…/REQ-4).
 
 ## Dependencies
 
 - ui-library: Modal, BandStack, SplitPane, TreeView, DefinitionList, EmptyState, ConfirmDialog,
-  TransferProgressDialog, StatusPill, FieldMessage, ErrorBanner, Button, Row, Stack, Spinner,
+  TransferProgressDialog, StatusPill, FieldMessage, Button, Row, Stack, Spinner,
   StreamSearchField, SegmentedControl, TextViewer, HexDumpViewer, triggerDownload, useToast
 - useImageFilesystemKeptResult, useImageFilesystemExtraction, useImageFilesystemTree,
   useImageFilesystemEntryMetadata, useImageFilesystemEntryContent, useImageFilesystemSearch, Image
   filesystem client
-- app-shell: useFailureReport
+- app-shell: useFailureReport, FailedReadEmptyState
 
 ## Requirements served
 
@@ -204,3 +208,6 @@ Actions:
 - plan-docker_management_app-filesystem_browser_layout/REQ-26
 - plan-docker_management_app-inline_error_panels/REQ-5
 - plan-docker_management_app-inline_error_panels/REQ-7
+- plan-docker_management_app-inline_error_panels/REQ-1
+- plan-docker_management_app-inline_error_panels/REQ-3
+- plan-docker_management_app-inline_error_panels/REQ-4

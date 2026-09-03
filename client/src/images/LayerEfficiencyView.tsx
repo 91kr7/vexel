@@ -7,7 +7,6 @@ import {
   ConfirmDialog,
   DataTable,
   EmptyState,
-  ErrorBanner,
   Grid,
   MetaCell,
   MetricTile,
@@ -163,8 +162,6 @@ export function LayerEfficiencyView({ image, open, onClose, onNavigateToLayer, o
           layer history — path and size patterns, never file content read as a secret. Review a
           flagged path before treating it as an actual leak.
         </Callout>
-
-        {signals.error ? <ErrorBanner title="Could not analyze the image's layer efficiency" detail={signals.error} onRetry={() => setWarningOpen(true)} /> : null}
 
         {!signals.result ? (
           <EmptyState

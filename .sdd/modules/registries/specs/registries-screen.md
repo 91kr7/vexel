@@ -34,8 +34,8 @@ Shows:
 - "Log out" on an authenticated registry's row, "Log in" on one that is not — actions of the row's
   cluster, the log in weighing more than the log out.
 - "Reading registries…" before the first read settles; "No registries configured" once it has, with
-  the line that says where a registry comes from; and an error banner with retry when the inventory
-  cannot be read.
+  the line that says where a registry comes from; and the shared "could not be loaded" placeholder
+  when the inventory could not be read.
 - The right panel's title as `Repositories · <host>`, extended with `/<term>` while a term is
   typed — the mockup's `Repositories · docker.io/myorg`.
 - Next to that title, whether the browsing is authenticated: "authenticated as <account>", or
@@ -56,8 +56,8 @@ Shows:
   - nothing matched → "No repositories match": with a term typed, the line names it and a control
     clears it; with none, the line says the registry published no repository to list and no control
     would change that.
-- An error banner with retry when the registry could not be browsed — including when it refuses an
-  anonymous client, which says so in the message.
+- The shared "could not be loaded" placeholder when the registry could not be browsed — including
+  when it refuses an anonymous client, whose message the toast carries.
 
 Actions:
 - Selecting a registry row → the right panel browses that registry; the first registry read selects
@@ -107,6 +107,16 @@ Actions:
   intrinsic tracks: the object list's width contract admits no intrinsic width, because it resolves
   against each row's own content — with one, `Log in` and `Log out` rows put `CREDENTIAL STORE` at
   588.5 and 584.3 against a header at 585.3.
+- **No failure panel, and the lost connection is not told here**
+  (plan-docker_management_app-inline_error_panels/REQ-1, …/REQ-2, …/REQ-13): the listing's failure
+  state is raised only while the live channel is not delivering, so it raises no toast either. With
+  nothing to list, the shared "could not be loaded" placeholder stands in the list's place — one
+  wording for every cause, no cause named and no control (…/REQ-3). The retry is the header's; none
+  is offered here (…/REQ-4).
+- **No failure panel** (plan-docker_management_app-inline_error_panels/REQ-1): a failed repository
+  browse is reported as one toast through `useFailureReport`, and where it leaves nothing to show
+  the shared "could not be loaded" placeholder stands in the browser's place — no cause named, no
+  control (…/REQ-3). The retry is the header's; none is offered here (…/REQ-4).
 
 ## Decisions recorded
 
@@ -149,10 +159,10 @@ Actions:
 - ui-library: Card (unpadded, holding a list alone), SectionHeader, ScreenToolbar, DataTable (row content) with
   StatusDotCell, TwoLineCell, MetaCell and BadgeListCell, ActionButtonGroup, ChipGroup, Chip (meta reading),
   SearchField, SecretField, TextField, FormField, FormDialog, DefinitionList, StatusPill, Button,
-  StepProgressList, ErrorBanner, EmptyState, Grid, Stack, useToast
+  StepProgressList, EmptyState, Grid, Stack, useToast
 - registries: useRegistries, useRegistryRepositories
 - images: images client (pull stream URL), useImageTransferStream
-- app-shell: useFailureReport
+- app-shell: useFailureReport, FailedReadEmptyState
 - app-shell: useConfirmation, useProgress, useErrorReporter
 
 ## Requirements served
@@ -168,3 +178,8 @@ Actions:
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40
 - plan-docker_management_app-inline_error_panels/REQ-5
 - plan-docker_management_app-inline_error_panels/REQ-7
+- plan-docker_management_app-inline_error_panels/REQ-1
+- plan-docker_management_app-inline_error_panels/REQ-2
+- plan-docker_management_app-inline_error_panels/REQ-3
+- plan-docker_management_app-inline_error_panels/REQ-4
+- plan-docker_management_app-inline_error_panels/REQ-13

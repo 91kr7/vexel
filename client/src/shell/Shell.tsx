@@ -211,12 +211,7 @@ export function Shell() {
       >
         <Stack gap="var(--space-5)">
           {activeScreen.id === 'dashboard' ? (
-            <DashboardScreen
-              containers={containers.containers}
-              containersLoaded={containers.loaded}
-              containersError={containers.error}
-              onRefreshContainers={containers.refresh}
-            />
+            <DashboardScreen containers={containers.containers} containersLoaded={containers.loaded} containersError={containers.error} />
           ) : activeScreen.id === 'containers' ? (
             <ContainersScreen
               containers={containers.containers}

@@ -67,7 +67,8 @@ Actions:
   unclassified.
 - Nothing runs while another entry is running.
 - The history is read once when the screen opens and survives a restart; a read that fails is
-  reported without emptying what is already shown.
+  reported as one toast, drawing nothing on the screen and emptying nothing already shown
+  (plan-docker_management_app-inline_error_panels/REQ-1).
 - The transcript is otherwise exactly as delivered: every entry — not only the first — carries its
   channel badge, its status badge and `Re-run`, with the spacing they were delivered with, and **no
   copy affordance**, the one that used to sit on each entry having been removed by
@@ -75,14 +76,17 @@ Actions:
   browser's own selection.
 - **This screen has no empty state.** An empty transcript is a console that has not been used yet
   and says so on its own prompt line; nothing on the screen is drawn on an empty-state surface.
+- **No failure panel** (plan-docker_management_app-inline_error_panels/REQ-1): this screen draws
+  none, and its one failed read — the history's — is a toast. It has no empty state to fall back on,
+  as stated above, so nothing takes the panel's place (…/REQ-3).
 
 ## Dependencies
 
 - ui-library: Card, SectionHeader, SegmentedControl, StateSummaryBar, ConsoleSurface, ChipGroup,
-  Stack, ErrorBanner
+  Stack
 - raw-console: useConsole
 - contexts: useContexts (the active context named in the notice)
-- app-shell: ConfirmationService, ErrorReportingService
+- app-shell: ConfirmationService, ErrorReportingService, useFailureReport
 
 ## Requirements served
 
@@ -95,3 +99,5 @@ Actions:
 - plan-docker_management_app/REQ-114
 - plan-ui-coherence-optimisation/REQ-76
 - plan-ui-coherence-optimisation/REQ-77
+- plan-docker_management_app-inline_error_panels/REQ-1
+- plan-docker_management_app-inline_error_panels/REQ-3

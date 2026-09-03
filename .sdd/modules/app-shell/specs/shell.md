@@ -31,7 +31,8 @@ Shows:
   size and a "Clear" action (REQ-113, REQ-115) — and **no event stream**, the shell having stopped
   subscribing to one (see the invariants below) —, then the active screen's real content: `DashboardScreen` for
   the `dashboard` screen (REQ-14–REQ-18) — fed the live container list from `useContainers()`, so
-  its activity panel and the rail's own count come from one reading —, `ContainersScreen` for
+  its activity panel and the rail's own count come from one reading, and no retry of that list: the
+  panel that carried one is gone (plan-docker_management_app-inline_error_panels/REQ-1) —, `ContainersScreen` for
   the `containers` screen (REQ-19–REQ-23, REQ-109) — which also receives the live image list from
   `useImages()`, since its create/run form suggests the local images (REQ-29) —, `ImagesScreen` for the `images-layers` screen
   (REQ-37–REQ-41), `ComposeScreen` for the `compose` screen (REQ-75–REQ-78) — fed the live project

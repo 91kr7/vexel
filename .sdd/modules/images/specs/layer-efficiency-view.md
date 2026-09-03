@@ -90,12 +90,15 @@ Actions:
   LayerExplorer: dismissing the dialog after a successful run never discards the result.
 - `onFindingsChange` fires only once a result exists — the layer explorer shows no markers until this
   view has been analyzed at least once.
+- **No failure panel** (plan-docker_management_app-inline_error_panels/REQ-1): the toast above is
+  the whole report of a failed analysis, and the view keeps the "Not analyzed yet" invitation, whose
+  button is what starts one again.
 
 ## Dependencies
 
 - ui-library: Modal, Callout, MetricTile, Meter, Card (unpadded, holding a list alone), DataTable,
   BadgeListCell, MetaCell, TwoLineCell, ConfirmDialog, TransferProgressDialog, EmptyState,
-  ErrorBanner, Button, Grid, SectionHeader, Stack
+  Button, Grid, SectionHeader, Stack
 - useImageSignalsStream, Image signals client
 - app-shell: useFailureReport
 
@@ -115,3 +118,4 @@ Actions:
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40
 - plan-docker_management_app-inline_error_panels/REQ-5
 - plan-docker_management_app-inline_error_panels/REQ-7
+- plan-docker_management_app-inline_error_panels/REQ-1

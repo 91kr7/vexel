@@ -52,7 +52,8 @@ Shows:
 - Each of the three sparklines plots **the one series its tile is named for**, not the two summed:
   inbound, read, and the count. A sum of two directions is a curve nothing in the tile reads.
 - a "Waiting for the first sample…" placeholder until the first sample arrives.
-- a failure banner carrying the stream error message verbatim, with a retry, when the stream fails.
+- the shared "could not be loaded" placeholder in the tiles' place when the stream fails before a
+  first sample arrived.
 - for a container that is neither running, paused nor restarting: a placeholder stating that the
   daemon reports usage only while a container is up, and no stream is opened at all.
 
@@ -75,11 +76,16 @@ Rendering of values:
 - The arrangement is stated as a shape and never as a count of columns or a width: each group
   derives its tracks from the tiles placed in it, so adding or removing a metric cannot leave the two
   out of step.
+- **No failure panel** (plan-docker_management_app-inline_error_panels/REQ-1): a failed statistics
+  stream is reported as one toast through `useFailureReport`, and where it leaves nothing to show
+  the shared "could not be loaded" placeholder stands in its place — no cause named, no control
+  (…/REQ-3). The retry is the header's; none is offered here (…/REQ-4).
 
 ## Dependencies
 
 - useContainerStats
-- ui-library: MetricTile, MetricReadingPair, Meter, Sparkline, Grid, Stack, ErrorBanner, EmptyState
+- ui-library: MetricTile, MetricReadingPair, Meter, Sparkline, Grid, Stack, EmptyState
+- app-shell: useFailureReport, FailedReadEmptyState
 
 ## Requirements served
 
@@ -90,3 +96,6 @@ Rendering of values:
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-14
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-15
 - plan-docker_management_app-containers_card_view-detail_modal-tabs_composition_refactor/REQ-17
+- plan-docker_management_app-inline_error_panels/REQ-1
+- plan-docker_management_app-inline_error_panels/REQ-3
+- plan-docker_management_app-inline_error_panels/REQ-4

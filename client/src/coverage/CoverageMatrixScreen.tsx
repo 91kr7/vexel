@@ -5,7 +5,6 @@ import {
   CrossReference,
   DataTable,
   DefinitionList,
-  ErrorBanner,
   MetaCell,
   SectionHeader,
   Stack,
@@ -19,7 +18,9 @@ import {
 import type { BaselineComparison, BaselineReport } from '../data/system-client';
 import { useCoverage } from '../data/use-coverage';
 import { screens } from '../shell/navigation';
+import { FAILED_READ_TITLE } from '../shell/FailedReadEmptyState';
 import { useCrossNavigation } from '../shell/services/CrossNavigationService';
+import { useFailureReport } from '../shell/services/use-failure-report';
 import type { CoverageArea, CoverageCounts, CoverageState } from './coverage-map';
 
 const RAW_CONSOLE_SCREEN_ID = 'raw-console';
@@ -87,7 +88,10 @@ function coverageDescription(counts: CoverageCounts): string {
  */
 export function CoverageMatrixScreen() {
   const coverage = useCoverage();
+
   const { navigateTo } = useCrossNavigation();
+
+  useFailureReport('Could not read the coverage baseline', coverage.error);
 
   const columns: DataTableColumn<CoverageArea>[] = [
     {
@@ -138,9 +142,6 @@ export function CoverageMatrixScreen() {
           description="The Docker versions this coverage statement was written against, next to the daemon it is being shown for."
         />
         <Stack gap="var(--space-3)">
-          {coverage.error ? (
-            <ErrorBanner title="Could not read the coverage baseline" detail={coverage.error} onRetry={coverage.refresh} />
-          ) : null}
           {coverage.baseline ? (
             <>
               <StateSummaryBar
@@ -156,7 +157,7 @@ export function CoverageMatrixScreen() {
               <DefinitionList items={baselineItems(coverage.baseline)} />
             </>
           ) : (
-            <StateSummaryBar tone="neutral" title={coverage.loaded ? 'The baseline could not be read' : 'Reading the baseline…'} />
+            <StateSummaryBar tone="neutral" title={coverage.loaded ? FAILED_READ_TITLE : 'Reading the baseline…'} />
           )}
         </Stack>
       </Card>

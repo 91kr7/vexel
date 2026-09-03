@@ -26,7 +26,7 @@ Shows:
 - Under it, the same four readings named one by one, plus the oldest Engine API the daemon accepts
   ("not reported" when it does not say). Every value the daemon did not give reads "unavailable".
 - Before the first successful read: the strip states that the baseline is being read; if that read
-  failed, that it could not be read, and a failure banner carries the message with a retry.
+  failed, the strip carries the shared "could not be loaded" wording and nothing else.
 - The matrix, one row per capability area of the coverage map, in the map's own order, each row
   showing:
   - the area's name over what it covers, both in full (no truncation);
@@ -43,7 +43,8 @@ Shows:
 Actions:
 - Following a row's reference makes the screen it names active, through the application's
   cross-navigation service — the same path the Dashboard's tiles take (REQ-105).
-- "Re-read" on the baseline strip, and the retry on the failure banner, re-read the baseline.
+- "Re-read" on the baseline strip re-reads it; the strip carries it only beside a baseline that was
+  read, so a failed read leaves the header's refresh as the way to ask again.
 Navigation:
 - The screen navigates away only through a row's reference; it reveals no object of its own and
   never consumes a cross-navigation request.
@@ -73,13 +74,18 @@ Navigation:
   this screen arranged for it (plan-ui-coherence-optimisation/REQ-9).
 - Every screen a row names is named as the navigation names it at that moment, so relabelling a
   screen is one edit to the navigation data and never one here.
+- **No failure panel** (plan-docker_management_app-inline_error_panels/REQ-1): a failed baseline
+  read is reported as one toast through `useFailureReport`, and the strip in the baseline's place
+  states the shared "could not be loaded" wording — no cause, no control (…/REQ-3, …/REQ-4). The
+  coverage map itself is local data and is never affected.
 
 ## Dependencies
 
 - ui-library: Badge, Button, Card, CrossReference, DataTable (`autoRowHeight`), DefinitionList,
-  ErrorBanner, MetaCell, SectionHeader, Stack, StateSummaryBar, TwoLineCell (`wrap`)
+  MetaCell, SectionHeader, Stack, StateSummaryBar, TwoLineCell (`wrap`)
 - coverage: Coverage map, useCoverage
-- app-shell: Navigation data (screen labels), CrossNavigationService
+- app-shell: Navigation data (screen labels), CrossNavigationService, useFailureReport,
+  FAILED_READ_TITLE
 
 ## Requirements served
 
@@ -87,3 +93,6 @@ Navigation:
 - plan-docker_management_app/REQ-106
 - plan-docker_management_app-about_license_notice/REQ-4
 - plan-ui-coherence-optimisation/REQ-70
+- plan-docker_management_app-inline_error_panels/REQ-1
+- plan-docker_management_app-inline_error_panels/REQ-3
+- plan-docker_management_app-inline_error_panels/REQ-4

@@ -5,7 +5,6 @@ import {
   ConfirmDialog,
   DefinitionList,
   EmptyState,
-  ErrorBanner,
   FieldMessage,
   HexDumpViewer,
   Modal,
@@ -38,6 +37,7 @@ import { useImageFilesystemKeptResult } from '../data/use-image-filesystem-kept-
 import { useImageFilesystemSearch } from '../data/use-image-filesystem-search';
 import { useImageFilesystemTree } from '../data/use-image-filesystem-tree';
 import { useFailureReport } from '../shell/services/use-failure-report';
+import { FailedReadEmptyState } from '../shell/FailedReadEmptyState';
 
 export interface FilesystemBrowserProps {
   image: ImageSummary;
@@ -108,6 +108,9 @@ export function FilesystemBrowser({ image, open, onClose }: FilesystemBrowserPro
 
   const search = useImageFilesystemSearch(result ? image.id : undefined);
   const metadataState = useImageFilesystemEntryMetadata(result ? image.id : undefined, selectedId);
+
+  useFailureReport('Could not read this entry', metadataState.error);
+
   const contentState = useImageFilesystemEntryContent(
     result && metadataState.metadata?.kind === 'file' ? image.id : undefined,
     metadataState.metadata?.kind === 'file' ? selectedId : undefined,
@@ -335,7 +338,7 @@ export function FilesystemBrowser({ image, open, onClose }: FilesystemBrowserPro
                 ) : metadataState.loading ? (
                   <Spinner label="Loading entry metadata" />
                 ) : metadataState.error ? (
-                  <ErrorBanner title="Could not read this entry" detail={metadataState.error} />
+                  <FailedReadEmptyState compact />
                 ) : metadataState.metadata ? (
                   <Stack gap="var(--space-4)">
                     <DefinitionList

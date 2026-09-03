@@ -7,7 +7,6 @@ import {
   DataTable,
   DefinitionList,
   EmptyState,
-  ErrorBanner,
   FormDialog,
   FormField,
   Grid,
@@ -37,6 +36,7 @@ import { useImageTransferStream } from '../data/use-image-transfer';
 import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
 import { useFailureReport } from '../shell/services/use-failure-report';
+import { FailedReadEmptyState } from '../shell/FailedReadEmptyState';
 import { useProgress } from '../shell/services/ProgressService';
 
 function formatBytes(bytes: number): string {
@@ -138,6 +138,8 @@ export function RegistriesScreen() {
 
   const selected = registries.registries.find((registry) => registry.host === selectedHost);
   const repositories = useRegistryRepositories(selected?.host, search);
+
+  useFailureReport('Could not browse the registry', repositories.error);
 
   const closePullDialog = useCallback(() => {
     setPullReference(undefined);
@@ -288,9 +290,6 @@ export function RegistriesScreen() {
             list's one enclosing surface is that card, so the panel has none. */}
         <Stack gap="var(--space-4)">
           <SectionHeader title="Registries & credentials" />
-          {registries.error ? (
-            <ErrorBanner title="Could not read the configured registries" detail={registries.error} onRetry={registries.refresh} />
-          ) : null}
           <Card padding="none">
             <DataTable
               columns={registryColumns}
@@ -299,7 +298,9 @@ export function RegistriesScreen() {
               selectedRowKey={selectedHost}
               onRowSelect={(registry) => setSelectedHost(registry.host)}
               emptyState={
-                registries.loaded ? (
+                registries.error && registries.registries.length === 0 ? (
+                  <FailedReadEmptyState />
+                ) : registries.loaded ? (
                   <EmptyState
                     title="No registries configured"
                     description="Registries come from the host's Docker configuration; logging in to one adds it there."
@@ -335,9 +336,6 @@ export function RegistriesScreen() {
               />
             }
           />
-          {repositories.error ? (
-            <ErrorBanner title="Could not browse the registry" detail={repositories.error} onRetry={repositories.refresh} />
-          ) : null}
           <Card padding="none">
             <DataTable
               columns={repositoryColumns}
@@ -354,6 +352,7 @@ export function RegistriesScreen() {
                 search,
                 searching: repositories.searching,
                 loaded: repositories.loaded,
+                failed: repositories.error !== undefined,
                 onSearch: () => searchRef.current?.focus(),
                 onClearSearch: () => setSearch(''),
               })}
@@ -406,21 +405,23 @@ interface BrowserEmptyStateInput {
   search: string;
   searching: boolean;
   loaded: boolean;
+  /** The browse read failed, so what it would have listed is not known. */
+  failed: boolean;
   /** Puts the cursor in the search box — the way out of "there is nothing to list until you ask". */
   onSearch: () => void;
   onClearSearch: () => void;
 }
 
 /**
- * What the browser shows instead of repositories. Five states, each stating why
+ * What the browser shows instead of repositories. Six states, each stating why
  * it is empty and offering the control that resolves it where one exists: two
- * of them are readings still in flight, where nothing the operator does from
- * here would settle them any sooner.
+ * of them are readings still in flight, and one is a read that failed, where
+ * nothing the operator does from here would settle them any sooner.
  *
  * The default index's — `Search Docker Hub` with its explanatory line — is the
  * one the analysis calls correct, preserved word for word (REQ-38).
  */
-function browserEmptyState({ selected, search, searching, loaded, onSearch, onClearSearch }: BrowserEmptyStateInput) {
+function browserEmptyState({ selected, search, searching, loaded, failed, onSearch, onClearSearch }: BrowserEmptyStateInput) {
   const term = search.trim();
   if (!selected) {
     return (
@@ -431,6 +432,7 @@ function browserEmptyState({ selected, search, searching, loaded, onSearch, onCl
       />
     );
   }
+  if (failed) return <FailedReadEmptyState />;
   if (searching) return <EmptyState title="Searching…" description={null} action={null} />;
   if (selected.official && term === '') {
     return (

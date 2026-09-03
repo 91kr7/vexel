@@ -8,7 +8,6 @@ import {
   DetailPanel,
   EmptyState,
   EndpointField,
-  ErrorBanner,
   FormDialog,
   FormField,
   MetaCell,
@@ -27,6 +26,7 @@ import { useContexts } from '../data/use-contexts';
 import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
 import { useProgress } from '../shell/services/ProgressService';
+import { FailedReadEmptyState } from '../shell/FailedReadEmptyState';
 
 /**
  * The two endpoint kinds this application creates. A TCP+TLS context needs
@@ -258,7 +258,6 @@ export function ContextsScreen() {
       <Stack gap="var(--space-4)">
         <SectionHeader title="Docker contexts" />
         <ScreenToolbar primaryAction={{ label: 'Create context', onClick: openCreate }} />
-        {contexts.error ? <ErrorBanner title="Could not load the contexts" detail={contexts.error} onRetry={contexts.refresh} /> : null}
         <Card padding="none">
           <DataTable
             columns={columns}
@@ -269,7 +268,9 @@ export function ContextsScreen() {
             expandedRowKey={selectedName}
             renderExpanded={(context) => <ContextDetail context={context} onClose={() => setSelectedName(undefined)} />}
             emptyState={
-              contexts.loaded ? (
+              contexts.error && contexts.contexts.length === 0 ? (
+                <FailedReadEmptyState />
+              ) : contexts.loaded ? (
                 <EmptyState
                   title="No Docker contexts"
                   description="A context is how Docker records which daemon to talk to; creating one points Vexel at another."

@@ -306,6 +306,10 @@ Actions:
 - **Nothing on the detail says its data is on a clock**
   (…-client_event_refresh_removal/REQ-35): no indicator, no "last updated", no control and no
   setting; the Processes tab keeps the refresh control it already offers.
+- **No failure panel** (plan-docker_management_app-inline_error_panels/REQ-1): a failed inspect read
+  is reported as one toast through `useFailureReport`, and where it leaves nothing to show the
+  shared "could not be loaded" placeholder stands where the Config and Inspect tabs draw their data
+  — no cause named, no control (…/REQ-3). The retry is the header's; none is offered here (…/REQ-4).
 
 ## Dependencies
 
@@ -316,10 +320,11 @@ Actions:
 - Container inspect reading (`container-inspect-reading.md`)
 - ui-library: BandStack, ScrollArea, Tabs, PayloadExplorer, DefinitionList, FieldList, Badge, Card, Chip, CollapsibleSection, CodeViewer, Grid, Select, NumberField,
   Toggle, TextField, KeyValueEditor, RepeatableRowList, FormFooter, SectionHeader, Row, Spacer, Stack,
-  Button, ErrorBanner, EmptyState, useToast
+  Button, EmptyState, useToast
 - Containers client (updateContainerConfig)
 - useContainerDetail
-- app-shell: ConfirmationService, ProgressService, ErrorReportingService
+- app-shell: ConfirmationService, ProgressService, ErrorReportingService, useFailureReport,
+  FailedReadEmptyState
 
 ## Requirements served
 
@@ -409,3 +414,6 @@ Actions:
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-31
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-35
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-36
+- plan-docker_management_app-inline_error_panels/REQ-1
+- plan-docker_management_app-inline_error_panels/REQ-3
+- plan-docker_management_app-inline_error_panels/REQ-4

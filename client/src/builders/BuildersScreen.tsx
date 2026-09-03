@@ -9,7 +9,6 @@ import {
   DataTable,
   DetailPanel,
   EmptyState,
-  ErrorBanner,
   FormDialog,
   FormField,
   IdentifierCell,
@@ -32,6 +31,8 @@ import { useBuilders } from '../data/use-builders';
 import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useCrossNavigation } from '../shell/services/CrossNavigationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
+import { useFailureReport } from '../shell/services/use-failure-report';
+import { FailedReadEmptyState } from '../shell/FailedReadEmptyState';
 import { useProgress } from '../shell/services/ProgressService';
 
 const DRIVER_SUGGESTIONS = [
@@ -109,6 +110,8 @@ export function BuildersScreen() {
 
   const [selectedRecordId, setSelectedRecordId] = useState<string | undefined>(undefined);
   const usage = useBuildCacheUsage(selectedRecordId);
+
+  useFailureReport('Could not load the related images', usage.error);
 
   // A cross-reference followed from a layer arrives here naming its record
   // (REQ-68): open it, then acknowledge the request.
@@ -210,8 +213,9 @@ export function BuildersScreen() {
       >
         <Stack gap="var(--space-2)">
           <SectionHeader variant="eyebrow" title="Related images & layers" />
-          {usage.error ? <ErrorBanner title="Could not load the related images" detail={usage.error} onRetry={usage.refresh} /> : null}
-          {!usage.loaded && !usage.usage ? (
+          {usage.error && !usage.usage ? (
+            <FailedReadEmptyState compact />
+          ) : !usage.loaded && !usage.usage ? (
             <EmptyState title="Looking for the images this record relates to…" description={null} action={null} compact />
           ) : (
             <CrossReferenceList
@@ -361,14 +365,15 @@ export function BuildersScreen() {
             header rather than in the header itself
             (plan-ui-coherence-optimisation/REQ-41). */}
         <ScreenToolbar primaryAction={{ label: 'Create builder', onClick: openCreate }} />
-        {builders.error ? <ErrorBanner title="Could not load builders" detail={builders.error} onRetry={builders.refresh} /> : null}
         <Card padding="none">
           <DataTable
             columns={builderColumns}
             rows={builders.builders}
             rowKey={(builder) => builder.name}
             emptyState={
-              builders.loaded ? (
+              builders.error && builders.builders.length === 0 ? (
+                <FailedReadEmptyState />
+              ) : builders.loaded ? (
                 <EmptyState
                   title="No builders"
                   description="buildx builds with an instance of a driver; creating one gives this daemon something to build with."
@@ -387,7 +392,6 @@ export function BuildersScreen() {
       <Stack gap="var(--space-4)">
         <SectionHeader title="Build cache" />
         <ScreenToolbar destructiveAction={{ label: 'Prune', onClick: handlePrune, disabled: cache.records.length === 0 }} />
-        {cache.error ? <ErrorBanner title="Could not load the build cache" detail={cache.error} onRetry={cache.refresh} /> : null}
         <Card padding="none">
           <DataTable
             columns={cacheColumns}
@@ -398,7 +402,9 @@ export function BuildersScreen() {
             expandedRowKey={selectedRecordId}
             renderExpanded={renderCacheUsage}
             emptyState={
-              cache.loaded ? (
+              cache.error && cache.records.length === 0 ? (
+                <FailedReadEmptyState />
+              ) : cache.loaded ? (
                 <EmptyState
                   title="No build-cache records"
                   description="The cache fills as buildx builds: a record per layer, source and mount it keeps."

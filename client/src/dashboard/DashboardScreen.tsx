@@ -3,7 +3,6 @@ import {
   DashboardLayout,
   DataTable,
   EmptyState,
-  ErrorBanner,
   EventStream,
   MetaCell,
   MetricTile,
@@ -21,13 +20,14 @@ import { useStatsSubscription } from '../data/use-stats-subscription';
 import { useSystemOverview } from '../data/use-system-overview';
 import { useDaemonEventStream } from '../shell/services/EventStreamService';
 import { useCrossNavigation } from '../shell/services/CrossNavigationService';
+import { useFailureReport } from '../shell/services/use-failure-report';
+import { FailedReadEmptyState } from '../shell/FailedReadEmptyState';
 
 export interface DashboardScreenProps {
   /** The live container list, shared with the rest of the shell rather than read a second time here. */
   containers: ContainerSummary[];
   containersLoaded: boolean;
   containersError?: string;
-  onRefreshContainers: () => void;
 }
 
 /** The screen that owns each kind of object a dashboard row or tile can lead to (REQ-18). */
@@ -97,11 +97,14 @@ function cpuLabel(container: ContainerSummary): string {
  * disagree; the activity list and the event feed come from the live sources
  * the rest of the application already follows.
  */
-export function DashboardScreen({ containers, containersLoaded, containersError, onRefreshContainers }: DashboardScreenProps) {
+export function DashboardScreen({ containers, containersLoaded, containersError }: DashboardScreenProps) {
   // The second consumer of the sampled figures: the gate is on consumers, not
   // on one named screen (plan-docker_management_app-containers_card_view/REQ-45).
   useStatsSubscription();
-  const { overview, loaded, error, refresh } = useSystemOverview();
+  const { overview, loaded, error } = useSystemOverview();
+
+  useFailureReport('Could not read the daemon overview', error);
+
   const { events } = useDaemonEventStream();
   const { navigateTo } = useCrossNavigation();
 
@@ -165,11 +168,6 @@ export function DashboardScreen({ containers, containersLoaded, containersError,
 
   return (
     <Stack gap="var(--space-5)">
-      {error ? <ErrorBanner title="Could not read the daemon overview" detail={error} onRetry={refresh} /> : null}
-      {containersError ? (
-        <ErrorBanner title="Could not read the container list" detail={containersError} onRetry={onRefreshContainers} />
-      ) : null}
-
       <DashboardLayout
         tiles={
           <>
@@ -234,7 +232,13 @@ export function DashboardScreen({ containers, containersLoaded, containersError,
                 maxHeight="320px"
                 hideHeader
                 onRowSelect={() => navigateTo({ screenId: 'containers' })}
-                emptyState={<EmptyState title={containersLoaded ? 'No container on this daemon' : 'Reading the containers…'}  description={null} action={null} />}
+                emptyState={
+                  containersError && containers.length === 0 ? (
+                    <FailedReadEmptyState />
+                  ) : (
+                    <EmptyState title={containersLoaded ? 'No container on this daemon' : 'Reading the containers…'} description={null} action={null} />
+                  )
+                }
               />
             </Stack>
           </Card>
@@ -249,7 +253,13 @@ export function DashboardScreen({ containers, containersLoaded, containersError,
               <UsageBreakdown
                 items={diskUsageItems}
                 total={overview?.diskUsage.totalBytes}
-                emptyState={<EmptyState title={loaded ? 'The daemon reported no disk usage' : 'Reading the disk usage…'}  description={null} action={null} />}
+                emptyState={
+                  error ? (
+                    <FailedReadEmptyState />
+                  ) : (
+                    <EmptyState title={loaded ? 'The daemon reported no disk usage' : 'Reading the disk usage…'} description={null} action={null} />
+                  )
+                }
               />
             </Stack>
           </Card>

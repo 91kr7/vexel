@@ -5,7 +5,6 @@ import {
   Card,
   DefinitionList,
   EmptyState,
-  ErrorBanner,
   Grid,
   ResultSummary,
   ScreenToolbar,
@@ -23,6 +22,8 @@ import { useDaemonInfo } from '../data/use-daemon-info';
 import { useDiskUsage } from '../data/use-disk-usage';
 import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
+import { useFailureReport } from '../shell/services/use-failure-report';
+import { FailedReadEmptyState } from '../shell/FailedReadEmptyState';
 import { useProgress } from '../shell/services/ProgressService';
 
 /**
@@ -134,6 +135,9 @@ export function SystemScreen() {
   const { run } = useProgress();
   const { reportError } = useErrorReporter();
 
+  useFailureReport('Could not read the daemon', daemon.error);
+  useFailureReport('Could not read the disk usage', diskUsage.error);
+
   const [lastRun, setLastRun] = useState<PruneRunResult | undefined>(undefined);
   const [pruning, setPruning] = useState(false);
 
@@ -202,7 +206,6 @@ export function SystemScreen() {
       <Card>
         <SectionHeader title="Daemon info" />
         <Stack gap="var(--space-3)">
-          {daemon.error ? <ErrorBanner title="Could not read the daemon" detail={daemon.error} onRetry={daemon.refresh} /> : null}
           {daemon.info ? (
             // The product's one property block, stated as every other property
             // block states it: label → value bands whose column count the grid
@@ -211,7 +214,9 @@ export function SystemScreen() {
             // it is the class they already resolved under, so no count moves at
             // any width.
             <DefinitionList contentClass="short-scalar" items={daemonItems(daemon.info)} />
-          ) : daemon.error ? null : daemon.loaded ? (
+          ) : daemon.error ? (
+            <FailedReadEmptyState />
+          ) : daemon.loaded ? (
             <EmptyState
               title="The daemon reported nothing"
               description="The daemon answered without the version, driver and root directory this block states. Reading it again asks the active context's daemon once more."
@@ -242,12 +247,10 @@ export function SystemScreen() {
           }}
         />
         <Stack gap="var(--space-3)">
-          {diskUsage.error ? (
-            <ErrorBanner title="Could not read the disk usage" detail={diskUsage.error} onRetry={diskUsage.refresh} />
-          ) : null}
-
           {categories.length === 0 ? (
-            diskUsage.loaded ? (
+            diskUsage.error ? (
+              <FailedReadEmptyState />
+            ) : diskUsage.loaded ? (
               <EmptyState
                 title="The daemon reported no disk usage"
                 description="Docker breaks the reclaimable space into the five categories this panel prunes; with none of them reported there is nothing here to reclaim."

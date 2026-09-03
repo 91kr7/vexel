@@ -9,7 +9,6 @@ import {
   DataTable,
   DetailPanel,
   EmptyState,
-  ErrorBanner,
   LogStream,
   MetaCell,
   Row,
@@ -30,6 +29,8 @@ import { useComposeLifecycle } from '../data/use-compose-lifecycle';
 import { useComposeLogs } from '../data/use-compose-logs';
 import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
+import { useFailureReport } from '../shell/services/use-failure-report';
+import { FailedReadEmptyState } from '../shell/FailedReadEmptyState';
 
 export interface ComposeScreenProps {
   projects: ComposeProjectSummary[];
@@ -135,6 +136,10 @@ export function ComposeScreen({ projects, loaded, error, onRefresh }: ComposeScr
   const selectedProject = projects.find((project) => project.name === selectedName);
   const composeFile = useComposeFile(selectedProject?.name);
   const logs = useComposeLogs(selectedProject?.name);
+
+  // The hook holds one `error` for the read and the save alike; the save reports its own.
+  useFailureReport('Could not read the compose file', composeFile.files.length === 0 ? composeFile.error : undefined);
+  useFailureReport('The log stream was interrupted', logs.error);
 
   useEffect(() => {
     setActiveFilePath(composeFile.files[0]?.path);
@@ -338,7 +343,7 @@ export function ComposeScreen({ projects, loaded, error, onRefresh }: ComposeScr
 
   function composeFileView() {
     if (composeFile.error && composeFile.files.length === 0) {
-      return <ErrorBanner title="Could not read the compose file" detail={composeFile.error} />;
+      return <FailedReadEmptyState compact />;
     }
     return (
       <Stack gap="var(--space-3)">
@@ -384,12 +389,7 @@ export function ComposeScreen({ projects, loaded, error, onRefresh }: ComposeScr
   // project to name its download after: this screen no longer holds the case of
   // a stream offered without one.
   function aggregatedLogsView(project: ComposeProjectSummary) {
-    return (
-      <Stack gap="var(--space-3)">
-        <LogStream lines={logLines} showTimestamps emptyLabel="No log output." downloadFileName={`${project.name}-logs.txt`} />
-        {logs.error ? <ErrorBanner title="The log stream was interrupted" detail={logs.error} onRetry={logs.restart} /> : null}
-      </Stack>
-    );
+    return <LogStream lines={logLines} showTimestamps emptyLabel="No log output." downloadFileName={`${project.name}-logs.txt`} />;
   }
 
   /**
@@ -438,7 +438,6 @@ export function ComposeScreen({ projects, loaded, error, onRefresh }: ComposeScr
     // the nested service lists inside it.
     <Stack gap="var(--space-4)">
       <SectionHeader title="Compose projects" description="Discovered from the labels the projects' own containers carry" />
-      {error ? <ErrorBanner title="Could not load compose projects" detail={error} onRetry={onRefresh} /> : null}
       <Card padding="none">
         <DataTable
           columns={projectColumns}
@@ -470,7 +469,9 @@ export function ComposeScreen({ projects, loaded, error, onRefresh }: ComposeScr
             />
           )}
           emptyState={
-            loaded ? (
+            error && projects.length === 0 ? (
+              <FailedReadEmptyState />
+            ) : loaded ? (
               <EmptyState title="No compose projects" description={NO_PROJECTS} action={<Button onClick={onRefresh}>Check again</Button>} />
             ) : (
               <EmptyState title="Loading compose projects…" description={null} action={null} />

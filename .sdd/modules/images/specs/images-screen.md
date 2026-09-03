@@ -215,17 +215,24 @@ Navigation:
   (and `BulkActionBar`) because it alone has a bulk action that needs a selection (`Save to
   tarball…`); Containers has no equivalent per-row bulk action (see `containers-screen.md`), so it
   carries none. That difference is intentional and does not violate REQ-3.
+- **No failure panel, and the lost connection is not told here**
+  (plan-docker_management_app-inline_error_panels/REQ-1, …/REQ-2, …/REQ-13): the listing's failure
+  state is raised only while the live channel is not delivering, so it raises no toast either. With
+  nothing to list, the shared "could not be loaded" placeholder stands in the list's place — one
+  wording for every cause, no cause named and no control (…/REQ-3). The retry is the header's; none
+  is offered here (…/REQ-4).
 
 ## Dependencies
 
 - ui-library: ScreenToolbar, SearchField, DataTable, BulkActionBar, StatusDotCell, TwoLineCell,
   MetaCell, IdentifierCell, BadgeListCell, ActionButtonGroup, Menu, FormDialog, StepProgressList,
-  TransferProgressDialog, FilePicker, triggerDownload, TextField, Select, Card, ErrorBanner,
+  TransferProgressDialog, FilePicker, triggerDownload, TextField, Select, Card,
   EmptyState, Stack, useToast
 - Images client, useImageTransferStream, useFileUpload
 - ImageDetailPanel, LayerExplorer, LayerEfficiencyView, FilesystemBrowser, ImageDiffView
 - containers: ContainerCreateForm, Container transfer client
-- app-shell: ConfirmationService, ProgressService, ErrorReportingService, useFailureReport, CrossNavigationService
+- app-shell: ConfirmationService, ProgressService, ErrorReportingService, useFailureReport,
+  FailedReadEmptyState, CrossNavigationService
 
 ## Requirements served
 
@@ -307,3 +314,8 @@ Navigation:
 - plan-ui-coherence-optimisation/REQ-59
 - plan-docker_management_app-inline_error_panels/REQ-5
 - plan-docker_management_app-inline_error_panels/REQ-7
+- plan-docker_management_app-inline_error_panels/REQ-1
+- plan-docker_management_app-inline_error_panels/REQ-2
+- plan-docker_management_app-inline_error_panels/REQ-3
+- plan-docker_management_app-inline_error_panels/REQ-4
+- plan-docker_management_app-inline_error_panels/REQ-13
