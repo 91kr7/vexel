@@ -6,8 +6,8 @@ type: frontend data client
 
 # Preferences client
 
-**Purpose** → typed `fetch` wrapper for the persistence and host-path endpoints; the only place in
-the client that knows their URLs.
+**Purpose** → typed `fetch` wrapper for the persistence endpoints; the only place in the client
+that knows their URLs.
 
 ## Contract
 
@@ -22,18 +22,14 @@ the client that knows their URLs.
 - `fetchAnalysisCacheUsage(): Promise<AnalysisCacheUsage>` — `GET
   /api/persistence/analysis-cache`.
 - `clearAnalysisCache(): Promise<void>` — `POST /api/persistence/analysis-cache/clear`.
-- `HostPathValidationRequest`/`HostPathValidationResult` — mirror the server shapes (see
-  `host-path-validator.md`).
-- `validateHostPath(request): Promise<HostPathValidationResult>` — `POST
-  /api/host-paths/validate`.
 
 ## Rules and invariants
 
-- Every function throws on a non-`ok` HTTP response (except `validateHostPath`, whose `200` body
-  already carries `valid: false` for a refusal).
+- Every function throws on a non-`ok` HTTP response.
+- No host-path function lives here. `POST /api/host-paths/validate` is served and validated on the
+  server (`host-path-validator.md`); the client had a wrapper for it that nothing ever called.
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-113
 - plan-docker_management_app/REQ-115
-- plan-docker_management_app/REQ-116
