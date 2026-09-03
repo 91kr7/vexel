@@ -49,6 +49,11 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   with the internal filesystem-extraction containers removed and nothing else applied — not the
   projection the endpoint answers with. One read therefore serves every consumer of the listing:
   the container endpoint, the volume list, the network list and the host overview.
+  - It **announces the projection, not what it holds**: what travels on the live channel for the name
+    `containers` is the same ordered `ContainerSummary[]` the listing endpoint answers with, sampled
+    figures merged in, so a screen reading the channel and a caller reading the endpoint are given
+    the same list
+    (plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-2).
   - It **declares what counts as a different listing** for whoever derives from it, and that
     declaration is the contract between this listing and the lists built on it: per container, its
     `Id`, its **name**, its **volume mounts** and its **network attachments**, compared in an order
@@ -105,9 +110,9 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 - `renameContainer(id, name): Promise<void>` — `POST /containers/{id}/rename?name=...`.
 - `pruneStoppedContainers(): Promise<PruneResult>` — `POST /containers/prune`;
   `PruneResult`: `{ removedIds: string[], reclaimedBytes: number }`.
-- `STATS_SAMPLE_INTERVAL_MS: 10000` — the sampling interval, and the period the subscription
-  endpoint writes at. The declared figure, which the process's timing scale multiplies; the
-  staleness bound stays three of these intervals, so it follows the scale without a second decision.
+- `STATS_SAMPLE_INTERVAL_MS: 10000` — the sampling interval. The declared figure, which the
+  process's timing scale multiplies; the staleness bound stays three of these intervals, so it
+  follows the scale without a second decision.
 - `startStatsSampling(): void` — starts the CPU/memory sampler **and takes a sample immediately**,
   so a consumer that has just arrived waits for figures for the duration of one daemon call rather
   than for a whole interval; idempotent (a second call while it runs is a no-op).
@@ -270,7 +275,7 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
   daemon's own order is **not stable across reads**: three consecutive reads of the same unchanged
   container return the same mappings rotated. That is invisible to a consumer showing all of them
   and decisive for one showing a **subset** — the containers card draws the first two mappings and
-  then a `+n`, so an unstable order hands it a *different subset* each poll and two chips swap
+  then a `+n`, so an unstable order hands it a *different subset* each read and two chips swap
   identity while the container has not changed (found 2026-08-25 on the running product, measured
   over three consecutive reads). Sorting by private port, then public port, then protocol makes the
   key **total**: no two mappings of one container can tie, so the sequence is identical read to

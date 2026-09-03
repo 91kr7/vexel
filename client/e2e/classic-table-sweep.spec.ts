@@ -38,8 +38,8 @@
  *
  * **Test discipline** (REQ-32): the daemon-backed rows are this file's own — two
  * containers, two volumes, one image tag, one built image and two compose
- * projects, each labelled and each removed in an `afterAll`, containers with
- * `docker rm -fv`. The inventories a daemon will not produce on demand (builders,
+ * projects, each labelled, and each removed by the daemon reset that opens every
+ * file. The inventories a daemon will not produce on demand (builders,
  * contexts, plugins) are answered **in the browser** from
  * `support/screen-inventories.ts`, the same fixture batch 2 measures through, and
  * the registries screen is read from the suite's own fixture server so that no
@@ -59,7 +59,6 @@ import {
   buildEfficiencyFixtureImage,
   clickAt,
   openTheAnalysedDialog,
-  removeEfficiencyFixtureImage,
 } from './support/layer-efficiency-dialog.js';
 import { containerCard, containerCards, containerDetail, openContainerDetail } from './support/container-cards.js';
 import {
@@ -77,6 +76,9 @@ import {
   type ListGeometry,
   type Viewport,
 } from './support/classic-table.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 const DESKTOP: Viewport = VIEWPORTS[0];
 const PHONE: Viewport = VIEWPORTS[2];
@@ -177,7 +179,7 @@ let composeDir: string | undefined;
 let registryFixture: RegistryFixtureServer;
 
 test.beforeAll(async () => {
-  // Ensured at the point of use rather than once for the run: the exclusive project prunes the host.
+  // Ensured at the point of use rather than once for the run: a prune spec in this suite prunes the host.
   await ensureImage(ALPINE_IMAGE);
   await buildEfficiencyFixtureImage(efficiencyImage, CASE_NAME);
 
@@ -211,33 +213,9 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  for (const project of [MULTI_PROJECT, SOLO_PROJECT]) {
-    // Removed by their own compose project label, so teardown never depends on
-    // the fixture's file still being on disk.
-    const containers = await execFileAsync('docker', ['ps', '-aq', '--filter', `label=com.docker.compose.project=${project}`]).catch(() => ({
-      stdout: '',
-    }));
-    const ids = containers.stdout.split('\n').filter((id) => id.length > 0);
-    // `-fv` and not `-f`: without it an image's anonymous volumes outlive the container.
-    if (ids.length > 0) await execFileAsync('docker', ['rm', '-fv', ...ids]).catch(() => undefined);
-    const networks = await execFileAsync('docker', ['network', 'ls', '-q', '--filter', `label=com.docker.compose.project=${project}`]).catch(
-      () => ({ stdout: '' }),
-    );
-    const networkIds = networks.stdout.split('\n').filter((id) => id.length > 0);
-    if (networkIds.length > 0) await execFileAsync('docker', ['network', 'rm', ...networkIds]).catch(() => undefined);
-  }
-  for (const name of containerNames) {
-    await execFileAsync('docker', ['rm', '-fv', name]).catch(() => undefined);
-  }
-  for (const name of volumeNames) {
-    await execFileAsync('docker', ['volume', 'rm', '-f', name]).catch(() => undefined);
-  }
-  await execFileAsync('docker', ['rmi', '-f', imageTag]).catch(() => undefined);
-  await removeEfficiencyFixtureImage(efficiencyImage);
   if (composeDir) await rm(composeDir, { recursive: true, force: true }).catch(() => undefined);
   await registryFixture?.stop();
 });
-
 // ---------------------------------------------------------------------------
 // The walk.
 // ---------------------------------------------------------------------------

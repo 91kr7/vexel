@@ -35,7 +35,7 @@
  * containers category holds something" is this spec's own fact and not the
  * operator's — carries the ownership labels and is removed with `docker rm -fv`
  * in a `finally`. No test here confirms a prune: the prunes act on the whole host
- * and live in `e2e/exclusive/system-prune.spec.ts`.
+ * and live in `e2e/system-prune-confirmed.spec.ts`.
  */
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
@@ -50,6 +50,9 @@ import {
   metaInkSqueezed,
   round,
 } from './support/truncating-rows.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 const RUN_ID = `${process.pid}-${Date.now()}`;
 

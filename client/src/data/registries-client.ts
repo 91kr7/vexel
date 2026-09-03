@@ -50,12 +50,6 @@ async function requireOk(response: Response): Promise<void> {
   if (!response.ok) throw new Error(await extractErrorMessage(response));
 }
 
-export async function fetchRegistries(): Promise<RegistrySummary[]> {
-  const response = await fetch('/api/registries');
-  await requireOk(response);
-  return (await response.json()) as RegistrySummary[];
-}
-
 export async function fetchRepositories(host: string, query: string, limit?: number): Promise<RepositorySummary[]> {
   const params = new URLSearchParams({ host, query });
   if (limit) params.set('limit', String(limit));

@@ -8,7 +8,7 @@
  * stays invisible for a whole refresh period. The answer is the control the
  * operator has (`plan-docker_management_app-refresh_cache-manual_refresh/REQ-16`),
  * driven here exactly as they drive it. That holds for every spec under
- * `client/e2e/`, the destructive ones in `client/e2e/exclusive/` included
+ * `client/e2e/`, the destructive ones included
  * (`plan-docker_management_app-refresh_cache/REQ-66`).
  *
  * Three constraints shape what is below, and each rules out a shortcut:

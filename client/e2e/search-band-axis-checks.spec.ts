@@ -1,6 +1,9 @@
 import { expect, test, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
 import { expectBandFillsItsRow, expectBandIsTheHeightOfItsControl, measureSearchBand } from './support/search-band-axis.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /**
  * **The checks that guard the search band, checked themselves.**

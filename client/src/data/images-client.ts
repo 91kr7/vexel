@@ -57,12 +57,6 @@ async function requireOk(response: Response): Promise<void> {
   if (!response.ok) throw new Error(await extractErrorMessage(response));
 }
 
-export async function fetchImages(): Promise<ImageSummary[]> {
-  const response = await fetch('/api/images');
-  await requireOk(response);
-  return (await response.json()) as ImageSummary[];
-}
-
 export async function fetchImageInspect(id: string): Promise<ImageInspect> {
   const response = await fetch(`/api/images/${encodeURIComponent(id)}/inspect`);
   await requireOk(response);

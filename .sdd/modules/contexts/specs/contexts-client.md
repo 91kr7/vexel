@@ -10,7 +10,6 @@ type: frontend data client
 
 ## Contract
 
-- `fetchContexts(): Promise<ContextSummary[]>`
 - `createContext(input): Promise<ContextSummary>` — `input`: `{ name, kind: 'local' | 'ssh', host?,
   description? }`.
 - `activateContext(name): Promise<ContextSummary>` — makes `name` the active context.

@@ -7,6 +7,9 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from './support/test.js';
 import { openApp } from './support/fixtures.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /**
  * The failure modes the single-process form introduces, pinned against the

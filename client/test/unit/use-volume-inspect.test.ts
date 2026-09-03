@@ -1,12 +1,13 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { act } from 'react';
-import type { DaemonEvent } from '../../src/data/event-stream';
+import type { DaemonEvent } from '../../src/data/live-channel';
 
-// useVolumeInspect re-reads when `name` changes and on every `volume`/
-// `container` daemon event (use-volume-inspect.md): the fetch and the event
-// bus are mocked so the hook's own re-read triggers are the only thing under
-// test.
+// useVolumeInspect reads when `name` changes, on demand and on the reload
+// signal, and for no daemon event at all (use-volume-inspect.md,
+// plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1):
+// the fetch is mocked, and the event subscription is watched so that reaching it
+// at all fails.
 const fetchVolumeInspect = vi.fn();
 let daemonListener: ((event: DaemonEvent) => void) | undefined;
 const subscribeToDaemonEvents = vi.fn((listener: (event: DaemonEvent) => void) => {
@@ -20,9 +21,9 @@ vi.mock('../../src/data/volumes-client', () => ({
   fetchVolumeInspect: (...args: unknown[]) => fetchVolumeInspect(...args),
 }));
 // Only the subscription is stood in for: the attribution rule that decides
-// which events reach the hook is the real one (event-stream-client.md).
-vi.mock('../../src/data/event-stream', async (importActual) => ({
-  ...(await importActual<typeof import('../../src/data/event-stream')>()),
+// which events reach the hook is the real one (live-channel/specs/live-channel-client.md).
+vi.mock('../../src/data/live-channel', async (importActual) => ({
+  ...(await importActual<typeof import('../../src/data/live-channel')>()),
   subscribeToDaemonEvents: (listener: (event: DaemonEvent) => void) => subscribeToDaemonEvents(listener),
 }));
 
@@ -70,79 +71,24 @@ describe('useVolumeInspect', () => {
     await waitFor(() => expect(fetchVolumeInspect).toHaveBeenCalledWith('vol-2'));
   });
 
-  // use-volume-inspect.md — re-reads on every `volume` daemon event
-  it('refreshes the current selection when a volume daemon event arrives', async () => {
-    fetchVolumeInspect.mockResolvedValue(inspectPayload('vol-1'));
-    const { result } = renderHook(() => useVolumeInspect('vol-1'));
+  // use-volume-inspect.md — "A daemon event triggers nothing, so a volume changed elsewhere leaves the open
+  // detail showing what it last read, and nothing on screen says so"
+  // (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1, REQ-2, REQ-13)
+  it('subscribes to no daemon event, and reads for none delivered', async () => {
+    fetchVolumeInspect.mockResolvedValue(inspectPayload(SHOWN_VOLUME));
+    const { result } = renderHook(() => useVolumeInspect(SHOWN_VOLUME));
     await waitFor(() => expect(result.current.loaded).toBe(true));
     fetchVolumeInspect.mockClear();
 
-    act(() => daemonListener?.(daemonEvent('volume')));
+    expect(subscribeToDaemonEvents).not.toHaveBeenCalled();
 
-    await waitFor(() => expect(fetchVolumeInspect).toHaveBeenCalledWith('vol-1'));
-  });
-
-  // use-volume-inspect.md — also re-reads on a `container` daemon event
-  it('refreshes the current selection when a container daemon event arrives', async () => {
-    fetchVolumeInspect.mockResolvedValue(inspectPayload('vol-1'));
-    const { result } = renderHook(() => useVolumeInspect('vol-1'));
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    fetchVolumeInspect.mockClear();
-
-    act(() => daemonListener?.(daemonEvent('container')));
-
-    await waitFor(() => expect(fetchVolumeInspect).toHaveBeenCalledWith('vol-1'));
-  });
-
-  // use-volume-inspect.md — only `volume`/`container`-typed events trigger a re-read
-  it('does not refresh for a daemon event of an unrelated type', async () => {
-    fetchVolumeInspect.mockResolvedValue(inspectPayload('vol-1'));
-    const { result } = renderHook(() => useVolumeInspect('vol-1'));
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    fetchVolumeInspect.mockClear();
-
-    act(() => daemonListener?.(daemonEvent('image')));
-
+    act(() => {
+      for (const type of ['container', 'image', 'volume', 'network']) {
+        daemonListener?.(daemonEvent(type));
+        daemonListener?.({ ...daemonEvent(type), actorId: OTHER_VOLUME });
+      }
+    });
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(fetchVolumeInspect).not.toHaveBeenCalled();
-  });
-  // use-volume-inspect.md — "A `volume` event about another volume is ignored: the daemon is not
-  // asked about the shown volume" (plan-docker_management_app-refresh_cache/REQ-7)
-  it('does not read the shown volume again for a volume event about another volume', async () => {
-    fetchVolumeInspect.mockResolvedValue(inspectPayload(SHOWN_VOLUME));
-    const { result } = renderHook(() => useVolumeInspect(SHOWN_VOLUME));
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    fetchVolumeInspect.mockClear();
-
-    act(() => daemonListener?.({ ...daemonEvent('volume'), actorId: OTHER_VOLUME, actor: OTHER_VOLUME }));
-
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(fetchVolumeInspect).not.toHaveBeenCalled();
-  });
-
-  // use-volume-inspect.md — a `volume` event about that same volume still re-reads; for a volume the
-  // identifier is its name (plan-docker_management_app-refresh_cache/REQ-8)
-  it('reads again for a volume event carrying the shown volume name', async () => {
-    fetchVolumeInspect.mockResolvedValue(inspectPayload(SHOWN_VOLUME));
-    const { result } = renderHook(() => useVolumeInspect(SHOWN_VOLUME));
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    fetchVolumeInspect.mockClear();
-
-    act(() => daemonListener?.({ ...daemonEvent('volume'), actorId: SHOWN_VOLUME, actor: SHOWN_VOLUME }));
-
-    await waitFor(() => expect(fetchVolumeInspect).toHaveBeenCalledWith(SHOWN_VOLUME));
-  });
-
-  // use-volume-inspect.md — "Every `container` event still re-reads, whichever container it is
-  // about": the containers mounting the volume are part of what the view shows
-  it('reads again for a container event about a container it has never shown', async () => {
-    fetchVolumeInspect.mockResolvedValue(inspectPayload(SHOWN_VOLUME));
-    const { result } = renderHook(() => useVolumeInspect(SHOWN_VOLUME));
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    fetchVolumeInspect.mockClear();
-
-    act(() => daemonListener?.({ ...daemonEvent('container'), actorId: 'ffffffffffffffffffffffffffffffff', actor: 'some-container' }));
-
-    await waitFor(() => expect(fetchVolumeInspect).toHaveBeenCalledWith(SHOWN_VOLUME));
   });
 });

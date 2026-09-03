@@ -39,21 +39,36 @@ logging in and out, both delegated to the host's Docker credential store (REQ-85
     its host, so the final comparison is **that same host compared exactly**, and the same
     configuration produces the same sequence on every read.
   - **No secret is ever part of the result**, in any field.
+- `registryListCache` — the inventory as a held value of the refresh cache: key `registries`,
+  period **30 000 ms** (a bare figure beside the kind, like every other registered kind's), **no
+  daemon event type at all**.
+  - `read()` → the held inventory; the local Docker configuration, the credential helpers and the
+    daemon's index configuration are read once per period however many windows are open, and not at
+    all while nobody is asking.
+  - the daemon publishes no event for the Docker configuration or the credential store, which is
+    where most of this reading lives: a `docker login` or a `docker logout` typed in a terminal is
+    noticed within the period, the screen being given the value the moment it is stored, and at once
+    on the operator's refresh
+    (`plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-59`).
 - `getRegistry(host): Promise<RegistrySummary>`
   - The inventory entry for `host`; a host the installation is not configured for resolves to an
     unauthenticated summary rather than a failure, so a registry can be browsed before any login.
+  - **A direct read, never the held value**: it is what a log in and a log out answer with, and
+    neither may answer with a state read before the operation.
 - `loginToRegistry({ host, username, secret }): Promise<RegistrySummary>`
   - Logs in through the CLI channel, which hands the secret to the host's credential store.
   - Rejects with an empty username or an empty secret.
   - Rejects a host that names no registry — empty, blank, or reduced to nothing once its scheme and
     path are dropped — and one that starts with `-`. Such a host is **never** resolved to the
     default index: a blank host is a refusal, not a login to Docker Hub (REQ-87).
+  - States that the held inventory has changed, so the listing the screen reads back describes the
+    log in (`plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-57`).
   - Resolves with the registry's resulting state (authenticated, with its account).
   - A refusal by the registry rejects with the CLI's own message, **with every occurrence of the
     secret replaced by a fixed marker first**.
 - `logoutFromRegistry(host): Promise<RegistrySummary>`
-  - Drops the stored credential through the CLI channel and resolves with the resulting state
-    (no longer authenticated).
+  - Drops the stored credential through the CLI channel, states that the held inventory has changed,
+    and resolves with the resulting state (no longer authenticated).
   - Refuses the same hosts as `loginToRegistry`, on the same rule: the two agree on what a usable
     host is, so neither ever acts on a registry the caller did not name.
 - `normalizeRegistryHost(value): string`, `isDockerHub(host): boolean` — the host normalization and
@@ -79,6 +94,11 @@ logging in and out, both delegated to the host's Docker credential store (REQ-85
 - A credential helper that is absent from `PATH`, or refuses, contributes no account: an unknown
   account is not a failed inventory.
 - The configuration is read from `DOCKER_CONFIG` when set, from `~/.docker` otherwise.
+- Nothing is read while nobody is asking: registering the kind reads nothing, and a whole expiry
+  window with no request stops the reading and drops what was held, so the next request reads fresh.
+  Like every other held value, it is read again by the operator's manual reload when it is held,
+  keeps its last inventory when a read fails (reported as staleness, not as a failure), and is
+  dropped by a context switch.
 - A non-zero exit or a spawn failure of the CLI rejects with a `DockerDaemonError`
   (`docker-access`, code `DaemonRejected`), so the REST layer maps it to `502`.
 
@@ -87,6 +107,7 @@ logging in and out, both delegated to the host's Docker credential store (REQ-85
 - docker-access: CLI runner, Active endpoint, EngineClient (the daemon's `/info` registry
   configuration)
 - list-order: List order (`byNameThenIdentity`, with the official flag as the group rank)
+- refresh-cache: Refresh cache
 
 ## Requirements served
 
@@ -95,3 +116,9 @@ logging in and out, both delegated to the host's Docker credential store (REQ-85
 - plan-docker_management_app-list_ordering/REQ-23
 - plan-docker_management_app-list_ordering/REQ-24
 - plan-docker_management_app-list_ordering/REQ-25
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-54
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-55
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-57
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-58
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-59
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-61

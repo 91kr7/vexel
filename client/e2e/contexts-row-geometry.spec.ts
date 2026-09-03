@@ -23,8 +23,9 @@
  * The fixtures are two contexts of this file's own, one carrying a description
  * and one carrying none, so equal row heights are a repair rather than an
  * artefact of every row saying the same thing. A context is host-level
- * configuration and carries no label, so its name prefix is the only handle
- * there is; each is removed in an `afterAll`, and **nothing here switches the
+ * configuration and carries no label, so nothing can single one out — which is why
+ * the daemon reset that opens every file removes every context but the one in use
+ * and `default`. **Nothing here switches the
  * active context** — that is exercised, once, in `contexts.spec.ts`, against a
  * fixture pointing at the daemon that is already active.
  *
@@ -42,6 +43,9 @@ import { refreshThroughTheControl } from './support/refresh-control.js';
 // other converted list is judged by (`e2e/support/classic-table.ts`).
 import { expectFlushRuledRows, settledList } from './support/classic-table.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 interface Viewport {
   width: number;
@@ -379,13 +383,6 @@ test.beforeAll(async () => {
  * killed by its own timeout never reaches a `finally`. The suite runs
  * single-worker, so nothing else can own a name under this prefix.
  */
-test.afterAll(async () => {
-  const { stdout } = await execFileAsync('docker', ['context', 'ls', '--format', '{{.Name}}']).catch(() => ({ stdout: '' }));
-  for (const leftover of stdout.split('\n').filter((name) => name.startsWith('vexel-e2e-ctxgeo-'))) {
-    await removeContextQuietly(leftover);
-  }
-});
-
 test.describe('F9 — the contexts screen against an inventory holding described and bare contexts', () => {
   for (const viewport of VIEWPORTS) {
     const at = `${viewport.width}×${viewport.height}`;

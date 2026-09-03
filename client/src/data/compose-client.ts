@@ -59,12 +59,6 @@ async function requireOk(response: Response): Promise<void> {
   if (!response.ok) throw new Error(await extractErrorMessage(response));
 }
 
-export async function fetchComposeProjects(): Promise<ComposeProjectSummary[]> {
-  const response = await fetch('/api/compose/projects');
-  await requireOk(response);
-  return (await response.json()) as ComposeProjectSummary[];
-}
-
 export async function fetchComposeFiles(projectName: string): Promise<ComposeFileReadResult> {
   const response = await fetch(`/api/compose/projects/${encodeURIComponent(projectName)}/files`);
   await requireOk(response);

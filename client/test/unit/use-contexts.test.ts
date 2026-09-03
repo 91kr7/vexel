@@ -1,284 +1,204 @@
-import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest';
-import { cleanup, renderHook, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react';
-import type { ContextSummary } from '../../src/data/contexts-client';
+import { cleanup, renderHook } from '@testing-library/react';
+import { channelOpens, deliverDiscard, deliverValue } from '../support/live-channel';
+import { arrangeLiveChannel, type ChannelHarness } from '../support/pushed-listing';
 
-// useContexts reads the context inventory and drives create/remove/select-active
-// (contexts/specs/use-contexts.md): the data client is mocked so the hook's own
-// re-read, error-propagation and broadcast decisions are the only things under
-// test. The broadcast itself is the real one, subscribed to as any cached view
-// would (contexts/specs/active-context-broadcast.md).
-const fetchContexts = vi.fn();
-const createContext = vi.fn();
-const removeContext = vi.fn();
-const activateContext = vi.fn();
+/**
+ * What `useContexts` does beyond reading the inventory off the channel
+ * (`contexts/specs/use-contexts.md`): which context it names active, the
+ * create/remove/select-active it drives, the announcement a switch raises, and a
+ * delivery that is not a list. The inventory itself is covered for the whole set
+ * in `listings-arrive-by-push.test.tsx`.
+ */
 
-vi.mock('../../src/data/contexts-client', () => ({
-  fetchContexts: () => fetchContexts(),
-  createContext: (input: unknown) => createContext(input),
-  removeContext: (name: string) => removeContext(name),
-  activateContext: (name: string) => activateContext(name),
-}));
+let harness: ChannelHarness;
+let useContexts: typeof import('../../src/data/use-contexts').useContexts;
+let subscribeToActiveContextChange: typeof import('../../src/data/active-context').subscribeToActiveContextChange;
 
-const { useContexts } = await import('../../src/data/use-contexts');
-const { subscribeToActiveContextChange } = await import('../../src/data/active-context');
-
-function context(overrides: Partial<ContextSummary> = {}): ContextSummary {
-  return { name: 'default', endpoint: 'unix:///var/run/docker.sock', kind: 'local', tls: false, active: false, ...overrides };
+function context(name: string, overrides: Record<string, unknown> = {}) {
+  return { name, endpoint: 'unix:///var/run/docker.sock', kind: 'local', tls: false, active: false, ...overrides };
 }
 
-beforeEach(() => {
-  fetchContexts.mockReset();
-  createContext.mockReset();
-  removeContext.mockReset();
-  activateContext.mockReset();
+const FIRST = context('first', { active: true });
+const SECOND = context('second', { endpoint: 'ssh://operator@build-host', kind: 'ssh' });
+
+beforeEach(async () => {
+  harness = arrangeLiveChannel();
+  vi.resetModules();
+  ({ useContexts } = await import('../../src/data/use-contexts'));
+  ({ subscribeToActiveContextChange } = await import('../../src/data/active-context'));
 });
 
-// Every mounted instance subscribes to the active-context broadcast, so an instance
-// left behind by an earlier test would re-read for it too: nothing outlives its test.
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
+/** The hook with the channel delivering, and the two contexts listed. */
+function mounted() {
+  const rendered = renderHook(() => useContexts());
+  act(() => channelOpens());
+  act(() => deliverValue('contexts', [FIRST, SECOND]));
+  return rendered;
+}
+
+/** Records every announcement the active-context broadcast makes. */
+function announcements(): { count: () => number } {
+  let count = 0;
+  subscribeToActiveContextChange(() => {
+    count += 1;
+  });
+  return { count: () => count };
+}
 
 describe('useContexts (contexts/specs/use-contexts.md)', () => {
-  // "contexts: ContextSummary[], re-read on a bounded poll and via refresh()"
-  it('reads the context inventory on mount and marks itself loaded', async () => {
-    fetchContexts.mockResolvedValue([context()]);
+  // "active is the context marked active in that inventory"
+  it('names as active the context the delivered inventory marks active', () => {
+    const { result } = mounted();
 
-    const { result } = renderHook(() => useContexts());
-
-    expect(result.current.contexts).toEqual([]);
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    expect(result.current.contexts).toHaveLength(1);
+    expect(result.current.active?.name).toBe('first');
   });
 
-  // "active is the context marked active in the inventory"
-  it('names as active the context the inventory marks active', async () => {
-    fetchContexts.mockResolvedValue([context({ name: 'one' }), context({ name: 'two', active: true })]);
-
+  // "undefined until one has been delivered, or when none is marked"
+  it('names no active context before a delivery, and none when the inventory marks none', () => {
     const { result } = renderHook(() => useContexts());
+    act(() => channelOpens());
+    expect(result.current.active).toBeUndefined();
 
-    await waitFor(() => expect(result.current.active?.name).toBe('two'));
-  });
+    act(() => deliverValue('contexts', [context('first'), context('second')]));
 
-  // "undefined until the list has been read or when none is"
-  it('leaves active undefined when no context is marked active', async () => {
-    fetchContexts.mockResolvedValue([context({ name: 'one' })]);
-
-    const { result } = renderHook(() => useContexts());
-
-    await waitFor(() => expect(result.current.loaded).toBe(true));
     expect(result.current.active).toBeUndefined();
   });
 
-  // "create(input) ... re-reads the inventory on success"
-  it('re-reads the inventory after a successful create', async () => {
-    fetchContexts.mockResolvedValue([]);
-    createContext.mockResolvedValue(context({ name: 'fresh' }));
-    const { result } = renderHook(() => useContexts());
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    fetchContexts.mockClear();
+  // "create(input): Promise<ContextSummary>" — and REQ-25: the operation is asked for, nothing else.
+  it('creates a context without re-reading the inventory', async () => {
+    harness.answers('/api/contexts', SECOND, { method: 'POST' });
+    const { result } = mounted();
 
     await act(async () => {
-      await result.current.create({ name: 'fresh', kind: 'local' });
+      await expect(result.current.create({ name: 'second', kind: 'ssh', host: 'operator@build-host' })).resolves.toEqual(SECOND);
     });
 
-    await waitFor(() => expect(fetchContexts).toHaveBeenCalled());
+    expect(harness.requests).toEqual([{ url: '/api/contexts', method: 'POST' }]);
   });
 
-  // "remove(name) ... re-reads the inventory on success"
-  it('re-reads the inventory after a successful remove', async () => {
-    fetchContexts.mockResolvedValue([context()]);
-    removeContext.mockResolvedValue(undefined);
-    const { result } = renderHook(() => useContexts());
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    fetchContexts.mockClear();
+  it('removes a context without re-reading the inventory', async () => {
+    harness.answers('/api/contexts/second', {}, { method: 'DELETE' });
+    const { result } = mounted();
 
     await act(async () => {
-      await result.current.remove('default');
+      await result.current.remove('second');
     });
 
-    await waitFor(() => expect(fetchContexts).toHaveBeenCalled());
+    expect(harness.requests).toEqual([{ url: '/api/contexts/second', method: 'DELETE' }]);
   });
 
-  // "use(name) ... re-reads the inventory on success"
-  it('re-reads the inventory after a successful switch, so the newly active context shows', async () => {
-    fetchContexts.mockResolvedValueOnce([context({ name: 'two' })]);
-    activateContext.mockResolvedValue(context({ name: 'two', active: true }));
-    const { result } = renderHook(() => useContexts());
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    fetchContexts.mockResolvedValue([context({ name: 'two', active: true })]);
+  it('switches the active context without re-reading the inventory', async () => {
+    harness.answers('/api/contexts/second/use', { ...SECOND, active: true }, { method: 'POST' });
+    const { result } = mounted();
 
     await act(async () => {
-      await result.current.use('two');
+      await expect(result.current.use('second')).resolves.toMatchObject({ name: 'second', active: true });
     });
 
-    await waitFor(() => expect(result.current.active?.name).toBe('two'));
+    expect(harness.requests).toEqual([{ url: '/api/contexts/second/use', method: 'POST' }]);
   });
 
-  // "use(name) additionally announces the switch on the active-context broadcast, once the server
-  // confirms it — never before, and never on failure" (REQ-93)
+  // REQ-24 — the switch shows the new daemon: the server discards what it holds, says so, and the
+  // inventory arrives again naming the context now active.
+  it('names the new active context once the channel has delivered the inventory again', async () => {
+    harness.answers('/api/contexts/second/use', { ...SECOND, active: true }, { method: 'POST' });
+    const { result } = mounted();
+    await act(async () => {
+      await result.current.use('second');
+    });
+
+    act(() => deliverDiscard());
+    expect(result.current.loaded).toBe(false);
+    act(() => deliverValue('contexts', [context('first'), { ...SECOND, active: true }]));
+
+    expect(result.current.active?.name).toBe('second');
+  });
+
+  // "use(name) announces the switch on the active-context broadcast, once the server confirms it —
+  // never before, and never on failure."
   it('announces the switch on the broadcast once the server has confirmed it', async () => {
-    fetchContexts.mockResolvedValue([context({ name: 'two' })]);
-    activateContext.mockResolvedValue(context({ name: 'two', active: true }));
-    const announced = vi.fn();
-    const unsubscribe = subscribeToActiveContextChange(announced);
-    try {
-      const { result } = renderHook(() => useContexts());
-      await waitFor(() => expect(result.current.loaded).toBe(true));
-      expect(announced).not.toHaveBeenCalled();
+    harness.answers('/api/contexts/second/use', { ...SECOND, active: true }, { method: 'POST' });
+    const { result } = mounted();
+    const announced = announcements();
 
-      await act(async () => {
-        await result.current.use('two');
-      });
+    expect(announced.count()).toBe(0);
+    await act(async () => {
+      await result.current.use('second');
+    });
 
-      expect(announced).toHaveBeenCalled();
-    } finally {
-      unsubscribe();
-    }
+    expect(announced.count()).toBe(1);
   });
 
   it('announces nothing when the switch fails', async () => {
-    fetchContexts.mockResolvedValue([context({ name: 'two' })]);
-    activateContext.mockRejectedValue(new Error('context not found'));
-    const announced = vi.fn();
-    const unsubscribe = subscribeToActiveContextChange(announced);
-    try {
-      const { result } = renderHook(() => useContexts());
-      await waitFor(() => expect(result.current.loaded).toBe(true));
+    harness.answers('/api/contexts/second/use', { error: 'no context named second' }, { method: 'POST', ok: false, status: 404 });
+    const { result } = mounted();
+    const announced = announcements();
 
-      await expect(result.current.use('two')).rejects.toThrow('context not found');
+    await expect(result.current.use('second')).rejects.toThrow('no context named second');
 
-      expect(announced).not.toHaveBeenCalled();
-    } finally {
-      unsubscribe();
-    }
+    expect(announced.count()).toBe(0);
+  });
+
+  // "Every mounted instance reads the same delivery, so the Contexts screen and the shell always
+  // name the same active context and count the same contexts, with no interval of disagreement."
+  it('hands every mounted instance the same delivery, with nothing announced between them', () => {
+    const screen = renderHook(() => useContexts());
+    const shell = renderHook(() => useContexts());
+    act(() => channelOpens());
+
+    act(() => deliverValue('contexts', [context('first'), { ...SECOND, active: true }]));
+
+    expect(screen.result.current.active?.name).toBe('second');
+    expect(shell.result.current.active?.name).toBe('second');
+    expect(screen.result.current.contexts).toBe(shell.result.current.contexts);
+  });
+
+  // "A delivery that is not a list of contexts is treated exactly like a failed read — reported
+  // through error, never shown — so no consumer is ever handed something it cannot iterate."
+  it('treats a delivery that is not a list as a failed read, keeping contexts iterable', () => {
+    const { result } = renderHook(() => useContexts());
+    act(() => channelOpens());
+
+    act(() => deliverValue('contexts', { error: 'not a list at all' }));
+
+    expect(Array.isArray(result.current.contexts)).toBe(true);
+    expect(result.current.contexts).toEqual([]);
+    expect(result.current.active).toBeUndefined();
+    expect(result.current.error).toBeTruthy();
+  });
+
+  it('recovers from a delivery that is not a list once a list is delivered', () => {
+    const { result } = renderHook(() => useContexts());
+    act(() => channelOpens());
+    act(() => deliverValue('contexts', { error: 'not a list at all' }));
+
+    act(() => deliverValue('contexts', [FIRST, SECOND]));
+
+    expect(result.current.error).toBeUndefined();
+    expect(result.current.contexts).toHaveLength(2);
   });
 
   // "failures propagate to the caller (never swallowed) so the screen can report them"
   it('propagates a create failure to the caller', async () => {
-    fetchContexts.mockResolvedValue([]);
-    createContext.mockRejectedValue(new Error('context "dup" already exists'));
-    const { result } = renderHook(() => useContexts());
-    await waitFor(() => expect(result.current.loaded).toBe(true));
+    harness.answers('/api/contexts', { error: 'context second already exists' }, { method: 'POST', ok: false, status: 409 });
+    const { result } = mounted();
 
-    await expect(result.current.create({ name: 'dup', kind: 'local' })).rejects.toThrow('context "dup" already exists');
+    await expect(result.current.create({ name: 'second', kind: 'ssh', host: 'operator@build-host' })).rejects.toThrow(
+      'context second already exists',
+    );
   });
 
   it('propagates a remove failure to the caller', async () => {
-    fetchContexts.mockResolvedValue([context()]);
-    removeContext.mockRejectedValue(new Error('cannot remove the current context'));
-    const { result } = renderHook(() => useContexts());
-    await waitFor(() => expect(result.current.loaded).toBe(true));
+    harness.answers('/api/contexts/second', { error: 'context second is in use' }, { method: 'DELETE', ok: false, status: 409 });
+    const { result } = mounted();
 
-    await expect(result.current.remove('default')).rejects.toThrow('cannot remove the current context');
-  });
-
-  // "The re-read after a change reaches every mounted instance of the hook, not only the one that
-  // acted: the Contexts screen and the shell always name the same active context and count the same
-  // contexts, with no interval of disagreement between them."
-  it('makes every mounted instance re-read after a switch, not only the one that acted', async () => {
-    fetchContexts.mockResolvedValue([context({ name: 'one', active: true }), context({ name: 'two' })]);
-    activateContext.mockResolvedValue(context({ name: 'two', active: true }));
-    const acting = renderHook(() => useContexts());
-    const observing = renderHook(() => useContexts());
-    await waitFor(() => expect(acting.result.current.loaded).toBe(true));
-    await waitFor(() => expect(observing.result.current.loaded).toBe(true));
-    fetchContexts.mockResolvedValue([context({ name: 'one' }), context({ name: 'two', active: true })]);
-
-    await act(async () => {
-      await acting.result.current.use('two');
-    });
-
-    await waitFor(() => expect(acting.result.current.active?.name).toBe('two'));
-    await waitFor(() => expect(observing.result.current.active?.name).toBe('two'));
-  });
-
-  it('makes every mounted instance re-read after a create', async () => {
-    fetchContexts.mockResolvedValue([context({ name: 'one' })]);
-    createContext.mockResolvedValue(context({ name: 'fresh' }));
-    const acting = renderHook(() => useContexts());
-    const observing = renderHook(() => useContexts());
-    await waitFor(() => expect(observing.result.current.loaded).toBe(true));
-    fetchContexts.mockResolvedValue([context({ name: 'one' }), context({ name: 'fresh' })]);
-
-    await act(async () => {
-      await acting.result.current.create({ name: 'fresh', kind: 'local' });
-    });
-
-    await waitFor(() => expect(observing.result.current.contexts).toHaveLength(2));
-  });
-
-  it('makes every mounted instance re-read after a remove', async () => {
-    fetchContexts.mockResolvedValue([context({ name: 'one' }), context({ name: 'two' })]);
-    removeContext.mockResolvedValue(undefined);
-    const acting = renderHook(() => useContexts());
-    const observing = renderHook(() => useContexts());
-    await waitFor(() => expect(observing.result.current.contexts).toHaveLength(2));
-    fetchContexts.mockResolvedValue([context({ name: 'one' })]);
-
-    await act(async () => {
-      await acting.result.current.remove('two');
-    });
-
-    await waitFor(() => expect(observing.result.current.contexts).toHaveLength(1));
-  });
-
-  // The re-read is the announcement's, not the acting instance's own as well: one instance re-reads
-  // once per change, and a re-read announces nothing further, so nothing loops.
-  it('re-reads exactly once per instance per change, without looping', async () => {
-    fetchContexts.mockResolvedValue([context({ name: 'one', active: true }), context({ name: 'two' })]);
-    activateContext.mockResolvedValue(context({ name: 'two', active: true }));
-    const first = renderHook(() => useContexts());
-    const second = renderHook(() => useContexts());
-    await waitFor(() => expect(first.result.current.loaded).toBe(true));
-    await waitFor(() => expect(second.result.current.loaded).toBe(true));
-    fetchContexts.mockClear();
-
-    await act(async () => {
-      await first.result.current.use('two');
-    });
-    // Long enough for a re-entrant announcement to have produced a further round of reads.
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 200));
-    });
-
-    expect(fetchContexts).toHaveBeenCalledTimes(2);
-  });
-
-  // "An answer that is not a list of contexts is treated exactly like a failed read — reported
-  // through error, never stored — so no consumer is ever handed something it cannot iterate."
-  it('treats an answer that is not a list as a failed read, keeping contexts iterable', async () => {
-    fetchContexts.mockResolvedValue({ error: 'not a list at all' } as unknown as ContextSummary[]);
-
-    const { result } = renderHook(() => useContexts());
-
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    expect(Array.isArray(result.current.contexts)).toBe(true);
-    expect(result.current.contexts).toEqual([]);
-    expect(result.current.error).toBeTruthy();
-    expect(result.current.active).toBeUndefined();
-  });
-
-  it('recovers from a non-list answer once a later read returns a list', async () => {
-    fetchContexts.mockResolvedValueOnce({} as unknown as ContextSummary[]);
-    const { result } = renderHook(() => useContexts());
-    await waitFor(() => expect(result.current.error).toBeTruthy());
-
-    fetchContexts.mockResolvedValue([context({ name: 'one', active: true })]);
-    act(() => result.current.refresh());
-
-    await waitFor(() => expect(result.current.error).toBeUndefined());
-    expect(result.current.active?.name).toBe('one');
-  });
-
-  // The inventory read failing is reported rather than thrown, with retry through refresh()
-  it('surfaces a read failure and clears it once a later read succeeds', async () => {
-    fetchContexts.mockRejectedValueOnce(new Error('docker not available'));
-    const { result } = renderHook(() => useContexts());
-    await waitFor(() => expect(result.current.error).toBe('docker not available'));
-
-    fetchContexts.mockResolvedValue([context()]);
-    act(() => result.current.refresh());
-
-    await waitFor(() => expect(result.current.error).toBeUndefined());
+    await expect(result.current.remove('second')).rejects.toThrow('context second is in use');
   });
 });

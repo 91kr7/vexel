@@ -3,6 +3,9 @@ import { openApp, ownershipArgs } from './support/fixtures.js';
 import { expectBandGrowsWithinItsRow, expectBandIsTheHeightOfItsControl, measureSearchBand } from './support/search-band-axis.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { containerDetail, openContainerDetail } from './support/container-cards.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 // A tiny, already-cached image whose entrypoint is overridden to `sh`: the
 // container prints one line on each stream, then keeps ticking so the tail is
@@ -218,9 +221,8 @@ test.beforeEach(async ({ page }) => {
 
 // These tests keep a container's detail panel open across several UI steps.
 // DataTable virtualisation does not reserve extra space for an expanded row
-// (ui-library/specs/data-table.md), so another worker's containers appearing
-// mid-interaction can push the row out of the mounted window and reset the
-// panel; serial mode keeps that window stable.
+// (ui-library/specs/data-table.md), so serial mode keeps the mounted window
+// stable across them.
 test.describe('Container logs (REQ-30, REQ-31)', () => {
   test.describe.configure({ mode: 'serial' });
 

@@ -1,6 +1,9 @@
 import { expect, test, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 const RUN_ID = `${process.pid}-${Date.now()}`;
 
@@ -8,7 +11,7 @@ const RUN_ID = `${process.pid}-${Date.now()}`;
 // the host: the breakdown it reads, the confirmations it demands, the
 // shared-daemon warning (REQ-97) and the scope selection. No test here ever
 // confirms a prune — the prunes act on the whole host and cannot be scoped, so
-// they live in e2e/exclusive/system-prune.spec.ts.
+// they live in e2e/system-prune-confirmed.spec.ts.
 //
 // The daemon is the operator's own: assertions are made on the fixture this
 // spec creates, never on host totals or on a category being empty.

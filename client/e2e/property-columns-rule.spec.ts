@@ -6,6 +6,9 @@ import { openApp, ownershipArgs } from './support/fixtures.js';
 import { readOnceSettled } from './support/settled.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /**
  * **The rule itself, measured a second way.** REQ ids belong to

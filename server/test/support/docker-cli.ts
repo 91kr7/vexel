@@ -36,6 +36,18 @@ export const DOCKER_TIMEOUT_MS = 30_000;
 export const DOCKER_TRANSFER_TIMEOUT_MS = 300_000;
 
 /**
+ * Past this, a call says how long it took. Nothing here is meant to be slow — a
+ * question to a local daemon answers in well under a second — so one that is not
+ * names itself instead of being averaged into whichever hook it exhausts.
+ *
+ * Paid for by `menu-follows-its-control`: a `beforeAll` doing work that measures
+ * 0.4s spent its whole thirty-second budget, and neither the reporter nor the
+ * Playwright trace could say on which call, because a trace records browser
+ * actions and this is not one.
+ */
+const SLOW_CALL_MS = 5_000;
+
+/**
  * The verbs that move bytes, and so earn the longer deadline. Matched against
  * the first two arguments, since the verb is either the first (`docker pull`)
  * or the second (`docker plugin push`, `docker image save`).
@@ -66,10 +78,17 @@ export async function execFileAsync(
   options: ExecFileOptions & { timeout?: number } = {},
 ): Promise<ExecResult> {
   const timeout = options.timeout ?? deadlineFor(args);
+  const started = Date.now();
+  const sayIfSlow = (): void => {
+    const took = Date.now() - started;
+    if (took > SLOW_CALL_MS) console.warn(`slow: \`${file} ${args.join(" ")}\` took ${Math.round(took / 1000)}s`);
+  };
   try {
     const { stdout, stderr } = await run(file, [...args], { ...options, timeout });
+    sayIfSlow();
     return { stdout: String(stdout), stderr: String(stderr) };
   } catch (error) {
+    sayIfSlow();
     const failure = error as { killed?: boolean; signal?: string | null };
     if (failure.killed === true && failure.signal === "SIGTERM") {
       throw new Error(

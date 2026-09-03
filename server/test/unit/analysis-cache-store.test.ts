@@ -165,8 +165,9 @@ test("an insert issued at the same time as another digest's invalidate survives 
 });
 
 // local-persistence/specs/extraction-cache-store.md — the same guarantee holds "for two processes
-// sharing one data directory", which is what the parallel API pass is: one data directory, one
-// process per test file. Only the promised half is asserted here — that neither process loses an
+// sharing one data directory", so this check spawns two of its own rather than standing in for a
+// pass: `node --test` gives each file a process, but one runs at a time. Only the promised half is
+// asserted here — that neither process loses an
 // entry — not the bounds LocalStore states around it (a killed lock holder, a filesystem without
 // exclusive creation, a whole-value writeNamespace overwrite).
 test("two processes inserting into one data directory at the same time each keep every entry", async () => {

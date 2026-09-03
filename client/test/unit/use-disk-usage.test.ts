@@ -1,13 +1,15 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { act } from 'react';
-import type { DaemonEvent } from '../../src/data/event-stream';
+import type { DaemonEvent } from '../../src/data/live-channel';
 import type { DiskUsageBreakdown, PruneRunResult } from '../../src/data/system-client';
 
 // useDiskUsage holds the reclaimable-space breakdown and drives the prunes over
 // it (use-disk-usage.md): the data client, the daemon event stream and the
-// active-context broadcast are mocked, so the hook's own re-read, coalescing
-// and error decisions are the only things under test.
+// active-context broadcast are mocked, so the hook's own re-read and error
+// decisions are the only things under test. The event stream is kept mocked to
+// state the absence: nothing here subscribes to it
+// (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1).
 const fetchDiskUsage = vi.fn();
 const pruneScope = vi.fn();
 let daemonListener: ((event: DaemonEvent) => void) | undefined;
@@ -17,7 +19,7 @@ vi.mock('../../src/data/system-client', () => ({
   fetchDiskUsage: () => fetchDiskUsage(),
   pruneScope: (scope: string[]) => pruneScope(scope),
 }));
-vi.mock('../../src/data/event-stream', () => ({
+vi.mock('../../src/data/live-channel', () => ({
   subscribeToDaemonEvents: (listener: (event: DaemonEvent) => void) => {
     daemonListener = listener;
     return () => {
@@ -163,9 +165,10 @@ describe('useDiskUsage (system/specs/use-disk-usage.md)', () => {
     expect(resolved?.categories[0]?.error).toBe('buildx is not installed');
   });
 
-  // use-disk-usage.md — "It is also re-read on every container, image, volume or network daemon
-  // event"
-  it.each(['container', 'image', 'volume', 'network'])('re-reads on a %s daemon event', async (type) => {
+  // use-disk-usage.md — "A daemon event triggers nothing, so an object removed elsewhere leaves the
+  // breakdown showing what was last read, and nothing on screen says so"
+  // (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1, REQ-2, REQ-13)
+  it('subscribes to no daemon event, and reads for none delivered', async () => {
     vi.useFakeTimers();
     fetchDiskUsage.mockResolvedValue(breakdown());
     const { result } = renderHook(() => useDiskUsage());
@@ -176,57 +179,18 @@ describe('useDiskUsage (system/specs/use-disk-usage.md)', () => {
     expect(result.current.loaded).toBe(true);
     fetchDiskUsage.mockClear();
 
-    act(() => daemonListener?.(daemonEvent(type)));
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(AFTER_ANY_COALESCING_MS);
+    expect(daemonListener).toBeUndefined();
+
+    act(() => {
+      for (const type of ['container', 'image', 'volume', 'network', 'daemon']) {
+        for (let index = 0; index < 30; index += 1) daemonListener?.(daemonEvent(type));
+      }
     });
-
-    expect(fetchDiskUsage).toHaveBeenCalledTimes(1);
-  });
-
-  // use-disk-usage.md — only the object types whose appearance or removal changes what is
-  // reclaimable are relevant
-  it('ignores a daemon event of an unrelated type', async () => {
-    vi.useFakeTimers();
-    fetchDiskUsage.mockResolvedValue(breakdown());
-    const { result } = renderHook(() => useDiskUsage());
-    // Flushes the initial read inside act(), so the state it settles is applied under the fake clock.
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(0);
-    });
-    expect(result.current.loaded).toBe(true);
-    fetchDiskUsage.mockClear();
-
-    act(() => daemonListener?.(daemonEvent('daemon')));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(AFTER_ANY_COALESCING_MS);
     });
 
     expect(fetchDiskUsage).not.toHaveBeenCalled();
-  });
-
-  // use-disk-usage.md — "A burst of such events — a prune emits one per removed object — leads to a
-  // single re-read, not one per event."
-  it('coalesces a burst of daemon events into a single re-read', async () => {
-    vi.useFakeTimers();
-    fetchDiskUsage.mockResolvedValue(breakdown());
-    const { result } = renderHook(() => useDiskUsage());
-    // Flushes the initial read inside act(), so the state it settles is applied under the fake clock.
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(0);
-    });
-    expect(result.current.loaded).toBe(true);
-    fetchDiskUsage.mockClear();
-
-    act(() => {
-      for (let index = 0; index < 30; index += 1) daemonListener?.(daemonEvent('container'));
-      for (let index = 0; index < 30; index += 1) daemonListener?.(daemonEvent('volume'));
-    });
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(AFTER_ANY_COALESCING_MS);
-    });
-
-    expect(fetchDiskUsage).toHaveBeenCalledTimes(1);
   });
 
   // use-disk-usage.md — "It does not poll: the daemon's disk-usage reading is expensive on a large

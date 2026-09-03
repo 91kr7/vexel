@@ -2,6 +2,9 @@ import { expect, test, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { containerCard, containerDetail, openContainerDetail } from './support/container-cards.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /** An idle container: its main process sleeps, so exec sessions run independently of it. */
 async function createIdleContainer(name: string): Promise<void> {
@@ -447,20 +450,55 @@ test.describe('Session terminal sizing (REQ-34, REQ-35)', () => {
     }
   });
 
-  /** The container list's poll as the client declares it, unscaled (`use-containers.md`). */
-  const SHIPPED_LIST_POLL_MS = 3_000;
+  /** The container listing's period as the server declares it, unscaled (`containers-service.ts`). */
+  const SHIPPED_LIST_PERIOD_MS = 20_000;
   /** How long the open session is watched for. A wall-clock window, on no clock but the runner's. */
   const OBSERVATION_MS = 6_000;
   /**
-   * What the daemon's own events may add on top of the polls. An attach session's
-   * terminal settles into one or two `container resize` events, and each reaches
-   * the list; measured on the trace of the run that reported this bound, the
-   * event-driven reads arrived in one burst of three, 65–195 ms apart, against
-   * ten polls spaced at exactly the scaled interval.
+   * What anything but the server's own period may add. The listing arrives on the live channel and
+   * the browser asks for none of it
+   * (plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-17,
+   * REQ-39), so what an open session can still cost is a reading the daemon's own events cause: a
+   * settled terminal emits at most two `container resize` frames per 3 s — the case above asserts
+   * exactly that — and events arriving together produce one push, not one each (REQ-5). Four over
+   * this window, and never a stream of them.
    */
-  const EVENT_READS_ALLOWED = 5;
+  const PUSHES_BESIDES_THE_PERIOD_ALLOWED = 4;
 
-  // plan-docker_management_app/REQ-19 — the list re-reads on daemon events; an open attach session must not turn that into a refetch storm
+  /**
+   * Records the container listings the live channel delivers, before the application loads. The
+   * refetch storm this case is about is now measurable on the channel and nowhere else: the poll
+   * that used to carry it is gone, and a browser that asked for the listing at all would be the
+   * separate failure asserted below.
+   */
+  async function installListingPushCounter(page: Page): Promise<void> {
+    await page.addInitScript(() => {
+      const NativeEventSource = window.EventSource;
+      const log = { containers: 0 };
+      (window as unknown as { __listingPushes: typeof log }).__listingPushes = log;
+
+      class CountedEventSource extends NativeEventSource {
+        constructor(url: string | URL, init?: EventSourceInit) {
+          super(url, init);
+          if (!String(url).includes('/api/live')) return;
+          this.addEventListener('value', (message) => {
+            const delivered = JSON.parse((message as MessageEvent<string>).data) as { name: string };
+            if (delivered.name === 'containers') log.containers += 1;
+          });
+        }
+      }
+
+      window.EventSource = CountedEventSource as unknown as typeof EventSource;
+    });
+  }
+
+  async function listingPushes(page: Page): Promise<number> {
+    return page.evaluate(() => (window as unknown as { __listingPushes: { containers: number } }).__listingPushes.containers);
+  }
+
+  // plan-docker_management_app/REQ-19 and …-multiplexed_sse/REQ-17, REQ-39 — the listing reaches the
+  // screen on the channel; an open attach session must turn that into neither a storm of listings
+  // nor a single request for one
   test('an open attach session does not flood the container list with refetches', async ({ page }) => {
     const name = `vexel-e2e-attach-calls-${Date.now()}`;
     const listReads: string[] = [];
@@ -468,38 +506,44 @@ test.describe('Session terminal sizing (REQ-34, REQ-35)', () => {
       if (new URL(request.url()).pathname === '/api/containers') listReads.push(request.url());
     });
     try {
+      // The counter is installed first, so the load it applies to is this one.
+      await installListingPushCounter(page);
+      await openApp(page, 'containers');
+      await expect(page.getByRole('heading', { level: 1, name: 'Containers' })).toBeVisible();
       await createTickingContainer(name);
       const detail = await openTab(page, name, 'Attach');
       await detail.getByRole('button', { name: 'Attach' }).click();
       await expect(detail.getByText('Connected')).toBeVisible({ timeout: 15_000 });
 
-      // What the poll costs on the clock this process was configured with. The
-      // figure is **asked of the running server** (`/api/timing-scale`, the same
-      // source the browser itself reads the factor from) rather than written
-      // here, so this spec still writes no scaled figure of its own
-      // (plan-docker_management_app-timing_scale/REQ-18) and the bound follows
-      // the configuration wherever it is set. Written as a constant, `10` was
-      // two polls plus slack on the shipped clock and eleven polls' worth of
-      // slack short of one on a fifth of it.
+      // What the server's own period costs on the clock this process was
+      // configured with. The figure is **asked of the running server**
+      // (`/api/timing-scale`, the same source the browser itself reads the factor
+      // from) rather than written here, so this spec still writes no scaled figure
+      // of its own (plan-docker_management_app-timing_scale/REQ-18) and the bound
+      // follows the configuration wherever it is set.
       const { scale } = (await (await page.request.get('/api/timing-scale')).json()) as { scale: number };
-      const pollMs = Math.max(1, Math.round(SHIPPED_LIST_POLL_MS * scale));
-      // A window of W holds at most floor(W / poll) + 1 polls: one may land the
-      // instant it opens and one the instant it closes.
-      const polls = Math.floor(OBSERVATION_MS / pollMs) + 1;
-      const bound = polls + EVENT_READS_ALLOWED;
+      const periodMs = Math.max(1, Math.round(SHIPPED_LIST_PERIOD_MS * scale));
+      // A window of W holds at most floor(W / period) + 1 readings: one may land
+      // the instant it opens and one the instant it closes.
+      const periods = Math.floor(OBSERVATION_MS / periodMs) + 1;
+      const bound = periods + PUSHES_BESIDES_THE_PERIOD_ALLOWED;
 
-      listReads.length = 0;
+      const pushesBefore = await listingPushes(page);
       await page.waitForTimeout(OBSERVATION_MS);
+      const pushes = (await listingPushes(page)) - pushesBefore;
 
-      // The list re-reads on its poll (use-containers.md) plus the odd real
-      // event: that many reads over the window, never hundreds. A refetch loop
-      // is not bounded by any cadence, so it passes this figure inside the first
-      // fraction of a second of the window.
+      // The server reads the listing on its period and on the daemon's own events,
+      // and pushes it only when it changed: that many listings over the window,
+      // never hundreds. A refetch loop is bounded by no cadence at all, so it
+      // passes this figure inside the first fraction of a second of the window.
       expect(
-        listReads.length,
-        `expected at most ${bound} container-list reads over ${OBSERVATION_MS}ms — ${polls} polls at ${pollMs}ms ` +
-          `plus ${EVENT_READS_ALLOWED} event-driven reads — and got ${listReads.length}`,
+        pushes,
+        `expected at most ${bound} container listings on the channel over ${OBSERVATION_MS}ms — ${periods} at the server's ` +
+          `${periodMs}ms period plus ${PUSHES_BESIDES_THE_PERIOD_ALLOWED} of any other kind — and got ${pushes}`,
       ).toBeLessThanOrEqual(bound);
+      // And the other half, which the poll's removal makes assertable at all: the
+      // channel is the only source of the listing in the browser (REQ-39).
+      expect(listReads.length, `the browser asked the server for the container listing ${listReads.length} times`).toBe(0);
     } finally {
       await removeContainerQuietly(name);
     }

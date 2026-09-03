@@ -1,4 +1,4 @@
-import { test, before, after } from "node:test";
+import { test, before, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:net";
 import { mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
@@ -10,6 +10,7 @@ import type { RepositorySummary, TagSummary } from "../../src/registries/registr
 import { ALPINE_IMAGE, REGISTRY_IMAGE, ensureImages } from "../support/base-images.js";
 import { buildApp, ownershipArgs, startApp } from "../support/fixtures.js";
 import { execFileAsync } from "../support/docker-cli.js";
+import { resetRefreshCache } from "../../src/refresh-cache/refresh-cache.js";
 
 // A pruned daemon is a starting state like any other: the base images these
 // fixtures are built on are ensured before anything else, with the operator's
@@ -149,13 +150,11 @@ async function writeDockerConfig(config: unknown): Promise<void> {
  * `undefined` when none does; `undefined` too when there is no such directory.
  *
  * Every file is searched on its own, as bytes. Concatenating the whole tree into
- * one string was the trap: the data directory this is pointed at is the suite's
- * shared analysis cache, deliberately kept between runs (`.archi`) and written
- * to by the other files of the parallel pass, so it grows without bound — past
- * V8's maximum string length it stopped answering the question at all and threw
+ * one string was the trap: the directory this is pointed at holds the analysis
+ * cache, whose entries are as large as the artefacts they keep — past V8's
+ * maximum string length it stopped answering the question at all and threw
  * `RangeError: Invalid string length` instead. What this test owns is the
- * question "is the secret in there", never the size of what somebody else put
- * there.
+ * question "is the secret in there", never the size of what is in there.
  */
 async function fileCarryingSecret(directory: string, secret: string): Promise<string | undefined> {
   const entries = await readdir(directory).catch(() => []);
@@ -210,6 +209,12 @@ async function captureProcessOutput(action: () => Promise<void>): Promise<string
   return captured;
 }
 
+// The inventory is now a held value: cases that write the Docker configuration
+// behind the application's back must read it, not what a previous case held.
+beforeEach(() => {
+  resetRefreshCache();
+});
+
 before(async () => {
   await writeDockerConfig({ auths: {} });
   anonymousRegistry = await startRegistry("registries-anon", false);
@@ -222,8 +227,6 @@ after(async () => {
   // Belt and braces: a spec killed between logging in and its own `finally`
   // would otherwise leave a credential of ours in the host's credential store.
   await logoutQuietly(authenticatedRegistry.host);
-  await execFileAsync("docker", ["rm", "-fv", anonymousRegistry.containerId]).catch(() => undefined);
-  await execFileAsync("docker", ["rm", "-fv", authenticatedRegistry.containerId]).catch(() => undefined);
   if (originalDockerConfig === undefined) delete process.env.DOCKER_CONFIG;
   else process.env.DOCKER_CONFIG = originalDockerConfig;
   await rm(configDir, { recursive: true, force: true });

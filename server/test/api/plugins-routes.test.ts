@@ -1,4 +1,4 @@
-import { test, before, after } from "node:test";
+import { test, before, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { pluginsRouter } from "../../src/plugins/plugins-routes.js";
 import type { CliPlugin, PluginListing } from "../../src/plugins/cli-plugins-service.js";
@@ -8,13 +8,14 @@ import { byNameThenIdentity } from "../../src/list-order/list-order.js";
 import { REGISTRY_IMAGE, ensureImages } from "../support/base-images.js";
 import { RUN_ID, buildApp, startApp } from "../support/fixtures.js";
 import { pluginIsInstalled, removePluginQuietly, startPluginFixture, type PluginFixture } from "../support/plugin-fixture.js";
+import { resetRefreshCache } from "../../src/refresh-cache/refresh-cache.js";
 
 // The plugin endpoints against the operator's own daemon (REQ-98, REQ-99,
 // REQ-111).
 //
 // Nothing in this file installs a plugin. `docker plugin ls` is the operator's
-// own list, and the one successful install lives in the exclusive pass, where
-// it is alone and can be undone; here the install endpoint is only ever driven
+// own list, and the one successful install lives in
+// `plugins-lifecycle-routes.test.ts`, where it can be undone; here the install endpoint is only ever driven
 // to its refusals — which is exactly where REQ-99's promise lives: the
 // privileges are read first, and a grant that is not the set the plugin asks
 // for installs nothing.
@@ -51,17 +52,19 @@ function shapeOf(privileges: PluginPrivilege[]): string[] {
   return privileges.map((privilege) => `${privilege.name}=${privilege.values.join("|")}`).sort();
 }
 
+// The round is now a held value: each case reads the installation as it is when
+// it runs, not as a previous case left it held.
+beforeEach(() => {
+  resetRefreshCache();
+});
+
 before(async () => {
   fixture = await startPluginFixture("plugins-api", `api-${RUN_ID}`);
 });
 
 after(async () => {
-  // Belt and braces: no test here installs, but a run killed mid-way must still
-  // leave `docker plugin ls` exactly as it was found.
-  if (fixture) await removePluginQuietly(fixture.installedName);
   await fixture?.stop();
 });
-
 // plan-docker_management_app/REQ-98, plan-docker_management_app/REQ-99;
 // plugins-endpoints.md — "200 -> { cli: PluginListing<CliPlugin>, daemon: PluginListing<DaemonPlugin> }"
 // and "The two inventories are read as one round, and each carries its own unavailability".

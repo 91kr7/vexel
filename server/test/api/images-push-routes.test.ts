@@ -74,8 +74,8 @@ async function readSseUntilDone(response: Response, timeoutMs = 60_000): Promise
 
 // A disposable, unauthenticated local registry: lets these tests exercise a real registry round
 // trip without depending on any external/authenticated registry. Kept in its own file (rather than
-// alongside images-routes.test.ts) so its setup/teardown never runs concurrently with unrelated
-// pull/tag/remove/prune tests against the same daemon.
+// alongside images-routes.test.ts) so that this container is started and stopped only for the tests
+// that need a registry, and not around every pull/tag/remove test of the images area.
 const TEST_REGISTRY_PORT = 5081;
 let registryContainerId = "";
 
@@ -94,11 +94,6 @@ before(async () => {
     await new Promise((resolve) => setTimeout(resolve, 300));
   }
 });
-
-after(async () => {
-  await execFileAsync("docker", ["rm", "-fv", registryContainerId]).catch(() => undefined);
-});
-
 // plan-docker_management_app/REQ-38, REQ-39 — pushing an image to a registry shows per-layer progress until completion.
 // Docker only pushes a reference the image is already locally tagged as, so the source is tagged
 // directly as the destination registry reference (mirrors the images-screen.md flow: pushing one of

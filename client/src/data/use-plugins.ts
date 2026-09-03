@@ -1,13 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { subscribeToActiveContextChange } from './active-context';
-import { subscribeToReload } from './reload-signal';
-import { subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
+import { useCallback, useSyncExternalStore } from 'react';
 import {
   disablePlugin,
   enablePlugin,
   fetchPluginInspect,
   fetchPluginPrivileges,
-  fetchPlugins,
   installPlugin,
   removePlugin,
   type CliPlugin,
@@ -18,26 +14,19 @@ import {
   type PluginPrivilege,
   type PluginsReading,
 } from './plugins-client';
-import { cadence } from '../timing/timing-scale';
+import { usePushedValue } from './pushed-values';
+import { isChannelDelivering, reconnectLiveChannel, subscribeToChannelDelivery } from './live-channel';
 
-// Installing, enabling, disabling and removing all emit a `plugin` daemon
-// event, so the poll only has to notice a `docker plugin` command run from a
-// terminal and a CLI plugin dropped into the installation — neither of which
-// announces itself. Hence a slow interval.
-const POLL_INTERVAL_MS = cadence(15000);
+/** The name the server gives the plugins round on the channel. */
+const PLUGINS = 'plugins';
 
-function emptyListing<T>(): PluginListing<T> {
-  return { items: [] };
-}
+/** One reference per side for every render before the first delivery, so nothing re-renders on it. */
+const NO_CLI: PluginListing<CliPlugin> = { items: [] };
+const NO_DAEMON: PluginListing<DaemonPlugin> = { items: [] };
 
-/**
- * A payload that is not a listing is a failed read like any other: it is
- * reported, never stored, so no panel is handed something without an `items`
- * array to render.
- */
-function requireListing<T>(listing: PluginListing<T> | undefined, what: string): PluginListing<T> {
-  if (!listing || !Array.isArray(listing.items)) throw new Error(`The server did not answer with a list of ${what}.`);
-  return listing;
+/** Both sides present with an items array: one malformed side fails the whole round. */
+function isRound(reading: PluginsReading | undefined): boolean {
+  return Array.isArray(reading?.cli?.items) && Array.isArray(reading?.daemon?.items);
 }
 
 export interface UsePluginsResult {
@@ -55,113 +44,41 @@ export interface UsePluginsResult {
 }
 
 /**
- * Both plugin inventories of the active installation, read as one round so the
- * two panels never show two different moments (REQ-98, REQ-99), and the
- * management of the daemon ones (REQ-111).
+ * Both plugin inventories of the active installation, delivered by the live channel as the one
+ * round the server holds, so the two panels never show two different moments (REQ-17, REQ-33,
+ * REQ-39), and the management of the daemon ones, whose results reach the panels as the pushes the
+ * server's own operations cause (REQ-25).
  *
- * The privileges a reference asks for are read on demand and handed straight
- * to the caller: they are the subject of a decision, never cached state.
+ * The privileges a reference asks for are read on demand and handed straight to the caller: they
+ * are the subject of a decision, never cached state.
  */
 export function usePlugins(): UsePluginsResult {
-  const [cli, setCli] = useState<PluginListing<CliPlugin>>(emptyListing);
-  const [daemon, setDaemon] = useState<PluginListing<DaemonPlugin>>(emptyListing);
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState<string | undefined>(undefined);
-  const cancelledRef = useRef(false);
+  const delivered = usePushedValue<PluginsReading>(PLUGINS);
+  const delivering = useSyncExternalStore(subscribeToChannelDelivery, isChannelDelivering);
+  // Reported and never shown, so no panel is handed something without an items array.
+  const malformed = delivered !== undefined && !isRound(delivered);
+  const round = malformed ? undefined : delivered;
 
-  // `readOnce` returns its promise so the reload signal can wait for it; `refresh` returns
-  // nothing, the shape the screens use (plan-docker_management_app-refresh_cache/REQ-21).
-  const readOnce = useCallback(() => {
-    return fetchPlugins()
-      .then((reading: PluginsReading) => {
-        if (cancelledRef.current) return;
-        // Validated before anything is stored: one malformed answer must fail
-        // the round rather than reach a panel.
-        const nextCli = requireListing(reading?.cli, 'CLI plugins');
-        const nextDaemon = requireListing(reading?.daemon, 'daemon plugins');
-        setCli(nextCli);
-        setDaemon(nextDaemon);
-        setError(undefined);
-      })
-      .catch((cause: Error) => {
-        if (cancelledRef.current) return;
-        setError(cause.message);
-      })
-      .finally(() => {
-        if (cancelledRef.current) return;
-        setLoaded(true);
-      });
+  // What failed is the channel, so what a retry does is ask for it again (REQ-18).
+  const refresh = useCallback(() => {
+    if (!isChannelDelivering()) reconnectLiveChannel();
   }, []);
 
-  const refresh = useCallback(() => {
-    void readOnce();
-  }, [readOnce]);
-
-  useEffect(() => {
-    cancelledRef.current = false;
-    refresh();
-    return () => {
-      cancelledRef.current = true;
-    };
-  }, [refresh]);
-
-  useEffect(
-    () =>
-      subscribeToDaemonEvents((event: DaemonEvent) => {
-        if (event.type === 'plugin') refresh();
-      }),
-    [refresh],
-  );
-
-  // Another context means another daemon: what is held here belongs to the one
-  // left behind and is re-read at once (REQ-93).
-  useEffect(() => subscribeToActiveContextChange(refresh), [refresh]);
-
-  useEffect(() => subscribeToReload(readOnce), [readOnce]);
-
-  useEffect(() => {
-    const interval = window.setInterval(refresh, POLL_INTERVAL_MS);
-    return () => window.clearInterval(interval);
-  }, [refresh]);
-
-  const readPrivileges = useCallback((remote: string) => fetchPluginPrivileges(remote), []);
-
-  const install = useCallback(
-    async (input: InstallPluginInput) => {
-      const installed = await installPlugin(input);
-      refresh();
-      return installed;
-    },
-    [refresh],
-  );
-
-  const enable = useCallback(
-    async (name: string) => {
-      const plugin = await enablePlugin(name);
-      refresh();
-      return plugin;
-    },
-    [refresh],
-  );
-
-  const disable = useCallback(
-    async (name: string) => {
-      const plugin = await disablePlugin(name);
-      refresh();
-      return plugin;
-    },
-    [refresh],
-  );
-
-  const inspect = useCallback((name: string) => fetchPluginInspect(name), []);
-
-  const remove = useCallback(
-    async (name: string) => {
-      await removePlugin(name);
-      refresh();
-    },
-    [refresh],
-  );
-
-  return { cli, daemon, loaded, error, refresh, readPrivileges, install, enable, disable, inspect, remove };
+  return {
+    cli: round?.cli ?? NO_CLI,
+    daemon: round?.daemon ?? NO_DAEMON,
+    loaded: delivered !== undefined,
+    error: !delivering
+      ? 'Could not reach the application server.'
+      : malformed
+        ? 'The server did not answer with a list of plugins.'
+        : undefined,
+    refresh,
+    readPrivileges: fetchPluginPrivileges,
+    install: installPlugin,
+    enable: enablePlugin,
+    disable: disablePlugin,
+    inspect: fetchPluginInspect,
+    remove: removePlugin,
+  };
 }

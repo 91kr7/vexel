@@ -27,7 +27,7 @@ type: REST endpoint
   is unchanged; the response carries `X-Vexel-Read-At`, `X-Vexel-Age-Ms`, and `X-Vexel-Stale` when
   the last read attempt failed. Inspect stays direct.
 - **Neither endpoint makes the daemon compute its whole disk usage.** Sizes are joined in from the
-  value held under the `volume-sizes` kind, on its own 5-minute schedule; a volume no size is held
+  value held under the `disk-usage` kind, on its own 5-minute schedule; a volume no size is held
   for yet is answered **without** `sizeBytes` rather than awaited, so a volume created a moment ago
   is listed at once.
 - Any daemon rejection responds with the daemon's own `statusCode` (falling back to `502`) and `{

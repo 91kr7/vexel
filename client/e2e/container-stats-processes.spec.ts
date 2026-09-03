@@ -3,6 +3,9 @@ import { openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { closeContainerDetail, containerDetail, openContainerDetail } from './support/container-cards.js';
 import { expectRegionAnswersToViewportHeight } from './support/pinned-region.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 interface TrackedStream {
   url: string;
@@ -87,6 +90,9 @@ async function heldGateSubscriptions(page: Page): Promise<number> {
 test.beforeEach(async ({ page }) => {
   // Records the stats subscriptions the page opens and closes: leaving the
   // Stats tab must close the one it opened (REQ-32).
+  //
+  // Two recorders, because the two connections are two transports: the panel's stream is server-sent
+  // events and the gate is a WebSocket (…-stats_gate_websocket/REQ-1).
   await page.addInitScript(() => {
     const tracked: TrackedStream[] = [];
     window.__statsStreams = tracked;
@@ -95,7 +101,6 @@ test.beforeEach(async ({ page }) => {
     const NativeEventSource = window.EventSource;
     class TrackedEventSource extends NativeEventSource {
       private entry: TrackedStream;
-      private gated = false;
 
       constructor(url: string | URL, init?: EventSourceInit) {
         super(url, init);
@@ -106,25 +111,41 @@ test.beforeEach(async ({ page }) => {
             this.entry.samples += 1;
           });
         }
-        // The shared sampler's subscription is a different connection with a different lifecycle,
-        // and this file exists to keep them apart
-        // (plan-docker_management_app-containers_card_view/REQ-56).
-        if (this.entry.url.includes('/containers/stats/subscription')) {
-          this.gated = true;
-          gate.opened += 1;
-        }
       }
 
       close() {
         this.entry.closed = true;
-        if (this.gated) {
-          this.gated = false;
-          gate.closed += 1;
-        }
         super.close();
       }
     }
     window.EventSource = TrackedEventSource as unknown as typeof EventSource;
+
+    const NativeWebSocket = window.WebSocket;
+    class GateWebSocket extends NativeWebSocket {
+      private gated = false;
+      private ended = false;
+
+      constructor(url: string | URL, protocols?: string | string[]) {
+        super(url, protocols);
+        if (String(url).includes('/containers/stats/subscription')) {
+          this.gated = true;
+          gate.opened += 1;
+          this.addEventListener('close', () => this.recordEnd());
+        }
+      }
+
+      close(code?: number, reason?: string) {
+        this.recordEnd();
+        super.close(code, reason);
+      }
+
+      private recordEnd() {
+        if (!this.gated || this.ended) return;
+        this.ended = true;
+        gate.closed += 1;
+      }
+    }
+    window.WebSocket = GateWebSocket as unknown as typeof WebSocket;
   });
   // Pinned, not inherited: the last active screen survives by design (REQ-115),
   // and the Dashboard the application otherwise lands on names this screen in a
@@ -135,9 +156,8 @@ test.beforeEach(async ({ page }) => {
 
 // These tests keep a container's detail panel open across several UI steps.
 // DataTable virtualisation does not reserve extra space for an expanded row
-// (ui-library/specs/data-table.md), so another worker's containers appearing
-// mid-interaction can push the row out of the mounted window and reset the
-// panel; serial mode keeps that window stable.
+// (ui-library/specs/data-table.md), so serial mode keeps the mounted window
+// stable across them.
 test.describe('Container stats and processes (REQ-32, REQ-33)', () => {
   test.describe.configure({ mode: 'serial' });
 
@@ -237,8 +257,11 @@ test.describe('Container stats and processes (REQ-32, REQ-33)', () => {
     }
   });
 
-  // plan-docker_management_app/REQ-33 — the listing is refreshed on demand, and only then
-  test('the process listing changes only when Refresh is used', async ({ page }) => {
+  // plan-docker_management_app/REQ-33 — the listing is refreshed on demand, and that control still
+  // works exactly as it did now that the tab also follows the container on its own
+  // (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-34). What the clock
+  // does on its own is checked in `container-detail-clock.spec.ts`; here the subject is the control.
+  test('the Refresh control re-reads the listing on demand', async ({ page }) => {
     const name = `vexel-e2e-processes-refresh-${Date.now()}`;
     const marker = '424242';
     try {
@@ -247,10 +270,6 @@ test.describe('Container stats and processes (REQ-32, REQ-33)', () => {
       await expect(detail.getByText(/while true/)).toBeVisible({ timeout: 20_000 });
 
       await execFileAsync('docker', ['exec', '-d', name, 'sleep', marker]);
-      // The listing is not polled: the new process stays invisible until asked for.
-      await page.waitForTimeout(4000);
-      await expect(detail.getByText(new RegExp(`sleep ${marker}`))).toHaveCount(0);
-
       await detail.getByRole('button', { name: 'Refresh' }).click();
 
       await expect(detail.getByText(new RegExp(`sleep ${marker}`))).toBeVisible({ timeout: 20_000 });
@@ -445,10 +464,17 @@ test.describe('Container stats and processes (REQ-32, REQ-33)', () => {
         })
         .toBeGreaterThan(0);
 
+      // Asserted on the id the daemon gave this fixture, so the check can fail: the recorder's own
+      // filter says nothing about which container is being read.
+      const containerId = (await execFileAsync('docker', ['inspect', '-f', '{{.Id}}', name])).stdout.trim();
+      const shortId = containerId.slice(0, 12);
       const opened = await statsStreams(page);
+      expect(
+        opened.map((stream) => stream.url),
+        'the panel opened no stream at this container own address',
+      ).toContain(`/api/containers/${containerId}/stats/stream`);
       for (const stream of opened) {
-        expect(stream.url, 'the panel is reading the shared sampler instead of its own stream').toContain('/stats/stream');
-        expect(stream.url).not.toContain('/containers/stats/subscription');
+        expect(stream.url, 'the panel is reading a container that is not the one on screen').toContain(shortId);
       }
 
       // The containers screen behind the panel is a consumer of the shared figures, and stays one:

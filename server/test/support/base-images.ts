@@ -12,14 +12,15 @@
  * So Docker Hub is kept out of the middle of a run. Each image gets there
  * without it:
  *
- * - {@link TINY_IMAGE} is **built here**, `FROM scratch`. Nothing is fetched at
- *   all, which is the whole point: the `hello-world` it replaces failed to
- *   re-pull often enough, after a system prune, to lose whole specs to
- *   `production.cloudfront.docker.com … EOF`.
+ * - {@link TINY_IMAGE} is **built here**, `FROM scratch`, every time it is
+ *   missing. Nothing is fetched at all — not even from the run's own registry,
+ *   which would be seven times slower — and that is the whole point: the
+ *   `hello-world` it replaces failed to re-pull often enough, after a system
+ *   prune, to lose whole specs to `production.cloudfront.docker.com … EOF`.
  * - {@link ALPINE_IMAGE} is **mirrored into the run's own registry** the first
  *   time it is ensured — taken from the daemon's local copy when it has one, so
  *   usually no network at all — and restored from there whenever it goes
- *   missing again (the exclusive pass prunes the host mid-run). Hub is asked
+ *   missing again (a prune spec in this pass prunes the host mid-run). Hub is asked
  *   once per run at most, and only on a daemon that does not hold it.
  * - {@link REGISTRY_IMAGE} is **the one irreducible exception**: it is the image
  *   that run's registry is itself run from, so it cannot come out of it. It has
@@ -32,12 +33,12 @@
  * anything else the suite creates, so a killed run is swept by
  * `npm run test:sweep`; putting any of it back costs local seconds.
  *
- * This is the server-side counterpart of `client/e2e/support/global-setup.ts`,
- * which does the same job once per Playwright run. Two entry points use it: the
- * `test:images` npm script, which prepares everything before a whole pass so a
- * single process does the work, and the test files themselves, which ensure
- * what they need before their first test — that is what keeps
- * `node --test test/api/<one-file>.test.ts` working on a pruned daemon.
+ * Two entry points use it: the `test:images` npm script, which no pass runs — a
+ * command an operator types to put the fetching ahead of a run on a cold machine
+ * — and the test files themselves, which ensure what they need before their
+ * first test, and that is what keeps `node --test test/api/<one-file>.test.ts`
+ * working on a pruned daemon. Neither suite has a preparation step of its own:
+ * every file re-establishes this through `lifecycle.ts` before it runs.
  */
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -94,12 +95,15 @@ export const BASE_IMAGES = [ALPINE_IMAGE, REGISTRY_IMAGE, TINY_IMAGE];
 const BUILDER_IMAGE = "moby/buildkit:buildx-stable-1";
 
 /**
- * Everything the run keeps a copy of in its own registry, so that needing one
- * mid-run costs a call to localhost rather than a call to Docker Hub.
+ * Every image that is **fetched** keeps a copy in the run's own registry, so
+ * that needing one costs a call to localhost and never a call to Docker Hub.
  *
- * {@link REGISTRY_IMAGE} cannot be one of them — see its own note — and
- * {@link TINY_IMAGE} has no need to be: rebuilding it touches no network at all,
- * which is cheaper still than pulling it back from anywhere.
+ * Two images are not here, for opposite reasons. {@link REGISTRY_IMAGE} cannot
+ * be, and not by choice: the registry is started from it, so it cannot come out
+ * of it. {@link TINY_IMAGE} has no reason to be — it is built, not fetched, and
+ * building it is **seven times cheaper than pulling it back**: 0.32s against
+ * 2.39s, measured, and paid once per test file. Publishing it was tried, for the
+ * tidiness of one rule with no exceptions, and cost five minutes of suite.
  */
 const MIRRORED_IMAGES = [ALPINE_IMAGE, BUILDER_IMAGE];
 
@@ -119,7 +123,7 @@ const MIRRORED_IMAGES = [ALPINE_IMAGE, BUILDER_IMAGE];
  * run — starting it is idempotent, so a single spec file run on its own gets it
  * just the same. It carries the ownership labels, so a killed run is swept.
  */
-const REGISTRY_CONTAINER = "vexel-test-registry";
+export const REGISTRY_CONTAINER = "vexel-test-registry";
 /** The repository the pullable fixture is published under, and what a search field is filled with to find it. */
 export const PULLABLE_REPOSITORY = "vexel-test-pullable";
 const PULLABLE_TAG = "1";
@@ -131,7 +135,7 @@ const PULLABLE_CONTENT = "vexel pullable fixture\n";
  * Work in flight in this process, so two fixtures asking for the same thing at
  * the same moment wait on one attempt instead of racing two. Deliberately not a
  * cache of past results: another process in the same run may remove an image
- * (the exclusive pass prunes the host), so presence has to be re-checked every
+ * (a prune spec in this pass prunes the host), so presence has to be re-checked every
  * time rather than remembered.
  */
 const inFlight = new Map<string, Promise<unknown>>();
@@ -221,14 +225,17 @@ async function restoreFromRunRegistry(reference: string): Promise<boolean> {
 
 async function ensureOnce(reference: string): Promise<void> {
   if (await isPresent(reference)) return;
+  // The run's own registry first, always, whatever the image is and however it
+  // first got there. Only an image the registry has never held goes further, and
+  // over a whole run that is at most once and never in the middle of one.
+  // `registry:2` cannot take this route: the registry is started from it.
+  if (MIRRORED_IMAGES.includes(reference) && (await restoreFromRunRegistry(reference).catch(() => false))) return;
+  // Made here rather than fetched, and never published: a build from the empty
+  // rootfs costs 0.32s where pulling the same image back costs 2.39s.
   if (reference === TINY_IMAGE) {
     await buildSingleFileImage(TINY_IMAGE, TINY_IMAGE_FILE, TINY_IMAGE_CONTENT);
     return;
   }
-  // The run's own registry first, and Hub only if the image was never mirrored
-  // there — which, over a whole run, means at most once and never in the middle
-  // of one. `registry:2` cannot take this route: the registry is started from it.
-  if (MIRRORED_IMAGES.includes(reference) && (await restoreFromRunRegistry(reference).catch(() => false))) return;
   try {
     await pullOnce(reference);
   } catch (firstFailure) {
@@ -288,8 +295,17 @@ async function runningRegistryHost(): Promise<string | null> {
   return `localhost:${mapping.slice(mapping.lastIndexOf(":") + 1)}`;
 }
 
+/**
+ * Deliberately well under the thirty seconds a Playwright hook and a docker call
+ * each get, and for the reason `check-budget-conformance.mjs` exists: a wait as
+ * long as the budget it runs inside can never fail with its own message. At
+ * thirty this said nothing — the hook died first, naming a line and no cause.
+ * A `registry:2` that is going to answer answers in under a second.
+ */
+const REGISTRY_READY_TIMEOUT_MS = 12_000;
+
 async function waitForRegistry(host: string): Promise<string> {
-  const deadline = Date.now() + 30_000;
+  const deadline = Date.now() + REGISTRY_READY_TIMEOUT_MS;
   for (;;) {
     // A registry with no authentication answers 200; one with authentication
     // answers 401. Either means it is listening and ready to be talked to.
@@ -426,12 +442,36 @@ export async function stopSharedRegistry(): Promise<void> {
  * body of `npm run test:images -w server`.
  *
  * The only step in the whole arrangement allowed to reach Docker Hub, and only
- * for what is genuinely not here yet. It is a preliminary step of a pass, never
- * something a test does, so a public registry failing to answer stops a run
- * before it starts instead of failing an assertion in the middle of one.
+ * for what is genuinely not here yet. No pass runs it any more — each file's own
+ * reset re-establishes what it needs — so this is a command an operator types
+ * before a run on a cold machine, to keep a public registry's silence out of the
+ * middle of one.
  */
 export async function ensureDaemonImages(): Promise<void> {
   await ensureImages([...BASE_IMAGES, BUILDER_IMAGE]);
+}
+
+/**
+ * The registry up and holding everything the tests pull, asking the daemon for
+ * an image only where the registry does not already have it.
+ *
+ * What it does *not* do is the reason it exists: the per-file reset
+ * (`lifecycle.ts`) runs on a daemon it is about to prune, so restoring
+ * `moby/buildkit` onto that daemon merely to re-push a copy already published
+ * would cost a hundred megabytes, discarded seconds later, once per spec file.
+ * A published tag is one HTTP question, and on every file after the first the
+ * answer is already yes.
+ */
+export async function ensureRunRegistrySeeded(): Promise<string> {
+  const host = await ensureRegistryHost();
+  for (const reference of MIRRORED_IMAGES) {
+    const { repository, tag } = splitReference(reference);
+    if ((await publishedTags(host, repository)).includes(tag)) continue;
+    await ensureImage(reference);
+    await mirrorIntoRunRegistry(reference);
+  }
+  await ensurePullableImage();
+  return host;
 }
 
 /**
@@ -444,10 +484,5 @@ export async function ensureDaemonImages(): Promise<void> {
  */
 export async function prepareRunRegistry(): Promise<string> {
   await ensureDaemonImages();
-  const host = await ensureRegistryHost();
-  for (const reference of MIRRORED_IMAGES) {
-    await mirrorIntoRunRegistry(reference);
-  }
-  await ensurePullableImage();
-  return host;
+  return await ensureRunRegistrySeeded();
 }

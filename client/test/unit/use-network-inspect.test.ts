@@ -1,12 +1,13 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { act } from 'react';
-import type { DaemonEvent } from '../../src/data/event-stream';
+import type { DaemonEvent } from '../../src/data/live-channel';
 
-// useNetworkInspect re-reads when `id` changes and on every `network`/
-// `container` daemon event (use-network-inspect.md): the fetch and the event
-// bus are mocked so the hook's own re-read triggers are the only thing under
-// test.
+// useNetworkInspect reads when `id` changes, on demand and on the reload signal,
+// and for no daemon event at all (use-network-inspect.md,
+// plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1):
+// the fetch is mocked, and the event subscription is watched so that reaching it
+// at all fails.
 const fetchNetworkInspect = vi.fn();
 let daemonListener: ((event: DaemonEvent) => void) | undefined;
 const subscribeToDaemonEvents = vi.fn((listener: (event: DaemonEvent) => void) => {
@@ -20,9 +21,9 @@ vi.mock('../../src/data/networks-client', () => ({
   fetchNetworkInspect: (...args: unknown[]) => fetchNetworkInspect(...args),
 }));
 // Only the subscription is stood in for: the attribution rule that decides
-// which events reach the hook is the real one (event-stream-client.md).
-vi.mock('../../src/data/event-stream', async (importActual) => ({
-  ...(await importActual<typeof import('../../src/data/event-stream')>()),
+// which events reach the hook is the real one (live-channel/specs/live-channel-client.md).
+vi.mock('../../src/data/live-channel', async (importActual) => ({
+  ...(await importActual<typeof import('../../src/data/live-channel')>()),
   subscribeToDaemonEvents: (listener: (event: DaemonEvent) => void) => subscribeToDaemonEvents(listener),
 }));
 
@@ -70,79 +71,24 @@ describe('useNetworkInspect', () => {
     await waitFor(() => expect(fetchNetworkInspect).toHaveBeenCalledWith('net-2'));
   });
 
-  // use-network-inspect.md — re-reads on every `network` daemon event
-  it('refreshes the current selection when a network daemon event arrives', async () => {
-    fetchNetworkInspect.mockResolvedValue(inspectPayload('net-1'));
-    const { result } = renderHook(() => useNetworkInspect('net-1'));
+  // use-network-inspect.md — "A daemon event triggers nothing, so a network changed elsewhere leaves the open
+  // detail showing what it last read, and nothing on screen says so"
+  // (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1, REQ-2, REQ-13)
+  it('subscribes to no daemon event, and reads for none delivered', async () => {
+    fetchNetworkInspect.mockResolvedValue(inspectPayload(SHOWN_NETWORK));
+    const { result } = renderHook(() => useNetworkInspect(SHOWN_NETWORK));
     await waitFor(() => expect(result.current.loaded).toBe(true));
     fetchNetworkInspect.mockClear();
 
-    act(() => daemonListener?.(daemonEvent('network')));
+    expect(subscribeToDaemonEvents).not.toHaveBeenCalled();
 
-    await waitFor(() => expect(fetchNetworkInspect).toHaveBeenCalledWith('net-1'));
-  });
-
-  // use-network-inspect.md — also re-reads on a `container` daemon event
-  it('refreshes the current selection when a container daemon event arrives', async () => {
-    fetchNetworkInspect.mockResolvedValue(inspectPayload('net-1'));
-    const { result } = renderHook(() => useNetworkInspect('net-1'));
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    fetchNetworkInspect.mockClear();
-
-    act(() => daemonListener?.(daemonEvent('container')));
-
-    await waitFor(() => expect(fetchNetworkInspect).toHaveBeenCalledWith('net-1'));
-  });
-
-  // use-network-inspect.md — only `network`/`container`-typed events trigger a re-read
-  it('does not refresh for a daemon event of an unrelated type', async () => {
-    fetchNetworkInspect.mockResolvedValue(inspectPayload('net-1'));
-    const { result } = renderHook(() => useNetworkInspect('net-1'));
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    fetchNetworkInspect.mockClear();
-
-    act(() => daemonListener?.(daemonEvent('volume')));
-
+    act(() => {
+      for (const type of ['container', 'image', 'volume', 'network']) {
+        daemonListener?.(daemonEvent(type));
+        daemonListener?.({ ...daemonEvent(type), actorId: OTHER_NETWORK });
+      }
+    });
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(fetchNetworkInspect).not.toHaveBeenCalled();
-  });
-  // use-network-inspect.md — "A `network` event about another network is ignored: the daemon is not
-  // asked about the shown network" (plan-docker_management_app-refresh_cache/REQ-7)
-  it('does not read the shown network again for a network event about another network', async () => {
-    fetchNetworkInspect.mockResolvedValue(inspectPayload(SHOWN_NETWORK));
-    const { result } = renderHook(() => useNetworkInspect(SHOWN_NETWORK));
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    fetchNetworkInspect.mockClear();
-
-    act(() => daemonListener?.({ ...daemonEvent('network'), actorId: OTHER_NETWORK, actor: 'other-net' }));
-
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(fetchNetworkInspect).not.toHaveBeenCalled();
-  });
-
-  // use-network-inspect.md — a `network` event about that same network still re-reads
-  // (plan-docker_management_app-refresh_cache/REQ-8)
-  it('reads again for a network event carrying the shown network identifier', async () => {
-    fetchNetworkInspect.mockResolvedValue(inspectPayload(SHOWN_NETWORK));
-    const { result } = renderHook(() => useNetworkInspect(SHOWN_NETWORK));
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    fetchNetworkInspect.mockClear();
-
-    act(() => daemonListener?.({ ...daemonEvent('network'), actorId: SHOWN_NETWORK }));
-
-    await waitFor(() => expect(fetchNetworkInspect).toHaveBeenCalledWith(SHOWN_NETWORK));
-  });
-
-  // use-network-inspect.md — "Every `container` event still re-reads, whichever container it is
-  // about": the attached containers are part of what the view shows
-  it('reads again for a container event about a container it has never shown', async () => {
-    fetchNetworkInspect.mockResolvedValue(inspectPayload(SHOWN_NETWORK));
-    const { result } = renderHook(() => useNetworkInspect(SHOWN_NETWORK));
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    fetchNetworkInspect.mockClear();
-
-    act(() => daemonListener?.({ ...daemonEvent('container'), actorId: OTHER_NETWORK, actor: 'some-container' }));
-
-    await waitFor(() => expect(fetchNetworkInspect).toHaveBeenCalledWith(SHOWN_NETWORK));
   });
 });

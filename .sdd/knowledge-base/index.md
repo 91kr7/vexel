@@ -12,7 +12,7 @@ What the human has taught, one entry per row. Consult the entries whose `scope` 
 | development-goes-through-sdd-dev | guideline | any | Implement through the `sdd-dev` command, never by calling `sdd-developer` / `sdd-tester` by hand | `entries/development-goes-through-sdd-dev.md` |
 | full-suite-commands | how-to | test | A full pass is run with `npm run test:e2e -w client -- --quiet` and `npm run test`, in exactly that form | `entries/full-suite-commands.md` |
 | one-playwright-process-at-a-time | how-to | test | Never two Playwright processes at once, and a full pass is for discovering and for verifying, not for iterating | `entries/one-playwright-process-at-a-time.md` |
-| exclusive-project-needs-no-deps | how-to | test | `--project=exclusive` without `--no-deps` drags the whole suite behind it | `entries/exclusive-project-needs-no-deps.md` |
+| destructive-tests-run-beside-the-rest | guideline | test | The host-wide tests live with every other file, and nothing separates them any more | `entries/destructive-tests-run-beside-the-rest.md` |
 | save-the-traces-before-the-next-run | how-to | test | Traces are copied out of the repository before each run, because the next run empties `test-results/` | `entries/save-the-traces-before-the-next-run.md` |
 | read-playwright-traces-without-a-browser | how-to | test | A trace is read from the files in its zip, never with `show-trace`, and every failure's trace is read | `entries/read-playwright-traces-without-a-browser.md` |
 | an-intermittent-failure-is-reproduced-first | how-to | test | A failure that comes and goes is pinned with `--repeat-each` before a cause is written for it | `entries/an-intermittent-failure-is-reproduced-first.md` |
@@ -23,3 +23,4 @@ What the human has taught, one entry per row. Consult the entries whose `scope` 
 | past-analyses-and-plans-are-never-touched | guideline | any | Past analyses and plans are a record and are never edited; specs and indexes mirror the app and follow it | `entries/past-analyses-and-plans-are-never-touched.md` |
 | technical-debt-goes-in-the-tech-debt-register | guideline | any | Technical debt is recorded in `.sdd/tech-debt/`, never as a code TODO or an unscoped plan item; a debt that is fixed is removed from the register | `entries/technical-debt-goes-in-the-tech-debt-register.md` |
 | explain-in-plain-italian | guideline | any | Explanations to the human are in plain, short Italian and stand without the code: the product and what the operator sees, never the call chain | `entries/explain-in-plain-italian.md` |
+| answers-are-read-from-the-code | guideline | any | An answer about the application is read from the code in the same turn, never recalled | `entries/answers-are-read-from-the-code.md` |

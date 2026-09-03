@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToReload } from './reload-signal';
 import { fetchContainerProcesses, type ContainerProcess } from './container-stats-client';
+import { useKeptReading } from './use-kept-reading';
+import { cadence } from '../timing/timing-scale';
+
+const POLL_INTERVAL_MS = cadence(3000);
+
+export interface UseContainerProcessesOptions {
+  /** Whether the container is running: a container that is not is asked for nothing at all. */
+  running?: boolean;
+}
 
 export interface UseContainerProcessesResult {
   processes: ContainerProcess[];
@@ -12,13 +21,13 @@ export interface UseContainerProcessesResult {
 }
 
 /**
- * Reads the processes running inside a container (REQ-33) once per `id`, and
- * again on demand: the listing is never polled, it is refreshed only when the
- * operator asks for it.
+ * Reads the processes running inside a container (REQ-33), on the same 3 s clock as the inspect
+ * data beside it, while the view holding it is on screen and the container is running
+ * (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-27).
  */
-export function useContainerProcesses(id: string | undefined): UseContainerProcessesResult {
-  const [processes, setProcesses] = useState<ContainerProcess[]>([]);
-  const [titles, setTitles] = useState<string[]>([]);
+export function useContainerProcesses(id: string | undefined, { running = true }: UseContainerProcessesOptions = {}): UseContainerProcessesResult {
+  const [processes, keepProcesses] = useKeptReading<ContainerProcess[]>([]);
+  const [titles, keepTitles] = useKeptReading<string[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
@@ -32,13 +41,14 @@ export function useContainerProcesses(id: string | undefined): UseContainerProce
     return fetchContainerProcesses(id)
       .then((result) => {
         if (cancelledRef.current) return;
-        setProcesses(result.processes);
-        setTitles(result.titles);
+        // A listing equal to the one in hand replaces nothing, so the operator's place in a long
+        // table is kept (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-29).
+        keepProcesses(result.processes);
+        keepTitles(result.titles);
         setError(undefined);
       })
       .catch((cause: Error) => {
         if (cancelledRef.current) return;
-        setProcesses([]);
         setError(cause.message);
       })
       .finally(() => {
@@ -46,7 +56,7 @@ export function useContainerProcesses(id: string | undefined): UseContainerProce
         setLoaded(true);
         setLoading(false);
       });
-  }, [id]);
+  }, [id, keepProcesses, keepTitles]);
 
   const refresh = useCallback(() => {
     void readOnce();
@@ -54,15 +64,31 @@ export function useContainerProcesses(id: string | undefined): UseContainerProce
 
   useEffect(() => {
     cancelledRef.current = false;
-    setProcesses([]);
-    setTitles([]);
+    keepProcesses([]);
+    keepTitles([]);
     setLoaded(false);
     setError(undefined);
-    if (id) refresh();
     return () => {
       cancelledRef.current = true;
     };
-  }, [id, refresh]);
+  }, [id, keepProcesses, keepTitles]);
+
+  // The clock and the read that opens it, both scoped to the view holding them — drawn only while
+  // the Processes tab is the active one — and to a running container
+  // (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-27, REQ-28).
+  useEffect(() => {
+    if (!id) return;
+    if (!running) {
+      keepProcesses([]);
+      keepTitles([]);
+      setError(undefined);
+      setLoaded(true);
+      return;
+    }
+    refresh();
+    const interval = window.setInterval(refresh, POLL_INTERVAL_MS);
+    return () => window.clearInterval(interval);
+  }, [id, running, refresh, keepProcesses, keepTitles]);
 
   useEffect(() => subscribeToReload(readOnce), [readOnce]);
 

@@ -38,6 +38,9 @@ import { waitForArrivedContent } from './support/arrived.js';
 import { readOnceSettled } from './support/settled.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 interface Box {
   x: number;
@@ -261,7 +264,7 @@ function flexFactors(declared: string): (number | null)[] {
 }
 
 async function createSleepingContainer(name: string, extraArgs: string[] = []): Promise<void> {
-  // Ensured at the point of use, not once for the run: the exclusive project prunes the host.
+  // Ensured at the point of use, not once for the run: a prune spec in this suite prunes the host.
   await ensureImage(ALPINE_IMAGE);
   await execFileAsync('docker', [
     'run',

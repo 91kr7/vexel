@@ -58,10 +58,6 @@ async function dockerInspect(format: string, reference: string): Promise<string>
   return stdout.trim();
 }
 
-async function removeImageQuietly(tag: string): Promise<void> {
-  await execFileAsync("docker", ["rmi", "-f", tag]).catch(() => undefined);
-}
-
 /**
  * Minimal USTAR reader — only what is needed to check the shape of an archive
  * this test produced, never to trust anything the code under test claims about
@@ -137,11 +133,6 @@ before(async () => {
   const { stdout } = await execFileAsync("docker", ["run", "--rm", "--entrypoint", "cat", FIXTURE_TAG, "/etc/passwd"]);
   containerOwnPasswdContent = stdout;
 });
-
-after(async () => {
-  await removeImageQuietly(FIXTURE_TAG);
-});
-
 async function withApp<T>(run: (app: RunningApp) => Promise<T>): Promise<T> {
   const app = await startApp(buildApp("/api/images", imageAnalysisRouter));
   try {
@@ -159,7 +150,7 @@ async function withApp<T>(run: (app: RunningApp) => Promise<T>): Promise<T> {
  * kind, the archive no longer being in the analysis cache, the entry not being
  * locatable in it — and every one of them carries its own sentence in the body.
  * The status on its own cannot tell them apart, which is exactly what a failure
- * seen once in a parallel pass needs to say. The body is read only on failure,
+ * seen once needs to say. The body is read only on failure,
  * so a passing test leaves the response untouched for the caller to parse.
  */
 async function assertStatus(response: Response, expected: number): Promise<void> {

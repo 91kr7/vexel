@@ -1,6 +1,9 @@
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { activeContextLabel, navEntry, openApp } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 const RUN_ID = `${process.pid}-${Date.now()}`;
 
@@ -9,7 +12,7 @@ const RUN_ID = `${process.pid}-${Date.now()}`;
 // carries, a GET on the Engine API. The destructive path is only ever taken as far as the
 // confirmation, which is then cancelled — the command it names never runs (and names a container
 // that does not exist, so a mistake here could still destroy nothing). Executing a destructive
-// entry belongs to `exclusive/raw-console-destructive.spec.ts`, against a fixture it creates.
+// entry belongs to `raw-console-destructive.spec.ts`, against a fixture it creates.
 
 /** A command line unique to one test, so an assertion never reads another test's entry. */
 function marker(caseName: string): string {
@@ -213,7 +216,7 @@ test('shows a daemon 404 as the entry\'s status rather than as a failure', async
 
 // plan-docker_management_app/REQ-112 — a console entry recognised as destructive goes through the
 // application's explicit confirmation, naming the command that is about to be executed. The
-// confirmation is cancelled: nothing destructive is ever run from this project.
+// confirmation is cancelled: nothing destructive is ever run from this file.
 test('asks for confirmation naming the exact command before a destructive entry, and cancelling runs nothing', async ({ page }) => {
   const command = `docker rm -f ${marker('never-run')}`;
   await submit(page, command);

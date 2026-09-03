@@ -31,6 +31,18 @@ let nextResult: { ok: boolean; status: number; body: unknown };
 let pending: Array<() => void>;
 let holdResponses: boolean;
 
+/**
+ * The period container-processes-view.md declares, in the unscaled form a unit
+ * run uses: the timing scale is left at 1 here, so `cadence(3000)` is 3 000 ms.
+ */
+const DECLARED_PERIOD_MS = 3_000;
+
+async function advance(ms: number): Promise<void> {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ms);
+  });
+}
+
 function releasePending() {
   const waiting = pending;
   pending = [];
@@ -54,6 +66,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -241,18 +254,67 @@ describe('ContainerProcessesView (REQ-33)', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Refresh' })).toBeEnabled());
   });
 
-  // container-processes-view.md — the listing is never polled: it is read once and then only on demand
-  it('never re-reads the listing on its own', async () => {
+  // container-processes-view.md — "The listing is read when the view opens and again every 3 000 ms
+  // while it is on screen … This replaces the earlier rule that the listing never polls"
+  // (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-27, REQ-28)
+  it('follows what runs inside the container on its own, at the declared period', async () => {
+    vi.useFakeTimers();
+    render(<ContainerProcessesView container={container} />);
+    await advance(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await advance(DECLARED_PERIOD_MS - 1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    nextResult = {
+      ok: true,
+      status: 200,
+      body: { titles: ['PID', 'USER', 'CMD'], processes: [{ pid: 9, user: 'root', command: 'sleep 42' }] },
+    };
+    await advance(1);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(screen.getByText('sleep 42')).toBeInTheDocument();
+  });
+
+  // container-processes-view.md — "A container that is not running is asked for nothing at all …
+  // no read is taken and the tab states that no process is running"
+  // (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-27). The daemon's own
+  // running set is `running`, `paused`, `restarting`.
+  it.each(['exited', 'created', 'dead'] as const)('asks for nothing at all while the container is %s', async (state) => {
+    vi.useFakeTimers();
+    render(<ContainerProcessesView container={{ ...container, state }} />);
+    await advance(0);
+
+    expect(screen.getByText(/No process is running in this container/i)).toBeInTheDocument();
+
+    await advance(DECLARED_PERIOD_MS * 10);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // container-processes-view.md — "a paused container's processes exist, frozen, and the daemon
+  // lists them", so the running set the clock follows is the statistics stream's own
+  it.each(['running', 'paused', 'restarting'] as const)('follows a container that is %s', async (state) => {
+    vi.useFakeTimers();
+    render(<ContainerProcessesView container={{ ...container, state }} />);
+    await advance(0);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await advance(DECLARED_PERIOD_MS);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  // container-processes-view.md — "The tab gained nothing the operator can see: no indicator, no
+  // 'last updated', no setting — the count band and the refresh control are the ones it already
+  // had" (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-35)
+  it('says nothing about being on a clock', async () => {
     render(<ContainerProcessesView container={container} />);
     await screen.findByText('postgres: walwriter');
 
-    vi.useFakeTimers();
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(120_000);
-    });
-    vi.useRealTimers();
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/last updated|auto-refresh|live|every \d+ ?s/i)).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button').map((control) => control.textContent)).toEqual(['Refresh']);
   });
 
   // container-processes-view.md — a failure is shown verbatim, instead of the table, with a retry that re-reads

@@ -2,35 +2,15 @@ import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { FakeEventSource, channelOpens, deliverValue, dropChannel, liveChannel } from '../support/live-channel';
 
-// Both the connectivity data client (fetch) and the event-stream data client
-// (a module-level EventSource singleton) need a fresh module registry per
-// test so mocks from one test never leak into the next.
-class FakeEventSource {
-  onmessage: ((event: { data: string }) => void) | null = null;
-  url: string;
-
-  /** Every real EventSource has one, and a screen that holds a connection closes it on unmount. */
-  close() {}
-  constructor(url: string) {
-    this.url = url;
-  }
-}
-
-let currentEventSource: FakeEventSource | undefined;
-
+// The live channel client is a module-level EventSource singleton, and the
+// screens the Shell mounts hold state of their own: a fresh module registry per
+// test keeps one test's connection and one test's mocks out of the next.
 beforeEach(() => {
   vi.resetModules();
-  currentEventSource = undefined;
-  vi.stubGlobal(
-    'EventSource',
-    class extends FakeEventSource {
-      constructor(url: string) {
-        super(url);
-        currentEventSource = this;
-      }
-    },
-  );
+  FakeEventSource.instances = [];
+  vi.stubGlobal('EventSource', FakeEventSource);
 });
 
 afterEach(() => {
@@ -91,10 +71,12 @@ const coverageBaseline = {
   comparison: 'match',
 };
 
-// Shell mounts more than the connectivity probe this suite targets (the
+// Shell mounts more than the connectivity status this suite targets (the
 // containers list for the nav badge, preferences, analysis-cache usage); the
 // mock must route each endpoint to a response of the right shape, or those
-// other hooks crash / hang on data meant for a different endpoint.
+// other hooks crash / hang on data meant for a different endpoint. The status
+// itself is not among them: it arrives on the channel and is asked of nobody
+// (…-multiplexed_sse/REQ-17, /REQ-39), so it is delivered below.
 async function renderShellWith(status: unknown) {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const url = requestUrl(input);
@@ -148,8 +130,18 @@ async function renderShellWith(status: unknown) {
       </ProgressProvider>
     </ErrorReportingProvider>,
   );
+  // The server accepts the channel and pushes the status on it. A channel that is
+  // not delivering is reported as an unreachable daemon (REQ-11), which would
+  // stand in for every status this helper is handed.
+  act(() => channelOpens());
+  act(() => deliverValue('connection-status', status));
 
   return { fetchMock };
+}
+
+/** How many live channels the page has opened; the page opens streams of its own elsewhere. */
+function liveChannels(): number {
+  return FakeEventSource.instances.filter((instance) => instance.url === '/api/live').length;
 }
 
 /** The titles of the cards on screen, as opposed to any text a screen's own content draws. */
@@ -191,27 +183,35 @@ describe('Shell — daemon connectivity (app-shell/specs/shell.md)', () => {
     expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
   });
 
-  // plan-docker_management_app/REQ-10 — the retry action re-probes the daemon immediately
-  it('retrying re-fetches the connectivity status', async () => {
-    const { fetchMock } = await renderShellWith(unreachableStatus);
+  // plan-docker_management_app/REQ-10 and …-multiplexed_sse/REQ-18 — the retry action is what the
+  // operator can do about a connection that is down: it asks for the channel again, and asks the
+  // server for no status of its own.
+  it('retrying asks for the live channel again, and the server for nothing', async () => {
+    const { fetchMock } = await renderShellWith(reachableStatus);
     const connectivityCalls = () => fetchMock.mock.calls.filter(([input]) => requestUrl(input).startsWith('/api/connectivity/status'));
 
-    await waitFor(() => expect(connectivityCalls()).toHaveLength(1));
-    const user = userEvent.setup();
-    await user.click(screen.getAllByRole('button', { name: 'Retry' })[0]);
+    act(() => dropChannel());
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Retry' }).length).toBeGreaterThan(0));
+    const dropped = liveChannel();
+    const openedBefore = liveChannels();
 
-    await waitFor(() => expect(connectivityCalls().length).toBeGreaterThanOrEqual(2));
+    await userEvent.setup().click(screen.getAllByRole('button', { name: 'Retry' })[0]);
+
+    expect(dropped.closed, 'the channel that was not delivering was left standing').toBe(true);
+    expect(liveChannels(), 'the retry did not ask for the channel again').toBe(openedBefore + 1);
+    expect(connectivityCalls(), 'the retry asked the server for the status').toHaveLength(0);
   });
 
   // plan-docker_management_app/REQ-11, plan-docker_management_app/REQ-12 — a live event updates the event stream panel without a manual refresh
   it('shows a live daemon event in the "Daemon event stream" panel as it arrives', async () => {
     await renderShellWith(reachableStatus);
-    await waitFor(() => expect(currentEventSource).toBeDefined());
+    await waitFor(() => expect(FakeEventSource.instances.length).toBeGreaterThan(0));
 
     act(() => {
-      currentEventSource!.onmessage?.({
-        data: JSON.stringify({ id: 'evt-1', timestamp: new Date().toISOString(), type: 'network', action: 'create', actor: 'test-net' }),
-      });
+      liveChannel().emit(
+        'daemon-event',
+        JSON.stringify({ id: 'evt-1', timestamp: new Date().toISOString(), type: 'network', action: 'create', actor: 'test-net' }),
+      );
     });
 
     await waitFor(() => expect(screen.getByText('test-net')).toBeInTheDocument());

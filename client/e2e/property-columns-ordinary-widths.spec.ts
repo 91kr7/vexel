@@ -8,6 +8,9 @@ import {
   measureSection,
   report,
 } from './support/property-bands.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /**
  * **The half of REQ-26 that is about the ordinary width, not the narrow one.**

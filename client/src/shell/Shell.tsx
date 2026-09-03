@@ -22,8 +22,6 @@ import { clearAnalysisCache, fetchAnalysisCacheUsage } from '../data/preferences
 import { usePreferences } from '../data/use-preferences';
 import { useContainers } from '../data/use-containers';
 import { useImages } from '../data/use-images';
-import { useVolumes } from '../data/use-volumes';
-import { useNetworks } from '../data/use-networks';
 import { useComposeProjects } from '../data/use-compose-projects';
 import { useContexts } from '../data/use-contexts';
 import { ComposeScreen } from '../compose/ComposeScreen';
@@ -92,8 +90,6 @@ export function Shell() {
   const { request: crossNavigationRequest } = useCrossNavigation();
   const containers = useContainers();
   const images = useImages();
-  const volumes = useVolumes();
-  const networks = useNetworks();
   const compose = useComposeProjects();
   const contexts = useContexts();
   const [cacheUsage, setCacheUsage] = useState<number | undefined>(undefined);
@@ -246,17 +242,7 @@ export function Shell() {
             ) : activeScreen.id === 'compose' ? (
               <ComposeScreen projects={compose.projects} loaded={compose.loaded} error={compose.error} onRefresh={compose.refresh} />
             ) : activeScreen.id === 'volumes-networks' ? (
-              <VolumesNetworksScreen
-                volumes={{ volumes: volumes.volumes, loaded: volumes.loaded, error: volumes.error, onRefresh: volumes.refresh }}
-                networksPanel={
-                  <NetworksPanel
-                    networks={networks.networks}
-                    loaded={networks.loaded}
-                    error={networks.error}
-                    onRefresh={networks.refresh}
-                  />
-                }
-              />
+              <VolumesNetworksScreen networksPanel={<NetworksPanel />} />
             ) : activeScreen.id === 'registries' ? (
               <RegistriesScreen />
             ) : activeScreen.id === 'builders-cache' ? (

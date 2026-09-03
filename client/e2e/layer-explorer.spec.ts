@@ -5,10 +5,13 @@ import { expectRegionPinnedAcrossViewportHeights } from './support/pinned-region
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
 import { REGISTRY_IMAGE, TINY_IMAGE, TINY_IMAGE_FILE, ensureImage } from '../../server/test/support/base-images.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 async function createStandaloneImage(tag: string, containerName: string): Promise<void> {
-  // Ensured at the point of use, not once for the run: the exclusive project
-  // prunes the host, so an image present at global setup may be gone by now.
+  // Ensured at the point of use, not once for the run: a prune spec in this suite
+  // prunes the host, so an image ensured earlier may be gone by now.
   // Locally built, so putting it back costs a second and no network.
   await ensureImage(TINY_IMAGE);
   await execFileAsync('docker', ['create', '--name', containerName, ...ownershipArgs(containerName), TINY_IMAGE]);
@@ -101,7 +104,7 @@ test('opens the layer explorer from the row menu with no panel open, and shows t
   const rows = modal.locator('.ui-data-table__row');
   await expect(rows.first()).toBeVisible({ timeout: 10_000 });
   expect(await rows.count()).toBeGreaterThan(1);
-  // images-analysis/specs/layer-metadata-service.md — the local daemon reports no compressed size
+  // image-analysis/specs/layer-metadata-service.md — the local daemon reports no compressed size
   await expect(modal.getByText('unavailable').first()).toBeVisible();
 
   // plan-docker_management_app-filesystem_browser_layout/REQ-20 — this dialog is deliberately out of
@@ -128,7 +131,7 @@ test('opens the layer explorer from the row menu with no panel open, and shows t
 // weakened: every assertion below is the one this check has always made, and one is added — that the
 // run really is in flight when the press lands, read off the product's own statement of it.
 test('warns about cost before analyzing, and cancelling closes the progress dialog without starting over', async ({ page }) => {
-  // Ensured at the point of use, not once for the run: the exclusive project prunes the host.
+  // Ensured at the point of use, not once for the run: a prune spec in this suite prunes the host.
   await ensureImage(REGISTRY_IMAGE);
   await page.reload();
   await searchField(page).fill(REGISTRY_IMAGE);

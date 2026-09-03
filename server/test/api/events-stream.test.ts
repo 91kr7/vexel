@@ -2,7 +2,7 @@ import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import express from "express";
 import type { AddressInfo } from "node:net";
-import { eventsRouter } from "../../src/events/events-routes.js";
+import { liveChannelRouter } from "../../src/live-channel/live-channel-routes.js";
 import { eventStreamService } from "../../src/events/event-stream-service.js";
 import { execFileAsync } from "../support/docker-cli.js";
 
@@ -11,10 +11,11 @@ function delay(ms: number): Promise<void> {
 }
 
 // plan-docker_management_app/REQ-11, plan-docker_management_app/REQ-12 — a real daemon change is republished live,
-// typed and timestamped, within a few seconds and without a manual refresh
-test("GET /api/events/stream republishes a real daemon change as a typed, timestamped event", async () => {
+// typed and timestamped, within a few seconds and without a manual refresh. The events travel on the
+// one live channel since …-multiplexed_sse/REQ-1, so that is the connection driven here.
+test("GET /api/live republishes a real daemon change as a typed, timestamped event", async () => {
   const app = express();
-  app.use("/api/events", eventsRouter);
+  app.use("/api/live", liveChannelRouter);
   const server = app.listen(0);
   await new Promise((resolve) => server.once("listening", resolve));
   const { port } = server.address() as AddressInfo;
@@ -22,7 +23,7 @@ test("GET /api/events/stream republishes a real daemon change as a typed, timest
   eventStreamService.start();
   await delay(500); // let the connect loop attach to the daemon's own /events stream
 
-  const response = await fetch(`http://127.0.0.1:${port}/api/events/stream`);
+  const response = await fetch(`http://127.0.0.1:${port}/api/live`);
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /text\/event-stream/);
 
@@ -40,7 +41,11 @@ test("GET /api/events/stream republishes a real daemon change as a typed, timest
       while (separatorIndex !== -1) {
         const chunk = buffer.slice(0, separatorIndex);
         buffer = buffer.slice(separatorIndex + 2);
-        if (chunk.startsWith("data: ")) events.push(JSON.parse(chunk.slice("data: ".length)));
+        // Only the daemon events: the channel carries the held values too, and a
+        // value message names a value rather than a daemon action.
+        const lines = chunk.split("\n");
+        const data = lines.find((line) => line.startsWith("data: "));
+        if (data && lines.includes("event: daemon-event")) events.push(JSON.parse(data.slice("data: ".length)));
         separatorIndex = buffer.indexOf("\n\n");
       }
       if (events.some((event) => event.type === "network" && event.action === "create")) return;

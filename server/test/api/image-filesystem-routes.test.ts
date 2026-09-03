@@ -105,11 +105,11 @@ async function dockerInspect(format: string, reference: string): Promise<string>
  * this file just had extracted, always.
  *
  * The extraction label is host-wide, and it is not this file's alone: other
- * files of the parallel API pass carry it legitimately, both through the
- * application (`image-filesystem-file-operations.test.ts` extracts a fixture
- * image of its own, and its intermediate container lives for as long as that
- * export takes) and by hand (`containers-routes.test.ts` labels a container to
- * check the inventory hides it). Reading every container that carries the label
+ * files carry it legitimately, both through the application
+ * (`image-filesystem-file-operations.test.ts` extracts a fixture image of its
+ * own, and its intermediate container lives for as long as that export takes)
+ * and by hand (`containers-routes.test.ts` labels a container to check the
+ * inventory hides it). Reading every container that carries the label
  * is reading somebody else's fixture — it is what made this file fail for a
  * container it had never created (CLAUDE.md: "Assert on the fixtures you
  * created ... never on totals").
@@ -287,13 +287,6 @@ before(async () => {
   );
   mergeImageId = await dockerInspect("{{.Id}}", MERGE_TAG);
 });
-
-after(async () => {
-  await removeImageQuietly(SCRATCH_TAG);
-  await removeImageQuietly(SCRATCH_NO_CMD_TAG);
-  await removeImageQuietly(MERGE_TAG);
-});
-
 // plan-docker_management_app/REQ-52, plan-docker_management_app/REQ-53, plan-docker_management_app/REQ-54
 // — a distroless image (no shell) is extracted into a complete, non-empty merged tree, all three
 // progress phases are reported, and the intermediate container is gone once it ends.
@@ -449,7 +442,7 @@ test("GET /:id/filesystem/stream reuses the cached extraction on a second call, 
 // on-disk data directory, reads the same cached result and creates no new container.
 test("the cached extraction is still reused by a completely fresh process afterwards", async () => {
   // The entry is this test's own doing, not the previous test's leftover: every
-  // test starts with the cache empty (support/fresh-data-dir.ts), and what
+  // test starts with the cache empty (support/api-lifecycle.ts), and what
   // is contracted here is that an entry survives the *process*, which needs an
   // entry this test can point at.
   const seeding = buildApp();
@@ -536,7 +529,7 @@ test("the changeset cache and the filesystem cache for the same image do not evi
   const { url, close } = await startApp(app);
   try {
     // Both entries are put there by this test. Neither is inherited: every test starts with the
-    // cache empty (support/fresh-data-dir.ts), and what is contracted here is how two
+    // cache empty (support/api-lifecycle.ts), and what is contracted here is how two
     // entries for the same image behave towards each other — so this test has to own both.
     const seedFilesystem = await fetch(`${url}/api/images/${encodeURIComponent(mergeImageId)}/filesystem/stream`);
     await readSseUntilDone(seedFilesystem);
@@ -739,8 +732,8 @@ test("GET /:id/filesystem/kept answers 'nothing kept' for an image never extract
   const app = buildApp();
   const { url, close } = await startApp(app);
   try {
-    // Scoped to this file's own fixture image, never to a host-wide total: the API pass runs files
-    // in parallel and another file's containers legitimately come and go meanwhile.
+    // Scoped to this file's own fixture image, never to a host-wide total: the label these
+    // containers carry is host-wide and other files carry it legitimately.
     const digestBefore = await dockerInspect("{{.Id}}", SCRATCH_TAG);
     const tagsBefore = await dockerInspect("{{json .RepoTags}}", SCRATCH_TAG);
     const containersBefore = await listInternalContainerIds(scratchImageId);
@@ -767,7 +760,7 @@ test("GET /:id/filesystem/kept answers with the entry count and refused count th
   const { url, close } = await startApp(app);
   try {
     // The kept state is created by this test, within this test: every test starts with the cache
-    // empty (support/fresh-data-dir.ts).
+    // empty (support/api-lifecycle.ts).
     const events = await readSseUntilDone(await fetch(`${url}/api/images/${encodeURIComponent(scratchImageId)}/filesystem/stream?force=true`));
     const extracted = events.find((event) => event.event === "result")!.data as unknown as FilesystemExtractionResult;
     await assertNoLeftoverInternalContainer(scratchImageId);

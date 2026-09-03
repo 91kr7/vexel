@@ -7,7 +7,7 @@ import { cadence } from "../timing/timing-scale.js";
 
 /** At most one read is started per kind per window, however many events arrive. */
 export const EVENT_GROUPING_WINDOW_MS = cadence(750);
-/** Longer than the longest interval a client polls at (15 s), so a slow kind never expires between two of its own requests. */
+/** Longer than any interval the client still reads on, so a kind read on demand never expires between two of its own requests. */
 export const DEMAND_EXPIRY_MS = cadence(60000);
 /** How many times a caller whose read was disowned by a discard reads again before giving up. */
 const DISOWNED_READ_ATTEMPTS = 3;
@@ -46,6 +46,7 @@ export interface ReloadReport {
 export interface RefreshKindOptions<T> {
   key: string;
   read: () => Promise<T>;
+  /** The declared period. Put on this process's clock by `cadence` like every other server cadence. */
   periodMs: number;
   /** Daemon event types that mark this kind due; none by default. */
   eventTypes?: readonly string[];
@@ -61,6 +62,8 @@ export interface RefreshKindOptions<T> {
    * told: the cache compares nothing it was not given a comparison for.
    */
   differs?: (previous: T, next: T) => boolean;
+  /** What a subscriber is told this kind stored, when that is not the value held itself. */
+  announce?: (value: T) => unknown;
   demandExpiryMs?: number;
   groupingWindowMs?: number;
 }
@@ -81,8 +84,19 @@ export interface RefreshKind<T> {
   read(options?: ReadOptions): Promise<HeldValue<T>>;
   markChanged(): void;
   peek(): HeldValue<T> | undefined;
+  /** Keeps this kind read without reading it; the returned function releases the hold. */
+  hold(): () => void;
   isRefreshing(): boolean;
   dispose(): void;
+}
+
+/** What a kind has just stored, as whoever subscribes is told it. */
+export interface StoredValue {
+  key: string;
+  /** The kind's own projection of what it holds when it declared one, else the value held. */
+  value: unknown;
+  /** When the read that produced it ended (epoch ms). */
+  readAt: number;
 }
 
 /** What the registry needs of a kind, whatever its value type. */
@@ -91,6 +105,7 @@ interface RegisteredKind {
   markDue(): void;
   discard(): void;
   reset(): void;
+  hold(): () => void;
   reloadHeld(): Promise<KindReloadOutcome>;
 }
 
@@ -129,6 +144,7 @@ class Kind<T> implements RefreshKind<T>, RegisteredKind {
   private readonly demandExpiryMs: number;
   private readonly groupingWindowMs: number;
   private readonly differs?: (previous: T, next: T) => boolean;
+  private readonly announce?: (value: T) => unknown;
 
   private held?: Held<T>;
   private stale = false;
@@ -152,12 +168,17 @@ class Kind<T> implements RefreshKind<T>, RegisteredKind {
   private readEnded = openGate();
   /** Bumped by a discard, so a read still in flight against the previous daemon stores nothing. */
   private generation = 0;
+  /** How many callers are keeping this kind read without reading it. */
+  private holders = 0;
 
   constructor(options: RefreshKindOptions<T>) {
     this.key = options.key;
     this.readValue = options.read;
-    this.periodMs = options.periodMs;
+    // Scaled here and not at each declaration, so a kind cannot be declared off
+    // the clock the rest of the process runs on.
+    this.periodMs = cadence(options.periodMs);
     this.differs = options.differs;
+    this.announce = options.announce;
     this.demandExpiryMs = options.demandExpiryMs ?? DEMAND_EXPIRY_MS;
     this.groupingWindowMs = options.groupingWindowMs ?? EVENT_GROUPING_WINDOW_MS;
   }
@@ -203,6 +224,25 @@ class Kind<T> implements RefreshKind<T>, RegisteredKind {
 
   peek(): HeldValue<T> | undefined {
     return this.held ? this.snapshot() : undefined;
+  }
+
+  /** Keeps this kind read without reading it: the demand never expires while a holder is live (REQ-13, REQ-15). */
+  hold(): () => void {
+    this.holders += 1;
+    this.startRefresher();
+    this.fillForHolders();
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      this.holders = Math.max(0, this.holders - 1);
+    };
+  }
+
+  /** A holder is told what is stored, so a kind holding nothing reads once — on the hold, and after a discard (REQ-40). */
+  private fillForHolders(): void {
+    if (this.holders === 0 || this.held || this.inFlight) return;
+    void this.refresh();
   }
 
   isRefreshing(): boolean {
@@ -258,6 +298,7 @@ class Kind<T> implements RefreshKind<T>, RegisteredKind {
 
   /** Back to the state of a kind just registered: nothing held, nothing running, nobody asking. */
   reset(): void {
+    this.holders = 0;
     this.stopRefresher();
     this.discard();
     this.lastAskedAt = 0;
@@ -275,6 +316,7 @@ class Kind<T> implements RefreshKind<T>, RegisteredKind {
     this.dueAgain = false;
     this.clearGroupingTimer();
     this.wakeCoverageWaiters();
+    this.fillForHolders();
   }
 
   private snapshot(): HeldValue<T> {
@@ -399,6 +441,7 @@ class Kind<T> implements RefreshKind<T>, RegisteredKind {
         this.held = { value, readAt: Date.now(), startedAt };
         this.stale = false;
         this.failure = undefined;
+        this.announceStored();
       } catch (error) {
         if (generation !== this.generation) return;
         // The previous value stays: an unreachable daemon must not blank a list
@@ -439,6 +482,17 @@ class Kind<T> implements RefreshKind<T>, RegisteredKind {
     }
   }
 
+  /** Tells whoever subscribes what was stored; a subscriber that throws is not this read's failure (REQ-4, REQ-7). */
+  private announceStored(): void {
+    const held = this.held;
+    if (!held) return;
+    try {
+      announceValueStored({ key: this.key, value: this.announce ? this.announce(held.value) : held.value, readAt: held.readAt });
+    } catch {
+      // a subscriber's failure belongs to the subscriber, not to the read
+    }
+  }
+
   private startRefresher(): void {
     if (this.periodTimer) return;
     this.periodTimer = setTimeout(() => this.tick(), this.periodMs);
@@ -447,7 +501,7 @@ class Kind<T> implements RefreshKind<T>, RegisteredKind {
 
   private tick(): void {
     this.periodTimer = undefined;
-    if (Date.now() - this.lastAskedAt > this.demandExpiryMs) {
+    if (this.holders === 0 && Date.now() - this.lastAskedAt > this.demandExpiryMs) {
       // Nobody has asked for a whole expiry window: stop reading and drop what
       // is held, so the next request reads fresh instead of serving a value of
       // unknown age (REQ-14).
@@ -501,6 +555,7 @@ export function registerRefreshKind<T>(options: RefreshKindOptions<T>): RefreshK
  */
 export function discardHeldValues(): void {
   kinds.forEach((kind) => kind.discard());
+  notify(discardListeners);
 }
 
 /**
@@ -528,7 +583,58 @@ export async function reloadHeldValues(): Promise<ReloadReport> {
     else if (outcome.status === "skipped") report.skipped.push(kind.key);
     else report.failed.push({ key: kind.key, error: outcome.error });
   });
+  notify(reloadEndListeners);
   return report;
+}
+
+/** One hold on every registered kind, released together: the number of callers changes no cadence (REQ-16). */
+export function holdEveryKind(): () => void {
+  const releases = [...kinds.values()].map((kind) => kind.hold());
+  return () => releases.forEach((release) => release());
+}
+
+type StoredValueListener = (stored: StoredValue) => void;
+
+const storedListeners = new Set<StoredValueListener>();
+const discardListeners = new Set<() => void>();
+const reloadEndListeners = new Set<() => void>();
+
+/** Told of every value a kind stores, after it is stored; starts no read. */
+export function onValueStored(listener: StoredValueListener): () => void {
+  storedListeners.add(listener);
+  return () => {
+    storedListeners.delete(listener);
+  };
+}
+
+/** Told when every held value has been dropped, the active context having changed. */
+export function onHeldValuesDiscarded(listener: () => void): () => void {
+  discardListeners.add(listener);
+  return () => {
+    discardListeners.delete(listener);
+  };
+}
+
+/** Told when a manual reload has ended, after the values it stored have been announced. */
+export function onReloadEnded(listener: () => void): () => void {
+  reloadEndListeners.add(listener);
+  return () => {
+    reloadEndListeners.delete(listener);
+  };
+}
+
+function announceValueStored(stored: StoredValue): void {
+  storedListeners.forEach((listener) => listener(stored));
+}
+
+function notify(listeners: Set<() => void>): void {
+  listeners.forEach((listener) => {
+    try {
+      listener();
+    } catch {
+      // a subscriber's failure belongs to the subscriber
+    }
+  });
 }
 
 function unregisterKind(kind: RegisteredKind): void {

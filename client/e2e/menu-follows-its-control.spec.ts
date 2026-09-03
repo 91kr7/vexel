@@ -12,9 +12,9 @@
  * read once the layout has stopped moving (`support/settled.ts`).
  *
  * The region has to scroll without a single container of the operator's: this file makes its own
- * cards, from the image the run's preliminary step already guarantees, and narrows the screen to
- * them by its own search. Nothing here asserts on totals, counts or a list being empty, and every
- * fixture is removed with `docker rm -fv`.
+ * cards, from the image the reset that opens this file has just put back on the daemon, and narrows
+ * the screen to them by its own search. Nothing here asserts on totals, counts or a list being
+ * empty, and the reset that opens the next file is what removes the cards.
  */
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
@@ -22,6 +22,9 @@ import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { boxOf, boxesOf, centreOf, clickAtItsCentre, movePointerTo, type Rect } from './support/settled.js';
 import { containerCards, overflowTrigger } from './support/container-cards.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /**
  * Three tracks of cards, and a viewport short enough that four rows of them have to scroll — but tall
@@ -42,22 +45,14 @@ async function createSleepingContainer(name: string): Promise<void> {
   await execFileAsync('docker', ['run', '-d', '--name', name, ...ownershipArgs(name), '--entrypoint', 'sleep', ALPINE_IMAGE, '300']);
 }
 
-async function removeContainerQuietly(name: string): Promise<void> {
-  await execFileAsync('docker', ['rm', '-fv', name]).catch(() => undefined);
-}
-
 /**
- * The cards are made once for the file and removed in `afterAll`: twelve `docker run` calls are the
- * expensive setup this file shares, and no test here inherits application state from another — each
- * opens the screen for itself.
+ * The cards are made once for the file — twelve `docker run` calls are the expensive setup it shares
+ * — and the daemon reset that opens the next file removes them. No test here inherits application
+ * state from another: each opens the screen for itself.
  */
 test.beforeAll(async () => {
   await ensureImage(ALPINE_IMAGE);
   await Promise.all(NAMES.map(createSleepingContainer));
-});
-
-test.afterAll(async () => {
-  for (const name of NAMES) await removeContainerQuietly(name);
 });
 
 /** The screen, narrowed by its own search to this file's cards: the operator's containers are none of its business. */

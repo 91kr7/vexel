@@ -27,16 +27,10 @@ import {
 import { attachContainer, createNetwork, detachContainer, pruneNetworks, removeNetwork, type NetworkSummary } from '../data/networks-client';
 import { useNetworkInspect } from '../data/use-network-inspect';
 import { useContainers } from '../data/use-containers';
+import { useNetworks } from '../data/use-networks';
 import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
 import { useProgress } from '../shell/services/ProgressService';
-
-export interface NetworksPanelProps {
-  networks: NetworkSummary[];
-  loaded: boolean;
-  error?: string;
-  onRefresh: () => void;
-}
 
 const DRIVER_SUGGESTIONS = [
   { value: 'bridge', label: 'bridge' },
@@ -58,19 +52,13 @@ function subnetLine(network: NetworkSummary): string {
   return network.gateway ? `${network.subnet} · gw ${network.gateway}` : network.subnet;
 }
 
-/**
- * The inspect surface for a selected network, revealed by the library's detail
- * panel in the row's expansion: full content width, properties in the two-column
- * grid — `Options` left-aligned like every other value — and the raw payload at
- * that same width rather than in a card column's leftover.
- */
+/** The inspect surface for a selected network, revealed in the row's expansion. */
 function NetworkDetail({ network, onClose }: { network: NetworkSummary; onClose: () => void }) {
   const { inspect, loaded, error, refresh } = useNetworkInspect(network.id);
 
   return (
-    // As on volumes: no close control, the row that opened it closes it, and it
-    // is rendered whatever the inspect call has returned so far — the panel is
-    // what holds the one-open guarantee across the screen's two lists.
+    // Rendered whatever the inspect call has returned so far: the panel is what
+    // holds the one-open guarantee across the screen's two lists.
     <DetailPanel
       dismissal="opening-gesture"
       onClose={onClose}
@@ -113,13 +101,12 @@ function NetworkDetail({ network, onClose }: { network: NetworkSummary; onClose:
 }
 
 /**
- * The Networks panel of the Volumes & networks screen (REQ-72, REQ-73, REQ-74):
- * every network with its driver, scope and subnet/gateway, listed in the object
- * list, its attached containers as chips carrying their own detach action below
- * each row, create and prune in the toolbar under the section header, and attach
- * and remove in the row's action cluster.
+ * The Networks panel of the Volumes & networks screen (REQ-72, REQ-73, REQ-74),
+ * reading the network listing here rather than being handed it by the shell
+ * (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-40).
  */
-export function NetworksPanel({ networks, loaded, error, onRefresh }: NetworksPanelProps) {
+export function NetworksPanel() {
+  const { networks, loaded, error, refresh } = useNetworks();
   const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState('');
@@ -167,7 +154,7 @@ export function NetworksPanel({ networks, loaded, error, onRefresh }: NetworksPa
         }),
       );
       setCreateOpen(false);
-      onRefresh();
+      refresh();
     } catch (cause) {
       reportError('Could not create network', (cause as Error).message);
     } finally {
@@ -188,7 +175,7 @@ export function NetworksPanel({ networks, loaded, error, onRefresh }: NetworksPa
         title: `${result.removedNames.length} network${result.removedNames.length === 1 ? '' : 's'} removed`,
         tone: 'success',
       });
-      onRefresh();
+      refresh();
     } catch (cause) {
       reportError('Could not prune networks', (cause as Error).message);
     }
@@ -204,7 +191,7 @@ export function NetworksPanel({ networks, loaded, error, onRefresh }: NetworksPa
     try {
       await run(`Remove ${network.name}`, () => removeNetwork(network.id));
       setSelectedId((current) => (current === network.id ? undefined : current));
-      onRefresh();
+      refresh();
     } catch (cause) {
       reportError(`Could not remove ${network.name}`, (cause as Error).message);
     }
@@ -217,7 +204,7 @@ export function NetworksPanel({ networks, loaded, error, onRefresh }: NetworksPa
   async function handleDetach(network: NetworkSummary, containerName: string) {
     try {
       await run(`Detach ${containerName}`, () => detachContainer(network.id, containerName));
-      onRefresh();
+      refresh();
     } catch (cause) {
       reportError(`Could not detach ${containerName}`, (cause as Error).message);
     }
@@ -234,7 +221,7 @@ export function NetworksPanel({ networks, loaded, error, onRefresh }: NetworksPa
     try {
       await run(`Attach ${attachContainerName}`, () => attachContainer(attachTarget.id, attachContainerName));
       setAttachTarget(undefined);
-      onRefresh();
+      refresh();
     } catch (cause) {
       reportError(`Could not attach ${attachContainerName}`, (cause as Error).message);
     } finally {
@@ -284,7 +271,7 @@ export function NetworksPanel({ networks, loaded, error, onRefresh }: NetworksPa
         primaryAction={{ label: 'Create network…', onClick: openCreate }}
         destructiveAction={{ label: 'Prune', onClick: handlePrune, disabled: networks.length === 0 }}
       />
-      {error ? <ErrorBanner title="Could not load networks" detail={error} onRetry={onRefresh} /> : null}
+      {error ? <ErrorBanner title="Could not load networks" detail={error} onRetry={refresh} /> : null}
       <Card padding="none">
         <DataTable
           columns={columns}

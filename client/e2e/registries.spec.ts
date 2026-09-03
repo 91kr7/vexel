@@ -1,5 +1,8 @@
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 // The Registries screen browsed in a real browser, against the operator's own
 // Docker installation (REQ-85, REQ-86, REQ-87).

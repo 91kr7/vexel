@@ -22,6 +22,9 @@ import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp, ownershipArgs } from './support/fixtures.js';
 import { readOnceSettled } from './support/settled.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /** The three viewports the plan is written against. */
 const VIEWPORTS = [

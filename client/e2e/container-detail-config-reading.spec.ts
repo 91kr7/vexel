@@ -49,6 +49,9 @@ import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { containerCard, containerDetail, openContainerDetail } from './support/container-cards.js';
 import { waitForTheListToCatchUp } from './support/caught-up.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 const CASE_NAME = 'container-detail-config-reading';
 

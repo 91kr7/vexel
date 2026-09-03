@@ -25,8 +25,8 @@
  *
  * **Test discipline** (REQ-32): the fixtures are this file's own — two volumes, a
  * network with a container attached to it, a container and an image tag for the
- * reference lists — each labelled and each removed in an `afterAll`, containers
- * with `docker rm -fv`. Nothing is asserted about totals or emptiness, only about
+ * reference lists — each labelled, and each removed by the daemon reset that opens
+ * every file. Nothing is asserted about totals or emptiness, only about
  * the rows this file created. The registries inventory is the suite's own fixture
  * server (`support/registry-fixture-server.ts`), which neither reads nor writes
  * the operator's Docker configuration, and the repositories list is served from a
@@ -70,6 +70,9 @@ import {
   type ListGeometry,
   type Viewport,
 } from './support/classic-table.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 const DESKTOP: Viewport = VIEWPORTS[0];
 const PHONE: Viewport = VIEWPORTS[2];
@@ -98,7 +101,7 @@ let volumeMountpoints: string[] = [];
 let registryFixture: RegistryFixtureServer;
 
 test.beforeAll(async () => {
-  // Ensured at the point of use, not once for the run: the exclusive project prunes the host.
+  // Ensured at the point of use, not once for the run: a prune spec in this suite prunes the host.
   await ensureImage(ALPINE_IMAGE);
   for (const name of volumeNames) {
     await execFileAsync('docker', ['volume', 'create', ...ownershipArgs(name), name]);
@@ -148,17 +151,8 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  // `-fv` and not `-f`: without it an image's anonymous volumes outlive the container.
-  await execFileAsync('docker', ['rm', '-fv', attachedName]).catch(() => undefined);
-  await execFileAsync('docker', ['rm', '-fv', referenceContainer]).catch(() => undefined);
-  await execFileAsync('docker', ['rmi', '-f', referenceImage]).catch(() => undefined);
-  await execFileAsync('docker', ['network', 'rm', networkName]).catch(() => undefined);
-  for (const name of volumeNames) {
-    await execFileAsync('docker', ['volume', 'rm', '-f', name]).catch(() => undefined);
-  }
   await registryFixture?.stop();
 });
-
 /**
  * The registries screen, on the run's own nine-registry inventory and with the
  * repositories list filled from the stub, at `viewport`.

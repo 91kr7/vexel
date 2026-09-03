@@ -2,6 +2,9 @@ import { expect, test, type Page } from './support/test.js';
 import { navEntry, openApp } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 // The first test of this file deliberately persists a screen; every test starts
 // from the default one anyway, so neither inherits the other's leftover.

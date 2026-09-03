@@ -26,8 +26,6 @@ type: REST endpoint
 - `PATCH /api/containers/:id/config` → request body `ContainerConfigUpdate`; `200`,
   `ContainerConfigUpdateResult` (see `containers-service.md`).
 - `GET /api/containers/:id/logs/stream` → the log stream; specified in `container-logs-endpoint.md`.
-- `GET /api/containers/stats/subscription` → the held connection that gates the sampler; specified
-  in `container-stats-subscription-endpoint.md`.
 
 ## Rules and invariants
 
@@ -52,7 +50,6 @@ type: REST endpoint
 ## Dependencies
 
 - ContainersService
-- StatsDemandRegistry
 
 ## Requirements served
 

@@ -1,7 +1,8 @@
 import { Router, type Response } from "express";
 import { DockerDaemonError } from "../docker/errors.js";
-import { listCliPlugins } from "./cli-plugins-service.js";
-import { inspectPlugin, listDaemonPlugins } from "./daemon-plugins-service.js";
+import { sendHeld } from "../refresh-cache/refresh-cache-response.js";
+import { inspectPlugin } from "./daemon-plugins-service.js";
+import { pluginsInventoryCache } from "./plugins-inventory-service.js";
 import {
   disablePlugin,
   enablePlugin,
@@ -13,15 +14,10 @@ import {
 
 export const pluginsRouter = Router();
 
-/**
- * Both inventories in one reading (REQ-98, REQ-99), so the screen never shows
- * two different moments of the same installation. Each side carries its own
- * unavailability, so one channel going quiet never hides the other.
- */
+/** Both inventories in one reading (REQ-98, REQ-99), answered from the round the refresh cache holds. */
 pluginsRouter.get("/", async (_req, res) => {
   try {
-    const [cli, daemon] = await Promise.all([listCliPlugins(), listDaemonPlugins()]);
-    res.json({ cli, daemon });
+    sendHeld(res, await pluginsInventoryCache.read());
   } catch (error) {
     respondError(res, error);
   }

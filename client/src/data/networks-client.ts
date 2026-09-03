@@ -45,12 +45,6 @@ async function requireOk(response: Response): Promise<void> {
   if (!response.ok) throw new Error(await extractErrorMessage(response));
 }
 
-export async function fetchNetworks(): Promise<NetworkSummary[]> {
-  const response = await fetch('/api/networks');
-  await requireOk(response);
-  return (await response.json()) as NetworkSummary[];
-}
-
 export async function fetchNetworkInspect(id: string): Promise<NetworkInspect> {
   const response = await fetch(`/api/networks/${encodeURIComponent(id)}/inspect`);
   await requireOk(response);

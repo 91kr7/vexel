@@ -7,7 +7,7 @@ type: frontend hook
 # useDiskUsage
 
 **Purpose** → holds the reclaimable-space breakdown for the screen and drives the prunes over it,
-keeping the breakdown true to the host after each one.
+re-reading the breakdown after each one.
 
 ## Contract
 
@@ -26,12 +26,12 @@ keeping the breakdown true to the host after each one.
 
 - The breakdown is re-read after every prune, so what the screen shows is the host after the run,
   never the estimate that preceded it (REQ-96).
-- It is also re-read on every `container`, `image`, `volume` or `network` daemon event: what is
-  reclaimable changes when the host's objects do, whoever changed them. A burst of such events —
-  a prune emits one per removed object — leads to a single re-read, not one per event.
-- The affected lists of the other screens follow the same prune through that same event stream —
-  each list hook already subscribes to it — so a prune does not need this hook to refresh them, and
-  no second refresh path duplicates that one.
+- Beyond its own prune, the breakdown is read when the screen is opened, when the operator asks for
+  a refresh and on a context switch — and at no other moment. A daemon event triggers nothing, so an
+  object removed elsewhere leaves the breakdown showing what was last read, and nothing on screen
+  says so (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1,
+  plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-2,
+  plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-10).
 - It does not poll: the daemon's disk-usage reading is expensive on a large host, and a screen left
   open must not keep the daemon busy computing it.
 - A context switch drops what is held and re-reads at once: the breakdown belongs to a daemon, not
@@ -45,13 +45,14 @@ keeping the breakdown true to the host after each one.
 ## Dependencies
 
 - system: System client
-- events: Event stream client (`subscribeToDaemonEvents`)
 - contexts: active-context broadcast (`subscribeToActiveContextChange`)
 - app-shell: Reload signal
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-95
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-2
 - plan-docker_management_app/REQ-96
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-11
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-13

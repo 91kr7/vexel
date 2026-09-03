@@ -13,7 +13,7 @@ type: configuration
 - `GET /health` → `{ status: "ok" }` (unchanged from the scaffold).
 - Parses JSON request bodies (`express.json()`) for every route.
 - Mounts `connectivityRouter` at `/api/connectivity`, `contextsRouter` at `/api/contexts`,
-  `eventsRouter` at `/api/events`,
+  `liveChannelRouter` at `/api/live`,
   `persistenceRouter` at `/api/persistence`, `hostPathsRouter` at `/api/host-paths`,
   `refreshRouter` at `/api/refresh`,
   `volumesRouter` at `/api/volumes`, `networksRouter` at `/api/networks`, `registriesRouter` at
@@ -32,7 +32,10 @@ type: configuration
   - no built interface present → the server starts anyway and serves its whole API, with the reason
     and the remedy reported once.
 - Handles the HTTP `upgrade` hook on the `http.Server` itself, outside the middleware chain, so the
-  interactive container sessions are unaffected by anything mounted on the app.
+  interactive container sessions and the per-container stats gate are unaffected by anything mounted
+  on the app. Each handler in turn is offered the request and may claim it; an upgrade neither of
+  them claims has its socket destroyed, so no other address on the server is reachable that way
+  (`plan-docker_management_app-containers_card_view-stats_gate_websocket/REQ-5`).
 - Resolves and sets the active Docker endpoint (`publishActiveEndpoint()`) **and waits for it before
   it listens**, so every area talks to the daemon of the active Docker context rather than to the
   platform-default socket, and no request is ever served while that resolution is still pending
@@ -87,7 +90,8 @@ type: configuration
 - containers: handleContainerSessionUpgrade, containersRouter
 - connectivity: connectivityRouter
 - contexts: contextsRouter, publishActiveEndpoint
-- events: eventsRouter, eventStreamService
+- events: eventStreamService
+- live-channel: liveChannelRouter
 - local-persistence: persistenceRouter, hostPathsRouter, reclaimOrphans
 - images: imagesRouter
 - image-analysis: imageAnalysisRouter, sweepAbandonedExtractionContainers

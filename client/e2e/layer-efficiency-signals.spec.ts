@@ -9,15 +9,14 @@ import { expectCompletedThenSelfDismissed } from './support/progress-completion.
 import { expectRegionPinnedAcrossViewportHeights } from './support/pinned-region.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 async function buildImage(tag: string, dockerfile: string): Promise<void> {
   const contextDir = await mkdtemp(join(tmpdir(), 'vexel-e2e-signals-'));
   await writeFile(join(contextDir, 'Dockerfile'), dockerfile);
   await execFileAsync('docker', ['build', ...ownershipArgs(tag), '-t', tag, contextDir]);
-}
-
-async function removeImageQuietly(tag: string): Promise<void> {
-  await execFileAsync('docker', ['rmi', '-f', tag]).catch(() => undefined);
 }
 
 function imageRow(page: Page, text: string) {
@@ -87,11 +86,6 @@ const OTHER_DOCKERFILE = ['FROM alpine:3.20', 'LABEL vexel.e2e=signals-other', '
 test.beforeAll(async () => {
   await buildImage(TAG, DOCKERFILE);
   await buildImage(OTHER_TAG, OTHER_DOCKERFILE);
-});
-
-test.afterAll(async () => {
-  await removeImageQuietly(TAG);
-  await removeImageQuietly(OTHER_TAG);
 });
 
 test.beforeEach(async ({ page }) => {

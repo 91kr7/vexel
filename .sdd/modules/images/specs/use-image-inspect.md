@@ -20,26 +20,26 @@ type: frontend hook
 
 ## Rules and invariants
 
-- Re-reads when `id` changes and whenever an `image`-typed daemon event **about that same image**
-  arrives (REQ-40, plan-docker_management_app-refresh_cache/REQ-8).
-- An `image` event about another image is ignored: the daemon is not asked about the shown image
-  (plan-docker_management_app-refresh_cache/REQ-7). The event is attributed by its `actorId`; one
-  carrying none is treated as about the shown image, so no change is ever missed.
+- Reads when `id` changes — the detail being opened on an image — and when the operator asks for a
+  refresh, and at no other moment (REQ-40). A daemon event triggers nothing, so an image changed
+  elsewhere leaves the open detail showing what it last read, and nothing on screen says so
+  (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1,
+  plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-2,
+  plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-10).
 - Re-reads on the manual reload signal, and that signal waits for this read: an open detail
-  view shows the reloaded data when the operator's refresh ends. Its event filter and its
-  object scope are unchanged, and the view is neither closed nor reset
+  view shows the reloaded data when the operator's refresh ends. Its object scope is unchanged,
+  and the view is neither closed nor reset
   (plan-docker_management_app-refresh_cache-manual_refresh/REQ-12, plan-docker_management_app-refresh_cache-manual_refresh/REQ-13).
 
 ## Dependencies
 
 - Images client (fetchImageInspect)
-- events: subscribeToDaemonEvents, daemonEventConcerns
 - app-shell: Reload signal
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-40
-- plan-docker_management_app-refresh_cache/REQ-7
-- plan-docker_management_app-refresh_cache/REQ-8
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-2
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-12
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-13

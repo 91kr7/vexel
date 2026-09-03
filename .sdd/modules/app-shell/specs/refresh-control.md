@@ -16,8 +16,12 @@ Description:
   page header's actions and therefore present on every screen.
 Actions:
 - Press → asks the server to read again every value it holds (`POST /api/refresh`), then raises the
-  reload signal and waits for every subscribed view to have re-read. The control is busy for the
-  whole of that, and returns to rest when both have ended.
+  reload signal and waits for every subscribed view to have re-read, **and for the live channel to
+  have delivered what that reading produced**. The control is busy for the whole of that, and
+  returns to rest when all of it has ended.
+- Press while the channel is not delivering → the channel is asked for again first. It is the one
+  thing the operator can do about a connection that is down, and it is what this control does about
+  it (…-multiplexed_sse/REQ-18).
 - Press while busy → nothing happens: no second request, no second signal.
 - On success → a toast, tone success, titled "Refreshed". It says nothing about what changed.
 - On failure — the request failed, or the server reports at least one value it could not read
@@ -34,12 +38,24 @@ Actions:
 - It navigates nowhere, closes nothing and resets no scroll position or selection: the reload
   replaces data only.
 - A failed reload leaves the screens showing the values they had — no view is blanked by a failure.
+- **It never parks on a channel that is not delivering.** The end-of-reload message travels on the
+  channel, so with the channel down it would never come and the control would stay busy for as long
+  as the channel stayed down. The wait ends instead, and what the operator is told about the
+  connection is the disconnected state the interface already has (…-multiplexed_sse/REQ-11, /REQ-18).
+- **No poll is kept behind the channel.** Nothing here re-reads a converted value on the side, so a
+  press on a channel that is down asks for the channel and nothing else; the screens fill as soon as
+  it delivers (…-multiplexed_sse/REQ-18).
+- **The endpoint answering is not the screen being current.** The values a screen reads from the
+  channel travel on a different connection from the answer, so the wait for the channel's
+  end-of-reload message is parked **before** the request is made — a wait raised after the answer
+  could miss a message that arrived first (…-multiplexed_sse/REQ-23, /REQ-34).
 
 ## Dependencies
 
 - ui-library: IconButton (busy state), useToast
 - Reload signal
 - Refresh client (`requestServerReload`)
+- live-channel: Live channel client (`awaitReloadEnd`, `reconnectLiveChannel`)
 
 ## Requirements served
 
@@ -51,3 +67,6 @@ Actions:
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-6
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-11
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-12
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-18
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-23
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-34

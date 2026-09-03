@@ -9,6 +9,9 @@ import {
   type BandGeometry,
   type SectionGeometry,
 } from './support/property-bands.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /**
  * **The surface that stated its own count, measured where the count was wrong.**

@@ -24,8 +24,7 @@
  * machine (`docker plugin ls` is host-wide and no label can scope it). Nothing
  * here creates, changes or reads anything on the daemon **except** the two
  * fixtures the reference lists need — one container and one image tag, both
- * labelled and both removed in an `afterAll`, the container with `docker rm -fv`
- * (REQ-32). No assertion anywhere is about a total, a count of the machine's own
+ * labelled and both removed by the daemon reset that opens every file (REQ-32). No assertion anywhere is about a total, a count of the machine's own
  * objects, or a list being empty.
  *
  * Every interaction is driven with a **real pointer at the visible control's own
@@ -52,6 +51,9 @@ import {
   type ListGeometry,
   type Viewport,
 } from './support/classic-table.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 const DESKTOP: Viewport = VIEWPORTS[0];
 const PHONE: Viewport = VIEWPORTS[2];
@@ -91,7 +93,7 @@ const referenceContainer = `vexel-e2e-plain-ref-${RUN_ID}`;
 const referenceImage = `vexel-e2e-plain-ref-${RUN_ID}:1`;
 
 test.beforeAll(async () => {
-  // Ensured at the point of use, not once for the run: the exclusive project prunes the host.
+  // Ensured at the point of use, not once for the run: a prune spec in this suite prunes the host.
   await ensureImage(ALPINE_IMAGE);
   await execFileAsync('docker', [
     'run',
@@ -105,12 +107,6 @@ test.beforeAll(async () => {
     '600',
   ]);
   await execFileAsync('docker', ['tag', ALPINE_IMAGE, referenceImage]);
-});
-
-test.afterAll(async () => {
-  // `-fv` and not `-f`: without it an image's anonymous volumes outlive the container.
-  await execFileAsync('docker', ['rm', '-fv', referenceContainer]).catch(() => undefined);
-  await execFileAsync('docker', ['rmi', '-f', referenceImage]).catch(() => undefined);
 });
 
 /**

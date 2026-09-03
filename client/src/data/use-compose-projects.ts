@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { subscribeToActiveContextChange } from './active-context';
-import { subscribeToReload } from './reload-signal';
-import { fetchComposeProjects, type ComposeProjectSummary } from './compose-client';
-import { subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
-import { cadence } from '../timing/timing-scale';
+import { useCallback, useState, useSyncExternalStore } from 'react';
+import type { ComposeProjectSummary } from './compose-client';
+import { usePushedValue } from './pushed-values';
+import { requestServerReload } from './refresh-client';
+import { isChannelDelivering, reconnectLiveChannel, subscribeToChannelDelivery } from './live-channel';
 
-const POLL_INTERVAL_MS = cadence(3000);
+/** The name the server gives the compose project listing on the channel. */
+const COMPOSE_PROJECTS = 'compose-projects';
+
+/** One reference for every render before the first delivery, so nothing re-renders on it. */
+const NONE: ComposeProjectSummary[] = [];
 
 export interface UseComposeProjectsResult {
   projects: ComposeProjectSummary[];
@@ -14,65 +17,30 @@ export interface UseComposeProjectsResult {
   refresh: () => void;
 }
 
-/**
- * Reads the compose project list, re-reading on a bounded poll and on every
- * `container` daemon event (compose projects are made of containers) (REQ-75).
- */
+/** Reads the compose project listing from the live channel: no clock, and no request but the one a press asks for (REQ-17, REQ-33, REQ-39). */
 export function useComposeProjects(): UseComposeProjectsResult {
-  const [projects, setProjects] = useState<ComposeProjectSummary[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState<string | undefined>(undefined);
-  const cancelledRef = useRef(false);
+  const projects = usePushedValue<ComposeProjectSummary[]>(COMPOSE_PROJECTS);
+  const delivering = useSyncExternalStore(subscribeToChannelDelivery, isChannelDelivering);
+  const [askFailure, setAskFailure] = useState<string | undefined>(undefined);
 
-  // `readOnce` returns its promise so the reload signal can wait for it; `refresh` returns
-  // nothing, the shape the screens use (plan-docker_management_app-refresh_cache/REQ-21).
-  const readOnce = useCallback(() => {
-    return fetchComposeProjects()
-      .then((list) => {
-        if (cancelledRef.current) return;
-        setProjects(list);
-        setError(undefined);
-      })
-      .catch((cause: Error) => {
-        if (cancelledRef.current) return;
-        setError(cause.message);
-      })
-      .finally(() => {
-        if (cancelledRef.current) return;
-        setLoaded(true);
-      });
+  // Reading again means asking the server, the listing being pushed and not fetched: what it reads
+  // arrives on the channel. With the channel down there is nothing to read again — ask for it
+  // instead (REQ-18, REQ-23, REQ-39).
+  const refresh = useCallback(() => {
+    if (!isChannelDelivering()) {
+      reconnectLiveChannel();
+      return;
+    }
+    setAskFailure(undefined);
+    void requestServerReload()
+      .then((report) => setAskFailure(report.failed.find((one) => one.key === COMPOSE_PROJECTS)?.error))
+      .catch((cause: Error) => setAskFailure(cause.message));
   }, []);
 
-  const refresh = useCallback(() => {
-    void readOnce();
-  }, [readOnce]);
-
-  useEffect(() => {
-    cancelledRef.current = false;
-    refresh();
-    return () => {
-      cancelledRef.current = true;
-    };
-  }, [refresh]);
-
-  useEffect(
-    () =>
-      subscribeToDaemonEvents((event: DaemonEvent) => {
-        if (event.type === 'container') refresh();
-      }),
-    [refresh],
-  );
-
-  // Another context means another daemon: what is held here belongs to
-  // the one left behind and is re-read at once (REQ-93).
-  useEffect(() => subscribeToActiveContextChange(refresh), [refresh]);
-
-  useEffect(() => subscribeToReload(readOnce), [readOnce]);
-
-  useEffect(() => {
-    const interval = window.setInterval(refresh, POLL_INTERVAL_MS);
-    return () => window.clearInterval(interval);
-  }, [refresh]);
-
-  return { projects, loaded, error, refresh };
+  return {
+    projects: projects ?? NONE,
+    loaded: projects !== undefined,
+    error: delivering ? askFailure : 'Could not reach the application server.',
+    refresh,
+  };
 }

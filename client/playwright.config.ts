@@ -41,41 +41,39 @@ export default defineConfig({
   workers: 1,
   fullyParallel: false,
   reporter: 'dot',
-  // Prepares the shared base images and the run's own registry, and wipes the
-  // run's data directory, so no spec pays for that work inside its own timeout
-  // and no run inherits the state of the one before it.
-  globalSetup: './e2e/support/global-setup.ts',
-  // Stops the registry the setup started: no spec may, since every later one
-  // still needs it.
-  globalTeardown: './e2e/support/global-teardown.ts',
+  // There is no `globalSetup`. What one used to do is done where it is actually
+  // needed: every spec file resets the daemon and re-establishes the images and
+  // the run's registry before it runs (`e2e/support/lifecycle.ts`), and every
+  // test starts from an empty data directory (`e2e/support/test.ts`). A hook that
+  // prepared all that once, before the first spec, could only describe a state no
+  // spec was entitled to assume by the second one.
+  //
+  // Stops the registry the first file's reset started: no spec may, since every
+  // later one still needs it.
+  globalTeardown: './e2e/support/lifecycle.ts',
   use: {
     baseURL: E2E_ORIGIN,
     trace: 'retain-on-failure',
   },
+  // One project over the whole suite, destructive specs included. They used to
+  // be scheduled apart, after a project they declared as a dependency — which
+  // meant a red anywhere in the suite skipped them entirely, and that is what
+  // ended the arrangement. What made the split unnecessary is that no spec
+  // trusts what the one before it left: each ensures the base images it needs at
+  // the point of use (`server/test/support/base-images.ts`), so a prune landing
+  // mid-suite costs a local restore from the run's own registry and nothing
+  // else. The run is serial, so a prune can never reach a fixture still in use.
   projects: [
-    // The parallel body of the suite. Every fixture it creates is labelled and
-    // scoped to its own spec, so specs cannot disturb one another.
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
-      testIgnore: /exclusive\//,
-    },
-    // Specs whose action is global by nature (the daemon's prune removes every
-    // stopped container / dangling image on the host). They cannot be scoped, so
-    // they are scheduled apart: after the parallel project, serially within it.
-    {
-      name: 'exclusive',
-      use: { ...devices['Desktop Chrome'] },
-      testMatch: /exclusive\/.*\.spec\.ts/,
-      fullyParallel: false,
-      dependencies: ['chromium'],
     },
   ],
   webServer: {
     // The operator's own command, run as the operator runs it: build the client,
     // build the server, then serve both from the one process. The build belongs
-    // here and cannot move into `globalSetup` — Playwright starts the web server
-    // *before* that hook, so a build placed there would run against whatever
+    // here and nowhere else: Playwright starts the web server before any hook of
+    // the suite, so a build placed in one would run against whatever
     // `client/dist` already held.
     command: 'npm start -s',
     cwd: '..',

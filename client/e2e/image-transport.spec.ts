@@ -8,6 +8,9 @@ import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
 import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { chooseCardAction, containerCard, containerDetail } from './support/container-cards.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 // Every test in this file drives a real save/load or export/import round
 // trip against the daemon, so it runs one at a time.
@@ -16,8 +19,8 @@ test.describe.configure({ mode: 'serial' });
 /**
  * Creates (but never starts) a container from the suite's own single-file image.
  *
- * Ensured at the point of use, not once for the run: the exclusive project
- * prunes the host, so an image present at global setup may be gone by now.
+ * Ensured at the point of use, not once for the run: a prune spec in this suite
+ * prunes the host, so an image ensured earlier may be gone by now.
  * Locally built, so putting it back costs a second and no network.
  */
 async function createFromTinyImage(containerName: string): Promise<void> {

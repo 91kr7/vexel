@@ -196,13 +196,16 @@ function updateRequiresRecreate(update: ContainerConfigUpdate): boolean {
 
 /** The container's tabbed detail, drawn as the body of the dialog that carries it. */
 export function ContainerDetailPanel({ container, onContainerReplaced }: ContainerDetailPanelProps) {
-  const { inspect, loaded, error, refresh } = useContainerDetail(container.id);
+  const [activeTab, setActiveTab] = useState<ContainerDetailTab>(DETAIL_TABS[0].id);
+  // The two tabs the inspect data is drawn on, and the only ones its clock runs under
+  // (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-26).
+  const inspectShown = activeTab === 'config' || activeTab === 'inspect';
+  const { inspect, loaded, error, refresh } = useContainerDetail(container.id, { shown: inspectShown });
   const { confirm } = useConfirmation();
   const { push } = useToast();
   const { run } = useProgress();
   const { reportError } = useErrorReporter();
 
-  const [activeTab, setActiveTab] = useState<ContainerDetailTab>(DETAIL_TABS[0].id);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<ConfigFormState | null>(null);

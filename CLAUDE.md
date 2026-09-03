@@ -168,10 +168,23 @@ This application is tested against a real Docker daemon — the operator's own, 
 work runs on. That makes two habits harmful here that would be merely untidy elsewhere: leaving
 objects behind, and reading state somebody else created.
 
-### What a test creates, it destroys
+### What a test creates, it destroys — within its own file
 
 - Every fixture — container, volume, network, built image, tag — is removed by the test that made
-  it, in a `finally` (or `afterAll`) so a failure cleans up as thoroughly as a pass.
+  it, in a `finally`, so a failure cleans up as thoroughly as a pass. That `finally` is what keeps
+  the **next test of the same file** from seeing it: the daemon reset runs once per file, never
+  between two tests of one.
+- **A file does not clean up after itself at the end.** An `afterAll` that removed containers,
+  images, volumes, networks, plugins, build cache or contexts was deleting what the next file's
+  reset deletes anyway, and one deletion is enough — the redundancy read as a second, weaker rule
+  about who owns the daemon. What an `afterAll` may still hold is what the reset **cannot** reach,
+  because none of it is Docker: a fixture server running inside the test process (`fixture.stop()`),
+  a temporary directory, an environment variable or a patched prototype, and the operator's **active
+  context**, which a test that switched it must switch back — removing a context is the reset's job,
+  choosing one is not.
+- The two ends of a run are the price of that, and both are paid: the **last file** of a pass has no
+  successor to clean up after it, and an **interrupted run** has none either. `npm run test:sweep -w
+  server` removes every labelled leftover, and a whole pass ends on it.
 - Remove containers with `docker rm -fv`, never `docker rm -f`. Docker attaches an anonymous volume
   to every `VOLUME` an image declares, and without `-v` that volume outlives the container carrying
   no label of ours — invisible to any later cleanup. This one missing letter had accumulated
@@ -187,9 +200,11 @@ objects behind, and reading state somebody else created.
 
 ### A test establishes its own starting state
 
-- **Never assume an empty daemon.** The operator has their own containers, images and volumes, and
-  they must neither break a test nor be touched by one. Assert on the fixtures you created — "the
-  container I made is listed, with these values" — never on totals, counts or a list being empty.
+- **Never assume an empty daemon.** Assert on the fixtures you created — "the container I made is
+  listed, with these values" — never on totals, counts or a list being empty. An end-to-end file now
+  does start from an empty one, and that changes nothing here: a count is a fact about the whole
+  host, and the reset below is a starting state, not a licence to assert on one. The server suite
+  resets nothing at all, and the operator's own objects are still no business of any assertion.
 - **Never inherit state from another test**, and that includes the application's own: the last
   active screen and the analysis cache survive by design (REQ-113, REQ-115), so a spec that needs a
   particular screen pins it (`openApp`) rather than trusting whichever one the previous spec left.
@@ -209,8 +224,8 @@ objects behind, and reading state somebody else created.
   (`filesystem-browser.spec.ts`, "reuses the cached extraction the next time the image is browsed")
   and owns it for its own duration. It lives where no new file can forget it —
   `client/e2e/support/test.ts` (an automatic Playwright fixture, which is why specs import `test`
-  from there and not from `@playwright/test`) and `server/test/support/fresh-data-dir.ts`
-  (preloaded with `--import` by the daemon-backed passes).
+  from there and not from `@playwright/test`) and `server/test/support/api-lifecycle.ts`
+  (preloaded with `--import` by the server's daemon-backed pass).
 
   Two mechanisms, because the two halves are not equivalent. The analysis cache is emptied through
   the store's own `clear()` — or, in e2e, through `POST /api/persistence/analysis-cache/clear`,
@@ -229,11 +244,90 @@ objects behind, and reading state somebody else created.
 
   This does **not** excuse a test from the rule above: state written by other work finishing
   *during the same test's window* is still shared, and no assertion may require it to be empty.
-- **Every spec must pass on its own.** Running one file is what development actually looks like. A
-  fixed order is legitimate for sharing expensive setup — `client/e2e/support/global-setup.ts`
-  prepares the base images once — but never for passing state from one test to the next.
-- Destructive-by-nature tests (`prune` acts on the whole host) cannot be scoped, so they live apart:
-  `server/test/exclusive/` and `client/e2e/exclusive/`, scheduled after everything else.
+- **Every spec must pass on its own.** Running one file is what development actually looks like,
+  and the end-to-end suite has no preparation step ahead of the first file for it to miss: what a
+  `globalSetup` used to arrange, every file now arranges for itself (below). A fixed order may still
+  share expensive setup, but never pass state from one test to the next.
+- Destructive-by-nature tests (`prune` acts on the whole host) cannot be scoped, and they used to be
+  kept apart for it — `server/test/exclusive/` and `client/e2e/exclusive/`, scheduled after
+  everything else. **They now run beside every other file**, in `server/test/api/` and `client/e2e/`.
+  What ended the split is that its cost was real and its benefit had lapsed: the Playwright project
+  declared the parallel one as a dependency, so a red anywhere in the suite skipped every destructive
+  spec silently — which is exactly what happened, eight specs unrun behind one unrelated failure.
+  The benefit had lapsed because **no file trusts what the one before it left**: each ensures the
+  base images it needs at the point of use (`server/test/support/base-images.ts`), so a prune landing
+  mid-pass costs a local restore from the run's own registry and nothing else, and both passes are
+  serial, so a prune can never reach a fixture still in use. What was lost is the ability to run the
+  suite without pruning the host, and nothing gives it back any more: **every test file of both
+  daemon-backed trees now empties the host before it runs** (see below), so "destructive" describes
+  the whole suite and no longer distinguishes anything. A command that ran the destructive files
+  alone existed for a while and was removed with the distinction it named.
+
+### Every daemon-backed test file resets the daemon before it runs
+
+That is both trees — `client/e2e/*.spec.ts` and `server/test/api/*.test.ts` — and they are wired
+differently, because they run differently:
+
+- **End-to-end.** One Playwright worker serves every spec, so the reset is registered per file:
+  each spec opens with `cleanDaemonBeforeAll()`, from `client/e2e/support/lifecycle.ts`, which
+  registers the file's first `beforeAll`.
+- **Server api.** `node --test` gives every file a process of its own, so the reset is a **preload**
+  — `--import ./test/support/api-lifecycle.ts` — and no file has to remember anything. It sits at
+  that module's **top level, not in a `before()` hook**, and that is not a style choice: a root
+  `before()` starts ahead of the test file's module scope but does not block it (measured), and
+  thirty-two files under `test/api/` ensure their images with a top-level `await ensureImages(…)`.
+  A hook would be pruning images while the file was preparing them. A preload's top-level await
+  does block the entry module.
+- **The unit trees reset nothing**, and must not: `server/test/unit` and `client/test/unit` mock
+  `execFileAsync` and never reach a daemon, so a reset there would be cost with no subject.
+
+What the reset does is the same for both, and it is one function: it **empties Docker except the
+run's own registry** — that container, the volume holding what has been pushed into it, and the
+`registry:2` image it runs from, which survives every prune by being in use. Containers, images,
+volumes, networks, build cache, build records, plugins and every builder that is not the daemon's
+own: gone. The work itself is `server/test/support/lifecycle.ts`, runnable by hand as
+`npm run test:reset-daemon -w server`.
+
+Why a whole file's worth of ceremony: both passes are serial and every file drives the same daemon,
+so a file used to inherit whatever the one before it left standing — a container that outlived a failed
+assertion, an image a build produced, a network nobody removed. That is invisible from the file that
+then fails, and it fails differently depending on which files ran first, which is what a flake is.
+The order inside the reset is load-bearing and written down where it happens; the one thing to know
+from here is that the registry container is spared, because it is what keeps `registry:2` in use,
+and `registry:2` is the one image that cannot be restored from the registry.
+
+**This empties the machine it runs on, and is deliberately not scoped to the suite's own objects.**
+The operator's containers, images, volumes, networks, builders and plugins go with the suite's,
+named volumes included — a volume holding data nobody can rebuild is removed like any other. It is
+the single place in this repository where that is allowed, it is a decision about a development
+machine, and **no fixture may ever do it on its own**: the rules above still bind every test.
+
+**Swarm** is the one thing not emptied, and that is not an oversight: it left the product on
+2026-08-27, and no check of this project ever initialises one. Docker **contexts** go with the rest,
+bar the two Docker will not part with: the one in use, since removing it would take away how this
+machine reaches its daemon, and `default`, which cannot be removed at all.
+
+The last step of the reset puts the base images back, **and it puts them back by pulling them out of
+the run's own registry** — which is the point of having one. A spec writes `alpine:3.20`, a Docker
+Hub name, and the daemon runs no registry mirror, so nothing would send that reference to localhost
+on its own; `ensureImage` is what does, pulling `localhost:<port>/alpine:3.20` and re-tagging it
+under the name the spec wrote. The re-tag is not cosmetic: specs assert on that string.
+
+So the daemon, after a reset, holds what the registry put back plus the one image the suite builds,
+and nothing else. **Every image a test fetches comes from that registry** — bar two.
+`vexel-test-tiny:1` is fetched from nowhere at all: it is built `FROM scratch` by each file that
+needs it and published nowhere, so nothing pulls it and nothing has to. `registry:2` cannot come from
+the registry, because the registry is started from it.
+
+What it costs: a prune and a restore per file, on a daemon that is almost empty by the second file.
+What it buys back: a file that fails now fails for its own reason.
+
+**A new spec file is not exempt**, and forgetting the line is not a matter of memory:
+`scripts/check-clean-daemon-conformance.mjs` — run by the repository-root `npm run lint` and
+`npm run test`, as `lint:clean-daemon` — fails on a spec file that does not call it, and on one
+that registers a `test` hook ahead of it, since hooks run in registration order and a hook
+registered first would build its fixtures on a daemon the reset then prunes. There is no exception
+marker.
 
 ### No test reaches Docker Hub
 
@@ -244,18 +338,27 @@ not hypothetical here: `filesystem-browser`, `layer-build-cache`, `images` and `
 have each been lost to `production.cloudfront.docker.com … EOF` while pulling a base image, and each
 of them passed on its own minutes later.
 
-So the network work is a **preliminary step with a command of its own**, never something a test
-arranges for itself:
+The half of the rule that holds without exception is the **restore**: a base image that goes missing
+in the middle of a run — a prune spec prunes the host — comes back from the run's own registry and
+never from the network.
 
-- `npm run test:images -w server` puts on the daemon what has to be there. The only step of a run
-  allowed to reach Docker Hub, and only for what is genuinely not there yet.
+**Seeding** that registry is the other half, and it is the one step that can reach Docker Hub: on a
+machine holding none of the base images it fetches them, once, in order to mirror them. It is no
+longer something only an operator triggers — every reset opens on it, so on a cold machine the run's
+very first reset goes to the network and no later one does. The two commands below stay, for paying
+that once ahead of a run instead of inside it:
+
+- `npm run test:images -w server` puts on the daemon what has to be there, reaching Docker Hub only
+  for what is genuinely not there yet.
 - `npm run test:registry -w server` brings up the run's own `registry:2` — one container per
   machine, under a fixed name, carrying the ownership labels — and seeds it with every image the
-  tests pull (`docker tag` + `docker push` from the daemon's own copy, no network at all), builds
-  the single-layer image and publishes the copy of it the "missing locally" tests fetch.
-- Both are chained, in that order, by `test:api` and `test:exclusive`, and
-  `client/e2e/support/global-setup.ts` runs **those same two commands** rather than a second
-  implementation of them. By the time the first test file loads, everything is in place.
+  tests pull (`docker tag` + `docker push` from the daemon's own copy once the image is there), then
+  builds and publishes the separate single-layer image the "missing locally" tests fetch.
+- **Neither pass runs them any more**, and they are kept as commands an operator types. Both passes
+  reset the daemon before every file (above), and that reset reaches these same functions directly,
+  so by the time a file's first test runs everything is in place for **that file** rather than for
+  whichever file happened to run first. A preparation step ahead of a pass could only have described
+  a state no file was entitled to assume by the second one.
 - One definition behind them, `server/test/support/base-images.ts`, serving both test trees.
   `ensureImage`/`ensureImages` is how a test file asks for the same guarantee, and every step is
   idempotent — an already-prepared registry is the normal case, not an error — so **running one spec
@@ -267,14 +370,14 @@ arranges for itself:
 Where each image comes from:
 
 - **`alpine:3.20`** — a container that simply stays up; it declares no `VOLUME`, so it cannot orphan
-  one. Mirrored into the run's registry at the preliminary step, from the daemon's own copy when it
-  has one (`docker tag` + `docker push`, no network at all). Whenever it goes missing mid-run — the
-  exclusive passes prune the host — it is restored from there.
+  one. Mirrored into the run's registry when it is seeded, from the daemon's own copy when it has
+  one (`docker tag` + `docker push`, no network at all). Whenever it goes missing mid-run — a
+  prune spec prunes the host — it is restored from there.
 - **`vexel-test-tiny:1`** — the single-layer image a fixture is made from whenever all it needs is
   something a container can instantly be created out of. **Built** by the suite, `FROM scratch`, with
   one file of known content and a `CMD` (without one, `docker create` refuses it). Nothing is fetched
-  at all. It replaced `hello-world`, which had to be pulled and, after a system prune, often failed
-  to be.
+  at all, and nothing is published either: no file pulls it. It replaced `hello-world`, which had to
+  be pulled and, after a system prune, often failed to be.
 - **`registry:2`** — the multi-layer, registry-pulled image the layer analyses need, and **the one
   irreducible exception**: it is the image the run's own registry is started from, so it cannot come
   out of it. It must be on the daemon, pulled from Docker Hub if it is not.

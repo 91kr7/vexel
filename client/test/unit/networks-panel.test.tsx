@@ -1,12 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act } from 'react';
+import { FakeEventSource, deliverValue } from '../support/live-channel';
 import userEvent from '@testing-library/user-event';
-import { NetworksPanel } from '../../src/volumes-networks/NetworksPanel';
 import type { NetworkSummary } from '../../src/data/networks-client';
+import type { UseNetworksResult } from '../../src/data/use-networks';
 import { ConfirmationProvider } from '../../src/shell/services/ConfirmationService';
 import { ErrorReportingProvider, useErrorReporter } from '../../src/shell/services/ErrorReportingService';
 import { ProgressProvider } from '../../src/shell/services/ProgressService';
 import { ToastProvider } from '../../src/ui';
+
+// The panel reads the network listing itself since
+// plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-40, so `renderPanel`
+// supplies the reading and its re-read where the props used to be; every case below drives the
+// panel exactly as it did. That the panel mounts the hook at all, and where, is
+// `volume-network-listings-screen-scoped.test.tsx`.
+let networksReading: UseNetworksResult = { networks: [], loaded: true, refresh: () => undefined };
+vi.mock('../../src/data/use-networks', () => ({ useNetworks: (): UseNetworksResult => networksReading }));
+
+const { NetworksPanel } = await import('../../src/volumes-networks/NetworksPanel');
 
 function makeNetwork(overrides: Partial<NetworkSummary> = {}): NetworkSummary {
   return {
@@ -39,12 +51,13 @@ function ReportedErrors() {
 }
 
 function renderPanel(networks: NetworkSummary[], onRefresh = vi.fn()) {
+  networksReading = { networks, loaded: true, refresh: onRefresh };
   render(
     <ErrorReportingProvider>
       <ProgressProvider>
         <ConfirmationProvider>
           <ToastProvider>
-            <NetworksPanel networks={networks} loaded onRefresh={onRefresh} />
+            <NetworksPanel />
             <ReportedErrors />
           </ToastProvider>
         </ConfirmationProvider>
@@ -97,27 +110,10 @@ function namesShadowingEachOther(names: string[]): string[] {
   );
 }
 
-// The row content (attached-container chips) and the inline inspect surface's
-// useNetworkInspect/useContainers subscribe to daemon events through a
-// module-level EventSource, which jsdom does not provide.
-class FakeEventSource {
-  onmessage: ((event: { data: string }) => void) | null = null;
-  closed = false;
-
-  url: string;
-
-  constructor(url: string) {
-    this.url = url;
-  }
-
-  addEventListener() {
-    // no event delivery is needed for these tests
-  }
-
-  close() {
-    this.closed = true;
-  }
-}
+// The panel's container choices arrive on the live channel, which the client
+// holds through a module-level EventSource jsdom does not provide. The instances
+// are deliberately not cleared between tests: the channel client opens one for
+// the module's lifetime, so the file's first render is what opens it.
 
 let fetchMock: ReturnType<typeof vi.fn>;
 let inspectedNetwork: NetworkSummary;
@@ -310,6 +306,9 @@ describe('NetworksPanel — where the actions live (plan-ui-coherence-optimisati
   it('attaches a chosen container from the row\'s cluster, with no confirmation, and re-reads the list', async () => {
     const user = userEvent.setup();
     const { onRefresh } = renderPanel([makeNetwork({ id: 'net-app', name: 'app-net' })]);
+    // The container list arrives on the live channel now, never from a request of
+    // the panel's own (…-multiplexed_sse/REQ-8, REQ-39).
+    act(() => deliverValue('containers', [{ id: 'app-1', name: 'app-1', state: 'running' }, { id: 'app-2', name: 'app-2', state: 'running' }]));
 
     await user.click(within(listRows()[0]!).getByRole('button', { name: 'Attach…' }));
 

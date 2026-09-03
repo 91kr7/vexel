@@ -1,7 +1,9 @@
 /**
  * **The sampling gate, driven through the interface**
  * (`plan-docker_management_app-containers_card_view/REQ-42`, `REQ-43`, `REQ-45`, `REQ-47`,
- * `REQ-48`, `REQ-51`, `REQ-54`, `REQ-55`).
+ * `REQ-48`, `REQ-51`, `REQ-54`, `REQ-55`;
+ * `plan-docker_management_app-containers_card_view-stats_gate_websocket/REQ-12`, `REQ-13`,
+ * `REQ-18`, `REQ-21`).
  *
  * **What this file can and cannot see, stated once.** The requirement F2 is written as *traffic
  * reaching the daemon*, and a browser cannot count that: the count of stats requests leaving for
@@ -11,7 +13,7 @@
  * exactly that, with two observables and no third:
  *
  * - **the subscription connection itself** — the requirement's own mechanism ("a consumer proves it
- *   exists by holding a connection"), recorded by wrapping the browser's `EventSource` before the
+ *   exists by holding a connection"), recorded by wrapping the browser's `WebSocket` before the
  *   application loads. It is an instrument over a standard browser API, not a surface added to the
  *   product for a test's benefit;
  * - **the figures on the card** — which, past the staleness bound, state *no sample* rather than
@@ -29,6 +31,9 @@ import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { clickAt } from './support/pointer.js';
 import { closeContainerDetail, containerCard, containerCards, containerDetail, openContainerDetail } from './support/container-cards.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /** The staleness bound is three intervals; past it a figure reaches no consumer. */
 const STALENESS_BOUND_MS = 30_000;
@@ -36,11 +41,11 @@ const STALENESS_BOUND_MS = 30_000;
 const PAST_STALENESS_MS = 36_000;
 /**
  * What "promptly" is allowed to cost: the immediate sample the gate takes on opening, plus the
- * list poll that carries it to the screen. Below one sampling interval on purpose — a figure that
- * only appeared after ten seconds would mean no prompt sample was taken.
+ * listing the server pushes to carry it to the screen. Below one sampling interval on purpose — a
+ * figure that only appeared after ten seconds would mean no prompt sample was taken.
  */
 const PROMPT_MS = 8_000;
-/** One sampling interval and one list poll: what a figure may cost when the gate was already open. */
+/** One sampling interval and the push carrying it: what a figure may cost when the gate was already open. */
 const ONE_INTERVAL_MS = 16_000;
 
 interface SubscriptionLog {
@@ -50,37 +55,57 @@ interface SubscriptionLog {
 
 /**
  * Records the subscription connections the page opens and closes, before the application loads.
- * The daemon event stream uses `EventSource` too, so the URL is the filter.
+ * The interactive sessions use `WebSocket` too, so the URL is the filter, and a connection counts as
+ * ended whoever ended it — which is what makes a drop observable here. The live ones are kept so
+ * that a check can end one from outside the application.
  */
 async function recordSubscriptions(page: Page): Promise<void> {
   await page.addInitScript(() => {
-    const NativeEventSource = window.EventSource;
+    const NativeWebSocket = window.WebSocket;
     const log = { opened: 0, closed: 0 };
     (window as unknown as { __statsSubscriptions: typeof log }).__statsSubscriptions = log;
+    const live: WebSocket[] = [];
+    (window as unknown as { __liveStatsSubscriptions: WebSocket[] }).__liveStatsSubscriptions = live;
 
-    class RecordedEventSource extends NativeEventSource {
+    class RecordedWebSocket extends NativeWebSocket {
       private isSubscription = false;
-      private alreadyClosed = false;
+      private alreadyEnded = false;
 
-      constructor(url: string | URL, init?: EventSourceInit) {
-        super(url, init);
+      constructor(url: string | URL, protocols?: string | string[]) {
+        super(url, protocols);
         if (String(url).includes('/api/containers/stats/subscription')) {
           this.isSubscription = true;
           log.opened += 1;
+          live.push(this);
+          this.addEventListener('close', () => this.recordEnd());
         }
       }
 
-      override close(): void {
-        if (this.isSubscription && !this.alreadyClosed) {
-          this.alreadyClosed = true;
-          log.closed += 1;
-        }
-        super.close();
+      override close(code?: number, reason?: string): void {
+        this.recordEnd();
+        super.close(code, reason);
+      }
+
+      private recordEnd(): void {
+        if (!this.isSubscription || this.alreadyEnded) return;
+        this.alreadyEnded = true;
+        log.closed += 1;
       }
     }
 
-    window.EventSource = RecordedEventSource as unknown as typeof EventSource;
+    window.WebSocket = RecordedWebSocket as unknown as typeof WebSocket;
   });
+}
+
+/** Ends the connection the page is holding, without the application asking for it: a drop. */
+async function dropHeldSubscription(page: Page): Promise<void> {
+  const dropped = await page.evaluate(() => {
+    const live = (window as unknown as { __liveStatsSubscriptions?: WebSocket[] }).__liveStatsSubscriptions ?? [];
+    const open = live.filter((socket) => socket.readyState === WebSocket.OPEN);
+    for (const socket of open) socket.close();
+    return open.length;
+  });
+  expect(dropped, 'there was no open subscription to drop').toBeGreaterThan(0);
 }
 
 async function subscriptionLog(page: Page): Promise<SubscriptionLog> {
@@ -370,9 +395,11 @@ test('repeated section changes and a reload leave exactly one subscription held'
   }
 });
 
-// REQ-55 — the list poll keeps its delivered cadence: a container started outside the product still
-// appears without a manual refresh, within the window it appeared in before this change.
-test('a container started outside the product still appears within the list poll window', async ({ page }) => {
+// REQ-55 — the listing keeps reaching the screen on its own: a container started outside the
+// product still appears without a manual refresh, within the window it appeared in before this
+// change. It arrives on the live channel now, in the same budget the poll used to be given
+// (…-multiplexed_sse/REQ-36).
+test('a container started outside the product still appears without a manual refresh', async ({ page }) => {
   const stem = fixtureName('poll');
   const first = `${stem}-a`;
   const second = `${stem}-b`;
@@ -386,7 +413,7 @@ test('a container started outside the product still appears within the list poll
 
     await createWorkingContainer(second);
 
-    await expect(containerCard(page, second), 'the new container did not appear within the poll window').toBeVisible({
+    await expect(containerCard(page, second), 'the new container did not reach the screen on its own').toBeVisible({
       timeout: PROMPT_MS,
     });
   } finally {
@@ -421,6 +448,45 @@ test('the dashboard holds a subscription of its own and keeps its CPU reading ac
     await expectHeld(page, 1, 'returning to the dashboard re-opens one subscription');
 
     await expectACpuReading(page, name);
+  } finally {
+    await removeContainerQuietly(name);
+  }
+});
+
+// stats_gate_websocket/REQ-12, REQ-18, REQ-21 — a connection the screen did not ask to lose is
+// re-established on its own: past the staleness bound the card would read *no sample* if it were not.
+test('a dropped connection is re-established on its own and the figures keep being measured', async ({ page }) => {
+  // Waiting the staleness bound out on the re-established connection is the assertion itself.
+  test.setTimeout(120_000);
+  const name = fixtureName('drop');
+  try {
+    await createWorkingContainer(name);
+    await recordSubscriptions(page);
+    await openContainersNarrowedTo(page, name);
+    await expectHeld(page, 1, 'the containers screen holds one subscription');
+    await expectAMeasuredFigure(page, name, ONE_INTERVAL_MS);
+    const { opened: openedBeforeDrop } = await subscriptionLog(page);
+
+    await dropHeldSubscription(page);
+
+    // Nothing is pressed and no screen changes between here and the end of this test.
+    await expectHeld(page, 1, 'the dropped connection was never re-established');
+    const { opened: openedAfterDrop } = await subscriptionLog(page);
+    expect(openedAfterDrop, 'the screen was handed back the connection it already had').toBe(openedBeforeDrop + 1);
+
+    // REQ-18 — the drop was shorter than the staleness bound, so it left no trace on the card.
+    await expect(containerCard(page, name), 'a drop the operator never saw blanked the card').not.toContainText(
+      'no sample',
+      { timeout: 2_000 },
+    );
+
+    // Past the bound: every figure standing now was measured after the drop.
+    await page.waitForTimeout(PAST_STALENESS_MS);
+    await expectHeld(page, 1, 'the re-established connection did not stay held');
+    await expect(
+      containerCard(page, name),
+      'the sampling never resumed on the re-established connection',
+    ).not.toContainText('no sample', { timeout: 5_000 });
   } finally {
     await removeContainerQuietly(name);
   }

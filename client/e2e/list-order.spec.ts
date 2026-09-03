@@ -7,6 +7,9 @@ import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { containerCards, containerDetail, detailName, openContainerDetail } from './support/container-cards.js';
 import { refreshThroughTheControl } from './support/refresh-control.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /**
  * The order every list service now decides survives to the screen
@@ -43,8 +46,8 @@ import { refreshThroughTheControl } from './support/refresh-control.js';
  * the same comparison and is separated by the same exact one.
  *
  * Nothing here activates a context or a builder: switching either changes the
- * daemon the whole run talks to, which is why the suite keeps those in
- * `e2e/exclusive/`. This spec is not exclusive and must not need to be.
+ * daemon the whole run talks to, which is why only the specs that own that
+ * change do it. This spec is not one of them and must not need to be.
  */
 
 const RUN_ID = `${process.pid}-${Date.now()}`;
@@ -365,13 +368,6 @@ test.describe('Volumes and networks', () => {
 test.describe('Contexts', () => {
   // A Docker context carries no label, so a name prefix is the only handle there is — and a spec
   // killed by its own timeout never reaches its `finally`, which is exactly when a leftover appears.
-  test.afterAll(async () => {
-    const { stdout } = await execFileAsync('docker', ['context', 'ls', '--format', '{{.Name}}']).catch(() => ({ stdout: '' }));
-    for (const name of stdout.split('\n').filter((entry) => entry.startsWith('vexel-e2e-order-contexts-'))) {
-      await execFileAsync('docker', ['context', 'rm', '-f', name]).catch(() => undefined);
-    }
-  });
-
   test.beforeEach(async ({ page }) => {
     await openApp(page, 'contexts');
     await expect(screenContent(page).getByRole('heading', { level: 2, name: 'Docker contexts' })).toBeVisible();

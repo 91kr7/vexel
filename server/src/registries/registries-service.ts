@@ -1,19 +1,15 @@
-// Registry inventory and authentication (REQ-85, REQ-87): which registries the
-// local Docker installation is configured for, which credential store backs
-// each of them, whether the session is authenticated and under which account —
-// plus log in and log out, both delegated to the `docker` CLI so the secret
-// goes straight to the host's credential store.
+// Registry inventory and authentication (REQ-85, REQ-87): the configured
+// registries, plus log in and log out delegated to the `docker` CLI.
 //
-// The application never reads a secret back. The account name is resolved from the
-// credential helper's `list` verb, which answers with server URL → username and
-// carries no secret at all — deliberately, rather than the helper's `get`,
-// which would hand this process the password it must never hold (REQ-87).
+// The account name comes from the credential helper's `list` verb, never its
+// `get`, which would hand this process the password it must never hold (REQ-87).
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { getEngineClient } from "../docker/engine-client.js";
 import { DockerDaemonError } from "../docker/errors.js";
 import { byNameThenIdentity } from "../list-order/list-order.js";
+import { registerRefreshKind } from "../refresh-cache/refresh-cache.js";
 import { runCapture } from "./registry-cli.js";
 
 /** Docker's own name for the default index, as it keys it in `config.json`. */
@@ -156,6 +152,18 @@ export async function listRegistries(): Promise<RegistrySummary[]> {
   );
 }
 
+/**
+ * The inventory as the refresh cache keeps it. No event type: the daemon
+ * publishes none for the Docker configuration or the credential store, where
+ * most of this reading lives; log in and log out say so themselves.
+ */
+export const registryListCache = registerRefreshKind({
+  key: "registries",
+  periodMs: 30000,
+  read: listRegistries,
+});
+
+/** A direct read, never the held value: it is what a log in and a log out answer with. */
 export async function getRegistry(host: string): Promise<RegistrySummary> {
   const normalized = normalizeRegistryHost(host);
   const found = (await listRegistries()).find((registry) => registry.host === normalized);
@@ -185,6 +193,7 @@ export async function loginToRegistry(input: RegistryLoginInput): Promise<Regist
     stdin: input.secret,
     redact: [input.secret],
   });
+  registryListCache.markChanged();
   return getRegistry(host);
 }
 
@@ -192,6 +201,7 @@ export async function loginToRegistry(input: RegistryLoginInput): Promise<Regist
 export async function logoutFromRegistry(host: string): Promise<RegistrySummary> {
   const normalized = assertUsableHost(host);
   await runCapture("docker", ["logout", normalized]);
+  registryListCache.markChanged();
   return getRegistry(normalized);
 }
 

@@ -20,6 +20,9 @@
 import { expect, test, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
 import { boxOf } from './support/settled.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /** The screen's internal id, which the rename to "About" deliberately left alone. */
 const ABOUT_SCREEN_ID = 'coverage-matrix';

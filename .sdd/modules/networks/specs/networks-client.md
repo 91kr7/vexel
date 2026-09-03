@@ -10,7 +10,6 @@ type: frontend data client
 
 ## Contract
 
-- `fetchNetworks(): Promise<NetworkSummary[]>` — `GET /api/networks`.
 - `fetchNetworkInspect(id): Promise<NetworkInspect>` — `GET /api/networks/:id/inspect`.
 - `createNetwork(input): Promise<NetworkSummary>` — `POST /api/networks`.
 - `removeNetwork(id): Promise<void>` — `DELETE /api/networks/:id`.

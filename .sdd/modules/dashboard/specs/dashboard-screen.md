@@ -79,8 +79,16 @@ Navigation:
 
 ## Rules and invariants
 
-- Every tile figure and the disk-usage breakdown come from one server-side reading, so no two of
-  them can describe different moments or disagree with the screen the operator lands on.
+- Every tile figure and the disk-usage breakdown come from one server-side payload, so none of them
+  can disagree with the screen the operator lands on. **A count and a size in that payload may
+  describe different moments**: the counts follow the listings the server holds, the sizes its
+  five-minute disk accounting, so the images tile can show a new count beside an unchanged size until
+  the operator refreshes.
+- **The figures re-read on a clock of 3 s while the screen is open**, the same one the container
+  activity beneath them runs on, and they change in place: nothing on the screen indicates the clock,
+  names a last-updated moment or offers a control over it
+  (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-16,
+  plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-20).
 - The container activity is the shell's own container list, not a second reading: it is already
   refreshed live, and a dashboard that read its own would show a different count from the tile
   beside it.
@@ -131,3 +139,5 @@ Navigation:
 - plan-ui-coherence-optimisation/REQ-69
 - plan-docker_management_app-containers_card_view/REQ-45
 - plan-docker_management_app-containers_card_view/REQ-52
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-16
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-20

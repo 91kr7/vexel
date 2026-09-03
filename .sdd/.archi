@@ -142,93 +142,146 @@ Run from the repository root (npm workspaces):
 - Low-verbosity variants (what the agents use): prefix with `-s` to silence npm's own script echo —
   `npm run build -s`, `npm start -s`, `npm run test -s`. `tsc` and `vite build` are already quiet on
   success; the test scripts already pin dot reporters.
-- Lint client: `npm run lint` (`oxlint`, low-verbosity by default)
-- Server tests: `npm run test -w server` — chains the four passes below, in this order:
+- Lint: `npm run lint` from the repository root — the two checks that span both trees
+  (`lint:swarm-absence`, `lint:clean-daemon`), then the client's own (`oxlint`, the UI-boundary and
+  check-budget guards), all low-verbosity by default.
+- Server tests: `npm run test -w server` — chains the passes below, in this order:
   - `npm run test:typecheck -w server` — typechecks the test tree (`tsc -p tsconfig.test.json`,
     `noEmit`, same strictness as the build). `tsconfig.json` includes `src` alone so the production
     build stays free of test files, and `tsx` strips types without checking them: without this pass
     a test file could drift from the modules it imports — a wrong import path, a renamed export, a
     stale response shape — and nothing would say so, since the tests still run. Runs first, before
     any daemon work, so that kind of drift fails in seconds.
-  - `npm run test:unit -w server` — pure unit tests, no daemon involved
-  - `npm run test:api -w server` — REST-level tests against the real daemon, files in parallel;
-    every fixture it creates carries the `vexel.test.run` ownership label
-  - `npm run test:exclusive -w server` — the prune tests, alone and serial: the daemon's prune acts
-    on every stopped container / dangling image on the host, so no labelling can scope them
-  - `npm run test:sweep -w server` — removes the containers, volumes, networks and images left
-    behind by a killed run; scoped to the ownership label, so it never touches an object the
-    operator created. Runs automatically before the two daemon-backed passes.
-  - `npm run test:images -w server` — the first of the two preliminary steps of a daemon-backed
-    pass: puts on the daemon what has to be on the daemon. The only step of a run allowed to reach
-    Docker Hub, and only for what is genuinely not there yet. Runs automatically before the two
-    daemon-backed passes.
-  - `npm run test:registry -w server` — the second, and the reason no test ever reaches Docker Hub:
-    it brings up the run's own throwaway `registry:2` and seeds it with every image the tests pull.
-    A registry exposed on the internet occasionally does not answer, and this suite has lost whole
-    specs to exactly that; a refusal at a preliminary step stops a run before it starts, which says
-    what it is, while the same refusal inside a test says nothing about the product. `alpine:3.20`
-    and `moby/buildkit:buildx-stable-1` are seeded from the daemon's own copy (a tag and a push, no
-    network at all) and restored from there whenever a prune removes them; `vexel-test-tiny:1`, the
-    single-layer image, is built `FROM scratch` and fetched from nowhere, and a copy of it is
-    published for the tests that contract "a reference missing locally is fetched first";
-    `registry:2` is the one irreducible exception, since it is what the registry itself is run from,
-    so it comes from Hub if the daemon does not hold it. The container is named once per machine and
-    carries the ownership label, so `test:sweep` removes it — and with it anything the daemon pulled
-    out of it — after a killed run. Every step is idempotent: an already-prepared registry is the
-    normal case, so a single test file run directly gets the same arrangement rather than a second
-    one. The two pulled images are shared infrastructure — no ownership label, and the sweep leaves
-    them alone. One definition, `server/test/support/base-images.ts`, and the e2e suite runs these
-    two commands themselves from its global setup rather than reimplementing them.
-  - Both daemon-backed passes run against their own `VEXEL_DATA_DIR` under the system temp
-    directory, so the operator's `~/.vexel` preferences and analysis cache are never written to.
-    That directory is **emptied before every single test** — all of it, not one namespace: the
-    preferences, the console history, the analysis cache and its index. A `beforeEach` the passes
-    preload with `--import ./test/support/fresh-data-dir.ts`, so no test file can forget it. Not
-    tidiness: `persistence-routes.test.ts` asked for the default preferences and was handed a
-    `selectedContext` another test had set, and the analysis cache — keyed by content digest, never
-    evicting (REQ-113) — hands the second test to analyse the same content the first one's result
-    and skips the extraction it exists to drive, a test that has stopped testing anything and passes
-    while doing so. The cache goes through the store's own `clear()`; the other namespaces have no
-    such API and their files are removed, which `local-store.ts` reads correctly by design (per-call
-    read, fallback to defaults). The directory itself is never removed — the store resolves it once,
-    at import. `test:reset-data-dir` remains the way to empty it by hand.
+  - `npm run lint:list-order -w server` — the ordering guard over `server/src/`.
+  - `npm run test:unit -w server` — pure unit tests, no daemon involved. It resets nothing and must
+    not: those tests mock the Docker call and never reach a daemon, so a reset there would be cost
+    with no subject. The client's unit tree is the same case.
+  - `npm run test:api -w server` — REST-level tests against the real daemon, **one file at a time**
+    (`--test-concurrency=1`): every file drives the same daemon, so files in parallel turn contention
+    into failures that say nothing about the product. The files that prune the whole host run in here
+    beside every other one — no separate directory, no separate command, no separate pass. Every
+    fixture carries the `vexel.test.run` ownership label.
+  - `npm run test:sweep -w server` — **closes** the pass rather than opening it: it removes the
+    containers, volumes, networks and images a killed run left behind and stops the run's registry,
+    which the per-file resets deliberately keep up. Scoped to the ownership label, so it never
+    touches an object the operator created.
+- **Every daemon-backed test file empties Docker before it runs** — both trees,
+  `server/test/api/*.test.ts` and `client/e2e/*.spec.ts`. The work is one function, `resetDaemon` in
+  `server/test/support/lifecycle.ts`, and `npm run test:reset-daemon -w server` runs it by hand.
+  - It removes containers, images, volumes (the named ones included), networks, build cache, build
+    records, plugins, every builder that is not the daemon's own, and every context that is neither
+    `default` nor the one in use. **It empties the machine it runs on and is deliberately not scoped
+    to the suite's own objects**: the operator's containers, images, volumes, networks, builders and
+    plugins go with the suite's. That is the opposite bargain from `test:sweep`, it is a decision
+    about a development machine, and it is the one place in this repository allowed to make it — no
+    fixture may ever do it on its own.
+  - Three things survive every reset, each because it is in use: the run's own registry container,
+    the volume holding what has been pushed into it, and the `registry:2` image the registry runs
+    from — the one image that cannot be restored from the registry, since the registry is started
+    from it. **Swarm** is not touched at all: it left the product on 2026-08-27 and no check of this
+    project ever initialises one.
+  - The last step puts the base images back, **out of the run's own registry and never from Docker
+    Hub**: a spec writes the Docker Hub name `alpine:3.20`, and `ensureImage` pulls
+    `localhost:<port>/alpine:3.20` and re-tags it under the name the spec wrote, because specs assert
+    on that string.
+  - Why the ceremony: both passes are serial and every file drives the same daemon, so a file used to
+    inherit whatever the file before it left standing — a container that outlived a failed assertion,
+    an image a build produced, a network nobody removed — and then failed elsewhere, differently
+    depending on which files ran first, which is what a flake is. It costs a prune and a restore per
+    file, on a daemon that is almost empty from the second file on, and it buys a file that fails for
+    its own reason.
+- **The two wirings differ because the two trees run differently.**
+  - end-to-end → one Playwright worker serves every spec, so the reset is registered per file: each
+    spec opens with `cleanDaemonBeforeAll()` from `client/e2e/support/lifecycle.ts`, which registers
+    that file's first `beforeAll`.
+  - server api → `node --test` gives every file a process of its own, so the reset is a **preload**,
+    `--import ./test/support/api-lifecycle.ts`, and no file has to remember anything. It sits at that
+    module's **top level, not in a `before()` hook**: a root hook starts ahead of the test file's
+    module scope without blocking it (measured), and the files under `test/api/` that ensure their
+    images with a top-level `await ensureImages(...)` would then be pruned mid-preparation. A
+    preload's top-level await does block the entry module.
+  - `scripts/check-clean-daemon-conformance.mjs`, wired into the root `lint` and `test`, is what
+    keeps both halves true; its contract is `.sdd/modules/check-budgets/specs/clean-daemon-conformance-check.md`.
+- **No preparation step runs ahead of a pass.** The two steps that put the images and the registry in
+  place are commands an operator types, and each reset calls the same functions directly, so what is
+  in place when a file's first test runs is in place for **that** file rather than for whichever one
+  happened to run first. A step ahead of a pass could only have described a state no file was
+  entitled to assume by the second one.
+  - `npm run test:images -w server` — puts on the daemon what has to be on the daemon, reaching
+    Docker Hub only for what is genuinely not there yet.
+  - `npm run test:registry -w server` — the reason no **restore** in the middle of a run reaches
+    Docker Hub: it brings up the run's own throwaway `registry:2` and seeds it with every image the
+    tests pull. The seeding is the one step that does reach Hub, and every reset opens on it, so on
+    a machine holding none of the base images the run's first reset fetches them once. A registry
+    exposed on the internet occasionally does not answer, and this suite has lost whole specs to
+    exactly that. `alpine:3.20` and `moby/buildkit:buildx-stable-1` are seeded from the daemon's own
+    copy (a tag and a push, no network at all); `vexel-test-tiny:1`, the single-layer image, is
+    built `FROM scratch`, fetched from nowhere and published nowhere, since nothing pulls it; the
+    tests that contract "a reference missing locally is fetched first" are served by a separate
+    single-layer image, built and published for them, whose one file deliberately holds different
+    content, so that pulling it transfers a layer the daemon does not already hold; `registry:2` is
+    the one irreducible exception, since it is what the registry itself is run from, so it comes
+    from Hub if the daemon does not hold it. The container is named once per machine and carries the
+    ownership label, so `test:sweep` removes it — and with it anything the daemon pulled out of it —
+    after a killed run.
+  - Every step is idempotent end to end: an already-prepared registry is the normal case, so a single
+    file run directly gets the same arrangement rather than a second one. One definition,
+    `server/test/support/base-images.ts`, serves both test trees.
+  - The four lifecycle steps are one entry point, `tsx test/support/run-lifecycle.ts <step>`, behind
+    the four npm names `test:images`, `test:registry`, `test:reset-daemon` and `test:sweep`.
+- The application's own state is a different axis from the daemon's, and is cleared **before every
+  single test** rather than around a file: `VEXEL_DATA_DIR` holds the preferences, the console
+  history, the analysis cache and its index, and all of it outlives the test that wrote it. Both
+  passes point at their own directory under the system temp directory, so the operator's `~/.vexel`
+  is never written to, and both empty the whole directory rather than one namespace of it — the
+  server pass in a `beforeEach` of the same preload (`test/support/api-lifecycle.ts`, which also puts
+  the refresh cache back), the e2e run in the automatic fixture in `e2e/support/test.ts`, which is
+  why specs import `test` from there rather than from `@playwright/test`. Not tidiness:
+  `persistence-routes.test.ts` asked for the default preferences and was handed a `selectedContext`
+  another test had set, and the analysis cache — keyed by content digest, never evicting (REQ-113) —
+  hands the second test to analyse the same content the first one's result and skips the extraction
+  it exists to drive, a test that has stopped testing anything and passes while doing so. The cache
+  goes through its own `clear()` (the endpoint, in e2e, since one server process serves the whole
+  run); the other namespaces have no such API and their files are removed, which `local-store.ts`
+  reads correctly by design (per-call read, fallback to defaults). The directory itself is never
+  removed — the store resolves it once, at import. `test:reset-data-dir` remains the way to empty it
+  by hand.
 
-    This **reverses** an earlier decision, recorded here so it is not reinstated from the old
-    argument. The directory used to be kept warm between runs, said to take the suite "from minutes
-    to well over ten" if lost. Measured: `npm run test` 7m23s before against 7m26s after, full e2e
-    13m21s–14m12s before against 13m30s and 14m07s after — inside the run-to-run spread, not
-    minutes. Meanwhile it had reached 3.2 GB across 1936 artefacts, every run building fixture
-    images with content of their own and nothing evicting. It now never holds more than the running
-    test put there.
-- Client tests: `npm run test -w client` (test-tree typecheck + UI-boundary check + `vitest run`) and
-  `npm run test:e2e -w client` (Playwright).
+  This **reverses** an earlier decision, recorded here so it is not reinstated from the old
+  argument. The directory used to be kept warm between runs, said to take the suite "from minutes
+  to well over ten" if lost. Measured: `npm run test` 7m23s before against 7m26s after, full e2e
+  13m21s–14m12s before against 13m30s and 14m07s after — inside the run-to-run spread, not
+  minutes. Meanwhile it had reached 3.2 GB across 1936 artefacts, every run building fixture
+  images with content of their own and nothing evicting. It now never holds more than the running
+  test put there.
+- Client tests: `npm run test -w client` (test-tree typecheck + UI-boundary check + check-budget
+  guard + `vitest run`) and `npm run test:e2e -w client` (Playwright).
   - `npm run test:typecheck -w client` — the counterpart of the server's pass, and for the same
     reason: `tsconfig.app.json` includes `src` alone, while vitest and Playwright both strip types
     without checking them, so `test/` and `e2e/` were checked by nobody. `tsc -p tsconfig.test.json`,
     `noEmit`, same strictness as the app build, covering `src`, `test/`, `e2e/` and the two test
     configs. Runs first, before the UI-boundary check and any test, so drift between a spec and the
-    modules it imports fails in seconds. It is the only thing that checks the e2e tree at all: those
-    specs are never run by `npm run test`.
+    modules it imports fails in seconds. It is the only thing that typechecks the e2e tree at all:
+    those specs are never run by `npm run test`.
   Use the workspace-scoped scripts, not `vitest`/
   `playwright` invoked by hand with a `--root`: `ui-conformance-check.test.ts` resolves the
   conformance script from `process.cwd()`, so running the binaries from the repository root fails 8
   tests that pass under the npm scripts.
-- Whole suite: `npm run test` from the repository root chains server then client. The e2e suite runs with a **single worker on purpose** — every spec drives the
-  same daemon, so concurrency turns contention into spurious timeouts at no wall-clock gain; see the
-  rationale in `client/playwright.config.ts`. Destructive specs live in `client/e2e/exclusive/` and
-  run in their own project, after the rest.
-- The e2e run isolates itself from the machine it runs on, in two ways set up by
-  `client/e2e/support/global-setup.ts` and `playwright.config.ts`: the server under test is pointed
-  at a throwaway `VEXEL_DATA_DIR` (emptied and recreated before each run, so the operator's own
-  `~/.vexel` preferences and analysis cache are neither read nor written; and emptied again before
-  **every single test**, by the automatic fixture in `e2e/support/test.ts` — which is why specs
-  import `test` from there rather than from `@playwright/test`), and the run's own
-  registry is brought up by running `npm run test:images -w server` and `npm run test:registry -w
-  server` — the server passes' own two commands, not a second implementation of them — so no spec
-  spends its own time budget reaching Docker Hub.
-  `client/e2e/support/global-teardown.ts` stops that registry when the run ends. **No running process is ever
-  reused** (`reuseExistingServer: false`): a reused one would serve whatever build it happens to
-  hold, under whatever data directory it was started with, and both failures are silent.
+- Whole suite: `npm run test` from the repository root — the two checks spanning both trees, then the
+  server workspace, then the client one. The e2e suite runs with a **single worker on purpose** —
+  every spec drives the same daemon, so concurrency turns contention into spurious timeouts at no
+  wall-clock gain; see the rationale in `client/playwright.config.ts`. It is **one Playwright
+  project** over the whole suite, host-wide specs included: they used to be a second project
+  declaring the first as a dependency, so one unrelated red skipped all of them silently.
+- The e2e run isolates itself from the machine it runs on through `playwright.config.ts` and
+  `client/e2e/support/lifecycle.ts`. There is **no `globalSetup`** and deliberately nothing to add
+  one for — the server under test is pointed at a throwaway `VEXEL_DATA_DIR`, each spec resets the
+  daemon and re-establishes the images and the registry for itself, and each test starts from an
+  empty data directory. The `globalTeardown` is that same `lifecycle.ts`, and it does one thing: it
+  stops the registry the first file's reset started, since no spec may — every later one still needs
+  it. **No running process is ever reused** (`reuseExistingServer: false`): a reused one would serve
+  whatever build it happens to hold, under whatever data directory it was started with, and both
+  failures are silent.
 - The rules every test follows — clean up what you create, assume nothing about the daemon's
   contents, inherit nothing from another test — are stated in `CLAUDE.md` ("Tests — non-negotiable
   rule"), alongside the reasons each of them exists.

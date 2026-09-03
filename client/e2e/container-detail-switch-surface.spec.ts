@@ -45,6 +45,9 @@ import { clickAndExpectSurfaceUnmoved } from './support/surface-stability.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { containerCard, containerDetail, openContainerDetail } from './support/container-cards.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 // The viewport the defect was measured at, so what this file reports can be put
 // beside the measurement taken by hand on the create sheet.

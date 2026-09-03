@@ -1,4 +1,4 @@
-import { test, after } from "node:test";
+import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -16,8 +16,8 @@ const RUN_ID = `${process.pid}-${Date.now()}`;
 // fixture is recognised by its name alone and removed by the test that made it,
 // pass or fail. No test here ever *selects* a context: `docker context use`
 // rewrites machine-wide state the whole host sees at once, which no label can
-// scope while the API files run in parallel, so the coverage of
-// `POST /api/contexts/:name/use` lives in test/exclusive/contexts-use-routes.test.ts.
+// scope, so the coverage of `POST /api/contexts/:name/use` lives in
+// test/api/contexts-use-routes.test.ts.
 function fixtureName(caseName: string): string {
   return `vexel-test-ctx-${caseName}-${RUN_ID}`;
 }
@@ -56,17 +56,6 @@ async function createTlsContextQuietly(name: string): Promise<string> {
   ]);
   return dir;
 }
-
-/**
- * Removes any context this file left behind, whatever the run. A context carries
- * no label, so its name prefix is the only handle there is — and an aborted run
- * never reaches a test's own `finally`, which is exactly when a leftover appears.
- */
-after(async () => {
-  const { stdout } = await execFileAsync("docker", ["context", "ls", "--format", "{{.Name}}"]).catch(() => ({ stdout: "" }));
-  const leftovers = stdout.split("\n").filter((name) => name.startsWith("vexel-test-ctx-"));
-  for (const name of leftovers) await removeContextQuietly(name);
-});
 
 // plan-docker_management_app/REQ-92 — Docker contexts are listed with name, endpoint and which one
 // is active

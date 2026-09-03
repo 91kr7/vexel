@@ -11,14 +11,14 @@ content column, so that the detail either of them reveals is full width too (REQ
 
 ## Contract
 
-- `<VolumesNetworksScreen volumes networksPanel? />`
-  - `volumes: VolumesPanelProps` — forwarded to `VolumesPanel`.
+- `<VolumesNetworksScreen networksPanel? />`
   - `networksPanel?: ReactNode` — the Networks panel.
 
 Description:
 - One column: the Volumes panel, then the Networks panel under it.
 Shows:
-- The `VolumesPanel` first, at the screen's full content width.
+- The `VolumesPanel` first, at the screen's full content width, fed the volume listing this screen
+  reads for itself with `useVolumes()`.
 - `networksPanel` below it, at the same width, when given.
 
 ## Rules and invariants
@@ -40,6 +40,18 @@ Shows:
   both cards wholly visible, and the stack runs to y=966 — already past the fold at 1280×800, and
   further with every row either list gains. **Reaching networks is a scroll, deliberately.** A
   reader who wants the pair back is asking for the ~250px panel back with it.
+- **The volume listing is read here**, through `useVolumes()`, rather than mounted by the shell for
+  every screen and handed down
+  (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-40). **What that no
+  longer decides is whether the server reads volumes**: the open live channel holds the demand of
+  every value the server keeps, so volumes are read on the server's own period whenever a window is
+  open — the stated departure from REQ-41 — and the screen asks for nothing at all.
+- **The first painting no longer waits** (was REQ-42): the listing has been delivered on the channel
+  before the screen is drawn, so the not-yet-loaded state the Volumes panel already has shows only
+  until the very first delivery of a fresh window (REQ-45).
+- The screen drives no trigger of its own (REQ-43): a change on the host, a context switch, the
+  manual refresh control and the panel's own actions all reach this listing as pushes on the
+  channel.
 - The screen owns no selection and no detail state: each panel reveals its own detail inside its own
   list, under the row it belongs to, and at most one panel is open across the two — enforced by the
   detail-panel primitive, not by this screen.
@@ -48,6 +60,7 @@ Shows:
 ## Dependencies
 
 - ui-library: Stack
+- volumes: useVolumes
 - VolumesPanel
 - NetworksPanel (composed by the caller into `networksPanel`)
 
@@ -57,3 +70,8 @@ Shows:
 - plan-docker_management_app/REQ-72
 - plan-ui-coherence-optimisation/REQ-32
 - plan-ui-coherence-optimisation/REQ-35
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-40
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-43
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-45
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-17
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-33

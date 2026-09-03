@@ -118,12 +118,6 @@ before(async () => {
   const { stdout } = await execFileAsync("docker", ["inspect", TINY_TAG, "--format", "{{.Id}}"]);
   tinyImageId = stdout.trim();
 });
-
-after(async () => {
-  await execFileAsync("docker", ["rmi", "-f", RUN_TAG]).catch(() => undefined);
-  await execFileAsync("docker", ["rmi", "-f", TINY_TAG]).catch(() => undefined);
-});
-
 // A small fixture image (built on the already-local `alpine:3.20`, no network pull needed) with,
 // across two RUN layers: a file overwritten by the second layer (waste, REQ-65), two files sharing
 // identical content in the same layer (duplicate content, REQ-66), and two credential-looking paths
@@ -150,11 +144,6 @@ before(async () => {
   );
   await execFileAsync("docker", ["build", ...ownershipArgs(SIGNALS_TAG), "-t", SIGNALS_TAG, signalsContextDir]);
 });
-
-after(async () => {
-  await execFileAsync("docker", ["rmi", "-f", SIGNALS_TAG]).catch(() => undefined);
-});
-
 // plan-docker_management_app/REQ-48 — layers are shown completely for a registry-pulled image too:
 // one entry per the daemon's own /history step, none dropped.
 test("GET /api/images/:id/layers returns one entry per history step for a registry-pulled image never built locally", async () => {

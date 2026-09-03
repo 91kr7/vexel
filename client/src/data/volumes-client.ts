@@ -42,12 +42,6 @@ async function requireOk(response: Response): Promise<void> {
   if (!response.ok) throw new Error(await extractErrorMessage(response));
 }
 
-export async function fetchVolumes(): Promise<VolumeSummary[]> {
-  const response = await fetch('/api/volumes');
-  await requireOk(response);
-  return (await response.json()) as VolumeSummary[];
-}
-
 export async function fetchVolumeInspect(name: string): Promise<VolumeInspect> {
   const response = await fetch(`/api/volumes/${encodeURIComponent(name)}/inspect`);
   await requireOk(response);

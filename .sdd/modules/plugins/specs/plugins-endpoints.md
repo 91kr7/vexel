@@ -10,8 +10,12 @@ type: REST endpoint
 
 ## Contract
 
-- `GET /api/plugins` → both inventories in one reading.
-  - `200` → `{ cli: PluginListing<CliPlugin>, daemon: PluginListing<DaemonPlugin> }`.
+- `GET /api/plugins` → both inventories in one reading, answered from the round the server holds.
+  - `200` → `{ cli: PluginListing<CliPlugin>, daemon: PluginListing<DaemonPlugin> }` — the body
+    unchanged, plus the read-time headers every held value carries (`X-Vexel-Read-At`,
+    `X-Vexel-Age-Ms`, and `X-Vexel-Stale` when the last read failed).
+  - a round never read before waits for the installation; a failure with nothing ever held is
+    mapped exactly as a failure of the reading itself.
 - `GET /api/plugins/privileges?remote=<reference>` → what the reference asks for, installing nothing.
   - `400` → `remote` missing or blank.
   - `200` → `PluginPrivilege[]`.
@@ -41,14 +45,22 @@ type: REST endpoint
 - `enable` defaults to true on install, as `docker plugin install` does; only an explicit `false`
   leaves the plugin installed and disabled.
 - The two inventories are read as one round, and each carries its own unavailability, so one
-  channel going quiet never hides the other.
+  channel going quiet never hides the other. The round is what the server holds — one held value for
+  both sides — so no answer ever puts two moments of the same installation on the screen.
+- Every listing answered here is the held round: the installation is read once per period however
+  many windows are open, and not at all while nobody is on the screen.
 
 ## Dependencies
 
-- plugins: CliPluginsService, DaemonPluginsService, PluginManagementService
+- plugins: PluginsInventoryService, DaemonPluginsService, PluginManagementService
+- refresh-cache: Held value response
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-98
 - plan-docker_management_app/REQ-99
 - plan-docker_management_app/REQ-111
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-54
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-56
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-60
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-61

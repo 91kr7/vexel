@@ -66,12 +66,6 @@ async function requireOk(response: Response): Promise<void> {
   if (!response.ok) throw new Error(await extractErrorMessage(response));
 }
 
-export async function fetchBuilders(): Promise<BuilderSummary[]> {
-  const response = await fetch('/api/builders');
-  await requireOk(response);
-  return (await response.json()) as BuilderSummary[];
-}
-
 export async function createBuilder(input: CreateBuilderInput): Promise<BuilderSummary> {
   const response = await fetch('/api/builders', {
     method: 'POST',
@@ -92,12 +86,6 @@ export async function activateBuilder(name: string): Promise<BuilderSummary> {
   const response = await fetch(`/api/builders/${encodeURIComponent(name)}/use`, { method: 'POST' });
   await requireOk(response);
   return (await response.json()) as BuilderSummary;
-}
-
-export async function fetchBuildCache(): Promise<BuildCacheRecord[]> {
-  const response = await fetch('/api/builders/cache');
-  await requireOk(response);
-  return (await response.json()) as BuildCacheRecord[];
 }
 
 /** The images and layers a cache record relates to, or the reason none can be named (REQ-69). */

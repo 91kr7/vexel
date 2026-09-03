@@ -1,17 +1,13 @@
-// Daemon plugin management over the Engine API (REQ-111): reading the
-// privileges a reference asks for, installing it once those privileges have
-// been granted, enabling, disabling and removing.
+// Daemon plugin management over the Engine API (REQ-111): the privileges a
+// reference asks for, the granted install, enable, disable and remove.
 //
-// A plugin runs on the host with the mounts, devices and capabilities it asked
-// for, so installing one is a security decision, not a download: the
-// privileges are read first and the install refuses to proceed unless the
-// caller hands back exactly the set the daemon asked for (REQ-99). That check
-// lives here, on the server, so no future caller can install a plugin by
-// skipping the review.
+// Installing a plugin is a security decision, not a download: the privilege
+// check lives here, so no caller can install one by skipping the review (REQ-99).
 import type { IncomingMessage } from "node:http";
 import { getEngineClient } from "../connectivity/connection-status-service.js";
 import { DockerDaemonError } from "../docker/errors.js";
 import { getDaemonPlugin, listDaemonPlugins, pluginPathSegment, type DaemonPlugin } from "./daemon-plugins-service.js";
+import { pluginsInventoryCache } from "./plugins-inventory-service.js";
 
 export interface PluginPrivilege {
   /** What is being asked for: `network`, `mount`, `device`, `capabilities`, … */
@@ -70,6 +66,7 @@ export async function installPlugin(input: InstallPluginInput): Promise<DaemonPl
     body: JSON.stringify(requested.map(toRawPrivilege)),
   });
   await drainProgressStream(stream);
+  pluginsInventoryCache.markChanged();
 
   const name = await resolveInstalledName(input.remote, input.alias);
   if (input.enable !== false) return enablePlugin(name);
@@ -80,11 +77,13 @@ export async function enablePlugin(name: string): Promise<DaemonPlugin> {
   // `timeout=0` waits as long as the plugin's own handshake takes; a shorter
   // one would report a failure for a plugin that is merely slow to come up.
   await getEngineClient().request(`/plugins/${pluginPathSegment(name)}/enable?timeout=0`, { method: "POST" });
+  pluginsInventoryCache.markChanged();
   return getDaemonPlugin(name);
 }
 
 export async function disablePlugin(name: string): Promise<DaemonPlugin> {
   await getEngineClient().request(`/plugins/${pluginPathSegment(name)}/disable`, { method: "POST" });
+  pluginsInventoryCache.markChanged();
   return getDaemonPlugin(name);
 }
 
@@ -95,6 +94,7 @@ export async function disablePlugin(name: string): Promise<DaemonPlugin> {
  */
 export async function removePlugin(name: string): Promise<void> {
   await getEngineClient().request(`/plugins/${pluginPathSegment(name)}?force=false`, { method: "DELETE" });
+  pluginsInventoryCache.markChanged();
 }
 
 function toRawPrivilege(privilege: PluginPrivilege): RawPrivilege {

@@ -1,98 +1,189 @@
-import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
-import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
-import { useContainers } from '../../src/data/use-containers';
-import type { ContainerSummary } from '../../src/data/containers-client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act } from 'react';
+import { cleanup, renderHook } from '@testing-library/react';
+import { FakeEventSource, channelOpens, deliverDiscard, deliverValue, dropChannel, liveChannel } from '../support/live-channel';
 
-// Stands in for the browser's EventSource: the daemon event stream is the
-// hook's only push channel, so the tests drive it by emitting on the instance
-// the hook opened.
-class FakeEventSource {
-  static instances: FakeEventSource[] = [];
-  onmessage: ((message: { data: string }) => void) | null = null;
-  closed = false;
+/**
+ * The container list arrives on the live channel: no request of this hook's own
+ * and no clock (`containers/specs/use-containers.md`;
+ * plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-8,
+ * REQ-12, REQ-17, REQ-39).
+ *
+ * `fetch` is stubbed to fail the test rather than mocked to answer: the claim
+ * asserted here is that nothing is requested at all, and a mock that answers
+ * would hide a request instead of catching it. The channel behind the hook is a
+ * module singleton, so each test gets a fresh module registry.
+ */
 
-  url: string;
+let useContainers: typeof import('../../src/data/use-containers').useContainers;
+let requested: string[];
 
-  constructor(url: string) {
-    this.url = url;
-    FakeEventSource.instances.push(this);
-  }
-
-  addEventListener() {}
-
-  close() {
-    this.closed = true;
-  }
-
-  emitDaemonEvent(type: string, action: string) {
-    this.onmessage?.({
-      data: JSON.stringify({ id: `${type}-${action}-${Math.random()}`, timestamp: '2026-08-07T10:00:00.000Z', type, action }),
-    });
-  }
-}
-
-// The event-stream module opens a single EventSource and keeps it for the
-// process's lifetime, so every test drives that one instance.
-function daemonStream(): FakeEventSource {
-  return FakeEventSource.instances[0];
-}
-
-// Typed with the signature of the function it stands in for: an untyped
-// `vi.fn()` is not callable through `ReturnType<typeof vi.fn>`.
-let fetchList: Mock<() => Promise<ContainerSummary[]>>;
-
-vi.mock('../../src/data/containers-client', () => ({
-  fetchContainers: () => fetchList(),
-}));
-
-beforeEach(() => {
+beforeEach(async () => {
+  FakeEventSource.instances = [];
+  requested = [];
   vi.stubGlobal('EventSource', FakeEventSource);
-  fetchList = vi
-    .fn<() => Promise<ContainerSummary[]>>()
-    .mockResolvedValue([{ id: 'c1', name: 'database', state: 'running' }] as unknown as ContainerSummary[]);
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((input: unknown) => {
+      requested.push(String(input));
+      return Promise.reject(new Error('no request was expected'));
+    }),
+  );
+  vi.resetModules();
+  ({ useContainers } = await import('../../src/data/use-containers'));
 });
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
+const RUNNING = [{ id: 'c1', shortId: 'c1', name: 'database', image: 'alpine:3.20', state: 'running', status: 'Up 3 seconds', ports: [] }];
+
 describe('useContainers', () => {
-  // use-containers.md — re-reads whenever a container-typed daemon event arrives (REQ-19)
-  it('re-reads the list when a container lifecycle event arrives', async () => {
-    renderHook(() => useContainers());
-    await waitFor(() => expect(fetchList).toHaveBeenCalledTimes(1));
+  // use-containers.md, contract line — the shape its screen uses.
+  it('answers exactly the shape its screen uses, with a refresh that returns nothing', () => {
+    const { result } = renderHook(() => useContainers());
 
-    act(() => daemonStream().emitDaemonEvent('container', 'start'));
-
-    await waitFor(() => expect(fetchList).toHaveBeenCalledTimes(2));
+    expect(Object.keys(result.current).sort()).toEqual(['containers', 'error', 'loaded', 'refresh'].sort());
+    expect(result.current.refresh()).toBeUndefined();
   });
 
-  // use-containers.md — does not re-read for resize / exec lifecycle / top actions,
-  // which an open exec or attach session (REQ-34, REQ-35) fires without changing the list
-  it.each(['resize', 'exec_create', 'exec_start', 'exec_die', 'exec_detach', 'top'])(
-    'does not re-read the list for a "%s" container action',
-    async (action) => {
-      renderHook(() => useContainers());
-      await waitFor(() => expect(fetchList).toHaveBeenCalledTimes(1));
+  // REQ-40 — an open channel that has delivered no value leaves the screen loading, not empty-and-done.
+  it('is not loaded, with an empty list, while the channel has delivered nothing', () => {
+    const { result } = renderHook(() => useContainers());
+    act(() => channelOpens());
 
-      act(() => {
-        for (let i = 0; i < 20; i++) daemonStream().emitDaemonEvent('container', action);
-      });
+    expect(result.current.containers).toEqual([]);
+    expect(result.current.loaded).toBe(false);
+    expect(result.current.error).toBeUndefined();
+  });
 
-      await Promise.resolve();
-      expect(fetchList).toHaveBeenCalledTimes(1);
-    },
-  );
+  // REQ-8 — the value the channel delivers is what the screen shows.
+  it('shows the list the channel delivered, and is loaded from it', () => {
+    const { result } = renderHook(() => useContainers());
+    act(() => channelOpens());
 
-  // use-containers.md — a burst of session-driven actions must not starve the UI with refetches
-  it('stays at a single read while an open session fires a burst of resize actions', async () => {
+    act(() => deliverValue('containers', RUNNING));
+
+    expect(result.current.containers).toEqual(RUNNING);
+    expect(result.current.loaded).toBe(true);
+  });
+
+  // REQ-17, REQ-39 — no clock and no request: the hook asks the server for nothing, ever.
+  it('makes no request of its own, on mount or on any stretch of time', async () => {
+    vi.useFakeTimers();
     renderHook(() => useContainers());
-    await waitFor(() => expect(fetchList).toHaveBeenCalledTimes(1));
-
-    act(() => {
-      for (let i = 0; i < 200; i++) daemonStream().emitDaemonEvent('container', 'resize');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
     });
 
-    expect(fetchList).toHaveBeenCalledTimes(1);
+    expect(requested).toEqual([]);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(600_000);
+    });
+
+    expect(requested, 'the hook asked the server for the list on a clock').toEqual([]);
+    expect(FakeEventSource.instances.map((channel) => channel.url)).toEqual(['/api/live']);
+  });
+
+  // REQ-8 — a container started outside the application arrives with the operator doing nothing.
+  it('follows the host on the channel, with nothing operated and no request made', () => {
+    const { result } = renderHook(() => useContainers());
+    act(() => channelOpens());
+    act(() => deliverValue('containers', RUNNING));
+
+    act(() => deliverValue('containers', [...RUNNING, { ...RUNNING[0], id: 'c2', shortId: 'c2', name: 'web' }]));
+
+    expect(result.current.containers).toHaveLength(2);
+    expect(requested).toEqual([]);
+  });
+
+  // REQ-12 — a list delivered again unchanged replaces nothing the operator has in hand.
+  it('keeps the very list it holds when the same one is delivered again', () => {
+    const { result } = renderHook(() => useContainers());
+    act(() => channelOpens());
+    act(() => deliverValue('containers', RUNNING));
+    const held = result.current.containers;
+
+    for (let delivery = 0; delivery < 5; delivery += 1) act(() => deliverValue('containers', RUNNING));
+
+    expect(result.current.containers).toBe(held);
+  });
+
+  // use-containers.md — "goes back to `false` when the channel says the values held were discarded".
+  it('is no longer loaded once the channel says the held values are gone', () => {
+    const { result } = renderHook(() => useContainers());
+    act(() => channelOpens());
+    act(() => deliverValue('containers', RUNNING));
+
+    act(() => deliverDiscard());
+
+    expect(result.current.loaded).toBe(false);
+    expect(result.current.containers).toEqual([]);
+  });
+
+  it('shows the new context list delivered after a discard', () => {
+    const { result } = renderHook(() => useContainers());
+    act(() => channelOpens());
+    act(() => deliverValue('containers', RUNNING));
+    act(() => deliverDiscard());
+
+    act(() => deliverValue('containers', []));
+
+    expect(result.current.loaded).toBe(true);
+    expect(result.current.containers).toEqual([]);
+  });
+
+  // REQ-11 — a channel that is not delivering is reported through the state this hook already has.
+  it('reports a failure while the channel is not delivering, and clears it when it delivers again', () => {
+    const { result } = renderHook(() => useContainers());
+    act(() => channelOpens());
+    expect(result.current.error).toBeUndefined();
+
+    act(() => dropChannel());
+    expect(result.current.error).toBeTruthy();
+
+    act(() => channelOpens());
+    expect(result.current.error).toBeUndefined();
+  });
+
+  // REQ-12 — "nothing new appears on the screen": a drop does not blank the list.
+  it('keeps the list it holds when the channel drops', () => {
+    const { result } = renderHook(() => useContainers());
+    act(() => channelOpens());
+    act(() => deliverValue('containers', RUNNING));
+
+    act(() => dropChannel());
+
+    expect(result.current.containers).toEqual(RUNNING);
+  });
+
+  // REQ-18 — what the retry the screen offers does: it asks for the channel again, nothing else.
+  it('asks for the channel again when refreshed while it is not delivering', () => {
+    const { result } = renderHook(() => useContainers());
+    act(() => channelOpens());
+    act(() => dropChannel());
+    const dropped = liveChannel();
+
+    act(() => result.current.refresh());
+
+    expect(dropped.closed).toBe(true);
+    expect(FakeEventSource.instances).toHaveLength(2);
+    expect(requested).toEqual([]);
+  });
+
+  it('does nothing when refreshed while the channel is delivering', () => {
+    const { result } = renderHook(() => useContainers());
+    act(() => channelOpens());
+    const delivering = liveChannel();
+
+    act(() => result.current.refresh());
+
+    expect(delivering.closed).toBe(false);
+    expect(FakeEventSource.instances).toHaveLength(1);
+    expect(requested).toEqual([]);
   });
 });

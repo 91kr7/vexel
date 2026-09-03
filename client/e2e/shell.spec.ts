@@ -1,6 +1,9 @@
 import { expect, test, type Page } from './support/test.js';
 import { activeContextLabel, navEntry, openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /**
  * Opens the shell on a stated screen: the shell restores the persisted screen on
@@ -127,7 +130,7 @@ test('a destructive action asks for confirmation naming its target and does noth
   // exercised on a real destructive action of the product: the per-category
   // prune of System & prune, which is always on the screen and which cancelling
   // provably performs nothing. Nothing is ever confirmed here — the prunes act
-  // on the whole host and live in e2e/exclusive/.
+  // on the whole host, and confirming one is `system-prune-confirmed.spec.ts`.
   //
   // The category acted on is one this test made non-empty itself, so the
   // control is enabled whatever the operator's daemon holds; the fixture is

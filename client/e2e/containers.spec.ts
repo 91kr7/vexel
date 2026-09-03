@@ -17,6 +17,9 @@ import {
   overflowTrigger,
   rawPayloadSection,
 } from './support/container-cards.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 // A tiny, already-cached image whose entrypoint is overridden to `sleep` so the
 // container starts instantly and needs no network pull or app init.

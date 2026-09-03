@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { subscribeToActiveContextChange } from './active-context';
-import { subscribeToReload } from './reload-signal';
-import { fetchVolumes, type VolumeSummary } from './volumes-client';
-import { subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
-import { cadence } from '../timing/timing-scale';
+import { useCallback, useSyncExternalStore } from 'react';
+import type { VolumeSummary } from './volumes-client';
+import { usePushedValue } from './pushed-values';
+import { isChannelDelivering, reconnectLiveChannel, subscribeToChannelDelivery } from './live-channel';
 
-const POLL_INTERVAL_MS = cadence(3000);
+/** The name the server gives the volume listing on the channel. */
+const VOLUMES = 'volumes';
+
+/** One reference for every render before the first delivery, so nothing re-renders on it. */
+const NONE: VolumeSummary[] = [];
 
 export interface UseVolumesResult {
   volumes: VolumeSummary[];
@@ -14,66 +16,20 @@ export interface UseVolumesResult {
   refresh: () => void;
 }
 
-/**
- * Reads the volume list, re-reading on a bounded poll, on every `volume`
- * daemon event, and on a `container` daemon event (a container's own mounts
- * change which volumes it mounts) (REQ-70).
- */
+/** Reads the volume listing from the live channel: no clock, no request of its own (REQ-17, REQ-33, REQ-39). */
 export function useVolumes(): UseVolumesResult {
-  const [volumes, setVolumes] = useState<VolumeSummary[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState<string | undefined>(undefined);
-  const cancelledRef = useRef(false);
+  const volumes = usePushedValue<VolumeSummary[]>(VOLUMES);
+  const delivering = useSyncExternalStore(subscribeToChannelDelivery, isChannelDelivering);
 
-  // `readOnce` returns its promise so the reload signal can wait for it; `refresh` returns
-  // nothing, the shape the screens use (plan-docker_management_app-refresh_cache/REQ-21).
-  const readOnce = useCallback(() => {
-    return fetchVolumes()
-      .then((list) => {
-        if (cancelledRef.current) return;
-        setVolumes(list);
-        setError(undefined);
-      })
-      .catch((cause: Error) => {
-        if (cancelledRef.current) return;
-        setError(cause.message);
-      })
-      .finally(() => {
-        if (cancelledRef.current) return;
-        setLoaded(true);
-      });
+  // What failed is the channel, so what a retry does is ask for it again (REQ-18).
+  const refresh = useCallback(() => {
+    if (!isChannelDelivering()) reconnectLiveChannel();
   }, []);
 
-  const refresh = useCallback(() => {
-    void readOnce();
-  }, [readOnce]);
-
-  useEffect(() => {
-    cancelledRef.current = false;
-    refresh();
-    return () => {
-      cancelledRef.current = true;
-    };
-  }, [refresh]);
-
-  useEffect(
-    () =>
-      subscribeToDaemonEvents((event: DaemonEvent) => {
-        if (event.type === 'volume' || event.type === 'container') refresh();
-      }),
-    [refresh],
-  );
-
-  // Another context means another daemon: what is held here belongs to
-  // the one left behind and is re-read at once (REQ-93).
-  useEffect(() => subscribeToActiveContextChange(refresh), [refresh]);
-
-  useEffect(() => subscribeToReload(readOnce), [readOnce]);
-
-  useEffect(() => {
-    const interval = window.setInterval(refresh, POLL_INTERVAL_MS);
-    return () => window.clearInterval(interval);
-  }, [refresh]);
-
-  return { volumes, loaded, error, refresh };
+  return {
+    volumes: volumes ?? NONE,
+    loaded: volumes !== undefined,
+    error: delivering ? undefined : 'Could not reach the application server.',
+    refresh,
+  };
 }

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { fetchImageLayerStack, type ImageLayerStack } from './image-layers-client';
-import { subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
 
 export interface UseImageLayerStackResult {
   stack?: ImageLayerStack;
@@ -10,9 +9,8 @@ export interface UseImageLayerStackResult {
 }
 
 /**
- * Reads a single image's layer stack (REQ-47, REQ-48, REQ-50), re-reading
- * when `id` changes and whenever an `image` daemon event arrives. Returns an
- * empty result when `id` is undefined (no image selected / explorer closed).
+ * Reads a single image's layer stack (REQ-47, REQ-48, REQ-50), re-reading when `id` changes.
+ * Returns an empty result when `id` is undefined (no image selected / explorer closed).
  */
 export function useImageLayerStack(id: string | undefined): UseImageLayerStackResult {
   const [stack, setStack] = useState<ImageLayerStack | undefined>(undefined);
@@ -48,14 +46,6 @@ export function useImageLayerStack(id: string | undefined): UseImageLayerStackRe
       cancelledRef.current = true;
     };
   }, [id, refresh]);
-
-  useEffect(
-    () =>
-      subscribeToDaemonEvents((event: DaemonEvent) => {
-        if (event.type === 'image') refresh();
-      }),
-    [refresh],
-  );
 
   return { stack, loaded, error, refresh };
 }

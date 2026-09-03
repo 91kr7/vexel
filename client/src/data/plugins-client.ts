@@ -83,10 +83,6 @@ function post(path: string, body: unknown): Promise<Response> {
   return fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 }
 
-export async function fetchPlugins(): Promise<PluginsReading> {
-  return readJson<PluginsReading>(await fetch('/api/plugins'));
-}
-
 export async function fetchPluginPrivileges(remote: string): Promise<PluginPrivilege[]> {
   return readJson<PluginPrivilege[]>(await fetch(`/api/plugins/privileges?remote=${encodeURIComponent(remote)}`));
 }

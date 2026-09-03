@@ -1,6 +1,9 @@
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 // The coverage matrix is the product's statement about itself (REQ-105, REQ-106),
 // so this spec checks it against the product rather than against the screen: a

@@ -6,6 +6,9 @@ import { readOnceSettled } from './support/settled.js';
 import { boxOf, clickAndExpectSurfaceUnmoved } from './support/surface-stability.js';
 import { expectBandIsTheHeightOfItsControl, measureSearchBand } from './support/search-band-axis.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /**
  * **The filesystem browser's interior, measured.** REQ ids belong to

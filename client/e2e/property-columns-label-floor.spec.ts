@@ -3,6 +3,9 @@ import { openApp } from './support/fixtures.js';
 import { readOnceSettled } from './support/settled.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /**
  * **How a property band settles a shortage** — the one rule of

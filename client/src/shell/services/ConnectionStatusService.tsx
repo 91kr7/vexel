@@ -1,10 +1,28 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { subscribeToActiveContextChange } from '../../data/active-context';
-import { subscribeToReload } from '../../data/reload-signal';
-import { fetchConnectionStatus, type ConnectionStatus } from '../../data/connectivity-client';
-import { cadence } from '../../timing/timing-scale';
+import { createContext, useCallback, useContext, useMemo, useSyncExternalStore, type ReactNode } from 'react';
+import { isChannelDelivering, reconnectLiveChannel, subscribeToChannelDelivery } from '../../data/live-channel';
+import { usePushedValue } from '../../data/pushed-values';
 
-const POLL_INTERVAL_MS = cadence(5000);
+/** The name the server gives the connection status on the channel. */
+const CONNECTION_STATUS = 'connection-status';
+
+export interface CliToolStatus {
+  available: boolean;
+  version?: string;
+}
+
+export interface CliAvailability {
+  docker: CliToolStatus;
+  compose: CliToolStatus;
+  buildx: CliToolStatus;
+}
+
+export interface ConnectionStatus {
+  daemon: { reachable: boolean; cause?: string };
+  apiVersion?: string;
+  engineVersion?: string;
+  cli: CliAvailability;
+  unavailableCapabilities: string[];
+}
 
 interface ConnectionStatusContextValue extends ConnectionStatus {
   loading: boolean;
@@ -13,6 +31,7 @@ interface ConnectionStatusContextValue extends ConnectionStatus {
 
 const ConnectionStatusContext = createContext<ConnectionStatusContextValue | undefined>(undefined);
 
+// Nothing delivered yet: unreachable without a cause, so nothing is claimed to have failed.
 const initialStatus: ConnectionStatus = {
   daemon: { reachable: false },
   cli: {
@@ -23,47 +42,34 @@ const initialStatus: ConnectionStatus = {
   unavailableCapabilities: [],
 };
 
+const CHANNEL_DOWN = { reachable: false, cause: 'Could not reach the application server.' };
+
 /**
- * Polls the daemon connectivity endpoint and exposes reachability (with cause
- * on failure), the negotiated Engine API version and CLI availability
- * app-wide (REQ-9, REQ-10, REQ-13, REQ-110).
+ * Exposes daemon reachability (with cause), the negotiated Engine API version
+ * and CLI availability app-wide, read from the live channel: no clock and no
+ * request of its own (REQ-9, REQ-10, REQ-13, REQ-110, …-multiplexed_sse/REQ-17,
+ * /REQ-19, /REQ-39).
  */
 export function ConnectionStatusProvider({ children }: { children?: ReactNode }) {
-  const [status, setStatus] = useState<ConnectionStatus>(initialStatus);
-  const [loading, setLoading] = useState(true);
+  const status = usePushedValue<ConnectionStatus>(CONNECTION_STATUS);
+  const delivering = useSyncExternalStore(subscribeToChannelDelivery, isChannelDelivering);
 
-  // `readOnce` returns its promise so the reload signal can wait for it; `refresh` returns
-  // nothing, the shape the screens use (plan-docker_management_app-refresh_cache/REQ-21).
-  const readOnce = useCallback(() => {
-    setLoading(true);
-    return fetchConnectionStatus()
-      .then((next) => setStatus(next))
-      .catch(() =>
-        setStatus((previous) => ({
-          ...previous,
-          daemon: { reachable: false, cause: 'Could not reach the application server.' },
-        })),
-      )
-      .finally(() => setLoading(false));
+  // What failed is the channel, so what a retry does is ask for it again (REQ-18).
+  const retry = useCallback(() => {
+    if (!isChannelDelivering()) reconnectLiveChannel();
   }, []);
 
-  const refresh = useCallback(() => {
-    void readOnce();
-  }, [readOnce]);
-
-  useEffect(() => {
-    refresh();
-    const interval = setInterval(refresh, POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
-  }, [refresh]);
-
-  // The status describes the daemon of the active context: another context is
-  // another daemon, re-probed at once instead of at the next poll (REQ-93).
-  useEffect(() => subscribeToActiveContextChange(refresh), [refresh]);
-
-  useEffect(() => subscribeToReload(readOnce), [readOnce]);
-
-  const value = useMemo(() => ({ ...status, loading, retry: refresh }), [status, loading, refresh]);
+  // A channel that is not delivering is told through the indication this service already
+  // exposes — no element and no wording of its own (REQ-11, REQ-35).
+  const value = useMemo(() => {
+    const held = status ?? initialStatus;
+    return {
+      ...held,
+      daemon: delivering ? held.daemon : CHANNEL_DOWN,
+      loading: status === undefined,
+      retry,
+    };
+  }, [status, delivering, retry]);
 
   return <ConnectionStatusContext.Provider value={value}>{children}</ConnectionStatusContext.Provider>;
 }

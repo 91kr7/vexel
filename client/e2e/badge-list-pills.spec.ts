@@ -4,6 +4,9 @@ import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { F4_VIEWPORTS, describeRect, round } from './support/truncating-rows.js';
 import { waitUntilTheScreenStatesWhatTheDaemonStates } from './support/caught-up.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /**
  * **No badge is ever painted over the badge next to it**

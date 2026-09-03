@@ -7,10 +7,13 @@ import { expectCompletedThenSelfDismissed } from './support/progress-completion.
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
 import { TINY_IMAGE, TINY_IMAGE_FILE, ensureImage } from '../../server/test/support/base-images.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 async function createStandaloneImage(tag: string, containerName: string): Promise<void> {
-  // Ensured at the point of use, not once for the run: the exclusive project
-  // prunes the host, so an image present at global setup may be gone by now.
+  // Ensured at the point of use, not once for the run: a prune spec in this suite
+  // prunes the host, so an image ensured earlier may be gone by now.
   // Locally built, so putting it back costs a second and no network.
   await ensureImage(TINY_IMAGE);
   await execFileAsync('docker', ['create', '--name', containerName, ...ownershipArgs(containerName), TINY_IMAGE]);

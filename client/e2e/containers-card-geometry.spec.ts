@@ -35,6 +35,9 @@ import { closeContainerDetail, containerCard, containerCards, containerDetail, d
 // The wait promoted to `support/caught-up.ts` when three more files needed it; its documentation
 // went with it, and this file's budget below still counts it at its own declaration.
 import { waitForTheListToCatchUp } from './support/caught-up.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 const DESKTOP = { width: 1440, height: 1000 };
 const TWO_TRACKS = { width: 1100, height: 1000 };

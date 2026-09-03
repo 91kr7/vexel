@@ -4,17 +4,19 @@
 // endpoint here returns, echoes or logs a credential.
 import { Router, type Response } from "express";
 import { DockerDaemonError } from "../docker/errors.js";
+import { sendHeld } from "../refresh-cache/refresh-cache-response.js";
 import { listRepositoryTags, searchRepositories } from "./registry-catalog-service.js";
-import { getRegistry, listRegistries, loginToRegistry, logoutFromRegistry } from "./registries-service.js";
+import { getRegistry, loginToRegistry, logoutFromRegistry, registryListCache } from "./registries-service.js";
 
 export const registriesRouter = Router();
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
 
+/** Answered from the value the refresh cache holds; only an inventory never read before waits for the installation. */
 registriesRouter.get("/", async (_req, res) => {
   try {
-    res.json(await listRegistries());
+    sendHeld(res, await registryListCache.read());
   } catch (error) {
     respondError(res, error);
   }

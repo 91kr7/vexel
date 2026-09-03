@@ -12,7 +12,6 @@ cannot issue a POST.
 
 ## Contract
 
-- `fetchComposeProjects(): Promise<ComposeProjectSummary[]>`
 - `fetchComposeFiles(projectName): Promise<ComposeFileReadResult>`
 - `writeComposeFile(projectName, path, content): Promise<ComposeFileWriteResult>`
 - `validateComposeFile(projectName): Promise<ComposeValidationResult>`

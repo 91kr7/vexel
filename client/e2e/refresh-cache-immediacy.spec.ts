@@ -4,6 +4,9 @@ import { join } from 'node:path';
 import { expect, test, type Locator, type Page, type Response } from './support/test.js';
 import { CASE_LABEL, OWNER_LABEL, RUN_ID, openApp, ownershipArgs } from './support/fixtures.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /**
  * What the operator's own action costs them, on the four screens the batch acts from

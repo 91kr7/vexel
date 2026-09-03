@@ -16,13 +16,14 @@ import { consoleRouter } from "./console/console-routes.js";
 import { contextsRouter } from "./contexts/contexts-routes.js";
 import { publishActiveEndpoint } from "./contexts/contexts-service.js";
 import { handleContainerSessionUpgrade } from "./containers/container-sessions-routes.js";
+import { handleStatsSubscriptionUpgrade } from "./containers/container-stats-subscription-routes.js";
 import { containersRouter } from "./containers/containers-routes.js";
-import { eventsRouter } from "./events/events-routes.js";
 import { eventStreamService } from "./events/event-stream-service.js";
 import { hostPathsRouter } from "./host-fs/host-path-routes.js";
 import { imageAnalysisRouter } from "./image-analysis/image-analysis-routes.js";
 import { sweepAbandonedExtractionContainers } from "./image-analysis/filesystem-extraction-service.js";
 import { imagesRouter } from "./images/images-routes.js";
+import { liveChannelRouter } from "./live-channel/live-channel-routes.js";
 import { networksRouter } from "./networks/networks-routes.js";
 import { registriesRouter } from "./registries/registries-routes.js";
 import { pluginsRouter } from "./plugins/plugins-routes.js";
@@ -55,7 +56,7 @@ app.use("/api/builders", buildersRouter);
 app.use("/api/plugins", pluginsRouter);
 app.use("/api/system", systemRouter);
 app.use("/api/console", consoleRouter);
-app.use("/api/events", eventsRouter);
+app.use("/api/live", liveChannelRouter);
 app.use("/api/persistence", persistenceRouter);
 app.use("/api/host-paths", hostPathsRouter);
 app.use("/api/refresh", refreshRouter);
@@ -124,6 +125,7 @@ const server = app.listen(port, () => {
 });
 
 server.on("upgrade", (request, socket, head) => {
-  const handled = handleContainerSessionUpgrade(request, socket, head);
+  const handled =
+    handleContainerSessionUpgrade(request, socket, head) || handleStatsSubscriptionUpgrade(request, socket, head);
   if (!handled) socket.destroy();
 });

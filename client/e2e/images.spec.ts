@@ -8,10 +8,15 @@ import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
 import { boxOf } from './support/settled.js';
 import { PULLABLE_REPOSITORY, TINY_IMAGE, ensureImage, ensurePullableImage } from '../../server/test/support/base-images.js';
 import { containerCard } from './support/container-cards.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
 
-// Every test in this file exercises the daemon's real pull/tag/push/remove
-// operations one at a time (a shared registry-facing resource), so they run
-// serially rather than in Playwright's default fully-parallel mode.
+cleanDaemonBeforeAll();
+
+// The tests of a file already run one at a time here (`workers: 1`,
+// `fullyParallel: false`). What serial mode adds is what this file needs: its
+// tests share one tag, each of them removing it, so a failure part-way through
+// leaves that tag in a state nobody established — the tests after it are skipped
+// rather than left to prove nothing, and a retry rebuilds it from the first.
 test.describe.configure({ mode: 'serial' });
 
 async function tagFromPostgres(tag: string): Promise<void> {
@@ -31,8 +36,8 @@ async function createStandaloneImage(tag: string, containerName: string): Promis
 /**
  * Creates (but never starts) a container from the suite's own single-file image.
  *
- * Ensured at the point of use, not once for the run: the exclusive project
- * prunes the host, so an image present at global setup may be gone by now.
+ * Ensured at the point of use, not once for the run: a prune spec in this suite
+ * prunes the host, so an image ensured earlier may be gone by now.
  * Locally built, so putting it back costs a second and no network.
  */
 async function createFromTinyImage(containerName: string): Promise<void> {
@@ -127,11 +132,9 @@ function searchField(page: Page) {
 // A disposable, unauthenticated local registry: lets the push test below exercise a real registry
 // round trip without depending on any external/authenticated registry.
 const PUSH_REGISTRY_PORT = 5082;
-let pushRegistryContainerId = '';
 
 test.beforeAll(async () => {
-  const { stdout } = await execFileAsync('docker', ['run', '-d', '-p', `${PUSH_REGISTRY_PORT}:5000`, ...ownershipArgs('registry'), 'registry:2']);
-  pushRegistryContainerId = stdout.trim();
+  await execFileAsync('docker', ['run', '-d', '-p', `${PUSH_REGISTRY_PORT}:5000`, ...ownershipArgs('registry'), 'registry:2']);
   const deadline = Date.now() + 15_000;
   for (;;) {
     try {
@@ -143,10 +146,6 @@ test.beforeAll(async () => {
     if (Date.now() > deadline) throw new Error('local test registry did not become ready in time');
     await new Promise((resolve) => setTimeout(resolve, 300));
   }
-});
-
-test.afterAll(async () => {
-  await execFileAsync('docker', ['rm', '-fv', pushRegistryContainerId]).catch(() => undefined);
 });
 
 test.beforeEach(async ({ page }) => {

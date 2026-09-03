@@ -10,18 +10,10 @@ import { CrossNavigationProvider } from '../../src/shell/services/CrossNavigatio
 import { DaemonEventStreamProvider } from '../../src/shell/services/EventStreamService';
 import { ErrorReportingProvider, useErrorReporter } from '../../src/shell/services/ErrorReportingService';
 import { ProgressProvider, useProgress } from '../../src/shell/services/ProgressService';
+// The shell holds the live channel, which the client opens through an
+// EventSource jsdom does not provide.
+import { FakeEventSource, channelOpens, deliverValue } from '../support/live-channel';
 
-class FakeEventSource {
-  onmessage: ((event: { data: string }) => void) | null = null;
-  url: string;
-
-  /** Every real EventSource has one, and a screen that holds a connection closes it on unmount. */
-  close() {}
-
-  constructor(url: string) {
-    this.url = url;
-  }
-}
 
 const reachableStatus = {
   daemon: { reachable: true },
@@ -130,10 +122,15 @@ async function renderShell() {
       </ProgressProvider>
     </ErrorReportingProvider>,
   );
+  // The server accepts the channel and pushes the status on it: without either
+  // the shell reports the daemon unreachable, which is the state of REQ-11 and
+  // not the one under test here (…-multiplexed_sse/REQ-39).
+  act(() => channelOpens());
+  act(() => deliverValue('connection-status', reachableStatus));
 
-  // Connectivity status resolves asynchronously (REQ-9); wait for it so the
-  // header status pill has settled before tests written for batch 1's
-  // REQ-1/2/7/8 assert on other parts of the shell.
+  // The status arrives asynchronously (REQ-9); wait for it so the header status
+  // pill has settled before tests written for batch 1's REQ-1/2/7/8 assert on
+  // other parts of the shell.
   await waitFor(() => expect(screen.getByText('Live · daemon events')).toBeInTheDocument());
 
   return api as ShellApi;

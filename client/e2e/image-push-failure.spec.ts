@@ -34,6 +34,9 @@ import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
 import { clickAt } from './support/pointer.js';
 import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /**
  * The address that refuses: nothing listens on port 1, and the IPv4 loopback states that rather

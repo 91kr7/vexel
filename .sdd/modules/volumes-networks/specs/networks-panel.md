@@ -12,8 +12,8 @@ object list and detail panel.
 
 ## Contract
 
-- `<NetworksPanel networks loaded error? onRefresh />` — `networks: NetworkSummary[]`, `onRefresh:
-  () => void` re-reads the list (the caller owns `useNetworks()`).
+- `<NetworksPanel />` — no props: the panel reads the network listing itself with `useNetworks()`,
+  as it already read the container listing for its attach dialog.
 
 Description:
 - In this order: the section header "Networks", the screen toolbar carrying the page-level actions,
@@ -66,6 +66,17 @@ Actions:
   has always resolved two controls whenever the list is empty, and passed only because this daemon
   happens to hold one. Green by luck. The single account, with the deferred ellipsis question, is in
   `ui-library/specs/empty-state.md` (DEF-2).
+- **The network listing is read here**, through `useNetworks()`, rather than mounted by the shell for
+  every screen and handed down
+  (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-40). **What that no
+  longer decides is whether the server reads networks**: the open live channel holds the demand of
+  every value the server keeps, so networks are read on the server's own period whenever a window is
+  open — the stated departure from REQ-41 — and the panel asks for nothing at all.
+- **The first painting no longer waits** (was REQ-42): the listing has been delivered on the channel
+  before the panel is drawn, so the "Loading networks…" state the list already has is what shows only
+  until the very first delivery of a fresh window (REQ-45).
+- The panel drives no trigger of its own (REQ-43): a change on the host, a context switch, the manual
+  refresh control and the panel's own actions all reach this listing as pushes on the channel.
 - "Prune" is disabled when there is no network to prune.
 - Every control on this screen is a control: attaching a container is an action of the row's cluster
   rather than bare text beside the chips, and the page-level actions sit in the toolbar under the
@@ -97,7 +108,7 @@ Actions:
 - ui-library: Card (unpadded, holding the list alone), SectionHeader, ScreenToolbar, DataTable (row content), TwoLineCell, MetaCell,
   ChipGroup, ActionButtonGroup, DetailPanel, CodeViewer, ErrorBanner, EmptyState, Button,
   FormDialog, FormField, TextField, Combobox, KeyValueEditor, Stack, useToast
-- Networks client, useNetworkInspect
+- Networks client, useNetworks, useNetworkInspect
 - containers module: useContainers
 - app-shell: ConfirmationService, ProgressService, ErrorReportingService
 
@@ -114,3 +125,8 @@ Actions:
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-14
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-39
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-40
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-43
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-45
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-17
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal-multiplexed_sse/REQ-33

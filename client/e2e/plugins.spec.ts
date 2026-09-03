@@ -1,13 +1,16 @@
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
-import { pluginIsInstalled, removePluginQuietly, startPluginFixture, type PluginFixture } from '../../server/test/support/plugin-fixture.js';
+import { pluginIsInstalled, startPluginFixture, type PluginFixture } from '../../server/test/support/plugin-fixture.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 // The Plugins screen in a real browser, against the operator's own Docker
 // installation (REQ-98, REQ-99, REQ-111, and
 // plan-ui-coherence-optimisation/REQ-46, REQ-47).
 //
 // Nothing here installs a plugin. `docker plugin ls` is a host-wide list no
-// label can scope, so the install itself lives in `e2e/exclusive/plugins.spec.ts`;
+// label can scope, so the install itself lives in `e2e/plugins-lifecycle.spec.ts`;
 // what this file drives is everything that leaves the daemon's plugins exactly
 // as it found them — the two inventories, and the sharpest half of REQ-99: the
 // privileges are read and shown before anything is installed, and refusing the
@@ -105,12 +108,8 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  // Belt and braces: no spec here installs, but a run killed mid-way must still
-  // leave the daemon's plugin list as it was found.
-  await removePluginQuietly(fixture.installedName);
   await fixture.stop();
 });
-
 // The last active screen survives by design (REQ-115), so the screen this suite
 // needs is pinned rather than inherited from whichever spec ran before.
 test.beforeEach(async ({ page }) => {

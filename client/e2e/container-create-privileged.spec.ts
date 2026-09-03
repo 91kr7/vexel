@@ -52,6 +52,9 @@ import { chooseFromRowOverflowMenu } from './support/row-overflow-menu.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { TINY_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
 import { containerCard } from './support/container-cards.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 // The width every reproduction attempt used (REQ-7), declared for the whole file
 // rather than left to one test to remember: the one thing the artifact fixes

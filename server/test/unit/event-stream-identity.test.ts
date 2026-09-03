@@ -199,7 +199,7 @@ test("keeps the daemon's own nanosecond stamp when an actor attribute is named a
   assert.notEqual(first.id, second.id);
 });
 
-// events/specs/events-stream-endpoint.md — "an identity never breaks the frame: it is written on a
+// live-channel/specs/live-channel-endpoint.md — "an identity never breaks the frame: it is written on a
 // single line"; an exec_create action carries a command line that may hold one
 test("keeps an identity on a single line when the action carries a newline", async () => {
   const [event] = await feed([

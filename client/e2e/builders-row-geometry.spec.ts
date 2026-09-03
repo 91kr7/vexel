@@ -33,6 +33,10 @@ import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
 import { boxOf, boxesOf, centreOf, clickAtItsCentre, movePointerOverTheRow, readOnceSettled, twoFrames } from './support/settled.js';
 import { pressUntilItTakes } from './support/delivered-press.js';
+import { overridePushedValues } from './support/pushed-values.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 interface Viewport {
   width: number;
@@ -414,17 +418,14 @@ function occurrences(text: string, value: string): number {
 }
 
 /**
- * Answers the two inventory endpoints from the fixture, and the "use" call the
- * action makes, so the screen can be measured in every state it has to draw
- * without a single object being created on the operator's daemon.
+ * Puts the fixture inventories on the screen and answers the "use" call the action makes, so the
+ * screen can be measured in every state it has to draw without a single object being created on the
+ * operator's daemon.
  */
 async function stubInventory(page: Page, used: string[]): Promise<void> {
-  await page.route('**/api/builders', async (route) => {
-    await route.fulfill({ json: FIXTURE_BUILDERS });
-  });
-  await page.route('**/api/builders/cache', async (route) => {
-    await route.fulfill({ json: FIXTURE_RECORDS });
-  });
+  // Both are values the server holds, and the channel is the client's only source for one of them
+  // (…-multiplexed_sse/REQ-39): they are delivered there rather than answered at their endpoints.
+  await overridePushedValues(page, { builders: FIXTURE_BUILDERS, 'build-cache': FIXTURE_RECORDS });
   await page.route('**/api/builders/*/use', async (route) => {
     const name = decodeURIComponent(new URL(route.request().url()).pathname.split('/').at(-2) ?? '');
     used.push(name);
@@ -651,8 +652,9 @@ test.describe('F8 — the builders screen against an inventory holding every row
       console.log(`[REQ-39] ${at}: Use at ${describeBox({ ...box })} — the point at its centre resolves to <${hit.tag}> "${hit.label}"`);
       expect(hit.label, `${at}: the point at the Use control's own centre belongs to something else`).toBe('Use');
 
-      // **The press is one this check can prove reached the control it names.** This list re-reads
-      // every 5s (`use-builders.ts`), and a re-read that replaces the row takes the button with it:
+      // **The press is one this check can prove reached the control it names.** This list is sent
+      // again whenever the server holds a new one (`use-builders.ts`), and a delivery that replaces
+      // the row takes the button with it:
       // a settled box says nothing about that, since the replacement has the same geometry
       // (`support/settled.ts`, "a settled box is not a stable node"). A run was lost here with
       // "clicking Use at its own coordinates activated nothing" — a press that reached nothing,

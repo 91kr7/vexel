@@ -2,6 +2,9 @@ import { execFile } from 'node:child_process';
 import { expect, test, type Locator, type Page } from './support/test.js';
 import { openApp } from './support/fixtures.js';
 import { clickAtItsCentre } from './support/settled.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 /**
  * **The escape hatch is intact: swarm left the screens, not the console.**
@@ -143,7 +146,7 @@ test('the console’s Engine API channel still reaches a swarm address of the da
 // REQ-11 — "the console's warning before a destructive command still covers the swarm commands that
 // remain executable, by the same mechanism that covers prune and forced removals"; the acceptance
 // scenario's own command. The confirmation is **cancelled**: nothing destructive is ever run from
-// this project, and this one would act on the operator's own daemon.
+// this file, and this one would act on the operator's own daemon.
 test('a destructive swarm command is announced before it runs, and cancelling runs nothing', async ({ page }) => {
   const command = 'docker swarm leave --force';
   await submit(page, command);

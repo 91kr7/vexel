@@ -6,6 +6,9 @@ import { openApp, ownershipArgs } from './support/fixtures.js';
 import { chooseImageRowAnalysis } from './support/images-screen.js';
 import { refreshThroughTheControl } from './support/refresh-control.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 const RUN_ID = `${process.pid}-${Date.now()}`;
 

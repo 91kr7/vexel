@@ -10,7 +10,6 @@ type: frontend data client
 
 ## Contract
 
-- `fetchRegistries(): Promise<RegistrySummary[]>` — the configured registries.
 - `fetchRepositories(host, query, limit?): Promise<RepositorySummary[]>`.
 - `fetchRepositoryTags(host, repository, limit?): Promise<TagSummary[]>`.
 - `loginToRegistry({ host, username, secret }): Promise<RegistrySummary>` — sends the secret once,

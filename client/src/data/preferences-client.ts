@@ -1,5 +1,4 @@
-// Typed client for the server's persistence and host-path endpoints
-// (REQ-113, REQ-115, REQ-116).
+// Typed client for the server's persistence endpoints (REQ-113, REQ-115).
 export interface OperatorPreferences {
   lastScreenId?: string;
   selectedContext?: string;
@@ -43,29 +42,4 @@ export async function fetchAnalysisCacheUsage(): Promise<AnalysisCacheUsage> {
 export async function clearAnalysisCache(): Promise<void> {
   const response = await fetch('/api/persistence/analysis-cache/clear', { method: 'POST' });
   if (!response.ok) throw new Error(`Analysis-cache clear failed with HTTP ${response.status}`);
-}
-
-export type HostPathKind = 'file' | 'directory';
-
-export interface HostPathValidationRequest {
-  path: string;
-  kind?: HostPathKind;
-  root?: string;
-}
-
-export interface HostPathValidationResult {
-  valid: boolean;
-  reason?: string;
-  resolvedPath?: string;
-  kind?: HostPathKind;
-}
-
-export async function validateHostPath(request: HostPathValidationRequest): Promise<HostPathValidationResult> {
-  const response = await fetch('/api/host-paths/validate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(request),
-  });
-  if (!response.ok) throw new Error(`Host-path validation request failed with HTTP ${response.status}`);
-  return (await response.json()) as HostPathValidationResult;
 }

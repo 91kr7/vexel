@@ -157,8 +157,8 @@ Actions:
 - A menu's entries are bound to the container its card was rendered for, so the list re-reading or
   re-sorting under an open menu can never point an entry at another container; the menu belongs to
   the card's identity (the container id) and goes with it if that container leaves the list.
-- The list keeps re-reading from daemon events at its usual rate while a menu is open: nothing is
-  paused, throttled or debounced for the menu's benefit.
+- The list keeps taking what the live channel delivers while a menu is open: nothing is paused,
+  throttled or debounced for the menu's benefit.
 - This screen contributes no markup and no styling of its own: it composes library components and
   `ContainerCard`, and the four controls are `ActionButtonGroup`s with the trailing `Menu`.
 - The list order is the server's — alphabetical by name, total, stable across re-reads — and this

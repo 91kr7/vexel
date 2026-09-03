@@ -1,11 +1,13 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { act } from 'react';
-import type { DaemonEvent } from '../../src/data/event-stream';
+import type { DaemonEvent } from '../../src/data/live-channel';
 
-// useImageInspect re-reads when `id` changes and on every `image` daemon event
-// (use-image-inspect.md): the fetch and the event bus are mocked so the hook's
-// own re-read triggers are the only thing under test.
+// useImageInspect reads when `id` changes, on demand and on the reload signal,
+// and for no daemon event at all (use-image-inspect.md,
+// plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1):
+// the fetch is mocked, and the event subscription is watched so that reaching it
+// at all fails.
 const fetchImageInspect = vi.fn();
 let daemonListener: ((event: DaemonEvent) => void) | undefined;
 const subscribeToDaemonEvents = vi.fn((listener: (event: DaemonEvent) => void) => {
@@ -19,9 +21,9 @@ vi.mock('../../src/data/images-client', () => ({
   fetchImageInspect: (...args: unknown[]) => fetchImageInspect(...args),
 }));
 // Only the subscription is stood in for: the attribution rule that decides
-// which events reach the hook is the real one (event-stream-client.md).
-vi.mock('../../src/data/event-stream', async (importActual) => ({
-  ...(await importActual<typeof import('../../src/data/event-stream')>()),
+// which events reach the hook is the real one (live-channel/specs/live-channel-client.md).
+vi.mock('../../src/data/live-channel', async (importActual) => ({
+  ...(await importActual<typeof import('../../src/data/live-channel')>()),
   subscribeToDaemonEvents: (listener: (event: DaemonEvent) => void) => subscribeToDaemonEvents(listener),
 }));
 
@@ -70,67 +72,24 @@ describe('useImageInspect', () => {
     await waitFor(() => expect(fetchImageInspect).toHaveBeenCalledWith('image-2'));
   });
 
-  // use-image-inspect.md — re-reads whenever an `image`-typed daemon event arrives
-  it('refreshes the current id when an image daemon event arrives', async () => {
-    fetchImageInspect.mockResolvedValue({ id: 'image-1', tags: [], platforms: [], sizeBytes: 0, createdAt: '', entrypoint: [], command: [], env: [], labels: {}, exposedPorts: [], history: [], raw: {} });
-    const { result } = renderHook(() => useImageInspect('image-1'));
+  // use-image-inspect.md — "A daemon event triggers nothing, so a image changed elsewhere leaves the open
+  // detail showing what it last read, and nothing on screen says so"
+  // (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1, REQ-2, REQ-13)
+  it('subscribes to no daemon event, and reads for none delivered', async () => {
+    fetchImageInspect.mockResolvedValue(imagePayload(SHOWN_IMAGE));
+    const { result } = renderHook(() => useImageInspect(SHOWN_IMAGE));
     await waitFor(() => expect(result.current.loaded).toBe(true));
     fetchImageInspect.mockClear();
 
-    act(() => daemonListener?.(daemonEvent('image')));
+    expect(subscribeToDaemonEvents).not.toHaveBeenCalled();
 
-    await waitFor(() => expect(fetchImageInspect).toHaveBeenCalledWith('image-1'));
-  });
-
-  // use-image-inspect.md — only `image`-typed events trigger a re-read
-  it('does not refresh for a daemon event of an unrelated type', async () => {
-    fetchImageInspect.mockResolvedValue({ id: 'image-1', tags: [], platforms: [], sizeBytes: 0, createdAt: '', entrypoint: [], command: [], env: [], labels: {}, exposedPorts: [], history: [], raw: {} });
-    const { result } = renderHook(() => useImageInspect('image-1'));
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    fetchImageInspect.mockClear();
-
-    act(() => daemonListener?.(daemonEvent('volume')));
-
+    act(() => {
+      for (const type of ['container', 'image', 'volume', 'network']) {
+        daemonListener?.(daemonEvent(type));
+        daemonListener?.({ ...daemonEvent(type), actorId: OTHER_IMAGE });
+      }
+    });
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(fetchImageInspect).not.toHaveBeenCalled();
-  });
-  // use-image-inspect.md — "An `image` event about another image is ignored: the daemon is not
-  // asked about the shown image" (plan-docker_management_app-refresh_cache/REQ-7)
-  it('does not read the shown image again for an image event about another image', async () => {
-    fetchImageInspect.mockResolvedValue(imagePayload(SHOWN_IMAGE));
-    const { result } = renderHook(() => useImageInspect(SHOWN_IMAGE));
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    fetchImageInspect.mockClear();
-
-    act(() => daemonListener?.({ ...daemonEvent('image'), actorId: OTHER_IMAGE, actor: 'other:latest' }));
-
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(fetchImageInspect).not.toHaveBeenCalled();
-  });
-
-  // use-image-inspect.md — re-reads for an `image` event about that same image
-  // (plan-docker_management_app-refresh_cache/REQ-8)
-  it('reads again for an image event carrying the shown image identifier', async () => {
-    fetchImageInspect.mockResolvedValue(imagePayload(SHOWN_IMAGE));
-    const { result } = renderHook(() => useImageInspect(SHOWN_IMAGE));
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    fetchImageInspect.mockClear();
-
-    act(() => daemonListener?.({ ...daemonEvent('image'), actorId: SHOWN_IMAGE }));
-
-    await waitFor(() => expect(fetchImageInspect).toHaveBeenCalledWith(SHOWN_IMAGE));
-  });
-
-  // use-image-inspect.md — "one carrying none is treated as about the shown image, so no change is
-  // ever missed" (plan-docker_management_app-refresh_cache/REQ-8)
-  it('reads again for an image event that carries no identifier at all', async () => {
-    fetchImageInspect.mockResolvedValue(imagePayload(SHOWN_IMAGE));
-    const { result } = renderHook(() => useImageInspect(SHOWN_IMAGE));
-    await waitFor(() => expect(result.current.loaded).toBe(true));
-    fetchImageInspect.mockClear();
-
-    act(() => daemonListener?.({ ...daemonEvent('image'), actor: 'another-image:latest' }));
-
-    await waitFor(() => expect(fetchImageInspect).toHaveBeenCalledWith(SHOWN_IMAGE));
   });
 });

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToReload } from './reload-signal';
 import { fetchNetworkInspect, type NetworkInspect } from './networks-client';
-import { daemonEventConcerns, subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
 
 export interface UseNetworkInspectResult {
   inspect?: NetworkInspect;
@@ -11,12 +10,8 @@ export interface UseNetworkInspectResult {
 }
 
 /**
- * Reads a single network's inspect data, re-reading when `id` changes, on a
- * `network` event about that same network
- * (plan-docker_management_app-refresh_cache/REQ-7) and on every `container`
- * event, since the containers attached to the network are part of what the
- * view shows. Returns an empty result when `id` is undefined (no network
- * selected).
+ * Reads a single network's inspect data, re-reading when `id` changes. Returns an empty result when
+ * `id` is undefined (no network selected).
  */
 export function useNetworkInspect(id: string | undefined): UseNetworkInspectResult {
   const [inspect, setInspect] = useState<NetworkInspect | undefined>(undefined);
@@ -58,15 +53,6 @@ export function useNetworkInspect(id: string | undefined): UseNetworkInspectResu
       cancelledRef.current = true;
     };
   }, [id, refresh]);
-
-  useEffect(
-    () =>
-      subscribeToDaemonEvents((event: DaemonEvent) => {
-        if (event.type === 'container') refresh();
-        else if (event.type === 'network' && daemonEventConcerns(event, id)) refresh();
-      }),
-    [id, refresh],
-  );
 
   useEffect(() => subscribeToReload(readOnce), [readOnce]);
 

@@ -32,8 +32,18 @@ mock.module(new URL("../../src/networks/networks-service.ts", import.meta.url).h
   namedExports: { listNetworks: async () => [] },
 });
 
+// The build-cache inventory is a held kind of the refresh cache, and the totals
+// read it as one: the stand-in is a real kind over the stubbed listing, so a
+// second call inside the period is answered from what is held.
+const { registerRefreshKind, resetRefreshCache } = await import("../../src/refresh-cache/refresh-cache.js");
+const buildCacheListCache = registerRefreshKind({
+  key: "build-cache",
+  periodMs: 30000,
+  read: () => listBuildCacheResult(),
+});
+
 mock.module(new URL("../../src/builders/build-cache-service.ts", import.meta.url).href, {
-  namedExports: { listBuildCache: () => listBuildCacheResult() },
+  namedExports: { listBuildCache: () => listBuildCacheResult(), buildCacheListCache },
 });
 
 const { getDiskUsageTotals, DISK_USAGE_TOTAL_CATEGORY_IDS } = await import("../../src/system/disk-usage-service.js");
@@ -43,6 +53,9 @@ type TotalCategoryId = (typeof DISK_USAGE_TOTAL_CATEGORY_IDS)[number];
 const INTERNAL_CONTAINER_LABEL = "vexel.internal-container";
 
 beforeEach(() => {
+  // Both readings behind the totals are held process-wide; without this a case
+  // is answered from what the one before it read.
+  resetRefreshCache();
   diskUsageBody = JSON.stringify({ LayersSize: 0, Containers: [], Images: [], Volumes: [] });
   diskUsageFailure = undefined;
   listBuildCacheResult = async () => [];
@@ -224,4 +237,38 @@ test("the reading issues exactly one, read-only, disk-usage request", async () =
   await getDiskUsageTotals();
 
   assert.deepEqual(requestedCalls, ["GET /system/df"]);
+});
+
+// disk-usage-service.md — "getDiskUsageTotals … answered from the held disk accounting and the held
+// build-cache inventory; only a call arriving when nothing is held yet waits for a reading of its
+// own" (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-22)
+test("a series of reads inside one period asks the daemon and the CLI for nothing already held", async () => {
+  let buildCacheReads = 0;
+  listBuildCacheResult = async () => {
+    buildCacheReads += 1;
+    return [cacheRecord({ sizeBytes: 1_000 })];
+  };
+
+  const first = await getDiskUsageTotals();
+  assert.deepEqual(requestedCalls, ["GET /system/df"], "the first read pays for the disk accounting");
+  assert.equal(buildCacheReads, 1, "the first read pays for the build-cache inventory");
+
+  for (let index = 0; index < 20; index += 1) {
+    const later = await getDiskUsageTotals();
+    assert.deepEqual(later, first, "a read answered from what is held reports the same figures");
+  }
+
+  assert.deepEqual(requestedCalls, ["GET /system/df"], "a later read asked the daemon for /system/df again");
+  assert.equal(buildCacheReads, 1, "a later read spawned the build-cache CLI again");
+});
+
+// disk-usage-service.md — "Only the first call waits. With nothing held, getDiskUsageTotals waits
+// for the reading, so a freshly started server answers with real figures rather than zeros."
+test("the first call answers with the figures the daemon reported, not with zeros", async () => {
+  setDiskUsage({ LayersSize: 9_000, Volumes: [volume({ UsageData: { Size: 700, RefCount: 0 } })] });
+
+  const totals = await getDiskUsageTotals();
+
+  assert.equal(totals.categories.find((category) => category.id === "images")!.sizeBytes, 9_000);
+  assert.equal(totals.categories.find((category) => category.id === "volumes")!.sizeBytes, 700);
 });

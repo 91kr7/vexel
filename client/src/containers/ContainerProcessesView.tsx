@@ -19,16 +19,20 @@ export interface ContainerProcessesViewProps {
   container: ContainerSummary;
 }
 
+/** The daemon's own running set, as the stats view streams for: a paused container still has processes. */
+const RUNNING_STATES = new Set(['running', 'paused', 'restarting']);
+
 function formatPercent(value: number | undefined): string {
   return value === undefined ? '–' : `${value}%`;
 }
 
 /**
- * The processes running inside a container (REQ-33): pid, user and command,
- * read once when the view opens and re-read only on demand.
+ * The processes running inside a container (REQ-33): pid, user and command, followed on the
+ * detail's own clock while this view is the tab on screen
+ * (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-27).
  */
 export function ContainerProcessesView({ container }: ContainerProcessesViewProps) {
-  const { processes, loaded, loading, error, refresh } = useContainerProcesses(container.id);
+  const { processes, loaded, loading, error, refresh } = useContainerProcesses(container.id, { running: RUNNING_STATES.has(container.state) });
 
   const columns = useMemo<DataTableColumn<ContainerProcess>[]>(
     () => [

@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { subscribeToReload } from './reload-signal';
 import { fetchContainerInspect, type ContainerInspect } from './containers-client';
-import { daemonEventConcerns, subscribeToDaemonEvents, type DaemonEvent } from './event-stream';
+import { useKeptReading } from './use-kept-reading';
+import { cadence } from '../timing/timing-scale';
 
-/**
- * Container actions that fire on every terminal resize or exec lifecycle step
- * (REQ-34, REQ-35) but never change the inspect payload — excluded so an open
- * exec/attach session does not drive a refetch loop.
- */
-const ACTIONS_NOT_AFFECTING_INSPECT = new Set(['resize', 'exec_create', 'exec_start', 'exec_die', 'exec_detach', 'top']);
+const POLL_INTERVAL_MS = cadence(3000);
+
+export interface UseContainerDetailOptions {
+  /** Whether a tab showing the inspect data is the one on screen. */
+  shown?: boolean;
+}
 
 export interface UseContainerDetailResult {
   inspect?: ContainerInspect;
@@ -18,17 +19,13 @@ export interface UseContainerDetailResult {
 }
 
 /**
- * Reads a single container's inspect data, re-reading when `id` changes and
- * whenever a `container` daemon event about that same container arrives
- * (REQ-24, REQ-25, plan-docker_management_app-refresh_cache/REQ-7) — an event
- * about another container changes nothing here. Resize and exec lifecycle
- * events are excluded, since an open exec/attach session (REQ-34, REQ-35)
- * fires those on every terminal resize without changing anything inspect
- * reports. Returns an empty result when `id` is undefined (no container
- * selected).
+ * Reads a single container's inspect data, on the same 3 s clock as the container summary the
+ * detail's header is built from, so the two never describe different moments
+ * (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-25, REQ-26). Returns
+ * an empty result when `id` is undefined (no container selected).
  */
-export function useContainerDetail(id: string | undefined): UseContainerDetailResult {
-  const [inspect, setInspect] = useState<ContainerInspect | undefined>(undefined);
+export function useContainerDetail(id: string | undefined, { shown = true }: UseContainerDetailOptions = {}): UseContainerDetailResult {
+  const [inspect, keepInspect] = useKeptReading<ContainerInspect | undefined>(undefined);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
   const cancelledRef = useRef(false);
@@ -40,7 +37,9 @@ export function useContainerDetail(id: string | undefined): UseContainerDetailRe
     return fetchContainerInspect(id)
       .then((result) => {
         if (cancelledRef.current) return;
-        setInspect(result);
+        // A reading equal to the one in hand replaces nothing, so what the operator opened, typed
+        // or selected stays (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-29).
+        keepInspect(result);
         setError(undefined);
       })
       .catch((cause: Error) => {
@@ -51,7 +50,7 @@ export function useContainerDetail(id: string | undefined): UseContainerDetailRe
         if (cancelledRef.current) return;
         setLoaded(true);
       });
-  }, [id]);
+  }, [id, keepInspect]);
 
   const refresh = useCallback(() => {
     void readOnce();
@@ -59,24 +58,23 @@ export function useContainerDetail(id: string | undefined): UseContainerDetailRe
 
   useEffect(() => {
     cancelledRef.current = false;
-    setInspect(undefined);
+    keepInspect(undefined);
     setLoaded(false);
     setError(undefined);
-    if (id) refresh();
     return () => {
       cancelledRef.current = true;
     };
-  }, [id, refresh]);
+  }, [id, keepInspect]);
 
-  useEffect(
-    () =>
-      subscribeToDaemonEvents((event: DaemonEvent) => {
-        if (event.type !== 'container') return;
-        if (ACTIONS_NOT_AFFECTING_INSPECT.has(event.action)) return;
-        if (daemonEventConcerns(event, id)) refresh();
-      }),
-    [id, refresh],
-  );
+  // The clock and the read that opens it, both scoped to the tab showing the data: a tab nobody is
+  // looking at costs the daemon nothing
+  // (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-28).
+  useEffect(() => {
+    if (!id || !shown) return;
+    refresh();
+    const interval = window.setInterval(refresh, POLL_INTERVAL_MS);
+    return () => window.clearInterval(interval);
+  }, [id, shown, refresh]);
 
   useEffect(() => subscribeToReload(readOnce), [readOnce]);
 

@@ -6,8 +6,8 @@ type: frontend hook
 
 # useSystemOverview
 
-**Purpose** → holds the host overview the dashboard's tiles and disk-usage breakdown are built from,
-keeping it true to the daemon as the daemon changes.
+**Purpose** → holds the host overview the dashboard's tiles and disk-usage breakdown are built
+from.
 
 ## Contract
 
@@ -18,18 +18,32 @@ keeping it true to the daemon as the daemon changes.
   - `error` — the failure message of the last read; cleared by the next successful one, which also
     replaces the overview.
   - `refresh()` — re-reads the overview.
+- The clock: one interval of **3 000 ms**, declared through the client's timing scale as
+  `cadence(3000)` — started when the hook mounts and
+  cleared when it unmounts.
 
 ## Rules and invariants
 
-- The overview is re-read whenever a `container`, `image`, `volume`, `network`, `builder` or
-  `service` daemon event arrives: those are the object types whose appearance, removal or state
-  change moves one of its numbers. A burst of such events — a compose up, a prune — leads to a
-  single re-read, not one per event.
-- `resize` and the exec lifecycle actions are ignored, exactly as the container list ignores them:
-  an open exec or attach session fires them on every keystroke-driven resize without moving
-  anything on the overview.
-- It does not poll: the reading behind it is the daemon's own disk-usage accounting, expensive on a
-  large host, and a dashboard left open all day must not keep the daemon busy computing it.
+- The overview is read when the dashboard is opened, on the clock, when the operator asks for a
+  refresh and on a context switch — and at no other moment. A daemon event triggers nothing
+  (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1,
+  plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-2,
+  plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-19).
+- **The clock runs only while the hook is mounted**: leaving the dashboard stops it
+  (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-17).
+- **It keeps a clock of its own — 3 000 ms** — where the container list under the tiles takes what
+  the live channel delivers, so the two halves of one screen are never far apart on the same fact. It
+  is affordable because the server assembles the overview from the values it already holds: a tick is
+  an in-memory read and one HTTP round trip, and no daemon-facing rate depends on how many windows
+  are open
+  (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-16,
+  plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-18,
+  plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-22). This replaces the
+  earlier rule that it does not poll at all, which stood while every read cost the daemon its whole
+  disk-usage accounting.
+- **The figures change in place and nothing announces the clock**: no indicator, no "last updated",
+  no control, no setting
+  (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-20).
 - What changes fast — a container's state, its CPU, its uptime — is not read here at all: the
   container list hook already follows that live, and the dashboard uses that same list rather than
   a second one of its own.
@@ -44,13 +58,20 @@ keeping it true to the daemon as the daemon changes.
 ## Dependencies
 
 - system: System client (`fetchSystemOverview`)
-- events: Event stream client (`subscribeToDaemonEvents`)
+- timing-scale: Client timing scale (`cadence`)
 - contexts: active-context broadcast (`subscribeToActiveContextChange`)
 - app-shell: Reload signal
 
 ## Requirements served
 
 - plan-docker_management_app/REQ-14
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-1
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-2
 - plan-docker_management_app/REQ-16
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-11
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-13
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-16
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-17
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-18
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-19
+- plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-20

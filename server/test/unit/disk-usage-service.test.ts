@@ -32,8 +32,17 @@ mock.module(new URL("../../src/networks/networks-service.ts", import.meta.url).h
   namedExports: { listNetworks: () => listNetworksResult() },
 });
 
+// The build-cache inventory is a held kind of the refresh cache; the reclaimable
+// breakdown does not read it that way, but the module under test imports it.
+const { registerRefreshKind } = await import("../../src/refresh-cache/refresh-cache.js");
+const buildCacheListCache = registerRefreshKind({
+  key: "build-cache",
+  periodMs: 30000,
+  read: () => listBuildCacheResult(),
+});
+
 mock.module(new URL("../../src/builders/build-cache-service.ts", import.meta.url).href, {
-  namedExports: { listBuildCache: () => listBuildCacheResult() },
+  namedExports: { listBuildCache: () => listBuildCacheResult(), buildCacheListCache },
 });
 
 const { getDiskUsage, DISK_USAGE_CATEGORY_IDS } = await import("../../src/system/disk-usage-service.js");
@@ -310,4 +319,17 @@ test("the reading issues no request other than the daemon's disk-usage reading",
   await getDiskUsage();
 
   assert.deepEqual(requestedCalls, ["GET /system/df"]);
+});
+
+// disk-usage-service.md — "The reclaimable breakdown stays direct and is held nowhere. It is read
+// when the screen asks for it and never on a schedule"
+// (plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-23)
+test("the reclaimable breakdown is read from the daemon on every call, never from a held reading", async () => {
+  setDiskUsage({ Volumes: [volume({ Name: "idle", UsageData: { Size: 512, RefCount: 0 } })] });
+
+  await getDiskUsage();
+  await getDiskUsage();
+  await getDiskUsage();
+
+  assert.deepEqual(requestedCalls, ["GET /system/df", "GET /system/df", "GET /system/df"]);
 });

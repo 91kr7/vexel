@@ -13,16 +13,30 @@ import type { DaemonEvent } from "../../src/events/event-stream-service.js";
 // neither has anything to do with the container listing.
 const engine = installEngineMock();
 
+// The overview reads each of those three through its held kind, so the
+// stand-ins carry one; none of them has anything to do with the container
+// listing this file measures.
+const { registerRefreshKind } = await import("../../src/refresh-cache/refresh-cache.js");
+
 mock.module(new URL("../../src/builders/build-cache-service.ts", import.meta.url).href, {
-  namedExports: { listBuildCache: async () => [] },
+  namedExports: {
+    listBuildCache: async () => [],
+    buildCacheListCache: registerRefreshKind({ key: "build-cache", periodMs: 30000, read: async () => [] }),
+  },
 });
 
 mock.module(new URL("../../src/builders/builders-service.ts", import.meta.url).href, {
-  namedExports: { listBuilders: async () => [] },
+  namedExports: {
+    listBuilders: async () => [],
+    builderListCache: registerRefreshKind({ key: "builders", periodMs: 30000, read: async () => [] }),
+  },
 });
 
 mock.module(new URL("../../src/compose/compose-discovery-service.ts", import.meta.url).href, {
-  namedExports: { listComposeProjects: async () => [] },
+  namedExports: {
+    listComposeProjects: async () => [],
+    composeProjectsCache: registerRefreshKind({ key: "compose-projects", periodMs: 30000, read: async () => [] }),
+  },
 });
 
 const { containerListCache, readContainerList } = await import("../../src/containers/containers-service.js");
@@ -95,6 +109,9 @@ beforeEach(() => {
   }));
   engine.on("GET", "/networks", () => [{ Id: NETWORK_ID, Name: NETWORK_NAME, Driver: "bridge", Scope: "local" }]);
   engine.on("GET", "/system/df", () => ({ LayersSize: 0, Images: [], Containers: [], Volumes: [], BuildCache: [] }));
+  // The overview counts the images from their held listing, which is a reader
+  // of its own and has nothing to do with the container listing measured here.
+  engine.on("GET", "/images/json", () => []);
 });
 
 // REQ-37 — "The volume list, the network list and the dashboard overview are built from the

@@ -24,7 +24,8 @@
  * has no row layout to compare a header against.
  *
  * The fixtures are this file's own — a container, an image tag, a volume and a
- * network, each labelled and each removed in an `afterAll` — so the sweep never
+ * network, each labelled and each removed by the daemon reset that opens every
+ * file — so the sweep never
  * depends on what the operator's daemon happens to hold, and never asserts a
  * count or an emptiness.
  */
@@ -34,6 +35,9 @@ import { boxOf, movePointerOverTheRow, readOnceSettled } from './support/settled
 import { clickAtItsCentre } from './support/settled.js';
 import { execFileAsync } from '../../server/test/support/docker-cli.js';
 import { ALPINE_IMAGE, ensureImage } from '../../server/test/support/base-images.js';
+import { cleanDaemonBeforeAll } from './support/lifecycle.js';
+
+cleanDaemonBeforeAll();
 
 interface Viewport {
   width: number;
@@ -221,20 +225,12 @@ const volumeName = `vexel-e2e-tracks-${RUN_ID}`;
 const networkName = `vexel-e2e-tracks-${RUN_ID}`;
 
 test.beforeAll(async () => {
-  // Ensured at the point of use, not once for the run: the exclusive project prunes the host.
+  // Ensured at the point of use, not once for the run: a prune spec in this suite prunes the host.
   await ensureImage(ALPINE_IMAGE);
   await execFileAsync('docker', ['run', '-d', '--name', containerName, ...ownershipArgs(containerName), '--entrypoint', 'sleep', ALPINE_IMAGE, '600']);
   await execFileAsync('docker', ['tag', ALPINE_IMAGE, imageTag]);
   await execFileAsync('docker', ['volume', 'create', ...ownershipArgs(volumeName), volumeName]);
   await execFileAsync('docker', ['network', 'create', ...ownershipArgs(networkName), networkName]);
-});
-
-test.afterAll(async () => {
-  // `-v` and not just `-f`: without it an image's anonymous volumes outlive the container.
-  await execFileAsync('docker', ['rm', '-fv', containerName]).catch(() => undefined);
-  await execFileAsync('docker', ['rmi', '-f', imageTag]).catch(() => undefined);
-  await execFileAsync('docker', ['volume', 'rm', volumeName]).catch(() => undefined);
-  await execFileAsync('docker', ['network', 'rm', networkName]).catch(() => undefined);
 });
 
 for (const viewport of VIEWPORTS) {
