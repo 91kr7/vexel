@@ -10,9 +10,8 @@ import { ConfirmationProvider } from '../../src/shell/services/ConfirmationServi
 // ImagesScreen reaches a layer named by another screen (images/specs/images-screen.md),
 // so it only stands inside a cross-navigation provider.
 import { CrossNavigationProvider } from '../../src/shell/services/CrossNavigationService';
-import { ErrorReportingProvider } from '../../src/shell/services/ErrorReportingService';
 import { ProgressProvider } from '../../src/shell/services/ProgressService';
-import { ToastProvider } from '../../src/ui';
+import { ReportingServices } from '../support/reporting-services';
 
 // Both screens open the same create/run form; the create client is mocked so
 // the wiring — which entry point opens it, with which primary commit action and
@@ -91,15 +90,15 @@ function containerInspect() {
 
 function providers(children: React.ReactNode) {
   return (
-    <ErrorReportingProvider>
+    <ReportingServices>
       <ProgressProvider>
         <ConfirmationProvider>
           <CrossNavigationProvider>
-            <ToastProvider>{children}</ToastProvider>
+            {children}
           </CrossNavigationProvider>
         </ConfirmationProvider>
       </ProgressProvider>
-    </ErrorReportingProvider>
+    </ReportingServices>
   );
 }
 

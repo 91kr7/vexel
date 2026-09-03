@@ -106,18 +106,23 @@ async function renderShell(): Promise<void> {
   const { DaemonEventStreamProvider } = await import('../../src/shell/services/EventStreamService');
   const { ErrorReportingProvider } = await import('../../src/shell/services/ErrorReportingService');
   const { ProgressProvider } = await import('../../src/shell/services/ProgressService');
+  // The order App wires (app-shell/specs/app.md): a report is a toast, so the toast
+  // service and the connection status both sit above the reporter.
+  const { ToastProvider } = await import('../../src/ui');
   render(
-    <ErrorReportingProvider>
-      <ProgressProvider>
-        <ConnectionStatusProvider>
-          <DaemonEventStreamProvider>
-            <CrossNavigationProvider>
-              <Shell />
-            </CrossNavigationProvider>
-          </DaemonEventStreamProvider>
-        </ConnectionStatusProvider>
-      </ProgressProvider>
-    </ErrorReportingProvider>,
+    <ToastProvider>
+      <ConnectionStatusProvider>
+        <ErrorReportingProvider>
+          <ProgressProvider>
+            <DaemonEventStreamProvider>
+              <CrossNavigationProvider>
+                <Shell />
+              </CrossNavigationProvider>
+            </DaemonEventStreamProvider>
+          </ProgressProvider>
+        </ErrorReportingProvider>
+      </ConnectionStatusProvider>
+    </ToastProvider>,
   );
   await advance(0);
   act(() => channelOpens());

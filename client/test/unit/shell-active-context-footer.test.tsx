@@ -3,14 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Shell } from '../../src/shell/Shell';
-import { ConnectionStatusProvider } from '../../src/shell/services/ConnectionStatusService';
 import { CrossNavigationProvider } from '../../src/shell/services/CrossNavigationService';
 import { DaemonEventStreamProvider } from '../../src/shell/services/EventStreamService';
-import { ErrorReportingProvider } from '../../src/shell/services/ErrorReportingService';
 import { ProgressProvider } from '../../src/shell/services/ProgressService';
 // The shell holds the live channel, which the client opens through an
 // EventSource jsdom does not provide.
 import { FakeEventSource, channelOpens, deliverDiscard, deliverValue } from '../support/live-channel';
+import { ReportingServices } from '../support/reporting-services';
 
 // app-shell/specs/shell.md — "The rail's footer names the context every screen
 // currently follows, as `name (kind)` ... It follows a switch made on the
@@ -157,17 +156,15 @@ function switchControl(name: string): HTMLElement {
 
 async function renderShellOnContexts() {
   render(
-    <ErrorReportingProvider>
+    <ReportingServices>
       <ProgressProvider>
-        <ConnectionStatusProvider>
-          <DaemonEventStreamProvider>
-            <CrossNavigationProvider>
-              <Shell />
-            </CrossNavigationProvider>
-          </DaemonEventStreamProvider>
-        </ConnectionStatusProvider>
+        <DaemonEventStreamProvider>
+          <CrossNavigationProvider>
+            <Shell />
+          </CrossNavigationProvider>
+        </DaemonEventStreamProvider>
       </ProgressProvider>
-    </ErrorReportingProvider>,
+    </ReportingServices>,
   );
   // The server accepts the channel and pushes on it: without either the shell
   // reports the daemon unreachable, which is the state of REQ-11 and not the one

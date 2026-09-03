@@ -5,8 +5,9 @@
  * **This is a guard, not a demonstration.** The refusal exercised here is one
  * the daemon *states*, and the product as delivered already drew it: this file
  * passes on the correction and on the build before it alike. What it protects is
- * that the operator keeps being told — in the place the push's progress is
- * reported, with the daemon's own words in it. The half that fails without the
+ * that the operator keeps being told — as a toast carrying the daemon's own words
+ * (plan-docker_management_app-inline_error_panels/REQ-5, /REQ-7), the dialog stating
+ * none of it. The half that fails without the
  * correction is the *unstated* end, which no daemon can be asked for on demand;
  * it is checked where it is observable, in
  * `server/test/unit/image-transfer-service.test.ts` and
@@ -46,7 +47,7 @@ const UNREACHABLE_REGISTRY = '127.0.0.1:1';
 
 /**
  * The refusal itself costs 0.06–0.08s, measured over three consecutive pushes. What this budget
- * covers is everything between it and the banner — the daemon's stream, the server's own
+ * covers is everything between it and the toast — the daemon's stream, the server's own
  * translation of it and the render — with a wide margin, and it stays well above the refusal time
  * as REQ-10's first clause requires. It is not tuned to a fast path that has a slow twin: with the
  * connection refused instead of blackholed there is only the one path.
@@ -92,10 +93,12 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1, name: 'Images & layers' })).toBeVisible();
 });
 
-// plan-docker_management_app-push_failure_reporting/REQ-1, REQ-2, REQ-3, REQ-4, REQ-8, REQ-9, REQ-10
-test('a push to an address that answers nothing is shown as a failure, with the daemon’s own words, and stays until dismissed', async ({ page }) => {
-  // Above the default, because the fixture image is committed inside the test and the banner is
-  // then watched for three seconds standing still — not because the refusal is slow: it is not.
+// plan-docker_management_app-push_failure_reporting/REQ-1, REQ-2, REQ-3, REQ-8, REQ-9, REQ-10.
+// REQ-4's "stays until dismissed" is superseded: the report is a toast and keeps the toast
+// component's own auto-dismiss (plan-docker_management_app-inline_error_panels/REQ-5, /REQ-8).
+test('a push to an address that answers nothing is reported as a toast, with the daemon’s own words', async ({ page }) => {
+  // Above the default, because the fixture image is committed inside the test — not because the
+  // refusal is slow: it is not.
   test.setTimeout(60_000);
   const containerName = `vexel-e2e-push-refused-${Date.now()}`;
   const reference = `${UNREACHABLE_REGISTRY}/vexel-e2e-push-refused-${Date.now()}:v1`;
@@ -115,22 +118,23 @@ test('a push to an address that answers nothing is shown as a failure, with the 
     // nothing that happens while the daemon is giving up can be missed.
     await clickAt(page, dialog.getByRole('button', { name: 'Push', exact: true }), 'the push dialog’s Push button');
 
-    const banner = dialog.locator('.ui-error-banner');
-    await expect(banner.locator('.ui-error-banner__title'), 'the push’s own dialog states that the push failed').toHaveText('Push failed', {
-      timeout: REFUSAL_BUDGET,
-    });
+    // The failure is a toast now, in the failure tone, and no panel states it
+    // (plan-docker_management_app-inline_error_panels/REQ-5, /REQ-7).
+    const toast = page.locator('.ui-toast-viewport .ui-toast').first();
+    await expect(toast, 'the push’s failure was not reported to the operator').toBeVisible({ timeout: REFUSAL_BUDGET });
+    await expect(toast).toHaveClass(/ui-toast--tone-danger/);
 
     // REQ-1: the daemon's own message, naming the address and the cause — not a wording of the application's own.
-    const detail = (await banner.locator('.ui-error-banner__detail').textContent()) ?? '';
-    expect(detail.trim(), 'the failure is shown with the daemon’s message in it').not.toBe('');
-    expect(detail, `the message shown does not name the address the daemon refused: “${detail}”`).toContain(UNREACHABLE_REGISTRY);
+    const reported = (await toast.textContent()) ?? '';
+    expect(reported.trim(), 'the failure is shown with the daemon’s message in it').not.toBe('');
+    expect(reported, `the message shown does not name the address the daemon refused: “${reported}”`).toContain(UNREACHABLE_REGISTRY);
+    await expect(toast.getByRole('button'), 'the toast carries a control other than its dismissal').toHaveCount(1);
+    await expect(dialog.locator('.ui-error-banner'), 'the dialog stated the failure itself').toHaveCount(0);
 
     // REQ-2 as the operator sees it: nothing is left presented as a push in progress.
     await expect(dialog.getByRole('button', { name: 'Working…' }), 'the dialog still presents the push as running').toHaveCount(0);
 
-    // REQ-4: it stays there, and goes only when the operator closes it.
-    await page.waitForTimeout(3_000);
-    await expect(banner, 'the failure was taken off the screen before the operator dismissed it').toBeVisible();
+    // The dialog stays open on the failure, so the push can be submitted again.
     await expect(dialogHeading).toBeVisible();
 
     await clickAt(page, dialog.getByRole('button', { name: 'Cancel' }), 'the push dialog’s Cancel button');

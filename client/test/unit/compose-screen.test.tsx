@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ComposeFileContent, ComposeProjectSummary, ComposeValidationResult } from '../../src/data/compose-client';
+import { ReportingServices } from '../support/reporting-services';
 
 /**
  * F11 — the compose screen
@@ -91,9 +92,7 @@ vi.mock('../../src/data/use-compose-logs', () => ({
 
 const { ComposeScreen } = await import('../../src/compose/ComposeScreen');
 const { ConfirmationProvider } = await import('../../src/shell/services/ConfirmationService');
-const { ErrorReportingProvider } = await import('../../src/shell/services/ErrorReportingService');
 const { ProgressProvider } = await import('../../src/shell/services/ProgressService');
-const { ToastProvider } = await import('../../src/ui');
 
 function project(overrides: Partial<ComposeProjectSummary> = {}): ComposeProjectSummary {
   return {
@@ -107,15 +106,13 @@ function project(overrides: Partial<ComposeProjectSummary> = {}): ComposeProject
 
 function renderScreen(projects: ComposeProjectSummary[], loaded = true, error?: string) {
   render(
-    <ErrorReportingProvider>
+    <ReportingServices>
       <ProgressProvider>
         <ConfirmationProvider>
-          <ToastProvider>
-            <ComposeScreen projects={projects} loaded={loaded} error={error} onRefresh={onRefresh} />
-          </ToastProvider>
+          <ComposeScreen projects={projects} loaded={loaded} error={error} onRefresh={onRefresh} />
         </ConfirmationProvider>
       </ProgressProvider>
-    </ErrorReportingProvider>,
+    </ReportingServices>,
   );
 }
 

@@ -7,9 +7,13 @@ import { ConfirmationProvider } from '../../src/shell/services/ConfirmationServi
 // ImagesScreen reaches a layer named by another screen (images/specs/images-screen.md),
 // so it only stands inside a cross-navigation provider.
 import { CrossNavigationProvider } from '../../src/shell/services/CrossNavigationService';
-import { ErrorReportingProvider, useErrorReporter } from '../../src/shell/services/ErrorReportingService';
 import { ProgressProvider } from '../../src/shell/services/ProgressService';
-import { ToastProvider } from '../../src/ui';
+import { ReportingServices } from '../support/reporting-services';
+import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+
+// What a screen owes on a failure is the report itself; what becomes of it is the reporting
+// service's own contract (app-shell/specs/error-reporting-service.md).
+vi.mock('../../src/shell/services/ErrorReportingService', () => import('../support/error-reporting-mock'));
 
 function makeImage(overrides: Partial<ImageSummary> = {}): ImageSummary {
   return {
@@ -45,31 +49,17 @@ class FakeEventSource {
   }
 }
 
-function ReportedErrors() {
-  const { errors } = useErrorReporter();
-  return (
-    <>
-      {errors.map((error) => (
-        <p key={error.id}>{`${error.title}${error.detail ? `: ${error.detail}` : ''}`}</p>
-      ))}
-    </>
-  );
-}
-
 function screenTree(images: ImageSummary[], onRefresh: () => void) {
   return (
-    <ErrorReportingProvider>
+    <ReportingServices>
       <ProgressProvider>
         <ConfirmationProvider>
           <CrossNavigationProvider>
-            <ToastProvider>
-              <ImagesScreen images={images} loaded onRefresh={onRefresh} />
-              <ReportedErrors />
-            </ToastProvider>
+            <ImagesScreen images={images} loaded onRefresh={onRefresh} />
           </CrossNavigationProvider>
         </ConfirmationProvider>
       </ProgressProvider>
-    </ErrorReportingProvider>
+    </ReportingServices>
   );
 }
 
@@ -160,6 +150,7 @@ function inspectPayload() {
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
+  forgetReportedFailures();
   // The expanded detail panel reads the image's inspect payload; the filesystem browser, as soon as
   // it is mounted, asks whether a result is kept for the image's content — the read its two shapes
   // are decided by (filesystem_browse_direct/REQ-4, REQ-16) — and is answered "nothing kept" here,
@@ -631,7 +622,7 @@ describe('ImagesScreen — the operations behind the entries (REQ-10, REQ-11)', 
     await user.type(field, 'nginx:copy');
     await user.click(screen.getByRole('button', { name: 'Tag' }));
 
-    expect(await screen.findByText(/reference already exists/)).toBeInTheDocument();
+    await waitFor(() => expect(reportedText()).toMatch(/reference already exists/));
   });
 
   // images-screen.md — a menu's entries are bound to the image its row was rendered for, so a
@@ -1497,7 +1488,7 @@ describe('ImagesScreen — load tarball (plan-docker_management_app/REQ-42)', ()
     await user.click(screen.getByRole('button', { name: 'Load' }));
     await act(async () => latestUpload().respond(400, JSON.stringify({ error: 'invalid tar header' })));
 
-    expect(screen.getByText('invalid tar header')).toBeInTheDocument();
+    await waitFor(() => expect(reportedText()).toMatch(/invalid tar header/));
   });
 });
 

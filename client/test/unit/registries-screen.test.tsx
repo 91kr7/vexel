@@ -4,6 +4,12 @@ import userEvent from '@testing-library/user-event';
 import type { RegistrySummary, TagSummary } from '../../src/data/registries-client';
 import type { RepositoryEntry, UseRegistryRepositoriesResult } from '../../src/data/use-registry-repositories';
 import type { UseRegistriesResult } from '../../src/data/use-registries';
+import { ReportingServices } from '../support/reporting-services';
+import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+
+// What a screen owes on a failure is the report itself; what becomes of it is the reporting
+// service's own contract (app-shell/specs/error-reporting-service.md).
+vi.mock('../../src/shell/services/ErrorReportingService', () => import('../support/error-reporting-mock'));
 
 // The Registries screen composes two hooks and the images area's pull stream
 // (registries/specs/registries-screen.md). All three are mocked here, so what
@@ -54,9 +60,7 @@ vi.mock('../../src/data/use-image-transfer', () => ({
 
 const { RegistriesScreen } = await import('../../src/registries/RegistriesScreen');
 const { ConfirmationProvider } = await import('../../src/shell/services/ConfirmationService');
-const { ErrorReportingProvider, useErrorReporter } = await import('../../src/shell/services/ErrorReportingService');
 const { ProgressProvider } = await import('../../src/shell/services/ProgressService');
-const { ToastProvider } = await import('../../src/ui');
 
 function registry(overrides: Partial<RegistrySummary> = {}): RegistrySummary {
   return { host: 'docker.io', serverUrl: 'https://index.docker.io/v1/', authenticated: false, secure: true, official: true, ...overrides };
@@ -70,29 +74,15 @@ function entry(overrides: Partial<RepositoryEntry> = {}): RepositoryEntry {
   return { repository: { name: 'team/api' }, tags: [], tagsLoading: false, ...overrides };
 }
 
-function ReportedErrors() {
-  const { errors } = useErrorReporter();
-  return (
-    <>
-      {errors.map((error) => (
-        <p key={error.id}>{`${error.title}${error.detail ? `: ${error.detail}` : ''}`}</p>
-      ))}
-    </>
-  );
-}
-
 function renderScreen() {
   render(
-    <ErrorReportingProvider>
+    <ReportingServices>
       <ProgressProvider>
         <ConfirmationProvider>
-          <ToastProvider>
-            <RegistriesScreen />
-            <ReportedErrors />
-          </ToastProvider>
+          <RegistriesScreen />
         </ConfirmationProvider>
       </ProgressProvider>
-    </ErrorReportingProvider>,
+    </ReportingServices>,
   );
 }
 
@@ -180,6 +170,7 @@ function visibleText(): string {
 }
 
 beforeEach(() => {
+  forgetReportedFailures();
   logIn.mockReset();
   logOut.mockReset();
   refreshRegistries.mockReset();
@@ -391,15 +382,13 @@ describe('RegistriesScreen — the registries panel (registries/specs/registries
   it('says it is reading before the first read settles, and that there are none once it has', () => {
     registriesResult = { registries: [], loaded: false, refresh: refreshRegistries, logIn, logOut };
     const { unmount } = render(
-      <ErrorReportingProvider>
+      <ReportingServices>
         <ProgressProvider>
           <ConfirmationProvider>
-            <ToastProvider>
-              <RegistriesScreen />
-            </ToastProvider>
+            <RegistriesScreen />
           </ConfirmationProvider>
         </ProgressProvider>
-      </ErrorReportingProvider>,
+      </ReportingServices>,
     );
     expect(screen.getByText('Reading registries…')).toBeInTheDocument();
     unmount();
@@ -757,9 +746,10 @@ describe('RegistriesScreen — logging in and out (registries/specs/registries-s
 
     await user.click(screen.getAllByRole('button', { name: 'Log in' }).at(-1)!);
 
-    await waitFor(() => expect(screen.getByText(/401 Unauthorized/)).toBeInTheDocument());
+    await waitFor(() => expect(reportedText()).toMatch(/401 Unauthorized/));
     expect(screen.getByRole('heading', { name: 'Log in to ghcr.io' })).toBeInTheDocument();
     expect(visibleText()).not.toContain(secret);
+    expect(reportedText(), 'the secret was carried into the report').not.toContain(secret);
   });
 
   // REQ-87 — "the secret ... is dropped the moment the form closes whichever way it did"
@@ -807,12 +797,14 @@ describe('RegistriesScreen — logging in and out (registries/specs/registries-s
     }
     expect(secretField).toHaveAttribute('type', 'password');
     expect(visibleText()).not.toContain(secret);
+    expect(reportedText(), 'the secret was carried into the report').not.toContain(secret);
 
     await user.click(screen.getAllByRole('button', { name: 'Log in' }).at(-1)!);
 
     // Not in the confirmation that follows either.
     await waitFor(() => expect(screen.getByText('Logged in')).toBeInTheDocument());
     expect(visibleText()).not.toContain(secret);
+    expect(reportedText(), 'the secret was carried into the report').not.toContain(secret);
   });
 
   // "'Log out' -> asks for confirmation, naming the registry and stating that the stored credential

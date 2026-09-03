@@ -3,9 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen } from '@testing-library/react';
 import type { UseVolumesResult } from '../../src/data/use-volumes';
 import { ConfirmationProvider } from '../../src/shell/services/ConfirmationService';
-import { ErrorReportingProvider } from '../../src/shell/services/ErrorReportingService';
 import { ProgressProvider } from '../../src/shell/services/ProgressService';
-import { ToastProvider } from '../../src/ui';
+import { ReportingServices } from '../support/reporting-services';
 
 // The screen reads the volume listing itself since
 // plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-40, so the reading is
@@ -24,15 +23,13 @@ afterEach(cleanup);
 // test is about, not those services' own behaviour.
 function renderScreen(networksPanel?: ReactNode) {
   render(
-    <ErrorReportingProvider>
+    <ReportingServices>
       <ProgressProvider>
         <ConfirmationProvider>
-          <ToastProvider>
-            <VolumesNetworksScreen networksPanel={networksPanel} />
-          </ToastProvider>
+          <VolumesNetworksScreen networksPanel={networksPanel} />
         </ConfirmationProvider>
       </ProgressProvider>
-    </ErrorReportingProvider>,
+    </ReportingServices>,
   );
 }
 

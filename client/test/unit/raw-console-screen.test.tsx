@@ -4,8 +4,12 @@ import userEvent from '@testing-library/user-event';
 import type { ConsoleRunEntry, UseConsoleResult } from '../../src/data/use-console';
 import type { ContextSummary } from '../../src/data/contexts-client';
 import { ConfirmationProvider } from '../../src/shell/services/ConfirmationService';
-import { ErrorReportingProvider, useErrorReporter } from '../../src/shell/services/ErrorReportingService';
-import { ToastProvider } from '../../src/ui';
+import { ReportingServices } from '../support/reporting-services';
+import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+
+// What a screen owes on a failure is the report itself; what becomes of it is the reporting
+// service's own contract (app-shell/specs/error-reporting-service.md).
+vi.mock('../../src/shell/services/ErrorReportingService', () => import('../support/error-reporting-mock'));
 
 // raw-console/specs/raw-console-screen.md — the escape hatch where any docker command line or any
 // Engine API call can be run (REQ-100 … REQ-104, REQ-112, REQ-114). The console hook is mocked so
@@ -58,28 +62,13 @@ function sessionEntry(overrides: Partial<ConsoleRunEntry> = {}): ConsoleRunEntry
   };
 }
 
-/** Surfaces what the screen reported through the shared error service, so the assertion can read it. */
-function ReportedErrors() {
-  const { errors } = useErrorReporter();
-  return (
-    <>
-      {errors.map((error) => (
-        <p key={error.id}>{`${error.title}${error.detail ? `: ${error.detail}` : ''}`}</p>
-      ))}
-    </>
-  );
-}
-
 function renderScreen() {
   render(
-    <ErrorReportingProvider>
+    <ReportingServices>
       <ConfirmationProvider>
-        <ToastProvider>
-          <RawConsoleScreen />
-          <ReportedErrors />
-        </ToastProvider>
+        <RawConsoleScreen />
       </ConfirmationProvider>
-    </ErrorReportingProvider>,
+    </ReportingServices>,
   );
 }
 
@@ -92,6 +81,7 @@ function confirmDialog(): HTMLElement {
 }
 
 beforeEach(() => {
+  forgetReportedFailures();
   for (const spy of Object.values(consoleHook)) spy.mockReset();
   consoleHook.classify.mockResolvedValue({ destructive: false, carriesSecret: false });
   consoleHook.run.mockResolvedValue(undefined);
@@ -198,7 +188,7 @@ describe('RawConsoleScreen — running a line (REQ-100, REQ-112)', () => {
 
     await user.type(prompt(), 'docker ps{Enter}');
 
-    expect(await screen.findByText(/classification unreachable/)).toBeInTheDocument();
+    await waitFor(() => expect(reportedText()).toMatch(/classification unreachable/));
     expect(consoleHook.run).not.toHaveBeenCalled();
     // The line the operator typed is still there to try again.
     expect(prompt()).toHaveValue('docker ps');

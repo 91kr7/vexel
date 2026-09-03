@@ -8,6 +8,11 @@ import type { LayerBuildCacheLink, LayerMetadata } from '../../src/data/image-la
 // (images/specs/layer-explorer.md), so the explorer only stands inside a
 // cross-navigation provider.
 import { CrossNavigationProvider, useCrossNavigation, type CrossNavigationRequest } from '../../src/shell/services/CrossNavigationService';
+import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+
+// What a screen owes on a failure is the report itself; what becomes of it is the reporting
+// service's own contract (app-shell/specs/error-reporting-service.md).
+vi.mock('../../src/shell/services/ErrorReportingService', () => import('../support/error-reporting-mock'));
 
 // Stands in for the browser's EventSource: the changeset analysis stream's
 // only channel (REQ-49, REQ-51), so the tests drive it by emitting events on
@@ -107,6 +112,7 @@ function NavigationProbe() {
 }
 
 beforeEach(() => {
+  forgetReportedFailures();
   layers = [makeLayer()];
   cacheLinks = [makeCacheLink()];
   cacheTraceFailure = undefined;
@@ -336,6 +342,14 @@ describe('LayerExplorer — changeset view (plan-docker_management_app/REQ-49)',
     await userEvent.click(screen.getByRole('button', { name: 'Analyze' }));
 
     act(() => latestSource().emit('error', { message: 'export failed' }));
+    // layer-explorer.md — the failure is reported as a toast carrying the daemon's own message,
+    // the dialog states none and offers no retry of its own
+    // (plan-docker_management_app-inline_error_panels/REQ-5, /REQ-7)
+    await waitFor(() => expect(reportedText()).toMatch(/export failed/));
+    // Scoped to the progress dialog: the screen's own body panels are another batch's subject.
+    const progressDialog = document.querySelector('.ui-transfer-progress-dialog__caption')!.closest<HTMLElement>('.ui-modal')!;
+    expect(progressDialog.querySelector('.ui-error-banner'), 'the dialog stated the cause itself').toBeNull();
+    expect(within(progressDialog).queryByRole('button', { name: 'Retry' }), 'the dialog offered a retry of its own').not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument());
     await userEvent.click(screen.getByRole('button', { name: 'Close' }));
 

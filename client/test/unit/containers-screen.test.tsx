@@ -4,9 +4,13 @@ import userEvent from '@testing-library/user-event';
 import { ContainersScreen } from '../../src/containers/ContainersScreen';
 import type { ContainerSummary } from '../../src/data/containers-client';
 import { ConfirmationProvider } from '../../src/shell/services/ConfirmationService';
-import { ErrorReportingProvider, useErrorReporter } from '../../src/shell/services/ErrorReportingService';
 import { ProgressProvider } from '../../src/shell/services/ProgressService';
-import { ToastProvider } from '../../src/ui';
+import { ReportingServices } from '../support/reporting-services';
+import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+
+// What a screen owes on a failure is the report itself; what becomes of it is the reporting
+// service's own contract (app-shell/specs/error-reporting-service.md).
+vi.mock('../../src/shell/services/ErrorReportingService', () => import('../support/error-reporting-mock'));
 
 function makeContainer(overrides: Partial<ContainerSummary> = {}): ContainerSummary {
   return {
@@ -42,29 +46,15 @@ function inspectFor(id: string) {
   };
 }
 
-function ReportedErrors() {
-  const { errors } = useErrorReporter();
-  return (
-    <>
-      {errors.map((error) => (
-        <p key={error.id}>{`${error.title}${error.detail ? `: ${error.detail}` : ''}`}</p>
-      ))}
-    </>
-  );
-}
-
 function screenTree(containers: ContainerSummary[], onRefresh: () => void) {
   return (
-    <ErrorReportingProvider>
+    <ReportingServices>
       <ProgressProvider>
         <ConfirmationProvider>
-          <ToastProvider>
-            <ContainersScreen containers={containers} loaded onRefresh={onRefresh} />
-            <ReportedErrors />
-          </ToastProvider>
+          <ContainersScreen containers={containers} loaded onRefresh={onRefresh} />
         </ConfirmationProvider>
       </ProgressProvider>
-    </ErrorReportingProvider>
+    </ReportingServices>
   );
 }
 
@@ -80,6 +70,7 @@ function renderScreen(containers: ContainerSummary[], onRefresh = vi.fn()) {
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
+  forgetReportedFailures();
   fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 204, json: () => Promise.resolve({}) });
   vi.stubGlobal('fetch', fetchMock);
 });
@@ -479,7 +470,7 @@ describe('ContainersScreen — running lifecycle actions (REQ-20, REQ-21, REQ-22
 
     await user.click(screen.getByRole('button', { name: 'Stop' }));
 
-    expect(await screen.findByText(/container is not running/)).toBeInTheDocument();
+    await waitFor(() => expect(reportedText()).toMatch(/container is not running/));
     expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument();
   });
 
@@ -492,7 +483,7 @@ describe('ContainersScreen — running lifecycle actions (REQ-20, REQ-21, REQ-22
     await user.click(entries[2]);
     await user.click(screen.getByRole('button', { name: 'kill' }));
 
-    expect(await screen.findByText(/cannot kill container/)).toBeInTheDocument();
+    await waitFor(() => expect(reportedText()).toMatch(/cannot kill container/));
   });
 });
 

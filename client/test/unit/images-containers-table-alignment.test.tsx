@@ -11,9 +11,8 @@ import { ConfirmationProvider } from '../../src/shell/services/ConfirmationServi
 // ImagesScreen reaches a layer named by another screen (images/specs/images-screen.md),
 // so it only stands inside a cross-navigation provider.
 import { CrossNavigationProvider } from '../../src/shell/services/CrossNavigationService';
-import { ErrorReportingProvider } from '../../src/shell/services/ErrorReportingService';
 import { ProgressProvider } from '../../src/shell/services/ProgressService';
-import { ToastProvider } from '../../src/ui';
+import { ReportingServices } from '../support/reporting-services';
 
 /**
  * plan-docker_management_app/REQ-3 asked the two core list screens to apply the same `DataTable`
@@ -120,15 +119,15 @@ function imageInspect() {
 
 function withServices(children: React.ReactNode) {
   return (
-    <ErrorReportingProvider>
+    <ReportingServices>
       <ProgressProvider>
         <ConfirmationProvider>
           <CrossNavigationProvider>
-            <ToastProvider>{children}</ToastProvider>
+            {children}
           </CrossNavigationProvider>
         </ConfirmationProvider>
       </ProgressProvider>
-    </ErrorReportingProvider>
+    </ReportingServices>
   );
 }
 

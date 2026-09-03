@@ -140,21 +140,16 @@ describe('TransferProgressDialog — self-dismissal (ui-library/specs/transfer-p
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  // transfer-progress-dialog.md — a failed operation arms nothing: it stays on screen with its
-  // cause until it is dismissed (REQ-8, REQ-20)
+  // transfer-progress-dialog.md — a failed operation arms nothing: it stays on screen until it is
+  // dismissed (REQ-8, REQ-20)
   it('never closes itself on a failure, however long the clock runs', () => {
     vi.useFakeTimers();
-    const { onClose } = renderDialog({
-      status: 'error',
-      errorMessage: 'the daemon refused the export',
-      autoCloseOnDone: true,
-    });
+    const { onClose } = renderDialog({ status: 'error', autoCloseOnDone: true });
 
-    expect(screen.getByText('the daemon refused the export')).toBeInTheDocument();
     advance(AUTO_CLOSE_MS * 30);
 
     expect(onClose).not.toHaveBeenCalled();
-    expect(screen.getByText('the daemon refused the export')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
   });
 
   // transfer-progress-dialog.md — a running operation arms nothing (REQ-9)
@@ -269,11 +264,10 @@ describe('TransferProgressDialog — self-dismissal (ui-library/specs/transfer-p
       autoCloseOnDone: true,
     });
 
-    rerender({ status: 'error', errorMessage: 'the export stream ended early' });
+    rerender({ status: 'error' });
     advance(AUTO_CLOSE_MS * 30);
 
     expect(onClose).not.toHaveBeenCalled();
-    expect(screen.getByText('the export stream ended early')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
   });
 
@@ -343,31 +337,37 @@ describe('TransferProgressDialog — nothing else about the surface changes (ui-
     expect(caption()).toHaveTextContent(PHASE_CAPTION);
   });
 
-  // transfer-progress-dialog.md — the progress bar is not shown while `status` is `'error'`: the
-  // ErrorBanner takes its place (REQ-16)
-  it('replaces the bar with the failure cause on a failure', () => {
-    renderDialog({ status: 'error', errorMessage: 'the daemon refused the export' });
+  // transfer-progress-dialog.md — a failure is drawn nowhere in the dialog, and what stays is the
+  // progress display showing where the transfer stopped
+  // (plan-docker_management_app-inline_error_panels/REQ-5, /REQ-7)
+  it('draws no failure report and keeps the progress display where the transfer stopped', () => {
+    const { rerender } = renderDialog({ status: 'active', totalBytes: 10, currentBytes: 6 });
 
-    expect(document.querySelector('.ui-progress-bar')).toBeNull();
-    expect(screen.getByText('the daemon refused the export')).toBeInTheDocument();
+    rerender({ status: 'error' });
+
+    expect(document.querySelector('.ui-progress-bar'), 'the progress display went with the failure').not.toBeNull();
+    expect(barWidth(), 'the bar no longer says where the transfer stopped').toBe('60%');
+    expect(document.querySelector('.ui-error-banner'), 'the dialog reported the failure itself').toBeNull();
   });
 });
 
-// transfer-progress-dialog.md — the optional retry, offered **inside the failure report itself**,
-// for an operation whose caller has a way to start it again
-// (plan-docker_management_app-filesystem_browse_direct/REQ-9)
-describe('TransferProgressDialog — the retry inside the failure report (ui-library/specs/transfer-progress-dialog.md)', () => {
-  /** The failure report itself, as opposed to the dialog around it: the retry has to live in here. */
-  function failureReport(): HTMLElement | null {
-    return document.querySelector<HTMLElement>('.ui-error-banner');
+// transfer-progress-dialog.md — the optional retry, offered as one of the dialog's own actions
+// beside `Close`, for an operation whose caller has a way to start it again
+// (plan-docker_management_app-inline_error_panels/REQ-5, /REQ-7)
+describe('TransferProgressDialog — the retry beside Close (ui-library/specs/transfer-progress-dialog.md)', () => {
+  /** The dialog's own action row, as opposed to anything its content draws: the retry belongs here. */
+  function actionRow(): HTMLElement | null {
+    return document.querySelector<HTMLElement>('.ui-modal__actions');
   }
 
-  it('offers the retry inside the failure report, and calls it without dismissing the dialog', () => {
+  it('offers the retry beside Close, and calls it without dismissing the dialog', () => {
     const onRetry = vi.fn();
-    const { onClose } = renderDialog({ status: 'error', errorMessage: 'the daemon refused the export', onRetry });
+    const { onClose } = renderDialog({ status: 'error', onRetry });
 
     const retry = screen.getByRole('button', { name: 'Retry' });
-    expect(failureReport()?.contains(retry), 'the retry is offered outside the failure report').toBe(true);
+    const close = screen.getByRole('button', { name: 'Close' });
+    expect(actionRow()?.contains(retry), 'the retry is not one of the dialog actions').toBe(true);
+    expect(actionRow()?.contains(close), 'the retry does not stand beside Close').toBe(true);
 
     act(() => {
       fireEvent.click(retry);
@@ -379,7 +379,7 @@ describe('TransferProgressDialog — the retry inside the failure report (ui-lib
 
   // It never replaces the Close action: a failure is always dismissible, retry or no retry.
   it('keeps the dismissal alongside the retry', () => {
-    renderDialog({ status: 'error', errorMessage: 'the daemon refused the export', onRetry: vi.fn() });
+    renderDialog({ status: 'error', onRetry: vi.fn() });
 
     expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
@@ -388,7 +388,7 @@ describe('TransferProgressDialog — the retry inside the failure report (ui-lib
   // Omitted, the failure offers only its dismissal — the prop is additive and off by default, so
   // every other caller of this surface is unchanged.
   it('offers no retry when the caller supplies none', () => {
-    renderDialog({ status: 'error', errorMessage: 'the daemon refused the export' });
+    renderDialog({ status: 'error' });
 
     expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
   });

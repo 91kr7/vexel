@@ -9,9 +9,8 @@ import userEvent from '@testing-library/user-event';
 import { ContainerDetailPanel } from '../../src/containers/ContainerDetailPanel';
 import type { ContainerInspect, ContainerSummary } from '../../src/data/containers-client';
 import { ConfirmationProvider } from '../../src/shell/services/ConfirmationService';
-import { ErrorReportingProvider } from '../../src/shell/services/ErrorReportingService';
 import { ProgressProvider } from '../../src/shell/services/ProgressService';
-import { ToastProvider } from '../../src/ui';
+import { ReportingServices } from '../support/reporting-services';
 
 const container: ContainerSummary = {
   id: 'container-1',
@@ -163,15 +162,13 @@ function pathsOnScreen(): string[] {
 async function openWholeInspectTab(): Promise<void> {
   const user = userEvent.setup();
   render(
-    <ErrorReportingProvider>
+    <ReportingServices>
       <ProgressProvider>
         <ConfirmationProvider>
-          <ToastProvider>
-            <ContainerDetailPanel container={container} onContainerReplaced={vi.fn()} />
-          </ToastProvider>
+          <ContainerDetailPanel container={container} onContainerReplaced={vi.fn()} />
         </ConfirmationProvider>
       </ProgressProvider>
-    </ErrorReportingProvider>,
+    </ReportingServices>,
   );
   await user.click(await screen.findByRole('tab', { name: 'Inspect' }));
   await screen.findByLabelText('Find in payload');

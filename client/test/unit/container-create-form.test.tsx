@@ -4,8 +4,12 @@ import userEvent from '@testing-library/user-event';
 import { ContainerCreateForm } from '../../src/containers/ContainerCreateForm';
 import type { ImageSummary } from '../../src/data/images-client';
 import type { ContainerCreateSpec } from '../../src/data/container-create-client';
-import { ErrorReportingProvider, useErrorReporter } from '../../src/shell/services/ErrorReportingService';
-import { ToastProvider } from '../../src/ui';
+import { ReportingServices } from '../support/reporting-services';
+import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+
+// What a screen owes on a failure is the report itself; what becomes of it is the reporting
+// service's own contract (app-shell/specs/error-reporting-service.md).
+vi.mock('../../src/shell/services/ErrorReportingService', () => import('../support/error-reporting-mock'));
 
 // The form talks to the daemon only through the create client, which is mocked
 // so the form's own contract — local validation, the daemon refusal kept as a
@@ -30,29 +34,15 @@ function makeImage(overrides: Partial<ImageSummary> = {}): ImageSummary {
   };
 }
 
-function ReportedErrors() {
-  const { errors } = useErrorReporter();
-  return (
-    <>
-      {errors.map((error) => (
-        <p key={error.id}>{`${error.title}${error.detail ? `: ${error.detail}` : ''}`}</p>
-      ))}
-    </>
-  );
-}
-
 function renderForm(
   props: Partial<React.ComponentProps<typeof ContainerCreateForm>> = {},
 ): { onCreated: ReturnType<typeof vi.fn>; onCancel: ReturnType<typeof vi.fn> } {
   const onCreated = props.onCreated ?? vi.fn();
   const onCancel = props.onCancel ?? vi.fn();
   render(
-    <ErrorReportingProvider>
-      <ToastProvider>
-        <ContainerCreateForm open images={[makeImage()]} {...props} onCreated={onCreated} onCancel={onCancel} />
-        <ReportedErrors />
-      </ToastProvider>
-    </ErrorReportingProvider>,
+    <ReportingServices>
+      <ContainerCreateForm open images={[makeImage()]} {...props} onCreated={onCreated} onCancel={onCancel} />
+    </ReportingServices>,
   );
   return { onCreated: onCreated as ReturnType<typeof vi.fn>, onCancel: onCancel as ReturnType<typeof vi.fn> };
 }
@@ -64,6 +54,7 @@ function submittedSpec(): ContainerCreateSpec {
 }
 
 beforeEach(() => {
+  forgetReportedFailures();
   createContainer.mockReset();
   createContainer.mockResolvedValue(createdResult);
 });
@@ -220,7 +211,7 @@ describe('ContainerCreateForm — configuration coverage (plan-docker_management
     await user.type(screen.getByRole('combobox', { name: 'Image reference' }), 'nginx:1.27');
     await user.click(screen.getByRole('button', { name: 'Create and start' }));
 
-    await waitFor(() => expect(screen.getByText(/the requested platform does not match/)).toBeInTheDocument());
+    await waitFor(() => expect(reportedText()).toMatch(/the requested platform does not match/));
   });
 
   // container-create-form.md — cancel creates nothing
@@ -519,27 +510,21 @@ describe('ContainerCreateForm — opening (containers/specs/container-create-for
   it('starts from a clean form, pre-filled with the requested image, on every opening', async () => {
     const user = userEvent.setup();
     const { rerender } = render(
-      <ErrorReportingProvider>
-        <ToastProvider>
-          <ContainerCreateForm open images={[makeImage()]} onCancel={vi.fn()} onCreated={vi.fn()} />
-        </ToastProvider>
-      </ErrorReportingProvider>,
+      <ReportingServices>
+        <ContainerCreateForm open images={[makeImage()]} onCancel={vi.fn()} onCreated={vi.fn()} />
+      </ReportingServices>,
     );
     await user.type(screen.getByRole('textbox', { name: 'Container name' }), 'left-over');
 
     rerender(
-      <ErrorReportingProvider>
-        <ToastProvider>
-          <ContainerCreateForm open={false} images={[makeImage()]} onCancel={vi.fn()} onCreated={vi.fn()} />
-        </ToastProvider>
-      </ErrorReportingProvider>,
+      <ReportingServices>
+        <ContainerCreateForm open={false} images={[makeImage()]} onCancel={vi.fn()} onCreated={vi.fn()} />
+      </ReportingServices>,
     );
     rerender(
-      <ErrorReportingProvider>
-        <ToastProvider>
-          <ContainerCreateForm open images={[makeImage()]} initialImage="alpine:3.20" onCancel={vi.fn()} onCreated={vi.fn()} />
-        </ToastProvider>
-      </ErrorReportingProvider>,
+      <ReportingServices>
+        <ContainerCreateForm open images={[makeImage()]} initialImage="alpine:3.20" onCancel={vi.fn()} onCreated={vi.fn()} />
+      </ReportingServices>,
     );
 
     expect(screen.getByRole('textbox', { name: 'Container name' })).toHaveValue('');

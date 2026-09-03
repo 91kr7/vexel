@@ -4,9 +4,13 @@ import userEvent from '@testing-library/user-event';
 import { VolumesPanel } from '../../src/volumes-networks/VolumesPanel';
 import type { VolumeSummary } from '../../src/data/volumes-client';
 import { ConfirmationProvider } from '../../src/shell/services/ConfirmationService';
-import { ErrorReportingProvider, useErrorReporter } from '../../src/shell/services/ErrorReportingService';
 import { ProgressProvider } from '../../src/shell/services/ProgressService';
-import { ToastProvider } from '../../src/ui';
+import { ReportingServices } from '../support/reporting-services';
+import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+
+// What a screen owes on a failure is the report itself; what becomes of it is the reporting
+// service's own contract (app-shell/specs/error-reporting-service.md).
+vi.mock('../../src/shell/services/ErrorReportingService', () => import('../support/error-reporting-mock'));
 
 function makeVolume(overrides: Partial<VolumeSummary> = {}): VolumeSummary {
   return {
@@ -27,29 +31,15 @@ function inspectPayload(volume: VolumeSummary) {
   return { ...volume, raw: { Name: volume.name, Driver: volume.driver } };
 }
 
-function ReportedErrors() {
-  const { errors } = useErrorReporter();
-  return (
-    <>
-      {errors.map((error) => (
-        <p key={error.id}>{`${error.title}${error.detail ? `: ${error.detail}` : ''}`}</p>
-      ))}
-    </>
-  );
-}
-
 function renderPanel(volumes: VolumeSummary[], onRefresh = vi.fn()) {
   render(
-    <ErrorReportingProvider>
+    <ReportingServices>
       <ProgressProvider>
         <ConfirmationProvider>
-          <ToastProvider>
-            <VolumesPanel volumes={volumes} loaded onRefresh={onRefresh} />
-            <ReportedErrors />
-          </ToastProvider>
+          <VolumesPanel volumes={volumes} loaded onRefresh={onRefresh} />
         </ConfirmationProvider>
       </ProgressProvider>
-    </ErrorReportingProvider>,
+    </ReportingServices>,
   );
   return { onRefresh };
 }
@@ -116,6 +106,7 @@ class FakeEventSource {
 let fetchMock: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
+  forgetReportedFailures();
   fetchMock = vi.fn().mockImplementation((url: string) =>
     Promise.resolve(
       String(url).includes('/inspect')
@@ -479,7 +470,7 @@ describe('VolumesPanel — create (plan-docker_management_app/REQ-71)', () => {
     await user.type(within(dialog).getByRole('textbox', { name: 'Volume name' }), 'pgdata');
     await user.click(within(dialog).getByRole('button', { name: 'Create' }));
 
-    expect(await screen.findByText(/volume name already in use/)).toBeInTheDocument();
+    await waitFor(() => expect(reportedText()).toMatch(/volume name already in use/));
   });
 });
 

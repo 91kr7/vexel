@@ -1,6 +1,6 @@
 import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { FakeEventSource, channelOpens, deliverValue, dropChannel, liveChannel } from '../support/live-channel';
 
@@ -117,18 +117,24 @@ async function renderShellWith(status: unknown) {
   // (app-shell/specs/shell.md), so it only stands inside a provider.
   const { CrossNavigationProvider } = await import('../../src/shell/services/CrossNavigationService');
 
+  // The order App wires (app-shell/specs/app.md): a report is a toast, so the toast
+  // service and the connection status both sit above the reporter.
+  const { ToastProvider } = await import('../../src/ui');
+
   render(
-    <ErrorReportingProvider>
-      <ProgressProvider>
-        <ConnectionStatusProvider>
-          <DaemonEventStreamProvider>
-            <CrossNavigationProvider>
-              <Shell />
-            </CrossNavigationProvider>
-          </DaemonEventStreamProvider>
-        </ConnectionStatusProvider>
-      </ProgressProvider>
-    </ErrorReportingProvider>,
+    <ToastProvider>
+      <ConnectionStatusProvider>
+        <ErrorReportingProvider>
+          <ProgressProvider>
+            <DaemonEventStreamProvider>
+              <CrossNavigationProvider>
+                <Shell />
+              </CrossNavigationProvider>
+            </DaemonEventStreamProvider>
+          </ProgressProvider>
+        </ErrorReportingProvider>
+      </ConnectionStatusProvider>
+    </ToastProvider>,
   );
   // The server accepts the channel and pushes the status on it. A channel that is
   // not delivering is reported as an unreachable daemon (REQ-11), which would
@@ -160,26 +166,32 @@ describe('Shell — daemon connectivity (app-shell/specs/shell.md)', () => {
     expect(screen.queryByText(unreachableStatus.daemon.cause)).not.toBeInTheDocument();
   });
 
-  // plan-docker_management_app/REQ-10 — the unreachable cause is explained with a retry action, screen stays usable
-  it('explains the unreachable cause with a retry action while the rest of the screen stays visible', async () => {
+  // The lost connection is told by the header report and its retry, and nowhere in the page body:
+  // no panel, no banner, no row, no inline message, and no toast
+  // (plan-docker_management_app-inline_error_panels/REQ-1, /REQ-2, /REQ-13; REQ-10)
+  it('tells the lost connection in the header alone, the page body saying nothing about it', async () => {
     await renderShellWith(unreachableStatus);
 
-    await waitFor(() => expect(screen.getByText(unreachableStatus.daemon.cause)).toBeInTheDocument());
-    expect(screen.getAllByRole('button', { name: 'Retry' }).length).toBeGreaterThan(0);
+    const header = () => document.querySelector<HTMLElement>('.ui-frame__header')!;
+    const content = () => document.querySelector<HTMLElement>('.ui-frame__content')!;
 
-    // The unreachable banner does not replace or hide the rest of the screen. The
-    // "CLI availability" and "Local storage" cards are the shell's own surfaces of
-    // REQ-110 and REQ-113, and they sit above the last entry of the navigation —
-    // the screen now labelled "About" (shell.md). The screen is pinned rather than
-    // inherited: the landing screen is the Dashboard, which carries neither of them.
-    // The shell draws no event stream there any more
+    await waitFor(() => expect(header().textContent).toContain('Daemon unreachable'));
+    expect(within(header()).getAllByRole('button', { name: 'Retry' }).length).toBeGreaterThan(0);
+    expect(content().textContent, 'the lost connection was reported in the page body').not.toContain('unreachable');
+    expect(content().textContent, 'the cause was reported in the page body').not.toContain(unreachableStatus.daemon.cause);
+    expect(document.querySelector('.ui-toast'), 'the lost connection raised a toast').toBeNull();
+
+    // The rest of the screen stays usable. The "CLI availability" and "Local storage"
+    // cards are the shell's own surfaces of REQ-110 and REQ-113, and they sit above
+    // the last entry of the navigation — the screen now labelled "About" (shell.md).
+    // The screen is pinned rather than inherited: the landing screen is the Dashboard,
+    // which carries neither of them. The shell draws no event stream there any more
     // (plan-ui-coherence-optimisation/REQ-71).
     await userEvent.setup().click(screen.getByRole('button', { name: /About/ }));
     // Scoped to the cards' own titles: the coverage matrix names capability areas
     // of its own, so an unscoped locator matches the screen's content as well.
     expect(cardTitles()).toContain('CLI availability');
     expect(cardTitles()).toContain('Local storage');
-    expect(screen.getByText(unreachableStatus.daemon.cause)).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
   });
 
