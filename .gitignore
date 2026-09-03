@@ -6,3 +6,5 @@ build/
 .env.local
 .DS_Store
 .idea/
+reports/
+.coverage/

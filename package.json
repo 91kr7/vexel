@@ -26,7 +26,14 @@
     "//lint:swarm-absence": "The one check that spans both source trees, so it lives here rather than in a workspace: swarm left the product on 2026-08-27 and this is what keeps it gone. It is also the whole automated proof that a daemon in swarm mode changes nothing, no check of this project ever initialising a swarm.",
     "lint:swarm-absence": "node scripts/check-swarm-absence-conformance.mjs",
     "test": "npm run lint:swarm-absence && npm run lint:clean-daemon && npm run test -w server && npm run test -w client",
+    "//coverage": "The coverage measurement, and the only command that runs all four suites of this repository at once: each records the lines it executed, the four are merged into one figure per workspace and per source file, and the run fails when a suite recorded nothing at all. It is nobody else's business: the suites behave exactly as they always do unless VEXEL_COVERAGE_DIR is set, which only this command sets.",
+    "coverage": "node scripts/measurement/coverage.mjs",
     "//test:e2e:per-file": "One file at a time, each with its own timestamps, so a slow spec can be told from a slow suite. Two details it cannot do without. The path is passed relative to the client workspace (`e2e/name.spec.ts`), which is what Playwright matches against. And **a failing file's traces are copied out of the repository before the next file starts** — Playwright empties `client/test-results/` at the start of every run, so a trace left there is a trace the next file destroys; the first version of this script lost one that way. A failing file does not stop the loop: its exit code is printed and the next file starts, since the point is to time all of them.",
     "test:e2e:per-file": "for f in $(ls client/e2e/*.spec.ts); do t=${f#client/}; echo \"\"; echo \"=== $t\"; s=$(date +%s); echo \"start $(date '+%Y-%m-%d %H:%M:%S')\"; npm run test:e2e -w client -- --quiet \"$t\"; r=$?; e=$(date +%s); if [ $r -ne 0 ]; then d=\"$HOME/Desktop/vexel-traces-$(date '+%Y-%m-%d')/${t##*/}\"; mkdir -p \"$d\"; cp -R client/test-results/. \"$d\"/ 2>/dev/null; echo \"traces kept in $d\"; fi; echo \"end   $(date '+%Y-%m-%d %H:%M:%S')  took $((e-s))s  exit $r\"; done"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.10",
+    "c8": "^12.0.0",
+    "istanbul-lib-coverage": "^3.2.2"
   }
 }
