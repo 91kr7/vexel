@@ -24,6 +24,7 @@ import { useImageBuildCacheTrace } from '../data/use-image-build-cache-trace';
 import { useImageChangesetStream } from '../data/use-image-changesets';
 import { useImageLayerStack } from '../data/use-image-layers';
 import { useCrossNavigation } from '../shell/services/CrossNavigationService';
+import { useFailureReport } from '../shell/services/use-failure-report';
 
 export interface LayerExplorerProps {
   image: ImageSummary;
@@ -89,6 +90,8 @@ export function LayerExplorer({ image, open, onClose, initialSelectedLayerIndex,
   const [analysisUrl, setAnalysisUrl] = useState<string | undefined>(undefined);
   const [progressDialogOpen, setProgressDialogOpen] = useState(false);
   const changesets = useImageChangesetStream(analysisUrl);
+
+  useFailureReport('Could not analyze layer changesets', changesets.error);
 
   useEffect(() => {
     if (!open) return;
@@ -277,7 +280,6 @@ export function LayerExplorer({ image, open, onClose, initialSelectedLayerIndex,
         currentBytes={changesets.progress?.phase === 'analyzing' ? changesets.progress.completedLayers : 0}
         totalBytes={changesets.progress?.phase === 'analyzing' ? changesets.progress.totalLayers : undefined}
         status={changesets.error ? 'error' : changesets.done ? 'done' : 'active'}
-        errorMessage={changesets.error}
         formatCaption={(current, total) =>
           !changesets.progress || changesets.progress.phase === 'exporting'
             ? 'Exporting the image…'

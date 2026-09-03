@@ -69,10 +69,12 @@ Actions:
   returning the operator to the images list — never to a surface offering to start it again. Close,
   once succeeded, only dismisses the dialog and the browsed tree stays; Close, once failed, closes
   the surface.
-- A failed extraction states its cause in the dialog, is never auto-dismissed, and offers its
-  **retry inside the failure report** (`TransferProgressDialog`'s `onRetry`): pressing it re-raises
-  the cost warning rather than starting an extraction directly, so the cost is announced before
-  every extraction that actually starts.
+- A failed extraction is reported as a toast carrying the daemon's own message, once per failure;
+  the dialog states none and keeps the progress where the extraction stopped
+  (plan-docker_management_app-inline_error_panels/REQ-5, /REQ-7). It is never auto-dismissed, and it
+  keeps its **retry as a dialog action, beside `Close`** (`TransferProgressDialog`'s `onRetry`):
+  pressing it re-raises the cost warning rather than starting an extraction directly, so the cost is
+  announced before every extraction that actually starts.
 - Once the extraction succeeds the dialog states `Completed` — the shared surface's own wording, not
   this screen's — and **dismisses itself** a second later, revealing the extracted tree: this view
   asks the surface for that (`autoCloseOnDone`), its result being rendered behind the dialog rather
@@ -141,6 +143,7 @@ Actions:
 - useImageFilesystemKeptResult, useImageFilesystemExtraction, useImageFilesystemTree,
   useImageFilesystemEntryMetadata, useImageFilesystemEntryContent, useImageFilesystemSearch, Image
   filesystem client
+- app-shell: useFailureReport
 
 ## Requirements served
 
@@ -199,3 +202,5 @@ Actions:
 - plan-docker_management_app-filesystem_browser_layout/REQ-23
 - plan-docker_management_app-filesystem_browser_layout/REQ-24
 - plan-docker_management_app-filesystem_browser_layout/REQ-26
+- plan-docker_management_app-inline_error_panels/REQ-5
+- plan-docker_management_app-inline_error_panels/REQ-7

@@ -37,6 +37,7 @@ import { useImageFilesystemEntryContent, useImageFilesystemEntryMetadata } from 
 import { useImageFilesystemKeptResult } from '../data/use-image-filesystem-kept-result';
 import { useImageFilesystemSearch } from '../data/use-image-filesystem-search';
 import { useImageFilesystemTree } from '../data/use-image-filesystem-tree';
+import { useFailureReport } from '../shell/services/use-failure-report';
 
 export interface FilesystemBrowserProps {
   image: ImageSummary;
@@ -95,6 +96,8 @@ export function FilesystemBrowser({ image, open, onClose }: FilesystemBrowserPro
 
   const kept = useImageFilesystemKeptResult(open ? image.id : undefined);
   const extraction = useImageFilesystemExtraction(extractionUrl);
+
+  useFailureReport('Could not extract the filesystem', extraction.error);
   const tree = useImageFilesystemTree(image.id);
   const toast = useToast();
 
@@ -401,7 +404,6 @@ export function FilesystemBrowser({ image, open, onClose }: FilesystemBrowserPro
         description={image.tags[0] ?? image.shortId}
         currentBytes={0}
         status={extraction.error ? 'error' : extraction.done ? 'done' : 'active'}
-        errorMessage={extraction.error}
         formatCaption={() =>
           !extraction.progress
             ? 'Starting…'

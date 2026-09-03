@@ -36,6 +36,7 @@ import { imagePullStreamUrl } from '../data/images-client';
 import { useImageTransferStream } from '../data/use-image-transfer';
 import { useConfirmation } from '../shell/services/ConfirmationService';
 import { useErrorReporter } from '../shell/services/ErrorReportingService';
+import { useFailureReport } from '../shell/services/use-failure-report';
 import { useProgress } from '../shell/services/ProgressService';
 
 function formatBytes(bytes: number): string {
@@ -125,6 +126,8 @@ export function RegistriesScreen() {
   const [pullReference, setPullReference] = useState<string | undefined>(undefined);
   const [pullStreamUrl, setPullStreamUrl] = useState<string | undefined>(undefined);
   const pullTransfer = useImageTransferStream(pullStreamUrl);
+
+  useFailureReport('Could not pull the tag', pullTransfer.error);
 
   // The first registry read settles on a selection, so the browser has a
   // registry to work against without the operator picking one first.
@@ -392,7 +395,6 @@ export function RegistriesScreen() {
         <Stack gap="var(--space-3)">
           <DefinitionList items={[{ label: 'Reference', value: pullReference ?? '' }]} />
           {pullStreamUrl ? <StepProgressList steps={pullSteps.length === 0 ? [{ id: 'overall', label: 'Starting…', status: 'active' }] : pullSteps} /> : null}
-          {pullTransfer.error ? <ErrorBanner title="Pull failed" detail={pullTransfer.error} /> : null}
         </Stack>
       </FormDialog>
     </Stack>

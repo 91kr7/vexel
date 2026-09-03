@@ -12,17 +12,18 @@ around the active screen.
 ## Contract
 
 Description:
-- Owns a `ToastProvider` and a `ConfirmationProvider` around its own tree (screen-local services:
-  any screen it renders can call `useToast()`/`useConfirmation()` without the caller wiring them).
+- Owns a `ConfirmationProvider` around its own tree (any screen it renders can call
+  `useConfirmation()` without the caller wiring it); the toast service is mounted by `App`, above
+  the Shell, and every screen still reaches it through `useToast()`.
   Inside, renders a `Frame` whose rail is a `NavRail` built from the navigation data (one
   `NavGroup` per group, one `NavItem` per screen), whose header is a `PageHeader` for the active
   screen (the `RefreshControl` first, then a live-events `StatusPill` and an "Engine API v…" `Badge`
   when the daemon is reachable — and nothing else), and whose footer status (active Docker context)
   is shown inside the rail.
 Shows:
-- The active screen's title and description in the header; in the content area: any active
-  `ErrorBanner`s (REQ-7), an unreachable-daemon `ErrorBanner` with cause and retry when the daemon
-  cannot be reached (REQ-10), the `AboutNotice` as the **first** card of the About screen
+- The active screen's title and description in the header; in the content area — which opens on the
+  active screen's own content, the Shell drawing no failure of its own — the `AboutNotice` as the
+  **first** card of the About screen
   (`coverage-matrix`), above everything else that screen carries
   (plan-docker_management_app-about_license_notice/REQ-6,
   plan-docker_management_app-about_license_notice/REQ-7), a "CLI availability" `Card` listing docker/compose/buildx presence
@@ -69,8 +70,8 @@ Actions:
   (REQ-68, REQ-69).
 - The header's `RefreshControl` reloads what the server holds and then every mounted view; the Shell
   passes it nothing and reads nothing back (plan-docker_management_app-refresh_cache-manual_refresh/REQ-1).
-- The status pill's inline "Retry" action and the unreachable-daemon banner's retry both call
-  `useConnectionStatus().retry()` to re-probe the daemon immediately (REQ-10).
+- The status pill's inline "Retry" action calls `useConnectionStatus().retry()` to re-probe the
+  daemon immediately (REQ-10).
 - The "Local storage" card's "Clear" action calls `clearAnalysisCache()` then refreshes the shown
   size; it is disabled while the cache is empty or its size has not loaded yet.
 - The `raw-console` screen is reached by its own `NavItem`, in the rail and in the phone drawer, and
@@ -87,8 +88,12 @@ Navigation:
   reflects daemon reachability (danger when unreachable, warning when reachable but a CLI
   capability is unavailable, success otherwise) so connectivity is visible without blocking
   navigation to another screen (REQ-8, REQ-9).
-- The unreachable-daemon banner never replaces or hides the rest of the screen: the CLI
-  availability card, the local-storage card and the active screen's content remain visible (REQ-10).
+- **The Shell draws no failure in the content area, and that absence is the decision.** It used to
+  draw two panels there: the list the error reporting service held, and an unreachable-daemon panel
+  with its cause and retry. A failure is now a toast, raised by the reporting service itself
+  (plan-docker_management_app-inline_error_panels/REQ-5), and the lost connection is told by the
+  header's status pill and its `Retry` alone — nowhere in the page body, in any form
+  (…/REQ-1, …/REQ-2, …/REQ-13). The pill and its retry are untouched.
 - The "CLI availability" and "Local storage" cards are the shell's own surfaces of REQ-110 and
   REQ-113, and they keep the place they have always had — the last entry of the navigation, the
   screen now labelled "About". Batch 30 replaced the placeholder that used to sit under them, not
@@ -120,10 +125,10 @@ Navigation:
   (plan-ui-coherence-optimisation/REQ-70, plan-ui-coherence-optimisation/REQ-26). This screen having
   held its last three call sites, that treatment is now gone from the library too: `Card` has no
   title prop at all (plan-ui-coherence-optimisation/REQ-81, `ui-library/specs/card.md`).
-- `errors` (REQ-7), `pending` (REQ-8) and `connection` (REQ-9/REQ-10/REQ-13/REQ-110) come from
-  providers supplied by the caller (`App`), so they can be observed/driven independently of the
-  shell chrome; `ToastProvider` and `ConfirmationProvider` (REQ-6/REQ-8) are supplied by the Shell
-  itself.
+- `pending` (REQ-8) and `connection` (REQ-9/REQ-10/REQ-13/REQ-110) come from providers supplied by
+  the caller (`App`), together with the toast and error-reporting services, so they can be
+  observed/driven independently of the shell chrome; `ConfirmationProvider` (REQ-6) is supplied by
+  the Shell itself. The Shell no longer calls `useErrorReporter()` at all.
 - The header's action group is a wrapping `Row` (`wrap`): PageHeader only wraps at its own top
   level, so a non-wrapping action row would overflow the header card once the viewport is narrow
   enough that the pill and the version badge no longer fit on one line.
@@ -173,8 +178,8 @@ Navigation:
 ## Dependencies
 
 - ui-library: Frame, NavRail, NavBrand, NavGroup, NavItem, FooterStatus, PageHeader, StatusPill,
-  Badge, Row, Stack, Card, SectionHeader, ErrorBanner, StorageUsageRow, ToastProvider
-- Navigation data, RefreshControl, AboutNotice, PlaceholderScreen, ConfirmationService, ErrorReportingService, ProgressService,
+  Badge, Row, Stack, Card, SectionHeader, StorageUsageRow
+- Navigation data, RefreshControl, AboutNotice, PlaceholderScreen, ConfirmationService, ProgressService,
   ConnectionStatusService
 - local-persistence: usePreferences, fetchAnalysisCacheUsage, clearAnalysisCache
 - dashboard: DashboardScreen
@@ -232,3 +237,6 @@ Navigation:
 - plan-docker_management_app-refresh_cache-manual_refresh/REQ-15
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-40
 - plan-docker_management_app-refresh_cache-client_event_refresh_removal/REQ-44
+- plan-docker_management_app-inline_error_panels/REQ-1
+- plan-docker_management_app-inline_error_panels/REQ-2
+- plan-docker_management_app-inline_error_panels/REQ-13

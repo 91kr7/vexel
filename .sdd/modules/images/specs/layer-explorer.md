@@ -65,6 +65,9 @@ Actions:
     what it produced. Only Cancel or starting a new analysis replaces it.
   - Close, once the analysis failed, dismisses the dialog and clears it (there is nothing to keep),
     so "Analyze changesets…" is offered again.
+  - A failed analysis is reported as a toast carrying the daemon's own message, once per failure;
+    the dialog states none and keeps the progress where the analysis stopped, and it offers no retry
+    of its own (plan-docker_management_app-inline_error_panels/REQ-5, /REQ-7).
   - Once the analysis succeeds the dialog states `Completed` — the shared surface's own wording —
     and **dismisses itself** a second later, which is that same acknowledgement made without the
     operator having to give it: this view asks the surface for it (`autoCloseOnDone`), its result
@@ -95,7 +98,7 @@ Actions:
   DefinitionList, SectionHeader, ConfirmDialog, TransferProgressDialog, EmptyState, ErrorBanner,
   Button, Row, Stack
 - useImageLayerStack, useImageChangesetStream, useImageBuildCacheTrace, Image layers client
-- app-shell: useCrossNavigation
+- app-shell: useCrossNavigation, useFailureReport
 
 ## Requirements served
 
@@ -111,3 +114,5 @@ Actions:
 - plan-docker_management_app-progress_completion_autoclose/REQ-12
 - plan-docker_management_app-progress_completion_autoclose/REQ-15
 - plan-docker_management_app-progress_completion_autoclose/REQ-16
+- plan-docker_management_app-inline_error_panels/REQ-5
+- plan-docker_management_app-inline_error_panels/REQ-7

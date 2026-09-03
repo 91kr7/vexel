@@ -60,6 +60,9 @@ Actions:
   (`autoCloseOnDone`), its result being rendered behind the dialog rather than in it. No completion
   wording, state or timer of this view's own; its `formatCaption` keeps describing the in-flight
   phase only. A failed analysis never dismisses itself.
+- A failed analysis is reported as a toast carrying the daemon's own message, once per failure; the
+  dialog states none and keeps the progress where the analysis stopped, and it offers no retry of
+  its own (plan-docker_management_app-inline_error_panels/REQ-5, /REQ-7).
 - Selecting a finding expands it inside its own row; its "View layer" action calls
   `onNavigateToLayer`. Selecting it again collapses it, and at most one finding is expanded per
   list.
@@ -94,6 +97,7 @@ Actions:
   BadgeListCell, MetaCell, TwoLineCell, ConfirmDialog, TransferProgressDialog, EmptyState,
   ErrorBanner, Button, Grid, SectionHeader, Stack
 - useImageSignalsStream, Image signals client
+- app-shell: useFailureReport
 
 ## Requirements served
 
@@ -109,3 +113,5 @@ Actions:
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-21
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-39
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40
+- plan-docker_management_app-inline_error_panels/REQ-5
+- plan-docker_management_app-inline_error_panels/REQ-7

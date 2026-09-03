@@ -22,6 +22,7 @@ import {
 import type { ImageSummary } from '../data/images-client';
 import { imageSignalsStreamUrl, type DuplicateContentGroup, type LayerSignals, type SecretFinding, type WastedFile } from '../data/image-signals-client';
 import { useImageSignalsStream } from '../data/use-image-signals';
+import { useFailureReport } from '../shell/services/use-failure-report';
 
 export interface LayerEfficiencyViewProps {
   image: ImageSummary;
@@ -130,6 +131,8 @@ export function LayerEfficiencyView({ image, open, onClose, onNavigateToLayer, o
   const [selectedSecretKey, setSelectedSecretKey] = useState<string | undefined>(undefined);
 
   const signals = useImageSignalsStream(analysisUrl);
+
+  useFailureReport('Could not analyze layer efficiency', signals.error);
 
   useEffect(() => {
     if (signals.result) onFindingsChange?.(countFindingsByLayer(signals.result));
@@ -291,7 +294,6 @@ export function LayerEfficiencyView({ image, open, onClose, onNavigateToLayer, o
         currentBytes={signals.progress?.phase === 'analyzing' ? signals.progress.completedLayers : 0}
         totalBytes={signals.progress?.phase === 'analyzing' ? signals.progress.totalLayers : undefined}
         status={signals.error ? 'error' : signals.done ? 'done' : 'active'}
-        errorMessage={signals.error}
         formatCaption={(current, total) =>
           !signals.progress || signals.progress.phase === 'exporting'
             ? 'Exporting the image…'

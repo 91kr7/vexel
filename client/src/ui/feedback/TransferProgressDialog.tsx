@@ -1,6 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Button } from '../controls/Button';
-import { ErrorBanner } from './ErrorBanner';
 import { Modal } from './Modal';
 import { ProgressBar } from './ProgressBar';
 import './feedback.css';
@@ -14,10 +13,9 @@ export interface TransferProgressDialogProps {
   currentBytes: number;
   totalBytes?: number;
   status: TransferStatus;
-  errorMessage?: string;
   onCancel: () => void;
   onClose: () => void;
-  /** Optional retry offered **inside the failure report**, for an operation whose caller has somewhere to send the operator back to; omitted, the failure only offers its dismissal. */
+  /** Optional retry, offered beside `Close` once the transfer has failed, for a caller that has somewhere to send the operator back to; omitted, a failure only offers its dismissal. */
   onRetry?: () => void;
   children?: ReactNode;
   /** Overrides the default byte-formatted caption, for a determinate operation whose progress is not measured in bytes (e.g. a layer count). Receives the raw `currentBytes`/`totalBytes` values. Never consulted once the operation is done: completion is worded here. */
@@ -62,7 +60,9 @@ function formatBytes(bytes: number): string {
  * byte progress bar with a cancel action while it runs, and a close action
  * once it ends, successfully or not. When it ends successfully it says so —
  * in words, not by a full bar alone — and, if the caller opted in, dismisses
- * itself a second later.
+ * itself a second later. A failure is the caller's to report, as a toast
+ * (plan-docker_management_app-inline_error_panels/REQ-5): the dialog states none and
+ * keeps the progress where the transfer stopped.
  */
 export function TransferProgressDialog({
   open,
@@ -71,7 +71,6 @@ export function TransferProgressDialog({
   currentBytes,
   totalBytes,
   status,
-  errorMessage,
   onCancel,
   onClose,
   onRetry,
@@ -133,9 +132,16 @@ export function TransferProgressDialog({
             Cancel
           </Button>
         ) : (
-          <Button variant="primary" onClick={requestClose}>
-            Close
-          </Button>
+          <>
+            {status === 'error' && onRetry ? (
+              <Button variant="ghost" onClick={onRetry}>
+                Retry
+              </Button>
+            ) : null}
+            <Button variant="primary" onClick={requestClose}>
+              Close
+            </Button>
+          </>
         )
       }
     >
@@ -149,15 +155,10 @@ export function TransferProgressDialog({
         <p className="ui-transfer-progress-dialog__announcement" role="status">
           {done ? DONE_CAPTION : ''}
         </p>
-        {status !== 'error' ? (
-          <div className="ui-transfer-progress-dialog__progress">
-            <ProgressBar percent={done ? 100 : percent} />
-            <p className="ui-transfer-progress-dialog__caption">{caption}</p>
-          </div>
-        ) : null}
-        {status === 'error' ? (
-          <ErrorBanner title="Transfer failed" detail={errorMessage ?? 'The transfer was interrupted.'} onRetry={onRetry} />
-        ) : null}
+        <div className="ui-transfer-progress-dialog__progress">
+          <ProgressBar percent={done ? 100 : percent} />
+          <p className="ui-transfer-progress-dialog__caption">{caption}</p>
+        </div>
         {done ? children : null}
       </div>
     </Modal>

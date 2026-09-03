@@ -72,7 +72,9 @@ Actions:
   repositories.
 - A tag chip's "pull" → opens a dialog naming the exact reference that will be pulled, as selectable
   text; confirming starts the pull and shows per-layer progress. Success closes the dialog and
-  announces the pull; a failure keeps the dialog open with the daemon's message.
+  announces the pull; a failure is reported as a toast carrying the daemon's own message, once per
+  failure, and the dialog stays open stating none of it
+  (plan-docker_management_app-inline_error_panels/REQ-5, /REQ-7).
 
 ## Rules and invariants
 
@@ -150,6 +152,7 @@ Actions:
   StepProgressList, ErrorBanner, EmptyState, Grid, Stack, useToast
 - registries: useRegistries, useRegistryRepositories
 - images: images client (pull stream URL), useImageTransferStream
+- app-shell: useFailureReport
 - app-shell: useConfirmation, useProgress, useErrorReporter
 
 ## Requirements served
@@ -163,3 +166,5 @@ Actions:
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-15
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-39
 - plan-ui-coherence-optimisation-comfortable_variant_retired-classic_table/REQ-40
+- plan-docker_management_app-inline_error_panels/REQ-5
+- plan-docker_management_app-inline_error_panels/REQ-7

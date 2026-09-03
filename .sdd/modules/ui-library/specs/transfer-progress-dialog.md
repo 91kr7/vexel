@@ -13,7 +13,7 @@ it ends.
 
 ## Contract
 
-- `<TransferProgressDialog open title description? currentBytes totalBytes? status errorMessage?
+- `<TransferProgressDialog open title description? currentBytes totalBytes? status
   onCancel onClose onRetry? children? formatCaption? />`
   - `currentBytes: number`, `totalBytes?: number` — the current/total progress units; `totalBytes`
     known renders a determinate bar, unknown an indeterminate one.
@@ -21,16 +21,17 @@ it ends.
     progress unit other than bytes (e.g. a layer count); omitted, the default byte-formatted caption
     applies: `"<current> / <total>"` when `totalBytes` is known, `"<current> transferred"`
     otherwise.
-  - `status: 'active' | 'done' | 'error'`.
-  - `errorMessage?` — shown (in an `ErrorBanner`) only while `status` is `'error'`.
+  - `status: 'active' | 'done' | 'error'`. The dialog states no cause for a failure and takes no
+    message for one: reporting it is the caller's, as a toast
+    (plan-docker_management_app-inline_error_panels/REQ-5).
   - `onCancel` — called by the Cancel action, shown only while `status` is `'active'`, and by the
     overlay/close control while active.
   - `onClose` — called by the Close action, shown once `status` is `'done'` or `'error'`, and by the
     overlay/close control at that point.
-  - `onRetry?` — when given, a retry action is offered **inside the failure report itself** (the
-    `ErrorBanner`'s own retry), for an operation whose caller has a way to start it again; omitted,
-    the failure offers only its dismissal. It never replaces the Close action and never appears
-    while `status` is `'active'` or `'done'`.
+  - `onRetry?` — when given, a `Retry` action is offered **beside `Close`** while `status` is
+    `'error'`, for a caller that has a way to start the operation again; omitted, a failure offers
+    only its dismissal. It never replaces `Close` and never appears while `status` is `'active'` or
+    `'done'`.
   - `children` — rendered only while `status` is `'done'` (e.g. the resulting references).
   - `autoCloseOnDone?: boolean` — opt-in, **default off**: once the completed state has been
     rendered, the dialog closes itself after one second by calling the same `onClose` a manual close
@@ -38,9 +39,11 @@ it ends.
 
 ## Rules and invariants
 
-- Exactly one of Cancel (active) or Close (done/error) is offered at a time; the dialog is never
-  left with no way to dismiss it.
-- The progress bar is not shown while `status` is `'error'`: the `ErrorBanner` takes its place.
+- Cancel (active) and Close (done/error) are never offered together, and the dialog is never left
+  with no way to dismiss it. `Retry` is the only further action, and only at `'error'`.
+- **A failure is drawn nowhere in the dialog** (plan-docker_management_app-inline_error_panels/REQ-5,
+  /REQ-7): no panel, no message, no cause. What stays is the progress display, showing where the
+  transfer stopped, so a failed dialog is not an empty one.
 - **Completed state.** At `status === 'done'` the caption reads `Completed` and the bar is full, the
   two agreeing in the same render. The completion wording is defined here and **replaces**
   `formatCaption`'s output entirely: no state exists in which the bar is full and the caption names
@@ -55,8 +58,8 @@ it ends.
 - The delay is **one second, fixed** — not configurable, not adaptive, not a function of how long
   the operation took — and it is counted from the moment the completed state is *rendered*, so the
   completed caption is seen rather than skipped.
-- **`error` and `active` arm nothing**: a failed operation stays on screen with its cause until it
-  is dismissed, however long, and a running one never arms a close. Cancelling is unchanged.
+- **`error` and `active` arm nothing**: a failed operation stays on screen until it is dismissed,
+  however long, and a running one never arms a close. Cancelling is unchanged.
 - **A pending self-dismissal belongs to the completion that armed it.** It is armed on the
   transition into `done` only, and abandoned on unmount, on `open` becoming false, on a manual
   close, and on leaving `done` (a re-run started inside the second). It never closes a dialog it did
@@ -69,7 +72,7 @@ it ends.
 
 ## Dependencies
 
-- Modal, Button, ProgressBar, ErrorBanner
+- Modal, Button, ProgressBar
 
 ## Requirements served
 
@@ -89,3 +92,5 @@ it ends.
 - plan-docker_management_app-progress_completion_autoclose/REQ-14
 - plan-docker_management_app-progress_completion_autoclose/REQ-15
 - plan-docker_management_app-progress_completion_autoclose/REQ-16
+- plan-docker_management_app-inline_error_panels/REQ-5
+- plan-docker_management_app-inline_error_panels/REQ-7
