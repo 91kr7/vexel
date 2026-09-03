@@ -43,26 +43,26 @@ failure is shown as a toast.
 
 - Remove every error panel from the page body, on every screen. None survives, the ones reporting a
   failure the header says nothing about included.
-- Report the lost connection in the header indicator only. It must not appear in the page body in
-  any form.
+- Report the lost connection in the header indicator only: no panel in the page body, and no toast
+  either.
 - Report every other failure as a toast, in the failure tone the toast component already has.
-- A failure that repeats must not fill the toast stack with copies of the same message.
+- Each repetition of a failure raises a new toast. The older ones expire on their own timer, and
+  when a fourth would exceed the cap of three the oldest is removed to make room.
 - A screen that loaded no data must not present the empty result as a fact. Its own empty state says
-  the data could not be loaded, with no cause and no control: an error panel must not return under
-  another name.
+  the data could not be loaded, in the same words for every cause, and offers no control: an error
+  panel must not return under another name.
 - Retry stays possible without leaving the screen: the header control for the lost connection, the
   existing manual refresh for everything else. No toast gains a button.
 - When the connection comes back, the current screen shows its data again without the operator
   navigating away and back.
-- The header report must name what is actually unreachable: an unreachable application server and an
-  unreachable Docker daemon are two states, and this is now the only place to tell them apart.
+- The header report names which of the two is down: "Server unreachable" for the application server,
+  "Docker daemon unreachable" for the daemon. It is now the only place to tell them apart.
 
 ### Non-functional
 
 - The header report stays visible on every screen and at every supported window width, the phone
   breakpoint included. It is now the only report of the connection.
-- The toast is used as it stands: no new tone, no action button, and the cap of three visible toasts
-  and the auto-dismiss unchanged.
+- The toast component is used as it stands: no new tone, no action button, no change to its timer.
 
 ## Scope
 
