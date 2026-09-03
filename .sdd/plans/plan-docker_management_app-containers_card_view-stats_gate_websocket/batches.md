@@ -35,11 +35,13 @@ rewritten once either way.
   a vanished consumer on its next periodic write, about one sampling interval. It also stays inside
   the staleness bound of three intervals, so a phantom consumer is released before the figures it was
   holding open would have been withheld anyway.
-- **Reconnection spacing: 1 s, doubling, capped at 10 s**, each delay multiplied by a random factor
-  between 0.5 and 1, and scaled by the client's `cadence()`. No attempt is immediate: a server
-  restart drops every open window at the same instant, so an immediate first attempt is exactly the
-  lockstep REQ-15 forbids. The first delay is far below the 30 s staleness bound, so a transient drop
-  still leaves nothing on screen (REQ-18).
+- **Reconnection spacing: 1 s, doubling, capped at 15 s, with no randomisation.** A jittered
+  factor (0.5-1) was planned here to desynchronise windows dropped by the same event, such as a
+  server restart. The human authorized dropping it on 2026-09-03: every open window still retries on
+  the same deterministic schedule after a shared drop, so the spacing and the cap hold (REQ-15) but
+  a restarting server is met by every window at once, later rather than sooner — a residual risk
+  accepted rather than fixed. The first delay is far below the 30 s staleness bound, so a transient
+  drop still leaves nothing on screen (REQ-18).
 - **REQ-17 needs no new mechanism.** `acquireStatsDemand()` already takes a sample at once when the
   count rises from zero to one, so a reconnection that reopens the gate is served promptly by what is
   there. When another window holds the count above zero, the sampler never stopped and no new sample
@@ -53,7 +55,12 @@ rewritten once either way.
 
 ## Departures
 
-None. Nothing decided here contradicts the spec.
+- **Reconnection has no jitter.** The spec's constraint on REQ-15 asked for spacing that keeps a
+  restarting server from being met by every open window at once; the plan met it with a randomised
+  factor, never implemented. The delivered backoff is deterministic — 1 s doubling, capped at 15 s —
+  so a shared drop still produces a synchronised, if bounded and decreasing, retry pattern. The human
+  authorized dropping the randomisation on 2026-09-03, after the batch was already certified; REQ-15
+  and this file's assumption were reworded to describe what ships, not what was planned.
 
 ## Coverage check
 

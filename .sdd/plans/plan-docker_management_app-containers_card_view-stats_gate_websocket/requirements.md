@@ -45,7 +45,7 @@ client holds the gate with the `useStatsSubscription` hook.
 | REQ-12 | The client re-establishes a connection that drops while the screen still needs the figures, with no action from the operator. |
 | REQ-13 | The client does not reconnect a connection it closed on purpose: a screen change, a hidden tab or a closed window. |
 | REQ-14 | Reconnection resumes nothing: no cursor, no missed state, no replay. A new connection is a new unit of demand. |
-| REQ-15 | Reconnection attempts space out and the spacing is capped, so a restarting server is not met by every open window at once. |
+| REQ-15 | Reconnection attempts space out exponentially and the spacing is capped, so a restarting server meets a bounded, decreasing rate of retries rather than a sustained burst. |
 | REQ-16 | Reconnection never gives up on its own. It stops when the screen stops needing the figures, which is the condition that closes the connection normally. |
 | REQ-17 | A sample is taken promptly when the gate opens again after a reconnection, as it is when the operator returns to the screen. |
 | REQ-18 | A drop shorter than the staleness bound leaves no trace on screen. A longer one shows the *no sample* state the cards already have. |
