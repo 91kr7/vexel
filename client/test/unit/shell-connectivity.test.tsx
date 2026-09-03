@@ -175,7 +175,7 @@ describe('Shell — daemon connectivity (app-shell/specs/shell.md)', () => {
     const header = () => document.querySelector<HTMLElement>('.ui-frame__header')!;
     const content = () => document.querySelector<HTMLElement>('.ui-frame__content')!;
 
-    await waitFor(() => expect(header().textContent).toContain('Daemon unreachable'));
+    await waitFor(() => expect(header().textContent).toContain('Docker daemon unreachable'));
     expect(within(header()).getAllByRole('button', { name: 'Retry' }).length).toBeGreaterThan(0);
     expect(content().textContent, 'the lost connection was reported in the page body').not.toContain('unreachable');
     expect(content().textContent, 'the cause was reported in the page body').not.toContain(unreachableStatus.daemon.cause);
@@ -227,5 +227,81 @@ describe('Shell — daemon connectivity (app-shell/specs/shell.md)', () => {
     });
 
     await waitFor(() => expect(screen.getByText('test-net')).toBeInTheDocument());
+  });
+});
+
+/**
+ * The header names which side is unreachable, and it is the only place the connection is reported
+ * (plan-docker_management_app-inline_error_panels/REQ-9, /REQ-11). One flag used to report both
+ * states under one wording.
+ */
+describe('Shell — the header names which side is unreachable (…-inline_error_panels/REQ-9)', () => {
+  const pill = () => document.querySelector<HTMLElement>('.ui-status-pill')!;
+  const header = () => document.querySelector<HTMLElement>('.ui-frame__header')!;
+
+  // shell.md — "`Docker daemon unreachable` while it delivers a status saying the daemon cannot be
+  // reached", with the inline Retry kept (…/REQ-11).
+  it('reads "Docker daemon unreachable" while the channel delivers a daemon it could not reach', async () => {
+    await renderShellWith(unreachableStatus);
+
+    await waitFor(() => expect(pill().textContent).toContain('Docker daemon unreachable'));
+    expect(pill().textContent, 'the header named the server for a daemon that is down').not.toContain('Server unreachable');
+    expect(within(header()).getAllByRole('button', { name: 'Retry' }).length).toBeGreaterThan(0);
+  });
+
+  // shell.md — "`Server unreachable` while the live channel is not delivering". The daemon behind
+  // it may well be running: what has stopped answering is the application server.
+  it('reads "Server unreachable" while the channel is not delivering', async () => {
+    await renderShellWith(reachableStatus);
+    await waitFor(() => expect(pill().textContent).toContain('Live · daemon events'));
+
+    act(() => dropChannel());
+
+    await waitFor(() => expect(pill().textContent).toContain('Server unreachable'));
+    expect(pill().textContent, 'the header named the daemon for a server that stopped answering').not.toContain(
+      'Docker daemon unreachable',
+    );
+    expect(within(header()).getAllByRole('button', { name: 'Retry' }).length).toBeGreaterThan(0);
+  });
+
+  // shell.md — "`Live · daemon events` otherwise", and no retry offered while nothing is unreachable.
+  it('reads "Live · daemon events" while the daemon is reachable, offering no retry', async () => {
+    await renderShellWith(reachableStatus);
+
+    await waitFor(() => expect(pill().textContent).toContain('Live · daemon events'));
+    expect(pill().textContent).not.toContain('unreachable');
+    expect(within(header()).queryAllByRole('button', { name: 'Retry' })).toHaveLength(0);
+  });
+});
+
+/**
+ * The Shell is where the reload signal watches the live channel, once for the life of the
+ * application, so a connection that comes back reads every mounted view again
+ * (app-shell/specs/shell.md, plan-docker_management_app-inline_error_panels/REQ-12).
+ */
+describe('Shell — the reload signal watches the channel (…-inline_error_panels/REQ-12)', () => {
+  /** A read subscribed to the same signal instance the rendered Shell uses. */
+  async function subscribedRead(): Promise<{ count: () => number }> {
+    const { subscribeToReload } = await import('../../src/data/reload-signal');
+    let count = 0;
+    subscribeToReload(() => {
+      count += 1;
+    });
+    return { count: () => count };
+  }
+
+  it('reads every mounted view again when the channel returns, and nothing on the first open', async () => {
+    await renderShellWith(reachableStatus);
+    const read = await subscribedRead();
+    expect(read.count(), 'the start-up open read every view again').toBe(0);
+
+    await act(async () => {
+      dropChannel();
+      channelOpens();
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(read.count()).toBeGreaterThan(0));
+
+    expect(read.count(), 'the channel returning raised more than one reload').toBe(1);
   });
 });

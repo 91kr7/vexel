@@ -269,26 +269,16 @@ async function openPruneNetworksDialog(page: Page): Promise<Locator> {
 }
 
 /**
- * Waits for the layer stack to load, retrying through the explorer's own
- * "Retry" action if it does not — the wait `layer-explorer.spec.ts` already
- * needs against this daemon, kept here so the dialog is measured with its final
- * content rather than mid-load.
+ * Waits for the layer stack to load — the wait `layer-explorer.spec.ts` also needs against this
+ * daemon, kept here so the dialog is measured with its final content rather than mid-load. The
+ * explorer's own "Retry" is gone with every error panel in the page body
+ * (…-inline_error_panels/REQ-1), so a read that fails is a red rather than something to press
+ * through.
  */
-async function waitForLayerStack(page: Page, dialog: Locator): Promise<void> {
+async function waitForLayerStack(dialog: Locator): Promise<void> {
   const row = dialog.locator('.ui-data-table__row').first();
-  const retryButton = dialog.getByRole('button', { name: 'Retry' });
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    await Promise.race([
-      row.waitFor({ state: 'visible', timeout: 3000 }).catch(() => undefined),
-      retryButton.waitFor({ state: 'visible', timeout: 3000 }).catch(() => undefined),
-    ]);
-    if (await row.isVisible()) return;
-    if (await retryButton.isVisible()) {
-      await page.waitForTimeout(500);
-      await retryButton.click();
-    }
-  }
-  await row.waitFor({ state: 'visible', timeout: 10_000 });
+  // 20s inside the 30s these tests have: the rest goes on opening the application and the dialog.
+  await expect(row, 'the layer explorer never listed a layer').toBeVisible({ timeout: 20_000 });
 }
 
 /**
@@ -307,7 +297,7 @@ async function openLayerExplorerDialog(page: Page): Promise<Locator> {
   await chooseImageRowAnalysis(page, TINY_IMAGE, 'Explore layers…');
   const dialog = page.locator('.ui-modal--size-large');
   await expect(dialog).toBeVisible();
-  await waitForLayerStack(page, dialog);
+  await waitForLayerStack(dialog);
   return dialog;
 }
 

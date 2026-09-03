@@ -55,23 +55,16 @@ function layerExplorerModal(page: Page, title: string) {
 }
 
 /**
- * Waits for the layer stack to load, retrying through the explorer's own "Retry" action if it
- * doesn't. A just-committed image is occasionally not yet consistently visible to the daemon under
- * the concurrent request burst a page load fires (observed directly against this real daemon,
- * independent of this batch's fixes); retrying — exactly what an operator would do — recovers.
+ * Waits for the layer stack to load. A just-committed image is occasionally not yet consistently
+ * visible to the daemon under the concurrent request burst a page load fires (observed directly
+ * against this real daemon), and the explorer's own "Retry" used to recover it. That control is
+ * gone with every error panel in the page body (…-inline_error_panels/REQ-1), so the wait is all
+ * there is: a read that does fail now shows the screen's empty state and is a red, not a retry.
  */
-async function waitForLayerStack(page: Page, modal: ReturnType<typeof layerExplorerModal>): Promise<void> {
+async function waitForLayerStack(modal: ReturnType<typeof layerExplorerModal>): Promise<void> {
   const row = modal.locator('.ui-data-table__row').first();
-  const retryButton = modal.getByRole('button', { name: 'Retry' });
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    await Promise.race([row.waitFor({ state: 'visible', timeout: 3000 }).catch(() => undefined), retryButton.waitFor({ state: 'visible', timeout: 3000 }).catch(() => undefined)]);
-    if (await row.isVisible()) return;
-    if (await retryButton.isVisible()) {
-      await page.waitForTimeout(500);
-      await retryButton.click();
-    }
-  }
-  await row.waitFor({ state: 'visible', timeout: 10_000 });
+  // 20s inside the 30s these tests have: the rest goes on opening the application and the dialog.
+  await expect(row, 'the layer explorer never listed a layer').toBeVisible({ timeout: 20_000 });
 }
 
 test.beforeEach(async ({ page }) => {
@@ -140,7 +133,7 @@ test('warns about cost before analyzing, and cancelling closes the progress dial
   await chooseRowAction(page, row, 'Explore layers…');
 
   const modal = layerExplorerModal(page, `Layer stack — ${REGISTRY_IMAGE}`);
-  await waitForLayerStack(page, modal);
+  await waitForLayerStack(modal);
   await selectRow(modal.locator('.ui-data-table__row').first());
   await modal.getByRole('button', { name: 'Analyze changesets…' }).click();
 
@@ -193,7 +186,7 @@ test('keeps the changeset browsable after closing the dialog, and layer selectio
     await chooseRowAction(page, row, 'Explore layers…');
 
     const modal = layerExplorerModal(page, `Layer stack — ${tag}`);
-    await waitForLayerStack(page, modal);
+    await waitForLayerStack(modal);
     const layerRows = modal.locator('.ui-data-table__row');
     await selectRow(layerRows.first());
     await modal.getByRole('button', { name: 'Analyze changesets…' }).click();

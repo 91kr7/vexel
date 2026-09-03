@@ -193,7 +193,7 @@ test('the lost connection is told by the header alone, and raises no toast', asy
 
   await openApp(page, 'containers');
 
-  await expect(header(page).getByText('Daemon unreachable'), 'the header did not report the lost connection').toBeVisible({
+  await expect(header(page).getByText('Server unreachable'), 'the header did not report the lost connection').toBeVisible({
     timeout: 30_000,
   });
   await expect(header(page).getByRole('button', { name: 'Retry' })).toBeVisible();
@@ -206,5 +206,5 @@ test('the lost connection is told by the header alone, and raises no toast', asy
   // (…/REQ-13, app-shell/specs/shell.md). What a screen still draws for a listing it could not
   // load is another batch's subject (…/REQ-2, /REQ-3, closed in batch 2), so the body is neither
   // asserted empty nor asserted free of a retry of the screen's own.
-  await expect(pageBody(page), 'the shell drew the unreachable panel in the page body').not.toContainText('Daemon unreachable');
+  await expect(pageBody(page), 'the shell drew the unreachable panel in the page body').not.toContainText('Server unreachable');
 });

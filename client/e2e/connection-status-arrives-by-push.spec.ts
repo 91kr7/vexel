@@ -99,7 +99,7 @@ test('states the versions as soon as the channel delivers, with nothing pressed'
   const channel = await refuseTheChannel(page);
 
   await openApp(page, 'containers');
-  await expect(header(page).getByText('Daemon unreachable'), 'the connection that could not be held was not stated').toBeVisible({
+  await expect(header(page).getByText('Server unreachable'), 'the connection that could not be held was not stated').toBeVisible({
     timeout: 30_000,
   });
   await expect(header(page).getByText(/Engine API v\d+\.\d+/)).toHaveCount(0);
@@ -122,7 +122,7 @@ test('asks for the channel again when the refresh control is pressed on a connec
 
   try {
     await openApp(page, 'containers');
-    await expect(header(page).getByText('Daemon unreachable')).toBeVisible({ timeout: 30_000 });
+    await expect(header(page).getByText('Server unreachable')).toBeVisible({ timeout: 30_000 });
     // Created while the connection is down: it can only reach the screen once the channel does.
     await createSleepingContainer(name);
 
@@ -155,7 +155,7 @@ test('asks for the channel again when the refresh control is pressed on a connec
     channel.letThrough();
 
     await expect(containerCard(page, name), 'the screen did not fill once the channel delivered').toBeVisible({ timeout: 60_000 });
-    await expect(header(page).getByText('Daemon unreachable')).toHaveCount(0);
+    await expect(header(page).getByText('Server unreachable')).toHaveCount(0);
   } finally {
     await removeContainerQuietly(name);
   }
