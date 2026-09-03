@@ -75,6 +75,9 @@
   z-index: -1;
   border-radius: inherit;
   pointer-events: none;
+  /* Its own compositor layer: without it Chromium drops the blurred surface for a frame whenever
+     the backdrop repaints under a scroll — a dialog over a list that a push just redrew flickers. */
+  will-change: transform;
   -webkit-backdrop-filter: blur(var(--blur-overlay)) saturate(var(--overlay-glass-saturation));
   backdrop-filter: blur(var(--blur-overlay)) saturate(var(--overlay-glass-saturation));
 }
