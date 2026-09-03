@@ -12,7 +12,7 @@ Requirements: [`requirements.md`](requirements.md). Ids cited, never copied.
 | Batch | Feature | REQ closed | Depends | Status | Human acceptance |
 | --- | --- | --- | --- | --- | --- |
 | 1 · coverage | F1 — Test coverage | REQ-1, REQ-2, REQ-3, REQ-4, REQ-5, REQ-18 | — | implemented | The human sees how much of the code the tests execute, per workspace and per file |
-| 2 · mutation-score | F2 — Mutation score | REQ-6, REQ-7, REQ-14 | 1 | todo | The human sees which deliberate changes to the code no test caught |
+| 2 · mutation-score | F2 — Mutation score | REQ-6, REQ-7, REQ-14 | 1 | implemented | The human sees which deliberate changes to the code no test caught |
 | 3 · quality-report | F3 — Code quality report | REQ-8, REQ-9, REQ-10, REQ-11, REQ-12, REQ-13, REQ-15, REQ-16, REQ-17 | 1 | todo | The human sees duplication, complexity, oversized code and rule violations per file |
 
 Execution order: 1 → 2 → 3. Batches 2 and 3 both depend on batch 1, and on one thing only: the
