@@ -41,11 +41,12 @@ failure is shown as a toast.
 
 ### Functional
 
-- Remove every error panel from the page body, on every screen. None survives, the ones reporting a
-  failure the header says nothing about included.
+- Remove every error panel from the page body, on every screen, including the ones reporting a
+  failure the header says nothing about.
 - Report the lost connection in the header indicator only: no panel in the page body, and no toast
   either.
-- Report every other failure as a toast, in the failure tone the toast component already has.
+- Report every other failure as a toast, in the failure tone the toast component already has. A
+  transfer that breaks in flight moves to a toast too; the progress display around it stays.
 - Each repetition of a failure raises a new toast. The older ones expire on their own timer, and
   when a fourth would exceed the cap of three the oldest is removed to make room.
 - A screen that loaded no data must not present the empty result as a fact. Its own empty state says
@@ -53,8 +54,7 @@ failure is shown as a toast.
   panel must not return under another name.
 - Retry stays possible without leaving the screen: the header control for the lost connection, the
   existing manual refresh for everything else. No toast gains a button.
-- When the connection comes back, the current screen shows its data again without the operator
-  navigating away and back.
+- When the connection comes back, the screen shows its data again without the operator leaving it.
 - The header report names which of the two is down: "Server unreachable" for the application server,
   "Docker daemon unreachable" for the daemon. It is now the only place to tell them apart.
 
@@ -75,5 +75,5 @@ failure is shown as a toast.
 **Out of scope**
 
 - Field-level validation messages on form controls. They guide input; they are not error panels.
-- Feedback for operations the operator started, which is already a toast.
+- The static refusal a dialog shows beside the control that issued the command. It stays a panel.
 - Reconnection and polling behaviour: how the connection is detected and retried does not change.
