@@ -35,6 +35,13 @@ produced.
 - The history is read **once per mount**, not once per effect setup: in development the application
   mounts under React's StrictMode, whose setup runs twice, and the screen opening is what a read
   answers to.
+- **It is read again on the reload signal**, so the header's manual refresh and a connection that
+  comes back both refill the transcript with the operator staying on the screen
+  (plan-docker_management_app-inline_error_panels/REQ-12,
+  plan-docker_management_app-refresh_cache-manual_refresh/REQ-11). That is safe because of the two
+  merge rules below and for no other reason: a re-read adds what is missing and can neither drop an
+  entry nor repeat one. The read the signal waits on is the internal one, never the hook's own
+  surface (plan-docker_management_app-refresh_cache/REQ-21).
 - **Nothing this session produced is ever dropped by a load landing late.** The history read merges
   *under* the entries already present — restored ones first, this session's after — instead of
   replacing them, so a command run before the read settles keeps the entry its output is going
@@ -58,6 +65,7 @@ produced.
 ## Dependencies
 
 - raw-console: Console client
+- app-shell: Reload signal
 
 ## Requirements served
 
@@ -65,3 +73,4 @@ produced.
 - plan-docker_management_app/REQ-101
 - plan-docker_management_app/REQ-102
 - plan-docker_management_app/REQ-114
+- plan-docker_management_app-inline_error_panels/REQ-12

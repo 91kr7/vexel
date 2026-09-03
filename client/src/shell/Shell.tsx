@@ -17,6 +17,7 @@ import {
   type StatusTone,
 } from '../ui';
 import { clearAnalysisCache, fetchAnalysisCacheUsage } from '../data/preferences-client';
+import { reloadWhenChannelReturns } from '../data/reload-signal';
 import { usePreferences } from '../data/use-preferences';
 import { useContainers } from '../data/use-containers';
 import { useImages } from '../data/use-images';
@@ -66,21 +67,9 @@ function formatBytes(bytes: number): string {
 }
 
 /**
- * "Vexel — Docker Control" shell: rail, header, footer stay in place while
- * the content area is replaced by the active screen (REQ-1, REQ-2).
- *
- * Owns the confirmation service itself; toasts, error reporting, progress and
- * connection status are supplied by the caller (App), so other code can observe
- * them independently of the shell chrome.
- *
- * It draws no failure of its own: a failure is a toast
- * (plan-docker_management_app-inline_error_panels/REQ-5), and the lost connection
- * is told by the header pill alone (…/REQ-2, …/REQ-13).
- *
- * It subscribes to no daemon event stream: the stream is the Dashboard's, and
- * the card that repeated it here is gone (plan-ui-coherence-optimisation/REQ-71).
- * `DaemonEventStreamProvider` stays mounted in `App` for the Dashboard and the
- * invalidation registry — one consumer stopped, nothing else moved.
+ * "Vexel — Docker Control" shell: rail, header and footer stay in place while the content area is
+ * replaced by the active screen (REQ-1, REQ-2). It draws no failure of its own and subscribes to no
+ * event stream (…-inline_error_panels/REQ-2, plan-ui-coherence-optimisation/REQ-71).
  */
 export function Shell() {
   const [activeId, setActiveId] = useState(defaultScreenId);
@@ -93,10 +82,8 @@ export function Shell() {
   const compose = useComposeProjects();
   const contexts = useContexts();
   const [cacheUsage, setCacheUsage] = useState<number | undefined>(undefined);
-  // Set as soon as the restore has had its chance — either because it ran, or
-  // because the operator picked a screen first. Guards both against a second
-  // restore and against a slow preferences read yanking the operator off the
-  // screen they have already chosen (REQ-2, REQ-115).
+  // Guards a second restore, and a slow preferences read yanking the operator off the screen they
+  // have already chosen (REQ-2, REQ-115).
   const screenSettledRef = useRef(false);
 
   // Restore the last active screen once preferences have loaded (REQ-115).
@@ -107,6 +94,9 @@ export function Shell() {
       setActiveId(preferences.lastScreenId);
     }
   }, [preferencesLoaded, preferences.lastScreenId]);
+
+  // A connection that comes back reads every mounted view again (plan-docker_management_app-inline_error_panels/REQ-12).
+  useEffect(() => reloadWhenChannelReturns(), []);
 
   const refreshCacheUsage = useCallback(() => {
     fetchAnalysisCacheUsage()
@@ -127,9 +117,7 @@ export function Shell() {
     [updatePreferences],
   );
 
-  // A cross-reference followed from another screen brings its own screen into
-  // view (REQ-68, REQ-69); the destination screen then reveals the object and
-  // acknowledges the request itself.
+  // A cross-reference followed from another screen brings its own screen into view (REQ-68, REQ-69).
   useEffect(() => {
     if (!crossNavigationRequest) return;
     selectScreen(crossNavigationRequest.screenId);
@@ -146,11 +134,14 @@ export function Shell() {
   const activeContextLabel = contexts.active ? `${contexts.active.name} (${contexts.active.kind})` : '—';
 
   const statusTone: StatusTone = pending.length > 0 ? 'warning' : connectionTone(connection.daemon.reachable, connection.unavailableCapabilities);
+  // The report names which side is gone (plan-docker_management_app-inline_error_panels/REQ-9).
   const statusLabel = pending.length > 0
     ? `${pending.length} pending`
-    : connection.daemon.reachable
-      ? 'Live · daemon events'
-      : 'Daemon unreachable';
+    : connection.unreachable === 'server'
+      ? 'Server unreachable'
+      : connection.unreachable === 'daemon'
+        ? 'Docker daemon unreachable'
+        : 'Live · daemon events';
 
   return (
     <ConfirmationProvider>
@@ -240,14 +231,8 @@ export function Shell() {
           ) : activeScreen.id === 'raw-console' ? (
             <RawConsoleScreen />
           ) : activeScreen.id === 'coverage-matrix' ? (
-            // The shell's own cards keep the home they have always had: the
-            // last entry of the navigation. CLI availability (REQ-110) and
-            // the analysis cache's size and clear action (REQ-113) have no
-            // other surface in the application. The daemon event stream had
-            // one — the Dashboard's, which it repeated verbatim — and it is
-            // stated there alone (plan-ui-coherence-optimisation/REQ-71).
-            // Every section here is titled by the one section-header
-            // treatment (plan-ui-coherence-optimisation/REQ-70).
+            // CLI availability (REQ-110) and the analysis cache (REQ-113) have no other surface in
+            // the application, and keep this one (plan-ui-coherence-optimisation/REQ-70, /REQ-71).
             <>
               <AboutNotice />
               <Card>
@@ -277,9 +262,7 @@ export function Shell() {
               <CoverageMatrixScreen />
             </>
           ) : (
-            // No screen of the navigation data is left without its own
-            // content; this is the fallback for an id that names none of
-            // them.
+            // The fallback for an active id naming no screen at all.
             <PlaceholderScreen screenLabel={activeScreen.label} />
           )}
         </Stack>

@@ -13,7 +13,7 @@ Requirements: [`requirements.md`](requirements.md). Ids cited, never copied.
 | --- | --- | --- | --- | --- | --- |
 | 1 · failures-become-toasts | F2 — Every other failure is a toast | REQ-5, REQ-6, REQ-7, REQ-8, REQ-13 | — | certified | A failed action is reported by a toast and by nothing in the page |
 | 2 · no-error-panel-in-the-page | F1 — The page body stops reporting errors | REQ-1, REQ-2, REQ-3, REQ-4 | 1 | certified | A screen with no data says so, without an error panel |
-| 3 · header-connection-report | F3 — The header is the only report of the connection | REQ-9, REQ-10, REQ-11, REQ-12 | — | todo | The header names what is unreachable, and the screen fills again when it returns |
+| 3 · header-connection-report | F3 — The header is the only report of the connection | REQ-9, REQ-10, REQ-11, REQ-12 | — | implemented | The header names what is unreachable, and the screen fills again when it returns |
 
 Execution order: 1 → 2 → 3. Batch 3 depends on neither of the other two, and is placed last because
 the header is only the *single* report of the connection once batch 2 has removed the panels that

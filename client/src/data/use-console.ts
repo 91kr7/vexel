@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { subscribeToReload } from './reload-signal';
 import {
   appendConsoleHistory,
   callEngineApi,
@@ -130,49 +131,51 @@ export function useConsole(): UseConsoleResult {
   const appendedIdsRef = useRef(new Set<string>());
   const historyReadRef = useRef(false);
 
+  // Returns its promise, which is what the reload signal waits on (plan-docker_management_app-refresh_cache/REQ-21).
+  const readHistory = useCallback(() => {
+    return fetchConsoleHistory()
+      .then((reading) => {
+        if (cancelledRef.current) return;
+        // Validated before anything is stored: a malformed answer fails the read instead of
+        // reaching the transcript.
+        const history = requireHistory(reading);
+        // Merged under what this session produced, leaving out what the transcript already holds:
+        // no read can drop an entry or show one twice.
+        setEntries((current) => {
+          const present = new Set(current.map((entry) => entry.id));
+          const restored = history
+            .filter((entry) => !present.has(entry.id) && !appendedIdsRef.current.has(entry.id))
+            .map(restoredEntry);
+          return [...restored, ...current];
+        });
+        setError(undefined);
+      })
+      .catch((cause: Error) => {
+        if (cancelledRef.current) return;
+        setError(cause.message);
+      })
+      .finally(() => {
+        if (cancelledRef.current) return;
+        setLoaded(true);
+      });
+  }, []);
+
   useEffect(() => {
     cancelledRef.current = false;
-    // The history is read once when the screen opens, not once per effect
-    // setup: in development the application mounts under StrictMode, whose
-    // setup runs twice.
+    // Once per mount, not once per effect setup: StrictMode runs setup twice in development.
     if (!historyReadRef.current) {
       historyReadRef.current = true;
-      fetchConsoleHistory()
-        .then((reading) => {
-          if (cancelledRef.current) return;
-          // Validated before anything is stored: one malformed answer fails
-          // the read rather than reaching the transcript.
-          const history = requireHistory(reading);
-          // Merged *under* what this session has already produced, never in
-          // its place: a command run before this read settles keeps the entry
-          // that is the only place its output goes. Nothing this session
-          // produced can be dropped by a load landing late. Entries already in
-          // the transcript — restored earlier, or appended by this session —
-          // are left out, so merging is idempotent: no reload can show the
-          // same entry twice.
-          setEntries((current) => {
-            const present = new Set(current.map((entry) => entry.id));
-            const restored = history
-              .filter((entry) => !present.has(entry.id) && !appendedIdsRef.current.has(entry.id))
-              .map(restoredEntry);
-            return [...restored, ...current];
-          });
-          setError(undefined);
-        })
-        .catch((cause: Error) => {
-          if (cancelledRef.current) return;
-          setError(cause.message);
-        })
-        .finally(() => {
-          if (cancelledRef.current) return;
-          setLoaded(true);
-        });
+      void readHistory();
     }
     return () => {
       cancelledRef.current = true;
       abortRef.current?.abort();
     };
-  }, []);
+  }, [readHistory]);
+
+  // The reload signal, and with it a returning connection, reads the history again
+  // (plan-docker_management_app-inline_error_panels/REQ-12).
+  useEffect(() => subscribeToReload(readHistory), [readHistory]);
 
   const patchEntry = useCallback((id: string, patch: Partial<ConsoleRunEntry>) => {
     setEntries((current) => current.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry)));

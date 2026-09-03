@@ -16,6 +16,9 @@ export interface CliAvailability {
   buildx: CliToolStatus;
 }
 
+/** Which side of the connection cannot be reached (…-inline_error_panels/REQ-9). */
+export type UnreachableSide = 'server' | 'daemon';
+
 export interface ConnectionStatus {
   daemon: { reachable: boolean; cause?: string };
   apiVersion?: string;
@@ -26,6 +29,8 @@ export interface ConnectionStatus {
 
 interface ConnectionStatusContextValue extends ConnectionStatus {
   loading: boolean;
+  /** Set only while something is unreachable, naming which of the two it is. */
+  unreachable?: UnreachableSide;
   retry: () => void;
 }
 
@@ -45,10 +50,8 @@ const initialStatus: ConnectionStatus = {
 const CHANNEL_DOWN = { reachable: false, cause: 'Could not reach the application server.' };
 
 /**
- * Exposes daemon reachability (with cause), the negotiated Engine API version
- * and CLI availability app-wide, read from the live channel: no clock and no
- * request of its own (REQ-9, REQ-10, REQ-13, REQ-110, …-multiplexed_sse/REQ-17,
- * /REQ-19, /REQ-39).
+ * Daemon reachability, negotiated Engine API version and CLI availability app-wide, read from the
+ * live channel with no clock and no request of its own (REQ-9, REQ-10, REQ-13, REQ-110).
  */
 export function ConnectionStatusProvider({ children }: { children?: ReactNode }) {
   const status = usePushedValue<ConnectionStatus>(CONNECTION_STATUS);
@@ -59,13 +62,14 @@ export function ConnectionStatusProvider({ children }: { children?: ReactNode })
     if (!isChannelDelivering()) reconnectLiveChannel();
   }, []);
 
-  // A channel that is not delivering is told through the indication this service already
-  // exposes — no element and no wording of its own (REQ-11, REQ-35).
-  const value = useMemo(() => {
+  // The two are told apart: a channel that is not delivering is the application server,
+  // a delivered status without the daemon is the daemon (…-inline_error_panels/REQ-9).
+  const value = useMemo<ConnectionStatusContextValue>(() => {
     const held = status ?? initialStatus;
     return {
       ...held,
       daemon: delivering ? held.daemon : CHANNEL_DOWN,
+      unreachable: !delivering ? 'server' : held.daemon.reachable ? undefined : 'daemon',
       loading: status === undefined,
       retry,
     };
