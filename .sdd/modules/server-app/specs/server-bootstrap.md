@@ -32,7 +32,10 @@ type: configuration
   - no built interface present → the server starts anyway and serves its whole API, with the reason
     and the remedy reported once.
 - Handles the HTTP `upgrade` hook on the `http.Server` itself, outside the middleware chain, so the
-  interactive container sessions are unaffected by anything mounted on the app.
+  interactive container sessions and the per-container stats gate are unaffected by anything mounted
+  on the app. Each handler in turn is offered the request and may claim it; an upgrade neither of
+  them claims has its socket destroyed, so no other address on the server is reachable that way
+  (`plan-docker_management_app-containers_card_view-stats_gate_websocket/REQ-5`).
 - Resolves and sets the active Docker endpoint (`publishActiveEndpoint()`) **and waits for it before
   it listens**, so every area talks to the daemon of the active Docker context rather than to the
   platform-default socket, and no request is ever served while that resolution is still pending

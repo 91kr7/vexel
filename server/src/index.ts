@@ -16,6 +16,7 @@ import { consoleRouter } from "./console/console-routes.js";
 import { contextsRouter } from "./contexts/contexts-routes.js";
 import { publishActiveEndpoint } from "./contexts/contexts-service.js";
 import { handleContainerSessionUpgrade } from "./containers/container-sessions-routes.js";
+import { handleStatsSubscriptionUpgrade } from "./containers/container-stats-subscription-routes.js";
 import { containersRouter } from "./containers/containers-routes.js";
 import { eventStreamService } from "./events/event-stream-service.js";
 import { hostPathsRouter } from "./host-fs/host-path-routes.js";
@@ -124,6 +125,7 @@ const server = app.listen(port, () => {
 });
 
 server.on("upgrade", (request, socket, head) => {
-  const handled = handleContainerSessionUpgrade(request, socket, head);
+  const handled =
+    handleContainerSessionUpgrade(request, socket, head) || handleStatsSubscriptionUpgrade(request, socket, head);
   if (!handled) socket.destroy();
 });

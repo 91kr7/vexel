@@ -110,9 +110,9 @@ and to run lifecycle operations, rename and prune on the daemon's behalf.
 - `renameContainer(id, name): Promise<void>` — `POST /containers/{id}/rename?name=...`.
 - `pruneStoppedContainers(): Promise<PruneResult>` — `POST /containers/prune`;
   `PruneResult`: `{ removedIds: string[], reclaimedBytes: number }`.
-- `STATS_SAMPLE_INTERVAL_MS: 10000` — the sampling interval, and the period the subscription
-  endpoint writes at. The declared figure, which the process's timing scale multiplies; the
-  staleness bound stays three of these intervals, so it follows the scale without a second decision.
+- `STATS_SAMPLE_INTERVAL_MS: 10000` — the sampling interval. The declared figure, which the
+  process's timing scale multiplies; the staleness bound stays three of these intervals, so it
+  follows the scale without a second decision.
 - `startStatsSampling(): void` — starts the CPU/memory sampler **and takes a sample immediately**,
   so a consumer that has just arrived waits for figures for the duration of one daemon call rather
   than for a whole interval; idempotent (a second call while it runs is a no-op).
