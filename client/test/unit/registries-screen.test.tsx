@@ -6,6 +6,7 @@ import type { RepositoryEntry, UseRegistryRepositoriesResult } from '../../src/d
 import type { UseRegistriesResult } from '../../src/data/use-registries';
 import { ReportingServices } from '../support/reporting-services';
 import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+import { errorPanels, failedReadPlaceholders, FAILED_READ_WORDING } from '../support/failed-read';
 
 // What a screen owes on a failure is the report itself; what becomes of it is the reporting
 // service's own contract (app-shell/specs/error-reporting-service.md).
@@ -399,16 +400,18 @@ describe('RegistriesScreen — the registries panel (registries/specs/registries
     expect(screen.getByText('No registries configured')).toBeInTheDocument();
   });
 
-  // "an error banner with retry when the inventory cannot be read"
-  it('shows an error banner with a retry when the inventory cannot be read', async () => {
-    const user = userEvent.setup();
+  // registries-screen.md — the inventory's failure is the live channel not delivering: the shared
+  // "could not be loaded" placeholder stands in the list's place, and nothing else is said
+  // (…-inline_error_panels/REQ-1, /REQ-2, /REQ-3, /REQ-13).
+  it('stands the shared placeholder in the list’s place, and says nothing else, when the inventory cannot be read', () => {
     registriesResult = { registries: [], loaded: true, error: 'docker is not available', refresh: refreshRegistries, logIn, logOut };
 
     renderScreen();
-    expect(screen.getByText('docker is not available')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /retry/i }));
 
-    expect(refreshRegistries).toHaveBeenCalled();
+    expect(failedReadPlaceholders().length, 'the placeholder does not stand in the list’s place').toBeGreaterThan(0);
+    expect(screen.queryByText('docker is not available'), 'the screen named the cause').not.toBeInTheDocument();
+    expect(errorPanels(), 'the screen drew a failure panel').toHaveLength(0);
+    expect(reportedText(), 'the lost connection was reported').toBe('');
   });
 
   // "the first registry read selects one on its own, so the browser always has a registry to work
@@ -614,10 +617,10 @@ describe('RegistriesScreen — the repositories browser (registries/specs/regist
     expect(screen.getByLabelText('Search repositories')).toHaveValue('');
   });
 
-  // "An error banner with retry when the registry could not be browsed — including when it refuses
-  // an anonymous client, which says so in the message."
-  it('shows an error banner with retry when the registry refuses an anonymous client', async () => {
-    const user = userEvent.setup();
+  // registries-screen.md — a browse that failed is reported as a toast and drawn nowhere: the
+  // shared placeholder stands in the repositories' place (…-inline_error_panels/REQ-1, /REQ-3,
+  // /REQ-5).
+  it('reports a refused browse and draws the shared placeholder in the repositories’ place', () => {
     registriesResult.registries = [registry({ host: 'registry.internal:5000', official: false })];
     repositoriesResult = {
       entries: [],
@@ -628,10 +631,10 @@ describe('RegistriesScreen — the repositories browser (registries/specs/regist
     };
 
     renderScreen();
-    expect(screen.getByText(/requires credentials this application does not hold/)).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /retry/i }));
 
-    expect(refreshRepositories).toHaveBeenCalled();
+    expect(reportedText(), 'the refused browse was not reported').toMatch(/requires credentials this application does not hold/);
+    expect(browserEmptyState().textContent).toBe(FAILED_READ_WORDING);
+    expect(errorPanels(), 'the screen drew a failure panel').toHaveLength(0);
   });
 
   // registries-screen.md — "the search is the screen's one toolbar", and screen-toolbar.md — a

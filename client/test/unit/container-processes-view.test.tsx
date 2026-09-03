@@ -5,6 +5,12 @@ import { LOAD_ATTENTION_PERCENT } from '../../src/ui';
 import { ContainerProcessesView } from '../../src/containers/ContainerProcessesView';
 import type { ContainerSummary } from '../../src/data/containers-client';
 import type { ContainerProcessList } from '../../src/data/container-stats-client';
+import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+import { errorPanels, failedReadPlaceholders } from '../support/failed-read';
+
+// What a view owes on a failure is the report itself; what becomes of it is the reporting
+// service's own contract (app-shell/specs/error-reporting-service.md).
+vi.mock('../../src/shell/services/ErrorReportingService', () => import('../support/error-reporting-mock'));
 
 const container: ContainerSummary = {
   id: 'container-1',
@@ -50,6 +56,7 @@ function releasePending() {
 }
 
 beforeEach(() => {
+  forgetReportedFailures();
   nextResult = { ok: true, status: 200, body: threeProcesses };
   pending = [];
   holdResponses = false;
@@ -317,19 +324,33 @@ describe('ContainerProcessesView (REQ-33)', () => {
     expect(screen.getAllByRole('button').map((control) => control.textContent)).toEqual(['Refresh']);
   });
 
-  // container-processes-view.md — a failure is shown verbatim, instead of the table, with a retry that re-reads
-  it('shows the failure verbatim instead of the table and re-reads on retry', async () => {
+  // container-processes-view.md — a failed listing is reported as one toast, and the shared
+  // placeholder stands in the table's place with no cause and no control
+  // (…-inline_error_panels/REQ-1, /REQ-3, /REQ-4, /REQ-5)
+  it('reports a failed listing and stands the shared placeholder in the table’s place', async () => {
+    nextResult = { ok: false, status: 409, body: { error: 'Container container-1 is not running' } };
+    render(<ContainerProcessesView container={container} />);
+
+    await waitFor(() => expect(reportedText(), 'the failed listing was not reported').toMatch('Container container-1 is not running'));
+    expect(screen.queryByText('Container container-1 is not running'), 'the view named the cause').not.toBeInTheDocument();
+    expect(errorPanels(), 'the view drew a failure panel').toHaveLength(0);
+    expect(failedReadPlaceholders(), 'nothing stands in the table’s place').toHaveLength(1);
+    expect(screen.queryByText('postgres: walwriter')).not.toBeInTheDocument();
+  });
+
+  // The screen's own refresh is what asks again: no control was added in the panel's place (…/REQ-4)
+  it('re-reads through the refresh it already had, and offers no retry of its own', async () => {
     const user = userEvent.setup();
     nextResult = { ok: false, status: 409, body: { error: 'Container container-1 is not running' } };
     render(<ContainerProcessesView container={container} />);
 
-    expect(await screen.findByText('Container container-1 is not running')).toBeInTheDocument();
-    expect(screen.queryByText('postgres: walwriter')).not.toBeInTheDocument();
+    await waitFor(() => expect(failedReadPlaceholders()).toHaveLength(1));
+    expect(screen.getAllByRole('button').map((control) => control.textContent)).toEqual(['Refresh']);
 
     nextResult = { ok: true, status: 200, body: threeProcesses };
-    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    await user.click(screen.getByRole('button', { name: 'Refresh' }));
 
     expect(await screen.findByText('postgres: walwriter')).toBeInTheDocument();
-    expect(screen.queryByText('Container container-1 is not running')).not.toBeInTheDocument();
+    expect(failedReadPlaceholders(), 'the placeholder outlived the read that succeeded').toHaveLength(0);
   });
 });

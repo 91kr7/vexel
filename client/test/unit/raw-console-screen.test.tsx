@@ -6,6 +6,7 @@ import type { ContextSummary } from '../../src/data/contexts-client';
 import { ConfirmationProvider } from '../../src/shell/services/ConfirmationService';
 import { ReportingServices } from '../support/reporting-services';
 import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+import { errorPanels } from '../support/failed-read';
 
 // What a screen owes on a failure is the report itself; what becomes of it is the reporting
 // service's own contract (app-shell/specs/error-reporting-service.md).
@@ -387,12 +388,16 @@ describe('RawConsoleScreen — the history read (REQ-114)', () => {
     expect(commands).toEqual(['docker version', 'docker info']);
   });
 
-  it('reports a failed history read without emptying the transcript', () => {
+  // raw-console-screen.md — a failed history read "is reported as one toast, drawing nothing on the
+  // screen and emptying nothing already shown" (…-inline_error_panels/REQ-1, /REQ-3, /REQ-5)
+  it('reports a failed history read as a failure, drawing none of it and emptying nothing', () => {
     consoleState.entries = [sessionEntry({ command: 'docker version' })];
     consoleState.error = 'history unreachable';
     renderScreen();
 
-    expect(screen.getByText(/history unreachable/)).toBeInTheDocument();
+    expect(reportedText(), 'the failed history read was not reported').toMatch(/history unreachable/);
+    expect(screen.queryByText(/history unreachable/), 'the screen stated the failure itself').not.toBeInTheDocument();
+    expect(errorPanels(), 'the screen drew a failure panel').toHaveLength(0);
     expect(document.querySelector('.ui-console-surface__command')).toHaveTextContent('docker version');
   });
 

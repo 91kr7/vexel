@@ -7,6 +7,7 @@ import { ConfirmationProvider } from '../../src/shell/services/ConfirmationServi
 import { ProgressProvider } from '../../src/shell/services/ProgressService';
 import { ReportingServices } from '../support/reporting-services';
 import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+import { errorPanels, failedReadPlaceholders } from '../support/failed-read';
 
 // What a screen owes on a failure is the report itself; what becomes of it is the reporting
 // service's own contract (app-shell/specs/error-reporting-service.md).
@@ -1590,5 +1591,42 @@ describe('ContainersScreen — the list is a stack of cards (REQ-1)', () => {
 
     const names = cards().map((card) => card.querySelector('.ui-section-header__title')?.textContent ?? '');
     expect(names).toEqual(['zulu', 'alpha']);
+  });
+});
+
+// containers-screen.md — the listing's failure state is raised only while the live channel is not
+// delivering: nothing is reported, nothing is drawn, and the shared "could not be loaded"
+// placeholder stands in the list's place
+// (…-inline_error_panels/REQ-1, /REQ-2, /REQ-3, /REQ-4, /REQ-13)
+describe('ContainersScreen — the listing that could not be read', () => {
+  it('stands the shared placeholder in the list’s place, naming no cause and offering no control', () => {
+    render(
+      <ReportingServices>
+        <ProgressProvider>
+          <ConfirmationProvider>
+            <ContainersScreen containers={[]} loaded error="the live channel is not delivering" onRefresh={vi.fn()} />
+          </ConfirmationProvider>
+        </ProgressProvider>
+      </ReportingServices>,
+    );
+
+    expect(failedReadPlaceholders(), 'nothing stands in the list’s place').toHaveLength(1);
+    expect(screen.queryByText('the live channel is not delivering'), 'the screen named the cause').not.toBeInTheDocument();
+    expect(errorPanels(), 'the screen drew a failure panel').toHaveLength(0);
+    expect(failedReadPlaceholders()[0].querySelector('button'), 'the placeholder carried a control').toBeNull();
+  });
+
+  it('raises no report for a listing the live channel is not delivering', () => {
+    render(
+      <ReportingServices>
+        <ProgressProvider>
+          <ConfirmationProvider>
+            <ContainersScreen containers={[]} loaded error="the live channel is not delivering" onRefresh={vi.fn()} />
+          </ConfirmationProvider>
+        </ProgressProvider>
+      </ReportingServices>,
+    );
+
+    expect(reportedText(), 'the lost connection was reported').toBe('');
   });
 });

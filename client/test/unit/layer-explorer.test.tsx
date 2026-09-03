@@ -9,6 +9,7 @@ import type { LayerBuildCacheLink, LayerMetadata } from '../../src/data/image-la
 // cross-navigation provider.
 import { CrossNavigationProvider, useCrossNavigation, type CrossNavigationRequest } from '../../src/shell/services/CrossNavigationService';
 import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+import { errorPanels } from '../support/failed-read';
 
 // What a screen owes on a failure is the report itself; what becomes of it is the reporting
 // service's own contract (app-shell/specs/error-reporting-service.md).
@@ -448,13 +449,16 @@ describe('LayerExplorer — build step & build cache (plan-docker_management_app
     expect(lastNavigationRequest).toBeUndefined();
   });
 
-  // layer-explorer.md — "a failed read: an ErrorBanner with retry, leaving the rest of the explorer
-  // usable."
-  it('reports a failed association read with a retry, leaving the layer stack usable', async () => {
+  // layer-explorer.md — a failed association read "draws nothing here and leaves the rest of the
+  // explorer usable", the failure itself going to a toast
+  // (…-inline_error_panels/REQ-1, /REQ-5)
+  it('reports a failed association read, drawing none of it and leaving the layer stack usable', async () => {
     cacheTraceFailure = 'buildx du: failed to connect to the builder';
     await renderExplorer();
 
-    await waitFor(() => expect(screen.getByText(/failed to connect to the builder/)).toBeInTheDocument());
+    await waitFor(() => expect(reportedText(), 'the failed association read was not reported').toMatch(/failed to connect to the builder/));
+    expect(screen.queryByText(/failed to connect to the builder/), 'the explorer stated the failure itself').not.toBeInTheDocument();
+    expect(errorPanels(), 'the explorer drew a failure panel').toHaveLength(0);
     expect(outerLayerRows()).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Analyze changesets…' })).toBeInTheDocument();
   });

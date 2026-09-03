@@ -7,6 +7,7 @@ import { ConfirmationProvider } from '../../src/shell/services/ConfirmationServi
 import { ProgressProvider } from '../../src/shell/services/ProgressService';
 import { ReportingServices } from '../support/reporting-services';
 import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+import { errorPanels, failedReadPlaceholders } from '../support/failed-read';
 
 // What a screen owes on a failure is the report itself; what becomes of it is the reporting
 // service's own contract (app-shell/specs/error-reporting-service.md).
@@ -520,5 +521,49 @@ describe('VolumesPanel — prune (plan-docker_management_app/REQ-71)', () => {
 
     expect(fetchMock).not.toHaveBeenCalledWith('/api/volumes/prune', expect.anything());
     expect(onRefresh).not.toHaveBeenCalled();
+  });
+});
+
+// volumes-panel.md — the two failures the panel handles, and neither is drawn as a panel
+// (…-inline_error_panels/REQ-1, /REQ-2, /REQ-3, /REQ-4, /REQ-13)
+describe('VolumesPanel — the reads that failed', () => {
+  // The listing's failure state is raised only while the live channel is not delivering.
+  it('stands the shared placeholder in the list’s place and reports nothing when the listing could not be read', () => {
+    render(
+      <ReportingServices>
+        <ProgressProvider>
+          <ConfirmationProvider>
+            <VolumesPanel volumes={[]} loaded error="the live channel is not delivering" onRefresh={vi.fn()} />
+          </ConfirmationProvider>
+        </ProgressProvider>
+      </ReportingServices>,
+    );
+
+    expect(failedReadPlaceholders(), 'nothing stands in the list’s place').toHaveLength(1);
+    expect(screen.queryByText('the live channel is not delivering'), 'the panel named the cause').not.toBeInTheDocument();
+    expect(errorPanels(), 'the panel drew a failure panel').toHaveLength(0);
+    expect(reportedText(), 'the lost connection was reported').toBe('');
+  });
+
+  // A failed inspect read is not the channel's: it is reported, and the placeholder stands in the
+  // detail's place.
+  it('reports a failed inspect read and stands the shared placeholder in the detail’s place', async () => {
+    const user = userEvent.setup();
+    const volume = makeVolume({ name: 'pgdata' });
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(
+        String(url).includes('/inspect')
+          ? { ok: false, status: 404, json: () => Promise.resolve({ error: 'no such volume: pgdata' }) }
+          : { ok: true, status: 204, json: () => Promise.resolve({}) },
+      ),
+    );
+    renderPanel([volume]);
+
+    await user.click(listRows()[0]!);
+
+    await waitFor(() => expect(reportedText(), 'the failed inspect read was not reported').toMatch('no such volume: pgdata'));
+    expect(screen.queryByText(/no such volume/), 'the panel named the cause').not.toBeInTheDocument();
+    expect(errorPanels(), 'the panel drew a failure panel').toHaveLength(0);
+    expect(failedReadPlaceholders(detailPanels()[0]!), 'nothing stands in the detail’s place').toHaveLength(1);
   });
 });

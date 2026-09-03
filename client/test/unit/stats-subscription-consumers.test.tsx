@@ -79,9 +79,11 @@ function renderContainersScreen() {
 
 function renderDashboardScreen() {
   return render(
-    <CrossNavigationProvider>
-      <DashboardScreen containers={[container()]} containersLoaded onRefreshContainers={vi.fn()} />
-    </CrossNavigationProvider>,
+    <ReportingServices>
+      <CrossNavigationProvider>
+        <DashboardScreen containers={[container()]} containersLoaded />
+      </CrossNavigationProvider>
+    </ReportingServices>,
   );
 }
 

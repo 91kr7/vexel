@@ -5,6 +5,7 @@ import type { DiskUsageBreakdown, DiskUsageCategory, DiskUsageCategoryId, PruneR
 import type { DaemonInfo } from '../../src/data/contexts-client';
 import { ReportingServices } from '../support/reporting-services';
 import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+import { errorPanels, failedReadPlaceholders } from '../support/failed-read';
 
 // What a screen owes on a failure is the report itself; what becomes of it is the reporting
 // service's own contract (app-shell/specs/error-reporting-service.md).
@@ -210,17 +211,20 @@ describe('SystemScreen — the breakdown it shows (plan-docker_management_app/RE
     expect(screen.getByRole('button', { name: 'System prune…' })).toBeDisabled();
   });
 
-  // system-screen.md — "When the reading fails: the failure with a retry; the rest of the screen
-  // stays usable."
-  it('reports a failed reading with a retry', async () => {
-    const user = userEvent.setup();
+  // system-screen.md — a failed disk-usage reading is reported as one toast, and the shared
+  // "could not be loaded" placeholder stands in the card's place, with no cause and no control
+  // (…-inline_error_panels/REQ-1, /REQ-3, /REQ-4, /REQ-5).
+  it('reports a failed reading and stands the shared placeholder in its place', () => {
     diskUsageState = { loaded: true, error: 'daemon unreachable' };
     renderScreen();
 
-    expect(screen.getByText('daemon unreachable')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: /retry/i }));
-
-    expect(refresh).toHaveBeenCalled();
+    expect(reportedText(), 'the failed reading was not reported').toMatch(/daemon unreachable/);
+    expect(screen.queryByText('daemon unreachable'), 'the screen named the cause').not.toBeInTheDocument();
+    expect(errorPanels(), 'the screen drew a failure panel').toHaveLength(0);
+    expect(failedReadPlaceholders().length, 'nothing stands in the reading’s place').toBeGreaterThan(0);
+    for (const placeholder of failedReadPlaceholders()) {
+      expect(placeholder.querySelector('button'), 'the placeholder carried a control').toBeNull();
+    }
   });
 
   // system-screen.md — "A standing warning under the rows: destructive actions are always confirmed

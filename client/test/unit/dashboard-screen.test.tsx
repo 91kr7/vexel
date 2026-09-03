@@ -4,6 +4,12 @@ import userEvent from '@testing-library/user-event';
 import type { ContainerSummary, ContainerState } from '../../src/data/containers-client';
 import type { DaemonEvent } from '../../src/data/live-channel';
 import type { SystemOverview } from '../../src/data/system-client';
+import { forgetReportedFailures, reportedText } from '../support/error-reporting-mock';
+import { errorPanels, failedReadPlaceholders } from '../support/failed-read';
+
+// What a screen owes on a failure is the report itself; what becomes of it is the reporting
+// service's own contract (app-shell/specs/error-reporting-service.md).
+vi.mock('../../src/shell/services/ErrorReportingService', () => import('../support/error-reporting-mock'));
 
 // The Dashboard composes the operator's reading of the host out of two live
 // sources it does not own (dashboard-screen.md): the server-side overview and
@@ -11,7 +17,6 @@ import type { SystemOverview } from '../../src/data/system-client';
 // stream are mocked; the cross-navigation service is the real one, since where
 // a tile leads is part of the contract under test (REQ-18).
 const refreshOverview = vi.fn();
-const refreshContainers = vi.fn();
 let overviewState: { overview?: SystemOverview; loaded: boolean; error?: string } = { loaded: true };
 let daemonEvents: DaemonEvent[] = [];
 
@@ -80,7 +85,6 @@ function renderScreen(
         containers={props.containers ?? []}
         containersLoaded={props.containersLoaded ?? true}
         containersError={props.containersError}
-        onRefreshContainers={refreshContainers}
       />
       <NavigationProbe />
     </CrossNavigationProvider>,
@@ -167,17 +171,9 @@ function panelDescription(title: string): string {
   return header.querySelector('.ui-section-header__description')?.textContent ?? '';
 }
 
-function banner(title: string): HTMLElement {
-  const found = Array.from(document.querySelectorAll<HTMLElement>('.ui-error-banner')).find(
-    (candidate) => candidate.querySelector('.ui-error-banner__title')?.textContent === title,
-  );
-  if (!found) throw new Error(`no error banner titled ${title}`);
-  return found;
-}
-
 beforeEach(() => {
+  forgetReportedFailures();
   refreshOverview.mockReset();
-  refreshContainers.mockReset();
   overviewState = { overview: overviewWith(), loaded: true };
   daemonEvents = [];
 });
@@ -495,28 +491,32 @@ describe('DashboardScreen — where a tile or a row leads (plan-docker_managemen
 });
 
 describe('DashboardScreen — the readings that failed', () => {
-  // dashboard-screen.md — "a failed overview reading, and a failed container reading, each show
-  // their own error banner with the message verbatim and a retry"
-  it('reports a failed overview reading verbatim and retries it on demand', async () => {
-    const user = userEvent.setup();
+  // dashboard-screen.md — "a failed overview reading is reported as one toast through
+  // useFailureReport", and the shared placeholder stands in the disk-usage breakdown's place
+  // (…-inline_error_panels/REQ-1, /REQ-3, /REQ-4, /REQ-5)
+  it('reports a failed overview reading and stands the shared placeholder in the breakdown’s place', () => {
     overviewState = { loaded: true, error: 'daemon unreachable: connection refused' };
 
     renderScreen();
 
-    const failed = banner('Could not read the daemon overview');
-    expect(within(failed).getByText('daemon unreachable: connection refused')).toBeInTheDocument();
-    await user.click(within(failed).getByRole('button', { name: 'Retry' }));
-    expect(refreshOverview).toHaveBeenCalledTimes(1);
+    expect(reportedText(), 'the failed overview reading was not reported').toMatch('daemon unreachable: connection refused');
+    expect(screen.queryByText('daemon unreachable: connection refused'), 'the screen named the cause').not.toBeInTheDocument();
+    expect(errorPanels(), 'the screen drew a failure panel').toHaveLength(0);
+    expect(failedReadPlaceholders().length, 'nothing stands in the breakdown’s place').toBeGreaterThan(0);
+    for (const placeholder of failedReadPlaceholders()) {
+      expect(placeholder.querySelector('button'), 'the placeholder carried a control').toBeNull();
+    }
   });
 
-  it('reports a failed container reading verbatim and retries it on demand', async () => {
-    const user = userEvent.setup();
-
+  // dashboard-screen.md — "a failed container listing is the live channel not delivering and raises
+  // nothing at all"; the activity list shows the shared placeholder
+  // (…-inline_error_panels/REQ-2, /REQ-3, /REQ-13)
+  it('says nothing of a failed container listing, and stands the shared placeholder in the activity list’s place', () => {
     renderScreen({ containersError: 'the container listing failed' });
 
-    const failed = banner('Could not read the container list');
-    expect(within(failed).getByText('the container listing failed')).toBeInTheDocument();
-    await user.click(within(failed).getByRole('button', { name: 'Retry' }));
-    expect(refreshContainers).toHaveBeenCalledTimes(1);
+    expect(reportedText(), 'the lost connection was reported').toBe('');
+    expect(screen.queryByText('the container listing failed'), 'the screen named the cause').not.toBeInTheDocument();
+    expect(errorPanels(), 'the screen drew a failure panel').toHaveLength(0);
+    expect(failedReadPlaceholders(), 'nothing stands in the activity list’s place').toHaveLength(1);
   });
 });
