@@ -60,7 +60,10 @@ Actions:
 - "Validate" (compose file view) → validates the selected project's file(s) on demand.
 - "Save" (compose file view, enabled only while the active file is dirty) → asks for confirmation,
   then writes the active file back to disk.
-- "Check again" (empty state) → re-reads the project list.
+- "Check again" (empty state) → asks the server to read the project list again, as the header's
+  refresh control does; the result arrives on the live channel
+  (…-multiplexed_sse/REQ-23, /REQ-33, /REQ-39). It is the only control on this screen that reaches
+  the listing, the list being pushed and never fetched.
 
 ## Rules and invariants
 
