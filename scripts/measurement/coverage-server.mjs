@@ -6,6 +6,9 @@ import { pathToFileURL } from "node:url";
 import { takeCoverage } from "node:v8";
 import { repositoryRoot } from "./report-store.mjs";
 
+const recording = process.env.NODE_V8_COVERAGE;
+const snapshotPeriodMs = 10_000;
+
 function build(command) {
   const env = { ...process.env };
   // Node forces its own coverage directory on every process it spawns, so the
@@ -13,6 +16,13 @@ function build(command) {
   if (env.NODE_V8_COVERAGE) env.NODE_V8_COVERAGE = join(env.NODE_V8_COVERAGE, "..", "build-tools");
   const status = spawnSync("npm", command, { cwd: repositoryRoot, stdio: "inherit", env }).status;
   if (status !== 0) process.exit(status ?? 1);
+}
+
+// Playwright stops its web server with a signal this process cannot catch, so
+// the recording may not depend on one. Each snapshot resets V8's counters and
+// holds what ran since the one before it, so every one of them is kept.
+function snapshot() {
+  if (recording) takeCoverage();
 }
 
 // Source maps are asked for on the command line, not in the two build
@@ -23,9 +33,12 @@ build(["run", "build", "-w", "server", "-s", "--", "--sourceMap"]);
 
 for (const signal of ["SIGTERM", "SIGINT"]) {
   process.on(signal, () => {
-    takeCoverage();
+    snapshot();
     process.exit(0);
   });
 }
+
+setInterval(snapshot, snapshotPeriodMs).unref();
+snapshot();
 
 await import(pathToFileURL(join(repositoryRoot, "server", "dist", "index.js")).href);

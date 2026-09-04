@@ -17,13 +17,21 @@ built application, started so that what it executed is on disk before the proces
   failing outcome if either fails — serving nothing.
 - It then runs the built server, exactly as `npm run serve` does: same process, same port, same
   environment.
-- On `SIGTERM` or `SIGINT` it writes what the process executed into the recording directory and
-  exits successfully.
+- While it serves, it writes a snapshot of what the process has executed into the recording
+  directory every ten seconds, and one before it starts serving.
+- On `SIGTERM` or `SIGINT` it writes a last snapshot and exits successfully.
 
 ## Rules and invariants
 
-- **The reason it exists** is that the product installs no stop-signal handler: the signal
-  Playwright sends its web server would end the process with nothing recorded.
+- **The reason it exists** is that the product installs no stop-signal handler: the process would
+  end with nothing recorded.
+- **The recording does not depend on the process being told to stop.** Playwright stops its web
+  server with a signal this process cannot catch — a handler alone recorded nothing at all on the
+  first real run — so what survives is what is already on disk. The signal handlers stay as the
+  clean path, and cost nothing when they never run.
+- **Every snapshot is kept.** Taking one resets V8's counters, so each file holds what ran since the
+  one before it and the whole picture is their sum, not the last of them. What a killed process
+  loses is at most what ran in its last ten seconds.
 - Source maps are asked for on the build command line, never through the build configurations:
   `client/vite.config.ts` may read no environment variable at all
   (plan-docker_management_app-timing_scale/REQ-13).
