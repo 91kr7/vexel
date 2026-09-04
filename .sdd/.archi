@@ -300,6 +300,31 @@ Run from the repository root (npm workspaces):
   accepted and deliberate: every e2e run pays a client build, in the suite's start-up rather than in
   the developer's habits. The development flow is consequently **not covered by any automated
   check** — it survives for manual work with hot reload, and its acceptance is a human one.
+- **The three measurements, one command each, and none of them is part of `lint` or `test`.** Each is
+  run by hand, prints a summary in the terminal and writes a report file under
+  `reports/<measurement>/` — git-ignored, one file per run named from its date and time, the ten most
+  recent kept, so two runs can be compared. None of them sets a threshold or blocks anything; the one
+  failure the set adds belongs to the coverage command alone. Their working directories
+  (`.coverage/`, `.mutation/`, `.quality/`) are git-ignored too, and nothing outlives a run: no
+  server, no watcher, no browser, and no container of a tool's own on the daemon.
+  - `npm run coverage` — the only command that runs all four suites at once: each records the lines
+    it executed and they are merged into one figure per workspace and per source file. It **fails**
+    when a suite it ran recorded nothing at all, instead of reporting a lower figure. Every suite
+    behaves exactly as it always does unless `VEXEL_COVERAGE_DIR` is set, which only this command
+    sets; the browser-driven half runs against a coverage entry of its own, the product handling no
+    stop signal and a server killed by one writing nothing.
+  - `npm run mutation [-- client|server]` — Stryker changes the unit trees on purpose, one change at
+    a time, and reports the changes no unit test failed on. It starts neither the daemon-backed nor
+    the browser-driven suite, so it is the one measurement that needs no Docker at all, and it is the
+    long one: the optional argument and each pass's memory of what it already found are what make it
+    workable, never a smaller scope.
+  - `npm run quality` — ESLint with `eslint-plugin-sonarjs` for the rules, the cognitive complexity
+    and the sizes, `jscpd` for the duplication, over `client/src` and `server/src` and nothing else.
+    Seconds, no test, no build, no daemon. **ESLint belongs to this command alone**: it is handed a
+    configuration under `scripts/measurement/` with config lookup switched off, so `npm run lint`
+    still lints the client with oxlint and reads none of it. What the report stays silent about is a
+    short list written from a first run made with no exclusion at all, each entry naming the rule of
+    this project it protects and appearing in every report with how many findings it removed.
 - Server production start (after build): `npm start -w server` (`node dist/index.js`) — the single
   process, serving API **and** client. `npm run serve` from the root is the same thing.
 
