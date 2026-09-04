@@ -31,6 +31,7 @@ means writing the analysis and the plan for it in the normal way — see
 | open-app-retries-for-a-whole-test-budget | client | medium | `openApp` retries for 30 s, the whole default budget of the 562 tests that call it, so its own failure message can never be printed | `entries/open-app-retries-for-a-whole-test-budget.md` |
 | builder-writes-mark-one-inventory-of-the-two-they-change | server | medium | Removing a builder, and pruning the cache, each mark one of the two inventories they change, so a screen reports figures the operator's own action has invalidated | `entries/builder-writes-mark-one-inventory-of-the-two-they-change.md` |
 | stats-gate-waits-no-longer-scale-with-the-sampling-interval | client | medium | A budget said to sit below one sampling interval sits above four on the suite's clock, so the check passes without proving promptness | `entries/stats-gate-waits-no-longer-scale-with-the-sampling-interval.md` |
+| client-unit-run-fails-against-a-server-on-port-3000 | client | medium | The client unit run exits 1 on 94 unhandled WebSocket errors, every test passing, whenever the application is listening on port 3000 | `entries/client-unit-run-fails-against-a-server-on-port-3000.md` |
 
 ## Provenance of the rows added after that study
 

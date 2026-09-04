@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
 import { E2E_DATA_DIR } from './e2e/support/fixtures';
 
@@ -27,6 +28,13 @@ const E2E_ORIGIN = `http://localhost:${E2E_PORT}`;
  * number from here.
  */
 const DEFAULT_TEST_BUDGET_MS = 30_000;
+
+/**
+ * Set by the coverage run alone (plan-test_coverage_code_quality/REQ-3, REQ-17):
+ * unset, the web server is started by the operator's own command with the
+ * environment it has always had.
+ */
+const coverageDirectory = process.env.VEXEL_COVERAGE_DIR;
 
 export default defineConfig({
   testDir: './e2e',
@@ -75,7 +83,9 @@ export default defineConfig({
     // here and nowhere else: Playwright starts the web server before any hook of
     // the suite, so a build placed in one would run against whatever
     // `client/dist` already held.
-    command: 'npm start -s',
+    // Under coverage the same two builds and the same one process, through an
+    // entry that writes what the server executed before the process is stopped.
+    command: coverageDirectory ? 'node scripts/measurement/coverage-server.mjs' : 'npm start -s',
     cwd: '..',
     // The server's own liveness address, on the suite's port: the entry document
     // is served by the same process, so one readiness probe covers both.
@@ -100,6 +110,7 @@ export default defineConfig({
       VEXEL_DOCKER_LOG: 'off',
       // The suite runs the product on a fifth of its own clock (plan-docker_management_app-timing_scale/REQ-18).
       VEXEL_TIMING_SCALE: '0.2',
+      ...(coverageDirectory ? { NODE_V8_COVERAGE: join(coverageDirectory, 'e2e-server') } : {}),
     },
   },
 });
